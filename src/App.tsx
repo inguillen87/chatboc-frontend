@@ -11,7 +11,6 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 // Páginas principales
 import Layout from "./components/layout/Layout";
 import NotFound from "./pages/NotFound";
-import ScrollMascotGuide from "@/components/guidance/ScrollMascotGuide";
 import routes from "./routesConfig";
 import AccessRoute from "@/components/access/AccessRoute";
 import SessionBootstrapGuard from "@/components/access/SessionBootstrapGuard";
@@ -467,7 +466,6 @@ function AppRoutes() {
           />
         </React.Suspense>
       )}
-      {!ocultarWidgetGlobalEnApp ? <ScrollMascotGuide /> : null}
     </TokenRedirectWrapper>
   );
 }

@@ -26,6 +26,7 @@ const renderLayout = (initialEntry: string) =>
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route element={<Layout />}>
+          <Route path="/" element={<div>landing outlet</div>} />
           <Route path="/perfil" element={<div>profile outlet</div>} />
           <Route path="/t/:tenant/reclamos" element={<div>tenant tickets outlet</div>} />
           <Route path="/e/:slug" element={<div>survey outlet</div>} />
@@ -144,6 +145,21 @@ describe('Layout ticket workspace shell', () => {
     expect(screen.getByText('survey outlet')).toBeInTheDocument();
     const main = screen.getByRole('main');
     expect(main).toHaveClass('max-w-[96rem]', 'px-4', 'md:px-8', 'xl:px-12');
+    expect(main).not.toHaveClass('max-w-7xl');
+    expect(main).not.toHaveClass('lg:px-16');
+  });
+
+  it('gives the public landing a full-width canvas and an accessible skip link', () => {
+    renderLayout('/');
+
+    expect(screen.getByText('landing outlet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Saltar al contenido' })).toHaveAttribute(
+      'href',
+      '#main-content',
+    );
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('w-full', 'flex-1', 'pt-20');
     expect(main).not.toHaveClass('max-w-7xl');
     expect(main).not.toHaveClass('lg:px-16');
   });

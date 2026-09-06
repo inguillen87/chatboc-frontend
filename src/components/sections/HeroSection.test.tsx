@@ -29,9 +29,12 @@ describe('HeroSection backend-driven conversation demo', () => {
     );
 
     expect(container.querySelector('.chatboc-phone-demo')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Solicitar demostración' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver recorrido' })).toBeInTheDocument();
+    expect(screen.getByText(/plataforma omnicanal para gobiernos y empresas/i)).toBeInTheDocument();
   });
 
-  it('renders backend-provided operational data with a visible attachment preview', () => {
+  it('renders backend-provided operational data in one compact conversation-to-CRM view', () => {
     const { container } = render(
       <MemoryRouter>
         <HeroSection
@@ -76,8 +79,10 @@ describe('HeroSection backend-driven conversation demo', () => {
     expect(screen.getByText('Categoria')).toBeTruthy();
     expect(screen.getByText('Alumbrado')).toBeTruthy();
     expect(screen.getByText('empresas')).toBeTruthy();
-    expect(screen.getByAltText('Foto')).toBeTruthy();
+    expect(screen.getByLabelText('Datos recibidos')).toHaveTextContent('Foto');
+    expect(screen.getByText('Resultado en CRM')).toBeTruthy();
     expect(container.querySelector('.chatboc-hero-attachment__media')).toBeNull();
+    expect(container.querySelector('.chatboc-phone-demo__metrics')).toBeNull();
 
     const tablist = screen.getByRole('tablist', { name: 'Ejemplos de conversaciones operativas' });
     const tabs = screen.getAllByRole('tab');

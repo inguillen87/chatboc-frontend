@@ -27,6 +27,7 @@ const Layout = () => {
   const isProfileWorkspace = normalizedPath === '/perfil';
   const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
   const isDemoExperience = normalizedPath === '/demo';
+  const isLandingExperience = normalizedPath === '/';
   const isFocusedPublicExperience = isDemoExperience || isPublicSurveyExperience;
   const isFooterlessWorkspace = isTicketWorkspace || isProfileWorkspace || isFocusedPublicExperience;
 
@@ -82,6 +83,12 @@ const Layout = () => {
       }
       data-workspace-shell={isTicketWorkspace ? 'tickets' : isProfileCrmWorkspace ? 'crm' : undefined}
     >
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-[10000] -translate-y-24 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+      >
+        Saltar al contenido
+      </a>
       {isViewportWorkspace ? (
         <style data-ticket-workspace-chrome>
           {'[data-workspace-shell] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
@@ -106,6 +113,8 @@ const Layout = () => {
                 ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 py-3 sm:py-5 md:px-8 xl:px-12'
               : isPublicSurveyExperience
                 ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 py-3 sm:py-5 md:px-8 xl:px-12'
+              : isLandingExperience
+                ? 'w-full flex-1 pt-20'
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >
