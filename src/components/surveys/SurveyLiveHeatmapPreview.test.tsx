@@ -94,7 +94,9 @@ describe('SurveyLiveHeatmapPreview', () => {
     const layout = screen.getByTestId('survey-live-heatmap-layout');
     expect(layout).toHaveClass(
       'p-0',
-      'sm:p-4',
+      'sm:px-3',
+      'sm:py-4',
+      'lg:px-4',
       'lg:py-5',
       'xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]',
     );

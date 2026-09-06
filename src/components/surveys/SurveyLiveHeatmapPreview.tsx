@@ -610,7 +610,7 @@ export function SurveyLiveHeatmapPreview({
       </header>
 
       <div
-        className="grid gap-4 p-0 sm:p-4 lg:py-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]"
+        className="grid gap-4 p-0 sm:px-3 sm:py-4 lg:px-4 lg:py-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(18rem,0.62fr)]"
         data-testid="survey-live-heatmap-layout"
       >
         <div className="min-w-0 overflow-hidden rounded-none border-y border-slate-800 bg-slate-900/45 sm:rounded-xl sm:border-x">

@@ -245,6 +245,17 @@ const prepareExecutiveDemo = async (
   return adminPreviewRequests;
 };
 
+const selectExecutiveJourneyView = async (
+  page: Page,
+  name: 'Reclamos' | 'Participación' | 'Territorio',
+) => {
+  const navigation = page.getByRole('navigation', { name: 'Vistas de la demo ejecutiva' });
+  const button = navigation.getByRole('button', { name, exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute('aria-current', 'page');
+  return button;
+};
+
 test.describe('government executive demo preview', () => {
   for (const viewport of VIEWPORTS) {
     test(`keeps provenance and landmarks explicit at ${viewport.name}`, async ({ page }) => {
@@ -257,18 +268,28 @@ test.describe('government executive demo preview', () => {
 
       const panel = page.getByRole('region', { name: 'Centro de comando ciudadano' });
       await expect(panel).toBeVisible();
-      await expect(panel.getByRole('note', { name: /advertencia sobre los datos/i })).toContainText(
+      const provenance = panel.getByRole('note', { name: /advertencia sobre los datos/i });
+      await expect(provenance).toContainText(
         'Escenario demostrativo · datos simulados',
       );
-      await expect(panel.getByText('No representa datos oficiales ni relevamiento municipal.')).toBeVisible();
+      const provenanceDetails = provenance.locator('details');
+      const provenanceSummary = provenance.locator('summary');
+      await expect(provenanceSummary).toBeVisible();
+      await expect(provenanceDetails).not.toHaveAttribute('open', '');
+      await expect(provenance.getByText('No representa datos oficiales ni relevamiento municipal.')).toBeHidden();
+      await provenanceSummary.click();
+      await expect(provenanceDetails).toHaveAttribute('open', '');
+      await expect(provenance.getByText('No representa datos oficiales ni relevamiento municipal.')).toBeVisible();
       await expect(panel.getByRole('heading', { level: 3, name: 'Canales y SLA del escenario' })).toBeVisible();
-      await expect(panel.locator('[data-demo-kpi-list]')).toHaveClass(/grid-cols-2/);
-      await expect(panel.locator('[data-demo-kpi-list]')).toHaveClass(/2xl:grid-cols-4/);
+      const scorecardList = panel.locator('[data-executive-overview-scorecards] ul');
+      await expect(scorecardList).toHaveClass(/sm:grid-cols-2/);
+      await expect(scorecardList).toHaveClass(/2xl:grid-cols-4/);
 
       await expect(page.locator('main')).toHaveCount(1);
       await expect(page.locator('main main')).toHaveCount(0);
       await expect(page.locator('h1')).toHaveCount(1);
-      await expect(panel.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Vistas de la demo ejecutiva' })).toBeVisible();
+      await expect(panel.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toHaveCount(0);
       await expect(panel.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toHaveCount(0);
       expect(adminPreviewRequests.length).toBeGreaterThan(0);
       expect(
@@ -277,18 +298,19 @@ test.describe('government executive demo preview', () => {
         ),
       ).toBe(true);
 
-      await panel.getByRole('button', { name: 'Reclamos', exact: true }).click();
+      await selectExecutiveJourneyView(page, 'Reclamos');
       await expect(panel.getByText('Casos simulados')).toBeVisible();
-      await expect(panel.getByText('Muestra visible: 1 de 184 casos del escenario.')).toBeVisible();
+      await expect(panel.getByText('1 de 184 casos informados por el contrato.')).toBeVisible();
 
-      await panel.getByRole('button', { name: 'Mapa operativo', exact: true }).click();
+      await selectExecutiveJourneyView(page, 'Territorio');
       await expect(panel.getByText('Una zona de muestra representa 18 de 184 reclamos del escenario.')).toBeVisible();
       await expect(panel.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
 
-      await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
+      await selectExecutiveJourneyView(page, 'Participación');
       await expect(panel.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
-      await expect(panel.getByText('Votación de prioridades barriales')).toBeVisible();
-      await expect(panel.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
+      const activeSurvey = panel.locator('[data-demo-executive-survey]');
+      await expect(activeSurvey.getByRole('heading', { level: 4, name: 'Votación de prioridades barriales' })).toBeVisible();
+      await expect(activeSurvey.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
 
       const axe = await new AxeBuilder({ page })
         .include('[data-demo-admin-preview]')
@@ -343,13 +365,13 @@ test.describe('government executive demo preview', () => {
     await page.getByRole('button', { name: /Iniciar demo pública/i }).click();
 
     const panel = page.getByRole('region', { name: 'Centro de comando ciudadano' });
-    await panel.getByRole('button', { name: 'Encuestas', exact: true }).click();
+    await selectExecutiveJourneyView(page, 'Participación');
     const composition = panel.getByRole('note', {
       name: 'Composición de respuestas de Votación de prioridades barriales',
     });
     await expect(composition).toContainText('100 base sintética + 2 participaciones demo = 102 total');
     await expect(composition).toContainText('0 respuestas ciudadanas verificadas');
-    await expect(panel.getByText('102 respuestas demo', { exact: true })).toBeVisible();
+    await expect(panel.locator('[data-demo-executive-survey]').getByText('102 respuestas demo', { exact: true })).toBeVisible();
     await expect(panel.getByText('102 respuestas sintéticas', { exact: true })).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
   });
@@ -373,9 +395,7 @@ test.describe('government executive demo preview', () => {
 
     const panel = page.getByRole('region', { name: 'Centro de comando ciudadano' });
     await expect(panel).toBeVisible();
-    const mapButton = panel.getByRole('button', { name: 'Mapa operativo', exact: true });
-    await mapButton.click();
-    await expect(mapButton).toHaveAttribute('aria-current', 'page');
+    const mapButton = await selectExecutiveJourneyView(page, 'Territorio');
     await expect(panel.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
 
     await sessionBoundPreview;
@@ -439,14 +459,17 @@ test.describe('government executive demo preview', () => {
 
     const panel = page.getByRole('region', { name: 'Centro de comando ciudadano' });
     const provenance = panel.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' });
-    await expect(provenance).toContainText('Actividad de esta sesión + encuesta demo separada');
-    await expect(provenance).toContainText('partición sintética separada');
-    await expect(panel.getByText('Fuentes separadas')).toBeVisible();
+    const provenanceSummary = provenance.locator('summary');
+    await expect(provenanceSummary).toContainText('Actividad de esta sesión + encuesta demo separada');
+    await expect(provenance.getByText(/partición sintética separada/i)).toBeHidden();
+    await provenanceSummary.click();
+    await expect(provenance.getByText(/partición sintética separada/i)).toBeVisible();
+    await expect(provenance.getByText('No representa datos oficiales ni relevamiento municipal.')).toBeVisible();
     await expect(panel.getByText('Sesión actual')).toBeVisible();
     await expect(panel.getByText('Demo sintética')).toBeVisible();
     await expect(panel.getByText('100 votos')).toBeVisible();
-    await expect(panel.locator('[data-demo-channel-summary]')).toContainText('Casos observados');
-    await expect(panel.locator('[data-demo-channel-summary]')).toContainText('1');
+    await expect(panel.getByText('Reclamos de esta sesión')).toBeVisible();
+    await expect(panel.getByText('1 caso', { exact: true })).toBeVisible();
 
     const axe = await new AxeBuilder({ page })
       .include('[data-demo-admin-preview]')
