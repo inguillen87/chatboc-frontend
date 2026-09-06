@@ -31,6 +31,7 @@ import type { Rubro } from "@/types/rubro";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import { buildExecutiveOverviewModel } from '@/features/demo/buildExecutiveOverviewModel';
+import { hasExecutiveDemoAdminPreviewContract } from '@/features/demo/demoExecutiveContract';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import ExecutiveDemoJourney, {
   type ExecutiveDemoJourneyTarget,
@@ -1616,22 +1617,70 @@ export const DemoAdminPreview = ({
   sector,
   rubro,
   preview,
+  requestedPresentationMode,
   runtimeEvents = [],
   activeTarget = 'summary',
   onActiveTargetChange,
   onOpenEventDetail,
+  onRetry,
   showNavigation = true,
 }: {
   sector: DemoSector | null;
   rubro?: string | null;
   preview?: DemoAdminPreviewResponse | null;
+  requestedPresentationMode?: string | null;
   runtimeEvents?: DemoRuntimeEvent[];
   activeTarget?: DemoAdminPanelTarget;
   onActiveTargetChange?: (target: DemoAdminPanelTarget) => void;
   onOpenEventDetail?: (event: DemoRuntimeEvent) => void;
+  onRetry?: () => void;
   showNavigation?: boolean;
 }) => {
   if (!preview) return null;
+
+  if (
+    requestedPresentationMode === 'executive' &&
+    !hasExecutiveDemoAdminPreviewContract(preview)
+  ) {
+    return (
+      <section
+        className="rounded-2xl border border-amber-500/30 bg-card p-5 shadow-sm"
+        role="status"
+        aria-live="polite"
+        aria-labelledby="demo-executive-contract-unavailable-title"
+        data-testid="demo-executive-contract-unavailable"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Vista ejecutiva
+            </p>
+            <h2
+              id="demo-executive-contract-unavailable-title"
+              className="mt-1 text-lg font-bold tracking-tight text-foreground"
+            >
+              Contrato ejecutivo no disponible
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+              No podemos mostrar métricas ni territorio hasta recibir el contrato completo del servicio.
+            </p>
+            {onRetry ? (
+              <button
+                type="button"
+                className="mt-4 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={onRetry}
+              >
+                Reintentar
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const Icon = getDemoPreviewIcon(sector);
   const labels = preview?.labels ?? {};
@@ -1880,6 +1929,12 @@ const Demo = () => {
     () => readDemoWorkspaceDemoSessionId(demoWorkspace),
     [demoWorkspace],
   );
+  const demoAdminPreviewPresentationMode = sectorSeleccionado === 'gobierno' ? 'executive' : null;
+  const demoAdminPreviewForContext =
+    demoAdminPreviewPresentationMode === 'executive' &&
+    !hasExecutiveDemoAdminPreviewContract(demoAdminPreview)
+      ? null
+      : demoAdminPreview;
 
 
   // Action: reset demo and choose another rubro
@@ -1937,15 +1992,20 @@ const Demo = () => {
         tenant_slug: demoPreviewTenantSlug,
         chat_session_id: demoPreviewChatSessionId,
         demo_session_id: demoPreviewDemoSessionId,
-        presentation_mode: sectorSeleccionado === 'gobierno' ? 'executive' : null,
+        presentation_mode: demoAdminPreviewPresentationMode,
       });
       setDemoAdminPreview(preview);
       return preview;
     } catch {
-      setDemoAdminPreview(null);
       return null;
     }
-  }, [demoPreviewChatSessionId, demoPreviewDemoSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
+  }, [
+    demoAdminPreviewPresentationMode,
+    demoPreviewChatSessionId,
+    demoPreviewDemoSessionId,
+    demoPreviewTenantSlug,
+    sectorSeleccionado,
+  ]);
 
   useEffect(() => {
     setDemoRuntimeEvents([]);
@@ -2081,7 +2141,7 @@ const Demo = () => {
       tenant_slug: demoPreviewTenantSlug,
       chat_session_id: demoPreviewChatSessionId,
       demo_session_id: demoPreviewDemoSessionId,
-      presentation_mode: sectorSeleccionado === 'gobierno' ? 'executive' : null,
+      presentation_mode: demoAdminPreviewPresentationMode,
     })
       .then((preview) => {
         if (active) setDemoAdminPreview(preview);
@@ -2093,7 +2153,14 @@ const Demo = () => {
     return () => {
       active = false;
     };
-  }, [demoPreviewChatSessionId, demoPreviewDemoSessionId, demoPreviewTenantSlug, demoSessionLoading, sectorSeleccionado]);
+  }, [
+    demoAdminPreviewPresentationMode,
+    demoPreviewChatSessionId,
+    demoPreviewDemoSessionId,
+    demoPreviewTenantSlug,
+    demoSessionLoading,
+    sectorSeleccionado,
+  ]);
 
   useEffect(() => {
     if (hydratedSessionRef.current) return;
@@ -2551,13 +2618,13 @@ const Demo = () => {
           activeTarget={demoJourneyTarget}
           onSelect={handleDemoJourneySelect}
           onChangeContext={handleChangeRubro}
-          scenarioContext={demoAdminPreview?.survey_voting?.items
+          scenarioContext={demoAdminPreviewForContext?.survey_voting?.items
             ?.flatMap((survey) => [survey.slug, survey.title, survey.titulo, survey.question])
             .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
             .join(' ')}
           scenarioScope={
-            demoAdminPreview?.data_provenance?.scenario_scope ??
-            demoAdminPreview?.data_provenance?.tenant_scope ??
+            demoAdminPreviewForContext?.data_provenance?.scenario_scope ??
+            demoAdminPreviewForContext?.data_provenance?.tenant_scope ??
             demoWorkspace?.label ??
             formatDemoPresentationLabel(demoPreviewTenantSlug)
           }
@@ -2640,10 +2707,12 @@ const Demo = () => {
                 sector={sectorSeleccionado}
                 rubro={rubroSeleccionado}
                 preview={demoAdminPreview}
+                requestedPresentationMode={demoAdminPreviewPresentationMode}
                 runtimeEvents={demoRuntimeEvents}
                 activeTarget={demoAdminPanelTarget}
                 onActiveTargetChange={handleDemoAdminPanelTargetChange}
                 onOpenEventDetail={handleOpenDemoDetail}
+                onRetry={() => void refreshDemoAdminPreview()}
                 showNavigation={false}
               />
             )}

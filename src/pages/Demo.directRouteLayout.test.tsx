@@ -62,11 +62,18 @@ const catalog = {
 
 const preview = {
   contract_version: 'demo.admin_preview.v1',
+  presentation_mode: 'executive',
   sector: 'gobierno',
   title: 'Panel demo para gestión ciudadana',
   subtitle: 'Gobierno local',
   description: 'Operación demostrativa trazable.',
   modules: [{ id: 'summary', label: 'Resumen' }],
+  data_provenance: {
+    contract_version: 'demo.executive_provenance.v1',
+    mode: 'synthetic_demo_scenario',
+  },
+  metrics: [{ id: 'cases', label: 'Casos', value: 1 }],
+  map: { enabled: false, points: [] },
 };
 
 describe('Demo direct-route layout stability', () => {

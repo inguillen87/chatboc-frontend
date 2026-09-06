@@ -183,7 +183,14 @@ const executivePreview: DemoAdminPreviewResponse = {
 
 describe('DemoAdminPreview executive snapshot', () => {
   it('renders an explicit synthetic provenance notice and one responsive KPI grid', () => {
-    render(<DemoAdminPreview sector="gobierno" rubro="Municipio" preview={executivePreview} />);
+    render(
+      <DemoAdminPreview
+        sector="gobierno"
+        rubro="Municipio"
+        preview={executivePreview}
+        requestedPresentationMode="executive"
+      />,
+    );
 
     expect(screen.getByRole('note', { name: /advertencia sobre los datos/i })).toHaveTextContent(
       'Escenario demostrativo · datos simulados',
@@ -213,6 +220,53 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByText('298', { exact: true })).toBeVisible();
     expect(screen.getByRole('meter', { name: 'WhatsApp: 298, 70 %' })).toHaveAttribute('aria-valuenow', '70');
     expect(screen.getByRole('heading', { level: 3, name: 'Circuito operativo visible' })).toBeVisible();
+  });
+
+  it('blocks legacy metrics and maps when the requested executive contract is unavailable', () => {
+    const onRetry = vi.fn();
+    render(
+      <DemoAdminPreview
+        sector="gobierno"
+        requestedPresentationMode="executive"
+        preview={{
+          contract_version: 'demo.admin_preview.v1',
+          title: 'Panel legacy',
+          cards: [{ id: 'legacy-kpi', label: 'Métrica legacy', value: 999 }],
+          map: {
+            enabled: true,
+            points: [{ id: 'legacy-map', label: 'Punto legacy', lat: -33.1, lng: -68.4 }],
+          },
+        }}
+        activeTarget="map"
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Contrato ejecutivo no disponible' })).toBeVisible();
+    expect(screen.getByText(/No podemos mostrar métricas ni territorio/i)).toBeVisible();
+    expect(screen.queryByText('Métrica legacy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Punto legacy')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('maplibre-preview')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps legacy compatibility when executive presentation was not requested', () => {
+    render(
+      <DemoAdminPreview
+        sector="empresas"
+        preview={{
+          contract_version: 'demo.admin_preview.v1',
+          title: 'Panel operativo',
+          cards: [{ id: 'legacy-kpi', label: 'Operaciones', value: 12 }],
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId('demo-executive-contract-unavailable')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Panel operativo' })).toBeVisible();
+    expect(screen.getByText('12')).toBeVisible();
   });
 
   it('shows synthetic cases as a fallback and never labels them as real session events', () => {
