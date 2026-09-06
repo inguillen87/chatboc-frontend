@@ -204,12 +204,17 @@ export const parseTenantProvisioningReadiness = (
     return invalidContract();
   }
 
-  const checks = payload.checks;
-  const base = payload.evidence.base_configuration;
-  const branding = payload.evidence.branding;
-  const team = payload.evidence.operator_team;
-  const content = payload.evidence.service_content;
-  const channels = payload.evidence.channels;
+  // The structural checks above validate every nested field at runtime. Cast
+  // only after that boundary so the consistency checks below remain typed
+  // without weakening the untrusted API input to `any`.
+  const checks = payload.checks as unknown as TenantProvisioningReadiness['checks'];
+  const evidence = payload.evidence as unknown as TenantProvisioningReadiness['evidence'];
+  const base = evidence.base_configuration;
+  const branding = evidence.branding;
+  const team = evidence.operator_team;
+  const content = evidence.service_content;
+  const channels = evidence.channels;
+  const configuredKeys = payload.configured_keys as string[];
   const requiredChecksReady = [
     checks.base_configuration_valid,
     checks.branding_configuration_complete,
@@ -221,7 +226,7 @@ export const parseTenantProvisioningReadiness = (
 
   if (
     checks.base_configuration_valid !== (base.missing_keys.length === 0)
-    || !arraysEqual(payload.configured_keys, base.configured_keys)
+    || !arraysEqual(configuredKeys, base.configured_keys)
     || checks.branding_configuration_complete !== (
       branding.logo_configured && branding.palette_configured
     )
