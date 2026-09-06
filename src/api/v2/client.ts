@@ -13,6 +13,7 @@ export interface V2RequestOptions {
   isWidgetRequest?: boolean;
   legacyFallbackPath?: string;
   baseUrlOverride?: string | null;
+  allowSafeBaseFallback?: boolean;
 }
 
 const withTenantHeader = (headers: Record<string, string> | undefined, tenantSlug?: string | null) => {
@@ -29,7 +30,19 @@ const shouldRunLegacyFallback = (error: unknown) => {
 };
 
 const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promise<T> => {
-  const { method = 'GET', body, headers, cache, tenantSlug, skipAuth, omitCredentials, isWidgetRequest, legacyFallbackPath, baseUrlOverride } = options;
+  const {
+    method = 'GET',
+    body,
+    headers,
+    cache,
+    tenantSlug,
+    skipAuth,
+    omitCredentials,
+    isWidgetRequest,
+    legacyFallbackPath,
+    baseUrlOverride,
+    allowSafeBaseFallback,
+  } = options;
 
   const sharedOptions = {
     method,
@@ -42,6 +55,7 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     cache,
     omitTenant: !tenantSlug,
     baseUrlOverride,
+    allowSafeBaseFallback,
   };
 
   try {

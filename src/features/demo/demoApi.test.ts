@@ -125,6 +125,7 @@ describe('demo session API', () => {
     expect(demoGetMock).toHaveBeenCalledWith(
       '/api/v2/demo/admin-preview?sector=empresas&tenant_slug=ferreteria&chat_session_id=sid_demo_ferreteria',
       {
+        allowSafeBaseFallback: false,
         baseUrlOverride: '/api',
         headers: {
           'X-Demo-Session-Id': demoJwt,
@@ -758,7 +759,7 @@ describe('demo admin preview API', () => {
 
     expect(demoGetMock).toHaveBeenCalledWith(
       '/api/v2/demo/admin-preview?sector=gobierno&tenant_slug=municipio&chat_session_id=sid_demo_gobierno_123&presentation_mode=executive',
-      { baseUrlOverride: '/api' },
+      { allowSafeBaseFallback: false, baseUrlOverride: '/api' },
     );
   });
 });

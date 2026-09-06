@@ -54,4 +54,23 @@ describe('apiFetch safe gateway fallback', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves Retry-After from the final transient read response', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ reason_code: 'application_initializing' }), {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': '2',
+        },
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(apiFetch('/api/v2/demo/catalog', {
+      method: 'GET',
+      suppressInvalidJsonWarning: true,
+    })).rejects.toMatchObject({ status: 503, retryAfterMs: 2_000 });
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
 });

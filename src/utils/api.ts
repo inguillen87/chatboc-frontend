@@ -30,14 +30,22 @@ export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
   public readonly requestId?: string;
+  public readonly retryAfterMs?: number;
 
-  constructor(message: string, status: number, body: any = null, requestId?: string) {
+  constructor(
+    message: string,
+    status: number,
+    body: any = null,
+    requestId?: string,
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     Object.setPrototypeOf(this, ApiError.prototype);
     this.status = status;
     this.body = body;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -65,6 +73,20 @@ const resolveResponseRequestId = (response: Response, data: unknown): string | u
   }
 
   return undefined;
+};
+
+const resolveRetryAfterMs = (response: Response): number | undefined => {
+  const rawValue = response.headers.get("Retry-After")?.trim();
+  if (!rawValue) return undefined;
+
+  const seconds = Number(rawValue);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1_000);
+  }
+
+  const retryAt = Date.parse(rawValue);
+  if (!Number.isFinite(retryAt)) return undefined;
+  return Math.max(0, retryAt - Date.now());
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
@@ -1556,6 +1578,7 @@ export async function apiFetch<T>(
         response.status,
         data,
         responseRequestId,
+        resolveRetryAfterMs(response),
       );
     }
 

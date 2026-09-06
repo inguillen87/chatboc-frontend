@@ -2,7 +2,10 @@ import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 import { requestDemoCatalog } from '@/services/demoCatalogRequest';
 import { normalizeDemoResourceUrlsDeep } from '@/utils/demoResourceUrls';
-import { retryTransientRead } from '@/utils/retryTransientRead';
+import {
+  retryApplicationInitializingRequest,
+  retryTransientRead,
+} from '@/utils/retryTransientRead';
 import { persistDemoRuntimeStorage } from './demoStorage';
 import { normalizeRequestedDemoTenantSlug } from './demoTenantSelection';
 import type {
@@ -58,6 +61,7 @@ export const getDemoAdminPreview = async (params: {
   return retryTransientRead(() =>
     demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
       baseUrlOverride: '/api',
+      allowSafeBaseFallback: false,
       ...(demoSessionId
         ? {
             headers: {
@@ -91,9 +95,11 @@ export const createDemoSession = async (
     throw new Error('El tenant solicitado no coincide con el alcance esperado de la demo.');
   }
 
-  const response = await demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
-    baseUrlOverride: '/api',
-  });
+  const response = await retryApplicationInitializingRequest(() =>
+    demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
+      baseUrlOverride: '/api',
+    }),
+  );
   if (
     expectedTenantSlug &&
     !isRawDemoSessionBoundToExpectedTenant(response, expectedTenantSlug)
@@ -270,9 +276,11 @@ export const createDemoWhatsappSandbox = async (
   payload: DemoWhatsappSandboxPayload = {},
 ): Promise<DemoWhatsappSandboxResponse> => {
   return normalizeDemoWhatsappSandboxResponse(
-    await demoApi.post<DemoWhatsappSandboxResponse>('/api/v2/demo/whatsapp-sandbox', payload, {
-      baseUrlOverride: '/api',
-    }),
+    await retryApplicationInitializingRequest(() =>
+      demoApi.post<DemoWhatsappSandboxResponse>('/api/v2/demo/whatsapp-sandbox', payload, {
+        baseUrlOverride: '/api',
+      }),
+    ),
   );
 };
 

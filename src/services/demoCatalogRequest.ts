@@ -81,6 +81,8 @@ export const requestDemoCatalog = <T>(options: DemoCatalogRequestOptions = {}): 
 
   let request: Promise<T>;
   request = retryTransientRead(() => apiFetch<T>(path, {
+      baseUrlOverride: '/api',
+      allowSafeBaseFallback: false,
       cache: requestCacheMode,
       omitChatSessionId: true,
       omitCredentials: true,
