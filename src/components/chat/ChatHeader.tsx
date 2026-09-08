@@ -1,5 +1,11 @@
 import React from "react";
-import { MessageCircleMore } from "lucide-react";
+import { MessageCircleMore, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 import type { ChatWidgetUiHints } from "@/types/chat";
@@ -134,9 +140,7 @@ const ChatHeader: React.FC<Props> = ({
     const blocked = new Set(["widget", "voice", "chat", "canal"]);
     return blocked.has(normalized.toLowerCase()) ? null : normalized;
   })();
-  const showCartButton = Boolean(
-    onCart && !isUltraCompact && (!compactActions || Boolean(cartCount && cartCount > 0)),
-  );
+  const hasSecondaryActions = Boolean((onProfile && showProfile) || onCart || onToggleSound);
   const actionButtonClass = cn(
     "flex items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white/90 transition-colors hover:bg-white/18 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary",
     isUltraCompact ? "h-8 w-8 p-1.5" : "h-9 w-9 p-2",
@@ -146,7 +150,7 @@ const ChatHeader: React.FC<Props> = ({
     <div
       aria-busy={isTyping}
       className={`
-        relative flex items-center justify-between flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
+        relative flex items-center justify-between gap-2 flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
         border-b border-white/10 px-2.5 py-2.5 sm:px-4 sm:py-4
         text-white transition-all
       `}
@@ -156,9 +160,9 @@ const ChatHeader: React.FC<Props> = ({
         paddingTop: isUltraCompact ? "max(0.625rem, env(safe-area-inset-top))" : undefined,
       }}
     >
-      <div className="relative flex min-w-0 items-center gap-2.5 sm:gap-4">
+      <div className="relative flex min-w-0 flex-1 items-center gap-2.5">
         <div className={cn(
-          "relative flex items-center justify-center border border-white/25 bg-white/10 shadow-sm",
+          "relative flex shrink-0 items-center justify-center border border-white/25 bg-white/10 shadow-sm",
           isUltraCompact ? "h-9 w-9 rounded-lg" : "h-11 w-11 rounded-xl",
         )}>
           <div className="relative flex items-center justify-center">
@@ -175,7 +179,7 @@ const ChatHeader: React.FC<Props> = ({
         </div>
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-bold tracking-[0.01em] sm:text-base">
+            <span className="break-words text-sm font-bold leading-snug tracking-[0.01em] sm:text-base" title={title || 'Chatboc'}>
               {title || 'Chatboc'}
             </span>
           </div>
@@ -200,7 +204,7 @@ const ChatHeader: React.FC<Props> = ({
           ) : null}
         </div>
       </div>
-      <div className="relative flex shrink-0 items-center gap-1 sm:gap-2">
+      <div className="relative flex shrink-0 items-center gap-1">
         <AccessibilityToggle
           onChange={onA11yChange}
           compact={compactActions}
@@ -216,42 +220,44 @@ const ChatHeader: React.FC<Props> = ({
           >
             <IconButton.Back className="h-5 w-5" />
           </button>
-        ) : !compactActions && onProfile && showProfile ? (
-          <button
-            onClick={onProfile}
-            className={actionButtonClass}
-            aria-label="Mi perfil"
-            title="Mi perfil"
-          >
-            <IconButton.User className="h-5 w-5" />
-          </button>
         ) : null}
-        {showCartButton && (
-          <button
-            onClick={() => onCart()}
-            className={`relative ${actionButtonClass}`}
-            aria-label="Ver carrito"
-            title="Ver carrito"
-          >
-            <IconButton.Cart className="h-5 w-5" />
-            {cartCount && cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-tight flex items-center justify-center shadow-sm">
-                {cartCount > 99 ? '99+' : cartCount}
-              </span>
-            )}
-          </button>
-        )}
-        {!compactActions && onToggleSound && (
-          <button
-            onClick={onToggleSound}
-            className={actionButtonClass}
-            aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
-            aria-pressed={muted}
-            title={muted ? 'Activar sonido' : 'Silenciar sonido'}
-          >
-            {muted ? <IconButton.VolumeOff className="h-5 w-5" /> : <IconButton.VolumeOn className="h-5 w-5" />}
-          </button>
-        )}
+        {hasSecondaryActions ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={actionButtonClass}
+                aria-label="Opciones del chat"
+                title="Perfil, carrito y sonido"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[11000] min-w-52 max-w-[calc(100vw-24px)]">
+              {onProfile && showProfile ? (
+                <DropdownMenuItem onSelect={onProfile} className="min-h-11 gap-2">
+                  <IconButton.User className="h-4 w-4" /> Mi perfil
+                </DropdownMenuItem>
+              ) : null}
+              {onCart ? (
+                <DropdownMenuItem onSelect={() => onCart()} className="min-h-11 gap-2">
+                  <IconButton.Cart className="h-4 w-4" /> Ver carrito
+                  {typeof cartCount === 'number' && cartCount > 0 ? (
+                    <span className="ml-auto rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary" aria-label={`${cartCount} productos`}>
+                      {cartCount > 99 ? '99+' : cartCount}
+                    </span>
+                  ) : null}
+                </DropdownMenuItem>
+              ) : null}
+              {onToggleSound ? (
+                <DropdownMenuItem onSelect={onToggleSound} className="min-h-11 gap-2">
+                  {muted ? <IconButton.VolumeOff className="h-4 w-4" /> : <IconButton.VolumeOn className="h-4 w-4" />}
+                  {muted ? 'Activar sonido' : 'Silenciar sonido'}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
         <button
           onClick={onClose}
           className={actionButtonClass}
