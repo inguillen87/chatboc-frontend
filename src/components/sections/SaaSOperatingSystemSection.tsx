@@ -49,35 +49,98 @@ const JourneyFlowLoading = () => (
   </div>
 );
 
-const JourneyFlowStatic = () => (
-  <div
-    className="mt-9 overflow-hidden rounded-[16px] border border-border bg-card shadow-sm"
-    aria-label="Recorrido conectado"
-    role="region"
-  >
-    <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-      <div>
-        <p className="text-sm font-semibold text-foreground">Recorrido conectado</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Vista esencial disponible incluso cuando la conexión es inestable.
-        </p>
-      </div>
-      <span className="w-fit rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-        Continuidad operativa
-      </span>
-    </div>
+type JourneyFlowStaticReason = "offline" | "load-error";
 
-    <ol className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4" aria-label="Recorrido operativo esencial">
-      {journeyStages.map((stage) => (
-        <li key={stage.title} className="relative rounded-[12px] border border-border bg-background p-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-primary">{stage.eyebrow}</p>
-          <h3 className="mt-2 text-base font-semibold text-foreground">{stage.title}</h3>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.description}</p>
-        </li>
-      ))}
-    </ol>
-  </div>
-);
+const JourneyFlowStatic = ({ reason }: { reason: JourneyFlowStaticReason }) => {
+  const content = reason === "offline"
+    ? {
+        label: "Guía del recorrido sin conexión",
+        description: "Contenido informativo disponible sin conexión. Las acciones, integraciones y los datos en vivo requieren conectividad.",
+        badge: "Modo informativo sin conexión",
+      }
+    : {
+        label: "Vista interactiva no disponible",
+        description: "No se pudo cargar el diagrama interactivo. Mostramos una referencia informativa sin acciones ni datos en vivo.",
+        badge: "Modo informativo",
+      };
+
+  return (
+    <div
+      className="mt-9 overflow-hidden rounded-[16px] border border-border bg-card shadow-sm"
+      aria-label={content.label}
+      role="region"
+    >
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{content.label}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{content.description}</p>
+        </div>
+        <span className="w-fit rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+          {content.badge}
+        </span>
+      </div>
+
+      <ol className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4" aria-label="Etapas informativas del recorrido">
+        {journeyStages.map((stage) => (
+          <li key={stage.title} className="relative rounded-[12px] border border-border bg-background p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-primary">{stage.eyebrow}</p>
+            <h3 className="mt-2 text-base font-semibold text-foreground">{stage.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.description}</p>
+          </li>
+        ))}
+      </ol>
+
+      <p className="border-t border-border bg-muted/25 px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-6">
+        Referencia de capacidades. Los canales, integraciones y automatizaciones se habilitan según la configuración contratada y requieren conexión para operar.
+      </p>
+    </div>
+  );
+};
+
+type JourneyFlowErrorBoundaryProps = {
+  children: React.ReactNode;
+};
+
+type JourneyFlowErrorBoundaryState = {
+  hasError: boolean;
+};
+
+class JourneyFlowErrorBoundaryImpl extends (React.Component as any)<
+  JourneyFlowErrorBoundaryProps,
+  JourneyFlowErrorBoundaryState
+> {
+  constructor(props: JourneyFlowErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): JourneyFlowErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("SaaS journey flow failed to load", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <>
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            La vista interactiva no pudo cargarse. Se muestra una guía informativa.
+          </p>
+          <JourneyFlowStatic reason="load-error" />
+        </>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export const JourneyFlowErrorBoundary = JourneyFlowErrorBoundaryImpl as unknown as React.ComponentType<
+  JourneyFlowErrorBoundaryProps
+>;
 
 const subscribeToConnectivity = (onStoreChange: () => void) => {
   if (typeof window === "undefined") return () => undefined;
@@ -104,6 +167,12 @@ const SaaSOperatingSystemSection = () => {
     >
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-6xl">
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {isOnline
+              ? "Conexión disponible. Se intentará mostrar el recorrido interactivo."
+              : "Sin conexión detectada. Se muestra una guía informativa sin acciones ni datos en vivo."}
+          </p>
+
           <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-end lg:gap-12">
             <div>
               <div className="chatboc-section-kicker mb-4">Operación conectada</div>
@@ -118,11 +187,13 @@ const SaaSOperatingSystemSection = () => {
           </div>
 
           {isOnline ? (
-            <React.Suspense fallback={<JourneyFlowLoading />}>
-              <ServiceJourneyFlow />
-            </React.Suspense>
+            <JourneyFlowErrorBoundary>
+              <React.Suspense fallback={<JourneyFlowLoading />}>
+                <ServiceJourneyFlow />
+              </React.Suspense>
+            </JourneyFlowErrorBoundary>
           ) : (
-            <JourneyFlowStatic />
+            <JourneyFlowStatic reason="offline" />
           )}
         </div>
       </div>

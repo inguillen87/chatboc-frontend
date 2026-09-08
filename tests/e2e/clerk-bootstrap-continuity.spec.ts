@@ -120,11 +120,11 @@ test.describe('Clerk bootstrap continuity', () => {
     await page.goto('/demo');
 
     await expect(page.getByRole('heading', { name: 'Preparando Chatboc' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Elegi una operacion real para probar/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /Eleg[ií] una operaci[oó]n real para probar/i })).toHaveCount(0);
 
     gate.release();
 
-    await expect(page.getByRole('heading', { name: /Elegi una operacion real para probar/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Eleg[ií] una operaci[oó]n real para probar/i })).toBeVisible();
     const colegios = page.getByRole('button', { name: /Colegios/i });
     await colegios.click();
     await expect(colegios).toHaveClass(/text-primary-foreground/);
@@ -142,7 +142,7 @@ test.describe('Clerk bootstrap continuity', () => {
     await page.goto('/demo');
     await expect(page.getByRole('heading', { name: 'Preparando Chatboc' })).toBeVisible();
 
-    const demoHeading = page.getByRole('heading', { name: /Elegi una operacion real para probar/i });
+    const demoHeading = page.getByRole('heading', { name: /Eleg[ií] una operaci[oó]n real para probar/i });
     await expect(demoHeading).toBeVisible({ timeout: 7_000 });
     const colegios = page.getByRole('button', { name: /Colegios/i });
     await colegios.click();

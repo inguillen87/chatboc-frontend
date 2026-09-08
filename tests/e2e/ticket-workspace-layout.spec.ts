@@ -297,6 +297,35 @@ const mockWorkspaceApis = async (page: Page, capture: WorkspaceApiCapture) => {
       return;
     }
 
+    if (path.endsWith('/api/v2/crm/people')) {
+      await json(route, {
+        contract_version: 'crm.people.directory.v2',
+        items: crmPeople.slice(0, 50).map((person) => ({
+          id: person.id,
+          contact_id: null,
+          name: person.nombre.replace('Persona CRM', 'P*** C***'),
+          email: `p***${person.id.split('-').at(-1)}@example.com`,
+          phone: `***${person.telefono.slice(-4)}`,
+          channel: person.canal,
+          marketing: person.marketing,
+          tags: person.etiquetas,
+          last_seen: person.last_seen,
+          source: 'contact',
+          pii_masked: true,
+          possible_duplicate: false,
+        })),
+        page: { limit: 50, total: 50, has_more: false, next_cursor: null },
+        pii: {
+          requested: false,
+          masked: true,
+          granted: false,
+          permission: 'crm_contacts_pii_read',
+          reason_code: 'pii_masked_by_default',
+        },
+      });
+      return;
+    }
+
     if (path.endsWith('/api/crm/clientes')) {
       await json(route, crmPeople);
       return;
@@ -537,7 +566,7 @@ test('profile people CRM stays inside the viewport with an independently scrolla
   await expect(page.getByTestId('profile-crm-workspace')).toBeVisible();
   await expect(workspace).toHaveAttribute('data-layout', 'embedded');
   await expect(page.getByText('Consola CRM')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Persona CRM 01' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'P*** C*** 01' })).toBeVisible();
 
   const bounds = await page.evaluate(() => {
     const read = (testId: string) => {
@@ -579,9 +608,16 @@ test('profile people CRM keeps record actions and summary reachable at 390x844',
   await expect(workspace).toHaveAttribute('data-layout', 'embedded');
   await expect(page.getByRole('combobox', { name: 'Vista operativa de personas' })).toBeVisible();
   await expect(page.locator('aside[aria-label="Lista de personas"]')).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Abrir conversación' })).toBeVisible();
+  const recordActions = page.getByRole('button', { name: 'Más acciones' });
+  await expect(recordActions).toBeVisible();
+  await recordActions.click();
+  const protectedCaseAction = page.getByRole('menuitem', { name: 'Sin caso exacto' });
+  await expect(protectedCaseAction).toBeVisible();
+  await expect(protectedCaseAction).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Abrir panel contextual' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Resumen', exact: true })).toBeVisible();
-  await expect(page.getByText('Contexto operativo publicado para la persona 1.')).toBeVisible();
+  await expect(page.getByText('Datos protegidos. El detalle requiere un permiso explícito y una identidad resoluble publicada por el backend.')).toBeVisible();
 
   const layout = await page.evaluate(() => {
     const read = (testId: string) => {
@@ -873,8 +909,9 @@ for (const viewport of E2E_VIEWPORTS) {
     expect(capture.replies[0].body).toContain('Actualizacion operativa E2E para M-102.');
 
     const deliveryStatus = page.getByTestId('ticket-reply-delivery-status');
-    await expect(deliveryStatus).toContainText('Mensaje enviado');
+    await expect(deliveryStatus).toContainText('Estado de entrega por confirmar');
     await expect(deliveryStatus).toContainText('WhatsApp');
+    await expect(deliveryStatus).toContainText('WhatsApp acepto la respuesta del operador.');
     await expect(
       page
         .getByTestId('ticket-message-scroll')
