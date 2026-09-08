@@ -6,7 +6,6 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { configDefaults } from 'vitest/config';
 
 const pwaCoreStaticAssets = [
-  'favicon.ico',
   'apple-touch-icon.png',
   'masked-icon.svg',
   'favicon/favicon-192x192.png',

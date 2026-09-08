@@ -68,6 +68,9 @@ test('installs a compact shell, controls the client and reloads offline', async 
   expect(precacheUrls).toContain(viteManifest['src/components/chat/ProactiveBubble.tsx'].file);
   expect(precacheUrls).toContain(viteManifest['src/pages/encuestas/index.tsx'].file);
   expect(precacheUrls).toContain(viteManifest['src/pages/user-portal/UserDashboardPage.tsx'].file);
+  // The legacy iframe favicon remains available online, while the iframe is
+  // deliberately outside the offline shell and must not spend precache budget.
+  expect(precacheUrls).not.toContain('favicon.ico');
   expect(rawPrecacheUrls, 'precache manifest must not contain duplicate URLs').toHaveLength(
     precacheUrls.length,
   );
