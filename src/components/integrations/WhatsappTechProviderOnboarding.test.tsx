@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTechProviderOnboarding";
@@ -33,6 +33,14 @@ vi.mock("@/utils/api", async () => {
 const mockedTenantService = vi.mocked(tenantService);
 const mockedGetTenantOpsQaPlaybookV2 = vi.mocked(getTenantOpsQaPlaybookV2);
 const mockedRunTenantOpsQaCheckV2 = vi.mocked(runTenantOpsQaCheckV2);
+
+const findEnabledAction = (name: RegExp) => waitFor(() => {
+  const button = screen.getByRole("button", { name });
+  // The contract can render before its saved phone has populated the input.
+  // Wait for actionable state, then perform one click outside the retry loop.
+  expect(button).toBeEnabled();
+  return button;
+});
 
 const baseContract = {
   contract_version: "twilio.tech_provider.v1",
@@ -370,7 +378,7 @@ describe("WhatsappTechProviderOnboarding", () => {
   it("updates the visible contract after preparing activation", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /preparar activación/i }));
+    fireEvent.click(await findEnabledAction(/preparar activación/i));
 
     await waitFor(() => {
       expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledWith("junin-1", {
@@ -380,6 +388,39 @@ describe("WhatsappTechProviderOnboarding", () => {
     });
 
     expect(await screen.findByText("XEUPDATED")).toBeInTheDocument();
+  });
+
+  it("waits for the loaded phone before preparing and updates only after confirmation", async () => {
+    let resolveContract!: (value: unknown) => void;
+    let resolveProvision!: (value: unknown) => void;
+    mockedTenantService.getWhatsappTechProvider.mockReturnValueOnce(
+      new Promise((resolve) => { resolveContract = resolve; }) as any,
+    );
+    mockedTenantService.provisionWhatsappTechProvider.mockReturnValueOnce(
+      new Promise((resolve) => { resolveProvision = resolve; }) as any,
+    );
+
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    expect(screen.queryByRole("button", { name: /preparar activación/i })).not.toBeInTheDocument();
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+
+    await act(async () => { resolveContract({ contract: baseContract }); });
+    const prepareButton = await findEnabledAction(/preparar activación/i);
+    expect(screen.getByRole("textbox", { name: /numero de whatsapp/i })).toHaveValue("+18564858589");
+    fireEvent.click(prepareButton);
+    expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledExactlyOnceWith("junin-1", {
+      source: "tenant_panel", phone_number: "+18564858589",
+    });
+    expect(prepareButton).toBeDisabled();
+    expect(screen.queryByText("XEUPDATED")).not.toBeInTheDocument();
+    expect(screen.getByText("XESENDER123")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveProvision({ contract: { ...baseContract, state: { ...baseContract.state, sender_sid: "XEUPDATED" } } });
+    });
+    expect(await screen.findByText("XEUPDATED")).toBeInTheDocument();
+    expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledTimes(1);
+    expect(await findEnabledAction(/preparar activación/i)).toBeEnabled();
   });
 
   it("runs a safe smoke test and renders the result inline", async () => {
@@ -449,7 +490,7 @@ describe("WhatsappTechProviderOnboarding", () => {
   it("keeps register sender as the primary action when the embedded signup handoff requests it", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" focusAction="register-sender" />);
 
-    const registerSenderButton = await screen.findByRole("button", { name: /^registrar sender$/i });
+    const registerSenderButton = await findEnabledAction(/^registrar sender$/i);
     expect(registerSenderButton).toBeEnabled();
 
     fireEvent.click(registerSenderButton);
