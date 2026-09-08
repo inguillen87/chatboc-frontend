@@ -667,6 +667,9 @@ export interface OperationsHeatmapV1 {
     status?: string;
     reason_code?: string;
     candidate_count?: number;
+    outside_jurisdiction_count?: number;
+    invalid_coordinate_count?: number;
+    unverified_jurisdiction_count?: number;
     candidates?: OperationsBucketItem[];
     writes_performed?: boolean;
     [key: string]: unknown;

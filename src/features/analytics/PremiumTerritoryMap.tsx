@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import {
   Activity,
@@ -101,6 +101,7 @@ type PremiumTerritoryHeatmapProps = {
 };
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const EMPTY_TERRITORY_POINTS: HeatPoint[] = [];
 
 const MAP_CATEGORY_COLORS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#e11d48', '#0891b2'];
 
@@ -1382,6 +1383,111 @@ const MetricLine = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
+function TerritoryMapEmptyState({
+  heatmap,
+  officialZones,
+  scopeBlocked,
+  mapConfig,
+  tenantSlug,
+  className,
+  children,
+}: {
+  heatmap?: OperationsHeatmapV1;
+  officialZones: TerritoryZone[];
+  scopeBlocked: boolean;
+  mapConfig?: PublicMapConfigV1;
+  tenantSlug?: string | null;
+  className?: string;
+  children: ReactNode;
+}) {
+  const canShowBoundary = !scopeBlocked && officialZones.length > 0;
+  const polygons = useMemo(() => canShowBoundary ? {
+    type: 'FeatureCollection' as const,
+    features: (heatmap?.geo_layers?.boundaries?.features ?? [])
+      .filter((feature) => ['Polygon', 'MultiPolygon'].includes(readString(asRecord(feature.geometry)?.type) ?? ''))
+      .map((feature) => ({
+        type: 'Feature',
+        geometry: feature.geometry,
+        // A neutral boundary is geography, never an activity/density estimate.
+        properties: { fill: '#dbeafe' },
+      })),
+  } : undefined, [canShowBoundary, heatmap?.geo_layers?.boundaries?.features]);
+  const bounds = useMemo(
+    () => canShowBoundary ? officialZones.flatMap((zone) => zone.geoPolygons?.flat() ?? []) : [],
+    [canShowBoundary, officialZones],
+  );
+  const declaredCount = (...values: unknown[]) => values.find(
+    (value): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
+  );
+  // The backend assigns each rejected coordinate exactly one of these states.
+  // candidate_count is not a review total; never add alternate source counts.
+  const reviewParts = [
+    heatmap?.jurisdiction_review?.outside_jurisdiction_count,
+    heatmap?.jurisdiction_review?.invalid_coordinate_count,
+    heatmap?.jurisdiction_review?.unverified_jurisdiction_count,
+  ].map((value) => declaredCount(value));
+  const reviewCount = scopeBlocked || reviewParts.some((value) => value === undefined)
+    ? undefined
+    : declaredCount(reviewParts.reduce((total, value) => total + (value ?? 0), 0));
+  const outsideCount = scopeBlocked ? undefined : declaredCount(
+    heatmap?.jurisdiction_review?.outside_jurisdiction_count,
+    heatmap?.location_quality?.ticket_records_outside_jurisdiction,
+  );
+  const pendingCount = scopeBlocked ? undefined : declaredCount(
+    heatmap?.location_quality?.ticket_records_pending_geocode,
+    heatmap?.quality?.pending_geocode,
+    heatmap?.geocoding?.candidate_count,
+  );
+  const pendingSummary = [
+    reviewCount !== undefined
+      ? formatCountLabel(reviewCount, 'ubicación para revisar', 'ubicaciones para revisar')
+      : outsideCount !== undefined
+        ? formatCountLabel(outsideCount, 'ubicación fuera de jurisdicción', 'ubicaciones fuera de jurisdicción')
+        : undefined,
+    pendingCount !== undefined ? formatCountLabel(pendingCount, 'dirección pendiente', 'direcciones pendientes') : undefined,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <section className={cn('space-y-2', className)} data-testid="territory-empty-workspace">
+      <div role="status" className="rounded-xl border border-border bg-card px-3 py-2" data-testid="territory-empty-summary">
+        <h3 className="text-sm font-semibold">
+          {scopeBlocked ? 'Alcance territorial no validado' : canShowBoundary ? 'Sin ubicaciones verificadas para mostrar' : 'Sin delimitación territorial oficial'}
+        </h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {scopeBlocked ? 'Validá el alcance municipal para habilitar el mapa.' : pendingSummary || 'No hay actividad territorial mapeada para esta vista.'}
+        </p>
+      </div>
+      {canShowBoundary ? (
+        <div data-testid="territory-official-empty-map" className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="h-[380px] sm:h-[480px]">
+            <LazyMapLibreMap
+              className="h-full min-h-0 w-full rounded-none border-0"
+              ariaLabel="Mapa de límites oficiales sin actividad mapeada"
+              tenantSlug={tenantSlug}
+              heatmapData={EMPTY_TERRITORY_POINTS}
+              showHeatmap={false}
+              showPoints={false}
+              showPolygons
+              polygons={polygons}
+              fitToBounds={bounds}
+              provider={mapConfig?.provider === 'google' ? 'google' : 'maplibre'}
+              mapStyleUrl={mapConfig?.style_url}
+              maptilerKey={mapConfig?.maptiler_key}
+              googleMapsKey={mapConfig?.google_maps_key}
+              showEvidenceBadge={false}
+            />
+          </div>
+          <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">Límite oficial · Sin puntos ni calor</p>
+        </div>
+      ) : null}
+      <details data-testid="territory-empty-details" className="rounded-xl border border-border bg-card">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Ver calidad y auditoría territorial</summary>
+        <div className="border-t border-border p-3">{children}</div>
+      </details>
+    </section>
+  );
+}
+
 export function PremiumTerritoryHeatmap({
   points,
   heatmap,
@@ -1539,10 +1645,10 @@ export function PremiumTerritoryHeatmap({
   const declaredOutsideJurisdictionCount = Math.max(
     0,
     readNumber(
+      heatmap?.jurisdiction_review?.outside_jurisdiction_count,
       heatmap?.location_quality?.ticket_records_outside_jurisdiction,
       heatmap?.territorial_facets?.summary?.records_outside_jurisdiction,
       heatmap?.jurisdiction?.excluded_coordinate_records,
-      heatmap?.jurisdiction_review?.candidate_count,
       heatmap?.summary?.outside_jurisdiction,
     ) ?? 0,
   );
@@ -2773,7 +2879,7 @@ export function PremiumTerritoryHeatmap({
     setMapCategoryFilter(null);
   };
 
-  return (
+  const detailedTerritoryView = (
     <section className={cn('flex flex-col gap-2', className)}>
       <div className="order-1 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
@@ -4521,4 +4627,17 @@ export function PremiumTerritoryHeatmap({
       </details>
     </section>
   );
+
+  return !usesDemoData && sourcePoints.length === 0 ? (
+    <TerritoryMapEmptyState
+      heatmap={heatmap}
+      officialZones={officialTerritoryZones}
+      scopeBlocked={territorialScopeBlocked}
+      mapConfig={mapConfig}
+      tenantSlug={tenantSlug}
+      className={className}
+    >
+      {detailedTerritoryView}
+    </TerritoryMapEmptyState>
+  ) : detailedTerritoryView;
 }

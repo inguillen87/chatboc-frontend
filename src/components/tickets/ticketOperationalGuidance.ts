@@ -19,7 +19,6 @@ const hasAssignedOperator = (ticket: Ticket): boolean =>
   Boolean(
     normalizeTextValue(
       ticket.assignedAgent?.nombre_usuario ||
-        ticket.user?.nombre_usuario ||
         ticket.assignedAgentId ||
         ticket.assigned_agent_id ||
         ticket.assigned_user_id,
@@ -166,15 +165,15 @@ export const buildOperationalReplyDraft = (ticket: Ticket, guidance: Operational
   }
 
   if (tags.has('riesgo') || tags.has('sla')) {
-    return `Gracias por la informacion${ticketLabel}. Estamos priorizando el caso${category} y vamos a dejar actualizaciones por este mismo canal.`;
+    return `Gracias por la información${ticketLabel}. Tu actualización queda registrada en el caso${category} para revisar el próximo paso.`;
   }
 
   if (tags.has('asignacion')) {
-    return `Reclamo recibido${ticketLabel}. Lo estamos asignando al area correspondiente y te avisamos el avance por este chat.`;
+    return `Tu reclamo${ticketLabel} está registrado. El próximo paso es que el área responsable lo revise.`;
   }
 
   if (tags.has('cierre')) {
-    return `El reclamo${ticketLabel} figura con seguimiento de cierre. Si todavia ves el problema, respondeme por aca y lo reabrimos para revision.`;
+    return `El reclamo${ticketLabel} figura con seguimiento de cierre. Si el problema continúa, contanos qué sucede para evaluar el seguimiento.`;
   }
 
   if (tags.has('evidencia')) {

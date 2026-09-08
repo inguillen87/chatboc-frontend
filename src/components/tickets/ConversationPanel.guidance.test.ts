@@ -62,6 +62,19 @@ const deliveryStatus = (
 });
 
 describe('buildOperationalReplyDraft', () => {
+  it.each([
+    ['asignacion', /lo estamos asignando|ya.*asignad/i],
+    ['riesgo', /estamos priorizando|prioridad confirmada/i],
+    ['cierre', /lo reabrimos|reapertura confirmada/i],
+  ])('does not promise an unperformed action for %s guidance', (tag, unsupportedClaim) => {
+    const draft = buildOperationalReplyDraft(baseTicket, {
+      label: 'Siguiente paso sugerido', source: 'ui', tags: [tag as string],
+    });
+
+    expect(draft).toContain('M-378430');
+    expect(draft).not.toMatch(unsupportedClaim as RegExp);
+  });
+
   it('asks for exact location when guidance requires it', () => {
     const draft = buildOperationalReplyDraft(baseTicket, {
       label: 'Solicitar ubicacion exacta',

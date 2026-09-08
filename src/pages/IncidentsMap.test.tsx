@@ -31,6 +31,8 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
       privacy?: { mode?: string };
       summary?: { points?: number; pending_geocode?: number };
       quality?: { coverage_percent?: number; total_ticket_records?: number };
+      jurisdiction?: { containment_verified?: boolean };
+      geo_layers?: { boundaries?: { features: unknown[] } };
       segments?: {
         category?: Array<{ label?: string }>;
         status?: Array<{ label?: string }>;
@@ -57,6 +59,8 @@ vi.mock('@/features/analytics/PremiumTerritoryMap', () => ({
       data-min-sample-size={String(minSampleSize ?? '')}
       data-demo-fallback={String(allowDemoFallback)}
       data-demo-profile={demoProfile ?? ''}
+      data-scope-verified={String(heatmap?.jurisdiction?.containment_verified ?? false)}
+      data-boundaries={String(heatmap?.geo_layers?.boundaries?.features.length ?? 0)}
     >
       mapa territorial v2
     </div>
@@ -641,6 +645,52 @@ describe('IncidentsMap', () => {
     expect(screen.queryByTestId('mock-premium-territory-map')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mock-incidents-map')).not.toBeInTheDocument();
     expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('delegates empty activity and scope validation to the safe renderer (verified=%s)', async (verified) => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(operationsHeatmap({
+      points: [],
+      cells: [],
+      summary: { points: 0, pending_geocode: 31 },
+      render_contract: { can_render_heatmap: false },
+      jurisdiction: { enforced: true, containment_verified: verified },
+      geo_layers: { boundaries: { type: 'FeatureCollection', features: [{ id: 'official-boundary' }] } },
+      map_narrative: { headline: 'La UI puede mostrar una cola', body: 'Texto técnico de backend' },
+    }));
+
+    render(<IncidentsMap />);
+
+    const map = await screen.findByTestId('mock-premium-territory-map');
+    expect(map).toHaveAttribute('data-points', '0');
+    expect(map).toHaveAttribute('data-boundaries', '1');
+    expect(map).toHaveAttribute('data-scope-verified', String(verified));
+    expect(map).toHaveAttribute('data-demo-fallback', 'false');
+    expect(screen.queryByTestId('incidents-map-empty')).not.toBeInTheDocument();
+    expect(screen.queryByText('La UI puede mostrar una cola')).not.toBeInTheDocument();
+
+    const clearButton = screen.getByRole('button', { name: 'Limpiar filtros', hidden: true });
+    fireEvent.click(clearButton);
+    await act(async () => {});
+    expect(map).toHaveAttribute('data-points', '0');
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(1);
+    expect(mocks.getHeatmapDataset).not.toHaveBeenCalled();
+    expect(mocks.getTicketStats).not.toHaveBeenCalled();
+  });
+
+  it('does not bypass explicit suppression when coordinates remain in a GeoJSON layer', async () => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(operationsHeatmap({
+      points: [],
+      cells: [],
+      render_contract: { can_render_heatmap: false },
+      geo_layers: {
+        points: { type: 'FeatureCollection', features: [{ geometry: { type: 'Point', coordinates: [-68.4, -33.1] } }] },
+      },
+    }));
+
+    render(<IncidentsMap />);
+
+    expect(await screen.findByTestId('incidents-map-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-premium-territory-map')).not.toBeInTheDocument();
   });
 
   it('does not expose the legacy heat/point toggle when the secure contract is unavailable', async () => {

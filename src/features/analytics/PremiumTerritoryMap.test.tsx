@@ -34,6 +34,8 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
     ariaDescribedBy?: string;
     showHeatmap?: boolean;
     showPoints?: boolean;
+    showPolygons?: boolean;
+    polygons?: { features?: unknown[] };
     showPointLabels?: boolean;
     pointLabelMode?: string;
     pointLabelMinZoom?: number;
@@ -95,6 +97,8 @@ vi.mock('@/components/LazyMapLibreMap', () => ({
       data-aria-describedby={props.ariaDescribedBy ?? ''}
       data-show-heatmap={String(Boolean(props.showHeatmap))}
       data-show-points={String(Boolean(props.showPoints))}
+      data-show-polygons={String(Boolean(props.showPolygons))}
+      data-polygons={JSON.stringify(props.polygons?.features ?? [])}
       data-show-point-labels={String(Boolean(props.showPointLabels))}
       data-point-label-mode={props.pointLabelMode ?? ''}
       data-point-label-min-zoom={String(props.pointLabelMinZoom ?? '')}
@@ -155,7 +159,175 @@ const chooseTerritoryFacet = (name: string, value: string) => {
   fireEvent.change(screen.getByRole('combobox', { name }), { target: { value } });
 };
 
+const emptyOfficialHeatmap = (): OperationsHeatmapV1 => ({
+  points: [], cells: [], hotspots: [], facets: [], category_layers: [],
+  tenant: { tipo: 'municipio', slug: 'junin' },
+  render_contract: { can_render_heatmap: false },
+  summary: { points: 0, pending_geocode: 31, outside_jurisdiction: 19, coverage_percent: 35.9 },
+  quality: { state: 'blocked', can_render_heatmap: false, visible_points: 0, coverage_percent: 35.9 },
+  location_quality: {
+    total_ticket_records: 53,
+    ticket_records_with_coordinates: 19,
+    ticket_records_outside_jurisdiction: 19,
+    ticket_records_pending_geocode: 31,
+  },
+  jurisdiction_review: {
+    candidate_count: 19,
+    outside_jurisdiction_count: 19,
+    invalid_coordinate_count: 0,
+    unverified_jurisdiction_count: 0,
+  },
+  jurisdiction: {
+    enforced: true,
+    containment_verified: true,
+    containment_method: 'point_in_polygon',
+    boundary_authority: {
+      kind: 'official',
+      source_ref: 'https://ide.mendoza.gov.ar/fixture-controlada',
+      snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+    },
+  },
+  geo_layers: {
+    boundaries: {
+      type: 'FeatureCollection',
+      metadata: {
+        official: true,
+        synthetic: false,
+        source: 'IDE Mendoza · fixture controlada',
+        provenance: {
+          source_ref: 'https://ide.mendoza.gov.ar/fixture-controlada',
+          snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+        },
+      },
+      features: [{
+        type: 'Feature',
+        id: 'boundary-fixture',
+        properties: { name: 'Límite oficial de prueba', density: 999 },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[[-68.52, -33.16], [-68.46, -33.16], [-68.46, -33.11], [-68.52, -33.11], [-68.52, -33.16]]],
+        },
+      }],
+    },
+  },
+});
+
 describe('PremiumTerritoryHeatmap', () => {
+  it('counts mutually exclusive review statuses once, never all candidates or duplicate source totals', () => {
+    const heatmap = emptyOfficialHeatmap();
+    heatmap.jurisdiction_review = {
+      candidate_count: 53,
+      outside_jurisdiction_count: 5,
+      invalid_coordinate_count: 3,
+      unverified_jurisdiction_count: 2,
+    };
+    heatmap.location_quality!.ticket_records_outside_jurisdiction = 5;
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.getByTestId('territory-empty-summary')).toHaveTextContent('10 ubicaciones para revisar · 31 direcciones pendientes');
+    expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent('53 ubicaciones');
+    expect(screen.getByTestId('territory-outside-jurisdiction')).toHaveTextContent('revisar · 5');
+  });
+
+  it('keeps a declared zero review total instead of falling back to a nonzero candidate or alternate source count', () => {
+    const heatmap = emptyOfficialHeatmap();
+    heatmap.jurisdiction_review = {
+      candidate_count: 53,
+      outside_jurisdiction_count: 0,
+      invalid_coordinate_count: 0,
+      unverified_jurisdiction_count: 0,
+    };
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.getByTestId('territory-empty-summary')).toHaveTextContent('0 ubicaciones para revisar · 31 direcciones pendientes');
+    expect(screen.queryByTestId('territory-outside-jurisdiction')).not.toBeInTheDocument();
+  });
+
+  it('labels an incomplete review breakdown as outside jurisdiction rather than inventing a complete total', () => {
+    const heatmap = emptyOfficialHeatmap();
+    heatmap.jurisdiction_review = { candidate_count: 53, outside_jurisdiction_count: 5, unverified_jurisdiction_count: 2 };
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.getByTestId('territory-empty-summary')).toHaveTextContent('5 ubicaciones fuera de jurisdicción · 31 direcciones pendientes');
+    expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent('ubicaciones para revisar');
+  });
+
+  it('does not reinterpret the candidate count when specific review counts are unavailable', () => {
+    const heatmap = emptyOfficialHeatmap();
+    heatmap.jurisdiction_review = { candidate_count: 53 };
+    heatmap.location_quality = undefined;
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent(/\d+ ubicacion/);
+    expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent('53');
+  });
+
+  it('keeps the verified official geography visible with no activity and collapses repetitive empty panels', () => {
+    const heatmap = emptyOfficialHeatmap();
+    heatmap.geo_layers!.boundaries!.features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-60.912345, -34.612345] },
+      properties: { address: 'Dirección rechazada' },
+    });
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.getByTestId('territory-empty-summary')).toHaveTextContent('19 ubicaciones para revisar · 31 direcciones pendientes');
+    expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent('35');
+    const map = screen.getByTestId('mock-live-map');
+    expect(map).toHaveAttribute('data-points', '0');
+    expect(map).toHaveAttribute('data-show-heatmap', 'false');
+    expect(map).toHaveAttribute('data-show-points', 'false');
+    expect(map).toHaveAttribute('data-show-polygons', 'true');
+    expect(map).toHaveAttribute('data-geo-features', '0');
+    const polygons = JSON.parse(map.getAttribute('data-polygons')!);
+    expect(polygons).toHaveLength(1);
+    expect(polygons[0].geometry).toEqual(heatmap.geo_layers!.boundaries!.features[0].geometry);
+    expect(polygons[0].properties).toEqual({ fill: '#dbeafe' });
+    expect(map).toHaveAttribute('data-bounds-coordinates', JSON.stringify([[-68.52, -33.16], [-68.46, -33.16], [-68.46, -33.11], [-68.52, -33.11], [-68.52, -33.16]]));
+    const details = screen.getByTestId('territory-empty-details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toContainElement(screen.getByTestId('territory-executive-strip'));
+    expect(details).toContainElement(screen.getByTestId('territory-decision-radar'));
+    expect(screen.getByTestId('territory-decision-radar')).not.toBeVisible();
+    expect(document.body.innerHTML).not.toContain('-60.912345');
+    expect(document.body.textContent).not.toContain('Dirección rechazada');
+  });
+
+  it.each(['unverified', 'wrong_snapshot', 'wrong_source'])('keeps the compact empty view fail-closed for %s jurisdiction evidence', (reason) => {
+    const heatmap = emptyOfficialHeatmap();
+    if (reason === 'unverified') heatmap.jurisdiction!.containment_verified = false;
+    if (reason === 'wrong_snapshot') heatmap.geo_layers!.boundaries!.metadata!.provenance = {
+      source_ref: 'https://ide.mendoza.gov.ar/fixture-controlada', snapshot_sha256: 'b'.repeat(64),
+    };
+    if (reason === 'wrong_source') heatmap.geo_layers!.boundaries!.metadata!.provenance = {
+      source_ref: 'https://example.test/unrelated', snapshot_sha256: TEST_OFFICIAL_BOUNDARY_SHA,
+    };
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    expect(screen.getByTestId('territory-empty-summary')).toHaveTextContent('Alcance territorial no validado');
+    expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent('31');
+    expect(screen.queryByTestId('territory-official-empty-map')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mock-live-map')).not.toBeInTheDocument();
+    expect(screen.getByTestId('territory-empty-details')).not.toHaveAttribute('open');
+  });
+
+  it('does not invent pending counts or points when empty-view disclosures and filters are reset', () => {
+    const heatmap = emptyOfficialHeatmap();
+    heatmap.jurisdiction_review = undefined;
+    heatmap.location_quality = undefined;
+    heatmap.summary = {};
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    const summary = screen.getByTestId('territory-empty-summary');
+    expect(summary).not.toHaveTextContent(/\d+ (ubicaci|direcci)/);
+    fireEvent.click(screen.getByText('Ver calidad y auditoría territorial'));
+    expect(screen.getByTestId('territory-empty-details')).toHaveAttribute('open');
+    openTerritoryFilters();
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros territoriales' }));
+    expect(screen.getByTestId('mock-live-map')).toHaveAttribute('data-points', '0');
+    expect(screen.getByTestId('mock-live-map')).toHaveAttribute('data-show-heatmap', 'false');
+  });
+
   it('separates the bounded map workspace from secondary territorial intelligence', () => {
     const points = buildPoints(6);
     const heatmap = {

@@ -99,6 +99,14 @@ describe('deriveTicketOperationalGuidance', () => {
     expect(guidance.tags).toContain('ubicacion');
   });
 
+  it('does not mistake the citizen contact for the assigned operator', () => {
+    const guidance = deriveTicketOperationalGuidance(
+      ticketWith({ user: { id: 11, nombre_usuario: 'Vecino', email: '' } }),
+    );
+
+    expect(guidance.tags).toContain('asignacion');
+  });
+
   it('keeps closed tickets focused on audit and citizen history', () => {
     const guidance = deriveTicketOperationalGuidance(
       ticketWith({ estado: 'resuelto' }),

@@ -1308,6 +1308,15 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
               operationsHeatmap?.geo_layers?.cells?.features.length,
           )
       : heatmapData.length > 0;
+  // An empty activity layer does not invalidate the official geography. Keep
+  // scope and boundary validation in the territorial renderer, not this page.
+  const hasEmptyOperationsPayload =
+    heatmapContractSource === 'operations_v2' &&
+    operationsHeatmap !== null &&
+    operationsHeatmap.points.length === 0 &&
+    operationsHeatmap.cells.length === 0 &&
+    (operationsHeatmap.geo_layers?.points?.features.length ?? 0) === 0 &&
+    (operationsHeatmap.geo_layers?.cells?.features.length ?? 0) === 0;
 
   const mapKpis = [
     {
@@ -1705,7 +1714,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             </div>
           </div>
         </div>
-      ) : !hasRenderableMapData ? (
+      ) : !hasRenderableMapData && !hasEmptyOperationsPayload ? (
         <Alert
           data-testid="incidents-map-empty"
           variant="default"
@@ -1745,7 +1754,7 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
             allowDemoFallback={false}
             demoProfile={ticketType === 'municipio' ? 'gobierno' : 'general'}
             tenantSlug={canonicalTenantSlug}
-            className="min-h-[560px]"
+            className={hasEmptyOperationsPayload ? undefined : 'min-h-[560px]'}
           />
           <div
             data-testid="operations-heatmap-evidence"
