@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createPropertyExpression, latest, validateStyleMin, type HeatmapLayerSpecification } from "@maplibre/maplibre-gl-style-spec";
 
 import MapLibreMap from "@/components/MapLibreMap";
 import MapProviderMap from "@/components/MapProviderMap";
@@ -247,9 +248,9 @@ const sourceFor = (id: string, lng: number) => ({
   type: "FeatureCollection" as const,
   features: [
     {
-      type: "Feature",
+      type: "Feature" as const,
       properties: { id },
-      geometry: { type: "Point", coordinates: [lng, -34.58] },
+      geometry: { type: "Point" as const, coordinates: [lng, -34.58] },
     },
   ],
 });
@@ -394,11 +395,52 @@ describe("MapLibreMap lifecycle", () => {
       expect(mapMocks.instances[0]?.setPaintProperty).toHaveBeenCalledWith(
         "territory-heat",
         "heatmap-radius",
-        expect.arrayContaining(["*", 2.35]),
+        expect.arrayContaining(["interpolate", ["linear"], ["zoom"]]),
       ),
     );
     expect(mapMocks.constructorCalls).toHaveLength(1);
     expect(mapMocks.instances[0]?.remove).not.toHaveBeenCalled();
+  });
+
+  it.each(["default", "faro"] as const)("adds a valid %s density layer with visible zoom-scaled radii", async (heatmapPalette) => {
+    const source = sourceFor("density", -68.48);
+    const { rerender } = render(
+      <MapLibreMap geoLayerConfig={configFor(source)} heatmapPalette={heatmapPalette} showHeatmap showPoints={false} />,
+    );
+    await waitFor(() => expect(mapMocks.addedLayers.some((layer) => layer.type === "heatmap")).toBe(true));
+    const layer = mapMocks.addedLayers.find((candidate) => candidate.type === "heatmap") as HeatmapLayerSpecification;
+    const errors = validateStyleMin({
+      version: 8,
+      sources: { "chatboc-runtime-heatmap": { type: "geojson", data: source } },
+      layers: [layer],
+    });
+    expect(errors.map((error) => error.message)).toEqual([]);
+    expect(layer.maxzoom).toBeGreaterThan(14);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-heat", "visibility", "visible"]);
+    expect(mapMocks.layoutCalls).toContainEqual(["territory-points", "visibility", "none"]);
+
+    const radius = createPropertyExpression(layer.paint?.["heatmap-radius"], latest.paint_heatmap["heatmap-radius"]);
+    expect(radius.result).toBe("success");
+    if (radius.result !== "success") throw new Error("MapLibre rejected the density radius.");
+    for (const zoom of [0, 9, 11, 13, 14]) {
+      const value = radius.value.evaluate({ zoom }, { type: "Point", properties: { clusterSize: 7 } });
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThan(0);
+    }
+
+    rerender(
+      <MapLibreMap geoLayerConfig={configFor(source)} heatmapPalette={heatmapPalette} heatmapRadiusScale={2.35} showHeatmap showPoints={false} />,
+    );
+    const update = mapMocks.instances[0]?.setPaintProperty.mock.calls
+      .filter(([, property]) => property === "heatmap-radius").at(-1)?.[2];
+    const scaledRadius = createPropertyExpression(update, latest.paint_heatmap["heatmap-radius"]);
+    expect(scaledRadius.result).toBe("success");
+    if (scaledRadius.result !== "success") throw new Error("MapLibre rejected the updated density radius.");
+    for (const zoom of [0, 9, 11, 13, 14]) {
+      const feature = { type: "Point" as const, properties: { clusterSize: 7 } };
+      expect(scaledRadius.value.evaluate({ zoom }, feature)).toBeCloseTo(radius.value.evaluate({ zoom }, feature) * 2.35);
+    }
+    expect(mapMocks.constructorCalls).toHaveLength(1);
   });
 
   it("uses instant camera transitions and skips the heat pulse for reduced motion", async () => {

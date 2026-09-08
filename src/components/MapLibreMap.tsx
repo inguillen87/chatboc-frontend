@@ -153,14 +153,16 @@ const EMPTY_MAP_FEATURE_COLLECTION: { type: "FeatureCollection"; features: unkno
   features: [],
 };
 
+// MapLibre requires zoom interpolation at the expression root. Apply the
+// radius scale to each stop; wrapping the interpolation rejects the heat layer.
 const heatmapRadiusExpression = (scale: number) => [
-  "*",
-  scale,
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  0,
   [
-    "interpolate",
-    ["linear"],
-    ["zoom"],
-    0,
+    "*",
+    scale,
     [
       "max",
       4,
@@ -170,7 +172,11 @@ const heatmapRadiusExpression = (scale: number) => [
         2.6,
       ],
     ],
-    9,
+  ],
+  9,
+  [
+    "*",
+    scale,
     [
       "max",
       14,
@@ -180,7 +186,11 @@ const heatmapRadiusExpression = (scale: number) => [
         4.8,
       ],
     ],
-    13,
+  ],
+  13,
+  [
+    "*",
+    scale,
     [
       "max",
       18,
