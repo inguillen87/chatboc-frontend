@@ -31,7 +31,7 @@ test('el encabezado conserva nombre y herramientas en ventanas estrechas', async
     const menuBox = await menu.boundingBox();
     expect(menuBox?.x).toBeGreaterThanOrEqual(0);
     expect((menuBox?.x ?? 0) + (menuBox?.width ?? 0)).toBeLessThanOrEqual(width + 1);
-    await page.screenshot({ path: testInfo.outputPath(`widget-menu-${width}.png`) });
+    await page.screenshot({ path: testInfo.outputPath(`widget-menu-${width}.png`), animations: 'disabled' });
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
     await expect(options).toBeFocused();
@@ -39,4 +39,30 @@ test('el encabezado conserva nombre y herramientas en ventanas estrechas', async
     await expectNoHorizontalOverflow(page);
   }
   expect(runtimeErrors).toEqual([]);
+});
+
+test('el menú queda por encima del widget flotante de la landing', async ({ page }, testInfo) => {
+  await page.route(/^https?:\/\/[^/]+\/(?:api\/|ask(?:\/|\?|$))/, route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify(new URL(route.request().url()).pathname.endsWith('/auth/clerk/config') ? { enabled: false } : {}),
+  }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Abrir el asistente/ }).click();
+  const options = page.getByRole('button', { name: 'Opciones del chat', exact: true });
+  await options.click();
+  const sound = page.getByRole('menuitem', { name: /sonido/i });
+  await expect(sound).toBeVisible();
+  // AX visibility alone does not detect a portal painted behind the widget.
+  await expect.poll(() => sound.evaluate(el => {
+    const rect = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+  })).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('floating-widget-menu.png'), animations: 'disabled' });
+  await sound.click();
+  await expect(page.getByRole('menu')).toBeHidden();
+  await options.click();
+  await expect(page.getByRole('menuitem', { name: 'Activar sonido' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(options).toBeFocused();
 });

@@ -233,7 +233,8 @@ const ChatHeader: React.FC<Props> = ({
                 <MoreHorizontal className="h-5 w-5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="z-[11000] min-w-52 max-w-[calc(100vw-24px)]">
+            {/* The menu portal must sit above the floating widget (z-index 999999). */}
+            <DropdownMenuContent align="end" className="z-[1000004] min-w-52 max-w-[calc(100vw-24px)]">
               {onProfile && showProfile ? (
                 <DropdownMenuItem onSelect={onProfile} className="min-h-11 gap-2">
                   <IconButton.User className="h-4 w-4" /> Mi perfil
