@@ -5,6 +5,7 @@ import { getOrCreateAnonId } from "@/utils/anonId";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import { createLeadCaptureIdempotencyKey } from "@/utils/leadCapture";
 import type { TicketCollaborationState } from "@/types/tickets";
+import { exactAssignmentId } from "@/utils/ticketAssignmentSnapshot";
 
 export type DemoRubro = "municipio" | "pyme";
 
@@ -1300,12 +1301,17 @@ export const enterpriseService = {
 
   autoAssignTenantTicket: async (
     tenantSlug: string,
-    ticketType: string,
+    ticketType: 'municipio' | 'pyme',
     ticketId: string | number,
-    payload: { required_permission?: string } = {},
+    payload: { required_permission?: string; expected_assignee_id: string | number | null },
   ) => {
+    exactAssignmentId(ticketId);
+    if (!tenantSlug.trim() || !['municipio', 'pyme'].includes(ticketType) || !payload || !Object.hasOwn(payload, 'expected_assignee_id')) {
+      throw new ApiError('La asignación requiere un caso y responsable actual verificables.', 400);
+    }
+    if (payload.expected_assignee_id !== null) exactAssignmentId(payload.expected_assignee_id);
     return apiFetch<any>(
-      `/api/admin/tenants/${tenantSlug}/tickets/${ticketType}/${ticketId}/auto-assign`,
+      `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/tickets/${ticketType}/${encodeURIComponent(String(ticketId))}/auto-assign`,
       {
         method: "POST",
         body: payload,

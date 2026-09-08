@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { expectNoHorizontalOverflow } from './e2e-helpers';
 
 // Public official geography only. Counts are an explicit controlled fixture,
 // not a query of citizen records or proof of current production activity.
-const boundary = JSON.parse(readFileSync(new URL('./fixtures/junin-department.geojson', import.meta.url), 'utf8'));
+const boundarySource = readFileSync(new URL('./fixtures/junin-department.geojson', import.meta.url));
+const boundary = JSON.parse(boundarySource.toString('utf8'));
 // The API names the source department for the public rendering contract.
 boundary.features = boundary.features.map((feature: { properties: { departamen: string } }) => ({
   ...feature, properties: { ...feature.properties, name: feature.properties.departamen },
@@ -17,6 +19,7 @@ const authority = {
 
 test('el mapa vacío conserva la geografía y el espacio útil en escritorio y móvil', async ({ page }, testInfo) => {
   test.setTimeout(60000);
+  expect(createHash('sha256').update(boundarySource).digest('hex')).toBe(authority.snapshot_sha256);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(({ boundary, authority }) => {

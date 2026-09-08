@@ -44,3 +44,12 @@ Authenticated `/api/v2/analytics/operations/heatmap` returned HTTP 200 after the
 ## Remaining operational boundaries
 
 Render displayed a failed-payment warning. No payment or billing change was made. Render and its database remain active; migration/closure gates are not complete. Real geocoding validation and physical WhatsApp send/receive checks remain separate from this release.
+
+## Follow-up candidate: map clarity and verified assignment
+
+- Empty territorial views keep the official department boundary visible, with no invented activity and no overlay notices. Detailed audit remains collapsed. Review counts use explicit outside/invalid/unverified partitions, not all candidate coordinates.
+- New browser test uses the checked public IDE geometry (SHA pinned across Windows/Linux) and controlled counts. Desktop 1440 and mobile 390 captures were visually reviewed; no horizontal overflow or stretched blank map. Three map/widget browser tests passed together.
+- Reply drafts no longer claim an assignment, priority change or reopening that has not happened; a citizen name is not treated as an assigned operator. 35 focused guidance tests passed.
+- Matrix and lead assignment submit canonical row identity and observed ownership. Matrix apply also includes the reviewed suggested employee. Changed context, unconfirmed/partial results and 403/409 never produce a false success or implicit retry.
+- Independent review identified a delayed coverage-save race across tenant changes; two regressions reproduced it before correction. Final assignment run: 104 tests passed in seven suites, typecheck passed.
+- Full regression before the final context-race fix/new assignment suites: 375 files / 2752 tests passed. A final whole-suite run is pending at this checkpoint. Publication of the follow-up is not claimed by this section.

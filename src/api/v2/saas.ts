@@ -732,6 +732,8 @@ export interface EmployeeRoutingAutoAssignPayload {
   tickets?: Array<{
     source_model: string;
     id: string | number;
+    expected_assignee_id?: string | number | null;
+    expected_suggested_assignee_id?: string | number;
   }>;
   limit?: number;
 }

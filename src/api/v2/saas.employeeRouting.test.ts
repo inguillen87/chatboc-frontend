@@ -77,4 +77,15 @@ describe('employee routing transport', () => {
 
     expect(panelPostMock).not.toHaveBeenCalled();
   });
+
+  it.each([403, 409])('preserva CAS y la sugerencia revisada sin fallback ante %s', async (status) => {
+    const payload = {
+      dry_run: false,
+      tickets: [{ source_model: 'MunicipioTicket', id: '403', expected_assignee_id: null, expected_suggested_assignee_id: '10' }],
+      limit: 1,
+    };
+    panelPostMock.mockRejectedValueOnce(new ApiError('Asignación rechazada', status));
+    await expect(postEmployeeRoutingAutoAssignV2(payload, 'junin')).rejects.toMatchObject({ status });
+    expect(panelPostMock).toHaveBeenCalledExactlyOnceWith('/api/v2/employee-routing/auto-assign', payload, { tenantSlug: 'junin' });
+  });
 });
