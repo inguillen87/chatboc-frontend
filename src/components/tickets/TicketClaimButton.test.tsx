@@ -102,7 +102,7 @@ describe('TicketClaimButton', () => {
     const claim = screen.getByRole('button', { name: 'Tomar ticket' });
     expect(claim).toBeDisabled();
     expect(claim).toHaveAccessibleDescription(
-      'El ticket no publica una identidad source_model + id válida para una toma atómica.',
+      'No se pudo verificar este caso. Actualizá la bandeja antes de tomarlo.',
     );
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.updateTicket).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe('TicketClaimButton', () => {
     expect(claim).toBeEnabled();
     expect(claim).toHaveAttribute(
       'title',
-      'El backend verificará tu permiso, tenant y categoría antes de asignar',
+      'Tomar este caso con tus permisos de atención',
     );
 
     fireEvent.click(claim);
@@ -194,7 +194,7 @@ describe('TicketClaimButton', () => {
 
     const claim = screen.getByRole('button', { name: 'Tomar ticket' });
     expect(claim).toBeDisabled();
-    expect(claim).toHaveAccessibleDescription('No se pudo verificar la autoridad de asignación con el backend.');
+    expect(claim).toHaveAccessibleDescription('No pudimos comprobar tus permisos. Actualizá la bandeja para volver a intentar.');
     expect(mocks.claim).not.toHaveBeenCalled();
   });
 

@@ -259,16 +259,30 @@ describe('TicketAssignment enterprise authority UI', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
+  it.each(['missing_ticket_identity', 'ticket_not_published', 'invalid_contract', 'conflicting_authority'])(
+    'explica %s sin códigos técnicos y conserva el bloqueo',
+    (reason) => {
+      mocks.resolutionOk = false;
+      mocks.failureReason = reason;
+      render(<TicketAssignment variant="compact" />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Actualizá la bandeja');
+      expect(screen.getByRole('alert')).not.toHaveTextContent(/source_model|employee\.routing|backend|tenant|autoritativ/);
+      expect(screen.queryByRole('button', { name: /Asignar|Tomar ticket/ })).not.toBeInTheDocument();
+      expect(mocks.postAction).not.toHaveBeenCalled();
+    },
+  );
+
   it('distingue un contrato ausente de datos autoritativos contradictorios', () => {
     mocks.resolutionOk = false;
     mocks.failureReason = 'conflicting_authority';
     render(<TicketAssignment variant="compact" />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'El backend publicó datos de asignación contradictorios para este caso',
+      'Los datos de responsable de este caso no coinciden',
     );
     expect(screen.getByRole('alert')).not.toHaveTextContent(
-      'no publicó el contrato employee.routing.v1',
+      'employee.routing.v1',
     );
     expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();

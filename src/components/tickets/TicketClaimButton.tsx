@@ -58,13 +58,13 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
   const isAssignedToSomeoneElse = Boolean(currentAssigneeId) && currentAssigneeId !== userId;
 
   let blockReason: string | null = null;
-  if (!userId) blockReason = 'No hay una identidad de operador autenticada.';
-  else if (!atomicClaim) blockReason = 'El ticket no publica una identidad source_model + id válida para una toma atómica.';
+  if (!userId) blockReason = 'Iniciá sesión como operador para tomar este ticket.';
+  else if (!atomicClaim) blockReason = 'No se pudo verificar este caso. Actualizá la bandeja antes de tomarlo.';
   else if (isAssignedToSomeoneElse) blockReason = 'El ticket ya tiene responsable. La reasignación se gestiona desde el inspector de supervisión.';
-  else if (atomicClaim && routingState.loading) blockReason = 'Verificando tu cobertura con la matriz operativa.';
-  else if (atomicClaim && routingState.error) blockReason = 'No se pudo verificar la autoridad de asignación con el backend.';
-  else if (atomicClaim && !routingState.resolution?.ok) blockReason = 'El backend no publicó este caso en employee.routing.v1.';
-  else if (atomicClaim && !authoritativeCategoryAuthorized) blockReason = 'Tu perfil no cubre la categoría autoritativa de este ticket.';
+  else if (atomicClaim && routingState.loading) blockReason = 'Comprobando si podés atender esta categoría.';
+  else if (atomicClaim && routingState.error) blockReason = 'No pudimos comprobar tus permisos. Actualizá la bandeja para volver a intentar.';
+  else if (atomicClaim && !routingState.resolution?.ok) blockReason = 'La asignación de este caso no está disponible. Actualizá la bandeja; si continúa, avisá a supervisión.';
+  else if (atomicClaim && !authoritativeCategoryAuthorized) blockReason = 'Esta categoría no está asignada a tu equipo de atención.';
 
   const claimTicket = async () => {
     if (!userId || !confirmedAgent || blockReason || assigning || isAssignedToMe) return;
@@ -103,7 +103,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
           ? 'Otro operador tomó este ticket. Actualizá la bandeja para ver el responsable.'
           : claimError instanceof ApiError && claimError.status === 403
             ? 'Tu usuario no tiene permiso o categoría habilitada para tomar este ticket.'
-          : 'El backend no confirmó la asignación. El ticket sigue sin cambios.',
+          : 'No recibimos confirmación de la asignación. Actualizá la bandeja antes de volver a intentar.',
       );
     } finally {
       setAssigning(false);
@@ -138,7 +138,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
         className="h-9 gap-1.5"
         onClick={() => void claimTicket()}
         disabled={(atomicClaim && routingState.loading) || assigning || Boolean(blockReason)}
-        title={blockReason || 'El backend verificará tu permiso, tenant y categoría antes de asignar'}
+        title={blockReason || 'Tomar este caso con tus permisos de atención'}
         aria-describedby={blockReason ? 'ticket-claim-block-reason' : undefined}
         data-testid="ticket-claim-action"
       >

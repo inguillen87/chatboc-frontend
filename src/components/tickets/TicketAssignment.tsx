@@ -74,13 +74,13 @@ const authorityFailureMessage = (
   error: string | null,
   reason?: string,
 ) => {
-  if (loading) return 'Verificando categoría, carga y permisos con el backend…';
-  if (error) return 'No se pudo verificar la autoridad de asignación. Las acciones permanecen bloqueadas.';
-  if (reason === 'missing_ticket_identity') return 'Este caso no publica la identidad source_model + id requerida para asignar con seguridad.';
-  if (reason === 'ticket_not_published') return 'El caso no figura en la cola operativa autoritativa del tenant.';
-  if (reason === 'invalid_contract') return 'El backend no publicó el contrato employee.routing.v1 requerido para asignar.';
-  if (reason === 'conflicting_authority') return 'El backend publicó datos de asignación contradictorios para este caso. Las acciones permanecen bloqueadas.';
-  return 'No se pudo validar la autoridad de asignación. Las acciones permanecen bloqueadas.';
+  if (loading) return 'Comprobando categoría, disponibilidad y permisos…';
+  if (error) return 'No pudimos comprobar los permisos de asignación. Actualizá la bandeja para volver a intentar.';
+  if (reason === 'missing_ticket_identity') return 'No se pudo verificar este caso. Actualizá la bandeja antes de asignarlo.';
+  if (reason === 'ticket_not_published') return 'Este caso no está disponible en la cola de tu organización. Actualizá la bandeja.';
+  if (reason === 'invalid_contract') return 'La asignación no está disponible. Actualizá la bandeja; si continúa, avisá a supervisión.';
+  if (reason === 'conflicting_authority') return 'Los datos de responsable de este caso no coinciden. Actualizá la bandeja; si continúa, avisá a supervisión.';
+  return 'No pudimos comprobar quién puede atender este caso. Actualizá la bandeja para volver a intentar.';
 };
 
 export const serializeAssignmentIdentifier = (value: string | number) => {
@@ -233,7 +233,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
           ? 'La asignación cambió en otro puesto. Actualizá la ficha antes de reintentar.'
           : assignmentError instanceof ApiError && assignmentError.status === 403
             ? 'Tu usuario no tiene autoridad para asignar o reasignar este caso.'
-            : 'El backend no confirmó la asignación. El caso sigue sin cambios.',
+            : 'No recibimos confirmación de la asignación. Actualizá la bandeja antes de volver a intentar.',
       );
     } finally {
       setAssigning(false);
@@ -267,7 +267,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
       toast.error(
         claimError instanceof ApiError && claimError.status === 409
           ? 'Otro operador tomó este caso. Actualizá la ficha.'
-          : 'El backend no confirmó la asignación. El caso sigue sin cambios.',
+          : 'No recibimos confirmación de la asignación. Actualizá la bandeja antes de volver a intentar.',
       );
     } finally {
       setAssigning(false);
