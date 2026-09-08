@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { resetBackendBootstrapGateForTests } from './backendBootstrapGate';
 
 vi.mock('@/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/config')>()),
@@ -19,6 +20,8 @@ describe('apiFetch safe gateway fallback', () => {
   afterEach(() => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    resetBackendBootstrapGateForTests();
   });
 
   it('moves a GET from a failed same-origin proxy to the direct API candidate', async () => {
@@ -72,5 +75,37 @@ describe('apiFetch safe gateway fallback', () => {
     })).rejects.toMatchObject({ status: 503, retryAfterMs: 2_000 });
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('checks the selected API destination before sending a POST exactly once', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    let releaseVersion!: (response: Response) => void;
+    const version = new Promise<Response>((resolve) => { releaseVersion = resolve; });
+    const fetcher = vi.fn()
+      .mockReturnValueOnce(version)
+      .mockResolvedValueOnce(new Response('{"ok":true}', {
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    global.fetch = fetcher;
+    const request = apiFetch('/api/tickets/1/responder', {
+      method: 'POST', baseUrlOverride: 'https://preview-api.chatboc.test',
+      body: { mensaje: 'Respuesta de prueba' },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith('https://preview-api.chatboc.test/api/version',
+      expect.objectContaining({ method: 'GET', credentials: 'omit' }));
+    releaseVersion(new Response('{"backend":"ready","frontend":"web"}'));
+    await expect(request).resolves.toEqual({ ok: true });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][1].method).toBe('POST');
+  });
+
+  it('does not send a mutation when readiness fails', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    global.fetch = vi.fn().mockResolvedValue(new Response('Bad Gateway', { status: 502 }));
+    await expect(apiFetch('/api/tickets/1/responder', { method: 'POST' }))
+      .rejects.toMatchObject({ name: 'BackendBootstrapError' });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(global.fetch).mock.calls[0][1]?.method).toBe('GET');
   });
 });

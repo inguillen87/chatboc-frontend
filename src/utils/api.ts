@@ -14,6 +14,7 @@ import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new 
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import { ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -1248,6 +1249,11 @@ export async function apiFetch<T>(
     credentials: shouldOmitCredentials ? 'omit' : 'include',
     cache,
   };
+
+  // Vercel Preview containers can scale from zero. Every request, including
+  // mutations, waits on the same contract-aware readiness promise so the first
+  // screen waits for readiness before sending its first business requests.
+  await ensureBackendRuntimeReady({ baseUrl: url });
 
   let response: Response | null = null;
   let lastError: unknown = null;

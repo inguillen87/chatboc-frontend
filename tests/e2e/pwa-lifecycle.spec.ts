@@ -71,6 +71,9 @@ test('installs a compact shell, controls the client and reloads offline', async 
   // The legacy iframe favicon remains available online, while the iframe is
   // deliberately outside the offline shell and must not spend precache budget.
   expect(precacheUrls).not.toContain('favicon.ico');
+  // Export-only tools must stay lazy. A shared Vite preload helper must not
+  // accidentally pull the PDF/compression chunks into the offline shell.
+  expect(precacheUrls.filter((url) => /assets\/vendor-(?:pdf|compression)-/.test(url))).toEqual([]);
   expect(rawPrecacheUrls, 'precache manifest must not contain duplicate URLs').toHaveLength(
     precacheUrls.length,
   );

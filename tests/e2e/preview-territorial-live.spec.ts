@@ -45,6 +45,26 @@ const CRITICAL_REQUEST_TYPES = new Set(['document', 'script', 'stylesheet', 'fet
 
 type JsonRecord = Record<string, unknown>;
 
+type StartupRequest = {
+  kind: 'api' | 'socket';
+  method: string;
+  url: string;
+  order: number;
+  startedAtMs: number;
+};
+
+type BootstrapResponse = {
+  url: string;
+  method: string;
+  status: number;
+  order: number;
+  body: unknown;
+  retryAfter: string | null;
+  finishedAtMs: number | null;
+  finishedOrder: number | null;
+  outcome: 'pending' | 'initializing' | 'ready' | 'invalid';
+};
+
 type RemoteEvidence = {
   apiFailures: string[];
   assetFailures: string[];
@@ -56,6 +76,67 @@ type RemoteEvidence = {
   socketFramesReceived: string[];
   socketFramesSent: string[];
   socketUrls: string[];
+  bootstrapRequests: StartupRequest[];
+  bootstrapResponses: BootstrapResponse[];
+  bootstrapFailures: string[];
+  bootstrapConsole: { url: string; text: string; validated: boolean | null }[];
+  startupRequests: StartupRequest[];
+  settleBootstrap: () => Promise<void>;
+};
+
+const remoteEvidenceByPage = new WeakMap<Page, RemoteEvidence>();
+
+const isSameOriginReadinessUrl = (rawUrl: string) => {
+  try {
+    const url = new URL(rawUrl);
+    return url.origin === TARGET_PREVIEW_ORIGIN && url.pathname === '/api/version' &&
+      !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+};
+
+const validateBootstrapResponse = async (response: Response, record: BootstrapResponse) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const text = await Promise.race([
+      (async () => {
+        const failure = await response.finished();
+        if (failure) throw failure;
+        return response.text();
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Readiness response body did not finish.')), 30_000);
+      }),
+    ]);
+    record.body = text;
+    record.body = JSON.parse(text) as unknown;
+    const timing = response.request().timing();
+    if (timing.startTime <= 0 || timing.responseEnd < 0) {
+      throw new Error('Missing readiness completion timing evidence.');
+    }
+    record.finishedAtMs = timing.startTime + timing.responseEnd;
+    if (record.status === 503) {
+      const retryAfter = Number(record.retryAfter);
+      if (!isRecord(record.body) ||
+        record.body.contract_version !== 'chatboc.bootstrap.v1' ||
+        record.body.reason_code !== 'application_initializing' ||
+        record.body.retryable !== true || !record.retryAfter?.trim() ||
+        !Number.isFinite(retryAfter) || retryAfter <= 0 || retryAfter > 5) {
+        throw new Error('Readiness 503 must match the bootstrap contract and Retry-After in (0, 5] seconds.');
+      }
+      record.outcome = 'initializing';
+      return;
+    }
+    if (record.status !== 200 || !isRecord(record.body) ||
+      typeof record.body.backend !== 'string' || !record.body.backend.trim() ||
+      typeof record.body.frontend !== 'string') {
+      throw new Error('Readiness must finish with HTTP 200 and the backend/frontend version JSON.');
+    }
+    record.outcome = 'ready';
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 type SurveyOpenResult = {
@@ -162,6 +243,11 @@ const isCommittedSurveyUpdate = (
 };
 
 const attachRemoteEvidence = (page: Page): RemoteEvidence => {
+  const pendingBootstrapResponses = new Set<Promise<void>>();
+  const matchedBootstrapConsoleResponses = new Set<BootstrapResponse>();
+  const requests = new Map<Request, StartupRequest>();
+  const bootstrapResponses = new Map<Request, BootstrapResponse>();
+  let eventOrder = 0;
   const evidence: RemoteEvidence = {
     apiFailures: [],
     assetFailures: [],
@@ -173,23 +259,90 @@ const attachRemoteEvidence = (page: Page): RemoteEvidence => {
     socketFramesReceived: [],
     socketFramesSent: [],
     socketUrls: [],
+    bootstrapRequests: [],
+    bootstrapResponses: [],
+    bootstrapFailures: [],
+    bootstrapConsole: [],
+    startupRequests: [],
+    settleBootstrap: async () => {
+      // Response listeners are asynchronous: assertions must not race body validation.
+      while (pendingBootstrapResponses.size) {
+        await Promise.all([...pendingBootstrapResponses]);
+      }
+      for (const message of evidence.bootstrapConsole) {
+        if (message.validated !== null) continue;
+        const response = evidence.bootstrapResponses.find((candidate) =>
+          candidate.url === message.url && candidate.outcome === 'initializing' &&
+          !matchedBootstrapConsoleResponses.has(candidate),
+        );
+        message.validated = Boolean(response);
+        if (response) matchedBootstrapConsoleResponses.add(response);
+        else evidence.browserErrors.push(`console: ${message.text} ${message.url} (no validated bootstrap 503)`);
+      }
+    },
   };
+  remoteEvidenceByPage.set(page, evidence);
 
   const targetHost = new URL(TARGET_PREVIEW_ORIGIN).host.toLowerCase();
 
   page.on('pageerror', (error) => evidence.browserErrors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
     if (message.type() === 'error') {
+      const url = message.location().url;
+      if (isSameOriginReadinessUrl(url) &&
+        /^Failed to load resource: the server responded with a status of 503(?: \([^\n]*\))?$/.test(message.text())) {
+        evidence.bootstrapConsole.push({ url, text: message.text(), validated: null });
+        return;
+      }
       evidence.browserErrors.push(`console: ${message.text()}`);
     }
   });
+  page.on('request', (request) => {
+    const record: StartupRequest = {
+      kind: 'api', method: request.method(), url: request.url(),
+      order: ++eventOrder, startedAtMs: request.timing().startTime,
+    };
+    requests.set(request, record);
+    if (record.method === 'GET' && isSameOriginReadinessUrl(record.url)) {
+      evidence.bootstrapRequests.push(record);
+      return;
+    }
+    const url = new URL(record.url);
+    if (/^\/(?:api|ask|socket\.io)(?:\/|$)/.test(url.pathname) &&
+      !MAP_RESOURCE_PATTERN.test(record.url)) {
+      evidence.startupRequests.push(record);
+    }
+  });
   page.on('response', (response) => {
+    const order = ++eventOrder;
+    const request = response.request();
+    const startupRequest = requests.get(request);
+    // Playwright supplies network startTime on the response, not the request event.
+    if (startupRequest) startupRequest.startedAtMs = request.timing().startTime;
     const url = response.url();
     let parsed: URL | null = null;
     try {
       parsed = new URL(url);
     } catch {
       parsed = null;
+    }
+
+    if (response.request().method() === 'GET' && isSameOriginReadinessUrl(url)) {
+      const record: BootstrapResponse = {
+        url, method: 'GET', status: response.status(), order, body: null,
+        retryAfter: response.headers()['retry-after'] ?? null,
+        finishedAtMs: null, finishedOrder: null, outcome: 'pending',
+      };
+      evidence.bootstrapResponses.push(record);
+      bootstrapResponses.set(request, record);
+      const validation = validateBootstrapResponse(response, record).catch((error: unknown) => {
+        record.outcome = 'invalid';
+        const failure = `${record.status} ${url}: ${String(error)}`;
+        evidence.bootstrapFailures.push(failure);
+        evidence.apiFailures.push(failure);
+      }).finally(() => pendingBootstrapResponses.delete(validation));
+      pendingBootstrapResponses.add(validation);
+      return;
     }
 
     if (/\/assets\//i.test(url) && !response.ok()) {
@@ -210,6 +363,11 @@ const attachRemoteEvidence = (page: Page): RemoteEvidence => {
       evidence.apiFailures.push(`${response.status()} ${url}`);
     }
   });
+  page.on('requestfinished', (request) => {
+    const order = ++eventOrder;
+    const bootstrapResponse = bootstrapResponses.get(request);
+    if (bootstrapResponse) bootstrapResponse.finishedOrder = order;
+  });
   page.on('requestfailed', (request) => {
     const failure = `${request.failure()?.errorText || 'failed'} ${request.url()}`;
     const isIntentionalMapAbort =
@@ -222,6 +380,10 @@ const attachRemoteEvidence = (page: Page): RemoteEvidence => {
     }
   });
   page.on('websocket', (socket) => {
+    evidence.startupRequests.push({
+      kind: 'socket', method: 'CONNECT', url: socket.url(),
+      order: ++eventOrder, startedAtMs: Date.now(),
+    });
     evidence.socketUrls.push(socket.url());
     socket.on('framesent', (event) => {
       evidence.socketFramesSent.push(socketFrameText(event.payload));
@@ -234,6 +396,43 @@ const attachRemoteEvidence = (page: Page): RemoteEvidence => {
 
   return evidence;
 };
+
+const assertCleanRuntime = async (evidence: RemoteEvidence) => {
+  await evidence.settleBootstrap();
+  expect(evidence.bootstrapFailures, evidence.bootstrapFailures.join('\n')).toEqual([]);
+  if (evidence.bootstrapRequests.length) {
+    expect(evidence.bootstrapResponses).toHaveLength(evidence.bootstrapRequests.length);
+    const ready = evidence.bootstrapResponses.find((response) => response.outcome === 'ready');
+    expect(ready, 'An observed readiness probe must eventually return validated version JSON.').toBeDefined();
+    if (!ready || ready.finishedAtMs === null || ready.finishedOrder === null) {
+      throw new Error('No completed readiness response.');
+    }
+    const { finishedAtMs, finishedOrder } = ready;
+    const prematureRequests = evidence.startupRequests.filter((request) =>
+      request.kind === 'socket'
+        ? request.order < finishedOrder
+        : request.startedAtMs <= 0 || request.startedAtMs < finishedAtMs || request.order < ready.order,
+    );
+    expect(prematureRequests, 'No business API request or socket may start before the validated readiness body finishes.').toEqual([]);
+  }
+  expect(evidence.assetFailures, evidence.assetFailures.join('\n')).toEqual([]);
+  expect(evidence.mapFailures, evidence.mapFailures.join('\n')).toEqual([]);
+  expect(evidence.apiFailures, evidence.apiFailures.join('\n')).toEqual([]);
+  expect(evidence.criticalRequestFailures, evidence.criticalRequestFailures.join('\n')).toEqual([]);
+  expect(evidence.browserErrors, evidence.browserErrors.join('\n')).toEqual([]);
+  expect(evidence.socketErrors, evidence.socketErrors.join('\n')).toEqual([]);
+};
+
+test.afterEach(async ({ page }, testInfo) => {
+  const evidence = remoteEvidenceByPage.get(page);
+  if (!evidence) return;
+  await evidence.settleBootstrap();
+  const { settleBootstrap: _settleBootstrap, ...snapshot } = evidence;
+  await testInfo.attach('remote-runtime-and-cold-start-evidence', {
+    body: JSON.stringify(snapshot, null, 2),
+    contentType: 'application/json',
+  });
+});
 
 const openSurveyAndWaitForContracts = async (page: Page): Promise<SurveyOpenResult> => {
   assertSafePreviewTarget();
@@ -733,14 +932,7 @@ test.describe('remote Preview territorial evidence', () => {
     await assertDirectRealtime(evidence);
     await assertResponsiveMap(page, testInfo);
 
-    expect(evidence.assetFailures, evidence.assetFailures.join('\n')).toEqual([]);
-    expect(evidence.mapFailures, evidence.mapFailures.join('\n')).toEqual([]);
-    expect(evidence.apiFailures, evidence.apiFailures.join('\n')).toEqual([]);
-    expect(
-      evidence.criticalRequestFailures,
-      evidence.criticalRequestFailures.join('\n'),
-    ).toEqual([]);
-    expect(evidence.browserErrors, evidence.browserErrors.join('\n')).toEqual([]);
+    await assertCleanRuntime(evidence);
   });
 
   test('keeps every conversational survey, QR and WhatsApp URL on Preview', async ({ request }) => {
@@ -951,5 +1143,6 @@ test.describe('remote Preview durable demo participation gate', () => {
         },
       )
       .toBe(initialTotal + 1);
+    await assertCleanRuntime(evidence);
   });
 });

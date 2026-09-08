@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { apiFetch } from '@/utils/api';
@@ -18,6 +18,7 @@ const bootstrapMocks = vi.hoisted(() => ({
   publicUnmounts: vi.fn(),
   anonId: vi.fn(),
   widgetMounts: vi.fn(),
+  backendReady: vi.fn(),
 }));
 
 const clerkMocks = vi.hoisted(() => ({
@@ -196,6 +197,14 @@ vi.mock('@/api/clerkAuth', () => ({
   fetchClerkFrontendConfig: bootstrapMocks.clerkConfig,
 }));
 
+vi.mock('@/utils/backendBootstrapGate', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/backendBootstrapGate')>();
+  return {
+    ...actual,
+    ensureBackendRuntimeReady: bootstrapMocks.backendReady,
+  };
+});
+
 vi.mock('@/utils/anonId', () => ({
   ensureRemoteAnonId: bootstrapMocks.anonId,
 }));
@@ -245,6 +254,7 @@ const expectNoPrivateBootstrapCalls = () => {
 
 describe('App session bootstrap ordering', () => {
   beforeEach(() => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
     safeLocalStorage.clear();
     usePanelSessionStore.getState().clearSession();
     vi.mocked(apiFetch).mockClear();
@@ -284,6 +294,170 @@ describe('App session bootstrap ordering', () => {
     bootstrapMocks.publicUnmounts.mockReset();
     bootstrapMocks.anonId.mockResolvedValue('anon-test');
     bootstrapMocks.widgetMounts.mockReset();
+    bootstrapMocks.backendReady.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('waits for backend readiness before auth, product mounting and a single user mutation', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    const backendReady = deferred<void>();
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    const mutation = deferred<{ ok: boolean }>();
+    bootstrapMocks.backendReady.mockReturnValue(backendReady.promise);
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    bootstrapMocks.publicMutation.mockReturnValue(mutation.promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+
+    const view = render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledExactlyOnceWith({ enabled: true });
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+    expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Confirmar operacion' })).not.toBeInTheDocument();
+    expectNoPrivateBootstrapCalls();
+
+    view.rerender(<App />);
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+
+    await act(async () => {
+      backendReady.resolve();
+      await backendReady.promise;
+    });
+
+    expect(bootstrapMocks.clerkConfig).toHaveBeenCalledTimes(1);
+    expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Confirmar operacion' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      runtimeConfig.resolve({
+        enabled: true,
+        environment: 'development',
+        production_ready: true,
+        ready_for_session_sync: true,
+        publishable_key: 'pk_test_verified',
+        social_providers: [],
+        configuration_warnings: [],
+      });
+      await runtimeConfig.promise;
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar operacion' }));
+    expect(clerkMocks.bridgeMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMutation).toHaveBeenCalledExactlyOnceWith(
+      '/api/bootstrap-continuity',
+      { method: 'POST' },
+    );
+    expect(screen.getByTestId('mutation-status')).toHaveTextContent('pending');
+
+    view.rerender(<App />);
+    await act(async () => {
+      mutation.resolve({ ok: true });
+      await mutation.promise;
+    });
+
+    expect(screen.getByTestId('mutation-status')).toHaveTextContent('confirmed');
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMutation).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+    expect(clerkMocks.bridgeUnmounts).not.toHaveBeenCalled();
+  });
+
+  it('keeps a failed backend startup closed and recovers once after an explicit retry', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    const retryReady = deferred<void>();
+    bootstrapMocks.backendReady
+      .mockRejectedValueOnce(new Error('Backend unavailable'))
+      .mockReturnValueOnce(retryReady.promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+
+    const view = render(<App />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos iniciar tu espacio');
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+    expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+    expectNoPrivateBootstrapCalls();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar inicio' }));
+
+    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(2);
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+
+    await act(async () => {
+      retryReady.resolve();
+      await retryReady.promise;
+    });
+
+    expect(await screen.findByLabelText('Borrador transitorio')).toBeInTheDocument();
+    view.rerender(<App />);
+
+    expect(screen.queryByRole('button', { name: 'Reintentar inicio' })).not.toBeInTheDocument();
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(2);
+    expect(bootstrapMocks.clerkConfig).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+  });
+
+  it('still waits for backend readiness on the live public Preview while bypassing Clerk', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    const backendReady = deferred<void>();
+    bootstrapMocks.backendReady.mockReturnValue(backendReady.promise);
+    window.history.replaceState({}, '', '/demo?tenant_slug=junin&remote_preview_qa=1');
+
+    render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+
+    await act(async () => {
+      backendReady.resolve();
+      await backendReady.promise;
+    });
+
+    expect(await screen.findByLabelText('Borrador transitorio')).toBeInTheDocument();
+    expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+    expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
+    expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
+  });
+
+  it('renders the offline shell without waiting for a backend readiness request', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    bootstrapMocks.backendReady.mockReturnValue(deferred<void>().promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+
+    try {
+      render(<App />);
+
+      expect(await screen.findByLabelText('Borrador transitorio')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reintentar inicio' })).not.toBeInTheDocument();
+      expect(bootstrapMocks.backendReady).not.toHaveBeenCalled();
+      expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+      expect(bootstrapMocks.publicMutation).not.toHaveBeenCalled();
+    } finally {
+      online.mockRestore();
+    }
   });
 
   it.each([
@@ -451,6 +625,8 @@ describe('App session bootstrap ordering', () => {
   });
 
   it('mounts the exact institutional presentation standalone without Clerk, tenant or widget', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    bootstrapMocks.backendReady.mockReturnValue(deferred<void>().promise);
     const runtimeConfig = deferred<Record<string, unknown>>();
     bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
     safeLocalStorage.setItem('tenantSlug', 'junin');
@@ -467,6 +643,7 @@ describe('App session bootstrap ordering', () => {
     expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
     expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
     expect(bootstrapMocks.anonId).not.toHaveBeenCalled();
+    expect(bootstrapMocks.backendReady).not.toHaveBeenCalled();
     expectNoPrivateBootstrapCalls();
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
   });

@@ -7,6 +7,7 @@ import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { GOOGLE_CLIENT_ID } from '@/env';
 import { apiFetch } from '@/utils/api';
+import { ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 
 // Dynamically import ChatWidget only when rendering to prevent TDZ cycles
 const ChatWidgetComponent = React.lazy(() => import("@/components/chat/ChatWidget"));
@@ -316,6 +317,7 @@ const IframePage = () => {
       let fetchedConfig: PublicWidgetConfig = {};
       if (tenantSlug) {
         try {
+          await ensureBackendRuntimeReady();
           const response = await fetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
             credentials: "omit",
             headers: {

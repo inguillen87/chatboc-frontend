@@ -365,6 +365,10 @@ export default defineConfig(({ mode }) => {
         },
         output: {
           manualChunks(id) {
+            // This helper is shared by every dynamic import. Letting Rollup
+            // merge it into a lazy export chunk pulls PDF/compression into the
+            // initial shell again, even though PDF tools load only on export.
+            if (id === '\0vite/preload-helper.js') return 'vendor-preload';
             if (!id.includes('node_modules')) return;
 
             // Keep React Flow outside the React runtime chunk. Matching the

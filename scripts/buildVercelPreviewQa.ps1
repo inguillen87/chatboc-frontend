@@ -33,7 +33,9 @@ try {
         throw "Could not resolve an exact frontend Git revision."
     }
 
-    $sourceChanges = @(& git -C $projectRoot status --porcelain --untracked-files=normal)
+    # Playwright refreshes tracked evidence during verification. It is not
+    # deployable source; retain it without blocking an exact-revision build.
+    $sourceChanges = @(& git -C $projectRoot status --porcelain --untracked-files=normal -- . ':!test-results' ':!playwright-report')
     if ($LASTEXITCODE -ne 0) {
         throw "Could not verify the frontend worktree state."
     }
