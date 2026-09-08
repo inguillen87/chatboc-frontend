@@ -107,7 +107,7 @@ const keepInitialPwaShell = (manifestEntries: PwaManifestEntry[]) => {
 };
 
 const deferredModulePreloadPatterns = [
-  /(^|\/)assets\/vendor-(?:compression|pdf|charts|xlsx|docx|canvas-export|maplibre|google-maps)-/,
+  /(^|\/)assets\/vendor-(?:compression|pdf|charts|flow|xlsx|docx|canvas-export|maplibre|google-maps)-/,
   /(^|\/)assets\/widgetCommerce-/,
   /(^|\/)assets\/ChatWidget-/,
   /(^|\/)assets\/TrackingMap-/,
@@ -368,6 +368,12 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
 
+            // Keep React Flow outside the React runtime chunk. Matching the
+            // generic `react/` substring first also catches `@xyflow/react/`
+            // and creates a vendor-react <-> d3 charts cycle at runtime.
+            if (id.includes('@xyflow/react') || id.includes('@xyflow/system')) {
+              return 'vendor-flow';
+            }
             if (id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) {
               return 'vendor-react';
             }

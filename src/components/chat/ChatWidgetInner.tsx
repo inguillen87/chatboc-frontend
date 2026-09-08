@@ -74,6 +74,17 @@ const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 const MOBILE_PORTAL_NAV_BREAKPOINT_PX = 768;
 const MOBILE_PORTAL_NAV_HEIGHT = "4rem";
 
+export const STANDALONE_MOBILE_OPEN_VIEWPORT = Object.freeze({
+  left: 0,
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: "100dvw",
+  height: "100dvh",
+  maxWidth: "100dvw",
+  maxHeight: "100dvh",
+} satisfies React.CSSProperties);
+
 export const isUserPortalSurfacePath = (pathname: string) => {
   const segments = pathname
     .split('/')
@@ -2409,7 +2420,7 @@ function ChatWidgetInner({
     }
 
     if (isMobileView) {
-      return "calc(100dvh - max(4.5rem, env(safe-area-inset-top)) - 0.75rem)";
+      return "100dvh";
     }
 
     // In Standalone mode (Landing page), use aggressive height
@@ -3148,17 +3159,11 @@ function ChatWidgetInner({
     if (mode === "standalone") {
       if (isOpen && isMobileView) {
         return {
-          left: 0,
-          right: 0,
-          top: "auto",
-          bottom: 0,
-          width: finalOpenWidth,
-          height: finalOpenHeight,
-          maxWidth: "100dvw",
-          maxHeight: "calc(100dvh - max(4.75rem, env(safe-area-inset-top)))",
+          ...STANDALONE_MOBILE_OPEN_VIEWPORT,
           zIndex: 999999,
           transition: "opacity 0.18s ease",
           transform: "none",
+          borderRadius: 0,
         };
       }
 
@@ -3396,18 +3401,29 @@ function ChatWidgetInner({
 
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading && isOpen ? (
-          <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-border/60 bg-card text-card-foreground shadow-xl">
+          <div
+            ref={openPanelRef}
+            id={`${widgetId}-panel`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Cargando asistente Chatboc"
+            aria-busy="true"
+            tabIndex={-1}
+            onKeyDown={handleOpenPanelKeyDown}
+            className="h-full min-h-0 w-full overflow-hidden rounded-[inherit] border border-border/60 bg-card text-card-foreground shadow-xl"
+          >
             {isOpen ? (
               <div className="flex h-full min-h-0 flex-col">
-                <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/15" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="h-3 w-28 rounded bg-muted" />
-                    <div className="h-2 w-40 max-w-full rounded bg-muted/70" />
-                  </div>
-                </div>
+                <ChatHeader
+                  onClose={toggleChat}
+                  showProfile={false}
+                  logoUrl={headerLogoUrl || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
+                  title={headerTitle}
+                  subtitle={headerSubtitle}
+                  compactActions={isMobileView}
+                />
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent motion-safe:animate-spin"></div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">Cargando asistente Chatboc</p>
                     <p className="mt-1 text-xs text-muted-foreground">Preparando mensajes, menu y accesibilidad.</p>
@@ -3424,9 +3440,28 @@ function ChatWidgetInner({
             )}
           </div>
         ) : profileError && isOpen ? (
-          <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-card rounded-2xl">
-            <p className="text-destructive font-semibold">Error</p>
-            <p className="text-sm text-muted-foreground">{profileError}</p>
+          <div
+            ref={openPanelRef}
+            id={`${widgetId}-panel`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="No pudimos abrir el asistente Chatboc"
+            tabIndex={-1}
+            onKeyDown={handleOpenPanelKeyDown}
+            className="flex h-full w-full flex-col overflow-hidden rounded-[inherit] bg-card"
+          >
+            <ChatHeader
+              onClose={toggleChat}
+              showProfile={false}
+              logoUrl={headerLogoUrl || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
+              title={headerTitle}
+              subtitle={headerSubtitle}
+              compactActions={isMobileView}
+            />
+            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center" role="alert">
+              <p className="font-semibold text-foreground">No pudimos abrir el asistente</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">{profileError}</p>
+            </div>
           </div>
         ) : (
           <SafeAnimatePresence mode="wait" initial={false}>
@@ -3438,11 +3473,12 @@ function ChatWidgetInner({
               role="dialog"
               aria-modal="true"
               aria-label="Chatboc asistente virtual"
+              id={`${widgetId}-panel`}
               tabIndex={-1}
               onKeyDown={handleOpenPanelKeyDown}
               style={{
                   borderRadius: isMobileView
-                    ? "24px 24px 0 0"
+                    ? "0"
                     : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
                   background: chatBackground || (widgetUx.glassmorphism
                     ? presetVisualProfile.panelGradient
@@ -3686,8 +3722,11 @@ function ChatWidgetInner({
                 whileHover={{ scale: 1 }}
                 whileTap={{ scale: 1 }}
                 onClick={toggleChat}
-                aria-label="Abrir chat"
-                title="Abrir asistente IA"
+                aria-label={`Abrir el asistente ${headerTitle || "Chatboc"}`}
+                aria-controls={`${widgetId}-panel`}
+                aria-expanded="false"
+                aria-haspopup="dialog"
+                title={`Abrir ${headerTitle || "Chatboc"}`}
               >
                 <img
                   src={launcherImageSrc}
@@ -3707,8 +3746,8 @@ function ChatWidgetInner({
                   }
                 />
                 {!isMobileView && !isOpen ? (
-                  <span className="pointer-events-none absolute -top-9 right-1/2 translate-x-1/2 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground/85 opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100">
-                    Asistente IA
+                  <span className="pointer-events-none absolute -top-10 right-0 whitespace-nowrap rounded-lg border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-semibold text-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    Chatboc · Asistente digital
                   </span>
                 ) : null}
               </motion.button>

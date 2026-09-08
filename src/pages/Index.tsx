@@ -1,9 +1,10 @@
 import React, { useEffect } from "react";
+import { useReducedMotion } from "framer-motion";
+import { ReactLenis } from "lenis/react";
 import { safeSessionStorage } from "@/utils/safeLocalStorage";
 import HeroSection from "@/components/sections/HeroSection";
 import SaaSOperatingSystemSection from "@/components/sections/SaaSOperatingSystemSection";
 import SolutionSection from "@/components/sections/SolutionSection";
-import HowItWorksSection from "@/components/sections/HowItWorksSection";
 import PricingSection from "@/components/sections/PricingSection";
 import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
 import CtaSection from "@/components/sections/CtaSection";
@@ -15,10 +16,11 @@ const LegacyLandingAnchor = ({ id }: { id: string }) => (
 
 const Index = () => {
   const { experience: landingExperience } = useLandingExperience();
-  // Guard for mixed old/new client chunks while browsers refresh assets.
-  // Legacy bundles may still reference showWidget on this page.
-  const showWidget = false;
-
+  const reduceMotion = useReducedMotion();
+  const canUseSmoothScroll =
+    typeof window !== "undefined" &&
+    typeof window.requestAnimationFrame === "function" &&
+    typeof ResizeObserver !== "undefined";
   useEffect(() => {
     document.title = "Chatboc - Agentes IA para operar conversaciones, ventas y servicios";
 
@@ -34,24 +36,29 @@ const Index = () => {
     }
   }, []);
 
-  return (
-    <>
-      <div className="bg-background scroll-smooth">
+  const landing = (
+      <div className="bg-background">
         <HeroSection experience={landingExperience} />
         <LegacyLandingAnchor id="diferencia-chatboc" />
         <LegacyLandingAnchor id="problemas" />
+        <LegacyLandingAnchor id="como-funciona" />
         <SaaSOperatingSystemSection />
         <SolutionSection />
         <LegacyLandingAnchor id="publico-objetivo" />
         <LegacyLandingAnchor id="senales-valor" />
         <DemoShowcaseSection />
-        <HowItWorksSection />
         <LegacyLandingAnchor id="modulos" />
         <PricingSection />
         <CtaSection />
       </div>
-      {showWidget && null}
-    </>
+  );
+
+  return (
+    reduceMotion || !canUseSmoothScroll ? landing : (
+      <ReactLenis root options={{ anchors: true, autoRaf: true, lerp: 0.085, smoothWheel: true }}>
+        {landing}
+      </ReactLenis>
+    )
   );
 };
 

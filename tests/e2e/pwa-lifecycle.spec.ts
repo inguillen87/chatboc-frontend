@@ -186,7 +186,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
   await expect
     .poll(() => page.locator('#root').evaluate((root) => root.childElementCount))
     .toBeGreaterThan(0);
-  await expect(page.getByText(/Converti conversaciones en operaciones reales/i).first()).toBeVisible();
+  await expect(page.getByText(/Convert[ií] conversaciones en operaciones reales/i).first()).toBeVisible();
 
   const offlineSurveysPage = await context.newPage();
   const offlineSurveysResponse = await offlineSurveysPage.goto('/encuestas?pwa-offline=1', {

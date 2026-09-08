@@ -97,7 +97,7 @@ test.describe('public accessibility smoke', () => {
 
   test('landing has no critical or serious WCAG violations', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /Converti conversaciones en operaciones reales/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Convert[ií] conversaciones en operaciones reales/i })).toBeVisible();
 
     await expectNoHighImpactAccessibilityViolations(page);
   });

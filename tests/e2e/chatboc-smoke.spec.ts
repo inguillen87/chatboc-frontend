@@ -208,7 +208,7 @@ test.describe('Chatboc smoke e2e', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: /Converti conversaciones en operaciones reales/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Convert[ií] conversaciones en operaciones reales/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Solicitar demostraci[oó]n/i }).first()).toBeVisible();
     expect(realtimeRequests).toEqual([]);
   });
@@ -237,6 +237,28 @@ test.describe('Chatboc smoke e2e', () => {
       expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
       expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(391);
     }
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test('landing explica el recorrido conectado sin sobrecargar escritorio ni mobile', async ({ page }) => {
+    await page.goto('/');
+
+    const section = page.getByRole('region', { name: /Recibir, resolver y medir en un mismo flujo/i });
+    await expect(section).toBeVisible();
+    await expect(section.getByRole('button', { name: 'Gobierno', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(section.getByText('Reclamos, trámites y participación').first()).toBeVisible();
+
+    await section.getByRole('button', { name: 'Empresa', exact: true }).click();
+    await expect(section.getByRole('button', { name: 'Empresa', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(section.getByText('Consultas, catálogo y pedidos').first()).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobileSection = page.getByRole('region', { name: /Recibir, resolver y medir en un mismo flujo/i });
+    const mobileJourney = mobileSection.getByRole('list', { name: /Recorrido operativo para gobierno/i });
+    await expect(mobileJourney).toBeVisible();
+    await expect(mobileJourney.getByRole('listitem')).toHaveCount(4);
     await expectNoHorizontalOverflow(page);
   });
 
@@ -273,7 +295,7 @@ test.describe('Chatboc smoke e2e', () => {
 
     await page.goto('/');
     const showcase = page.locator('#demos');
-    await expect(showcase.getByRole('heading', { name: /Proba una conversacion real por sector/i })).toBeVisible();
+    await expect(showcase.getByRole('heading', { name: /Prob[aá] una conversaci[oó]n real por sector/i })).toBeVisible();
     await showcase.getByRole('button', { name: /Iniciar demo colegio/i }).click();
 
     await expect(page).toHaveURL(/\/demo\?session=/);
@@ -407,7 +429,7 @@ test.describe('Chatboc smoke e2e', () => {
   test('widget abre desde la landing con controles visibles', async ({ page }) => {
     await page.goto('/');
 
-    await page.getByRole('button', { name: /Abrir chat/i }).click();
+    await page.getByRole('button', { name: /Abrir el asistente/i }).click();
 
     const widget = page.getByRole('region', { name: /Chat widget/i });
     const composer = widget.getByRole('textbox', { name: /Escribir mensaje/i });

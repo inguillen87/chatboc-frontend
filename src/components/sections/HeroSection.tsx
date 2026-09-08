@@ -150,7 +150,7 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
   return defaultValue;
 };
 
-const DEFAULT_HEADLINE = "Converti conversaciones en operaciones reales";
+const DEFAULT_HEADLINE = "Convertí conversaciones en operaciones reales";
 const LEGACY_DESCRIPTION =
   "Chatboc atiende por web o WhatsApp, pide los datos justos y deja casos, pedidos o leads listos para operar.";
 const DEFAULT_DESCRIPTION =

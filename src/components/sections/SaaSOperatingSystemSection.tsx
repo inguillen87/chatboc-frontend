@@ -1,26 +1,30 @@
 import React from "react";
-import { BarChart3, Inbox, Route } from "lucide-react";
 
-const operatingFlow = [
-  {
-    icon: Inbox,
-    title: "Recibir",
-    description: "Centraliza consultas y archivos desde los canales que la organización haya habilitado.",
-    scope: "WhatsApp · Web · Voz",
-  },
-  {
-    icon: Route,
-    title: "Resolver",
-    description: "Conserva el contexto para responder, crear un caso, registrar un pedido o derivar al equipo.",
-    scope: "Respuesta · Caso · Pedido",
-  },
-  {
-    icon: BarChart3,
-    title: "Medir",
-    description: "Ordena estados y actividad para que cada gestión pueda seguirse de principio a fin.",
-    scope: "Estado · Historial · Prioridad",
-  },
-];
+const ServiceJourneyFlow = React.lazy(() => import("./ServiceJourneyFlow"));
+
+const JourneyFlowFallback = () => (
+  <div
+    className="mt-9 overflow-hidden rounded-[16px] border border-border bg-card shadow-sm"
+    aria-label="Cargando recorrido conectado"
+    role="status"
+  >
+    <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
+      <div className="space-y-2">
+        <div className="h-4 w-36 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+        <div className="h-3 w-64 max-w-[70vw] animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
+      </div>
+      <div className="hidden h-10 w-44 animate-pulse rounded-[10px] bg-muted sm:block motion-reduce:animate-none" />
+    </div>
+    <div className="grid gap-3 p-4 sm:grid-cols-4 sm:p-6">
+      {["Canales", "Agente", "Operación", "Gestión"].map((label) => (
+        <div key={label} className="rounded-[12px] border border-border bg-background p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.11em] text-primary">{label}</p>
+          <div className="mt-3 h-3 w-4/5 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const SaaSOperatingSystemSection = () => {
   return (
@@ -44,31 +48,9 @@ const SaaSOperatingSystemSection = () => {
             </p>
           </div>
 
-          <ol className="mt-9 grid overflow-hidden rounded-[12px] border border-border bg-card shadow-sm lg:grid-cols-3">
-            {operatingFlow.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <li
-                  key={step.title}
-                  className="relative border-b border-border p-5 last:border-b-0 sm:p-6 lg:border-b-0 lg:border-r lg:p-7 lg:last:border-r-0"
-                >
-                  <div className="mb-7 flex items-center justify-between gap-4">
-                    <span className="text-xs font-semibold tabular-nums text-primary" aria-hidden="true">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-border bg-muted/40 text-primary">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-semibold tracking-tight text-foreground">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
-                  <p className="mt-6 border-t border-border/70 pt-4 text-xs font-semibold uppercase tracking-[0.08em] text-foreground/70">
-                    {step.scope}
-                  </p>
-                </li>
-              );
-            })}
-          </ol>
+          <React.Suspense fallback={<JourneyFlowFallback />}>
+            <ServiceJourneyFlow />
+          </React.Suspense>
         </div>
       </div>
     </section>

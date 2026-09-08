@@ -7,7 +7,20 @@ import {
   restoreDialogFocus,
   resolvePublicDemoSurveyBootstrap,
   resolveStandaloneLauncherBottom,
+  STANDALONE_MOBILE_OPEN_VIEWPORT,
 } from './ChatWidgetInner';
+
+describe('ChatWidgetInner mobile open viewport', () => {
+  it('uses the complete dynamic viewport without a landing-page gap', () => {
+    expect(STANDALONE_MOBILE_OPEN_VIEWPORT).toMatchObject({
+      top: 0,
+      bottom: 0,
+      width: '100dvw',
+      height: '100dvh',
+      maxHeight: '100dvh',
+    });
+  });
+});
 
 describe('ChatWidgetInner public demo survey bootstrap', () => {
   it('binds demo survey routes to the explicit tenant and sector', () => {

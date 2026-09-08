@@ -314,6 +314,11 @@ describe('Navbar account menu routing', () => {
     expect(navigation.querySelectorAll('button')).toHaveLength(4);
     expect(screen.getByRole('link', { name: 'Ver demo' })).toHaveAttribute('href', '/demo');
     expect(screen.queryByRole('link', { name: 'Ver carrito' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ir al inicio de Chatboc' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Ir al inicio de Chatboc' })).toHaveAttribute(
+      'title',
+      'Chatboc.ar · Inicio',
+    );
   });
 
   it('exposes a keyboard-safe mobile navigation disclosure and coordinates the accessibility dock', () => {

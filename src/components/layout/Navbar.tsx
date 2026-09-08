@@ -333,14 +333,15 @@ const Navbar: React.FC = () => {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
         <button
           ref={brandHomeButtonRef}
+          type="button"
           onClick={handleLogoClick}
-          className="group flex items-center rounded-[8px] px-1 py-1 transition-colors hover:bg-primary/5"
+          className="group flex min-h-11 items-center rounded-lg px-1.5 py-1 transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           aria-label="Ir al inicio de Chatboc"
+          title="Chatboc.ar · Inicio"
         >
           <ChatbocBrandLockup
             size="nav"
-            tone={isDark ? "dark" : "light"}
-            className="transition-transform duration-300 group-hover:translate-y-[-1px] group-hover:scale-[1.01]"
+            tone="auto"
           />
         </button>
 
@@ -486,7 +487,7 @@ const Navbar: React.FC = () => {
         <button
           ref={mobileMenuButtonRef}
           type="button"
-          className="rounded-[8px] p-2 text-foreground transition-colors hover:bg-accent md:hidden"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:hidden"
           onClick={() => setMenuOpen((current) => !current)}
           aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
           aria-expanded={menuOpen}
