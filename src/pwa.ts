@@ -90,6 +90,23 @@ const isLocalPreviewHost = () => {
   return LOCAL_PREVIEW_HOSTS.has(window.location.hostname);
 };
 
+const isLocalPwaLifecycleVerification = () => {
+  if (typeof window === 'undefined' || !isLocalPreviewHost()) return false;
+
+  const params = new URLSearchParams(window.location.search);
+  const hashQuery = window.location.hash.includes('?')
+    ? window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+    : '';
+  const hashParams = new URLSearchParams(hashQuery);
+  const hasVerificationFlag = (name: string) => params.has(name) || hashParams.has(name);
+
+  return (
+    hasVerificationFlag('pwa-lifecycle-e2e') ||
+    hasVerificationFlag('pwa-offline') ||
+    hasVerificationFlag('pwa-privacy-upgrade')
+  );
+};
+
 export const shouldDisablePwaForHost = (hostname?: string | null) => {
   const normalized = String(hostname || '').trim().toLowerCase();
   return LOCAL_PREVIEW_HOSTS.has(normalized) || normalized.endsWith('.vercel.app');
@@ -288,7 +305,11 @@ export const setupPWA = () => {
   // origins. A worker registered on a stable Preview alias can combine a
   // cached HTML shell from release A with immutable chunks from release B.
   // Keep PWA support on production/custom domains and make Preview deterministic.
-  if ((import.meta.env.DEV && isLocalPreviewHost()) || shouldDisablePwaForHost(window.location.hostname)) {
+  const allowLocalLifecycleVerification = import.meta.env.PROD && isLocalPwaLifecycleVerification();
+  if (
+    !allowLocalLifecycleVerification &&
+    ((import.meta.env.DEV && isLocalPreviewHost()) || shouldDisablePwaForHost(window.location.hostname))
+  ) {
     cleanupEphemeralPwaRuntime().catch((error) => {
       console.warn('Ephemeral PWA cleanup skipped', error);
     });

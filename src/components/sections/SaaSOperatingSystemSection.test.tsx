@@ -3,9 +3,11 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ServiceJourneyFlow from "./ServiceJourneyFlow";
+import SaaSOperatingSystemSection from "./SaaSOperatingSystemSection";
 
 describe("ServiceJourneyFlow", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -34,5 +36,23 @@ describe("ServiceJourneyFlow", () => {
     const compactJourney = screen.getByRole("list", { name: "Recorrido operativo para gobierno" });
     expect(compactJourney).not.toHaveClass("md:hidden");
     expect(within(compactJourney).getAllByRole("listitem")).toHaveLength(4);
+  });
+});
+
+describe("SaaSOperatingSystemSection", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the complete essential journey usable while offline", () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+
+    render(<SaaSOperatingSystemSection />);
+
+    const journey = screen.getByRole("region", { name: "Recorrido conectado" });
+    expect(within(journey).getByText("Continuidad operativa")).toBeVisible();
+    expect(within(journey).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(journey).getByText("WhatsApp, web, voz y formularios accesibles.")).toBeVisible();
+    expect(within(journey).getByText("CRM y analítica")).toBeVisible();
   });
 });
