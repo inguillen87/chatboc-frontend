@@ -1,0 +1,44 @@
+.panel {
+  --accent: 217 91% 50%;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsl(var(--accent) / .25);
+  border-radius: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  background: linear-gradient(120deg, hsl(var(--accent) / .08), hsl(var(--card)) 75%);
+}
+.panel::before {
+  position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: hsl(var(--accent)); content: '';
+}
+.panel[data-tone='success'] { --accent: 158 78% 32%; }
+.panel[data-tone='warning'] { --accent: 32 95% 42%; }
+.panel[data-tone='error'] { --accent: 347 77% 49%; }
+.icon {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 3rem; height: 3rem; border-radius: .875rem;
+  background: hsl(var(--accent) / .12); color: hsl(var(--accent));
+}
+.footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 1rem; margin-top: 1.25rem;
+  padding-top: 1rem; border-top: 1px solid hsl(var(--accent) / .14);
+}
+@media (max-width: 479px) { .action { width: 100%; } }
+:global(.dark) .panel { --accent: 213 95% 72%; }
+:global(.dark) .panel[data-tone='success'] { --accent: 156 72% 65%; }
+:global(.dark) .panel[data-tone='warning'] { --accent: 38 95% 65%; }
+:global(.dark) .panel[data-tone='error'] { --accent: 350 90% 73%; }
+@keyframes arrive { from { opacity: .45; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .panel { animation: arrive 180ms ease-out both; }
+  .spin { animation: rotate 1s linear infinite; }
+}
+:global(.a11y-reduced-motion) .panel,
+:global(.a11y-reduced-motion) .spin { animation: none; }
+@media (forced-colors: active) {
+  .panel { background: Canvas; border-color: CanvasText; }
+  .panel::before { background: CanvasText; }
+  .icon { color: CanvasText; border: 1px solid CanvasText; }
+}
