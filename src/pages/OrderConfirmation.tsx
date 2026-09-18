@@ -1,16 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRightLeft, CheckCircle, Clock, ExternalLink, Hash, Loader2, Package, ShoppingBag, XCircle } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle, Clock, RefreshCw, Hash, Loader2, Package, ShoppingBag, XCircle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { apiFetch, ApiError, NetworkError, getErrorMessage } from '@/utils/api';
+import { apiFetch } from '@/utils/api';
+import { useVerifiedOrder } from '@/hooks/useVerifiedOrder';
+import { getVerifiedPaymentStatus, shouldRefreshOrder } from '@/utils/verifiedPaymentStatus';
 import { formatCurrency } from '@/utils/currency';
 import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { cn } from '@/lib/utils';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
@@ -131,11 +132,11 @@ const normalizeOrder = (payload: unknown): OrderSummary => {
   const totalMonetario =
     toNumber(payload.total_monetario) ??
     toNumber(payload.total) ??
-    items.reduce((acc, item) => acc + (item.subtotal_monetario ?? item.precio_unitario ?? 0) * item.cantidad, 0);
+    items.reduce((acc, item) => acc + (item.subtotal_monetario ?? (item.precio_unitario ?? 0) * item.cantidad), 0);
 
   const totalPuntos =
     toNumber(payload.total_puntos) ??
-    items.reduce((acc, item) => acc + (item.subtotal_puntos ?? item.precio_puntos ?? 0) * item.cantidad, 0);
+    items.reduce((acc, item) => acc + (item.subtotal_puntos ?? (item.precio_puntos ?? 0) * item.cantidad), 0);
 
   return {
     id,
@@ -151,16 +152,6 @@ const normalizeOrder = (payload: unknown): OrderSummary => {
   };
 };
 
-const statusCopy: Record<string, { label: string; tone: 'success' | 'warning' | 'error' | 'info' }> = {
-  approved: { label: 'Pago aprobado', tone: 'success' },
-  pagado: { label: 'Pago aprobado', tone: 'success' },
-  paid: { label: 'Pago aprobado', tone: 'success' },
-  pendiente: { label: 'Pago pendiente', tone: 'warning' },
-  pending: { label: 'Pago pendiente', tone: 'warning' },
-  failure: { label: 'Pago rechazado', tone: 'error' },
-  rejected: { label: 'Pago rechazado', tone: 'error' },
-};
-
 const toneToClasses: Record<'success' | 'warning' | 'error' | 'info', string> = {
   success: 'text-green-600 border-green-200 bg-green-50',
   warning: 'text-amber-600 border-amber-200 bg-amber-50',
@@ -173,9 +164,6 @@ const OrderConfirmationPage = () => {
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
 
-  const [order, setOrder] = useState<OrderSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [failedImageKeys, setFailedImageKeys] = useState<Set<string>>(() => new Set());
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
@@ -191,46 +179,26 @@ const OrderConfirmationPage = () => {
     [currentSlug],
   );
 
-  const statusFromGateway = searchParams.get('status')?.toLowerCase() ?? null;
   const pedidoId =
     searchParams.get('pedido_id') ||
     searchParams.get('order_id') ||
     searchParams.get('id');
 
-  useEffect(() => {
-    if (!pedidoId) {
-      setError('No encontramos el identificador del pedido.');
-      return;
-    }
-
-    const controller = new AbortController();
-    setIsLoading(true);
-    setError(null);
-
-    apiFetch<unknown>(`/api/pedidos/${encodeURIComponent(pedidoId)}`, {
-      ...sharedRequestOptions,
-      signal: controller.signal,
-    })
-      .then((response) => {
-        setOrder(normalizeOrder(response));
-      })
-      .catch((err) => {
-        if (err instanceof ApiError || err instanceof NetworkError) {
-          setError(getErrorMessage(err, 'No pudimos recuperar el estado del pedido.'));
-        } else if (err instanceof DOMException && err.name === 'AbortError') {
-          return;
-        } else {
-          setError('No pudimos recuperar el estado del pedido.');
-        }
-      })
-      .finally(() => setIsLoading(false));
-
-    return () => controller.abort();
+  const scope = pedidoId ? JSON.stringify([currentSlug ?? null, pedidoId]) : null;
+  const loadOrder = useCallback(async (signal: AbortSignal) => {
+    if (!pedidoId) throw new Error("Missing order");
+    const response = await apiFetch<unknown>(`/api/pedidos/${encodeURIComponent(pedidoId)}`, {
+      ...sharedRequestOptions, signal,
+    });
+    const normalized = normalizeOrder(response);
+    if (normalized.id !== pedidoId) throw new Error("Order identity mismatch");
+    return normalized;
   }, [pedidoId, sharedRequestOptions]);
-
-  const effectiveStatus = (order?.estado || statusFromGateway || '').toLowerCase();
-  const statusMeta = statusCopy[effectiveStatus] ?? { label: 'Estado en revisión', tone: 'info' };
-  const stageLabel = getCommercialStageLabel(order?.commercial_state?.stage || effectiveStatus || null);
+  const { data: order, isLoading, error, lastCheckedAt, autoRefreshStopped, refresh } =
+    useVerifiedOrder(scope, loadOrder, shouldRefreshOrder);
+  const effectiveStatus = (order?.estado || "").toLowerCase();
+  const statusMeta = getVerifiedPaymentStatus(order?.estado);
+  const stageLabel = order?.commercial_state?.stage ? getCommercialStageLabel(order.commercial_state.stage) : null;
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -238,7 +206,7 @@ const OrderConfirmationPage = () => {
         <ShoppingBag className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-3xl font-bold text-foreground">Resultado del pedido</h1>
-          <p className="text-muted-foreground">Confirmamos el estado del pago y los ítems incluidos.</p>
+          <p className="text-muted-foreground">Consultá el estado verificado del pedido y sus productos.</p>
         </div>
       </div>
 
@@ -272,7 +240,7 @@ const OrderConfirmationPage = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge className={cn('text-sm capitalize', toneToClasses[statusMeta.tone])}>
+              <Badge className={cn('text-sm', toneToClasses[statusMeta.tone])}>
                 {statusMeta.label}
               </Badge>
               {stageLabel ? (
@@ -284,6 +252,20 @@ const OrderConfirmationPage = () => {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            <div className="rounded-xl border bg-muted/30 p-4" role="status" aria-live="polite" aria-atomic="true">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="font-medium">{isLoading ? 'Consultando el estado del pedido' : error ? 'La verificación no se completó' : autoRefreshStopped ? 'La acreditación aún no está confirmada' : 'Verificación del pedido'}</p>
+                  <p className="text-sm text-muted-foreground">{lastCheckedAt ? `Última consulta: ${new Date(lastCheckedAt).toLocaleTimeString('es-AR')}.` : 'Esperando la confirmación del servidor.'}</p>
+                  <p className="text-sm text-muted-foreground">Volver de la pasarela o enviar un comprobante no acredita el pago.</p>
+                  {autoRefreshStopped && !error ? <p className="text-sm text-muted-foreground">La consulta automática finalizó. Podés volver a consultar sin repetir la compra.</p> : null}
+                </div>
+                <Button type="button" variant="outline" onClick={refresh} disabled={isLoading} className="shrink-0">
+                  <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} aria-hidden="true" />
+                  {isLoading ? 'Verificando…' : 'Volver a consultar'}
+                </Button>
+              </div>
+            </div>
 
             {order ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -304,11 +286,10 @@ const OrderConfirmationPage = () => {
                     {order.customer_profile?.phone ? <p className="mt-1 text-sm text-muted-foreground">{order.customer_profile.phone}</p> : null}
                   </div>
                 ) : null}
-                <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Continuidad</p>
-                  <p className="mt-2 flex items-center gap-2 font-semibold text-foreground"><ArrowRightLeft className="h-4 w-4 text-primary" /> {order.commercial_state?.supports_handoff ? 'Podés retomar por otro canal' : 'Sin handoff informado'}</p>
-                  {order.preference_id ? <p className="mt-1 text-xs text-muted-foreground">Ref. {order.preference_id}</p> : null}
-                </div>
+                {order.commercial_state?.supports_handoff ? (<div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Continuar tu atención</p>
+                  <p className="mt-2 flex items-center gap-2 font-semibold text-foreground"><ArrowRightLeft className="h-4 w-4 text-primary" /> Podés retomar por otro canal</p>
+                </div>) : null}
               </div>
             ) : null}
 
@@ -319,17 +300,17 @@ const OrderConfirmationPage = () => {
               </div>
             )}
 
-            {!isLoading && order && (
+            {order && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={cn("grid grid-cols-1 gap-4", order.total_puntos > 0 ? "md:grid-cols-3" : "md:grid-cols-2")}>
                   <div className="p-4 rounded-lg border bg-muted/30">
                     <p className="text-sm text-muted-foreground">Total en dinero</p>
                     <p className="text-2xl font-semibold text-foreground">{formatCurrency(order.total_monetario)}</p>
                   </div>
-                  <div className="p-4 rounded-lg border bg-muted/30">
+                  {order.total_puntos > 0 ? (<div className="p-4 rounded-lg border bg-muted/30">
                     <p className="text-sm text-muted-foreground">Total en puntos</p>
                     <p className="text-2xl font-semibold text-primary">{order.total_puntos} pts</p>
-                  </div>
+                  </div>) : null}
                   <div className="p-4 rounded-lg border bg-muted/30">
                     <p className="text-sm text-muted-foreground">Estado del pago</p>
                     <div className="flex items-center gap-2 text-foreground font-medium">
@@ -391,11 +372,11 @@ const OrderConfirmationPage = () => {
                             </div>
                             <div className="text-right space-y-1">
                               {item.modalidad === 'puntos' ? (
-                                <p className="font-semibold text-primary">{(item.precio_puntos ?? 0) * item.cantidad} pts</p>
+                                <p className="font-semibold text-primary">{item.subtotal_puntos ?? (item.precio_puntos ?? 0) * item.cantidad} pts</p>
                               ) : item.modalidad === 'donacion' ? (
                                 <p className="font-semibold text-foreground">Donacion</p>
                               ) : (
-                                <p className="font-semibold text-foreground">{formatCurrency((item.precio_unitario ?? 0) * item.cantidad)}</p>
+                                <p className="font-semibold text-foreground">{formatCurrency(item.subtotal_monetario ?? (item.precio_unitario ?? 0) * item.cantidad)}</p>
                               )}
                               {item.subtotal_puntos && item.modalidad !== 'puntos' && (
                                 <p className="text-xs text-primary">{item.subtotal_puntos} pts</p>
@@ -413,7 +394,7 @@ const OrderConfirmationPage = () => {
 
           <CardFooter className="flex flex-col sm:flex-row gap-3 sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              Si el estado no coincide con el de la pasarela, revisamos la última notificación del backend.
+              El estado mostrado proviene del servidor. No vuelvas a pagar mientras se verifica la acreditación.
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={() => navigate(ordersPath)}>
@@ -427,12 +408,7 @@ const OrderConfirmationPage = () => {
         </Card>
       )}
 
-      {statusFromGateway && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <ExternalLink className="h-4 w-4" />
-          <span>Estado reportado por la pasarela: {statusFromGateway}</span>
-        </div>
-      )}
+
     </div>
   );
 };
