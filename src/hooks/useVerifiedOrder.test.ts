@@ -67,7 +67,7 @@ describe('bounded verified order reads', () => {
     await flush();
     expect(load).not.toHaveBeenCalled();
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
-    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
     expect(load).toHaveBeenCalledTimes(1);
   });
   it('ignores a late response after the tenant or order changes', async () => {

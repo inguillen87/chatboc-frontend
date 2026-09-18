@@ -1,14 +1,14 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRightLeft, CheckCircle, Clock, RefreshCw, Hash, Loader2, Package, ShoppingBag, XCircle } from 'lucide-react';
+import { ArrowRightLeft, Hash, Package, ShoppingBag } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { OrderVerificationPanel } from '@/components/orders/OrderVerificationPanel';
 import { apiFetch } from '@/utils/api';
-import { useVerifiedOrder } from '@/hooks/useVerifiedOrder';
+import { OrderIdentityError, useVerifiedOrder } from '@/hooks/useVerifiedOrder';
 import { getVerifiedPaymentStatus, shouldRefreshOrder } from '@/utils/verifiedPaymentStatus';
 import { formatCurrency } from '@/utils/currency';
 import { useTenant } from '@/context/TenantContext';
@@ -152,13 +152,6 @@ const normalizeOrder = (payload: unknown): OrderSummary => {
   };
 };
 
-const toneToClasses: Record<'success' | 'warning' | 'error' | 'info', string> = {
-  success: 'text-green-600 border-green-200 bg-green-50',
-  warning: 'text-amber-600 border-amber-200 bg-amber-50',
-  error: 'text-destructive border-destructive/20 bg-destructive/10',
-  info: 'text-primary border-primary/20 bg-primary/5',
-};
-
 const OrderConfirmationPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -191,37 +184,30 @@ const OrderConfirmationPage = () => {
       ...sharedRequestOptions, signal,
     });
     const normalized = normalizeOrder(response);
-    if (normalized.id !== pedidoId) throw new Error("Order identity mismatch");
+    if (normalized.id !== pedidoId) throw new OrderIdentityError("Order identity mismatch");
     return normalized;
   }, [pedidoId, sharedRequestOptions]);
-  const { data: order, isLoading, error, lastCheckedAt, autoRefreshStopped, refresh } =
+  const { data: order, isLoading, error, lastCheckedAt, autoRefreshStopped, pauseReason, refresh } =
     useVerifiedOrder(scope, loadOrder, shouldRefreshOrder);
   const effectiveStatus = (order?.estado || "").toLowerCase();
   const statusMeta = getVerifiedPaymentStatus(order?.estado);
   const stageLabel = order?.commercial_state?.stage ? getCommercialStageLabel(order.commercial_state.stage) : null;
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <ShoppingBag className="h-6 w-6 text-primary" />
+    <div className="container mx-auto max-w-5xl p-4 md:p-8">
+      <div className="mb-6 flex min-w-0 items-start gap-3">
+        <ShoppingBag className="mt-1 h-6 w-6 shrink-0 text-primary" />
         <div>
           <h1 className="text-3xl font-bold text-foreground">Resultado del pedido</h1>
           <p className="text-muted-foreground">Consultá el estado verificado del pedido y sus productos.</p>
         </div>
       </div>
 
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Algo salió mal</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       {!pedidoId && (
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Identificador faltante</CardTitle>
-            <CardDescription>Revisa el enlace de confirmación o vuelve al catálogo para generar un nuevo pedido.</CardDescription>
+            <CardDescription>Recuperá el enlace original o buscá la compra en tus pedidos. No hace falta generar otra compra.</CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col sm:flex-row gap-3">
             <Button onClick={() => navigate(catalogPath)}>Volver al catálogo</Button>
@@ -234,15 +220,12 @@ const OrderConfirmationPage = () => {
         <Card className="shadow-lg border-border">
           <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Pedido #{pedidoId}</CardTitle>
+              <CardTitle className="break-all">Pedido #{pedidoId}</CardTitle>
               <CardDescription>
                 Consulta el detalle real del pedido después de volver de la pasarela de pago.
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge className={cn('text-sm', toneToClasses[statusMeta.tone])}>
-                {statusMeta.label}
-              </Badge>
               {stageLabel ? (
                 <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone(order?.commercial_state?.stage || effectiveStatus || null))}>
                   {stageLabel}
@@ -252,20 +235,9 @@ const OrderConfirmationPage = () => {
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <div className="rounded-xl border bg-muted/30 p-4" role="status" aria-live="polite" aria-atomic="true">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <p className="font-medium">{isLoading ? 'Consultando el estado del pedido' : error ? 'La verificación no se completó' : autoRefreshStopped ? 'La acreditación aún no está confirmada' : 'Verificación del pedido'}</p>
-                  <p className="text-sm text-muted-foreground">{lastCheckedAt ? `Última consulta: ${new Date(lastCheckedAt).toLocaleTimeString('es-AR')}.` : 'Esperando la confirmación del servidor.'}</p>
-                  <p className="text-sm text-muted-foreground">Volver de la pasarela o enviar un comprobante no acredita el pago.</p>
-                  {autoRefreshStopped && !error ? <p className="text-sm text-muted-foreground">La consulta automática finalizó. Podés volver a consultar sin repetir la compra.</p> : null}
-                </div>
-                <Button type="button" variant="outline" onClick={refresh} disabled={isLoading} className="shrink-0">
-                  <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} aria-hidden="true" />
-                  {isLoading ? 'Verificando…' : 'Volver a consultar'}
-                </Button>
-              </div>
-            </div>
+            <OrderVerificationPanel status={order ? statusMeta : null}
+              isLoading={isLoading} error={error} lastCheckedAt={lastCheckedAt}
+              autoRefreshStopped={autoRefreshStopped} pauseReason={pauseReason} onRefresh={refresh} />
 
             {order ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -293,16 +265,14 @@ const OrderConfirmationPage = () => {
               </div>
             ) : null}
 
-            {isLoading && (
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <p>Verificando el estado del pedido...</p>
-              </div>
-            )}
+            {isLoading && !order ? <div aria-hidden="true" data-testid="order-summary-loading" className="space-y-3 rounded-xl border p-5">
+              <div className="h-4 w-1/3 rounded bg-muted" /><div className="h-9 w-1/2 rounded bg-muted" />
+              <div className="h-16 rounded-lg bg-muted/60" />
+            </div> : null}
 
             {order && (
               <>
-                <div className={cn("grid grid-cols-1 gap-4", order.total_puntos > 0 ? "md:grid-cols-3" : "md:grid-cols-2")}>
+                <div className={cn("grid grid-cols-1 gap-4", order.total_puntos > 0 ? "md:grid-cols-2" : "md:grid-cols-1")}>
                   <div className="p-4 rounded-lg border bg-muted/30">
                     <p className="text-sm text-muted-foreground">Total en dinero</p>
                     <p className="text-2xl font-semibold text-foreground">{formatCurrency(order.total_monetario)}</p>
@@ -311,15 +281,6 @@ const OrderConfirmationPage = () => {
                     <p className="text-sm text-muted-foreground">Total en puntos</p>
                     <p className="text-2xl font-semibold text-primary">{order.total_puntos} pts</p>
                   </div>) : null}
-                  <div className="p-4 rounded-lg border bg-muted/30">
-                    <p className="text-sm text-muted-foreground">Estado del pago</p>
-                    <div className="flex items-center gap-2 text-foreground font-medium">
-                      {statusMeta.tone === 'success' && <CheckCircle className="h-5 w-5 text-green-600" />}
-                      {statusMeta.tone === 'warning' && <Clock className="h-5 w-5 text-amber-600" />}
-                      {statusMeta.tone === 'error' && <XCircle className="h-5 w-5 text-destructive" />}
-                      <span>{statusMeta.label}</span>
-                    </div>
-                  </div>
                 </div>
 
                 <Separator />
@@ -342,7 +303,7 @@ const OrderConfirmationPage = () => {
                             key={imageKey}
                             className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border rounded-lg p-3 bg-card"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
                               {hasImage ? (
                                 <img
                                   src={item.imagen_url}
@@ -362,15 +323,15 @@ const OrderConfirmationPage = () => {
                                   <Package className="h-5 w-5" />
                                 </div>
                               )}
-                              <div>
-                                <p className="font-medium text-foreground">{item.nombre}</p>
+                              <div className="min-w-0">
+                                <p className="break-words font-medium text-foreground">{item.nombre}</p>
                                 <p className="text-sm text-muted-foreground">Cantidad: {item.cantidad}</p>
                                 {item.modalidad && (
                                   <Badge variant={badgeVariant} className="mt-1 capitalize">{badgeLabel}</Badge>
                                 )}
                               </div>
                             </div>
-                            <div className="text-right space-y-1">
+                            <div className="shrink-0 space-y-1 text-right">
                               {item.modalidad === 'puntos' ? (
                                 <p className="font-semibold text-primary">{item.subtotal_puntos ?? (item.precio_puntos ?? 0) * item.cantidad} pts</p>
                               ) : item.modalidad === 'donacion' ? (
@@ -378,7 +339,7 @@ const OrderConfirmationPage = () => {
                               ) : (
                                 <p className="font-semibold text-foreground">{formatCurrency(item.subtotal_monetario ?? (item.precio_unitario ?? 0) * item.cantidad)}</p>
                               )}
-                              {item.subtotal_puntos && item.modalidad !== 'puntos' && (
+                              {Boolean(item.subtotal_puntos) && item.modalidad !== 'puntos' && (
                                 <p className="text-xs text-primary">{item.subtotal_puntos} pts</p>
                               )}
                             </div>
@@ -394,7 +355,7 @@ const OrderConfirmationPage = () => {
 
           <CardFooter className="flex flex-col sm:flex-row gap-3 sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              El estado mostrado proviene del servidor. No vuelvas a pagar mientras se verifica la acreditación.
+              {statusMeta.pending || !order ? 'No vuelvas a pagar mientras se verifica la acreditación.' : 'La información corresponde a la última consulta al servidor.'}
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={() => navigate(ordersPath)}>
