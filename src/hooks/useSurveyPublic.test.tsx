@@ -92,12 +92,14 @@ describe('useSurveyPublic submission conflicts', () => {
       submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394911',
       respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
     };
-    apiMocks.postPublicResponse.mockResolvedValueOnce({ id: 99 });
+    const expectedAck = { ok: true, ack_kind: 'durable_response' as const, id: 99 };
+    apiMocks.postPublicResponse.mockResolvedValueOnce(expectedAck);
     const { result } = renderHook(() => useSurveyPublic('consulta-segura'), { wrapper });
     await waitFor(() => expect(result.current.survey).toEqual(survey));
 
+    let returnedAck: unknown;
     await act(async () => {
-      await result.current.submit(payload, {
+      returnedAck = await result.current.submit(payload, {
         eligibilityCredential: credential,
         eligibilityExpectation: {
           contractVersion: 'surveys.public_eligibility.v1',
@@ -108,6 +110,7 @@ describe('useSurveyPublic submission conflicts', () => {
       });
     });
 
+    expect(returnedAck).toBe(expectedAck);
     expect(apiMocks.postPublicResponse).toHaveBeenCalledWith(
       'consulta-segura',
       payload,
@@ -140,15 +143,15 @@ describe('useSurveyPublic submission conflicts', () => {
     });
     apiMocks.postPublicResponse.mockImplementation(async () => {
       await requestGate;
-      return { id: 99 };
+      return { ok: true, ack_kind: 'durable_response' as const, id: 99 };
     });
     const { result } = renderHook(() => useSurveyPublic('consulta-segura'), {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(result.current.survey).toEqual(survey));
 
-    let firstRequest!: Promise<void>;
-    let secondRequest!: Promise<void>;
+    let firstRequest!: Promise<unknown>;
+    let secondRequest!: Promise<unknown>;
     act(() => {
       firstRequest = result.current.submit(firstPayload, {
         eligibilityCredential: 'sec1_first-credential',

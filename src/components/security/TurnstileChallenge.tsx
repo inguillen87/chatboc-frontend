@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 declare global {
   interface Window {
@@ -25,9 +26,14 @@ const TURNSTILE_SCRIPT_ID = 'chatboc-cloudflare-turnstile';
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 let turnstileScriptPromise: Promise<void> | null = null;
 
-const loadTurnstileScript = () => {
+const loadTurnstileScript = (forceReload = false) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve();
+  }
+  if (forceReload) {
+    const staleScript = document.getElementById(TURNSTILE_SCRIPT_ID);
+    staleScript?.remove();
+    turnstileScriptPromise = null;
   }
   if (window.turnstile) {
     return Promise.resolve();
@@ -50,7 +56,10 @@ const loadTurnstileScript = () => {
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('turnstile_load_failed'));
+    script.onerror = () => {
+      turnstileScriptPromise = null;
+      reject(new Error('turnstile_load_failed'));
+    };
     document.head.appendChild(script);
   });
 
@@ -77,6 +86,7 @@ export const TurnstileChallenge = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +96,7 @@ export const TurnstileChallenge = ({
     }
 
     setState('loading');
-    loadTurnstileScript()
+    loadTurnstileScript(retryAttempt > 0)
       .then(() => {
         if (cancelled || !containerRef.current || !window.turnstile) return;
         containerRef.current.innerHTML = '';
@@ -120,7 +130,7 @@ export const TurnstileChallenge = ({
       }
       widgetIdRef.current = null;
     };
-  }, [disabled, onToken, siteKey]);
+  }, [disabled, onToken, retryAttempt, siteKey]);
 
   useEffect(() => {
     if (!widgetIdRef.current || !window.turnstile?.reset) return;
@@ -138,13 +148,27 @@ export const TurnstileChallenge = ({
           <p className="text-sm font-semibold">{title}</p>
           <p className="text-xs leading-5 text-muted-foreground">{description}</p>
         </div>
-        <Badge
-          variant={state === 'ready' ? 'secondary' : state === 'error' ? 'destructive' : 'outline'}
-          className="w-fit"
-        >
-          {state === 'ready' ? 'Validado' : state === 'error' ? 'Reintentar' : 'Pendiente'}
-        </Badge>
+        {state === 'error' ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            onClick={() => setRetryAttempt((attempt) => attempt + 1)}
+          >
+            Reintentar verificación
+          </Button>
+        ) : (
+          <Badge variant={state === 'ready' ? 'secondary' : 'outline'} className="w-fit">
+            {state === 'ready' ? 'Validado' : 'Pendiente'}
+          </Badge>
+        )}
       </div>
+      {state === 'error' ? (
+        <p role="alert" className="mt-2 text-xs leading-5 text-destructive">
+          No pudimos cargar la verificación. Revisá tu conexión o bloqueadores y volvé a intentar.
+        </p>
+      ) : null}
       <div ref={containerRef} className="mt-3 min-h-[65px]" />
     </div>
   );

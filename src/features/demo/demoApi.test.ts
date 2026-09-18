@@ -108,23 +108,34 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem('chatboc_chat_session_id')).toBeNull();
   });
 
-  it('requests admin preview by demo_session_id when available', async () => {
+  it('sends the demo session only in headers and never exposes it in the admin preview URL', async () => {
     demoGetMock.mockResolvedValue({
       contract_version: 'demo.admin_preview.v1',
       metrics: {},
     });
+    const demoJwt = 'eyJhbGciOiJIUzI1NiJ9.demo-session.signature';
 
     await getDemoAdminPreview({
       sector: 'empresas',
       tenant_slug: 'ferreteria',
       chat_session_id: 'sid_demo_ferreteria',
-      demo_session_id: 'demo_ferreteria_1',
+      demo_session_id: demoJwt,
     });
 
     expect(demoGetMock).toHaveBeenCalledWith(
-      '/api/v2/demo/admin-preview?sector=empresas&tenant_slug=ferreteria&chat_session_id=sid_demo_ferreteria&demo_session_id=demo_ferreteria_1',
-      { baseUrlOverride: '/api' },
+      '/api/v2/demo/admin-preview?sector=empresas&tenant_slug=ferreteria&chat_session_id=sid_demo_ferreteria',
+      {
+        allowSafeBaseFallback: false,
+        baseUrlOverride: '/api',
+        headers: {
+          'X-Demo-Session-Id': demoJwt,
+          'X-Demo-Session': demoJwt,
+        },
+      },
     );
+    const [requestUrl] = demoGetMock.mock.calls[0] as [string];
+    expect(requestUrl).not.toContain(demoJwt);
+    expect(new URL(requestUrl, 'https://chatboc.test').searchParams.has('demo_session_id')).toBe(false);
   });
 
   it('accepts backend-canonicalized demo tenants when sector and rubro match the selector', async () => {
@@ -160,6 +171,191 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBe('demo-token-edu');
     expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBe('sid_demo_educacion_123');
     expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBe('qa-colegio-sandbox');
+  });
+
+  it('binds an explicit public-demo request to the exact raw tenant scope without persisting early', async () => {
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      demo_session_id: 'signed-demo-municipio',
+      chat_session_id: 'sid_demo_municipio_exact',
+      tenant_slug: 'municipio',
+      tenant: { slug: 'municipio', tipo: 'municipio' },
+      session: { tenant_slug: 'municipio' },
+      workspace: {
+        chat_bootstrap: {
+          endpoint: '/api/ask/municipio',
+          headers: {
+            'X-Tenant-Slug': 'municipio',
+            'X-Demo-Session-Id': 'signed-demo-municipio',
+            'X-Chat-Session-Id': 'sid_demo_municipio_exact',
+          },
+          payload: { vertical: 'gobierno', tenant_slug: 'municipio' },
+          query: { tenant_slug: 'municipio' },
+        },
+      },
+    });
+
+    const response = await createDemoSession(
+      { sector: 'gobierno', tenant_slug: 'municipio' },
+      {
+        expectedTenantSlug: 'MUNICIPIO',
+        persistSession: false,
+      },
+    );
+
+    expect(response.tenant_slug).toBe('municipio');
+    expect(demoPostMock).toHaveBeenCalledTimes(1);
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('rejects an invalid or mismatched expected tenant before contacting the backend', async () => {
+    await expect(
+      createDemoSession(
+        { sector: 'gobierno', tenant_slug: 'otro' },
+        { expectedTenantSlug: 'municipio' },
+      ),
+    ).rejects.toThrow('alcance esperado');
+    await expect(
+      createDemoSession(
+        { sector: 'gobierno', tenant_slug: 'municipio' },
+        { expectedTenantSlug: '../municipio' },
+      ),
+    ).rejects.toThrow('tenant esperado');
+
+    expect(demoPostMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects every conflicting or unscoped raw bootstrap before normalization and persistence', async () => {
+    const baseResponse = {
+      contract_version: 'demo.session.v2',
+      demo_session_id: 'signed-demo-municipio',
+      chat_session_id: 'sid_demo_municipio_exact',
+      tenant_slug: 'municipio',
+      tenant: { slug: 'municipio', tipo: 'municipio' },
+      session: { tenant_slug: 'municipio' },
+    };
+
+    demoPostMock
+      .mockResolvedValueOnce({
+        ...baseResponse,
+        workspace: {
+          chat_bootstrap: {
+            endpoint: '/api/ask/municipio',
+            headers: { 'X-Tenant-Slug': 'otro' },
+            payload: { vertical: 'gobierno', tenant_slug: 'municipio' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        ...baseResponse,
+        workspace: {
+          chat_bootstrap: {
+            endpoint: '/api/ask/municipio',
+            headers: {},
+            payload: { vertical: 'gobierno' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        ...baseResponse,
+        tenant_slug: 'otro',
+        workspace: {
+          chat_bootstrap: {
+            endpoint: '/api/ask/municipio',
+            headers: { 'X-Tenant-Slug': 'municipio' },
+            payload: { vertical: 'gobierno', tenant_slug: 'municipio' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        ...baseResponse,
+        workspace: {
+          chat_bootstrap: {
+            endpoint: '/api/ask/municipio',
+            headers: {
+              'X-Tenant-Slug': 'municipio',
+              'x-tenant-slug': 'otro',
+            },
+            payload: { vertical: 'gobierno', tenant_slug: 'municipio' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        ...baseResponse,
+        workspace: {
+          chat_bootstrap: {
+            endpoint: '/api/ask/municipio',
+            headers: { 'X-Tenant-Slug': 'municipio' },
+            payload: {
+              vertical: 'gobierno',
+              tenant_slug: 'municipio',
+              demo_metadata: { tenant_slug: 'otro' },
+            },
+          },
+        },
+      });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        createDemoSession(
+          { sector: 'gobierno', tenant_slug: 'municipio' },
+          { expectedTenantSlug: 'municipio' },
+        ),
+      ).rejects.toThrow('tenant solicitado');
+    }
+
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('rejects the wrong vertical and a constrained rubro selector even when the tenant matches', async () => {
+    const exactScope = {
+      contract_version: 'demo.session.v2',
+      demo_session_id: 'signed-demo-municipio',
+      chat_session_id: 'sid_demo_municipio_exact',
+      tenant_slug: 'municipio',
+      tenant: { slug: 'municipio', tipo: 'municipio' },
+      session: { tenant_slug: 'municipio' },
+    };
+    demoPostMock
+      .mockResolvedValueOnce({
+        ...exactScope,
+        workspace: {
+          chat_bootstrap: {
+            endpoint: '/api/ask/municipio',
+            headers: { 'X-Tenant-Slug': 'municipio' },
+            payload: { vertical: 'empresas', tenant_slug: 'municipio' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        ...exactScope,
+        requires_rubro_selection: true,
+        next_step: 'select_rubro',
+        workspace: {
+          rubro_selector: { render_as: 'demo_rubro_selector', categories: [] },
+        },
+      });
+
+    await expect(
+      createDemoSession(
+        { sector: 'gobierno', tenant_slug: 'municipio' },
+        { expectedTenantSlug: 'municipio' },
+      ),
+    ).rejects.toThrow('seleccion solicitada');
+    await expect(
+      createDemoSession(
+        { sector: 'gobierno', tenant_slug: 'municipio' },
+        { expectedTenantSlug: 'municipio' },
+      ),
+    ).rejects.toThrow('conversacion utilizable');
+
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBeNull();
   });
 
   it('accepts compact widget selector sessions without reusing a previous tenant', async () => {
@@ -558,11 +754,12 @@ describe('demo admin preview API', () => {
       sector: 'gobierno',
       tenant_slug: 'municipio',
       chat_session_id: 'sid_demo_gobierno_123',
+      presentation_mode: 'executive',
     });
 
     expect(demoGetMock).toHaveBeenCalledWith(
-      '/api/v2/demo/admin-preview?sector=gobierno&tenant_slug=municipio&chat_session_id=sid_demo_gobierno_123',
-      { baseUrlOverride: '/api' },
+      '/api/v2/demo/admin-preview?sector=gobierno&tenant_slug=municipio&chat_session_id=sid_demo_gobierno_123&presentation_mode=executive',
+      { allowSafeBaseFallback: false, baseUrlOverride: '/api' },
     );
   });
 });

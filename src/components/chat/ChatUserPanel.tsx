@@ -102,7 +102,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await apiFetch<any>("/me", { isWidgetRequest: true });
+        const data = await apiFetch<any>("/api/me", { isWidgetRequest: true });
         setName(data.name || "");
         setEmail(data.email || "");
         setPhone(
@@ -150,7 +150,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     setError("");
     try {
       const consentedAvatarUrl = avatarConsent ? avatarUrl.trim() : "";
-      await apiFetch("/me", {
+      await apiFetch("/api/me", {
         method: "PUT",
         body: {
           name,

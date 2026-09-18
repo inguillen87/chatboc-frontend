@@ -60,6 +60,14 @@ export const applyAccessibilityPrefs = (prefs: Prefs) => {
   root.classList.toggle("a11y-reduced-motion", !!prefs.reducedMotion);
 };
 
+export const persistAccessibilityPrefs = (prefs: Prefs) => {
+  safeLocalStorage.setItem(LS_KEY, JSON.stringify(prefs));
+  applyAccessibilityPrefs(prefs);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(ACCESSIBILITY_EVENT, { detail: prefs }));
+  }
+};
+
 const arePrefsEqual = (a: Prefs, b: Prefs) =>
   a.dyslexia === b.dyslexia &&
   a.simplified === b.simplified &&
@@ -178,12 +186,8 @@ export default function AccessibilityToggle({
   );
 
   useEffect(() => {
-    safeLocalStorage.setItem(LS_KEY, JSON.stringify(prefs));
+    persistAccessibilityPrefs(prefs);
     onChange?.(prefs);
-    applyAccessibilityPrefs(prefs);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(ACCESSIBILITY_EVENT, { detail: prefs }));
-    }
   }, [prefs, onChange]);
 
   const activeCount = visibleOptions.reduce(

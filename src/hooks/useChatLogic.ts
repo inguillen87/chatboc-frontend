@@ -15,12 +15,16 @@ import { io, Socket } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, parseRubro } from "@/utils/chatEndpoints";
+import {
+  createMunicipalChatIdempotencyKey,
+  resolveMunicipalInitIdempotencyState,
+  resolveMunicipalChatIdempotencyKey,
+} from "@/utils/municipalChatIdempotency";
 import { extractRubroKey } from "@/utils/rubros";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId, { resetChatSessionId } from "@/utils/chatSessionId";
 import { getIframeToken } from "@/utils/config";
-import { v4 as uuidv4 } from "uuid";
 import {
   MunicipioContext,
   updateMunicipioContext,
@@ -301,6 +305,11 @@ export function useChatLogic({
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<
     string | null
   >(null);
+  const currentClaimIdempotencyKeyRef = useRef<string | null>(null);
+  const municipalInitIdempotencyRef = useRef<{
+    scope: string;
+    key: string;
+  } | null>(null);
   const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const initSentRef = useRef(false);
@@ -312,6 +321,23 @@ export function useChatLogic({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const getMunicipalInitIdempotencyKey = useCallback(
+    (sessionId: string, resolvedTenantSlug?: string | null) => {
+      const scope = `${sessionId}:${resolvedTenantSlug?.trim().toLowerCase() || "tenant"}`;
+      const next = resolveMunicipalInitIdempotencyState({
+        tipoChat: "municipio",
+        scope,
+        current: municipalInitIdempotencyRef.current,
+      });
+      if (!next) {
+        throw new Error("No se pudo preparar la inicializacion municipal.");
+      }
+      municipalInitIdempotencyRef.current = next;
+      return next.key;
+    },
+    [],
+  );
 
 	  const sanitizeRubroValue = (value: unknown): string | null => {
     const key = extractRubroKey(value);
@@ -508,6 +534,10 @@ export function useChatLogic({
                 : undefined;
 
       const sessionId = getOrCreateChatSessionId();
+      const initIdempotencyKey =
+        tipoChatFinal === "municipio"
+          ? getMunicipalInitIdempotencyKey(sessionId, tenantSlugForPayload)
+          : null;
 
       setIsTyping(true);
       initSentRef.current = true;
@@ -538,6 +568,9 @@ export function useChatLogic({
               {
                 text: "__INIT__",
                 extraPayload: initPayload,
+                ...(initIdempotencyKey
+                  ? { idempotencyKey: initIdempotencyKey }
+                  : {}),
               },
               tenantSlug,
             )
@@ -547,6 +580,9 @@ export function useChatLogic({
               isWidgetRequest: true,
               tenantSlug: tenantSlug,
               entityToken,
+              headers: initIdempotencyKey
+                ? { "Idempotency-Key": initIdempotencyKey }
+                : undefined,
               body: initPayload,
             });
         processBotPayload(response, {
@@ -588,6 +624,7 @@ export function useChatLogic({
       chatBootstrap,
       shouldUsePublicFlow,
       resolvePersistentPublicContext,
+      getMunicipalInitIdempotencyKey,
     ],
   );
 
@@ -2554,9 +2591,20 @@ export function useChatLogic({
       contexto.estado_conversacion === "confirmando_reclamo" &&
       !activeTicketId
     ) {
-      const newKey = uuidv4();
-      setCurrentClaimIdempotencyKey(newKey);
+      const key =
+        currentClaimIdempotencyKeyRef.current ||
+        createMunicipalChatIdempotencyKey();
+      currentClaimIdempotencyKeyRef.current = key;
+      setCurrentClaimIdempotencyKey((current) =>
+        current === key ? current : key,
+      );
+      return;
     }
+
+    currentClaimIdempotencyKeyRef.current = null;
+    setCurrentClaimIdempotencyKey((current) =>
+      current === null ? current : null,
+    );
   }, [contexto.estado_conversacion, activeTicketId]);
 
   const addSystemMessage = useCallback(
@@ -2932,6 +2980,24 @@ export function useChatLogic({
         const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
         const rubro = tipoChatFinal === "pyme" ? resolvedRubro : null;
         actionTelemetryTipoChat = tipoChatFinal;
+        const requestIdempotencyKey = resolveMunicipalChatIdempotencyKey({
+          tipoChat: tipoChatFinal,
+          action: typeof resolvedAction === "string" ? resolvedAction : null,
+          currentClaimIdempotencyKey:
+            currentClaimIdempotencyKeyRef.current ||
+            currentClaimIdempotencyKey,
+        });
+        if (
+          resolvedAction === "confirmar_reclamo" &&
+          requestIdempotencyKey
+        ) {
+          currentClaimIdempotencyKeyRef.current = requestIdempotencyKey;
+          setCurrentClaimIdempotencyKey((current) =>
+            current === requestIdempotencyKey
+              ? current
+              : requestIdempotencyKey,
+          );
+        }
 
         const updatedContext = updateMunicipioContext(contexto, {
           userInput: userMessageText,
@@ -2971,8 +3037,8 @@ export function useChatLogic({
           ...(actionPayload && { payload: actionPayload }),
           ...(publicChatContext || {}),
           ...(resolvedAction === "confirmar_reclamo" &&
-            currentClaimIdempotencyKey && {
-              idempotency_key: currentClaimIdempotencyKey,
+            requestIdempotencyKey && {
+              idempotency_key: requestIdempotencyKey,
             }),
           ...(visitorName && { nombre_usuario: visitorName }),
           session_id: sessionId,
@@ -3034,6 +3100,9 @@ export function useChatLogic({
               audioField,
               audioEndpoint,
               extraPayload: requestBody,
+              ...(requestIdempotencyKey
+                ? { idempotencyKey: requestIdempotencyKey }
+                : {}),
             },
             tenantSlug,
           );
@@ -3059,6 +3128,9 @@ export function useChatLogic({
             isWidgetRequest: true,
             tenantSlug: tenantSlug,
             entityToken,
+            headers: requestIdempotencyKey
+              ? { "Idempotency-Key": requestIdempotencyKey }
+              : undefined,
           });
         } else {
           response = await apiFetch<any>(endpoint, {
@@ -3068,6 +3140,9 @@ export function useChatLogic({
             isWidgetRequest: true,
             tenantSlug: tenantSlug,
             entityToken,
+            headers: requestIdempotencyKey
+              ? { "Idempotency-Key": requestIdempotencyKey }
+              : undefined,
           });
         }
         const renderedResponse = processBotPayload(response, {

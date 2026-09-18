@@ -26,8 +26,10 @@ const renderLayout = (initialEntry: string) =>
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route element={<Layout />}>
+          <Route path="/" element={<div>landing outlet</div>} />
           <Route path="/perfil" element={<div>profile outlet</div>} />
           <Route path="/t/:tenant/reclamos" element={<div>tenant tickets outlet</div>} />
+          <Route path="/e/:slug" element={<div>survey outlet</div>} />
           <Route path="/otra" element={<div>other outlet</div>} />
         </Route>
       </Routes>
@@ -94,6 +96,23 @@ describe('Layout ticket workspace shell', () => {
     expect(document.body.style.overflow).toBe('hidden');
   });
 
+  it('contains the profile people CRM in the same viewport workspace contract', () => {
+    renderLayout('/perfil?tab=usuarios');
+
+    expect(screen.getByText('profile outlet')).toBeInTheDocument();
+    expect(screen.getByTestId('navbar')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-footer')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scroll-to-top')).not.toBeInTheDocument();
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
+    expect(main).not.toHaveClass('max-w-7xl');
+    expect(main.parentElement).toHaveAttribute('data-workspace-shell', 'crm');
+    expect(main.parentElement).toHaveClass('h-dvh');
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    expect(document.body.style.overflow).toBe('hidden');
+  });
+
   it('removes public footer chrome from the embedded analytics CRM workspace', () => {
     renderLayout('/perfil?tab=analytics');
 
@@ -107,16 +126,41 @@ describe('Layout ticket workspace shell', () => {
     expect(main).not.toHaveClass('max-w-7xl');
   });
 
-  it('keeps the normal marketing shell outside the ticket workspace', () => {
+  it('keeps the profile dashboard inside the application shell without marketing footer chrome', () => {
     renderLayout('/perfil');
 
     expect(screen.getByText('profile outlet')).toBeInTheDocument();
-    expect(screen.getByTestId('site-footer')).toBeInTheDocument();
-    expect(screen.getByTestId('scroll-to-top')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-footer')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('scroll-to-top')).not.toBeInTheDocument();
 
     const main = screen.getByRole('main');
     expect(main).toHaveClass('pt-20');
     expect(main).toHaveClass('max-w-7xl');
     expect(document.querySelector('style[data-ticket-workspace-chrome]')).not.toBeInTheDocument();
+  });
+
+  it('gives public survey dashboards a wider data-rich canvas without removing responsive gutters', () => {
+    renderLayout('/e/prioridades-barriales?tenant_slug=junin');
+
+    expect(screen.getByText('survey outlet')).toBeInTheDocument();
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('max-w-[96rem]', 'px-4', 'md:px-8', 'xl:px-12');
+    expect(main).not.toHaveClass('max-w-7xl');
+    expect(main).not.toHaveClass('lg:px-16');
+  });
+
+  it('gives the public landing a full-width canvas and an accessible skip link', () => {
+    renderLayout('/');
+
+    expect(screen.getByText('landing outlet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Saltar al contenido' })).toHaveAttribute(
+      'href',
+      '#main-content',
+    );
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('w-full', 'flex-1', 'pt-20');
+    expect(main).not.toHaveClass('max-w-7xl');
+    expect(main).not.toHaveClass('lg:px-16');
   });
 });

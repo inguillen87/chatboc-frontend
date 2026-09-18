@@ -5,14 +5,18 @@ import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, Ref
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
-import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
+import {
+  SurveyResponseProvenanceBadge,
+  resolveSurveyResponseProvenance,
+} from '@/components/surveys/SurveyResponseProvenanceBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
-import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults } from '@/types/encuestas';
+import type { PublicResponsePayload, PublicSurveySubmitOptions, SurveyComment, SurveyLivePublicResultsPayload, SurveyLiveResults, SurveyPublic } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import {
+  AmbiguousSurveySubmissionError,
   SURVEY_RESPONSE_DUPLICATE_MESSAGE,
   SURVEY_RESPONSE_DUPLICATE_TITLE,
   isSurveyResponseDuplicateError,
@@ -26,6 +30,7 @@ import {
   trackSurveyPageView,
   trackSurveyRetryTriggered,
   trackSurveySubmission,
+  trackSurveyDemoInteraction,
 } from '@/utils/surveyAnalytics';
 import { mapSurveyError } from '@/utils/mapSurveyError';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
@@ -44,39 +49,71 @@ import {
 } from './surveyAnalyticsRange';
 
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v2';
+const PUBLIC_PARTICIPATION_FALLBACK = 'Participación ciudadana';
+const PUBLIC_BRAND_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/;
 
-const appendDemoVoteToLiveResults = (
-  source: SurveyLiveResults | undefined,
-  payload: PublicResponsePayload,
-): SurveyLiveResults | undefined => {
-  if (!source?.preguntas || !Array.isArray(payload.respuestas)) return source;
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 
-  const preguntas = { ...source.preguntas };
-  let changed = false;
+const asPublicBrandLabel = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length < 2 || normalized.length > 96 || PUBLIC_BRAND_CONTROL_PATTERN.test(normalized)) {
+    return null;
+  }
+  return normalized;
+};
 
-  for (const respuesta of payload.respuestas) {
-    const key = String(respuesta.pregunta_id);
-    const questionStats = preguntas[key];
-    if (!questionStats?.opciones?.length || !respuesta.opcion_ids?.length) continue;
+const asTenantSlug = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLocaleLowerCase('es-AR');
+  return /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(normalized) ? normalized : null;
+};
 
-    const selectedIds = new Set(respuesta.opcion_ids.map((id) => String(id)));
-    preguntas[key] = {
-      ...questionStats,
-      opciones: questionStats.opciones.map((option) =>
-        selectedIds.has(String(option.id)) ? { ...option, votos: option.votos + 1 } : option,
-      ),
-    };
-    changed = true;
+export const resolvePublicSurveyBrandLabel = (
+  survey?: SurveyPublic,
+  requestedTenantSlug?: string | null,
+): string => {
+  if (!survey) return PUBLIC_PARTICIPATION_FALLBACK;
+  const tenant = asRecord(survey.tenant);
+  if (!tenant) return PUBLIC_PARTICIPATION_FALLBACK;
+
+  const payloadTenantSlug = asTenantSlug(tenant.slug);
+  const requestedSlug = asTenantSlug(requestedTenantSlug);
+  const declaredSurveySlug = asTenantSlug(survey.tenant_slug);
+  const requestedSlugWasProvided = typeof requestedTenantSlug === 'string' && requestedTenantSlug.trim().length > 0;
+  const declaredSurveySlugWasProvided = typeof survey.tenant_slug === 'string' && survey.tenant_slug.trim().length > 0;
+  if (
+    !payloadTenantSlug ||
+    (requestedSlugWasProvided && requestedSlug === null) ||
+    (declaredSurveySlugWasProvided && declaredSurveySlug === null) ||
+    (requestedSlug !== null && requestedSlug !== payloadTenantSlug) ||
+    (declaredSurveySlug !== null && declaredSurveySlug !== payloadTenantSlug)
+  ) {
+    return PUBLIC_PARTICIPATION_FALLBACK;
   }
 
-  if (!changed) return source;
-
-  return {
-    ...source,
-    total_respuestas: (Number(source.total_respuestas) || 0) + 1,
-    preguntas,
-  };
+  const tenantBranding = asRecord(tenant.branding);
+  const candidates = [
+    tenantBranding?.public_name,
+    tenantBranding?.display_name,
+    tenantBranding?.brand_name,
+    tenant?.public_name,
+    tenant?.display_name,
+    tenant?.nombre,
+    tenant?.name,
+  ];
+  for (const candidate of candidates) {
+    const label = asPublicBrandLabel(candidate);
+    if (label) return label;
+  }
+  return PUBLIC_PARTICIPATION_FALLBACK;
 };
+
+const toNonNegativeInteger = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 
 const isLiveResultsV2 = (
   value: SurveyLiveResults | SurveyLivePublicResultsPayload | undefined,
@@ -108,6 +145,8 @@ const toLegacyLiveResults = (
     result_version: value.result_version,
     snapshot_version: value.snapshot_version,
     updated_at: value.updated_at,
+    seeded_responses: value.seeded_responses,
+    interactive_demo_responses: value.interactive_demo_responses,
     total_respuestas: Number(value.total_respuestas ?? 0) || 0,
     data_provenance: value.data_provenance,
     response_provenance: value.response_provenance,
@@ -146,6 +185,8 @@ const PublicSurveyPage = () => {
   const tenantSelectorInvalid = hasTenantSelector && !tenantSlug;
   const mode = searchParams.get('mode'); // 'embed' or undefined
   const [submitted, setSubmitted] = useState(false);
+  const [activeLiveView, setActiveLiveView] = useState<'participate' | 'results'>('participate');
+  const [demoSubmissionPersisted, setDemoSubmissionPersisted] = useState<boolean | null>(null);
   const [livePollTotalVotes, setLivePollTotalVotes] = useState<number | null>(null);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
   const {
@@ -173,14 +214,23 @@ const PublicSurveyPage = () => {
   const [liveRequestParams, setLiveRequestParams] = useState<SurveyLiveRequestParams>(() => parseLiveRequestParams());
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(true);
   const surveyResources = survey?.recursos as Record<string, unknown> | undefined;
+  const trustedResponseProvenance = resolveSurveyResponseProvenance(
+    survey?.resultados_envivo,
+    survey,
+  );
+  const surveyLiveContract = survey?.resultados_envivo as
+    | (SurveyLiveResults & { demo_mode?: boolean })
+    | undefined;
   const isDemoParticipationSurvey = Boolean(
-    surveyResources?.demoMode ||
-      surveyResources?.demo_mode ||
-      searchParams.get('demo_participation') === '1',
+    survey?.demo_mode === true ||
+      surveyLiveContract?.demo_mode === true ||
+      trustedResponseProvenance?.mode === 'synthetic' ||
+      surveyResources?.demoMode === true ||
+      surveyResources?.demo_mode === true,
   );
-  const shouldRevealLiveResults = Boolean(
-    survey?.mostrar_resultados_envivo && (!isDemoParticipationSurvey || submitted),
-  );
+  const publicParticipationBrand = resolvePublicSurveyBrandLabel(survey, tenantSlug);
+  const shareSubmission = isDemoParticipationSurvey ? null : lastSubmission;
+  const shouldRevealLiveResults = Boolean(survey?.mostrar_resultados_envivo);
   const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
   const {
     liveResults: polledLiveDashboard,
@@ -212,13 +262,28 @@ const PublicSurveyPage = () => {
       ? socketLiveDashboard
       : polledLiveDashboard;
   }, [hasActiveLiveFilters, polledLiveDashboard, socketLiveDashboard]);
+  const seededResponseCount = useMemo(() => {
+    const candidates = [
+      liveDashboard?.seeded_responses,
+      liveResults?.seeded_responses,
+      survey?.resultados_envivo?.seeded_responses,
+      trustedResponseProvenance?.synthetic_responses_included,
+    ];
+    for (const candidate of candidates) {
+      const count = toNonNegativeInteger(candidate);
+      if (count !== null) return count;
+    }
+    return null;
+  }, [
+    liveDashboard?.seeded_responses,
+    liveResults?.seeded_responses,
+    survey?.resultados_envivo?.seeded_responses,
+    trustedResponseProvenance?.synthetic_responses_included,
+  ]);
   const renderedLiveResults = useMemo(() => {
     const dashboardResults = toLegacyLiveResults(liveDashboard);
-    if (!dashboardResults) return liveResults;
-    return isDemoParticipationSurvey && submitted && lastSubmission
-      ? appendDemoVoteToLiveResults(dashboardResults, lastSubmission)
-      : dashboardResults;
-  }, [isDemoParticipationSurvey, lastSubmission, liveDashboard, liveResults, submitted]);
+    return dashboardResults || liveResults;
+  }, [liveDashboard, liveResults]);
   const surveySocketRooms = useMemo(() => {
     const realtime = survey?.realtime as Record<string, unknown> | undefined;
     const explicitRooms = Array.isArray(realtime?.rooms)
@@ -322,13 +387,9 @@ const PublicSurveyPage = () => {
       return;
     }
     if (survey?.resultados_envivo) {
-      setLiveResults(
-        isDemoParticipationSurvey && submitted && lastSubmission
-          ? appendDemoVoteToLiveResults(survey.resultados_envivo, lastSubmission)
-          : survey.resultados_envivo,
-      );
+      setLiveResults(survey.resultados_envivo);
     }
-  }, [isDemoParticipationSurvey, lastSubmission, shouldRevealLiveResults, submitted, survey?.resultados_envivo]);
+  }, [shouldRevealLiveResults, survey?.resultados_envivo]);
 
   // Handle Socket.IO connection
   useSurveySocket({
@@ -338,11 +399,7 @@ const PublicSurveyPage = () => {
       enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
           const legacyResults = toLegacyLiveResults(data);
-          setLiveResults(
-            isDemoParticipationSurvey && submitted && lastSubmission
-              ? appendDemoVoteToLiveResults(legacyResults, lastSubmission)
-              : legacyResults,
-          );
+          setLiveResults(legacyResults);
           if (isLiveResultsV2(data)) {
             setSocketLiveDashboard(data);
           } else {
@@ -407,6 +464,7 @@ const PublicSurveyPage = () => {
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => {
+      let shouldRefreshLiveResults = false;
       try {
         const finalPayload: PublicResponsePayload = {
           ...payload,
@@ -416,26 +474,52 @@ const PublicSurveyPage = () => {
             ? { privacy_policy_version: ((survey as { privacy_policy_version?: string }).privacy_policy_version || '').trim() || undefined }
             : {}),
         };
-        await submit(finalPayload, options);
-        setLastSubmission(finalPayload);
-        setSubmitted(true);
-        if (survey?.resultados_envivo) {
-          setLiveResults(
-            isDemoParticipationSurvey
-              ? appendDemoVoteToLiveResults(survey.resultados_envivo, finalPayload)
-              : survey.resultados_envivo,
+        const submissionAck = await submit(finalPayload, options);
+        const ackMatchesSurvey = isDemoParticipationSurvey
+          ? submissionAck.ack_kind === 'synthetic_demo' || submissionAck.ack_kind === 'durable_demo'
+          : submissionAck.ack_kind === 'durable_response';
+        if (!ackMatchesSurvey) {
+          throw new AmbiguousSurveySubmissionError(
+            'La confirmación del servidor no coincide con el tipo de encuesta publicada. Reintenta con la misma respuesta.',
           );
         }
+        const persistedDemoInteraction = submissionAck.ack_kind === 'durable_demo';
+        shouldRefreshLiveResults = submissionAck.ack_kind !== 'synthetic_demo';
+        setDemoSubmissionPersisted(
+          isDemoParticipationSurvey ? persistedDemoInteraction : null,
+        );
+        setLastSubmission(finalPayload);
+        setSubmitted(true);
         if (survey) {
-          trackSurveySubmission({ survey, payload: finalPayload });
+          if (isDemoParticipationSurvey) {
+            trackSurveyDemoInteraction({
+              survey,
+              payload: finalPayload,
+              persisted: persistedDemoInteraction,
+              durable: persistedDemoInteraction,
+            });
+          } else {
+            trackSurveySubmission({ survey, payload: finalPayload });
+          }
         }
 
         let description = safeText(votacionMessages?.toast_success_detail);
-        if (survey?.puntos_recompensa && survey.puntos_recompensa > 0) {
+        if (!isDemoParticipationSurvey && survey?.puntos_recompensa && survey.puntos_recompensa > 0) {
           description = `${safeText(votacionMessages?.toast_puntos_prefix)} ${survey.puntos_recompensa}`;
         }
 
-        toast({ title: safeText(votacionMessages?.toast_success_title), description });
+        toast({
+          title: isDemoParticipationSurvey
+            ? persistedDemoInteraction
+              ? 'Participación demo guardada en Preview'
+              : 'Simulación completada'
+            : safeText(votacionMessages?.toast_success_title),
+          description: isDemoParticipationSurvey
+            ? persistedDemoInteraction
+              ? 'Quedó registrada como interacción de prueba, separada de cualquier dato ciudadano.'
+              : 'La selección se mostró sin modificar datos ciudadanos.'
+            : description,
+        });
       } catch (err) {
         setLastSubmission(null);
         if (isSurveyResponseDuplicateError(err)) {
@@ -453,17 +537,28 @@ const PublicSurveyPage = () => {
         });
         throw err;
       }
+      if (shouldRefreshLiveResults) {
+        void Promise.resolve()
+          .then(() => refetchLiveDashboard())
+          .catch(() => undefined);
+      }
     },
-    [isDemoParticipationSurvey, metadata, submit, survey, submitError],
+    [isDemoParticipationSurvey, metadata, refetchLiveDashboard, submit, survey, submitError],
   );
 
   const handleReset = useCallback(() => {
     setSubmitted(false);
+    setActiveLiveView('participate');
     setLastSubmission(null);
+    setDemoSubmissionPersisted(null);
   }, []);
 
   // Embed Mode Styles
-  const containerClass = mode === 'embed' ? "w-full min-h-screen bg-background" : "mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10";
+  const containerClass = mode === 'embed'
+    ? 'min-h-screen w-full bg-background'
+    : survey?.es_votacion_envivo
+      ? 'mx-auto min-h-[calc(100dvh-5rem)] w-full max-w-7xl px-0 py-6 sm:py-8 lg:py-10'
+      : 'mx-auto min-h-[calc(100dvh-5rem)] w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10';
 
   const votingOptionsCount = useMemo(() => {
     const question = survey?.preguntas?.[0];
@@ -472,7 +567,6 @@ const PublicSurveyPage = () => {
 
   const totalVotes = useMemo(() => {
     if (!survey) return null;
-    if (isDemoParticipationSurvey && !submitted) return null;
     if (typeof liveResults?.total_respuestas === 'number') {
       return liveResults.total_respuestas;
     }
@@ -486,20 +580,24 @@ const PublicSurveyPage = () => {
       }
     }
     return null;
-  }, [isDemoParticipationSurvey, liveResults, submitted, survey]);
+  }, [liveResults, survey]);
 
   useEffect(() => {
     if (typeof totalVotes === 'number') {
       setLivePollTotalVotes(totalVotes);
-    } else if (isDemoParticipationSurvey && !submitted) {
-      setLivePollTotalVotes(null);
     }
-  }, [isDemoParticipationSurvey, submitted, totalVotes]);
+  }, [totalVotes]);
 
   const pollSubtitle = useMemo(() => {
     if (!survey?.descripcion) return null;
     return survey.descripcion;
   }, [survey?.descripcion]);
+  const pollTitle = useMemo(() => {
+    const title = survey?.titulo?.trim() || 'Participación ciudadana';
+    return isDemoParticipationSurvey
+      ? title.replace(/\s*\((?:demo(?:straci[oó]n)?\s+)?no\s+oficial\)\s*$/i, '').trim()
+      : title;
+  }, [isDemoParticipationSurvey, survey?.titulo]);
 
   const votacionUi = useMemo(
     () => ((survey?.recursos as Record<string, unknown> | undefined)?.votacion_ui as Record<string, unknown>) ?? {},
@@ -541,12 +639,20 @@ const PublicSurveyPage = () => {
       : liveStatus.status === 'empty' || liveStatus.status === 'stale'
         ? 'border-slate-500/30 bg-slate-500/10 text-slate-700'
         : 'border-amber-500/40 bg-amber-500/10 text-amber-700';
+  const publicState = useMemo(
+    () => (survey?.public_state && typeof survey.public_state === 'object'
+      ? survey.public_state as Record<string, unknown>
+      : undefined),
+    [survey?.public_state],
+  );
   const updatedAtLabel = useMemo(() => {
-    if (!liveDashboard?.updated_at) return null;
-    const date = new Date(liveDashboard.updated_at);
+    const serverTime = typeof publicState?.server_time === 'string' ? publicState.server_time : null;
+    const timestamp = liveDashboard?.updated_at || serverTime;
+    if (!timestamp) return null;
+    const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleString();
-  }, [liveDashboard?.updated_at]);
+  }, [liveDashboard?.updated_at, publicState?.server_time]);
   const refreshIntervalLabel = useMemo(() => {
     if (!pollingIntervalMs) return null;
     const seconds = Math.max(1, Math.round(pollingIntervalMs / 1000));
@@ -581,8 +687,13 @@ const PublicSurveyPage = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `${liveSlug || slug || 'encuesta'}-live-results.csv`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => {
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 60_000);
   }, [liveDashboard, liveQuestions, liveSlug, slug]);
 
   const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
@@ -683,9 +794,23 @@ const PublicSurveyPage = () => {
 
   if (showLoadingSkeleton || isLoading) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10">
+      <div
+        className="mx-auto min-h-[calc(100dvh-5rem)] w-full max-w-7xl px-0 py-6 sm:py-8 lg:py-10"
+        aria-busy="true"
+        aria-describedby="survey-loading-status"
+        data-testid="public-survey-loading-shell"
+      >
         <Card className="w-full border border-border/60">
           <CardContent className="space-y-6 px-6 py-8 sm:px-8">
+            <div
+              id="survey-loading-status"
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              <span>Cargando encuesta y resultados en vivo...</span>
+            </div>
             <div className="space-y-3">
               <Skeleton className="h-9 w-4/5" />
               <Skeleton className="h-5 w-2/3" />
@@ -728,18 +853,23 @@ const PublicSurveyPage = () => {
         <Card className="w-full border-none shadow-none sm:border sm:shadow-sm">
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-2xl font-semibold">{textOr(votacionMessages?.titulo_gracias, '¡Gracias por participar!')}</h1>
-              {survey.puntos_recompensa ? (
+              <h1 className="text-2xl font-semibold">
+                {isDemoParticipationSurvey
+                  ? demoSubmissionPersisted
+                    ? 'Participación demo guardada en Preview'
+                    : 'Simulación interactiva completada'
+                  : textOr(votacionMessages?.titulo_gracias, '¡Gracias por participar!')}
+              </h1>
+              {!isDemoParticipationSurvey && survey.puntos_recompensa ? (
                 <p className="text-lg font-bold text-primary animate-pulse">
                   {textOr(votacionMessages?.puntos_label, 'Puntos obtenidos:')} {survey.puntos_recompensa}
                 </p>
               ) : null}
               <p className="text-muted-foreground">
                 {isDemoParticipationSurvey
-                  ? textOr(
-                      votacionMessages?.detalle_gracias_demo,
-                      'Tu voto se sumo a la simulacion: ahora ves 100 respuestas demo mas tu participacion.',
-                    )
+                  ? demoSubmissionPersisted
+                    ? 'Esta interacción quedó guardada en el entorno QA de Preview y permanece separada de cualquier dato ciudadano o resultado oficial.'
+                    : 'Interacción de muestra completada. Tu selección no se guarda ni se presenta como dato ciudadano.'
                   : textOr(votacionMessages?.detalle_gracias, 'Tu respuesta quedó registrada correctamente.')}
               </p>
             </div>
@@ -765,7 +895,7 @@ const PublicSurveyPage = () => {
             {mode !== 'embed' && (
                 <PublicSurveyShareActions
                   survey={survey}
-                  submission={lastSubmission}
+                  submission={shareSubmission}
                   tenantSlug={tenantSlug}
                 />
             )}
@@ -836,11 +966,14 @@ const PublicSurveyPage = () => {
   }
 
   return (
-    <div className={containerClass}>
+    <div className={containerClass} data-testid="public-survey-page">
       {survey.es_votacion_envivo ? (
-        <div className="space-y-6 animate-in fade-in-50 duration-500">
-          <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
-            <CardContent className="space-y-6 px-6 py-8 sm:px-8">
+        <div className="animate-in fade-in-50 duration-300 motion-reduce:animate-none">
+          <Card className="border border-border/70 bg-card shadow-sm">
+            <CardContent
+              className="space-y-4 px-4 py-5 sm:px-6 sm:py-6"
+              data-testid="public-live-survey-content"
+            >
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
@@ -854,60 +987,85 @@ const PublicSurveyPage = () => {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
-                  {pollSubtitle && (
-                    <p className="text-muted-foreground text-base sm:text-lg">{pollSubtitle}</p>
+                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{pollTitle}</h1>
+                  {pollSubtitle && !isDemoParticipationSurvey && (
+                    <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">{pollSubtitle}</p>
                   )}
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <Users className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_total_label, 'Total de respuestas')}</p>
-                    <p className="text-lg font-semibold">
-                      {livePollTotalVotes ?? (isDemoParticipationSurvey ? 'Tras votar' : '—')}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <Timer className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_tiempo_label, 'Última actualización')}</p>
-                    <p className="text-lg font-semibold">
-                      {survey.fin_at ? new Date(survey.fin_at).toLocaleString() : '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <MessageSquareText className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_opciones_label, 'Opciones activas')}</p>
-                    <p className="text-lg font-semibold">{votingOptionsCount || '—'}</p>
-                  </div>
-                </div>
+              {activeLiveView === 'results' ? (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border/60 py-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <strong className="font-semibold text-foreground">
+                    {livePollTotalVotes ?? (isDemoParticipationSurvey ? '100 demo' : '—')}
+                  </strong>{' '}
+                  respuestas
+                </span>
+                <span className="inline-flex items-center gap-2" data-testid="survey-last-updated">
+                  <Timer className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Actualizado {updatedAtLabel ?? '—'}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
+                  {votingOptionsCount || '—'} opciones
+                </span>
               </div>
+              ) : null}
 
-              {mode !== 'embed' && (
-                <div className="flex justify-start">
-                  <PublicSurveyShareActions
-                    survey={survey}
-                    submission={lastSubmission}
-                    tenantSlug={tenantSlug}
+              {isDemoParticipationSurvey ? (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2 text-xs text-foreground"
+                  data-testid="public-survey-demo-disclosure"
+                >
+                  <p>
+                    <strong>Demo no oficial.</strong>{' '}
+                    {seededResponseCount === null ? 'Base sintética' : `${seededResponseCount.toLocaleString('es-AR')} respuestas sintéticas`}; no representa opinión pública.
+                  </p>
+                  <SurveyResponseProvenanceBadge
+                    sources={[liveDashboard, liveResults, survey.resultados_envivo]}
+                    className="shrink-0"
                   />
-                </div>
-              )}
-
-              {isDemoParticipationSurvey && !submitted ? (
-                <div className="rounded-2xl border border-primary/25 bg-primary/10 p-4 text-sm text-foreground shadow-sm">
-                  Vota primero para desbloquear los resultados. Despues vas a ver la base demo de 100 respuestas
-                  sinteticas mas tu participacion en vivo.
                 </div>
               ) : null}
 
-              {shouldRevealLiveResults && liveDashboard ? (
-                <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm sm:p-5">
+              <nav className="flex w-full gap-1 rounded-xl border border-border/70 bg-muted/20 p-1" aria-label="Vista de participación">
+                <button
+                  type="button"
+                  className={`min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${activeLiveView === 'participate' ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`}
+                  aria-current={activeLiveView === 'participate' ? 'page' : undefined}
+                  onClick={() => setActiveLiveView('participate')}
+                >
+                  Participar
+                </button>
+                <button
+                  type="button"
+                  className={`min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${activeLiveView === 'results' ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`}
+                  aria-current={activeLiveView === 'results' ? 'page' : undefined}
+                  onClick={() => setActiveLiveView('results')}
+                >
+                  Resultados y territorio
+                </button>
+              </nav>
+
+              {activeLiveView === 'results' && mode !== 'embed' ? (
+                <details className="group rounded-xl border border-border/70 bg-background/60">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                    Compartir y mostrar QR
+                    <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Abrir</span>
+                  </summary>
+                  <div className="border-t border-border/70 p-3">
+                    <PublicSurveyShareActions survey={survey} submission={shareSubmission} tenantSlug={tenantSlug} />
+                  </div>
+                </details>
+              ) : null}
+
+              {activeLiveView === 'results' && shouldRevealLiveResults && liveDashboard ? (
+                <div
+                  className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-2 shadow-sm sm:p-3 lg:p-4"
+                  data-testid="public-survey-live-dashboard"
+                >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{textOr(liveResultsUi?.header_title, survey.titulo)}</span>
@@ -947,8 +1105,6 @@ const PublicSurveyPage = () => {
                       </Button>
                     </div>
                   </div>
-                  <SurveyResponseProvenanceBadge sources={[liveDashboard]} />
-
                   {liveDashboardConsecutiveErrors > 2 && liveDashboardError ? (
                     <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
                       {liveDashboardError}
@@ -956,7 +1112,12 @@ const PublicSurveyPage = () => {
                   ) : null}
 
                   {shouldRevealLiveResults ? (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <details className="group rounded-lg border border-border/70 bg-muted/15">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                        Filtros y análisis avanzado
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Abrir</span>
+                      </summary>
+                      <div className="grid gap-2 border-t border-border/70 p-3 sm:grid-cols-2 lg:grid-cols-4">
                       <select
                         aria-label={textOr(liveResultsUi?.filter_heatmap_label, 'Mapa de calor')}
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
@@ -1052,7 +1213,8 @@ const PublicSurveyPage = () => {
                       >
                         {textOr(liveResultsUi?.filters_reset_label, 'Limpiar filtros')}
                       </Button>
-                    </div>
+                      </div>
+                    </details>
                   ) : null}
 
                   {!hasLiveDashboardActivity ? (
@@ -1118,7 +1280,7 @@ const PublicSurveyPage = () => {
                         <div key={`${question.id ?? 'question'}-${qIndex}`} className="rounded-xl border border-border/60 bg-background/70 p-3">
                           <div className="mb-2 flex items-start justify-between gap-3">
                             <p className="text-sm font-medium">{toDisplayText(question.texto ?? question.titulo)}</p>
-                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
                               {question.total_votos ?? 0} votos
                             </span>
                           </div>
@@ -1180,14 +1342,14 @@ const PublicSurveyPage = () => {
                 </div>
               ) : null}
 
-              {shouldRevealLiveResults && !liveDashboard && (isLoadingLiveDashboard || isFetchingLiveDashboard) ? (
+              {activeLiveView === 'results' && shouldRevealLiveResults && !liveDashboard && (isLoadingLiveDashboard || isFetchingLiveDashboard) ? (
                 <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/80 p-4 text-sm text-muted-foreground" role="status" aria-live="polite">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span>{textOr(liveResultsUi?.loading_label, 'Cargando resultados en vivo...')}</span>
                 </div>
               ) : null}
 
-              {shouldRevealLiveResults && !liveDashboard && liveDashboardError && !isLoadingLiveDashboard && !isFetchingLiveDashboard ? (
+              {activeLiveView === 'results' && shouldRevealLiveResults && !liveDashboard && liveDashboardError && !isLoadingLiveDashboard && !isFetchingLiveDashboard ? (
                 <div
                   className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between"
                   role="alert"
@@ -1204,7 +1366,7 @@ const PublicSurveyPage = () => {
                 </div>
               ) : null}
 
-              <div className="space-y-3">
+              <div className={activeLiveView === 'participate' ? 'space-y-3' : 'hidden'} aria-hidden={activeLiveView !== 'participate'}>
                 <SurveyForm
                   survey={survey}
                   onSubmit={handleSubmit}
@@ -1216,12 +1378,16 @@ const PublicSurveyPage = () => {
                   submitReasonCode={submitReasonCode}
                   showHeader={false}
                   submitLabel={
-                    survey.tipo === 'votacion'
+                    isDemoParticipationSurvey
+                      ? 'Simular participación'
+                      : survey.tipo === 'votacion'
                       ? textOr(votacionUi?.boton_votar, 'Enviar voto')
                       : textOr(votacionUi?.boton_enviar, 'Enviar respuesta')
                   }
                   liveResults={renderedLiveResults}
-                  showLiveResults={shouldRevealLiveResults}
+                  showLiveResults={false}
+                  variant="votacion"
+                  demographicsPresentation="collapsed"
                 />
               </div>
             </CardContent>
@@ -1238,7 +1404,18 @@ const PublicSurveyPage = () => {
           )}
         </div>
       ) : (
-        <>
+        <div className="space-y-3">
+          {isDemoParticipationSurvey ? (
+            <header className="rounded-2xl border border-border/70 bg-card px-4 py-4 shadow-sm sm:px-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+                {publicParticipationBrand}
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{pollTitle}</h1>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                <strong className="text-foreground">Demo no oficial.</strong> La interacción permanece separada de cualquier dato ciudadano o resultado institucional.
+              </p>
+            </header>
+          ) : null}
           <SurveyForm
             survey={survey}
             onSubmit={handleSubmit}
@@ -1248,6 +1425,9 @@ const PublicSurveyPage = () => {
             submitErrorStatus={submitStatus}
             submitErrorDetails={submitErrorDetails}
             submitReasonCode={submitReasonCode}
+            showHeader={!isDemoParticipationSurvey}
+            variant="votacion"
+            demographicsPresentation="collapsed"
           />
           {survey.permitir_comentarios && (
             <SurveyComments
@@ -1257,7 +1437,7 @@ const PublicSurveyPage = () => {
               commentConfig={survey.commentConfig}
             />
           )}
-        </>
+        </div>
       )}
       {/* If comments are allowed, do we show them during voting? Yes, usually debate influences vote or vice versa.
           YouTube shows chat alongside poll.

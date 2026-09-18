@@ -73,4 +73,53 @@ describe('tenantService config updates', () => {
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/admin/tenants/junin/config');
   });
+
+  it('reads and writes the WidgetSettings runtime source with an explicit tenant context', async () => {
+    const runtimeConfig = {
+      theme_json: { light: { primary: '#0f8f4f' } },
+      welcome_message: 'Hola Junín',
+    };
+    apiFetchMock.mockResolvedValueOnce(runtimeConfig).mockResolvedValueOnce({ status: 'updated' });
+
+    await expect(tenantService.getRuntimeWidgetConfig('junin')).resolves.toBe(runtimeConfig);
+    await expect(
+      tenantService.updateRuntimeWidgetConfig('junin', {
+        theme_json: runtimeConfig.theme_json,
+        welcome_message: 'Hola Junín',
+        welcome_subtitle: 'Asistente Junín',
+        avatar_url: 'https://cdn.example.com/junin.svg',
+        primary_color: '#0f8f4f',
+        secondary_color: '#075f36',
+        bottom: '20px',
+        side_offset: '20px',
+        position: 'right',
+        bubble_shape: 'rounded',
+        cta_messages: [{ text: 'Consultanos' }],
+        font_family: 'Inter',
+        default_open: false,
+      }),
+    ).resolves.toEqual({ status: 'updated' });
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/tenant/config', {
+      tenantSlug: 'junin',
+    });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/tenant/config', {
+      method: 'PUT',
+      body: expect.objectContaining({
+        welcome_message: 'Hola Junín',
+        primary_color: '#0f8f4f',
+      }),
+      tenantSlug: 'junin',
+    });
+  });
+
+  it('reads the public widget contract used to verify publication', async () => {
+    const publicConfig = { contract_version: 'public.widget_config.v1', tenant: { slug: 'junin' } };
+    apiFetchMock.mockResolvedValueOnce(publicConfig);
+
+    await expect(tenantService.getPublicRuntimeWidgetConfig('junin')).resolves.toBe(publicConfig);
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/public/tenants/junin/widget-config', {
+      tenantSlug: 'junin',
+    });
+  });
 });

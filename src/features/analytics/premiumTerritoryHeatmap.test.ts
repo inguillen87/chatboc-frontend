@@ -7,6 +7,7 @@ import {
   isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   resolveOfficialTerritoryZones,
+  resolveTerritoryDataProvenance,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
 } from './premiumTerritoryHeatmap';
@@ -41,6 +42,56 @@ const buildPoints = (count: number, overrides?: Partial<OperationsHeatmapPoint>)
   }));
 
 describe('premium territory heatmap aggregation', () => {
+  it('derives map provenance without treating missing or untrusted metadata as real', () => {
+    expect(resolveTerritoryDataProvenance(undefined)).toMatchObject({
+      state: 'unvalidated',
+      label: 'Procedencia no validada',
+    });
+    expect(resolveTerritoryDataProvenance(undefined, true)).toMatchObject({
+      state: 'demo',
+      label: 'Escenario de demostración',
+    });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'synthetic',
+          server_trusted_classification: true,
+          contains_synthetic: true,
+          synthetic_responses_included: 20,
+        },
+      }),
+    ).toMatchObject({ state: 'synthetic', label: 'Datos sintéticos declarados' });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'real',
+          server_trusted_classification: true,
+          contains_synthetic: false,
+          real_responses_included: 8,
+          unverified_responses_included: 0,
+        },
+      }, false, [{ id: 'survey_response:1', source: 'survey', lat: -34.6, lng: -60.9 }]),
+    ).toMatchObject({ state: 'real', label: 'Procedencia validada por el sistema' });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'real',
+          server_trusted_classification: true,
+          real_responses_included: 8,
+        },
+      }, false, [{ id: 'ticket:1', source: 'ticket', lat: -34.6, lng: -60.9 }]),
+    ).toMatchObject({ state: 'unvalidated', label: 'Procedencia parcial' });
+    expect(
+      resolveTerritoryDataProvenance({
+        response_provenance: {
+          mode: 'real',
+          server_trusted_classification: false,
+          real_responses_included: 8,
+        },
+      }),
+    ).toMatchObject({ state: 'unvalidated' });
+  });
+
   it('keeps low sample zones private', () => {
     const result = aggregateTerritoryHeatmap({
       points: buildPoints(PREMIUM_HEATMAP_MIN_SAMPLE_SIZE - 1),
@@ -71,6 +122,41 @@ describe('premium territory heatmap aggregation', () => {
     expect(centro?.records).toBe(19);
     expect(centro?.topCategories[0]).toMatchObject({ key: 'reclamos', total: 24 });
     expect(centro?.variationPercent).toBeGreaterThan(0);
+  });
+
+  it('resolves a coordinate through verified polygons before trusting a mutable zone label', () => {
+    const zones = [
+      OFFICIAL_TEST_ZONES[0],
+      {
+        id: 'norte',
+        label: 'Norte',
+        polygon: [[20, 20], [80, 20], [80, 55], [20, 55]] as [number, number][],
+        geoPolygons: [[[-60.75, -34.7], [-60.55, -34.7], [-60.55, -34.5], [-60.75, -34.5]]] as [number, number][][],
+        source: 'official' as const,
+      },
+    ];
+    const points: OperationsHeatmapPoint[] = [
+      {
+        id: 'label-mismatch',
+        lat: -34.6,
+        lng: -60.7,
+        barrio: 'Centro',
+        categoria: 'reclamos',
+      },
+      {
+        id: 'outside-polygons',
+        lat: -34.6,
+        lng: -60.4,
+        barrio: 'Centro',
+        categoria: 'reclamos',
+      },
+    ];
+
+    const result = aggregateTerritoryHeatmap({ points, zones });
+
+    expect(result.zones.find((metric) => metric.zone.id === 'centro')?.records).toBe(0);
+    expect(result.zones.find((metric) => metric.zone.id === 'norte')?.records).toBe(1);
+    expect(result.unassignedRecords).toBe(1);
   });
 
   it('provides a local demo seed with eight zones and multiple category families', () => {
@@ -139,6 +225,36 @@ describe('premium territory heatmap aggregation', () => {
         source: 'official',
       }),
     ]);
+  });
+
+  it('rejects an entire official boundary ring when any coordinate is outside WGS84', () => {
+    const heatmap = {
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      geo_layers: {
+        boundaries: {
+          type: 'FeatureCollection',
+          metadata: { official: true, source: 'Catastro municipal' },
+          features: [
+            {
+              type: 'Feature',
+              id: 'centro',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-60.95, -34.62], [181, -34.62], [-60.9, -34.57], [-60.95, -34.57]]],
+              },
+              properties: { nombre: 'Centro' },
+            },
+          ],
+        },
+      },
+    } satisfies OperationsHeatmapV1;
+
+    expect(resolveOfficialTerritoryZones(heatmap)).toEqual([]);
   });
 
   it('rejects boundary collections explicitly marked as synthetic', () => {
@@ -256,6 +372,31 @@ describe('premium territory heatmap aggregation', () => {
     });
   });
 
+  it('prefers jurisdiction-safe location quality over generic coverage and keeps pending geocoding separate', () => {
+    const readiness = resolveTerritoryMapReadiness(
+      {
+        points: buildPoints(2),
+        quality: { state: 'ready', coverage_percent: 90, pending_geocode: 7, can_render_heatmap: true },
+        summary: { points: 2, coordinate_coverage_pct: 90, outside_jurisdiction: 1 },
+        location_quality: {
+          total_ticket_records: 6,
+          ticket_records_with_coordinates: 2,
+          ticket_records_outside_jurisdiction: 1,
+          ticket_records_pending_geocode: 3,
+          coordinate_coverage_pct: 33.33,
+        },
+      },
+      2,
+    );
+
+    expect(readiness).toMatchObject({
+      state: 'low',
+      coveragePercent: 33.3,
+      visiblePoints: 2,
+      pendingGeocode: 3,
+    });
+  });
+
   it('honors render contract blocking even when point data exists', () => {
     const readiness = resolveTerritoryMapReadiness(
       {
@@ -277,7 +418,7 @@ describe('premium territory heatmap aggregation', () => {
 
     expect(readiness).toMatchObject({
       state: 'empty',
-      label: 'Mapa no renderizable',
+      label: 'Mapa sin datos suficientes',
       visiblePoints: 18,
       canRenderHeatmap: false,
     });
@@ -330,6 +471,36 @@ describe('premium territory heatmap aggregation', () => {
       'coverage_quality',
     ]);
     expect(layers.find((layer) => layer.id === 'ai_risk_layers')?.tone).toBe('ai');
+    expect(layers.find((layer) => layer.id === 'survey_participation')?.label).toBe(
+      'Participación en encuestas',
+    );
+    expect(layers.find((layer) => layer.id === 'geocoding_queue')?.label).toBe(
+      'Ubicaciones pendientes',
+    );
+  });
+
+  it('translates structural layer tokens and hides unknown backend identifiers', () => {
+    const layers = resolveTerritoryLayerDescriptors({
+      contract_version: 'operations.heatmap.v1',
+      points: [],
+      cells: [],
+      hotspots: [],
+      facets: [],
+      category_layers: [],
+      render_contract: {
+        layers: ['points', 'cells', 'layers', 'custom_raw_layer'],
+      },
+    } as any);
+
+    expect(layers).toEqual([
+      expect.objectContaining({ id: 'points', label: 'Ubicaciones' }),
+      expect.objectContaining({ id: 'cells', label: 'Zonas agregadas' }),
+      expect.objectContaining({ id: 'layers', label: 'Capas territoriales' }),
+      expect.objectContaining({ id: 'custom_raw_layer', label: 'Capa territorial' }),
+    ]);
+    expect(layers.map((layer) => layer.label)).not.toEqual(
+      expect.arrayContaining(['Points', 'Cells', 'Layers', 'Custom raw layer']),
+    );
   });
 
   it('promotes ai status layer hints into selectable map layers', () => {

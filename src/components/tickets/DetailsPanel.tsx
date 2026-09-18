@@ -8,7 +8,6 @@ import {
   MapPin,
   Info,
   FileDown,
-  User,
   Copy,
   X,
   Maximize2,
@@ -64,6 +63,10 @@ import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { normalizeSaasActions } from '@/api/v2/saas';
 import TicketAiHandoffControl, { isAiHandoffAction } from './TicketAiHandoffControl';
+import { TicketSlaClocks } from './TicketSlaClocks';
+import { resolveTicketSlaSource } from '@/utils/ticketSla';
+import './DetailsPanel.css';
+import useTicketPresentationCategory from '@/hooks/useTicketPresentationCategory';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   return sanitizeAttachmentUrl(value) || undefined;
@@ -107,6 +110,72 @@ const normalizeTextValue = (value: unknown): string => {
   if (typeof value === 'string') return value.trim();
   return '';
 };
+
+const STRUCTURED_DESCRIPTION_KEYS = [
+  'summary',
+  'resumen',
+  'description',
+  'descripcion',
+  'consulta',
+  'message',
+  'mensaje',
+  'question',
+  'pregunta',
+] as const;
+
+const extractHumanTextFromRecord = (record: Record<string, unknown>): string => {
+  for (const key of STRUCTURED_DESCRIPTION_KEYS) {
+    const candidate = normalizeTextValue(record[key]);
+    if (candidate) return candidate;
+  }
+
+  const events = Array.isArray(record.events) ? record.events : [];
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = asPlainRecord(events[index]);
+    if (!event) continue;
+    for (const key of STRUCTURED_DESCRIPTION_KEYS) {
+      const candidate = normalizeTextValue(event[key]);
+      if (candidate) return candidate;
+    }
+  }
+
+  return '';
+};
+
+const extractHumanDescription = (value: unknown): string => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return extractHumanTextFromRecord(value as Record<string, unknown>);
+  }
+
+  const text = normalizeTextValue(value);
+  if (!text) return '';
+  if (!text.startsWith('{') && !text.startsWith('[')) return text;
+
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? extractHumanTextFromRecord(parsed as Record<string, unknown>)
+      : '';
+  } catch {
+    // JSON-looking payloads are technical or malformed. Never expose them as
+    // an operator-facing case summary.
+    return '';
+  }
+};
+
+export const resolveTicketCaseSummary = (
+  ticket: Ticket,
+  assistedSummary?: unknown,
+  fallbackSummary?: unknown,
+): string =>
+  extractHumanDescription(assistedSummary) ||
+  extractHumanDescription(ticket.description) ||
+  extractHumanDescription(ticket.detalles) ||
+  normalizeTextValue(ticket.pregunta) ||
+  normalizeTextValue(fallbackSummary) ||
+  normalizeTextValue(ticket.asunto) ||
+  normalizeTextValue(ticket.categoria) ||
+  'Sin descripción disponible';
 
 const formatCompactLabel = (value: unknown): string => normalizeTextValue(value).replace(/_/g, ' ');
 
@@ -398,10 +467,31 @@ export const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachmen
 interface DetailsPanelProps {
   onClose?: () => void;
   className?: string;
+  operationalWorkspace?: boolean;
 }
 
-const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
-  const { selectedTicket: ticket, updateTicket } = useTickets();
+interface DetailsPanelContentProps extends DetailsPanelProps {
+  ticket: Ticket;
+  updateTicket: ReturnType<typeof useTickets>['updateTicket'];
+}
+
+const EmptyDetailsPanel = () => (
+  <aside className="hidden h-full w-full flex-col items-center justify-center border-l border-border bg-muted/20 p-6 lg:flex">
+    <div className="text-center text-muted-foreground">
+      <Info className="mx-auto mb-4 h-12 w-12" />
+      <h3 className="font-semibold">Detalles del Ticket</h3>
+      <p className="text-sm">Seleccioná un ticket para ver los detalles del cliente y del caso.</p>
+    </div>
+  </aside>
+);
+
+const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
+  ticket,
+  updateTicket,
+  onClose,
+  className,
+  operationalWorkspace = false,
+}) => {
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
@@ -512,28 +602,14 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     ? `https://wa.me/${phoneDigits}`
     : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
+  const presentationCategory = useTicketPresentationCategory(ticket);
   const ticketSubject = String(
     ticket?.asunto || ticket?.title || ticket?.categoria || 'Detalle del ticket',
   ).trim();
+  const rawCaseNumber = normalizePersonalValue(ticket?.nro_ticket) || normalizePersonalValue(ticket?.id);
+  const caseNumberLabel = rawCaseNumber.startsWith('#') ? rawCaseNumber : `#${rawCaseNumber}`;
   const contactRoleLabel = ticket.tipo === 'pyme' ? 'Cliente' : 'Vecino/a';
   const hasAddress = Boolean(personal.direccion || locationTicket?.latitud || locationTicket?.lat_destino);
-  const hasConsentAvatar = Boolean(neighborAvatarUrl && neighborAvatar.consented);
-  const contactProfileSignals = [
-    { id: 'name', label: 'Nombre', ready: Boolean(displayName) },
-    { id: 'phone', label: 'Telefono', ready: Boolean(personal.telefono) },
-    { id: 'email', label: 'Email', ready: Boolean(personal.email) },
-    { id: 'address', label: 'Ubicacion', ready: hasAddress },
-    { id: 'dni', label: 'DNI', ready: Boolean(personal.dni) },
-    { id: 'avatar', label: 'Avatar', ready: hasConsentAvatar },
-    { id: 'channel', label: 'Canal', ready: Boolean(channelLabel) },
-  ];
-  const completedProfileSignals = contactProfileSignals.filter((signal) => signal.ready).length;
-  const contactCompleteness = Math.round((completedProfileSignals / contactProfileSignals.length) * 100);
-  const contactProfileTone =
-    contactCompleteness >= 85 ? 'Perfil operativo completo' :
-    contactCompleteness >= 60 ? 'Perfil util para seguimiento' :
-    'Perfil incompleto';
-  const avatarPolicyLabel = hasConsentAvatar ? 'Imagen real autorizada' : 'Avatar seguro por identidad';
   const hasContactCopyTarget = Boolean(displayName || personal.telefono || personal.email || personal.direccion);
   const contactActionBlockers = [
     phoneHref ? '' : 'Falta telefono para abrir WhatsApp.',
@@ -563,17 +639,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     );
   };
 
-  if (!ticket) {
-    return (
-       <aside className="hidden h-full w-full flex-col items-center justify-center border-l border-border bg-muted/20 p-6 lg:flex">
-         <div className="text-center text-muted-foreground">
-            <Info className="h-12 w-12 mx-auto mb-4" />
-            <h3 className="font-semibold">Detalles del Ticket</h3>
-            <p className="text-sm">Seleccioná un ticket para ver los detalles del cliente y del caso.</p>
-         </div>
-       </aside>
-    );
-  }
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
   };
@@ -767,7 +832,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   );
   const operationalGuidance = React.useMemo(() => deriveTicketOperationalGuidance(ticket), [ticket]);
   const priorityLabel = normalizeTextValue(ticket.priority);
-  const slaLabel = normalizeTextValue(ticket.sla_status);
+  const slaSource = resolveTicketSlaSource(ticket);
   const assignedAgentLabel = normalizeTextValue(
     ticket.assignedAgent?.nombre_usuario ||
       ticket.user?.nombre_usuario ||
@@ -776,16 +841,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       ticket.assigned_user_id,
   );
   const nextActionLabel = operationalGuidance.label;
-  const hasOperationalSignal =
-    Boolean(
-      nextActionLabel ||
-      priorityLabel ||
-      slaLabel ||
-      assignedAgentLabel ||
-      operationalActions.length ||
-      aiHandoffActions.length ||
-      handoffState,
-    );
   const assistedContext = React.useMemo(() => {
     const request =
       asPlainRecord(ticket.assisted_request) ||
@@ -869,6 +924,26 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       channelActions,
     };
   }, [ticket]);
+  const resolutionActions = React.useMemo(() => {
+    const seen = new Set<string>();
+    return [...operationalActions, ...assistedContext.channelActions].filter((action) => {
+      const key = `${action.id}|${action.href || ''}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [assistedContext.channelActions, operationalActions]);
+  const primaryResolutionActions = resolutionActions.slice(0, 3);
+  const additionalResolutionActions = resolutionActions.slice(3);
+  const caseSummary = resolveTicketCaseSummary(
+    ticket,
+    assistedContext.summary,
+    formatCategory(ticket),
+  );
+  const resolutionNextStep =
+    assistedContext.recommendedAction ||
+    nextActionLabel ||
+    'Revisá la información disponible y continuá la gestión desde la conversación.';
   const openActionHref = (href: string) => {
     if (!href) return;
     if (href.startsWith('/api/')) {
@@ -889,150 +964,160 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       });
   };
 
-
   return (
     <motion.aside
-        key={ticket.id}
-        initial={{ opacity: 0.5 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className={cn(
-          'flex h-full min-w-0 max-w-full shrink-0 flex-col border-border bg-muted/20',
-          onClose ? 'w-full border-0 md:border-l' : 'w-full border-l',
-          className,
-        )}
+      key={ticket.id}
+      initial={{ opacity: 0.5 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className={cn(
+        'ticket-inspector flex h-full min-w-0 max-w-full shrink-0 flex-col overflow-hidden border-border bg-muted/20',
+        onClose ? 'w-full border-0 md:border-l' : 'w-full border-l',
+        className,
+      )}
+      data-operational-workspace={operationalWorkspace ? 'true' : 'false'}
+      data-testid="ticket-details-panel"
     >
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-muted/80 p-3 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
+      <header className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-2 border-b border-border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
         <div className="flex min-w-0 items-center gap-2">
-          {onClose && (
+          {onClose ? (
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="h-10 w-10 shrink-0"
               onClick={onClose}
               aria-label="Cerrar detalles del ticket"
             >
               <X className="h-4 w-4" />
             </Button>
-          )}
+          ) : null}
           <div className="min-w-0">
-            <h3 className="truncate text-base font-semibold md:text-lg" title={ticketSubject}>
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              Caso <span className="font-mono text-foreground">{caseNumberLabel}</span>
+            </p>
+            <h2 className="ticket-inspector__header-title text-base font-semibold leading-snug md:text-lg" title={ticketSubject}>
               {ticketSubject}
-            </h3>
-            <p className="truncate text-xs text-muted-foreground">#{ticket.nro_ticket || ticket.id}</p>
+            </h2>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2" aria-label="Opciones de exportación">
-              <FileDown className="h-4 w-4" />
-              <span className="hidden sm:inline">Exportar</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleExportPdf}>Exportar a PDF</DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportXlsx}>Exportar a Excel</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSendHistory} disabled={isSendingEmail}>
-              {isSendingEmail ? 'Enviando...' : 'Enviar historial por correo'}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex shrink-0 items-center gap-2">
+          {!operationalWorkspace ? (
+            <Badge variant="outline" className="hidden capitalize sm:inline-flex">
+              {currentStatusLabel}
+            </Badge>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Exportar o enviar historial">
+                <FileDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportPdf}>Exportar a PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportXlsx}>Exportar a Excel</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSendHistory} disabled={isSendingEmail}>
+                {isSendingEmail ? 'Enviando…' : 'Enviar historial por correo'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
-      <ScrollArea className="flex-1">
-        <div className="space-y-4 p-4 pb-24 md:pb-6">
-          <Card className="border-primary/20 bg-background/90 shadow-sm">
+
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <div className="ticket-inspector__scroll-content space-y-3 p-3 pb-24 sm:p-4 md:pb-6">
+          <Card className="border-primary/20 bg-background shadow-sm" data-testid="ticket-resolution-guide">
             <CardContent className="space-y-4 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold">Que hacer ahora</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {nextActionLabel}
-                  </p>
-                  <p className="line-clamp-2 text-sm font-medium text-foreground">
-                    {formatCategory(ticket)}
-                  </p>
+              <section aria-labelledby={`case-summary-${ticket.id}`} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <h3 id={`case-summary-${ticket.id}`} className="text-sm font-semibold">
+                    Resumen del caso
+                  </h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant={operationalGuidance.source === 'backend' ? 'secondary' : 'outline'}>
-                    {operationalGuidance.source === 'backend' ? 'Accion backend' : 'Guia operativa'}
+                  <Badge variant="secondary" className="ticket-inspector__badge capitalize">{currentStatusLabel}</Badge>
+                  <Badge
+                    variant={presentationCategory?.state === 'conflict' ? 'destructive' : 'outline'}
+                    className="ticket-inspector__badge"
+                    title={presentationCategory?.detail}
+                    aria-label={`${presentationCategory?.label || 'Categoría no informada'}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
+                    data-category-state={presentationCategory?.state}
+                  >
+                    {presentationCategory?.label || 'Categoría no informada'}
                   </Badge>
-                  {operationalGuidance.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="capitalize">
-                      {tag}
-                    </Badge>
-                  ))}
                   {priorityLabel ? (
-                    <Badge variant="outline" className="gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      {priorityLabel}
+                    <Badge variant="outline" className="ticket-inspector__badge gap-1">
+                      <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                      Prioridad {formatCompactLabel(priorityLabel)}
                     </Badge>
-                  ) : null}
-                  {slaLabel ? (
-                    <Badge variant="outline">SLA: {slaLabel}</Badge>
                   ) : null}
                   {assignedAgentLabel ? (
-                    <Badge variant="secondary" className="gap-1">
-                      <UserRound className="h-3 w-3" />
+                    <Badge variant="secondary" className="ticket-inspector__badge gap-1">
+                      <UserRound className="h-3 w-3" aria-hidden="true" />
                       {assignedAgentLabel}
                     </Badge>
                   ) : null}
-                  {!hasOperationalSignal ? (
-                    <Badge variant="outline">Sin senales operativas publicadas</Badge>
-                  ) : null}
                 </div>
-              </div>
+                <TicketSlaClocks sla={slaSource} compact={!slaSource} />
+                <p className="text-sm leading-relaxed text-foreground">{caseSummary}</p>
+                {assistedContext.visible ? (
+                  <div className="flex flex-wrap gap-2" data-testid="ticket-assisted-context-card">
+                    {assistedContext.moduleLabel ? (
+                      <Badge variant="secondary">{assistedContext.moduleLabel}</Badge>
+                    ) : null}
+                    {assistedContext.kindLabel ? (
+                      <Badge variant="outline" className="capitalize">{assistedContext.kindLabel}</Badge>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
 
-              <div className="grid gap-2 sm:grid-cols-3">
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Estado</p>
-                  <p className="mt-1 text-sm font-medium">{currentStatusLabel}</p>
-                </div>
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Canal</p>
-                  <p className="mt-1 text-sm font-medium">{channelLabel}</p>
-                </div>
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Creado</p>
-                  <p className="mt-1 text-sm font-medium">{formatDate(ticket.fecha)}</p>
-                </div>
-              </div>
+              <section
+                aria-labelledby={`next-step-${ticket.id}`}
+                className="rounded-xl border border-primary/20 bg-primary/5 p-3"
+              >
+                <p id={`next-step-${ticket.id}`} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                  Próximo paso
+                </p>
+                <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">
+                  {resolutionNextStep}
+                </p>
+              </section>
 
-              {aiHandoffActions.length || handoffState ? (
-                <TicketAiHandoffControl
-                  ticketId={String(ticket.id)}
-                  tenantSlug={ticket.tenant_slug}
-                  handoff={handoffState}
-                  actions={aiHandoffActions}
-                  onActionComplete={refreshTicketAfterHandoff}
-                />
-              ) : null}
+              <section aria-label="Responsable del caso" data-testid="ticket-resolution-ownership">
+                <TicketAssignment variant="compact" />
+              </section>
 
-              {operationalActions.length ? (
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Acciones permitidas</p>
-                  <div className="flex flex-wrap gap-2">
-                    {operationalActions.map((action) => {
+              {primaryResolutionActions.length ? (
+                <section aria-label="Acciones operativas" className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Acciones disponibles
+                  </p>
+                  <div className="ticket-inspector__action-grid">
+                    {primaryResolutionActions.map((action, index) => {
                       const canOpen = Boolean(action.href && !action.disabled);
+                      const reasonId = `resolution-action-${ticket.id}-${index}-reason`;
                       return (
-                        <div key={action.id} className="min-w-[11rem] max-w-full space-y-1">
+                        <div key={`${action.id}-${action.href || index}`} className="min-w-0 space-y-1">
                           <Button
                             type="button"
-                            variant={canOpen ? 'outline' : 'secondary'}
+                            variant={index === 0 && canOpen ? 'default' : 'outline'}
                             size="sm"
-                            className="w-full max-w-full justify-between gap-2"
+                            className="ticket-inspector__action-button w-full justify-between gap-2"
                             disabled={!canOpen}
-                            title={action.description}
+                            aria-describedby={action.disabledReason ? reasonId : undefined}
                             onClick={() => (action.href ? openActionHref(action.href) : undefined)}
                           >
-                            <span className="truncate">{action.label}</span>
-                            {action.href ? <ExternalLink className="h-3 w-3 shrink-0" /> : <CheckCircle2 className="h-3 w-3 shrink-0" />}
+                            <span>{action.label}</span>
+                            {canOpen ? (
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            )}
                           </Button>
-                          {action.disabled && action.disabledReason ? (
-                            <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                          {action.disabledReason ? (
+                            <p id={reasonId} className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
                               {action.disabledReason}
                             </p>
                           ) : null}
@@ -1040,522 +1125,170 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                       );
                     })}
                   </div>
-                </div>
-              ) : aiHandoffActions.length || handoffState ? null : (
-                <div className="rounded-lg border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
-                  Sin acciones directas publicadas. El operador puede responder, asignar o cambiar estado desde esta mesa.
-                </div>
+                </section>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border/70 p-3 text-xs leading-relaxed text-muted-foreground">
+                  No hay acciones directas habilitadas para este estado. Podés revisar los datos y continuar la gestión interna.
+                </p>
               )}
             </CardContent>
           </Card>
-          {assistedContext.visible ? (
-            <Card
-              className="border-blue-500/25 bg-blue-500/5 shadow-sm"
-              data-testid="ticket-assisted-context-card"
-            >
-              <CardContent className="space-y-3 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Info className="h-4 w-4 text-blue-500" />
-                      <p className="text-sm font-semibold">Solicitud asistida</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {assistedContext.summary || 'El sistema preparo el caso para que el equipo lo atienda sin reconstruir el contexto.'}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {assistedContext.moduleLabel ? (
-                      <Badge variant="secondary">{assistedContext.moduleLabel}</Badge>
-                    ) : null}
-                    {assistedContext.kindLabel ? (
-                      <Badge variant="outline" className="capitalize">
-                        {assistedContext.kindLabel}
-                      </Badge>
-                    ) : null}
-                    {assistedContext.trackingCode ? (
-                      <Badge variant="outline">#{assistedContext.trackingCode}</Badge>
-                    ) : null}
-                  </div>
-                </div>
-
-                {assistedContext.recommendedAction ? (
-                  <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Proxima accion
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-foreground">
-                      {assistedContext.recommendedAction}
-                    </p>
-                  </div>
-                ) : null}
-
-                {assistedContext.channelActions.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {assistedContext.channelActions.map((action) => (
-                      <Button
-                        key={action.id}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="max-w-full gap-2"
-                        onClick={() => (action.href ? openActionHref(action.href) : undefined)}
-                      >
-                        <span className="truncate">{action.label}</span>
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
-          <Card className="border-border/70 bg-background/95 shadow-sm" data-testid="ticket-operator-contact-card">
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-start gap-3">
-                <IdentityAvatar
-                  name={displayName || personal.telefono || personal.email || `Ticket ${ticket.id}`}
-                  avatarUrl={neighborAvatarUrl}
-                  source={neighborAvatarSource}
-                  consented={neighborAvatar.consented}
-                  size="lg"
-                  className="h-12 w-12 flex-shrink-0 text-sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className="min-w-0 truncate text-sm font-semibold text-foreground">
-                      {displayName || 'Contacto sin nombre'}
-                    </p>
-                    <Badge variant="outline" className="shrink-0 text-[11px]">
-                      {contactRoleLabel}
-                    </Badge>
-                    <Badge variant={contactCompleteness >= 85 ? 'secondary' : 'outline'} className="shrink-0 text-[11px]">
-                      {contactProfileTone}
-                    </Badge>
-                  </div>
-                  <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
-                    <p className="truncate">
-                      {personal.telefono || 'Telefono no informado'}
-                    </p>
-                    <p className="truncate">
-                      {personal.direccion || 'Direccion no informada'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div
-                className="rounded-xl border border-border/60 bg-muted/20 p-3"
-                data-testid="crm-contact-profile-summary"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      Perfil CRM
-                    </p>
-                    <p className="mt-1 truncate text-sm font-medium text-foreground">
-                      {avatarPolicyLabel} · {channelLabel}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="shrink-0">
-                    {contactCompleteness}% completo
-                  </Badge>
-                </div>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${contactCompleteness}%` }}
-                  />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
-                  {contactProfileSignals.map((signal) => (
-                    <span
-                      key={signal.id}
-                      className={cn(
-                        'inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-1',
-                        signal.ready
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                          : 'border-border/70 bg-background/70 text-muted-foreground',
-                      )}
-                    >
-                      {signal.ready ? (
-                        <CheckCircle2 className="h-3 w-3 shrink-0" />
-                      ) : (
-                        <AlertTriangle className="h-3 w-3 shrink-0" />
-                      )}
-                      <span className="truncate">{signal.label}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {phoneHref ? (
-                  <Button asChild variant="outline" size="sm" className="h-9 gap-2">
-                    <a href={phoneHref} target="_blank" rel="noreferrer">
-                      <span className="flex h-4 w-4 items-center justify-center text-green-500">
-                        <FaWhatsapp />
-                      </span>
-                      WhatsApp
-                    </a>
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="h-9 gap-2" disabled>
-                    <span className="flex h-4 w-4 items-center justify-center text-muted-foreground">
-                      <FaWhatsapp />
-                    </span>
-                    WhatsApp
-                  </Button>
-                )}
-                {phoneDigits ? (
-                  <Button asChild variant="outline" size="sm" className="h-9 gap-2 border-blue-500/30 text-blue-700 hover:bg-blue-500/10 dark:text-blue-300">
-                    <a href={`tel:+${phoneDigits}`}>
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                      Llamar
-                    </a>
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="h-9 gap-2" disabled>
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                    Llamar
-                  </Button>
-                )}
-                {emailHref ? (
-                  <Button asChild variant="outline" size="sm" className="h-9 gap-2">
-                    <a href={emailHref}>
-                      <Mail className="h-4 w-4" />
-                      Email
-                    </a>
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="h-9 gap-2" disabled>
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-2"
-                  onClick={openGoogleMaps}
-                  disabled={!hasAddress}
-                >
-                  <MapPin className="h-4 w-4" />
-                  Mapa
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-9 gap-2"
-                  onClick={() => copyToClipboard(
-                    [displayName, personal.telefono, personal.email, personal.direccion]
-                      .filter(Boolean)
-                      .join(' - '),
-                    'Contacto',
-                  )}
-                  disabled={!hasContactCopyTarget}
-                >
-                  <Copy className="h-4 w-4" />
-                  Copiar
-                </Button>
-              </div>
-              {contactActionBlockers.length ? (
-                <div
-                  className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200"
-                  data-testid="crm-contact-action-blockers"
-                >
-                  {contactActionBlockers.map((reason) => (
-                    <p key={reason}>{reason}</p>
-                  ))}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-          <AiAssistPanel ticket={ticket} />
-          <TicketLogisticsSummary
-            ticket={locationTicket || ticket}
-            statusOverride={currentStatus}
-            historyOverride={timelineHistory}
-            onOpenMap={openGoogleMaps}
-          />
 
           <Accordion
             type="multiple"
             value={openSections}
             onValueChange={setOpenSections}
-            className="w-full"
+            className="space-y-2"
           >
-            <AccordionItem value="info-personal">
-              <AccordionTrigger className="text-base font-semibold">
-                Información Personal
-              </AccordionTrigger>
-              <AccordionContent className="pt-2">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                    <User className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Nombre
-                      </p>
-                      <p
-                        className={cn(
-                          'break-words text-sm leading-snug',
-                          personal.nombre
-                            ? 'font-medium text-foreground'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        {personal.nombre || 'No especificado'}
-                      </p>
-                    </div>
-                    {personal.nombre && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                        onClick={() => copyToClipboard(personal.nombre, 'Nombre')}
-                        aria-label="Copiar nombre"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                    <Info className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
-                      <p
-                        className={cn(
-                          'break-words text-sm leading-snug',
-                          personal.dni ? 'font-medium text-foreground' : 'text-muted-foreground',
-                        )}
-                      >
-                        {personal.dni || 'No especificado'}
-                      </p>
-                    </div>
-                    {personal.dni && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                        onClick={() => copyToClipboard(personal.dni, 'DNI')}
-                        aria-label="Copiar DNI"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
-                    <Mail className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Email
-                      </p>
-                      {personal.email ? (
-                        <a
-                          href={emailHref}
-                          className="break-all text-sm font-medium text-foreground hover:underline"
-                        >
-                          {personal.email}
-                        </a>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No especificado</p>
-                      )}
-                    </div>
-                    {personal.email && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                        onClick={() => copyToClipboard(personal.email, 'Email')}
-                        aria-label="Copiar email"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                    <span className="mt-1 flex h-4 w-4 flex-shrink-0 items-center justify-center text-green-500">
-                      <FaWhatsapp />
+            <AccordionItem value="vecino" className="rounded-xl border border-border/70 bg-background px-4">
+              <AccordionTrigger className="gap-3 py-3 text-left hover:no-underline">
+                <span className="flex min-w-0 items-center gap-3">
+                  <IdentityAvatar
+                    name={displayName || personal.telefono || personal.email || `Ticket ${ticket.id}`}
+                    avatarUrl={neighborAvatarUrl}
+                    source={neighborAvatarSource}
+                    consented={neighborAvatar.consented}
+                    size="sm"
+                    className="h-9 w-9 shrink-0 text-xs"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">Datos del {contactRoleLabel.toLowerCase()}</span>
+                    <span className="ticket-inspector__copy block text-xs font-normal text-muted-foreground">
+                      {displayName || 'Contacto sin nombre'} · {channelLabel}
                     </span>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Teléfono
-                      </p>
-                      {personal.telefono ? (
-                        <a
-                          href={phoneHref}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="break-all text-sm font-medium text-foreground hover:underline"
-                        >
-                          {personal.telefono}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-4 pt-1">
+                <div className="space-y-3" data-testid="ticket-operator-contact-card">
+                  <div className="ticket-inspector__data-grid">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Nombre</p>
+                      <p className="mt-1 break-words text-sm font-medium">{personal.nombre || 'No informado'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">DNI</p>
+                      <p className="mt-1 break-words text-sm font-medium">{personal.dni || 'No informado'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Teléfono</p>
+                      <p className="mt-1 break-all text-sm font-medium">{personal.telefono || 'No informado'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="mt-1 break-all text-sm font-medium">{personal.email || 'No informado'}</p>
+                    </div>
+                  </div>
+
+                  <div className="ticket-inspector__contact-action-grid">
+                    {phoneHref ? (
+                      <Button asChild variant="outline" size="sm" className="gap-2">
+                        <a href={phoneHref} target="_blank" rel="noreferrer">
+                          <span className="flex h-4 w-4 items-center justify-center text-green-500"><FaWhatsapp /></span>
+                          WhatsApp
                         </a>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No especificado</p>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" className="gap-2" disabled>
+                        <span className="flex h-4 w-4 items-center justify-center"><FaWhatsapp /></span>
+                        WhatsApp
+                      </Button>
+                    )}
+                    {phoneDigits ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={`tel:+${phoneDigits}`}>Llamar</a>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>Llamar</Button>
+                    )}
+                    {emailHref ? (
+                      <Button asChild variant="outline" size="sm" className="gap-2">
+                        <a href={emailHref}><Mail className="h-4 w-4" aria-hidden="true" />Email</a>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" className="gap-2" disabled>
+                        <Mail className="h-4 w-4" aria-hidden="true" />Email
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => copyToClipboard(
+                        [displayName, personal.telefono, personal.email, personal.direccion].filter(Boolean).join(' - '),
+                        'Contacto',
                       )}
-                    </div>
-                    {personal.telefono && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                        onClick={() => copyToClipboard(personal.telefono, 'Teléfono')}
-                        aria-label="Copiar teléfono"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
+                      disabled={!hasContactCopyTarget}
+                    >
+                      <Copy className="h-4 w-4" aria-hidden="true" />Copiar
+                    </Button>
                   </div>
-                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
-                    <MapPin className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Dirección
-                      </p>
-                      <p
-                        className={cn(
-                          'break-words text-sm leading-snug',
-                          personal.direccion
-                            ? 'font-medium text-foreground'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        {personal.direccion || 'No especificado'}
-                      </p>
+
+                  {contactActionBlockers.length ? (
+                    <div
+                      className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-800 dark:text-amber-200"
+                      data-testid="crm-contact-action-blockers"
+                    >
+                      {contactActionBlockers.map((reason) => <p key={reason}>{reason}</p>)}
                     </div>
-                    {personal.direccion && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                        onClick={() => copyToClipboard(personal.direccion, 'Dirección')}
-                        aria-label="Copiar dirección"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                  ) : null}
                 </div>
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="info-ticket">
-              <AccordionTrigger className="text-base font-semibold">
-                Detalles del Ticket
-              </AccordionTrigger>
-              <AccordionContent className="space-y-3 pt-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">ID:</span>
-                  <span className="font-mono text-xs">{ticket.nro_ticket || 'N/A'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Estado:</span>
-                  <Badge variant="outline" className="capitalize">
-                    {currentStatusLabel}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Canal:</span>
-                  <span
-                    className={cn(
-                      'font-medium',
-                      channelLabel === 'N/A'
-                        ? 'uppercase tracking-wide text-muted-foreground'
-                        : 'capitalize text-foreground',
-                    )}
-                  >
-                    {channelLabel}
+            <AccordionItem value="ubicacion" className="rounded-xl border border-border/70 bg-background px-4">
+              <AccordionTrigger className="gap-3 py-3 text-left hover:no-underline">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <MapPin className="h-4 w-4" aria-hidden="true" />
                   </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">Ubicación del reclamo</span>
+                    <span className="ticket-inspector__copy block text-xs font-normal text-muted-foreground">
+                      {personal.direccion || 'Sin dirección informada'}
+                    </span>
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 pb-4 pt-1">
+                <div className="ticket-inspector__location-row rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Dirección registrada</p>
+                    <p className="mt-1 break-words text-sm font-medium">{personal.direccion || 'No informada'}</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={openGoogleMaps} disabled={!hasAddress} className="gap-2">
+                    <MapPin className="h-4 w-4" aria-hidden="true" />Abrir mapa
+                  </Button>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Creado:</span>
-                  <span>{formatDate(ticket.fecha)}</span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground">Asunto:</span>
-                  <p className="font-medium">{ticketSubject}</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground">Categoría:</span>
-                  <p className="font-medium">{ticket.categoria || 'No informada'}</p>
-                </div>
-                {(ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "") ||
-                ticket.priority_score !== null ||
-                (ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object') ||
-                ticket.recommended_next_action ? (
-                  <div className="space-y-2 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "" ? (
-                        <Badge variant="outline" className="capitalize">
-                          Prioridad {formatCompactLabel(ticket.priority)}
-                        </Badge>
-                      ) : null}
-                      {ticket.priority_score !== null && ticket.priority_score !== undefined ? (
-                        <Badge variant="secondary">Score {ticket.priority_score}</Badge>
-                      ) : null}
-                    </div>
-                    {ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object' ? (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {Object.entries(ticket.priority_breakdown)
-                          .filter(([, value]) => value !== null && value !== undefined && value !== '')
-                          .map(([label, value]) => (
-                            <div
-                              key={`${label}-${String(value)}`}
-                              className="rounded-md border border-border/50 bg-muted/30 px-3 py-2"
-                            >
-                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                {formatCompactLabel(label)}
-                              </p>
-                              <p className="text-sm font-medium text-foreground">{String(value)}</p>
-                            </div>
-                          ))}
-                      </div>
-                    ) : null}
-                    {ticket.recommended_next_action ? (
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Próxima acción sugerida
-                        </p>
-                        <p className="text-sm text-foreground">{ticket.recommended_next_action}</p>
-                      </div>
-                    ) : null}
+                <TicketLogisticsSummary
+                  ticket={locationTicket || ticket}
+                  statusOverride={currentStatus}
+                  historyOverride={timelineHistory}
+                  onOpenMap={openGoogleMaps}
+                />
+                {specialContact ? (
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+                    <p className="mb-1 font-semibold">Contacto sugerido</p>
+                    {renderSpecialContact()}
                   </div>
                 ) : null}
-                {(ticket.description || ticket.detalles) && (
-                  <div className="space-y-1">
-                    <span className="text-muted-foreground">Descripción:</span>
-                    {(ticket.description || ticket.detalles || '—')
-                      .split('\n')
-                      .map((line, index) => (
-                        <p key={index} className="break-words text-justify text-sm">
-                          {line}
-                        </p>
-                      ))}
-                  </div>
-                )}
-                <TicketAssignment className="mt-2" />
-                 {ticket.assignedAgent && (
-                    <div className="space-y-2 pt-2">
-                        <h4 className="font-semibold">Agente Asignado</h4>
-                        <div className="flex items-center gap-3">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span>{ticket.assignedAgent.nombre_usuario}</span>
-                        </div>
-                    </div>
-                )}
               </AccordionContent>
             </AccordionItem>
 
-            {(attachments.length > 0 || standalonePrimaryImageUrl) && (
-              <AccordionItem value="archivos">
-                <AccordionTrigger className="text-base font-semibold">
-                  Archivos Adjuntos
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4 pt-2">
-                  {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
-
-                  {standalonePrimaryImageUrl && (
+            <AccordionItem value="archivos" className="rounded-xl border border-border/70 bg-background px-4">
+              <AccordionTrigger className="gap-3 py-3 text-left hover:no-underline">
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Adjuntos y evidencia</span>
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {attachments.length + (standalonePrimaryImageUrl ? 1 : 0)}{' '}
+                    {attachments.length + (standalonePrimaryImageUrl ? 1 : 0) === 1 ? 'archivo' : 'archivos'}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pb-4 pt-1">
+                {attachments.length ? <TicketAttachments attachments={attachments} /> : null}
+                {standalonePrimaryImageUrl ? (
                     <div className="space-y-3 text-sm">
                       <h4 className="font-semibold">Imagen del reclamo</h4>
                       {imageError ? (
@@ -1584,25 +1317,24 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                           </div>
                         </button>
                       )}
-                      {renderSpecialContact(true)}
                     </div>
-                  )}
+                ) : null}
+                {!attachments.length && !standalonePrimaryImageUrl ? (
+                  <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                    Este caso no tiene adjuntos registrados.
+                  </p>
+                ) : null}
+              </AccordionContent>
+            </AccordionItem>
 
-                  {!primaryImageUrl && specialContact && (
-                    <div className="space-y-1 text-sm">
-                      <h4 className="font-semibold">Contacto sugerido</h4>
-                      {renderSpecialContact()}
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            )}
-
-            <AccordionItem value="historial">
-              <AccordionTrigger className="text-base font-semibold">
-                Historial del Ticket
+            <AccordionItem value="historial" className="rounded-xl border border-border/70 bg-background px-4">
+              <AccordionTrigger className="py-3 text-left hover:no-underline">
+                <span>
+                  <span className="block text-sm font-semibold">Historial del caso</span>
+                  <span className="block text-xs font-normal text-muted-foreground">Actividad, mensajes y cambios registrados</span>
+                </span>
               </AccordionTrigger>
-              <AccordionContent>
+              <AccordionContent className="space-y-4 pb-4 pt-1">
                 <TicketTimeline
                   history={timelineHistory}
                   messages={timelineMessages}
@@ -1610,9 +1342,108 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 />
               </AccordionContent>
             </AccordionItem>
+
+            <AccordionItem value="interno" className="rounded-xl border border-border/70 bg-background px-4">
+              <AccordionTrigger className="py-3 text-left hover:no-underline">
+                <span>
+                  <span className="block text-sm font-semibold">Herramientas internas</span>
+                  <span className="block text-xs font-normal text-muted-foreground">IA, acciones adicionales y datos técnicos</span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pb-4 pt-1">
+                <AiAssistPanel ticket={ticket} />
+
+                {aiHandoffActions.length || handoffState ? (
+                  <TicketAiHandoffControl
+                    ticketId={String(ticket.id)}
+                    tenantSlug={ticket.tenant_slug}
+                    handoff={handoffState}
+                    actions={aiHandoffActions}
+                    onActionComplete={refreshTicketAfterHandoff}
+                  />
+                ) : null}
+
+                {additionalResolutionActions.length ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-foreground">Más acciones permitidas</p>
+                    <div className="ticket-inspector__secondary-action-grid">
+                      {additionalResolutionActions.map((action, index) => {
+                        const canOpen = Boolean(action.href && !action.disabled);
+                        return (
+                          <div key={`${action.id}-${action.href || index}`} className="space-y-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="ticket-inspector__action-button w-full justify-between gap-2"
+                              disabled={!canOpen}
+                              onClick={() => (action.href ? openActionHref(action.href) : undefined)}
+                            >
+                              <span>{action.label}</span>
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            </Button>
+                            {action.disabledReason ? (
+                              <p className="text-[11px] text-amber-700 dark:text-amber-300">{action.disabledReason}</p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm" data-testid="ticket-technical-details">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Datos técnicos
+                  </p>
+                  <dl className="ticket-inspector__technical-grid">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Número de caso</dt>
+                      <dd className="break-all font-mono text-xs">{ticket.nro_ticket || 'No asignado'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">ID interno</dt>
+                      <dd className="break-all font-mono text-xs">{ticket.id}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Creado</dt>
+                      <dd>{formatDate(ticket.fecha)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Canal</dt>
+                      <dd>{channelLabel}</dd>
+                    </div>
+                    {assistedContext.trackingCode ? (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Código de seguimiento</dt>
+                        <dd className="break-all font-mono text-xs">{assistedContext.trackingCode}</dd>
+                      </div>
+                    ) : null}
+                    {ticket.priority_score !== null && ticket.priority_score !== undefined ? (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Puntaje de prioridad</dt>
+                        <dd>{ticket.priority_score}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  {ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object' ? (
+                    <div className="ticket-inspector__priority-grid mt-3">
+                      {Object.entries(ticket.priority_breakdown)
+                        .filter(([, value]) => value !== null && value !== undefined && value !== '')
+                        .map(([label, value]) => (
+                          <div key={`${label}-${String(value)}`} className="rounded-md border bg-background px-3 py-2">
+                            <p className="text-[11px] text-muted-foreground">{formatCompactLabel(label)}</p>
+                            <p className="text-sm font-medium">{String(value)}</p>
+                          </div>
+                        ))}
+                    </div>
+                  ) : null}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
 
-          {isImageModalOpen && standalonePrimaryImageUrl && !imageError && (
+          {isImageModalOpen && standalonePrimaryImageUrl && !imageError ? (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
               onClick={() => setIsImageModalOpen(false)}
@@ -1635,10 +1466,24 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </ScrollArea>
     </motion.aside>
+  );
+};
+
+const DetailsPanel: React.FC<DetailsPanelProps> = (props) => {
+  const { selectedTicket, updateTicket } = useTickets();
+
+  if (!selectedTicket) return <EmptyDetailsPanel />;
+
+  return (
+    <DetailsPanelContent
+      {...props}
+      ticket={selectedTicket}
+      updateTicket={updateTicket}
+    />
   );
 };
 

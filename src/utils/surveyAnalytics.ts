@@ -5,6 +5,11 @@ interface TrackSurveySubmissionParams {
   payload: PublicResponsePayload;
 }
 
+interface TrackSurveyDemoInteractionParams extends TrackSurveySubmissionParams {
+  persisted: boolean;
+  durable: boolean;
+}
+
 interface TrackSurveyPageViewParams {
   slug?: string | null;
   host?: string | null;
@@ -198,6 +203,35 @@ const pushSurveyEvent = (eventPayload: Record<string, unknown>, domEventName: st
   } catch (e) {
     console.warn('[surveyAnalytics] Ingestion error', e);
   }
+};
+
+export const trackSurveyDemoInteraction = ({
+  survey,
+  payload,
+  persisted,
+  durable,
+}: TrackSurveyDemoInteractionParams) => {
+  const metadata = payload.metadata ?? {};
+  pushSurveyEvent(
+    {
+      event: 'survey_demo_interaction',
+      survey_id: survey.id ?? null,
+      survey_slug: survey.slug,
+      survey_title: survey.titulo,
+      survey_tipo: survey.tipo,
+      tenant: survey.tenant_slug ?? null,
+      answered_questions: metadata.answeredQuestions ?? null,
+      total_questions: metadata.totalQuestions ?? survey.preguntas?.length ?? null,
+      canal: payload.canal ?? metadata.canal ?? null,
+      persisted,
+      durable,
+      demo_mode: true,
+      data_classification: 'interactive_demo',
+      municipal_truth: false,
+      timestamp: new Date().toISOString(),
+    },
+    'chatboc:survey-demo-interaction',
+  );
 };
 
 export const trackSurveyPageView = (params: TrackSurveyPageViewParams) => {

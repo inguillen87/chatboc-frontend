@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Card,
@@ -20,6 +20,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import { getEmployeeRoutingV2 } from "@/api/v2/saas";
+import LeadAutoAssignmentButton, { type LeadAssignmentRoutingSnapshot } from "./LeadAutoAssignmentButton";
 
 type LeadStage =
   | "nuevo"
@@ -188,6 +190,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [playbookPreview, setPlaybookPreview] = useState<any[]>([]);
   const [tenantBoardSlug, setTenantBoardSlug] = useState("");
   const [tenantLeads, setTenantLeads] = useState<any[]>([]);
+  const [tenantAssignmentRouting, setTenantAssignmentRouting] = useState<LeadAssignmentRoutingSnapshot | null>(null);
+  const tenantLeadsVersion = useRef(0);
+  const currentTenantBoardSlug = useRef(tenantBoardSlug);
+  currentTenantBoardSlug.current = tenantBoardSlug;
   const [tenantStageFilter, setTenantStageFilter] = useState("");
   const [tenantBulkStage, setTenantBulkStage] =
     useState<LeadStage>("contactado");
@@ -545,31 +551,6 @@ const SuperadminLeadsPipeline: React.FC = () => {
     handleOpenTimeline(selectedTimelineLead);
   };
 
-  const handleAutoAssign = async (lead: any) => {
-    const slug = tenantBoardSlug.trim() || lead.tenant_slug;
-    const ticketType = lead.ticket_type || "municipio";
-    const ticketId = lead.nro_ticket || lead.ticket_id;
-    if (!slug || !ticketId)
-      return toast.error("Faltan datos para autoasignar.");
-    try {
-      const resp = await enterpriseService.autoAssignTenantTicket(
-        slug,
-        ticketType,
-        ticketId,
-        { required_permission: requiredPermission || undefined },
-      );
-      const employee =
-        resp?.employee?.name ||
-        resp?.employee?.nombre ||
-        "Responsable asignado";
-      toast.success(
-        `${employee} (score ${resp?.score ?? "—"} · carga ${resp?.workload_open_tickets ?? "—"})`,
-      );
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo autoasignar.");
-    }
-  };
   const handleRunPlaybook = async (dryRun: boolean) => {
     if (!dryRun) {
       const confirmed = window.confirm(
@@ -594,13 +575,18 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const fetchTenantLeads = async () => {
     if (!tenantBoardSlug.trim()) return;
+    const version = ++tenantLeadsVersion.current;
+    setTenantAssignmentRouting(null);
     try {
       const slug = tenantBoardSlug.trim();
-      const response = await enterpriseService.getTenantLeads(slug, {
-        stage: tenantStageFilter || undefined,
-        limit: 100,
-      });
+      const [response, routing] = await Promise.all([
+        enterpriseService.getTenantLeads(slug, { stage: tenantStageFilter || undefined, limit: 100 }),
+        getEmployeeRoutingV2(slug).catch(() => null),
+      ]);
+      if (version !== tenantLeadsVersion.current || slug !== currentTenantBoardSlug.current.trim()) return;
+      if (response.tenant_slug !== slug) throw new Error("La lista no corresponde a la organización seleccionada.");
       setTenantLeads(response?.items || response?.leads || []);
+      setTenantAssignmentRouting(routing ? { tenantSlug: slug, raw: routing.raw } : null);
       const tenantSurveys =
         await enterpriseService.getTenantEncuestasOverview(slug);
       setTenantEncuestas(tenantSurveys?.items || []);
@@ -1583,13 +1569,13 @@ const SuperadminLeadsPipeline: React.FC = () => {
                           </Button>
                         </td>
                         <td className="p-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAutoAssign(lead)}
-                          >
-                            Autoasignar empleado
-                          </Button>
+                          <LeadAutoAssignmentButton
+                            lead={lead}
+                            tenantSlug={tenantBoardSlug.trim()}
+                            routingSnapshot={tenantAssignmentRouting}
+                            requiredPermission={requiredPermission}
+                            onConfirmed={fetchTenantLeads}
+                          />
                         </td>
                         <td className="p-2">
                           <div className="flex flex-wrap gap-1">

@@ -73,6 +73,15 @@ export interface TerritoryMapReadiness {
   canRenderHeatmap?: boolean;
 }
 
+export type TerritoryDataProvenanceState = 'real' | 'synthetic' | 'demo' | 'unvalidated';
+
+export interface TerritoryDataProvenanceLegend {
+  state: TerritoryDataProvenanceState;
+  label: string;
+  shortLabel: string;
+  detail: string;
+}
+
 export interface TerritoryLayerDescriptor {
   id: string;
   label: string;
@@ -134,7 +143,7 @@ const readPercent = (...values: unknown[]) => {
 };
 
 export const resolveTerritoryMapReadiness = (
-  heatmap?: Pick<OperationsHeatmapV1, 'quality' | 'summary' | 'points' | 'render_contract'>,
+  heatmap?: Pick<OperationsHeatmapV1, 'quality' | 'summary' | 'points' | 'render_contract' | 'location_quality'>,
   fallbackPointCount = 0,
 ): TerritoryMapReadiness => {
   const quality = heatmap?.quality;
@@ -142,6 +151,7 @@ export const resolveTerritoryMapReadiness = (
   const rawState = normalizeToken(readFirstString(quality?.state, summary.quality_state, summary.state, heatmap?.render_contract?.state));
   const renderState = normalizeToken(readFirstString(heatmap?.render_contract?.state));
   const coveragePercent = readPercent(
+    heatmap?.location_quality?.coordinate_coverage_pct,
     quality?.coverage_percent,
     summary.coverage_percent,
     summary.coordinate_coverage_pct,
@@ -149,6 +159,10 @@ export const resolveTerritoryMapReadiness = (
   );
   const visiblePoints = readFirstNumber(quality?.visible_points, summary.points, fallbackPointCount, heatmap?.points?.length);
   const pendingGeocode = readFirstNumber(quality?.pending_geocode, summary.pending_geocode);
+  const contractPendingGeocode = readFirstNumber(
+    heatmap?.location_quality?.ticket_records_pending_geocode,
+    pendingGeocode,
+  );
   const withoutCoordinates = readFirstNumber(
     quality?.ticket_records_without_coordinates,
     summary.ticket_records_without_coordinates,
@@ -171,13 +185,13 @@ export const resolveTerritoryMapReadiness = (
             rawState === 'partial' ||
             rawState === 'stale' ||
             (coveragePercent !== undefined && coveragePercent < 75) ||
-            Boolean(pendingGeocode && pendingGeocode > 0)
+            Boolean(contractPendingGeocode && contractPendingGeocode > 0)
           ? 'degraded'
           : 'ready';
 
   const label =
     state === 'empty' && canRenderHeatmap === false
-      ? 'Mapa no renderizable'
+      ? 'Mapa sin datos suficientes'
       : readFirstString(quality?.label) ??
         (state === 'ready'
           ? 'Cobertura lista'
@@ -193,15 +207,82 @@ export const resolveTerritoryMapReadiness = (
     reasonCode,
     coveragePercent,
     visiblePoints,
-    pendingGeocode,
+    pendingGeocode: contractPendingGeocode,
     withoutCoordinates,
     canRenderHeatmap,
   };
 };
 
-const humanizeLayer = (value: string) => {
-  const normalized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Capa territorial';
+export const resolveTerritoryDataProvenance = (
+  heatmap?: Pick<OperationsHeatmapV1, 'response_provenance'> &
+    Partial<Pick<OperationsHeatmapV1, 'points'>>,
+  usesDemoFallback = false,
+  representedPoints: OperationsHeatmapPoint[] = heatmap?.points ?? [],
+): TerritoryDataProvenanceLegend => {
+  const provenance = heatmap?.response_provenance;
+  const mode = normalizeToken(provenance?.mode);
+  const realIncluded = readFirstNumber(provenance?.real_responses_included) ?? 0;
+  const syntheticIncluded = readFirstNumber(provenance?.synthetic_responses_included) ?? 0;
+  const unverifiedIncluded = readFirstNumber(provenance?.unverified_responses_included) ?? 0;
+  const representsOnlySurveyResponses =
+    representedPoints.length > 0 &&
+    representedPoints.every((point) => {
+      const source = normalizeToken(
+        readFirstString(point.source, point.layer, point.record_source, point.type, point.id),
+      );
+      return source.includes('survey') || source.includes('encuesta');
+    });
+
+  if (usesDemoFallback || mode.includes('demo')) {
+    return {
+      state: 'demo',
+      label: 'Escenario de demostración',
+      shortLabel: 'demo',
+      detail: 'Puntos sintéticos para previsualización; no representan casos ni participación ciudadana real.',
+    };
+  }
+
+  if (mode === 'synthetic' || provenance?.contains_synthetic === true || syntheticIncluded > 0) {
+    return {
+      state: 'synthetic',
+      label: 'Datos sintéticos declarados',
+      shortLabel: 'sintéticos',
+      detail: 'El sistema declaró respuestas sintéticas incluidas; no deben usarse para decisiones operativas.',
+    };
+  }
+
+  if (
+    mode === 'real' &&
+    provenance?.server_trusted_classification === true &&
+    unverifiedIncluded === 0 &&
+    representsOnlySurveyResponses &&
+    realIncluded >= representedPoints.length
+  ) {
+    return {
+      state: 'real',
+      label: 'Procedencia validada por el sistema',
+      shortLabel: 'procedencia validada',
+      detail:
+        'El sistema clasificó las respuestas incluidas como reales y excluye las sintéticas o no verificadas; no certifica límites zonales.',
+    };
+  }
+
+  if (mode === 'real' && provenance?.server_trusted_classification === true) {
+    return {
+      state: 'unvalidated',
+      label: 'Procedencia parcial',
+      shortLabel: 'validación parcial',
+      detail:
+        'El sistema valida la procedencia de respuestas de encuesta, pero no certifica todos los puntos operativos representados.',
+    };
+  }
+
+  return {
+    state: 'unvalidated',
+    label: 'Procedencia no validada',
+    shortLabel: 'sin validación',
+    detail: 'La fuente no informó una clasificación verificable; revisala antes de usar este mapa para decisiones.',
+  };
 };
 
 const normalizeLayerId = (value: string) =>
@@ -212,11 +293,38 @@ const normalizeLayerId = (value: string) =>
     .replace(/[^a-z0-9_]/g, '');
 
 const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['source']): TerritoryLayerDescriptor => {
+  if (id === 'points' || id === 'point') {
+    return {
+      id,
+      label: 'Ubicaciones',
+      description: 'Ubicaciones representadas en el mapa con privacidad protegida.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id === 'cells' || id === 'cell') {
+    return {
+      id,
+      label: 'Zonas agregadas',
+      description: 'Agrupaciones territoriales que evitan exponer ubicaciones individuales.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id === 'layers' || id === 'layer') {
+    return {
+      id,
+      label: 'Capas territoriales',
+      description: 'Información territorial disponible para combinar en el análisis.',
+      tone: 'neutral',
+      source,
+    };
+  }
   if (id.includes('ai') || id.includes('risk') || id.includes('prior')) {
     return {
       id,
       label: id.includes('risk') ? 'Riesgo IA' : 'Capa IA',
-      description: 'Prioridad, riesgo y patrones sugeridos por el backend.',
+      description: 'Prioridad, riesgo y patrones sugeridos por el sistema.',
       tone: 'ai',
       source,
     };
@@ -224,7 +332,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
   if (id.includes('geo') || id.includes('quality') || id.includes('coverage')) {
     return {
       id,
-      label: id.includes('geo') ? 'Geocoding' : 'Cobertura GPS',
+      label: id.includes('geo') ? 'Ubicaciones pendientes' : 'Calidad de cobertura',
       description: 'Calidad de coordenadas y direcciones pendientes.',
       tone: 'quality',
       source,
@@ -234,7 +342,7 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
     return {
       id,
       label: id.includes('whatsapp') ? 'WhatsApp' : 'Tiempo real',
-      description: 'Actividad reciente y telemetria de canales activos.',
+      description: 'Actividad reciente de los canales conectados.',
       tone: 'realtime',
       source,
     };
@@ -251,16 +359,43 @@ const describeTerritoryLayer = (id: string, source: TerritoryLayerDescriptor['so
   if (id.includes('heat') || id.includes('hotspot') || id.includes('base')) {
     return {
       id,
-      label: id.includes('hotspot') ? 'Hotspots' : 'Calor territorial',
+      label: id.includes('hotspot') ? 'Zonas de mayor intensidad' : 'Calor territorial',
       description: 'Densidad y volumen operativo por zona agregada.',
       tone: 'heat',
       source,
     };
   }
+  if (id.includes('category') || id.includes('categoria')) {
+    return {
+      id,
+      label: 'Capas por categoría',
+      description: 'Distribución territorial de los motivos de atención seleccionados.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id.includes('survey') || id.includes('encuesta') || id.includes('participation')) {
+    return {
+      id,
+      label: 'Participación en encuestas',
+      description: 'Volumen agregado de participación ciudadana por zona.',
+      tone: 'neutral',
+      source,
+    };
+  }
+  if (id.includes('ticket') || id.includes('reclamo') || id.includes('case')) {
+    return {
+      id,
+      label: 'Reclamos y casos',
+      description: 'Casos operativos agrupados por ubicación y categoría.',
+      tone: 'neutral',
+      source,
+    };
+  }
   return {
     id,
-    label: humanizeLayer(id),
-    description: 'Segmento territorial publicado por el contrato del backend.',
+    label: 'Capa territorial',
+    description: 'Segmento territorial disponible para el análisis operativo.',
     tone: 'neutral',
     source,
   };
@@ -403,8 +538,9 @@ const parseGeoPosition = (value: unknown): TerritoryPolygonPoint | undefined => 
 
 const parseGeoRing = (value: unknown): TerritoryPolygonPoint[] => {
   if (!Array.isArray(value)) return [];
-  const ring = value.map(parseGeoPosition).filter((point): point is TerritoryPolygonPoint => Boolean(point));
-  return ring.length >= 3 ? ring : [];
+  const positions = value.map(parseGeoPosition);
+  if (positions.length < 3 || positions.some((point) => !point)) return [];
+  return positions as TerritoryPolygonPoint[];
 };
 
 const parseBoundaryPolygons = (geometry: unknown): TerritoryPolygonPoint[][] => {
@@ -458,6 +594,12 @@ const pointInPolygon = ([x, y]: TerritoryPolygonPoint, polygon: TerritoryPolygon
   return inside;
 };
 
+export const isValidWgs84Position = (latValue: unknown, lngValue: unknown) => {
+  const lat = asNumber(latValue);
+  const lng = asNumber(lngValue);
+  return lat !== undefined && lng !== undefined && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+};
+
 const categoryLabel = (value: string) =>
   value
     .replace(/[_-]+/g, ' ')
@@ -486,20 +628,26 @@ const passesFilters = (point: OperationsHeatmapPoint, filters?: TerritoryFilterS
   });
 };
 
-const resolvePointZone = (
+export const resolvePointZone = (
   point: OperationsHeatmapPoint,
   zones: TerritoryZone[],
 ) : TerritoryZone | undefined => {
+  const lat = asNumber(point.lat ?? point.latitude);
+  const lng = asNumber(point.lng ?? point.lon ?? point.longitude);
+
+  // Coordinates are stronger evidence than a mutable barrio/zona label. When
+  // a mapped point is present, never move it into a polygon only because its
+  // text label says so: a mismatch must remain unassigned for review.
+  if (lat !== undefined || lng !== undefined) {
+    if (!isValidWgs84Position(lat, lng)) return undefined;
+    return zones.find((zone) => zone.geoPolygons?.some((polygon) => pointInPolygon([lng!, lat!], polygon)));
+  }
+
   const zoneToken = normalizeToken(
     readField(point, ['barrio', 'neighborhood', 'distrito', 'district', 'zone', 'zona']),
   );
   const direct = zones.find((zone) => normalizeToken(zone.id) === zoneToken || normalizeToken(zone.label) === zoneToken);
-  if (direct) return direct;
-
-  const lat = asNumber(point.lat ?? point.latitude);
-  const lng = asNumber(point.lng ?? point.lon ?? point.longitude);
-  if (lat === undefined || lng === undefined) return undefined;
-  return zones.find((zone) => zone.geoPolygons?.some((polygon) => pointInPolygon([lng, lat], polygon)));
+  return direct;
 };
 
 export const DEVELOPMENT_TERRITORY_ZONES: TerritoryZone[] = [

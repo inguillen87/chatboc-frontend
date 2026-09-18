@@ -309,9 +309,9 @@ const HEATMAP_FILTERS: HeatmapFilterConfig[] = [
   {
     key: 'barrio',
     queryParam: 'barrio',
-    labelKey: 'filter_barrio',
-    fallbackLabel: 'Barrio',
-    pointFields: ['barrio', 'neighborhood'],
+    labelKey: 'filter_zone',
+    fallbackLabel: 'Zona declarada',
+    pointFields: ['zone', 'zona', 'barrio', 'neighborhood', 'distrito', 'district'],
   },
   {
     key: 'distrito',
@@ -350,10 +350,54 @@ const HEATMAP_FILTER_ALIASES: Record<string, HeatmapFilterKey> = {
   type: 'source',
   barrio: 'barrio',
   neighborhood: 'barrio',
+  zone: 'barrio',
+  zones: 'barrio',
+  zona: 'barrio',
+  zonas: 'barrio',
   distrito: 'distrito',
   district: 'distrito',
   status: 'estado',
   estado: 'estado',
+};
+
+const TERRITORY_HEATMAP_FILTER_KEYS = new Set<HeatmapFilterKey>(['barrio', 'distrito']);
+const TERRITORY_PLACEHOLDER_VALUES = new Set([
+  'desconocida',
+  'desconocido',
+  'n_a',
+  'na',
+  'no_asignada',
+  'no_asignado',
+  'no_informada',
+  'no_informado',
+  'not_provided',
+  'null',
+  'sin_asignar',
+  'sin_asignacion',
+  'sin_barrio',
+  'sin_dato',
+  'sin_datos',
+  'sin_distrito',
+  'sin_informacion',
+  'sin_sector',
+  'sin_zona',
+  'unassigned',
+  'undefined',
+  'unknown',
+  'unknown_zone',
+]);
+
+const normalizeTerritoryFilterValue = (value: unknown) =>
+  asString(value)
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const isNamedTerritoryFilterValue = (value: unknown) => {
+  const normalized = normalizeTerritoryFilterValue(value);
+  return Boolean(normalized && !TERRITORY_PLACEHOLDER_VALUES.has(normalized));
 };
 
 const normalizeHeatmapFilterKey = (value: unknown): HeatmapFilterKey | null => {
@@ -495,7 +539,11 @@ const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
   Object.fromEntries(
     Object.entries(filters)
       .map(([key, value]) => [key, asString(value)] as const)
-      .filter(([, value]) => Boolean(value)),
+      .filter(
+        ([key, value]) =>
+          Boolean(value) &&
+          (!TERRITORY_HEATMAP_FILTER_KEYS.has(key as HeatmapFilterKey) || isNamedTerritoryFilterValue(value)),
+      ),
   ) as HeatmapFilterState;
 
 const DEFAULT_HEATMAP_FILTERS: HeatmapFilterState = {
@@ -2546,8 +2594,16 @@ function OperationsHeatmapPanel({
   }, [layersKey]);
 
   const uiLabels = heatmap?.ui?.labels ?? heatmap?.frontend_contract?.labels ?? {};
+  const privacySuppressed = heatmap?.privacy?.suppressed;
+  const territoryPrivacyProtected =
+    privacySuppressed === true ||
+    (isRecord(privacySuppressed) &&
+      ['zones', 'zone', 'neighborhoods', 'neighborhood', 'districts', 'district'].some(
+        (key) => asBoolean(privacySuppressed[key]) === true,
+      ));
   const filterControls = useMemo(() => {
     const byKey = new Map<HeatmapFilterKey, Map<string, HeatmapFilterOption>>();
+    const encounteredKeys = new Set<HeatmapFilterKey>();
     const ensureGroup = (key: HeatmapFilterKey) => {
       const existing = byKey.get(key);
       if (existing) return existing;
@@ -2561,6 +2617,15 @@ function OperationsHeatmapPanel({
       const rawLabel =
         (typeof labelCandidate === 'number' && Number.isFinite(labelCandidate) ? String(labelCandidate) : asString(labelCandidate)) ??
         parsedValue;
+      encounteredKeys.add(key);
+      if (
+        TERRITORY_HEATMAP_FILTER_KEYS.has(key) &&
+        (territoryPrivacyProtected ||
+          !isNamedTerritoryFilterValue(parsedValue) ||
+          !isNamedTerritoryFilterValue(rawLabel))
+      ) {
+        return;
+      }
       const label = heatmapDisplayLabel(rawLabel, parsedValue);
       const group = ensureGroup(key);
       const previous = group.get(parsedValue);
@@ -2607,9 +2672,17 @@ function OperationsHeatmapPanel({
         ...config,
         label: uiLabels[config.labelKey] || config.fallbackLabel,
         options,
+        unavailableReason:
+          TERRITORY_HEATMAP_FILTER_KEYS.has(config.key) &&
+          options.length === 0 &&
+          (encounteredKeys.has(config.key) || (config.key === 'barrio' && territoryPrivacyProtected))
+            ? territoryPrivacyProtected
+              ? 'privacy'
+              : 'unverified'
+            : undefined,
       };
-    }).filter((config) => config.options.length > 0);
-  }, [heatmap?.facets, heatmap?.points, heatmap?.segments, uiLabels]);
+    }).filter((config) => config.options.length > 0 || Boolean(config.unavailableReason));
+  }, [heatmap?.facets, heatmap?.points, heatmap?.segments, territoryPrivacyProtected, uiLabels]);
 
   const hasActiveSegmentFilters = Object.keys(filters).some((key) => !HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey));
   const clearFiltersLabel = uiLabels.clear_filters || 'Limpiar filtros';
@@ -2645,7 +2718,7 @@ function OperationsHeatmapPanel({
     return layerFiltered.filter((point) =>
       activeFilters.every(({ config, value }) => {
         const pointValue = readPointField(point, config);
-        if (!pointValue) return true;
+        if (!pointValue) return false;
         return pointValue === value;
       }),
     );
@@ -3629,9 +3702,17 @@ function OperationsHeatmapPanel({
               {filterControls.length ? (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
                   {filterControls.map((config) => (
-                    <label key={config.key} className="space-y-1 text-xs font-medium text-muted-foreground">
+                    <label
+                      key={config.key}
+                      htmlFor={`heatmap-filter-${config.key}`}
+                      className="space-y-1 text-xs font-medium text-muted-foreground"
+                    >
                       <span>{config.label}</span>
                       <select
+                        aria-label={config.label}
+                        aria-describedby={config.unavailableReason ? `heatmap-filter-${config.key}-status` : undefined}
+                        disabled={Boolean(config.unavailableReason)}
+                        id={`heatmap-filter-${config.key}`}
                         value={filters[config.queryParam] ?? ''}
                         onChange={(event) => {
                           const nextValue = event.target.value.trim();
@@ -3654,6 +3735,13 @@ function OperationsHeatmapPanel({
                           </option>
                         ))}
                       </select>
+                      {config.unavailableReason ? (
+                        <span id={`heatmap-filter-${config.key}-status`} className="block text-[11px] leading-4 text-muted-foreground">
+                          {config.unavailableReason === 'privacy'
+                            ? 'Segmentación territorial protegida por privacidad.'
+                            : 'Sin zonas verificadas. Las ubicaciones pendientes no se ofrecen como zonas.'}
+                        </span>
+                      ) : null}
                     </label>
                   ))}
                 </div>

@@ -68,6 +68,12 @@ test('installs a compact shell, controls the client and reloads offline', async 
   expect(precacheUrls).toContain(viteManifest['src/components/chat/ProactiveBubble.tsx'].file);
   expect(precacheUrls).toContain(viteManifest['src/pages/encuestas/index.tsx'].file);
   expect(precacheUrls).toContain(viteManifest['src/pages/user-portal/UserDashboardPage.tsx'].file);
+  // The legacy iframe favicon remains available online, while the iframe is
+  // deliberately outside the offline shell and must not spend precache budget.
+  expect(precacheUrls).not.toContain('favicon.ico');
+  // Export-only tools must stay lazy. A shared Vite preload helper must not
+  // accidentally pull the PDF/compression chunks into the offline shell.
+  expect(precacheUrls.filter((url) => /assets\/vendor-(?:pdf|compression)-/.test(url))).toEqual([]);
   expect(rawPrecacheUrls, 'precache manifest must not contain duplicate URLs').toHaveLength(
     precacheUrls.length,
   );
@@ -186,7 +192,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
   await expect
     .poll(() => page.locator('#root').evaluate((root) => root.childElementCount))
     .toBeGreaterThan(0);
-  await expect(page.getByText(/Converti conversaciones en operaciones reales/i).first()).toBeVisible();
+  await expect(page.getByText(/Convert[ií] conversaciones en operaciones reales/i).first()).toBeVisible();
 
   const offlineSurveysPage = await context.newPage();
   const offlineSurveysResponse = await offlineSurveysPage.goto('/encuestas?pwa-offline=1', {

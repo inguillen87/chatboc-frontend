@@ -723,16 +723,18 @@ const Login = () => {
                 key={option.id}
                 type="button"
                 variant="outline"
-                className="h-auto justify-between gap-3 rounded-xl border-border/80 px-4 py-3 text-left hover:border-primary/60 hover:bg-primary/10"
+                className="h-auto w-full min-w-0 !whitespace-normal justify-between gap-3 rounded-xl border-border/80 px-4 py-3 text-left hover:border-primary/60 hover:bg-primary/10"
                 onClick={() => { void handleDemoLogin(undefined, option.payload); }}
                 disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
                 aria-label={`Abrir ${option.title}`}
               >
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{option.title}</span>
-                  <span className="mt-1 block text-xs font-normal text-muted-foreground">{option.description}</span>
+                  <span className="mt-1 block break-words text-xs font-normal leading-relaxed text-muted-foreground">
+                    {option.description}
+                  </span>
                 </span>
-                <span aria-hidden="true" className="text-lg">-&gt;</span>
+                <span aria-hidden="true" className="shrink-0 text-lg">-&gt;</span>
               </Button>
             ))}
           </div>

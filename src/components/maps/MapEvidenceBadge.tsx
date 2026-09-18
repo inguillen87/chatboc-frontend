@@ -19,6 +19,8 @@ export type MapEvidenceInput = {
   generatedAt?: string | null;
   empty?: boolean | null;
   label?: string | null;
+  provenanceState?: string | null;
+  syntheticDisclaimer?: string | null;
   metadata?: Record<string, unknown> | null;
   locationQuality?: Record<string, unknown> | null;
 };
@@ -38,6 +40,8 @@ export type MapEvidence = {
   updatedAt?: string;
   empty: boolean;
   label?: string;
+  provenanceState?: string;
+  syntheticDisclaimer?: string;
 };
 
 type BuildMapEvidenceArgs = {
@@ -107,6 +111,36 @@ const formatShortDate = (value?: string) => {
 const formatCount = (value: number, singular: string, plural: string) =>
   `${value} ${value === 1 ? singular : plural}`;
 
+const normalizeTruthToken = (value?: string) =>
+  value
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const resolveEvidenceTrust = (evidence: MapEvidence) => {
+  const explicitState = normalizeTruthToken(evidence.provenanceState);
+  if (["partial", "parcial", "unvalidated", "unverified", "unknown"].includes(explicitState ?? "")) {
+    return "unvalidated" as const;
+  }
+  if (["real", "verified", "validated", "validada", "validado"].includes(explicitState ?? "")) {
+    return "validated" as const;
+  }
+
+  const visibleTruthCopy = normalizeTruthToken([evidence.label, evidence.source].filter(Boolean).join(" ")) ?? "";
+  if (
+    /\b(procedencia parcial|validacion parcial|procedencia no validada|sin validacion|no verificada|no verificado|unvalidated|unverified|partial)\b/.test(
+      visibleTruthCopy,
+    )
+  ) {
+    return "unvalidated" as const;
+  }
+  if (/\b(procedencia validada|datos validados|procedencia verificada)\b/.test(visibleTruthCopy)) {
+    return "validated" as const;
+  }
+  return "unspecified" as const;
+};
+
 export function buildMapEvidence({
   evidence,
   metadata,
@@ -128,6 +162,11 @@ export function buildMapEvidence({
   const renderContract = isRecord(mergedMetadata.render_contract)
     ? mergedMetadata.render_contract
     : null;
+  const responseProvenance = isRecord(mergedMetadata.response_provenance)
+    ? mergedMetadata.response_provenance
+    : isRecord(mergedMetadata.provenance)
+      ? mergedMetadata.provenance
+      : null;
   const quality = isRecord(evidence?.locationQuality)
     ? evidence?.locationQuality
     : isRecord(locationQuality)
@@ -184,6 +223,13 @@ export function buildMapEvidence({
     updatedAt: pickString(evidence?.updatedAt, evidence?.generatedAt, mergedMetadata.generated_at, mergedMetadata.updated_at),
     empty: Boolean(evidence?.empty) || pointCount + featureCount + cellCount === 0,
     label: pickString(evidence?.label),
+    provenanceState: pickString(
+      evidence?.provenanceState,
+      responseProvenance?.state,
+      responseProvenance?.mode,
+      mergedMetadata.provenance_state,
+    ),
+    syntheticDisclaimer: pickString(evidence?.syntheticDisclaimer),
   };
 }
 
@@ -194,27 +240,48 @@ type MapEvidenceBadgeProps = {
 
 export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps) {
   const normalized = buildMapEvidence({ evidence });
+  const evidenceTrust = resolveEvidenceTrust(normalized);
 
   const variant = normalized.usingSyntheticPoints
     ? "synthetic"
     : normalized.empty
       ? "empty"
-      : normalized.source || normalized.provider || normalized.requestId
+      : evidenceTrust === "validated"
         ? "verified"
-        : "unknown";
+        : evidenceTrust === "unvalidated"
+          ? "unvalidated"
+          : normalized.source || normalized.provider || normalized.requestId
+            ? "available"
+            : "unknown";
 
   const config = {
     verified: {
       Icon: ShieldCheck,
-      title: normalized.label ?? "Datos reales",
+      // A provider or endpoint name proves where the map was rendered or
+      // loaded from; it does not by itself certify that the underlying rows
+      // are real, official or externally validated.  Truth labels must come
+      // explicitly from the response provenance contract.
+      title: normalized.label ?? "Datos disponibles",
       className: "border-emerald-300/50 bg-emerald-950/82 text-emerald-50 shadow-emerald-950/20",
       dot: "bg-emerald-300",
     },
     synthetic: {
       Icon: AlertTriangle,
-      title: normalized.label ?? "Demo sintetico",
+      title: normalized.label ?? "Escenario demostrativo",
       className: "border-amber-300/55 bg-amber-950/85 text-amber-50 shadow-amber-950/25",
       dot: "bg-amber-300",
+    },
+    unvalidated: {
+      Icon: AlertTriangle,
+      title: normalized.label ?? "Procedencia no validada",
+      className: "border-amber-300/55 bg-amber-950/85 text-amber-50 shadow-amber-950/25",
+      dot: "bg-amber-300",
+    },
+    available: {
+      Icon: Database,
+      title: normalized.label ?? "Datos disponibles",
+      className: "border-sky-300/40 bg-sky-950/82 text-sky-50 shadow-sky-950/20",
+      dot: "bg-sky-300",
     },
     empty: {
       Icon: Radar,
@@ -232,14 +299,24 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
 
   const details = [
     normalized.pointCount
-      ? formatCount(normalized.pointCount, "punto", "puntos")
+      ? formatCount(
+          normalized.pointCount,
+          variant === "synthetic" ? "ubicación simulada" : "punto",
+          variant === "synthetic" ? "ubicaciones simuladas" : "puntos",
+        )
       : normalized.featureCount
-        ? formatCount(normalized.featureCount, "geometria", "geometrias")
+        ? formatCount(normalized.featureCount, "geometría", "geometrías")
         : normalized.cellCount
           ? formatCount(normalized.cellCount, "celda", "celdas")
           : null,
     normalized.coveragePct !== undefined ? `Cobertura ${normalized.coveragePct}%` : null,
-    normalized.source ? `Fuente ${normalized.source}` : normalized.provider ? `Mapa ${normalized.provider}` : null,
+    variant === "synthetic"
+      ? "Simulación controlada"
+      : normalized.source
+        ? `Fuente ${normalized.source}`
+        : normalized.provider
+          ? `Mapa ${normalized.provider}`
+          : null,
     normalized.updatedAt ? `Act. ${formatShortDate(normalized.updatedAt)}` : null,
     normalized.requestId ? `Req ${normalized.requestId.slice(0, 8)}` : null,
   ].filter(Boolean);
@@ -248,6 +325,8 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
 
   return (
     <div
+      data-testid="map-evidence-badge"
+      data-evidence-variant={variant}
       className={cn(
         "pointer-events-none max-w-[min(82vw,24rem)] rounded-xl border px-3 py-2 text-xs shadow-xl backdrop-blur-md",
         config.className,
@@ -256,7 +335,11 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
     >
       <div className="flex items-center gap-2 font-semibold">
         <span className={cn("h-2 w-2 rounded-full", config.dot)} />
-        <Icon className="h-3.5 w-3.5" />
+        <Icon
+          aria-hidden="true"
+          className="h-3.5 w-3.5"
+          data-testid={`map-evidence-icon-${variant}`}
+        />
         <span>{config.title}</span>
       </div>
       {details.length ? (
@@ -265,6 +348,11 @@ export function MapEvidenceBadge({ evidence, className }: MapEvidenceBadgeProps)
             <span key={detail}>{detail}</span>
           ))}
         </div>
+      ) : null}
+      {variant === "synthetic" ? (
+        <p className="mt-1 border-t border-amber-200/20 pt-1 text-[10px] leading-snug text-amber-100/90">
+          {normalized.syntheticDisclaimer ?? "No representa datos municipales reales."}
+        </p>
       ) : null}
     </div>
   );

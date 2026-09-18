@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Copy, Download, ExternalLink, EyeOff, Gauge, Loader2, MapPin, MessageCircle, ShieldCheck, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, CheckCircle2, Copy, Download, ExternalLink, EyeOff, Gauge, Loader2, MapPin, MessageCircle, RefreshCw, ShieldCheck, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -9,6 +9,7 @@ import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyLiveResultsPanel } from '@/components/surveys/SurveyLiveResultsPanel';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { SurveyRecentResponses } from '@/components/surveys/SurveyRecentResponses';
+import { SurveyResultEvidencePanel } from '@/components/surveys/SurveyResultEvidencePanel';
 import { TransparencyTab } from '@/components/surveys/TransparencyTab';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import {
 } from '@/utils/publicSurveyUrl';
 import {
   adminGetSurveyComments,
+  adminListSurveyGovernanceReleases,
   adminModerateSurveyComment,
   getSurveyAlerts,
   getSurveyAnomalies,
@@ -53,6 +55,10 @@ import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import type { SnapshotCreatePayload } from '@/types/encuestas';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
+import {
+  buildSurveyResultEvidence,
+  validateSurveyGovernanceReleaseList,
+} from '@/utils/surveyGovernanceContract';
 
 
 function formatDateLabel(value?: string | null) {
@@ -549,6 +555,8 @@ export default function SurveyAnalyticsPage() {
     filters,
     setFilters,
     error: analyticsError,
+    refresh: refreshAnalytics,
+    isRefreshing: isRefreshingAnalytics,
   } = useSurveyAnalytics(surveyId ?? undefined, {}, {
     fallbackSurvey: survey ?? null,
     fallbackCount: 100,
@@ -692,9 +700,19 @@ export default function SurveyAnalyticsPage() {
     readRecordText(publicationLinks, 'share_url') ||
     readRecordText(publicationLinks, 'public_url') ||
     readRecordText(publicationLinks, 'copy_url');
-  const publicHref = backendPublicHref
-    ? withPublicSurveyTenantScope(backendPublicHref, effectiveTenantSlug)
-    : getPublicSurveyUrlFromRecord(effectiveSurvey, { tenantSlug: effectiveTenantSlug });
+  const publicationState = readRecordText(surveyPublication, 'public_state') || effectiveSurvey?.estado || '';
+  const normalizedPublicationState = publicationState.trim().toLowerCase();
+  const lifecycleState = effectiveSurvey?.admin_lifecycle?.persisted_state?.trim().toLowerCase() ?? '';
+  const isPublicationReady =
+    surveyPublication?.is_published === true ||
+    effectiveSurvey?.admin_lifecycle?.capabilities.can_share === true ||
+    ['published', 'publicada', 'closed', 'cerrada'].includes(normalizedPublicationState) ||
+    ['published', 'publicada', 'closed', 'cerrada'].includes(lifecycleState);
+  const publicHref = isPublicationReady
+    ? backendPublicHref
+      ? withPublicSurveyTenantScope(backendPublicHref, effectiveTenantSlug)
+      : getPublicSurveyUrlFromRecord(effectiveSurvey, { tenantSlug: effectiveTenantSlug })
+    : null;
   const publicUrl = useMemo(
     () => resolveDisplayUrl(publicHref),
     [publicHref],
@@ -706,14 +724,16 @@ export default function SurveyAnalyticsPage() {
     )),
     [effectiveTenantSlug, publicHref, publicationLinks],
   );
-  const qrUrl = (
-    getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512, tenantSlug: effectiveTenantSlug }) ||
-    withPublicSurveyTenantScope(
-      readRecordText(publicationLinks, 'qr_endpoint') ||
-        readRecordText(publicationLinks, 'qr_image_url'),
-      effectiveTenantSlug,
-    )
-  ) || null;
+  const qrUrl = isPublicationReady
+    ? (
+        getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512, tenantSlug: effectiveTenantSlug }) ||
+        withPublicSurveyTenantScope(
+          readRecordText(publicationLinks, 'qr_endpoint') ||
+            readRecordText(publicationLinks, 'qr_image_url'),
+          effectiveTenantSlug,
+        )
+      ) || null
+    : null;
   const whatsappShareUrl = publicUrl
     ? getPublicSurveyWhatsAppShareUrl(
         publicUrl,
@@ -722,11 +742,6 @@ export default function SurveyAnalyticsPage() {
           : 'Participá de esta encuesta y sumá tu voz.',
       )
     : readRecordText(publicationLinks, 'whatsapp_share_url');
-  const publicationState = readRecordText(surveyPublication, 'public_state') || effectiveSurvey?.estado || '';
-  const isPublicationReady =
-    surveyPublication?.is_published === true ||
-    publicationState.toLowerCase() === 'published' ||
-    Boolean(publicUrl);
   const liveResultsEnabled =
     surveyPublication?.live_results_enabled === true ||
     effectiveSurvey?.mostrar_resultados_envivo === true;
@@ -746,6 +761,7 @@ export default function SurveyAnalyticsPage() {
   const publicContractVersion = readRecordText(surveyPublication, 'contract_version');
   const publicSlug = readRecordText(surveyPublication, 'slug_publico') || readRecordText(surveyPublication, 'canonical_slug');
   const livePanelSlug = publicSlug || effectiveSurvey?.slug_publico || effectiveSurvey?.canonical_slug || effectiveSurvey?.slug || '';
+  const shouldLoadPublicLiveResults = liveResultsEnabled && isPublicationReady && Boolean(livePanelSlug);
   const surveyOperations = useMemo(
     () =>
       asRecord(dashboardBundle?.admin_operations) ??
@@ -1060,6 +1076,80 @@ export default function SurveyAnalyticsPage() {
       filters.ciudad ||
       filters.barrio,
   );
+  const hasActiveResultEvidenceFilters = Object.keys(filters).length > 0;
+
+  const resultEvidenceTenantSlug =
+    effectiveTenantSlug?.trim() || effectiveSurvey?.tenant_slug?.trim() || '';
+  const resultEvidenceTenantId =
+    typeof effectiveSurvey?.tenant_id === 'number' &&
+    Number.isSafeInteger(effectiveSurvey.tenant_id) &&
+    effectiveSurvey.tenant_id > 0
+      ? effectiveSurvey.tenant_id
+      : null;
+  const resultEvidenceSurveyId =
+    typeof effectiveSurvey?.id === 'number' && Number.isSafeInteger(effectiveSurvey.id) && effectiveSurvey.id > 0
+      ? effectiveSurvey.id
+      : typeof surveyId === 'number' && Number.isSafeInteger(surveyId) && surveyId > 0
+        ? surveyId
+        : null;
+  const resultEvidenceSurveyMismatch = Boolean(
+    resultEvidenceSurveyId !== null &&
+    typeof surveyId === 'number' &&
+    Number.isSafeInteger(surveyId) &&
+    surveyId > 0 &&
+    resultEvidenceSurveyId !== surveyId,
+  );
+  const canLoadResultEvidence = Boolean(
+    resultEvidenceSurveyId !== null &&
+    !resultEvidenceSurveyMismatch &&
+    resultEvidenceTenantSlug,
+  );
+  const resultEvidenceReleasesQuery = useQuery({
+    queryKey: [
+      'survey-result-evidence-releases',
+      resultEvidenceSurveyId ?? 'missing',
+      resultEvidenceTenantSlug || 'missing',
+      resultEvidenceTenantId ?? 'missing',
+    ],
+    enabled: canLoadResultEvidence,
+    retry: false,
+    staleTime: 15_000,
+    queryFn: async () => {
+      const response = await adminListSurveyGovernanceReleases(resultEvidenceSurveyId as number, {
+        tenantSlug: resultEvidenceTenantSlug,
+      });
+      return validateSurveyGovernanceReleaseList(response, {
+        surveyId: resultEvidenceSurveyId as number,
+        tenantSlug: resultEvidenceTenantSlug,
+        ...(resultEvidenceTenantId !== null ? { tenantId: resultEvidenceTenantId } : {}),
+      });
+    },
+  });
+  const resultEvidenceAssessment = useMemo(
+    () => buildSurveyResultEvidence({
+      surveyId: resultEvidenceSurveyId ?? 0,
+      tenantSlug: resultEvidenceTenantSlug,
+      tenantId: resultEvidenceTenantId,
+      releaseList: resultEvidenceReleasesQuery.data,
+      analytics: {
+        totalResponses: summary?.total_respuestas,
+        responseProvenance: summary?.response_provenance ?? summary?.data_provenance,
+        frontendProvenance: provenance,
+        filtered: hasActiveResultEvidenceFilters,
+      },
+    }),
+    [
+      hasActiveResultEvidenceFilters,
+      provenance,
+      resultEvidenceTenantId,
+      resultEvidenceTenantSlug,
+      resultEvidenceReleasesQuery.data,
+      resultEvidenceSurveyId,
+      summary?.data_provenance,
+      summary?.response_provenance,
+      summary?.total_respuestas,
+    ],
+  );
 
   const handleDemographicFilterChange = (
     field: 'genero' | 'rango_etario' | 'pais' | 'provincia' | 'ciudad' | 'barrio',
@@ -1094,7 +1184,7 @@ export default function SurveyAnalyticsPage() {
       link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
-      toast({ title: 'Exportación lista', description: 'Descargaste la analítica en formato CSV.' });
+      toast({ title: 'Exportación operativa lista', description: 'Descargaste analytics en CSV. Este archivo no reemplaza el recibo de cierre por conteo.' });
     } catch (error) {
       toast({ title: 'No pudimos exportar los datos', description: String((error as Error)?.message ?? error), variant: 'destructive' });
     }
@@ -1495,7 +1585,7 @@ export default function SurveyAnalyticsPage() {
           ))}
         </CardContent>
       </Card>
-      {liveResultsEnabled ? (
+      {shouldLoadPublicLiveResults ? (
         <div
           id={SURVEY_ANALYTICS_FOCUS_COPY.live.targetId}
           data-testid="survey-live-results-focus"
@@ -1509,6 +1599,25 @@ export default function SurveyAnalyticsPage() {
             description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la pagina publica."
           />
         </div>
+      ) : liveResultsEnabled ? (
+        <Card
+          id={SURVEY_ANALYTICS_FOCUS_COPY.live.targetId}
+          data-testid="survey-live-results-publication-blocked"
+          className={focusMode === 'live' ? 'border-amber-400/40 bg-amber-500/5' : undefined}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Sala live todavía no iniciada
+            </CardTitle>
+            <CardDescription>
+              Este instrumento está en estado {publicationStateLabel(publicationState).toLowerCase()}. No consultamos el endpoint público ni mostramos una analítica vacía como si estuviera operativo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Publicalo con la jurisdicción y la configuración institucional validadas para habilitar votos, polling y mapa territorial real.
+          </CardContent>
+        </Card>
       ) : null}
       {(effectiveSurvey.permitir_comentarios || focusMode === 'comments') ? (
         <SurveyAdminCommentsPanel
@@ -1564,6 +1673,27 @@ export default function SurveyAnalyticsPage() {
         </CardContent>
       </Card>
 
+      <SurveyResultEvidencePanel
+        assessment={resultEvidenceAssessment}
+        loading={isLoading || resultEvidenceReleasesQuery.isLoading}
+        refreshing={isRefreshingAnalytics || resultEvidenceReleasesQuery.isFetching}
+        error={
+          !resultEvidenceTenantSlug
+            ? 'No se pudo verificar el tenant necesario para consultar el manifiesto.'
+            : resultEvidenceSurveyMismatch
+              ? 'La encuesta cargada no coincide con el identificador de la ruta. La conciliación quedó bloqueada.'
+            : resultEvidenceReleasesQuery.error
+              ? getErrorMessage(resultEvidenceReleasesQuery.error, 'No se pudo consultar el manifiesto de cierre.')
+              : null
+        }
+        onRefresh={() => {
+          void Promise.allSettled([
+            refreshAnalytics(),
+            resultEvidenceReleasesQuery.refetch(),
+          ]);
+        }}
+      />
+
       {executiveSummary ? (
         <Card>
           <CardHeader>
@@ -1597,11 +1727,23 @@ export default function SurveyAnalyticsPage() {
             <p className="text-sm font-semibold">Centro de acciones de analytics</p>
             <p className="text-xs text-muted-foreground">
               {syntheticSeedQaEnabled
-                ? 'Exportá, difundí y generá datos sintéticos de QA sin salir de la vista.'
-                : 'Exportá y difundí los resultados sin salir de la vista.'}
+                ? 'Exportá datos operativos y generá datos sintéticos de QA sin confundirlos con el recibo de cierre.'
+                : 'Exportá datos operativos; la conciliación por conteo se informa por separado en el recibo de cierre.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void refreshAnalytics();
+              }}
+              disabled={isRefreshingAnalytics}
+              className="inline-flex items-center gap-2"
+            >
+              {isRefreshingAnalytics ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Actualizar
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -1609,7 +1751,7 @@ export default function SurveyAnalyticsPage() {
               disabled={isExporting}
               className="inline-flex items-center gap-2"
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV operativo
             </Button>
             {syntheticSeedQaEnabled ? (
               <Button

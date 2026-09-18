@@ -1,8 +1,8 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import DetailsPanel, { collectAttachmentsFromTicket } from './DetailsPanel';
+import DetailsPanel, { collectAttachmentsFromTicket, resolveTicketCaseSummary } from './DetailsPanel';
 import type { Ticket } from '@/types/tickets';
 
 const detailsMocks = vi.hoisted(() => ({
@@ -32,7 +32,9 @@ vi.mock('./TicketLogisticsSummary', () => ({
 }));
 
 vi.mock('./TicketAssignment', () => ({
-  default: () => <div data-testid="ticket-assignment" />,
+  default: ({ variant }: { variant?: string }) => (
+    <div data-testid="ticket-assignment" data-variant={variant || 'default'} />
+  ),
 }));
 
 vi.mock('./TicketTimeline', () => ({
@@ -92,24 +94,66 @@ const baseTicket: Ticket = {
   },
 } as Ticket;
 
-describe('DetailsPanel CRM contact priority', () => {
+describe('DetailsPanel resolution guide', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     detailsMocks.selectedTicket = baseTicket;
   });
 
-  it('puts the operator contact card before AI and logistics blocks', () => {
+  it('returns to the empty inspector when filtering clears the selected ticket', () => {
+    detailsMocks.selectedTicket = {
+      id: 901,
+      tipo: 'municipio',
+      nro_ticket: 'QA-901',
+      asunto: 'Caso QA sin datos personales reales',
+      estado: 'nuevo',
+      fecha: '2026-08-29T12:00:00Z',
+      categoria: 'Alumbrado de prueba',
+      direccion: 'Calle de Prueba 100',
+      channel: 'web',
+      history: [],
+      messages: [],
+      informacion_personal_vecino: {
+        nombre: 'Persona QA',
+        telefono: '+54 11 5555 0101',
+        email: 'persona.qa@example.test',
+        direccion: 'Calle de Prueba 100',
+        dni: '',
+      },
+    } as Ticket;
+    const { rerender } = render(<DetailsPanel />);
+
+    expect(screen.getByRole('heading', { name: 'Caso QA sin datos personales reales' })).toBeInTheDocument();
+
+    detailsMocks.selectedTicket = null;
+    rerender(<DetailsPanel />);
+
+    expect(screen.getByRole('heading', { name: 'Detalles del Ticket' })).toBeInTheDocument();
+    expect(screen.getByText(/Seleccioná un ticket para ver los detalles/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Caso QA sin datos personales reales' })).not.toBeInTheDocument();
+  });
+
+  it('shows the resolution guide first and keeps personal and technical data collapsed', () => {
     render(<DetailsPanel />);
+
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    expect(guide).toHaveTextContent('Resumen del caso');
+    expect(guide).toHaveTextContent('Próximo paso');
+    expect(guide).toHaveTextContent('Reclamo por Arreglo de calle en Don Bosco 55, Junin');
+    expect(within(guide).getByTestId('ticket-assignment')).toHaveAttribute('data-variant', 'compact');
+    expect(screen.getAllByTestId('ticket-assignment')).toHaveLength(1);
+    expect(screen.queryByTestId('ticket-operator-contact-card')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ticket-technical-details')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-assist-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ticket-logistics-summary')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('SLA sin evidencia');
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'unknown');
+
+    fireEvent.click(screen.getByRole('button', { name: /datos del vecino/i }));
 
     const contactCard = screen.getByTestId('ticket-operator-contact-card');
     expect(contactCard).toHaveTextContent('Marcelo');
     expect(contactCard).toHaveTextContent('+54 9 261 316 8608');
-    expect(contactCard).toHaveTextContent('Don Bosco 55, Junin');
-    const profileSummary = screen.getByTestId('crm-contact-profile-summary');
-    expect(profileSummary).toHaveTextContent('Perfil CRM');
-    expect(profileSummary).toHaveTextContent('86% completo');
-    expect(profileSummary).toHaveTextContent('Avatar seguro por identidad');
-    expect(profileSummary).toHaveTextContent('WhatsApp');
     expect(screen.getByRole('link', { name: /whatsapp/i })).toHaveAttribute(
       'href',
       'https://wa.me/5492613168608',
@@ -119,9 +163,121 @@ describe('DetailsPanel CRM contact priority', () => {
       'mailto:marcelo@example.com',
     );
 
-    const pageText = document.body.textContent ?? '';
-    expect(pageText.indexOf('Marcelo')).toBeLessThan(pageText.indexOf('IA operativa'));
-    expect(pageText.indexOf('Marcelo')).toBeLessThan(pageText.indexOf('Logistica'));
+    fireEvent.click(screen.getByRole('button', { name: /ubicación del reclamo/i }));
+    expect(screen.getByTestId('ticket-logistics-summary')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /herramientas internas/i }));
+    expect(screen.getByTestId('ai-assist-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-technical-details')).toHaveTextContent('M-378430');
+
+    fireEvent.click(screen.getByRole('button', { name: /historial del caso/i }));
+    expect(screen.getByTestId('ticket-timeline')).toBeInTheDocument();
+    expect(screen.getAllByTestId('ticket-assignment')).toHaveLength(1);
+  });
+
+  it('shows structured SLA clocks when the selected ticket already exposes the contract', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      sla: {
+        contract_version: 'ticket.sla.v1',
+        clocks: {
+          first_response: {
+            state: 'ok',
+            due_at: '2026-08-30T14:00:00Z',
+            known: true,
+          },
+          next_update: {
+            state: 'warning',
+            due_at: '2026-08-30T13:00:00Z',
+            known: true,
+          },
+          resolution: {
+            state: 'inactive',
+            known: true,
+          },
+        },
+      },
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    expect(screen.getByTestId('ticket-sla-clock-first_response')).toHaveAttribute('data-sla-state', 'healthy');
+    expect(screen.getByTestId('ticket-sla-clock-next_update')).toHaveAttribute('data-sla-state', 'due');
+    expect(screen.getByTestId('ticket-sla-clock-resolution')).toHaveAttribute('data-sla-state', 'inactive');
+  });
+
+  it('keeps long municipal content readable inside the responsive inspector', () => {
+    const longSubject = 'Reclamo integral por interrupción prolongada del servicio de alumbrado público en corredor escolar y accesos barriales';
+    const longCategory = 'Infraestructura urbana, alumbrado público, seguridad peatonal y coordinación interáreas';
+    const longSummary = 'La persona solicita una respuesta coordinada entre servicios públicos, movilidad y atención ciudadana porque el incidente afecta varios accesos y requiere seguimiento documentado sin perder información operativa.';
+    const longAction = 'Coordinar inspección conjunta y confirmar ventana estimada de resolución al ciudadano';
+    const onClose = vi.fn();
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      asunto: longSubject,
+      categoria: longCategory,
+      description: longSummary,
+      allowed_actions: [
+        { id: 'coordinate', label: longAction, href: '/admin/tickets/378430/coordinate', enabled: true },
+      ],
+    } as Ticket;
+
+    render(<DetailsPanel operationalWorkspace onClose={onClose} />);
+
+    const inspector = screen.getByTestId('ticket-details-panel');
+    expect(inspector).toHaveClass('ticket-inspector', 'min-w-0', 'max-w-full', 'overflow-hidden');
+    expect(inspector).toHaveAttribute('data-operational-workspace', 'true');
+    expect(screen.getByRole('heading', { name: longSubject })).toHaveClass('ticket-inspector__header-title');
+    expect(screen.getByText(longSummary)).not.toHaveClass('line-clamp-3');
+    expect(screen.getByText(longCategory)).toHaveClass('ticket-inspector__badge');
+    expect(screen.getByRole('button', { name: longAction })).toHaveClass('ticket-inspector__action-button');
+    expect(screen.getByRole('button', { name: /cerrar detalles del ticket/i })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del ticket/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('replaces technical runtime JSON with the human case question', () => {
+    const runtimeDetails = JSON.stringify({
+      demo_runtime: true,
+      source: 'demo_municipio_runtime',
+      chat_session_id: 'internal-session-id',
+      demo_session_payload: { tenant_slug: 'junin' },
+      events: [{ type: 'ticket_created', question: 'Luminaria apagada frente a la plaza.' }],
+    });
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      asunto: 'Demo reclamo - Alumbrado publico',
+      description: runtimeDetails,
+      detalles: runtimeDetails,
+      pregunta: 'Luminaria apagada frente a la plaza.',
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    expect(guide).toHaveTextContent('Luminaria apagada frente a la plaza.');
+    expect(guide).not.toHaveTextContent('demo_runtime');
+    expect(guide).not.toHaveTextContent('chat_session_id');
+    expect(resolveTicketCaseSummary(detailsMocks.selectedTicket)).toBe(
+      'Luminaria apagada frente a la plaza.',
+    );
+  });
+
+  it('falls back safely when a JSON-looking description is malformed', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      description: '{"demo_runtime":true',
+      detalles: '{"chat_session_id":"broken"',
+      pregunta: 'Árbol caído sobre la vereda.',
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    expect(guide).toHaveTextContent('Árbol caído sobre la vereda.');
+    expect(guide).not.toHaveTextContent('demo_runtime');
+    expect(guide).not.toHaveTextContent('chat_session_id');
   });
 
   it('surfaces assisted request context and public follow-up actions', () => {
@@ -159,14 +315,17 @@ describe('DetailsPanel CRM contact priority', () => {
 
     render(<DetailsPanel />);
 
-    const assistedCard = screen.getByTestId('ticket-assisted-context-card');
-    expect(assistedCard).toHaveTextContent('Solicitud asistida');
-    expect(assistedCard).toHaveTextContent('Reclamos municipales');
-    expect(assistedCard).toHaveTextContent('reclamo o solicitud vecinal');
-    expect(assistedCard).toHaveTextContent('M-123456');
-    expect(assistedCard).toHaveTextContent('Vecino informa luminaria quemada con direccion suficiente.');
-    expect(assistedCard).toHaveTextContent('Resolver faltantes y responder');
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    const assistedContext = screen.getByTestId('ticket-assisted-context-card');
+    expect(assistedContext).toHaveTextContent('Reclamos municipales');
+    expect(assistedContext).toHaveTextContent('reclamo o solicitud vecinal');
+    expect(guide).toHaveTextContent('Vecino informa luminaria quemada con direccion suficiente.');
+    expect(guide).toHaveTextContent('Resolver faltantes y responder');
     expect(screen.getByRole('button', { name: /ver reclamo/i })).toBeEnabled();
+    expect(screen.queryByText('M-123456')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /herramientas internas/i }));
+    expect(screen.getByTestId('ticket-technical-details')).toHaveTextContent('M-123456');
   });
 
   it('shows backend blocker reasons for disabled operational actions', () => {
@@ -203,12 +362,34 @@ describe('DetailsPanel CRM contact priority', () => {
     } as Ticket;
 
     render(<DetailsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /datos del vecino/i }));
 
     const blockers = screen.getByTestId('crm-contact-action-blockers');
     expect(blockers).toHaveTextContent('Falta telefono para abrir WhatsApp.');
     expect(blockers).toHaveTextContent('Falta email para enviar correo.');
     expect(blockers).toHaveTextContent('Falta direccion o coordenadas para abrir mapa.');
     expect(blockers).toHaveTextContent('Faltan datos del contacto para copiar.');
+  });
+
+  it('surfaces at most three operational actions and keeps the remainder available internally', () => {
+    detailsMocks.selectedTicket = {
+      ...baseTicket,
+      allowed_actions: [
+        { id: 'one', label: 'Acción uno', href: '/one', enabled: true },
+        { id: 'two', label: 'Acción dos', href: '/two', enabled: true },
+        { id: 'three', label: 'Acción tres', href: '/three', enabled: true },
+        { id: 'four', label: 'Acción cuatro', href: '/four', enabled: true },
+      ],
+    } as Ticket;
+
+    render(<DetailsPanel />);
+
+    const guide = screen.getByTestId('ticket-resolution-guide');
+    expect(within(guide).getAllByRole('button', { name: /acción/i })).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: 'Acción cuatro' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /herramientas internas/i }));
+    expect(screen.getByRole('button', { name: 'Acción cuatro' })).toBeEnabled();
   });
 
   it('keeps signed delivery, origin and status when merging ticket evidence', () => {

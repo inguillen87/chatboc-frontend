@@ -70,6 +70,30 @@ export interface DemoAdminPreviewCard {
   detail?: string | null;
   status?: string | null;
   icon?: string | null;
+  period?: string | null;
+  data_mode?: string | null;
+  denominator?: { label?: string | null; value?: string | number | null } | null;
+  denominator_label?: string | null;
+  denominator_value?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewMetric {
+  id?: string | null;
+  key?: string | null;
+  label?: string | null;
+  title?: string | null;
+  value?: string | number | null;
+  unit?: string | null;
+  detail?: string | null;
+  description?: string | null;
+  period?: string | null;
+  data_mode?: string | null;
+  icon?: string | null;
+  numerator?: { label?: string | null; value?: string | number | null } | null;
+  denominator?: { label?: string | null; value?: string | number | null } | null;
+  denominator_label?: string | null;
+  denominator_value?: string | number | null;
   [key: string]: unknown;
 }
 
@@ -78,7 +102,11 @@ export interface DemoAdminPreviewTimelineItem {
   label?: string | null;
   title?: string | null;
   description?: string | null;
+  detail?: string | null;
+  time?: string | null;
   status?: string | null;
+  channel?: string | null;
+  data_mode?: string | null;
   [key: string]: unknown;
 }
 
@@ -91,7 +119,10 @@ export interface DemoAdminPreviewMapPoint {
   direccion?: string | null;
   category?: string | null;
   categoria?: string | null;
+  zone?: string | null;
   status?: string | null;
+  weight?: string | number | null;
+  data_mode?: string | null;
   lat?: string | number | null;
   lng?: string | number | null;
   latitude?: string | number | null;
@@ -103,10 +134,29 @@ export interface DemoAdminPreviewMapPoint {
 
 export interface DemoAdminPreviewMap {
   enabled?: boolean | null;
+  sample?: boolean | null;
+  displayed_points?: string | number | null;
+  represented_cases?: string | number | null;
+  total_cases?: string | number | null;
+  coverage_note?: string | null;
   title?: string | null;
   label?: string | null;
   description?: string | null;
+  center?: {
+    lat?: string | number | null;
+    lng?: string | number | null;
+    latitude?: string | number | null;
+    longitude?: string | number | null;
+    [key: string]: unknown;
+  } | null;
+  zoom?: string | number | null;
   points?: DemoAdminPreviewMapPoint[] | null;
+  legend?: Array<{
+    status?: string | null;
+    label?: string | null;
+    [key: string]: unknown;
+  }> | null;
+  data_mode?: string | null;
   render_contract?: {
     can_render_map?: boolean | null;
     can_render_heatmap?: boolean | null;
@@ -115,8 +165,155 @@ export interface DemoAdminPreviewMap {
   [key: string]: unknown;
 }
 
+export interface DemoAdminPreviewDataProvenance {
+  contract_version?: string | null;
+  mode?: 'synthetic_demo_scenario' | 'session_generated_events' | 'mixed_partitioned' | (string & {}) | null;
+  synthetic?: boolean | null;
+  contains_synthetic?: boolean | null;
+  municipal_truth?: boolean | null;
+  suitable_for_product_demonstration?: boolean | null;
+  suitable_for_government_decisions?: boolean | null;
+  label?: string | null;
+  tenant_scope?: string | null;
+  scope?: string | null;
+  scenario_scope?: string | null;
+  source_partitions?: Record<string, unknown> | unknown[] | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewCase {
+  id?: string | number | null;
+  case_code?: string | null;
+  title?: string | null;
+  description?: string | null;
+  category?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  channel?: string | null;
+  zone?: string | null;
+  sla_status?: string | null;
+  opened_at_label?: string | null;
+  data_mode?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewChannelItem {
+  id?: string | null;
+  label?: string | null;
+  value?: string | number | null;
+  share_pct?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewChannelSummary {
+  contract_version?: string | null;
+  data_mode?: string | null;
+  total_interactions?: string | number | null;
+  observed_items?: string | number | null;
+  total_cases?: string | number | null;
+  observed_cases?: string | number | null;
+  note?: string | null;
+  label?: string | null;
+  channels?: DemoAdminPreviewChannelItem[] | null;
+  whatsapp?: {
+    conversations?: string | number | null;
+    first_response_minutes?: string | number | null;
+    resolved_without_handoff_pct?: string | number | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewCaseSample {
+  contract_version?: string | null;
+  sample?: boolean | null;
+  total_cases?: string | number | null;
+  displayed_cases?: string | number | null;
+  represented_cases_on_map?: string | number | null;
+  label?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveyOption {
+  label?: string | null;
+  texto?: string | null;
+  count?: string | number | null;
+  votos?: string | number | null;
+  porcentaje?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveySegmentItem {
+  label?: string | null;
+  count?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveyItem {
+  id?: string | number | null;
+  slug?: string | null;
+  title?: string | null;
+  titulo?: string | null;
+  description?: string | null;
+  descripcion?: string | null;
+  question?: string | null;
+  status?: string | null;
+  estado?: string | null;
+  demo_mode?: boolean | null;
+  seeded_responses?: string | number | null;
+  interactive_demo_responses?: string | number | null;
+  total_respuestas?: string | number | null;
+  verified_citizen_responses?: string | number | null;
+  results?: {
+    total_respuestas?: string | number | null;
+    seeded_responses?: string | number | null;
+    interactive_demo_responses?: string | number | null;
+    verified_citizen_responses?: string | number | null;
+    options?: DemoAdminPreviewSurveyOption[] | null;
+    segment_scope?: string | null;
+    segments?: Record<string, DemoAdminPreviewSurveySegmentItem[] | null> | null;
+    [key: string]: unknown;
+  } | null;
+  data_provenance?: {
+    mode?: string | null;
+    contains_synthetic?: boolean | null;
+    real_responses_included?: string | number | null;
+    synthetic_responses_included?: string | number | null;
+    [key: string]: unknown;
+  } | null;
+  links?: {
+    public_page_path?: string | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewSurveyVoting {
+  contract_version?: string | null;
+  enabled?: boolean | null;
+  demo_mode?: boolean | null;
+  label?: string | null;
+  description?: string | null;
+  total_available?: string | number | null;
+  items?: DemoAdminPreviewSurveyItem[] | null;
+  all_items?: DemoAdminPreviewSurveyItem[] | null;
+  seed_policy?: {
+    responses_per_item?: string | number | null;
+    real_people?: boolean | null;
+    deterministic?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  frontend_contract?: {
+    render_as?: string | null;
+    empty_state_behavior?: string | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export interface DemoAdminPreviewResponse {
   contract_version?: string | null;
+  presentation_mode?: string | null;
   request_id?: string | null;
   sector?: DemoSector | string | null;
   tenant_slug?: string | null;
@@ -127,8 +324,23 @@ export interface DemoAdminPreviewResponse {
   status_label?: string | null;
   modules?: DemoAdminPreviewModule[];
   cards?: DemoAdminPreviewCard[];
+  metrics?: DemoAdminPreviewMetric[];
   timeline?: DemoAdminPreviewTimelineItem[];
   map?: DemoAdminPreviewMap | null;
+  cases?: DemoAdminPreviewCase[];
+  case_sample?: DemoAdminPreviewCaseSample | null;
+  channel_summary?: DemoAdminPreviewChannelSummary | null;
+  survey_voting?: DemoAdminPreviewSurveyVoting | null;
+  data_provenance?: DemoAdminPreviewDataProvenance | null;
+  operations?: {
+    data_policy?: string | null;
+    [key: string]: unknown;
+  } | null;
+  session_activity?: {
+    has_session_data?: boolean | null;
+    items?: unknown[] | null;
+    [key: string]: unknown;
+  } | null;
   catalog?: Record<string, unknown> | null;
   labels?: Record<string, string | null | undefined> | null;
   [key: string]: unknown;

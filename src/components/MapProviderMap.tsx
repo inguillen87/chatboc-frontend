@@ -194,6 +194,8 @@ export default function MapProviderMap({
         onSelect={mapProps.onSelect}
         heatmapData={renderedGooglePoints}
         showHeatmap={mapProps.showHeatmap ?? true}
+        showPoints={mapProps.showPoints}
+        showPointLabels={mapProps.showPointLabels}
         marker={mapProps.marker}
         className={mapProps.className}
         adminLocation={mapProps.adminLocation}
@@ -204,6 +206,7 @@ export default function MapProviderMap({
         disableClustering
         googleMapsKey={activeGoogleMapsKey}
         evidence={googleEvidence}
+        showEvidenceBadge={mapProps.showEvidenceBadge}
       />
     );
   }

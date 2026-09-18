@@ -17,7 +17,12 @@ const apiMocks = vi.hoisted(() => ({
   adminUpdateSurvey: vi.fn(),
 }));
 
+const surveyApiMocks = vi.hoisted(() => ({
+  publishSurveyV2: vi.fn(),
+}));
+
 vi.mock('@/api/encuestas', () => apiMocks);
+vi.mock('@/features/surveys/surveysApi', () => surveyApiMocks);
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'org-demo' }),
 }));
@@ -114,6 +119,24 @@ const page = ({
     source: 'enc_encuesta_and_enc_respuesta',
     synthetic: false,
   },
+  executive_summary: {
+    contract_version: 'surveys.admin_executive_overview.v1',
+    aggregation_scope: {
+      mode: 'returned_page',
+      returned_items: 1,
+      query_total_items: total,
+      complete_for_query: !hasMore && cursor === null,
+    },
+  } as SurveyListResponse['executive_summary'],
+  data_quality: {
+    contract_version: 'surveys.admin_data_quality.v1',
+    aggregation_scope: {
+      mode: 'returned_page',
+      returned_items: 1,
+      query_total_items: total,
+      complete_for_query: !hasMore && cursor === null,
+    },
+  } as SurveyListResponse['data_quality'],
   data: [survey],
   overview: {
     total: 1,
@@ -156,6 +179,7 @@ const createWrapper = () => {
 describe('useSurveyAdmin paginated listing', () => {
   beforeEach(() => {
     Object.values(apiMocks).forEach((mock) => mock.mockReset());
+    Object.values(surveyApiMocks).forEach((mock) => mock.mockReset());
   });
 
   it('loads the next cursor without replacing prior instruments and aggregates only loaded metrics', async () => {
@@ -179,6 +203,7 @@ describe('useSurveyAdmin paginated listing', () => {
 
     await waitFor(() => expect(result.current.surveys?.data).toHaveLength(1));
     expect(result.current.hasMoreSurveys).toBe(true);
+    expect(result.current.surveys?.executive_summary).toBeDefined();
     expect(result.current.surveyListProgress).toEqual({ loaded: 1, total: 2 });
 
     await act(async () => {
@@ -192,6 +217,8 @@ describe('useSurveyAdmin paginated listing', () => {
       total_respuestas: 12,
       respuestas_ultimas_24h: 12,
     });
+    expect(result.current.surveys?.executive_summary).toBeUndefined();
+    expect(result.current.surveys?.data_quality).toBeUndefined();
     expect(result.current.surveyListProgress).toEqual({ loaded: 2, total: 2 });
     expect(result.current.hasMoreSurveys).toBe(false);
     expect(apiMocks.adminListSurveys).toHaveBeenNthCalledWith(
@@ -223,5 +250,53 @@ describe('useSurveyAdmin paginated listing', () => {
     expect(result.current.listError).toBeNull();
     expect(result.current.surveys?.data.map((survey) => survey.id)).toEqual([52]);
     expect(result.current.surveyListProgress).toEqual({ loaded: 1, total: 2 });
+  });
+
+  it('publishes a non-governed instrument through the tenant-scoped V2 client', async () => {
+    apiMocks.adminListSurveys.mockResolvedValue(page({
+      survey: makeSurvey(52, 0),
+      cursor: null,
+      nextCursor: null,
+      hasMore: false,
+      total: 1,
+    }));
+    surveyApiMocks.publishSurveyV2.mockResolvedValue({
+      id: '52',
+      title: 'Consulta 52',
+      questions: [],
+      raw: { id: 52, estado: 'publicada' },
+    });
+
+    const { result } = renderHook(() => useSurveyAdmin(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.surveys?.data).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.publishSurvey(52);
+    });
+
+    expect(surveyApiMocks.publishSurveyV2).toHaveBeenCalledWith(52, 'org-demo');
+    expect(apiMocks.adminPublishSurvey).not.toHaveBeenCalled();
+  });
+
+  it('fails clearly when the V2 publication acknowledgment does not match the instrument', async () => {
+    apiMocks.adminListSurveys.mockResolvedValue(page({
+      survey: makeSurvey(52, 0),
+      cursor: null,
+      nextCursor: null,
+      hasMore: false,
+      total: 1,
+    }));
+    surveyApiMocks.publishSurveyV2.mockResolvedValue({
+      id: '99',
+      title: 'Otra consulta',
+      questions: [],
+    });
+
+    const { result } = renderHook(() => useSurveyAdmin(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.surveys?.data).toHaveLength(1));
+
+    await expect(result.current.publishSurvey(52)).rejects.toThrow(
+      'No pudimos verificar la confirmación de publicación del servidor.',
+    );
   });
 });

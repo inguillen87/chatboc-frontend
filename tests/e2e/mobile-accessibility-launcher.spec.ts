@@ -137,12 +137,12 @@ test.describe('mobile accessibility launcher coordination', () => {
   });
 
   for (const viewport of MOBILE_VIEWPORTS) {
-    test(`${viewport.name} keeps a long admin menu, launcher and PWA prompt independently usable`, async ({ page }, testInfo) => {
+    test(`${viewport.name} keeps the mobile menu, launcher and PWA prompt independently usable`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await installAdminSession(page);
       await page.goto('/', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Converti conversaciones en operaciones reales/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Convert[ií] conversaciones en operaciones reales/i })).toBeVisible();
 
       const installPrompt = page.getByRole('complementary', { name: 'Instalar Chatboc' });
       await expect(async () => {
@@ -156,7 +156,7 @@ test.describe('mobile accessibility launcher coordination', () => {
 
       const closeButton = page.getByRole('button', { name: 'Cerrar menú' });
       const mobileMenu = page.getByRole('navigation', { name: 'Navegación principal móvil' });
-      const firstItem = mobileMenu.getByRole('button', { name: 'Problemas' });
+      const firstItem = mobileMenu.getByRole('button', { name: 'Plataforma' });
       const launcher = page.getByRole('button', { name: 'Abrir ajustes de accesibilidad' });
       await expect(closeButton).toHaveAttribute('aria-expanded', 'true');
       await expect(firstItem).toBeVisible();
@@ -222,7 +222,7 @@ test.describe('mobile accessibility launcher coordination', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await installAdminSession(page);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /Converti conversaciones en operaciones reales/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Convert[ií] conversaciones en operaciones reales/i })).toBeVisible();
 
     const installPrompt = page.getByRole('complementary', { name: 'Instalar Chatboc' });
     await expect(async () => {
@@ -267,7 +267,7 @@ test.describe('mobile accessibility launcher coordination', () => {
   test('desktop keeps the launcher and PWA prompt clear of the navigation', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /Converti conversaciones en operaciones reales/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Convert[ií] conversaciones en operaciones reales/i })).toBeVisible();
 
     const menuButton = page.getByRole('button', { name: 'Abrir menú' });
     const launcher = page.getByRole('button', { name: 'Abrir ajustes de accesibilidad' });

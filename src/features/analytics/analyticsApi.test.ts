@@ -155,12 +155,14 @@ describe('operations heatmap v2 contract', () => {
     mocks.panelGet.mockReset();
   });
 
-  it('passes segment filters and normalizes real category, age and gender facets', async () => {
+  it('passes segment filters and preserves declared zones and response provenance', async () => {
     mocks.panelGet.mockResolvedValue({
       contract_version: 'operations.heatmap.v1',
       privacy_metadata: {
         privacy_mode: 'tenant_aggregated',
         min_sample_size: '14',
+        coordinate_precision_decimals: '3',
+        suppressed: { records: '4', cells: '2', exact_points: true },
         rawPointsRedacted: 'true',
         coordinatePrecision: 'rounded_3_decimals',
         populationSource: 'INDEC 2022',
@@ -187,6 +189,18 @@ describe('operations heatmap v2 contract', () => {
         gender: [{ key: 'femenino', label: 'Femenino', count: 3 }],
         age_range: [{ key: '35-44', label: '35-44', count: 2 }],
         source: [{ key: 'tickets', label: 'Tickets', count: 4 }],
+        zone: [{ key: 'centro', label: 'Centro', count: 4 }],
+      },
+      response_provenance: {
+        contract_version: 'surveys.response_provenance.v1',
+        mode: 'real',
+        server_trusted_classification: 'true',
+        contains_synthetic: 'false',
+        real_responses_included: '3',
+        synthetic_responses_included: '0',
+        synthetic_responses_excluded: '2',
+        unverified_responses_included: '0',
+        unverified_responses_excluded: '1',
       },
       applied_filters: {
         categoria: 'alumbrado',
@@ -213,6 +227,62 @@ describe('operations heatmap v2 contract', () => {
         visible_points: '1',
         pending_geocode: '2',
         can_render_heatmap: 'true',
+      },
+      location_quality: {
+        contract_version: 'operations.location_quality.v1',
+        total_ticket_records: '63',
+        ticket_records_with_coordinates: '21',
+        ticket_records_outside_jurisdiction: '2',
+        ticket_records_pending_geocode: '34',
+        coordinate_coverage_pct: '33.33',
+        status: 'ready',
+      },
+      jurisdiction: {
+        contract_version: 'operations.tenant_jurisdiction.v1',
+        state: 'configured',
+        enforced: 'true',
+        city: 'Junín',
+        state_name: 'Mendoza',
+        excluded_coordinate_records: '2',
+        review_candidate_count: '2',
+        bounds: { west: '-68.6', south: '-33.3', east: '-68.3', north: '-32.9' },
+        source: { kind: 'tenant_geo_config', ref: 'municipios/junin/geo.json' },
+      },
+      territorial_facets: {
+        contract_version: 'operations.heatmap.territorial_facets.v1',
+        summary: {
+          ticket_records: '63',
+          mapped_records: '21',
+          records_outside_jurisdiction: '2',
+          pending_geocode_records: '34',
+        },
+        categories: [
+          {
+            key: 'alumbrado',
+            label: 'Alumbrado',
+            count: '6',
+            mapped_count: '4',
+            pending_geocode_count: '1',
+            outside_jurisdiction_count: '1',
+          },
+        ],
+        addresses: [
+          {
+            key: 'don bosco 55',
+            label: 'Don Bosco 55, Junín',
+            count: '2',
+            mapped_count: '1',
+            outside_jurisdiction_count: '1',
+          },
+        ],
+        explicit_zones: [],
+      },
+      jurisdiction_review: {
+        contract_version: 'operations.heatmap.jurisdiction_review.v1',
+        status: 'pending',
+        candidate_count: '2',
+        reason_code: 'coordinates_outside_configured_jurisdiction',
+        writes_performed: 'false',
       },
       realtime: {
         contract_version: 'operations.heatmap_realtime.v1',
@@ -404,6 +474,7 @@ describe('operations heatmap v2 contract', () => {
         candidates: [
           {
             record_id: 42,
+            source_model: 'MunicipioTicket',
             direccion: 'Av. San Martin 123, Junin',
             categoria: 'limpieza',
             origen: 'ticket',
@@ -437,7 +508,8 @@ describe('operations heatmap v2 contract', () => {
       },
       points: [
         {
-          id: 10,
+          id: 'municipio_ticket:10',
+          record_source: 'municipio_ticket',
           lat: '-34.58',
           lng: '-60.94',
           weight: '2',
@@ -447,6 +519,13 @@ describe('operations heatmap v2 contract', () => {
           canal: 'whatsapp',
           source: 'tickets',
           barrio: 'Centro',
+          direccion: 'Don Bosco 55',
+          addressCellLabel: 'Sector Centro A',
+          cellId: 'h3:centro-a',
+          geocode_quality: 'verified_gps',
+          location_provenance: {
+            coordinate: { source: 'whatsapp_location' },
+          },
           estado: 'nuevo',
           actions: [
             { id: 'open_record', label: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/10' },
@@ -473,7 +552,10 @@ describe('operations heatmap v2 contract', () => {
       scope: 'historical',
       canal: 'whatsapp',
       barrio: 'Centro',
+      zone: 'centro',
       estado: 'nuevo',
+      sla_state: 'breached',
+      assignee_id: 77,
       include_ai: 0,
     });
 
@@ -487,7 +569,10 @@ describe('operations heatmap v2 contract', () => {
     expect(url).toContain('scope=historical');
     expect(url).toContain('canal=whatsapp');
     expect(url).toContain('barrio=Centro');
+    expect(url).toContain('zone=centro');
     expect(url).toContain('estado=nuevo');
+    expect(url).toContain('sla_state=breached');
+    expect(url).toContain('assignee_id=77');
     expect(url).toContain('include_ai=0');
     expect(options).toMatchObject({ tenantSlug: 'junin' });
 
@@ -501,7 +586,18 @@ describe('operations heatmap v2 contract', () => {
       rango_edad: '35-44',
       canal: 'whatsapp',
       source: 'tickets',
+      id: 'municipio_ticket:10',
+      record_source: 'municipio_ticket',
+      source_model: 'MunicipioTicket',
+      ticket_id: '10',
+      ticket_identity_status: 'valid',
       barrio: 'Centro',
+      address: 'Don Bosco 55',
+      direccion: 'Don Bosco 55',
+      address_cell_label: 'Sector Centro A',
+      cell_id: 'h3:centro-a',
+      location_quality: 'verified_gps',
+      location_provenance: 'whatsapp_location',
       estado: 'nuevo',
       actions: [
         { title: 'Abrir ticket', method: 'GET', endpoint: '/api/v2/tickets/10' },
@@ -524,6 +620,16 @@ describe('operations heatmap v2 contract', () => {
     });
     expect(response.facets[0].items[0]).toMatchObject({ label: 'Alumbrado', count: 4 });
     expect(response.segments?.gender?.[0]).toMatchObject({ label: 'Femenino', count: 3 });
+    expect(response.segments?.zone?.[0]).toMatchObject({ key: 'centro', label: 'Centro', count: 4 });
+    expect(response.response_provenance).toMatchObject({
+      contract_version: 'surveys.response_provenance.v1',
+      mode: 'real',
+      server_trusted_classification: true,
+      contains_synthetic: false,
+      real_responses_included: 3,
+      synthetic_responses_excluded: 2,
+      unverified_responses_excluded: 1,
+    });
     expect(response.filters_applied?.categoria).toBe('alumbrado');
     expect(response.applied_filters?.source).toBe('tickets');
     expect(response.demographics?.source).toBe('real_metadata_only');
@@ -537,6 +643,37 @@ describe('operations heatmap v2 contract', () => {
       visible_points: 1,
       pending_geocode: 2,
       can_render_heatmap: true,
+    });
+    expect(response.location_quality).toMatchObject({
+      total_ticket_records: 63,
+      ticket_records_with_coordinates: 21,
+      ticket_records_outside_jurisdiction: 2,
+      ticket_records_pending_geocode: 34,
+      coordinate_coverage_pct: 33.33,
+    });
+    expect(response.jurisdiction).toMatchObject({
+      enforced: true,
+      city: 'Junín',
+      state_name: 'Mendoza',
+      excluded_coordinate_records: 2,
+      review_candidate_count: 2,
+    });
+    expect(response.territorial_facets?.summary).toMatchObject({
+      ticket_records: 63,
+      mapped_records: 21,
+      records_outside_jurisdiction: 2,
+      pending_geocode_records: 34,
+    });
+    expect(response.territorial_facets?.categories?.[0]).toMatchObject({
+      key: 'alumbrado',
+      mapped_count: 4,
+      pending_geocode_count: 1,
+      outside_jurisdiction_count: 1,
+    });
+    expect(response.jurisdiction_review).toMatchObject({
+      status: 'pending',
+      candidate_count: 2,
+      writes_performed: false,
     });
     expect(response.realtime).toMatchObject({
       poll_seconds: 20,
@@ -558,8 +695,11 @@ describe('operations heatmap v2 contract', () => {
       mode: 'tenant_aggregated',
       aggregation: undefined,
       minimum_sample_size: 14,
+      k_min: 14,
       raw_points_redacted: true,
       coordinate_precision: 'rounded_3_decimals',
+      coordinate_precision_decimals: 3,
+      suppressed: { records: '4', cells: '2', exact_points: true },
       population_source: 'INDEC 2022',
       boundaries_source: 'Catastro Junín 2026',
     });
@@ -694,6 +834,7 @@ describe('operations heatmap v2 contract', () => {
     });
     expect(response.geocoding?.candidates?.[0]).toMatchObject({
       record_id: 42,
+      source_model: 'MunicipioTicket',
       address: 'Av. San Martin 123, Junin',
       category: 'limpieza',
       source: 'ticket',

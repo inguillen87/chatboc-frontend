@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "guard:vercel-rewrites": "node scripts/guardVercelPreviewRewrites.mjs",
+    "build": "npm run guard:vercel-rewrites && vite build",
+    "vercel-build": "npm run build",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.cjs",
@@ -19,6 +21,7 @@
     "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
     "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit",
     "test:e2e": "playwright test",
+    "test:e2e:tdf-mobile": "playwright test --config=playwright.tdf-mobile.config.ts",
     "catalogs:generate": "node scripts/generateDemoCatalogs.mjs",
     "tools:twilio:version": "npx --yes twilio-cli --version",
     "tools:ngrok:version": "npx --yes ngrok --version"
@@ -64,7 +67,9 @@
     "@types/google.maps": "^3.58.1",
     "@types/maplibre-gl": "^1.13.2",
     "@types/uuid": "^10.0.0",
+    "@vercel/functions": "3.9.5",
     "@vercel/speed-insights": "^1.2.0",
+    "@xyflow/react": "^12.11.6",
     "chart.js": "^4.5.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

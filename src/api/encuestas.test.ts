@@ -692,6 +692,32 @@ describe('survey anchor containment contract', () => {
 });
 
 describe('normalizePublicSurveyLiveResults', () => {
+  it('calculates option percentages when legacy live results only provide vote counts', () => {
+    const normalized = normalizePublicSurveyLiveResults({
+      contract_version: 'surveys.live_results.v2',
+      preguntas: {
+        prioridad: {
+          texto: 'Que tema deberia resolverse primero?',
+          opciones: [
+            { texto: 'Luminarias', votos: 45 },
+            { texto: 'Bacheo', votos: 18 },
+            { texto: 'Limpieza', votos: 25 },
+            { texto: 'Espacios verdes', votos: 12 },
+          ],
+        },
+      },
+    });
+
+    expect(normalized.preguntas?.[0]?.total_votos).toBe(100);
+    expect(normalized.preguntas?.[0]?.id).toBe('prioridad');
+    expect(normalized.preguntas?.[0]?.opciones?.map((option) => option.porcentaje)).toEqual([
+      45,
+      18,
+      25,
+      12,
+    ]);
+  });
+
   it('normalizes mixed backend live-results shapes for webviews and public dashboards', () => {
     const normalized = normalizePublicSurveyLiveResults({
       contract_version: 'surveys.live_results.v2',
@@ -734,10 +760,12 @@ describe('normalizePublicSurveyLiveResults', () => {
     expect(normalized.total_respuestas).toBe(21);
     expect(normalized.preguntas).toHaveLength(1);
     expect(normalized.preguntas?.[0]).toMatchObject({
+      id: 'q1',
       titulo: 'Prioridad del barrio',
       total_votos: 21,
     });
     expect(normalized.preguntas?.[0]?.opciones?.[0]).toMatchObject({
+      id: 'a',
       texto: 'Luminaria',
       votos: 12,
       porcentaje: 57.1,
@@ -814,6 +842,36 @@ describe('postPublicResponse', () => {
       },
     };
   };
+
+  const durableDemoAck = (
+    submissionId: string,
+    responseId: number,
+    responseSlug = 'demo-gobierno-junin-prioridades-barriales',
+  ) => ({
+    ...durableAck(submissionId, responseId, { instrumentRevision: 1 }),
+    participation_contract_version: 'demo.survey_participation.v1',
+    success: true,
+    accepted: true,
+    duplicate: false,
+    durable: true,
+    demo_mode: true,
+    municipal_truth: false,
+    response_origin: 'interactive_demo',
+    slug: responseSlug,
+    tenant_slug: 'junin',
+    persistence: {
+      contract_version: 'demo.survey_persistence.v1',
+      state: 'durable_preview',
+      durable: true,
+      database_write: true,
+      scope: 'interactive_demo_only',
+      municipal_truth: false,
+    },
+    seeded_responses_before: 137,
+    seeded_responses_after: 137,
+    interactive_demo_responses_after: 9,
+    total_responses_after: 146,
+  });
 
   beforeEach(() => {
     apiFetchMock.mockReset();
@@ -1106,6 +1164,21 @@ describe('postPublicResponse', () => {
     );
   });
 
+  it('does not fan out a backend 502 across legacy admin aliases', async () => {
+    const gatewayFailure = new ApiError('El servidor no pudo responder correctamente.', 502, {
+      reason_code: 'upstream_bad_gateway',
+    });
+    apiFetchMock.mockRejectedValueOnce(gatewayFailure);
+
+    await expect(getSurveyDashboardBundle(635, {}, { tenantSlug: 'junin' })).rejects.toBe(gatewayFailure);
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/admin/encuestas/635/analytics/dashboard',
+      expect.objectContaining({ tenantSlug: 'junin' }),
+    );
+  });
+
   it('sends nested territorial metadata without rewriting the public response payload', async () => {
     const payload = {
       submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394872',
@@ -1144,7 +1217,24 @@ describe('postPublicResponse', () => {
       contract_version: 'demo.survey_response_ack.v1',
       ok: true,
       accepted: true,
+      ignored: false,
+      duplicate: false,
+      demo_mode: true,
+      persisted: false,
+      durable: false,
+      slug: 'demo-empresas-chatboc-demo-promo-semana',
       respuesta_id: 'demo_resp_1',
+      seeded_responses_before: 100,
+      seeded_responses_after: 100,
+      simulated_view_responses_after: 101,
+      persistence: {
+        contract_version: 'demo.survey_persistence.v1',
+        state: 'not_persisted',
+        durable: false,
+        database_write: false,
+        live_results_mutated: false,
+        scope: 'current_view',
+      },
     });
 
     const response = await postPublicResponse(
@@ -1157,5 +1247,146 @@ describe('postPublicResponse', () => {
     );
 
     expect(response.contract_version).toBe('demo.survey_response_ack.v1');
+    expect(response.ack_kind).toBe('synthetic_demo');
+  });
+
+  it('accepts a V2-wrapped demo ack only with an explicit non-persistence proof', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'surveys.public_response.v2',
+      legacy_contract_version: 'demo.survey_response_ack.v1',
+      ok: true,
+      accepted: true,
+      ignored: false,
+      duplicate: false,
+      demo_mode: true,
+      persisted: false,
+      durable: false,
+      slug: 'demo-gobierno-junin-prioridades-barriales',
+      seeded_responses_before: 100,
+      seeded_responses_after: 100,
+      simulated_view_responses_after: 101,
+      persistence: {
+        contract_version: 'demo.survey_persistence.v1',
+        state: 'not_persisted',
+        durable: false,
+        database_write: false,
+        live_results_mutated: false,
+        scope: 'current_view',
+      },
+    });
+
+    const response = await postPublicResponse(
+      'demo-gobierno-junin-prioridades-barriales',
+      {
+        submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394874',
+        respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }],
+      },
+      'junin',
+    );
+
+    expect(response.contract_version).toBe('surveys.public_response.v2');
+    expect(response.persisted).toBe(false);
+    expect(response.ack_kind).toBe('synthetic_demo');
+  });
+
+  it('classifies an isolated durable Preview demo receipt and binds it to the requested slug', async () => {
+    const submissionId = '018f4c8e-1e56-7f38-a4df-83fd68394878';
+    apiFetchMock.mockResolvedValueOnce(durableDemoAck(submissionId, 301));
+
+    const response = await postPublicResponse(
+      'demo-gobierno-junin-prioridades-barriales',
+      {
+        submission_id: submissionId,
+        instrument_revision: 1,
+        respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }],
+      },
+      'junin',
+    );
+
+    expect(response.ack_kind).toBe('durable_demo');
+    expect(response.slug).toBe('demo-gobierno-junin-prioridades-barriales');
+    expect(response.persisted).toBe(true);
+    expect(response.durable).toBe(true);
+  });
+
+  it('rejects a durable demo receipt whose slug differs from the requested instrument', async () => {
+    const submissionId = '018f4c8e-1e56-7f38-a4df-83fd68394879';
+    apiFetchMock.mockResolvedValueOnce(
+      durableDemoAck(submissionId, 302, 'demo-gobierno-otra-encuesta'),
+    );
+
+    await expect(
+      postPublicResponse(
+        'demo-gobierno-junin-prioridades-barriales',
+        {
+          submission_id: submissionId,
+          instrument_revision: 1,
+          respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }],
+        },
+        'junin',
+      ),
+    ).rejects.toBeInstanceOf(AmbiguousSurveySubmissionError);
+  });
+
+  it('rejects a V2 demo wrapper that does not prove non-persistence', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'surveys.public_response.v2',
+      legacy_contract_version: 'demo.survey_response_ack.v1',
+      ok: true,
+      accepted: true,
+      ignored: false,
+      duplicate: false,
+      demo_mode: true,
+      persisted: false,
+      durable: false,
+      slug: 'demo-gobierno-junin-prioridades-barriales',
+    });
+
+    await expect(
+      postPublicResponse(
+        'demo-gobierno-junin-prioridades-barriales',
+        {
+          submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394875',
+          respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }],
+        },
+        'junin',
+      ),
+    ).rejects.toBeInstanceOf(AmbiguousSurveySubmissionError);
+  });
+
+  it('rejects a synthetic demo ack for a non-demo survey slug', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'demo.survey_response_ack.v1',
+      ok: true,
+      accepted: true,
+      ignored: false,
+      duplicate: false,
+      demo_mode: true,
+      persisted: false,
+      durable: false,
+      slug: 'mi-encuesta-real',
+      seeded_responses_before: 100,
+      seeded_responses_after: 100,
+      simulated_view_responses_after: 101,
+      persistence: {
+        contract_version: 'demo.survey_persistence.v1',
+        state: 'not_persisted',
+        durable: false,
+        database_write: false,
+        live_results_mutated: false,
+        scope: 'current_view',
+      },
+    });
+
+    await expect(
+      postPublicResponse(
+        'mi-encuesta-real',
+        {
+          submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394877',
+          respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
+        },
+        'junin',
+      ),
+    ).rejects.toBeInstanceOf(AmbiguousSurveySubmissionError);
   });
 });

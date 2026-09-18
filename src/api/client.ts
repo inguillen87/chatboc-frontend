@@ -931,9 +931,13 @@ export const apiClient = {
 
   adminListProducts: async (tenantSlug: string, filters?: Record<string, any>): Promise<any[]> => {
       const params = new URLSearchParams(filters);
-      return apiFetch<any[]>(`/api/catalog?${params.toString()}`, {
+      const query = params.toString();
+      return apiFetch<any[]>(
+        `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/catalog/items${query ? `?${query}` : ''}`,
+        {
           tenantSlug
-      });
+        },
+      );
   },
 
   adminUpdateProduct: async (tenantSlug: string, productId: string | number, data: any): Promise<any> => {
@@ -1188,13 +1192,12 @@ export const apiClient = {
   // --- Widget & Theme Methods ---
 
   getChatTheme: async (tenantSlug: string): Promise<any> => {
-    // Use the admin config endpoint which includes theme_config
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
+    // WidgetSettings is the runtime source consumed by the public widget.
+    return apiFetch<any>('/api/tenant/config', { tenantSlug });
   },
 
   updateChatTheme: async (tenantSlug: string, data: any): Promise<any> => {
-    // Update the tenant config (merges with existing)
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
+    return apiFetch<any>('/api/tenant/config', {
       method: 'PUT',
       body: data,
       tenantSlug
