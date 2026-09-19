@@ -269,8 +269,11 @@ Especificación compartida, ownership y criterios de aceptación: [WHITE_LABEL_P
 - **WL-03**: dominio propio/subdominio verificado, HTTPS, autenticación, canonical URLs y aislamiento de sesiones/enlaces.
 - **WL-04**: PWA de identidad propia, manifest/iconos, instalación y actualización seguras, cachés/storage/push separados; API sensible NetworkOnly.
 - **WL-05**: misma identidad en widget, portal, encuestas, catálogos/pedidos y comunicaciones. Configuración/aprobaciones Meta/Twilio comprobadas por separado.
-- **WL-06**: caso TDF con nombre/URL actuales por recuperar y segunda organización empresarial Full sobre todo el SaaS compartido. FARO es referencia histórica, no marca vigente; demo conceptual y tenant productivo no se confunden.
+- **WL-06**: reutilizar el MVP TDF en `agente-conversa.vercel.app` (título verificado: Agente conversacional accesible · Mesa Única de Discapacidad) y una segunda organización Full. FARO queda como referencia histórica. El primer pago de la factura, aún no confirmado, habilita el inicio de mejoras/pruebas específicas del cliente, no una promoción automática a producción.
 
 Dependencias: CT-01/02/04, BE-01/02/08 y FE-01/03/05/07; conservar contratos existentes y las líneas de septiembre.
 La activación productiva depende además de los gates de Render/Vercel/Neon. Esta fase no autoriza cambios DNS, compras, migraciones, retiro de Render ni promoción de dominios.
 Cada entrega registra estado planificado/implementado/probado/publicado y versión de esquema, aplicación, branding y dominio por separado.
+- **ONB-01**: extender el onboarding existente con progreso persistente, tareas idempotentes, validación y reanudación en Configuración/Integraciones; contrataciones, Full y pagos confirmados se registran por separado.
+- **ONB-02**: consola de altas por organización y soporte por excepción; medir intervención manual y tiempo hasta primera tarea completada. Segunda alta Full sin forks, commits por marca ni copia manual de credenciales.
+- **TDF-START**: conservar MVP/URL actual antes del primer pago; después ensayar adopción del SaaS completo, aceptación y rollback sin cambiar innecesariamente la dirección conocida por el cliente. Ver 10.1/10.2 del plan.

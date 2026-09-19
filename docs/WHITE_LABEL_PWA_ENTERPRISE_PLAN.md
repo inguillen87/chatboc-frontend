@@ -12,7 +12,7 @@ Frontend revisado: `44eaf7b62cafe743c7032c3ac84fedba05288171`; backend de migrac
 - `tests/test_white_label_phase0_security.py` contiene casos para dominio desconocido y tenant inactivo. Existencia de pruebas no equivale a haberlas ejecutado en este corte.
 - `vite.config.ts` genera hoy un manifest global con nombre/iconos de Chatboc; eso no certifica una PWA de marca independiente por organización.
 - `src/pwa.ts` desactiva el service worker en hosts efímeros `.vercel.app`; la aceptación PWA requiere un origen QA estable autorizado, no quitar ese resguardo.
-- Referencia histórica: `src/pages/public/disabilityAIAgentDemo.content.ts` todavía usa **Faro TDF** para una demo conceptual de discapacidad en Tierra del Fuego. Marcelo aclara que solicitaron cambiar nombre y URL; FARO no debe usarse como marca vigente/aprobada. La referencia aproximada «conversacional» no permite reconstruir con certeza el nombre y dominio exactos. El pendiente de nomenclatura no bloquea la plataforma genérica.
+- Referencia histórica: `src/pages/public/disabilityAIAgentDemo.content.ts` todavía usa **Faro TDF** para una demo conceptual de discapacidad en Tierra del Fuego. Marcelo aclara que solicitaron cambiar nombre y URL; FARO no debe usarse como marca vigente/aprobada. La referencia operativa actual se recuperó en Vercel y se verificó por HTTP: `agente-conversa.vercel.app`, título «Agente conversacional accesible · Mesa Única de Discapacidad». Ver evidencia y condición de inicio en 10.1.
 - La entrada institucional histórica excluye el manifest global. Usarla sólo como referencia de identidad configurable, no como plataforma paralela ni como datos reales.
 
 ## 2. Decisiones de arquitectura
@@ -132,12 +132,40 @@ No asignar un número/proveedor de un tenant a otro, ni compartir campañas, aud
 
 ## 10. WL-06: caso TDF y segunda organización sobre el SaaS completo (Producto + QA)
 
-El caso de Tierra del Fuego, antes identificado como FARO, sirve para probar la identidad elegida por ese cliente sobre TODO el SaaS Full. Nombre y URL exactos de reemplazo quedan por recuperar/confirmar; no registrar «conversacional» como marca aprobada ni inventar un hostname. El contenido histórico es conceptual y no acredita contratación o producción.
-El cliente debe confirmar dominio exacto, derecho de uso de identidad, responsable de aprobación, canales y catálogo de servicios; no se inventa ni se registra un dominio en su nombre.
+El caso de Tierra del Fuego, antes identificado como FARO, sirve para probar la identidad elegida por ese cliente sobre TODO el SaaS Full. Se conserva la URL actual verificada `agente-conversa.vercel.app`; usar el título publicado como referencia, sin inventar razón social, marca contractual o dominio nuevo. El contenido histórico es conceptual y no acredita contratación o producción.
+Preservar el alias actual y confirmar derecho de uso de identidad, responsable de aprobación, canales y catálogo de servicios; cualquier dominio adicional requiere validación propia. No se registra un dominio nuevo en su nombre.
 No reutilizar como datos reales los casos, personas, indicadores, ventanas de atención o promesas de la demo. Aislar tenant demo y tenant operativo.
 Probar una segunda organización empresarial sobre el MISMO build, con catálogo/pedidos, y otra identidad institucional cuando corresponda. Ambas deben poder coexistir sin logos, sesiones, enlaces, documentos ni suscripciones cruzados.
 La aceptación del caso TDF incluye accesibilidad y sensibilidad de documentación: sólo fixtures anonimizados en QA, sin información clínica o de discapacidad real para generar capturas.
 **Aceptación:** administrador autorizado publica marca y dominio desde configuración; persona instala y usa su PWA; equipo atiende con roles reales en QA; rollback de marca y dominio ensayado.
+
+### 10.1. Reutilización del MVP actual y condición de inicio
+
+Decisión posterior de Marcelo: conservar la URL actual del MVP TDF y usarlo como primer caso de adopción del SaaS completo; comenzar sus mejoras y primeras pruebas cuando se confirme el primer pago de la factura próxima. No consta factura emitida ni pago recibido en este corte.
+**Referencia pública localizada, no inventada:** `https://agente-conversa.vercel.app`, HTTP 200, título HTML «Agente conversacional accesible · Mesa Única de Discapacidad».
+La API autenticada de aliases Vercel vincula `agente-conversa.vercel.app` y el alias histórico `faro-tdf.vercel.app` al mismo deployment `dpl_FWeNSTinsRTN6GapmQaAhVkzk4fy`, proyecto compartido `chatboc-frontend` (`prj_CEIKYsPgxlSEOBEKjizziSJBsGKf`).
+El deployment está READY y su metadata informa fuente `b048e199f513f3f5ee747f6c8af749fa181d6266`, rama `codex/junin-enterprise-crm-p0-20260827`. Eso identifica el antecedente; no certifica igualdad del árbol desplegado ni aceptación funcional del SaaS. Reconciliar diferencias con los sprints recientes antes de sustituir el destino del alias.
+FARO queda como nombre histórico. El título/URL publicados son la referencia operativa recuperada; la razón social de facturación, branding final y contrato se validan por separado.
+
+**Secuencia acordada para TDF:**
+1. Antes del pago: preparar arquitectura y plan genéricos, registrar baseline/URL; no cambiar identidad, destino del alias, datos, canales ni experiencia del MVP por este requerimiento.
+2. Primer pago confirmado: asociarlo al cliente, factura y etapa correctos mediante conciliación/registro autorizado. Emitir factura, ver un comprobante o recibir `status=approved` en una URL no basta. El evento se registra una sola vez.
+3. Habilitar inicio del trabajo específico y pruebas TDF, conforme al acuerdo. No convertir automáticamente un anticipo de implementación en suscripción Full activa sin validar qué cubre; son estados comerciales distintos.
+4. Inventariar tenant, cuentas, canales, contenido y rutas actuales; incorporar el caso al SaaS compartido con identidad propia y permisos/funciones de su plan. No crear otro repositorio/aplicación para mantener la URL.
+5. Validar en QA las tareas del cliente, la separación de organizaciones, los enlaces, el acceso desde móvil/tablet/escritorio y la experiencia de continuidad. Las pruebas iniciales no envían mensajes ni usan datos sensibles reales por defecto.
+6. Publicar tras aceptación y rollback preparado, conservando la URL conocida por el cliente. No prometer migración de cookies/sesiones entre orígenes ni cero interrupciones sin prueba; documentar cualquier reautenticación necesaria.
+La URL Vercel actual puede conservarse para acceso al piloto; no implica una PWA white label certificada. El código actual desactiva service workers en `.vercel.app`: preparar un origen estable autorizado para ensayos PWA, o una política explícita de alias estable con pruebas de aislamiento, sin retirar globalmente esa protección.
+
+### 10.2. Onboarding reutilizable: más clientes, menos trabajo manual
+
+Extender `services/tenant_implementation_journey.py` y los flujos actuales de alta/integraciones después de revisar sus contratos; no crear un proceso paralelo por TDF.
+Asistente único en Configuración e Integraciones: organización → contratación/Full verificado → marca → dominio → WhatsApp/pagos → validación → activación. Cada paso guarda progreso y muestra listo/pendiente/error con acción concreta.
+Automatizar lo repetible mediante tareas persistentes, idempotentes y reanudables: validación de assets, resolución de dominio/TLS, publicación de configuración, manifest, comprobaciones de canal y salud. Un reintento no crea otro tenant ni duplica suscripciones o conexiones.
+Conservar las decisiones que requieren al cliente: autoridad sobre DNS, autorización de su cuenta/número, aceptación de configuración y permisos. El sistema guía y verifica; no promete eliminar aprobaciones de terceros.
+Consola central de Chatboc: estado de cada alta, última validación, consumo, bloqueo y responsable; soporte sólo por excepción, auditado y limitado por organización. No ampliar permisos de soporte por conveniencia.
+Actualizaciones comunes con compatibilidad de configuración, flags y rollback: el cliente mantiene su marca/dominio y no debe reconfigurar todo con cada release.
+Medir minutos de intervención manual por alta, pasos completados en autoservicio, bloqueos por proveedor, reintentos, tickets de soporte y tiempo hasta primera tarea real completada. Establecer baseline y objetivos después del primer caso, no inventar porcentajes de ahorro.
+**Aceptación de escalabilidad:** repetir el alta con una segunda organización Full sin commits, fork, copiado manual de credenciales ni cambios ad hoc en código. Las tareas y configuración quedan trazables y recuperables; uso y datos no se mezclan.
 
 ## 11. Secuencia de implementación y ownership
 
