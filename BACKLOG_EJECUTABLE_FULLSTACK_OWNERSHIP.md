@@ -282,3 +282,15 @@ pendientes de Render/Vercel/Neon. No implica que TDF ya tenga Full productivo.
 - **DEP-UPGRADE (planificado):** evaluar React 19 y Vite actual con matriz de
   compatibilidad y regresiones. Versiones instaladas y soporte revisados; sin
   cambiar dependencias en este sprint ni generar forks por cada organización.
+
+### SS-PROFILE-SAVE: perfil institucional y edicion colaborativa
+
+Implementacion: revision esperada, recibo verificable, campos institucionales y
+auditoria en una transaccion. Perfil personal e institucional conservan su alcance.
+Interfaz: comparacion de versiones, conflictos con eleccion explicita, conservacion
+de cambios, confirmacion de descarte y aviso de cierre segun soporte del navegador.
+Detalle: docs/ORGANIZATION_PROFILE_SAVE_RELEASE.md.
+
+Pendiente: release backend/frontend coordinada y prueba autorizada de lectura y
+guardado en QA. Esto no cierra la operacion productiva, marca blanca completa,
+integracion de horarios con agentes ni la migracion de infraestructura.
