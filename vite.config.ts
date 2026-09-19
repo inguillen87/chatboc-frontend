@@ -123,7 +123,8 @@ const institutionalDisabilityShell = () => ({
     order: 'post' as const,
     handler(html: string, context: { filename: string }) {
       const normalizedFilename = context.filename.replaceAll('\\', '/');
-      if (!normalizedFilename.endsWith('/demo/institucional/tdf-discapacidad/index.html')) {
+      if (!normalizedFilename.endsWith('/demo/institucional/tdf-discapacidad/index.html')
+          && !normalizedFilename.endsWith('/demo/evaluation/index.html')) {
         return html;
       }
       // This presentation is a separate white-label entry and must not expose
@@ -358,6 +359,7 @@ export default defineConfig(({ mode }) => {
           main: path.resolve(__dirname, "index.html"),
           iframe: path.resolve(__dirname, "iframe.html"),
           portal: path.resolve(__dirname, "portal/index.html"),
+          evaluation: path.resolve(__dirname, "demo/evaluation/index.html"),
           tdfDisabilityDemo: path.resolve(
             __dirname,
             "demo/institucional/tdf-discapacidad/index.html",
