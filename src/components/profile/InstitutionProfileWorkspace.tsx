@@ -88,6 +88,7 @@ interface InstitutionProfileWorkspaceProps {
   isMunicipal: boolean;
   isAdministrator: boolean;
   loading?: boolean;
+  canSave?: boolean;
   plan?: string;
   onCancel: () => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
@@ -102,6 +103,7 @@ export default function InstitutionProfileWorkspace({
   isMunicipal,
   isAdministrator,
   loading = false,
+  canSave = true,
   plan,
   onCancel,
   onSave,
@@ -225,7 +227,7 @@ export default function InstitutionProfileWorkspace({
           <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
             Cancelar cambios
           </Button>
-          <Button type="submit" disabled={loading || !isAdministrator}>
+          <Button type="submit" disabled={loading || !isAdministrator || !canSave}>
             <Save className="mr-2 h-4 w-4" />
             {loading ? "Guardando..." : "Guardar"}
           </Button>

@@ -1,3 +1,4 @@
+import profileSettingsSource from '../../tests/fixtures/organization-profile-settings.json';
 import organizationFixtures from '../../tests/fixtures/organization-workspaces.json';
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -143,7 +144,7 @@ const verifiedUser = (tenantSlug = 'junin') => ({
   tenant: { slug: tenantSlug, tenant_slug: tenantSlug },
 });
 
-const profileResponse = (tenantSlug: string) => ({
+const profileResponse = (tenantSlug: string) => { const value = {
   id: 22,
   nombre_empresa: tenantSlug === 'junin' ? 'Municipalidad de Junín' : 'Municipalidad de Mendoza',
   telefono: '+541112345678',
@@ -164,7 +165,11 @@ const profileResponse = (tenantSlug: string) => ({
   tenant_slug: tenantSlug,
   slug: tenantSlug,
   horario_json: [],
-});
+}; return {...value, organization_profile: {
+  ...structuredClone(profileSettingsSource), tenant:{id:11,slug:tenantSlug},
+  save_endpoint:`/api/admin/tenants/${tenantSlug}/config`,
+  values:Object.fromEntries(Object.keys(profileSettingsSource.values).map(key=>[key,(value as any)[key]??profileSettingsSource.values[key as keyof typeof profileSettingsSource.values]])),
+}};};
 
 const countApiCalls = (path: string) =>
   runtime.apiFetch.mock.calls.filter(([calledPath]) => calledPath === path).length;
@@ -746,4 +751,113 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByTestId('organization-profile-guidance')).toBeNull();
   });
 
+  it('saves organization fields through the versioned config route, never the personal PUT', async () => {
+    const defaultApi=runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async(path:string,options?:any)=>{
+      if(path==='/api/admin/tenants/junin/config'&&options?.method==='PUT'){
+        const profile=profileResponse('junin').organization_profile;
+        return {contract_version:'organization.profile_save.v1',ok:true,saved:true,provider_calls_performed:false,
+          tenant:profile.tenant,profile:{...profile,revision:'b'.repeat(64),values:{...profile.values,...options.body.organization_profile}}};
+      }
+      return defaultApi(path,options);
+    });
+    renderProfile('/perfil?section=general');
+    const input=await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    fireEvent.change(input,{target:{value:'Nombre de evaluación'}});
+    fireEvent.click(screen.getByRole('button',{name:'Guardar'}));
+    await screen.findByText('Los datos de la organización quedaron confirmados por el servidor.');
+    const calls=runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject(['/api/admin/tenants/junin/config',{tenantSlug:'junin',body:{organization_profile:{nombre_empresa:'Nombre de evaluación'}}}]);
+    expect(calls[0][1].body.organization_profile).not.toHaveProperty('avatar_url');
+    expect(calls[0][1].body.organization_profile).not.toHaveProperty('horario_json');
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+  it('keeps local input on a version conflict and requires explicit review',async()=>{
+    const defaultApi=runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async(path:string,options?:any)=>{
+      if(path==='/api/admin/tenants/junin/config'&&options?.method==='PUT')throw new ApiError('Otra edición',412);
+      if(path==='/api/admin/tenants/junin/config'){
+        const profile=profileResponse('junin').organization_profile;
+        return {organization_profile:{...profile,revision:'c'.repeat(64),values:{...profile.values,nombre_empresa:'Nombre de otro administrador'}}};
+      }
+      return defaultApi(path,options);
+    });
+    renderProfile('/perfil?section=general');
+    const input=await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    fireEvent.change(input,{target:{value:'Mi edición'}});fireEvent.click(screen.getByRole('button',{name:'Guardar'}));
+    await screen.findByRole('button',{name:'Revisar versión actual'});
+    expect(input).toHaveValue('Mi edición');expect(screen.getByRole('button',{name:'Guardar'})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button',{name:'Revisar versión actual'}));
+    await screen.findByText('Nombre de otro administrador');
+    expect(screen.getByRole('button',{name:'Usar selección y seguir editando'})).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio',{name:/Tu edición Mi edición/}));
+    fireEvent.click(screen.getByRole('button',{name:'Usar selección y seguir editando'}));
+    expect(input).toHaveValue('Mi edición');expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled();
+    expect(runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(1);
+  });
+  it('clears organization fields when a save discovers revoked access',async()=>{
+    const defaultApi=runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async(path:string,options?:any)=>{
+      if(options?.method==='PUT')throw new ApiError('Acceso revocado',403);
+      return defaultApi(path,options);
+    });
+    renderProfile('/perfil?section=general');
+    const input=await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    fireEvent.change(input,{target:{value:'No debe permanecer'}});fireEvent.click(screen.getByRole('button',{name:'Guardar'}));
+    await waitFor(()=>expect(input).toHaveValue(''));
+    expect(screen.getByRole('button',{name:'Guardar'})).toBeDisabled();
+  });
+  it('does not submit institutional values to an older unsupported backend',async()=>{
+    const defaultApi=runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async(path:string,options?:any)=>{
+      const response=await defaultApi(path,options);
+      if(path==='/api/me')delete response.organization_profile;
+      return response;
+    });
+    renderProfile('/perfil?section=general');
+    await screen.findByText(/El servidor todavía no publicó el guardado institucional/);
+    expect(screen.getByRole('button',{name:'Guardar'})).toBeDisabled();
+    expect(runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(0);
+  });
+
+  it('warns before discarding a modified organization and restores only the loaded baseline',async()=>{
+    renderProfile('/perfil?section=general');
+    const input=await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    const original=(input as HTMLInputElement).value;
+    fireEvent.change(input,{target:{value:'Edición que no se envía'}});
+    expect(screen.getByText('1 dato pendiente de guardar en esta organización.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'Cancelar cambios'}));
+    expect(await screen.findByRole('alertdialog')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'Seguir editando'}));
+    expect(input).toHaveValue('Edición que no se envía');
+    fireEvent.click(screen.getByRole('button',{name:'Cancelar cambios'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Descartar cambios'}));
+    expect(input).toHaveValue(original);
+    expect(runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(0);
+  });
+  it('adds a native unload guard only while the organization has local changes',async()=>{
+    renderProfile('/perfil?section=general');
+    const input=await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    const original=(input as HTMLInputElement).value;
+    fireEvent.change(input,{target:{value:'No cerrar sin aviso'}});
+    const dirty=new Event('beforeunload',{cancelable:true});window.dispatchEvent(dirty);
+    expect(dirty.defaultPrevented).toBe(true);
+    fireEvent.change(input,{target:{value:original}});
+    const clean=new Event('beforeunload',{cancelable:true});window.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(false);
+  });
+  it('does not claim a fresh save when the form has no edits',async()=>{
+    renderProfile('/perfil?section=general');
+    await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    fireEvent.click(screen.getByRole('button',{name:'Guardar'}));
+    expect(runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(0);
+    expect(screen.queryByText('Los datos de la organización quedaron confirmados por el servidor.')).toBeNull();
+  });
 });

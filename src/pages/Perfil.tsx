@@ -459,6 +459,10 @@ const ControlCenterCardButton = ({
 
 import { readOrganizationWorkspace, type OrganizationWorkspace } from '@/utils/organizationWorkspace';
 
+import { useOrganizationProfileSave } from '@/hooks/useOrganizationProfileSave';
+import { readOrganizationProfile, profileChanges, ORGANIZATION_FIELDS, type OrganizationProfileSettings, type OrganizationValues } from '@/utils/organizationProfileSettings';
+import ProfileVersionReview from '@/components/profile/ProfileVersionReview';
+
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -466,6 +470,9 @@ export default function Perfil() {
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
     organization_workspace: null as OrganizationWorkspace | null,
+    organization_profile: null as OrganizationProfileSettings | null,
+    baseline_hours_ui: '',
+
     nombre_empresa: "",
     telefono: "",
     direccion: "",
@@ -652,7 +659,12 @@ export default function Perfil() {
     // Never carry a verified channel contract across tenant identities while
     // the next scoped profile is loading.
     setProfileChannelActivation(undefined);
-    setPerfil((current) => ({...current, organization_workspace: null}));
+    setPerfil((current) => ({...current,
+      organization_workspace: null, organization_profile: null,
+      nombre_empresa:'', telefono:'', direccion:'', ciudad:'', provincia:'', pais:'',
+      latitud:null, longitud:null, link_web:'', logo_url:'', baseline_hours_ui:'',
+      horarios_ui:DIAS.map(()=>({abre:'',cierra:'',cerrado:false})),
+    }));
   }, [profileIdentityScope]);
   const buildMappingPath = useCallback(
     (path: string) =>
@@ -701,6 +713,39 @@ export default function Perfil() {
   const normalizedRole = String(normalizeRole(user?.rol));
   const isStaff = ['superadmin', 'tenant_admin', 'employee'].includes(normalizedRole);
   const isTenantAdministrator = ['superadmin', 'tenant_admin'].includes(normalizedRole);
+  const currentOrgProfile = perfil.organization_profile?.tenant.slug === profileTenantScope ? perfil.organization_profile : null;
+  const profileSave = useOrganizationProfileSave(`${profileIdentityScope}:${normalizedRole}`, currentOrgProfile);
+  const profileReadScope = useRef({key:'',generation:0});
+  const profileScopeKey = `${profileIdentityScope}:${normalizedRole}`;
+  if (profileReadScope.current.key !== profileScopeKey) {
+    profileReadScope.current = {key:profileScopeKey,generation:profileReadScope.current.generation+1};
+  }
+  useEffect(() => {
+    if (profileSave.denied) setPerfil(current => ({...current, organization_workspace:null, organization_profile:null,
+      nombre_empresa:'',telefono:'',direccion:'',ciudad:'',provincia:'',pais:'',latitud:null,longitud:null,link_web:'',logo_url:''}));
+  }, [profileSave.denied]);
+
+  const organizationDraft = (): OrganizationValues => ({
+    ...Object.fromEntries(ORGANIZATION_FIELDS.filter(k=>!['latitud','longitud','horario_json'].includes(k)).map(k=>[k,String((perfil as any)[k]??'').trim()])),
+    latitud: perfil.latitud, longitud: perfil.longitud,
+    horario_json: currentOrgProfile && JSON.stringify(perfil.horarios_ui) === perfil.baseline_hours_ui
+      ? currentOrgProfile.values.horario_json
+      : perfil.horarios_ui.map((h,index)=>({dia:DIAS[index],abre:h.cerrado?'':h.abre,cierra:h.cerrado?'':h.cierra,cerrado:h.cerrado})),
+  } as OrganizationValues);
+
+  const organizationDirtyCount = currentOrgProfile
+    ? Object.keys(profileChanges(organizationDraft(), currentOrgProfile.values)).length : 0;
+  const [discardReviewOpen, setDiscardReviewOpen] = useState(false);
+  useEffect(() => { setDiscardReviewOpen(false); }, [profileScopeKey]);
+  useEffect(() => {
+    if (!organizationDirtyCount || profileSave.denied) return;
+    const preventLoss = (event: BeforeUnloadEvent) => {
+      event.preventDefault(); event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', preventLoss);
+    return () => window.removeEventListener('beforeunload', preventLoss);
+  }, [organizationDirtyCount, profileSave.denied]);
+
   const isAnalyticsViewer = normalizedRole === 'analytics_viewer';
   const isCatalogManager = normalizedRole === 'catalog_manager';
   const canManageBilling = isTenantAdministrator;
@@ -1287,6 +1332,8 @@ export default function Perfil() {
     tenantSlug?: string | null;
     isCurrent?: () => boolean;
   } = {}): Promise<ProfileIdentitySnapshot | null> => {
+    const capturedScope=profileReadScope.current;
+    const scopeCurrent=()=>isCurrent() && profileReadScope.current===capturedScope;
     setLoadingGuardar(true);
     setError(null);
     setMensaje(null);
@@ -1294,11 +1341,14 @@ export default function Perfil() {
       // Keep the contract explicit. Preview/static hosts only proxy `/api/*`;
       // a bare `/me` can otherwise be swallowed by the SPA fallback and return
       // index.html, which in turn degrades the workspace to a generic tenant.
-      const data = await apiFetch<any>("/api/me", { tenantSlug });
-      if (!isCurrent()) {
+      let data = await apiFetch<any>("/api/me", { tenantSlug });
+      if (!scopeCurrent()) {
         return null;
       }
 
+      const settings = readOrganizationProfile(data.organization_profile, tenantSlug || data.tenant_slug);
+      if (data.organization_profile != null && !settings) throw new Error('La configuración recibida no corresponde a esta organización.');
+      if (settings) data = {...data, ...settings.values};
       const channelActivation = data.channel_activation;
       const embeddedChannelActivation =
         channelActivation?.contract_version === 'tenant.channel_activation.v1'
@@ -1321,6 +1371,9 @@ export default function Perfil() {
         cierra: "20:00",
         cerrado: idx === 5 || idx === 6,
       }));
+      if (settings && !settings.values.horario_json.length) {
+        horariosUi = DIAS.map(() => ({abre:'',cierra:'',cerrado:false}));
+      }
       if (
         data.horario_json &&
         Array.isArray(data.horario_json) &&
@@ -1396,6 +1449,8 @@ export default function Perfil() {
         avatar_source: profileAvatar.source || "",
         avatar_consent: profileAvatar.consented,
         horarios_ui: horariosUi,
+        organization_profile: settings,
+        baseline_hours_ui: JSON.stringify(horariosUi),
       }));
 
       const trimmedAddress = direccion.trim();
@@ -1421,13 +1476,18 @@ export default function Perfil() {
         tenant_slug: resolvedProfileTenantSlug,
       };
     } catch (err) {
-      if (isCurrent()) {
-        setPerfil((current) => ({...current, organization_workspace: null}));
+      if (scopeCurrent()) {
+        setPerfil((current) => ({...current,
+      organization_workspace: null, organization_profile: null,
+      nombre_empresa:'', telefono:'', direccion:'', ciudad:'', provincia:'', pais:'',
+      latitud:null, longitud:null, link_web:'', logo_url:'', baseline_hours_ui:'',
+      horarios_ui:DIAS.map(()=>({abre:'',cierra:'',cerrado:false})),
+    }));
         setError(getErrorMessage(err, "Error al cargar el perfil."));
       }
       return null;
     } finally {
-      if (isCurrent()) {
+      if (scopeCurrent()) {
         setLoadingGuardar(false);
         setProfileReady(true);
       }
@@ -1850,114 +1910,42 @@ export default function Perfil() {
     }
   };
 
-  const handleGuardar = async (e: FormEvent) => { // Tipado de 'e'
-    e.preventDefault();
-    setMensaje(null);
-    setError(null);
-
-    if (!isTenantAdministrator) {
-      setError("No tenés permisos para modificar el perfil institucional.");
-      return;
-    }
-
-    const requiredGeneralFields = [
-      ["nombre institucional", perfil.nombre_empresa],
-      ["teléfono de contacto", perfil.telefono],
-      ["sitio institucional", perfil.link_web],
-    ] as const;
-    const missingGeneralFields = requiredGeneralFields
-      .filter(([, value]) => !value.trim())
-      .map(([label]) => label);
-    if (missingGeneralFields.length > 0) {
-      setError(`Completá ${missingGeneralFields.join(", ")} antes de guardar.`);
-      updateInstitutionSection("general");
-      return;
-    }
-
-    try {
-      const institutionalUrl = new URL(perfil.link_web);
-      if (!["http:", "https:"].includes(institutionalUrl.protocol)) throw new Error("invalid_protocol");
-    } catch {
-      setError("Ingresá un sitio institucional válido, por ejemplo https://municipio.gob.ar.");
-      updateInstitutionSection("general");
-      return;
-    }
-
-    setLoadingGuardar(true);
-
-    const horariosParaBackend = perfil.horarios_ui.map((h, idx) => ({
-      dia: DIAS[idx],
-      abre: h.cerrado ? "" : h.abre,
-      cierra: h.cerrado ? "" : h.cierra,
-      cerrado: h.cerrado,
-    }));
-
-    const payload = {
-      nombre_empresa: perfil.nombre_empresa,
-      telefono: perfil.telefono,
-      direccion: perfil.direccion,
-      ciudad: perfil.ciudad,
-      provincia: perfil.provincia,
-      pais: perfil.pais,
-      latitud: perfil.latitud,
-      longitud: perfil.longitud,
-      link_web: perfil.link_web,
-      logo_url: perfil.logo_url,
-      avatar_url: perfil.avatar_consent ? perfil.avatar_url : "",
-      avatar_source: perfil.avatar_consent && perfil.avatar_url ? perfil.avatar_source || "profile_url" : undefined,
-      avatar_consent: Boolean(perfil.avatar_consent && perfil.avatar_url),
-      profile_picture_consent: Boolean(perfil.avatar_consent && perfil.avatar_url),
-      horario_json: JSON.stringify(horariosParaBackend), // Convertir a string JSON
-    };
-    try {
-      // Usa apiFetch, que maneja Content-Type y Authorization
-      const data = await apiFetch<any>("/perfil", {
-        method: "PUT",
-        body: payload,
-        tenantSlug: profileTenantScope,
-      });
-      
-      const successMsg = data.mensaje || "Cambios guardados correctamente ✔️";
-      const refreshedProfile = await fetchPerfil({ tenantSlug: profileTenantScope });
-      if (user && refreshedProfile) {
-        const refreshedTenantSlug = refreshedProfile.tenant_slug || profileTenantScope || undefined;
-        setUser({
-          ...user,
-          nombre_empresa: refreshedProfile.nombre_empresa,
-          plan: refreshedProfile.plan,
-          rubro: refreshedProfile.rubro,
-          logo_url: refreshedProfile.logo_url,
-          avatar_url: refreshedProfile.avatar_url,
-          picture: refreshedProfile.avatar_url,
-          avatar_source: refreshedProfile.avatar_source,
-          avatar_consent: refreshedProfile.avatar_consent,
-          profile_picture_consent: refreshedProfile.avatar_consent,
-          ...(refreshedTenantSlug
-            ? {
-                tenantSlug: refreshedTenantSlug,
-                tenant_slug: refreshedTenantSlug,
-                tenant: {
-                  ...(user.tenant || {}),
-                  slug: refreshedTenantSlug,
-                  tenant_slug: refreshedTenantSlug,
-                },
-              }
-            : {}),
-        });
-      }
-      setMensaje(successMsg);
-    } catch (err) {
-      setError(getErrorMessage(err, "Error al guardar el perfil."));
-    } finally {
-      setLoadingGuardar(false);
-    }
+  const applyOrganizationSnapshot = (contract: OrganizationProfileSettings, values = contract.values) => {
+    const toUi = (hours: OrganizationValues['horario_json']) => hours.length
+      ? hours.map(h=>({abre:h.abre,cierra:h.cierra,cerrado:h.cerrado}))
+      : DIAS.map(()=>({abre:'',cierra:'',cerrado:false}));
+    setPerfil(current=>({...current,...values,organization_profile:contract,
+      horarios_ui:toUi(values.horario_json),baseline_hours_ui:JSON.stringify(toUi(contract.values.horario_json))}));
   };
 
-  const handleCancelProfileChanges = useCallback(() => {
-    setMensaje(null);
-    setError(null);
-    void fetchPerfil({ tenantSlug: profileTenantScope });
-  }, [fetchPerfil, profileTenantScope]);
+  const handleGuardar = async (e: FormEvent) => {
+    e.preventDefault();
+    if (profileSave.pending || profileSave.needsReview || profileSave.denied) return;
+    setMensaje(null);setError(null);
+    if (!isTenantAdministrator || !currentOrgProfile?.can_edit) {
+      setError('El guardado institucional necesita un perfil autorizado y compatible. Actualizá la configuración antes de continuar.');
+      return;
+    }
+    if (!perfil.nombre_empresa.trim()) {
+      setError('Completá nombre institucional antes de guardar.');
+      updateInstitutionSection('general'); return;
+    }
+    if (!organizationDirtyCount) return; // No success receipt for an operation that was not sent.
+    const verified = await profileSave.save(organizationDraft());
+    if (!verified) return;
+    applyOrganizationSnapshot(verified);
+    setMensaje('Los datos de la organización quedaron confirmados por el servidor.');
+  };
+
+
+  const handleCancelProfileChanges = () => {
+    if (profileSave.pending || loadingGuardar) return;
+    if (currentOrgProfile && organizationDirtyCount > 0) {
+      setDiscardReviewOpen(true); return;
+    }
+    setMensaje(null); setError(null);
+    if (!profileSave.needsReview) void fetchPerfil({tenantSlug: profileTenantScope});
+  };
 
   const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Tipado de 'e'
     if (e.target.files && e.target.files[0]) {
@@ -2771,13 +2759,61 @@ export default function Perfil() {
             institutionName={perfil.nombre_empresa}
             workspace={perfil.organization_workspace?.tenant.slug === profileTenantScope ? perfil.organization_workspace : null}
             isMunicipal={esMunicipio}
-            isAdministrator={isTenantAdministrator}
-            loading={loadingGuardar}
+            isAdministrator={isTenantAdministrator && !profileSave.denied && currentOrgProfile?.can_edit !== false}
+            loading={loadingGuardar || profileSave.pending}
+            canSave={Boolean(currentOrgProfile?.can_edit) && !profileSave.needsReview && !profileSave.denied}
             plan={perfil.plan}
             onCancel={handleCancelProfileChanges}
             onSave={handleGuardar}
             onSectionChange={updateInstitutionSection}
           >
+            {currentOrgProfile ? <p role="status" aria-live="polite" className="mb-4 rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-foreground">
+              {profileSave.pending ? 'Verificando el guardado…' : organizationDirtyCount
+                ? `${organizationDirtyCount} ${organizationDirtyCount === 1 ? 'dato pendiente' : 'datos pendientes'} de guardar en esta organización.`
+                : 'Sin cambios pendientes en el perfil institucional.'}
+            </p> : null}
+            <AlertDialog open={discardReviewOpen && !profileSave.denied} onOpenChange={setDiscardReviewOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader><AlertDialogTitle>¿Descartar tu edición?</AlertDialogTitle>
+                  <AlertDialogDescription>Se recuperará la última versión que leíste de esta organización. No cambiaremos los datos del servidor.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel>Seguir editando</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => {
+                    if (currentOrgProfile && !profileSave.pending) {
+                      applyOrganizationSnapshot(currentOrgProfile);
+                      setMensaje(null); setError(null);
+                    }
+                    setDiscardReviewOpen(false);
+                  }}>Descartar cambios</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            {currentOrgProfile && !currentOrgProfile.can_edit ? <Alert className="mb-5"><AlertDescription>
+              Esta configuración está en modo consulta. El servidor no autorizó cambios en este momento.
+            </AlertDescription></Alert> : null}
+            {!currentOrgProfile && !loadingGuardar ? <Alert className="mb-5"><AlertDescription>
+              El servidor todavía no publicó el guardado institucional verificable. Podés revisar los datos; no se enviarán cambios incompletos.
+            </AlertDescription></Alert> : null}
+            {profileSave.needsReview ? <Alert className="mb-5" variant="destructive"><AlertDescription>
+              {profileSave.message || (profileSave.denied ? 'Tu acceso cambió. Ingresá nuevamente para verificar tus permisos.' : 'Revisá la versión actual antes de guardar otra vez.')}
+              {!profileSave.denied ? <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={profileSave.pending} onClick={()=>void profileSave.review()}>Revisar versión actual</Button> : null}
+            </AlertDescription></Alert> : null}
+            {profileSave.latest && currentOrgProfile ? (
+              <ProfileVersionReview
+                key={profileSave.latest.revision}
+                baseline={currentOrgProfile.values}
+                draft={organizationDraft()}
+                latest={profileSave.latest.values}
+                onAccept={(values) => {
+                  const latest = profileSave.acceptReview();
+                  if (latest) {
+                    applyOrganizationSnapshot(latest, values);
+                    setMensaje(null);
+                    setError(null);
+                  }
+                }}
+              />
+            ) : null}
             {mensaje ? (
               <Alert className="mb-5 border-emerald-500/30 bg-emerald-500/5">
                 <CheckCircle className="h-4 w-4 text-emerald-600" />
@@ -2815,7 +2851,6 @@ export default function Perfil() {
                     placeholder="+54 9 261 000 0000"
                     value={perfil.telefono}
                     onChange={handleInputChange}
-                    required
                     autoComplete="tel"
                   />
                   <p className="text-xs leading-5 text-muted-foreground">
@@ -2830,7 +2865,6 @@ export default function Perfil() {
                     placeholder="https://municipio.gob.ar"
                     value={perfil.link_web}
                     onChange={handleInputChange}
-                    required
                     autoComplete="url"
                   />
                   <p className="text-xs leading-5 text-muted-foreground">
@@ -2857,53 +2891,9 @@ export default function Perfil() {
                       Identidad visual de la organización. La personalización de dominio y marca se gobierna por tenant.
                     </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="avatar_url">Imagen personal autorizada</Label>
-                    <Input
-                      id="avatar_url"
-                      type="url"
-                      inputMode="url"
-                      placeholder="https://..."
-                      value={perfil.avatar_url}
-                      onChange={handleInputChange}
-                      disabled={avatarUploading}
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button type="button" variant="outline" size="sm" disabled={avatarUploading} asChild>
-                        <label htmlFor="avatar_file_upload">
-                          <UploadCloud className="mr-2 h-4 w-4" />
-                          {avatarUploading ? "Subiendo..." : "Subir imagen"}
-                        </label>
-                      </Button>
-                      <Input
-                        id="avatar_file_upload"
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="sr-only"
-                        onChange={handleProfileAvatarUpload}
-                        disabled={avatarUploading}
-                      />
-                      <Badge variant="outline">
-                        {perfil.avatar_consent && perfil.avatar_url ? "Uso autorizado" : "Fallback seguro"}
-                      </Badge>
-                    </div>
-                  </div>
-                  <label className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
-                    <Checkbox
-                      checked={Boolean(perfil.avatar_consent)}
-                      onCheckedChange={(checked) =>
-                        setPerfil((prev) => ({ ...prev, avatar_consent: Boolean(checked) }))
-                      }
-                      disabled={avatarUploading || !perfil.avatar_url.trim()}
-                      aria-label="Autorizar imagen personal"
-                    />
-                    <span>
-                      <span className="block font-semibold text-foreground">Autorizar uso de esta imagen</span>
-                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                        Solo se usa en CRM y operación con consentimiento explícito. No se obtienen fotos desde WhatsApp ni por scraping.
-                      </span>
-                    </span>
-                  </label>
+                  <p className="rounded-xl border border-border p-4 text-sm text-muted-foreground">
+                    Este formulario guarda la identidad de la organización. La imagen personal y su consentimiento son independientes y no se modifican con esta acción.
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Vista previa</p>

@@ -5,8 +5,12 @@ name: Organization profile workspace
       - src/pages/Perfil*
       - src/components/profile/**
       - src/utils/organizationWorkspace*
+      - src/utils/organizationProfileSettings*
+      - src/hooks/useOrganizationProfileSave*
       - tests/fixtures/organization-workspaces.json
       - tests/e2e/fixtures/organization-profile.*
+      - tests/profile-save.browser.mjs
+      - tests/e2e/fixtures/profile-version-review*
       - tests/organization-profile.browser.mjs
       - .github/workflows/organization-profile.yml
 permissions:
@@ -31,4 +35,4 @@ jobs:
       - run: npm test -- --maxWorkers=2
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: node tests/organization-profile.browser.mjs
+      - run: node tests/organization-profile.browser.mjs && node tests/profile-save.browser.mjs
