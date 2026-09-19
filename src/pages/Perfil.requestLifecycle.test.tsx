@@ -1,3 +1,4 @@
+import organizationFixtures from '../../tests/fixtures/organization-workspaces.json';
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
@@ -717,4 +718,32 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('tab=mapas');
     expect(window.location.search).not.toContain('tab=estadisticas');
   });
+  it('uses profile metadata for the current organization and removes it on context changes', async () => {
+    const previous = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if(path !== '/api/me') return previous(path,options);
+      const slug=options?.tenantSlug || 'junin';
+      const source=slug==='junin' ? organizationFixtures.colegio : organizationFixtures.empresa;
+      return {...profileResponse(slug),organization_workspace:{...source,tenant:{id:10,slug}}};
+    });
+    renderProfile('/perfil?tab=perfil&section=general');
+    await screen.findByText('Perfil del colegio');
+    fireEvent.click(screen.getByRole('button',{name:'Cambiar tenant de prueba'}));
+    await screen.findByText('Perfil de la empresa');
+    expect(screen.queryByText('Perfil del colegio')).toBeNull();
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('does not apply another organizations presentation returned by the API', async () => {
+    const previous=runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if(path !== '/api/me') return previous(path,options);
+      return {...profileResponse('junin'),organization_workspace:organizationFixtures.colegio};
+    });
+    renderProfile('/perfil?tab=perfil&section=general');
+    await screen.findByTestId('institution-profile-workspace');
+    expect(screen.queryByText('Perfil del colegio')).toBeNull();
+    expect(screen.queryByTestId('organization-profile-guidance')).toBeNull();
+  });
+
 });
