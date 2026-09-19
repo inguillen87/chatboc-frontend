@@ -1,7 +1,7 @@
 # Chatboc: marca blanca y PWA multidispositivo
 
 Estado: **PLANIFICADO**. Este documento define alcance y aceptación; no certifica funciones desplegadas.
-Decisión de producto solicitada por Marcelo: cada municipio, gobierno o empresa debe poder operar con su identidad, dominio y experiencia adaptable, sin bifurcar el código por cliente.
+Decisión de producto confirmada por Marcelo: las organizaciones con plan Full activo usan TODA la plataforma SaaS compartida con nombre, dominio/URL, colores, logos y WhatsApp propios configurables desde Configuración e Integraciones; no se desarrolla otra aplicación por cliente.
 Se integra al backlog full-stack, no reemplaza seguridad, pagos, encuestas ni la migración Render/Vercel/Neon.
 
 ## 1. Base revisada y brechas
@@ -12,8 +12,8 @@ Frontend revisado: `44eaf7b62cafe743c7032c3ac84fedba05288171`; backend de migrac
 - `tests/test_white_label_phase0_security.py` contiene casos para dominio desconocido y tenant inactivo. Existencia de pruebas no equivale a haberlas ejecutado en este corte.
 - `vite.config.ts` genera hoy un manifest global con nombre/iconos de Chatboc; eso no certifica una PWA de marca independiente por organización.
 - `src/pwa.ts` desactiva el service worker en hosts efímeros `.vercel.app`; la aceptación PWA requiere un origen QA estable autorizado, no quitar ese resguardo.
-- `src/pages/public/disabilityAIAgentDemo.content.ts` identifica **Faro TDF**, agente accesible para discapacidad de Tierra del Fuego, como **demostración conceptual**. Sus métricas, plazos y datos no son productivos.
-- La entrada institucional de FARO excluye el manifest global. Convertir esa experiencia en marca configurable del producto compartido, no copiar su contenido demo como datos reales.
+- Referencia histórica: `src/pages/public/disabilityAIAgentDemo.content.ts` todavía usa **Faro TDF** para una demo conceptual de discapacidad en Tierra del Fuego. Marcelo aclara que solicitaron cambiar nombre y URL; FARO no debe usarse como marca vigente/aprobada. La referencia aproximada «conversacional» no permite reconstruir con certeza el nombre y dominio exactos. El pendiente de nomenclatura no bloquea la plataforma genérica.
+- La entrada institucional histórica excluye el manifest global. Usarla sólo como referencia de identidad configurable, no como plataforma paralela ni como datos reales.
 
 ## 2. Decisiones de arquitectura
 
@@ -22,6 +22,37 @@ Mantener `tenant_id` como identidad estable: ni el nombre comercial, ni un slug,
 Primera opción white label: un origen propio verificado por organización. Mantener `/t/{slug}` como ruta compatible; no prometer aislamiento de almacenamiento sólo por separar rutas del mismo origen.
 El dominio propio puede seguir registrado y administrado por el cliente. No transferir dominios, delegar DNS ni comprar planes sin autorización específica.
 Extender los contratos públicos existentes con un bloque tipado y versionado; validar compatibilidad antes de decidir nombres de endpoints o nuevas tablas.
+
+### 2.1. Decisión comercial: SaaS completo con marca propia en plan Full
+
+**No se vende sólo un widget, una landing ni una demo personalizada.** Se vende el uso de toda la plataforma SaaS compartida bajo la identidad del cliente: agente IA, bandeja/CRM, reclamos, encuestas, catálogo/marketplace, pedidos, pagos, analítica y portal, según funciones disponibles, vertical, roles y alcance del plan Full.
+**Plan Full activo + organización activa + permiso del usuario + integración verificada** son condiciones independientes. Full no concede acceso a otras organizaciones, superadministración ni funciones todavía no implementadas.
+Cada municipio/gobierno/empresa configura su organización. No crear repositorio, aplicación, base o despliegue por cliente por razones de marca; el mismo producto sirve dominios distintos.
+Versionar configuración, marca e integraciones por tenant y desplegar versiones compartidas con activación gradual. “Versión para cada cliente” significa configuración aislada, no una rama de código permanente por cliente.
+El alcance multidispositivo/PWA se conserva para la plataforma completa; no reservar la usabilidad móvil a un plan superior.
+
+**Control de plan y contratación:**
+- Extender el control comercial existente del backend, no comprobar `plan === 'full'` únicamente en React.
+- `services/plan_access.py` ya contiene `plan_allows_full_integrations`, aliases de planes y capacidades alternativas. Auditar su mapeo al SKU Full sin quitar derechos contratados existentes ni otorgar marca blanca a planes inferiores por un alias/capacidad genéricos.
+- El derecho Full/marca blanca y su vigencia proceden de una fuente comercial autorizada del servidor; no de `localStorage`, query strings o configuración editable del tenant. Un pago retornado por URL no activa Full.
+- Definir capacidades explícitas de marca/dominio/PWA, roles de edición/publicación/conexión y pruebas negativas: Free/plan inferior, expirado, tenant inactivo, usuario sin permiso y manipulación de flags.
+- El plan inferior ve el estado bloqueado y la opción de upgrade apropiada. No retirar en este corte funciones ya contratadas de otros planes.
+- Upgrade idempotente con activación y checklist; downgrade/suspensión con política explícita, notificación y transición, sin borrar datos, transferir dominios/números ni romper enlaces de forma improvisada.
+- Full habilita capacidades del producto; cuotas de IA, mensajes, voz, almacenamiento y otros consumos se definen y muestran por organización. No convertirlo implícitamente en consumo ilimitado ni inventar precios en este plan.
+
+### 2.2. Autoservicio dentro de Configuración e Integraciones
+
+| Ubicación prevista | Qué configura el administrador autorizado |
+| --- | --- |
+| Configuración → Marca y apariencia | Nombre de plataforma/agente, logos, avatar, colores, tipografía controlada, favicon, atribución y previsualización por dispositivo. |
+| Configuración → Dominios y URLs | Dominio/subdominio elegido bajo su control, verificación DNS/TLS, URL principal, enlaces públicos y estado de activación. |
+| Configuración → Aplicación PWA | Nombre e icono instalados, acceso de inicio, apariencia y guía de instalación según dispositivo. |
+| Integraciones → WhatsApp | Conectar la cuenta y número de su organización mediante onboarding autorizado; identidad admitida por proveedor, plantillas, Flows, catálogo, estado y prueba del canal. |
+| Integraciones → Pagos y otros canales | Conexiones autorizadas de cada organización, secretos sólo en servidor, diagnósticos y cuotas; no reutilizar credenciales de otro cliente. |
+| Configuración → Plan y consumo | Full activo, funciones habilitadas, vencimiento/renovación, límites y uso; acciones comerciales sujetas a permisos. |
+
+Guía autoservicio: alta de organización → Full confirmado → elegir módulos/vocabulario de vertical → marca → dominio → canales → vista previa → validación → publicación. La intervención de soporte es una excepción diagnosticada, no edición de código por cliente.
+**Aceptación adicional:** dos organizaciones Full usan el SaaS completo bajo identidades y dominios propios; sus administradores configuran sin commits; una organización sin Full no consigue publicar marca blanca mediante API directa; actualizar el producto no borra configuraciones ni conecta WhatsApp al tenant incorrecto.
 
 ## 3. WL-01: contrato de identidad y configuración (Backend + Frontend)
 
@@ -34,7 +65,7 @@ Los colores de marca no pueden anular señales semánticas de error, riesgo o é
 
 ## 4. WL-02: estudio de marca y publicación (Frontend + Backend)
 
-Agregar Administración → Identidad y dominio: nombre, agente, logo, colores, iconos, soporte y atribución; sin inventar permisos ni habilitar módulos no contratados.
+Integrar el estudio en Configuración → Marca y apariencia, junto a Dominios y URLs y Aplicación PWA; conectar los canales en Integraciones. Plan Full y permisos de usuario se validan en servidor; sin habilitar módulos no contratados.
 Previsualizar borrador en móvil/tablet/escritorio, claro/oscuro, con validación de contraste y assets antes de publicar.
 Flujo: borrador → validación → publicación de versión → historial → restauración de una versión válida. Control de concurrencia para no sobrescribir cambios de otro administrador.
 Propagar identidad a login, navegación, widget, conversación, formularios, encuestas, catálogos, pedidos, seguimiento, portal y documentos exportados cuando corresponda.
@@ -99,13 +130,13 @@ Los dominios del checkout de terceros, permisos del navegador y plataformas exte
 No asignar un número/proveedor de un tenant a otro, ni compartir campañas, audiencias, consentimientos o push entre organizaciones. Medir costos por tenant/canal.
 **Aceptación:** mensaje autorizado → enlace de marca → entidad correcta → respuesta/pago verificado; referencias cruzadas a otro tenant rechazadas; auditoría de cambios y costos.
 
-## 10. WL-06: piloto FARO TDF y generalización (Producto + QA)
+## 10. WL-06: caso TDF y segunda organización sobre el SaaS completo (Producto + QA)
 
-FARO TDF se usa como caso piloto de identidad institucional: nombre, logo e iconos aprobados, agente Faro y enfoque de atención accesible. El contenido existente es conceptual y no confirma contratación ni producción.
+El caso de Tierra del Fuego, antes identificado como FARO, sirve para probar la identidad elegida por ese cliente sobre TODO el SaaS Full. Nombre y URL exactos de reemplazo quedan por recuperar/confirmar; no registrar «conversacional» como marca aprobada ni inventar un hostname. El contenido histórico es conceptual y no acredita contratación o producción.
 El cliente debe confirmar dominio exacto, derecho de uso de identidad, responsable de aprobación, canales y catálogo de servicios; no se inventa ni se registra un dominio en su nombre.
 No reutilizar como datos reales los casos, personas, indicadores, ventanas de atención o promesas de la demo. Aislar tenant demo y tenant operativo.
 Probar una segunda organización empresarial sobre el MISMO build, con catálogo/pedidos, y otra identidad institucional cuando corresponda. Ambas deben poder coexistir sin logos, sesiones, enlaces, documentos ni suscripciones cruzados.
-La aceptación FARO incluye accesibilidad y sensibilidad de documentación: sólo fixtures anonimizados en QA, sin información clínica o de discapacidad real para generar capturas.
+La aceptación del caso TDF incluye accesibilidad y sensibilidad de documentación: sólo fixtures anonimizados en QA, sin información clínica o de discapacidad real para generar capturas.
 **Aceptación:** administrador autorizado publica marca y dominio desde configuración; persona instala y usa su PWA; equipo atiende con roles reales en QA; rollback de marca y dominio ensayado.
 
 ## 11. Secuencia de implementación y ownership
@@ -113,12 +144,12 @@ La aceptación FARO incluye accesibilidad y sensibilidad de documentación: sól
 | Fase | Trabajo | Responsable funcional | Gate de salida |
 | --- | --- | --- | --- |
 | WL-00 | Inventario y contrato; reconciliar ramas y capacidades actuales | Full-stack | Evidencia por commit, superficies y brechas |
-| WL-01 | Identidad versionada, validación, permisos y API pública | Backend | Contratos y aislamiento negativo |
+| WL-01 | Entitlement Full, identidad versionada, validación, permisos y API pública | Backend | Plan/permisos/tenant verificados por separado |
 | WL-02 | Estudio de marca, previews y publicación/rollback | Frontend + Backend | Dos marcas sobre un build |
 | WL-03 | Dominios verificados, routing, autenticación y enlaces | Plataforma + Backend | DNS/TLS y ciclo de baja seguros |
 | WL-04 | Manifest/instalación/storage/actualización por organización | Frontend + Backend | Instalación real sin contaminación |
 | WL-05 | Coherencia de canales y plantillas | Integraciones | Proveedores y enlaces verificados |
-| WL-06 | FARO + organización empresarial, aceptación y release | QA + Producto | Matriz multidispositivo y rollback |
+| WL-06 | TDF con identidad actual + organización empresarial Full | QA + Producto | SaaS completo autoservicio, multidispositivo y rollback |
 
 UX-DEVICE se aplica desde el próximo cambio de cada módulo, no se deja como retoque final. Tablet y dispositivos físicos tienen evidencia propia.
 Implementar primero contrato/identidad y QA sin bloquear ensayos de migración. La activación de dominios productivos depende de release reconciliado, paridad Render/Neon, un solo escritor y rollback; no cambia esos gates.
@@ -131,7 +162,7 @@ Sin fork/repositorio nuevo por cliente, sin base/compute siempre activo por camb
 Presupuestar dominios, almacenamiento de assets, mensajes, IA, push y observabilidad por tenant; respetar planes/límites actuales y pedir aprobación para ampliaciones pagas.
 Flag de activación por organización, despliegue progresivo, panel de salud de dominio/certificado y registro de quién cambió qué versión y cuándo.
 La reversión de marca no reabre un dominio retirado ni restaura permisos revocados. Registrar versión de aplicación, esquema, branding y dominio separadamente.
-Cierre comercial: demostrar identidad propia, instalación y circuitos funcionales; nunca vender la demo FARO ni un Preview responsive como white label productivo certificado.
+Cierre comercial: demostrar identidad propia, instalación y circuitos funcionales; nunca vender la demo institucional histórica ni un Preview responsive como white label productivo certificado.
 
 ## 13. Referencias técnicas consultadas
 
