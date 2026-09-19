@@ -21,6 +21,7 @@ type BootstrapGateOptions = {
   maxAttempts?: number;
   timeoutMs?: number;
   expectedRevision?: string;
+  refresh?: boolean;
   wait?: (delayMs: number) => Promise<void>;
 };
 
@@ -165,6 +166,7 @@ export const ensureBackendRuntimeReady = (options: BootstrapGateOptions = {}): P
   }
   const readinessUrl = resolveBackendReadinessUrl(options.baseUrl);
   const key = JSON.stringify([readinessUrl, expectedRevision ?? null]);
+  if (options.refresh === true) readinessByUrl.invalidateSettled(key);
   const existing = readinessByUrl.get(key);
   if (existing) return existing;
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);

@@ -322,3 +322,16 @@ Detalle y comandos: docs/STARTUP_RECOVERY_RELEASE.md. La verificación del par y
 la autenticación institucional son gates diferentes; no se cambian alias estables
 ni escrituras por construir el candidato. Cold start y ocho migraciones pendientes
 conservan su seguimiento. Junín y el piloto TDF no se duplican ni se reconfiguran.
+
+### SS-RUNTIME-RESUME: continuidad del trabajo al volver a la plataforma
+
+Implementado: aviso no modal en la barra existente; comprobación segura al volver
+a una pestaña o reconectar, con lease corto y un único GET concurrente. No hay
+polling, recarga de ruta, cierre de sesión ni repetición de acciones de negocio.
+Diferencia entre red informada, servicio verificado y resultado de acciones previas.
+La altura medida de la cabecera evita ocultar los controles del aviso, también
+al cambiar de tamaño. Contrastes, teclado y movimiento reducido cubiertos.
+
+Detalle y evidencia: docs/RUNTIME_RESUME_RELEASE.md. Se mantiene pendiente resolver
+la latencia de arranque del servidor con mediciones remotas y cerrar aceptación
+institucional de QA. Este corte no sustituye migraciones, WhatsApp real o PWA física.

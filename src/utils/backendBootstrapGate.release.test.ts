@@ -67,4 +67,25 @@ describe('resumed runtime and coordinated release', () => {
     await expect(ensureBackendRuntimeReady({enabled:true,fetcher})).rejects.toBeInstanceOf(BackendBootstrapError);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+  it('forces a new observation after reconnection even before lease expiration', async () => {
+    const fetcher=vi.fn().mockResolvedValueOnce(ready()).mockResolvedValueOnce(ready(OTHER));
+    await ensureBackendRuntimeReady({enabled:true,fetcher,expectedRevision:SHA});
+    await expect(ensureBackendRuntimeReady({enabled:true,fetcher,expectedRevision:SHA,refresh:true})).rejects.toMatchObject({status:409});
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('shares an existing pending probe even when several callers request refresh', async () => {
+    let finish!: (value:Response)=>void;
+    const fetcher=vi.fn(()=>new Promise<Response>(resolve=>{finish=resolve;}));
+    const first=ensureBackendRuntimeReady({enabled:true,fetcher});
+    const second=ensureBackendRuntimeReady({enabled:true,fetcher,refresh:true});
+    expect(second).toBe(first); expect(fetcher).toHaveBeenCalledTimes(1);
+    finish(ready()); await Promise.all([first,second]);
+  });
+  it('never falls back to a previous successful lease after a forced check fails', async () => {
+    const fetcher=vi.fn().mockResolvedValueOnce(ready()).mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce(ready());
+    await ensureBackendRuntimeReady({enabled:true,fetcher});
+    await expect(ensureBackendRuntimeReady({enabled:true,fetcher,refresh:true})).rejects.toBeInstanceOf(BackendBootstrapError);
+    await ensureBackendRuntimeReady({enabled:true,fetcher}); expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls.every(([,options])=>options.method==='GET'&&options.credentials==='omit')).toBe(true);
+  });
 });
