@@ -10,6 +10,7 @@ export interface OrganizationProfileSettings {
   contract_version:'organization.profile_settings.v1'; tenant:{id:number;slug:string};
   revision:string; values:OrganizationValues; can_edit:boolean; save_endpoint:string;
   concurrency:'expected_revision'; provider_calls_performed:false;
+  editability?: {mode:'editable'|'read_only'; reason_code:'ready'|'maintenance'|'tenant_admin_required'; message:string};
 }
 const object=(v:unknown):v is Record<string,any>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 export function readOrganizationProfile(value:unknown, slug:string|null|undefined):OrganizationProfileSettings|null {
@@ -20,6 +21,11 @@ export function readOrganizationProfile(value:unknown, slug:string|null|undefine
       ||typeof value.can_edit!=='boolean'||value.provider_calls_performed!==false
       ||value.concurrency!=='expected_revision'||value.save_endpoint!==`/api/admin/tenants/${scope}/config`
       ||!object(value.values)) return null;
+  const access=value.editability;
+  if(access!==undefined && (!object(access)||typeof access.message!=='string'
+      ||!access.message.trim()||access.message.length>500
+      ||(value.can_edit ? access.mode!=='editable'||access.reason_code!=='ready'
+        : access.mode!=='read_only'||!['maintenance','tenant_admin_required'].includes(access.reason_code)))) return null;
   const values=value.values;
   for (const field of ORGANIZATION_FIELDS.slice(0,6).concat(['link_web','logo_url']))
     if(typeof values[field]!=='string'||values[field].length>2048) return null;
@@ -31,6 +37,7 @@ export function readOrganizationProfile(value:unknown, slug:string|null|undefine
       ||typeof d.cierra!=='string'||typeof d.cerrado!=='boolean')) return null;
   return {contract_version:value.contract_version,tenant:{id:value.tenant.id,slug:scope},revision:value.revision,
     values:Object.fromEntries(ORGANIZATION_FIELDS.map(key=>[key,JSON.parse(JSON.stringify(values[key]))])) as OrganizationValues,
+    ...(access?{editability:{mode:access.mode,reason_code:access.reason_code,message:access.message}}:{}),
     can_edit:value.can_edit,save_endpoint:value.save_endpoint,concurrency:'expected_revision',provider_calls_performed:false};
 }
 export function profileChanges(draft:OrganizationValues, baseline:OrganizationValues):Partial<OrganizationValues> {

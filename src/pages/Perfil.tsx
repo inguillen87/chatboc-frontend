@@ -1362,8 +1362,8 @@ export default function Perfil() {
         embeddedActivationMatchesScope ? embeddedChannelActivation : current ?? null,
       );
 
-      const latitud = parseCoordinate(data.latitud ?? data.lat);
-      const longitud = parseCoordinate(data.longitud ?? data.lng);
+      const latitud = settings ? settings.values.latitud : parseCoordinate(data.latitud ?? data.lat);
+      const longitud = settings ? settings.values.longitud : parseCoordinate(data.longitud ?? data.lng);
       const direccion = data.direccion || "";
 
       let horariosUi = DIAS.map((_, idx) => ({
@@ -1381,8 +1381,8 @@ export default function Perfil() {
       ) {
         horariosUi = data.horario_json.map((h, idx) => ({
           dia: DIAS[idx],
-          abre: h.abre || "09:00",
-          cierra: h.cierra || "20:00",
+          abre: settings ? h.abre : h.abre || "09:00",
+          cierra: settings ? h.cierra : h.cierra || "20:00",
           cerrado:
             typeof h.cerrado === "boolean" ? h.cerrado : idx === 5 || idx === 6,
         }));
@@ -1436,7 +1436,7 @@ export default function Perfil() {
         direccion,
         ciudad: data.ciudad || "",
         provincia: data.provincia || "",
-        pais: data.pais || "Argentina",
+        pais: settings ? settings.values.pais : data.pais || "Argentina",
         latitud,
         longitud,
         link_web: data.link_web || "",
@@ -1922,7 +1922,7 @@ export default function Perfil() {
     e.preventDefault();
     if (profileSave.pending || profileSave.needsReview || profileSave.denied) return;
     setMensaje(null);setError(null);
-    if (!isTenantAdministrator || !currentOrgProfile?.can_edit) {
+    if (!currentOrgProfile?.can_edit) {
       setError('El guardado institucional necesita un perfil autorizado y compatible. Actualizá la configuración antes de continuar.');
       return;
     }
@@ -2759,7 +2759,7 @@ export default function Perfil() {
             institutionName={perfil.nombre_empresa}
             workspace={perfil.organization_workspace?.tenant.slug === profileTenantScope ? perfil.organization_workspace : null}
             isMunicipal={esMunicipio}
-            isAdministrator={isTenantAdministrator && !profileSave.denied && currentOrgProfile?.can_edit !== false}
+            isAdministrator={currentOrgProfile?.can_edit === true && !profileSave.denied}
             loading={loadingGuardar || profileSave.pending}
             canSave={Boolean(currentOrgProfile?.can_edit) && !profileSave.needsReview && !profileSave.denied}
             plan={perfil.plan}
@@ -2789,7 +2789,7 @@ export default function Perfil() {
               </AlertDialogContent>
             </AlertDialog>
             {currentOrgProfile && !currentOrgProfile.can_edit ? <Alert className="mb-5"><AlertDescription>
-              Esta configuración está en modo consulta. El servidor no autorizó cambios en este momento.
+              {currentOrgProfile.editability?.message || 'Esta configuración está en modo consulta. El servidor no autorizó cambios en este momento.'}
             </AlertDescription></Alert> : null}
             {!currentOrgProfile && !loadingGuardar ? <Alert className="mb-5"><AlertDescription>
               El servidor todavía no publicó el guardado institucional verificable. Podés revisar los datos; no se enviarán cambios incompletos.
