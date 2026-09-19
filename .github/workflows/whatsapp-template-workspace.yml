@@ -7,6 +7,14 @@ name: WhatsApp template workspace
       - src/hooks/useWhatsappTemplatePacks.ts
       - src/utils/waitForAbort*
       - tests/template-workspace/**
+      - vercel.json
+      - package.json
+      - package-lock.json
+      - scripts/vercelGitPreviewPolicy*
+      - scripts/guardVercelPreviewRewrites*
+      - scripts/verifyVercelProductionBuild*
+      - scripts/generateVercelPreviewConfig.mjs
+      - scripts/buildVercelPreviewQa.ps1
       - .github/workflows/whatsapp-template-workspace.yml
 permissions:
   contents: read
@@ -28,6 +36,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck && npm run typecheck:scope
       - run: npm test -- --maxWorkers=2
+      - run: npm run test:release
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Exercise responsive workspace using synthetic API responses only
