@@ -1,3 +1,4 @@
+import type { OrganizationWorkspace } from "@/utils/organizationWorkspace";
 import type { FormEvent, ReactNode } from "react";
 import {
   Building2,
@@ -80,6 +81,7 @@ const sections: Array<{
 ];
 
 interface InstitutionProfileWorkspaceProps {
+  workspace?: OrganizationWorkspace | null;
   activeSection: InstitutionProfileSection;
   children: ReactNode;
   institutionName: string;
@@ -94,6 +96,7 @@ interface InstitutionProfileWorkspaceProps {
 
 export default function InstitutionProfileWorkspace({
   activeSection,
+  workspace,
   children,
   institutionName,
   isMunicipal,
@@ -104,12 +107,16 @@ export default function InstitutionProfileWorkspace({
   onSave,
   onSectionChange,
 }: InstitutionProfileWorkspaceProps) {
-  const active = sections.find((section) => section.id === activeSection) ?? sections[0];
+  const presentedSections = sections.map((section) => {
+    const published = workspace?.sections.find((item) => item.id === section.id);
+    return published ? {...section, label: published.label, description: published.description} : section;
+  });
+  const active = presentedSections.find((section) => section.id === activeSection) ?? presentedSections[0];
 
   return (
     <form
       onSubmit={onSave}
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm"
+      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm"
       data-testid="institution-profile-workspace"
       data-layout="viewport"
     >
@@ -117,14 +124,14 @@ export default function InstitutionProfileWorkspace({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-              Perfil institucional
+              {workspace?.heading || "Perfil institucional"}
             </p>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
               <h2 className="truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {institutionName || (isMunicipal ? "Gobierno local" : "Organización")}
               </h2>
               <Badge variant="outline" className="rounded-md">
-                {isMunicipal ? "Gobierno" : "Empresa"}
+                {workspace?.organization_label || (isMunicipal ? "Gobierno" : "Organización")}
               </Badge>
               {plan ? (
                 <Badge variant="secondary" className="rounded-md capitalize">
@@ -133,22 +140,22 @@ export default function InstitutionProfileWorkspace({
               ) : null}
             </div>
             <p className="mt-1 hidden max-w-3xl text-sm leading-5 text-muted-foreground sm:block">
-              Configuración administrativa separada de la operación diaria. Cada sección guarda el mismo registro institucional.
+              {workspace?.description || "Configuración administrativa separada de la operación diaria. Cada sección guarda el mismo registro institucional."}
             </p>
           </div>
-          <Badge variant={isAdministrator ? "default" : "outline"} className="w-fit rounded-md">
+          <Badge variant={isAdministrator ? "default" : "outline"} className={cn("w-fit rounded-md", !isAdministrator && "!bg-muted !text-foreground border-border")}>
             {isAdministrator ? "Administración habilitada" : "Solo lectura operativa"}
           </Badge>
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)] lg:grid-rows-1">
-        <aside className="min-h-0 border-b border-border/70 bg-muted/10 p-2 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-3">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)] lg:grid-rows-1">
+        <aside className="min-h-0 min-w-0 border-b border-border/70 bg-muted/10 p-2 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-3">
           <nav
             aria-label="Secciones del perfil institucional"
-            className="flex snap-x gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0"
+            className="flex min-w-0 max-w-full snap-x gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0"
           >
-            {sections.map((section) => {
+            {presentedSections.map((section) => {
               const Icon = section.icon;
               const selected = section.id === activeSection;
               return (
@@ -159,7 +166,7 @@ export default function InstitutionProfileWorkspace({
                   aria-current={selected ? "page" : undefined}
                   data-testid={`institution-profile-section-${section.id}`}
                   className={cn(
-                    "flex min-w-[12rem] snap-start items-start gap-3 rounded-xl border px-3 py-3 text-left transition lg:w-full lg:min-w-0",
+                    "flex min-w-[12rem] snap-start items-start gap-3 rounded-xl border px-3 py-3 text-left motion-safe:transition lg:w-full lg:min-w-0",
                     selected
                       ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
                       : "border-transparent text-muted-foreground hover:border-border/70 hover:bg-background/80 hover:text-foreground",
@@ -190,6 +197,12 @@ export default function InstitutionProfileWorkspace({
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Configuración</p>
             <h3 className="mt-1 text-lg font-semibold text-foreground">{active.label}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{active.description}</p>
+            {workspace && (activeSection === "channels" || activeSection === "general") ? (
+              <p className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm leading-6 text-foreground"
+                data-testid="organization-profile-guidance">
+                {activeSection === "channels" ? workspace.continuity.note : workspace.domain_note}
+              </p>
+            ) : null}
           </div>
           <fieldset
             disabled={!isAdministrator || loading}

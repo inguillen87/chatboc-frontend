@@ -253,3 +253,32 @@ Este orden minimiza riesgo de drift y maximiza valor operativo temprano.
 - `docs/analytics.identity_coverage.v1.contract.md`
 - `docs/shared.error.v1.contract.md`
 - `docs/rbac.capability_matrix.v1.md`
+
+
+## 6) Continuidad SaaS y autoservicio por vertical — septiembre 2026
+
+Detalle y referencias primarias: `docs/ORGANIZATION_PROFILE_WORKSPACE_RELEASE.md`.
+Complementa el plan white label del PR #1739; no reemplaza CT/BE/FE ni los gates
+pendientes de Render/Vercel/Neon. No implica que TDF ya tenga Full productivo.
+
+- **SS-PROFILE (implementado en este corte, publicación por verificar):** perfil
+  institucional existente con identidad y secciones recibidas del backend según
+  municipio/gobierno/colegio/empresa/pyme, sin convertir a todos en Empresa.
+- **SS-CONTINUITY (criterio transversal):** conservar organización, usuarios,
+  credenciales e integración de Junín; personalizar no crea otra aplicación ni número.
+- **UX-DEVICE (implementado en el perfil, resto por certificar):** corregir ancho
+  implícito de grid y desplazamiento interno que ocultaba información en móvil;
+  probar también el formulario interno, no sólo overflow del documento.
+- **SS-SELF-SERVICE (siguientes fases):** identidad versionada, invitaciones/roles,
+  onboarding reanudable e idempotente y diagnósticos de integraciones por tenant.
+- **WL-DOMAIN/PWA (pendiente):** dominio elegido bajo control del cliente, DNS/TLS,
+  identidad instalada y aislamiento por origen; no confundir link_web con un dominio
+  de acceso verificado ni emulación de viewport con instalación física.
+- **SS-PLAN (mantener separado):** Full vigente, autorización de usuario y conexión
+  del proveedor son condiciones independientes; no conceder derechos desde React.
+- **BENCH-ONBOARDING (planificado):** medir altas de autoservicio, minutos manuales,
+  bloqueos y primera tarea completada. Referencia funcional respond.io y Jelou;
+  no copiar métricas comerciales como resultados de Chatboc.
+- **DEP-UPGRADE (planificado):** evaluar React 19 y Vite actual con matriz de
+  compatibilidad y regresiones. Versiones instaladas y soporte revisados; sin
+  cambiar dependencias en este sprint ni generar forks por cada organización.

@@ -457,12 +457,15 @@ const ControlCenterCardButton = ({
   );
 };
 
+import { readOrganizationWorkspace, type OrganizationWorkspace } from '@/utils/organizationWorkspace';
+
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, setUser } = useUser();
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
+    organization_workspace: null as OrganizationWorkspace | null,
     nombre_empresa: "",
     telefono: "",
     direccion: "",
@@ -649,6 +652,7 @@ export default function Perfil() {
     // Never carry a verified channel contract across tenant identities while
     // the next scoped profile is loading.
     setProfileChannelActivation(undefined);
+    setPerfil((current) => ({...current, organization_workspace: null}));
   }, [profileIdentityScope]);
   const buildMappingPath = useCallback(
     (path: string) =>
@@ -1366,6 +1370,7 @@ export default function Perfil() {
 
       setPerfil((prev) => ({
         ...prev,
+        organization_workspace: readOrganizationWorkspace(data.organization_workspace, resolvedProfileTenantSlug),
         tenant_slug: resolvedProfileTenantSlug || (prev as any).tenant_slug,
         slug:
           data.slug ||
@@ -1417,6 +1422,7 @@ export default function Perfil() {
       };
     } catch (err) {
       if (isCurrent()) {
+        setPerfil((current) => ({...current, organization_workspace: null}));
         setError(getErrorMessage(err, "Error al cargar el perfil."));
       }
       return null;
@@ -2763,6 +2769,7 @@ export default function Perfil() {
           <InstitutionProfileWorkspace
             activeSection={activeInstitutionSection}
             institutionName={perfil.nombre_empresa}
+            workspace={perfil.organization_workspace?.tenant.slug === profileTenantScope ? perfil.organization_workspace : null}
             isMunicipal={esMunicipio}
             isAdministrator={isTenantAdministrator}
             loading={loadingGuardar}
