@@ -1,3 +1,4 @@
+import { resolvePreviewBackend } from './previewBackendTarget.mjs';
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,11 +77,14 @@ const isProductionBackendUrl = (value) => {
   }
 };
 
-const assertPreviewRewriteContract = (config) => {
+const assertPreviewRewriteContract = (config, backendOrigin = PREVIEW_BACKEND_ORIGIN) => {
   if (!Array.isArray(config?.rewrites)) {
     throw new Error('[vercel-preview-rewrite-guard] Safe Preview config must define rewrites.');
   }
-  if (!isDeepStrictEqual(config.rewrites, EXPECTED_PREVIEW_REWRITES)) {
+  const expected = EXPECTED_PREVIEW_REWRITES.map(rule => ({...rule, destination:
+    rule.destination.startsWith(PREVIEW_BACKEND_ORIGIN + '/')
+      ? backendOrigin + rule.destination.slice(PREVIEW_BACKEND_ORIGIN.length) : rule.destination}));
+  if (!isDeepStrictEqual(config.rewrites, expected)) {
     throw new Error(
       '[vercel-preview-rewrite-guard] Safe Preview config rewrites differ from the exact audited route contract.',
     );
@@ -98,7 +102,7 @@ const assertPreviewRewriteContract = (config) => {
     } catch {
       // Internal Vercel rewrites are intentionally not part of this backend contract.
     }
-    if (destinationOrigin !== PREVIEW_BACKEND_ORIGIN) {
+    if (destinationOrigin !== backendOrigin) {
       continue;
     }
     previewBackendRewriteCount += 1;
@@ -265,7 +269,7 @@ export const runVercelPreviewRewriteGuard = ({
     vercelEnvironment,
   });
   const previewBackendRewrites = configuredPathOverride
-    ? assertPreviewRewriteContract(config)
+    ? assertPreviewRewriteContract(config, resolvePreviewBackend(environment).origin)
     : 0;
   const evidence = {
     checked: result.checked,

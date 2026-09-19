@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$Scope = "marcelos-projects-c26aa499"
+    [string]$Scope = "marcelos-projects-c26aa499",
+    [string]$BackendOrigin = "https://api-preview.chatboc.ar",
+    [string]$BackendRevision = ""
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$previewBackendOrigin = "https://api-preview.chatboc.ar"
+$previewBackendOrigin = $BackendOrigin
 $previewFrontendOrigin = "https://chatboc-r2-preview.vercel.app"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $previewConfig = Join-Path $projectRoot ".vercel\qa\vercel.preview.json"
@@ -19,7 +21,14 @@ $previousAppVersion = $env:VITE_APP_VERSION
 $previousEffectiveVercelConfig = $env:CHATBOC_VERCEL_EFFECTIVE_CONFIG
 $previousPrebuiltLocalConfigBinding = $env:CHATBOC_VERCEL_PREBUILT_LOCAL_CONFIG_BOUND
 
+$pairedKeys = @('CHATBOC_PREVIEW_BACKEND_ORIGIN', 'VITE_EXPECTED_BACKEND_REVISION', 'VITE_BACKEND_BOOTSTRAP_GATE_ENABLED')
+$pairedPrevious = @{}
+foreach ($key in $pairedKeys) { $pairedPrevious[$key] = [Environment]::GetEnvironmentVariable($key, 'Process') }
+
 try {
+    $env:CHATBOC_PREVIEW_BACKEND_ORIGIN = $BackendOrigin
+    if ($BackendRevision) { $env:VITE_EXPECTED_BACKEND_REVISION = $BackendRevision; $env:VITE_BACKEND_BOOTSTRAP_GATE_ENABLED = 'true' }
+    else { Remove-Item Env:VITE_EXPECTED_BACKEND_REVISION -ErrorAction SilentlyContinue }
     # HTTP traffic remains same-origin and reaches the backend through the
     # eight audited Vercel rewrites. Socket.IO connects to the exact backend
     # Preview origin because a cross-project rewrite cannot forward the
@@ -118,6 +127,10 @@ try {
         throw "The direct Socket.IO Preview origin was not embedded in the frontend bundle."
     }
 
+    if ($BackendRevision) {
+        $pinFound = @(Get-ChildItem (Join-Path $projectRoot 'dist/assets') -Filter '*.js' | Select-String -SimpleMatch $BackendRevision).Count -gt 0
+        if (-not $pinFound) { throw 'The exact backend revision is missing from the compiled frontend.' }
+    }
     $builtIndex = Get-Content -Raw -LiteralPath (Join-Path $projectRoot "dist\index.html")
     if (-not $builtIndex.Contains($frontendRevision)) {
         throw "The exact frontend revision was not embedded in dist/index.html."
@@ -129,6 +142,7 @@ try {
         backend_origin = $previewBackendOrigin
         browser_origin = $previewFrontendOrigin
         frontend_revision = $frontendRevision
+        expected_backend_revision = $BackendRevision
         compiled_preview_routes = $previewRouteCount
         compiled_render_routes = $renderRouteCount
         bundle_contains_same_origin = $bundleContainsPreviewFrontend
@@ -137,6 +151,7 @@ try {
     } | ConvertTo-Json -Compress
 }
 finally {
+    foreach ($key in $pairedKeys) { [Environment]::SetEnvironmentVariable($key, $pairedPrevious[$key], 'Process') }
     if ($null -eq $previousBackendUrl) {
         Remove-Item Env:VITE_BACKEND_URL -ErrorAction SilentlyContinue
     }
