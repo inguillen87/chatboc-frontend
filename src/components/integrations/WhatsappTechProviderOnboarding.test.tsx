@@ -44,6 +44,7 @@ const findEnabledAction = (name: RegExp) => waitFor(() => {
 
 const baseContract = {
   contract_version: "twilio.tech_provider.v1",
+  tenant: { id: 1, slug: "junin-1" },
   status: "pending_meta_signup",
   state: {
     waba_id: "123456789",
@@ -320,7 +321,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("Resumen de activacion")).toBeInTheDocument();
     expect(screen.getByTestId("whatsapp-primary-action")).toHaveTextContent("Configurar plantillas");
     expect(screen.getByTestId("whatsapp-advanced-controls")).not.toHaveAttribute("open");
-    expect(screen.getByText("Listo con pendientes")).toBeInTheDocument();
+    expect(screen.getByText("Configuración con pendientes")).toBeInTheDocument();
     expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
     expect(screen.getByText(/Cerrar pendiente: Falta revisar plantillas/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeEnabled();
@@ -329,7 +330,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("987654321")).toBeInTheDocument();
     expect(screen.getByText("whatsapp:+18564858589")).toBeInTheDocument();
     expect(screen.getByText("XESENDER123")).toBeInTheDocument();
-    expect(screen.getAllByText("En linea").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("En línea").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Listo").length).toBeGreaterThan(0);
     expect(screen.getByText("Checklist operativo")).toBeInTheDocument();
     expect(screen.getByText("QA final del tenant")).toBeInTheDocument();
@@ -337,7 +338,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("Score 82%")).toBeInTheDocument();
     expect(screen.getAllByText("read-only").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Revisar plantillas y webviews").length).toBeGreaterThan(0);
-    expect(screen.getByText("78% listo")).toBeInTheDocument();
+    expect(screen.getByText("78% de configuración")).toBeInTheDocument();
     expect(screen.getByText("7/9 controles")).toBeInTheDocument();
     expect(screen.getAllByText("Plantillas y webviews").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Falta revisar plantillas").length).toBeGreaterThan(0);
@@ -376,6 +377,10 @@ describe("WhatsappTechProviderOnboarding", () => {
   });
 
   it("updates the visible contract after preparing activation", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract, state: { ...baseContract.state, sender_id: null, sender_sid: null,
+        requested_phone_number: "+18564858589" },
+    } });
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
     fireEvent.click(await findEnabledAction(/preparar activación/i));
@@ -391,6 +396,10 @@ describe("WhatsappTechProviderOnboarding", () => {
   });
 
   it("waits for the loaded phone before preparing and updates only after confirmation", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract, state: { ...baseContract.state, sender_id: null, sender_sid: null,
+        requested_phone_number: "+18564858589" },
+    } });
     let resolveContract!: (value: unknown) => void;
     let resolveProvision!: (value: unknown) => void;
     mockedTenantService.getWhatsappTechProvider.mockReturnValueOnce(
@@ -404,7 +413,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.queryByRole("button", { name: /preparar activación/i })).not.toBeInTheDocument();
     expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
 
-    await act(async () => { resolveContract({ contract: baseContract }); });
+    await act(async () => { resolveContract({ contract: { ...baseContract, state: { ...baseContract.state, sender_id: null, sender_sid: null, requested_phone_number: "+18564858589" } } }); });
     const prepareButton = await findEnabledAction(/preparar activación/i);
     expect(screen.getByRole("textbox", { name: /numero de whatsapp/i })).toHaveValue("+18564858589");
     fireEvent.click(prepareButton);
@@ -413,14 +422,14 @@ describe("WhatsappTechProviderOnboarding", () => {
     });
     expect(prepareButton).toBeDisabled();
     expect(screen.queryByText("XEUPDATED")).not.toBeInTheDocument();
-    expect(screen.getByText("XESENDER123")).toBeInTheDocument();
+    expect(screen.queryByText("XESENDER123")).not.toBeInTheDocument();
 
     await act(async () => {
       resolveProvision({ contract: { ...baseContract, state: { ...baseContract.state, sender_sid: "XEUPDATED" } } });
     });
     expect(await screen.findByText("XEUPDATED")).toBeInTheDocument();
     expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledTimes(1);
-    expect(await findEnabledAction(/preparar activación/i)).toBeEnabled();
+    expect(screen.getByRole("button", { name: /preparar activación/i })).toBeDisabled();
   });
 
   it("runs a safe smoke test and renders the result inline", async () => {
@@ -488,6 +497,10 @@ describe("WhatsappTechProviderOnboarding", () => {
   });
 
   it("keeps register sender as the primary action when the embedded signup handoff requests it", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract, state: { ...baseContract.state, sender_id: null, sender_sid: null,
+        requested_phone_number: "+18564858589" },
+    } });
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" focusAction="register-sender" />);
 
     const registerSenderButton = await findEnabledAction(/^registrar sender$/i);

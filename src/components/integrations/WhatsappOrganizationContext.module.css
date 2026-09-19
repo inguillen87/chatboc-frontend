@@ -1,0 +1,9 @@
+.context { border: 1px solid hsl(var(--border)); border-radius: 1rem; padding: 1rem; background: hsl(var(--primary) / .035); min-width: 0; }
+.header { display: flex; align-items: flex-start; gap: .8rem; }
+.mark { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; border-radius: .8rem; background: hsl(var(--primary) / .12); color: hsl(var(--primary)); }
+.links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }
+.link { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 44px; padding: .9rem; border: 1px solid hsl(var(--border)); border-radius: .75rem; background: hsl(var(--background)); font-size: .875rem; overflow-wrap: anywhere; }
+.link:hover { border-color: hsl(var(--primary)); }
+.link:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+@media (max-width: 639px) { .links { grid-template-columns: minmax(0, 1fr); } .context { padding: .8rem; } }
+@media (prefers-reduced-motion: no-preference) { .link { transition: border-color .15s ease; } }
