@@ -352,3 +352,17 @@ Documentación/evidencia: docs/ORGANIZATION_SETUP_WORKSPACE.md.
 Siguientes gates: selección de módulos por cliente, marca/dominio versionados,
 aceptación institucional en QA y publicación coordinada. Mantener separados los
 pendientes de migración, WhatsApp/Meta/Twilio y pruebas de dispositivos físicos.
+
+### WL-BRAND-PALETTE: publicación de identidad visual por organización
+
+Implementado: paleta del espacio bajo Full y permiso institucional comprobados
+por el servidor; presets, previsualización por tamaño/modo, confirmación, revisión
+esperada, publicación con auditoría e historial de diez versiones. Restaurar crea
+una nueva versión sin cambiar dominios o proveedores. Contrato exacto y scope en UI.
+Consumo inicial: encabezados de perfil institucional y centro de implementación.
+La imagen del operador deja de aparecer como preview de la marca institucional.
+
+Documentación: docs/WORKSPACE_BRAND_STUDIO.md. No certifica white label integral:
+quedan módulos opcionales, propagación a más superficies, dominios verificados,
+PWA propia y onboarding real de WhatsApp. Conserva los gates de migración y QA.
+La configuración de una organización no crea otro repositorio, despliegue o cuenta.

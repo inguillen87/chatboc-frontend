@@ -1,3 +1,4 @@
+import OrganizationBrandStudio from '@/components/profile/OrganizationBrandStudio';
 import React, {
   useEffect,
   useState,
@@ -660,7 +661,7 @@ export default function Perfil() {
     // the next scoped profile is loading.
     setProfileChannelActivation(undefined);
     setPerfil((current) => ({...current,
-      organization_workspace: null, organization_profile: null,
+      organization_workspace: null, organization_profile: null, workspace_appearance: null,
       nombre_empresa:'', telefono:'', direccion:'', ciudad:'', provincia:'', pais:'',
       latitud:null, longitud:null, link_web:'', logo_url:'', baseline_hours_ui:'',
       horarios_ui:DIAS.map(()=>({abre:'',cierra:'',cerrado:false})),
@@ -1424,6 +1425,7 @@ export default function Perfil() {
       setPerfil((prev) => ({
         ...prev,
         organization_workspace: readOrganizationWorkspace(data.organization_workspace, resolvedProfileTenantSlug),
+        workspace_appearance: data.workspace_appearance ?? null,
         tenant_slug: resolvedProfileTenantSlug || (prev as any).tenant_slug,
         slug:
           data.slug ||
@@ -1478,7 +1480,7 @@ export default function Perfil() {
     } catch (err) {
       if (scopeCurrent()) {
         setPerfil((current) => ({...current,
-      organization_workspace: null, organization_profile: null,
+      organization_workspace: null, organization_profile: null, workspace_appearance: null,
       nombre_empresa:'', telefono:'', direccion:'', ciudad:'', provincia:'', pais:'',
       latitud:null, longitud:null, link_web:'', logo_url:'', baseline_hours_ui:'',
       horarios_ui:DIAS.map(()=>({abre:'',cierra:'',cerrado:false})),
@@ -2754,7 +2756,7 @@ export default function Perfil() {
           data-testid="profile-institution-workspace"
           className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=institution-profile-workspace]]:!h-full [&_[data-testid=institution-profile-workspace]]:!min-h-0"
         >
-          <InstitutionProfileWorkspace
+          <InstitutionProfileWorkspace appearance={perfil.workspace_appearance} tenantSlug={profileTenantScope || ""}
             activeSection={activeInstitutionSection}
             institutionName={perfil.nombre_empresa}
             workspace={perfil.organization_workspace?.tenant.slug === profileTenantScope ? perfil.organization_workspace : null}
@@ -2875,7 +2877,7 @@ export default function Perfil() {
             ) : null}
 
             {activeInstitutionSection === "identity" ? (
-              <div className="grid max-w-5xl gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="max-w-6xl space-y-5">
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <Label htmlFor="logo_url">Logo institucional</Label>
@@ -2895,22 +2897,11 @@ export default function Perfil() {
                     Este formulario guarda la identidad de la organización. La imagen personal y su consentimiento son independientes y no se modifican con esta acción.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Vista previa</p>
-                  <div className="mt-5 flex flex-col items-center gap-3 text-center">
-                    <IdentityAvatar
-                      name={user?.name || perfil.nombre_empresa || user?.email || "Usuario"}
-                      avatarUrl={perfil.avatar_consent ? perfil.avatar_url : ""}
-                      source={perfil.avatar_consent && perfil.avatar_url ? "imagen consentida" : "iniciales"}
-                      consented={perfil.avatar_consent}
-                      size="lg"
-                    />
-                    <div>
-                      <p className="font-semibold text-foreground">{user?.name || "Administrador institucional"}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{perfil.nombre_empresa || "Organización"}</p>
-                    </div>
-                  </div>
-                </div>
+                {profileTenantScope ? <OrganizationBrandStudio tenantSlug={profileTenantScope}
+                  name={perfil.nombre_empresa || 'Organización'} logoUrl={perfil.logo_url}
+                  onPublished={brand=>setPerfil(current=>({...current,workspace_appearance:{
+                    contract_version:'organization.workspace_appearance.v1',tenant:brand.tenant,
+                    version:brand.version,appearance:brand.appearance}}))}/>:null}
               </div>
             ) : null}
 

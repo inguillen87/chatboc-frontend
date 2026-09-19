@@ -1,3 +1,5 @@
+import {brandCss,readWorkspaceAppearance} from '@/utils/workspaceBranding';
+import brandStyles from '@/components/profile/OrganizationBrandStudio.module.css';
 import React from 'react';
 import { CheckCircle2, ChevronRight, CircleDashed, Lock, RefreshCw, ShieldCheck, AlertTriangle } from 'lucide-react';
 import type { OrganizationSetupJourney } from '@/utils/organizationSetupJourney';
@@ -11,14 +13,15 @@ export default function OrganizationSetupWorkspace(props:Props) {
   return <SetupSteps key={`${props.journey.tenant.id}:${props.journey.tenant.slug}`} {...props}/>;
 }
 function SetupSteps({journey,loading=false,error,onRefresh,returnTo,technicalDetails}:Props) {
+  const palette=readWorkspaceAppearance(journey.workspace_appearance,journey.tenant.slug);
   const [selected,setSelected]=React.useState(journey.summary.current_stage_id||journey.stages[0].id);
   React.useEffect(()=>setSelected(journey.summary.current_stage_id||journey.stages[0].id),[journey.summary.current_stage_id]);
   const stage=journey.stages.find(item=>item.id===selected)||journey.stages[0];
   const active=states[stage.status]; const ActiveIcon=active.Icon;
   const href=stage.primary_action&&!loading&&!error?buildTenantJourneyHref(stage.primary_action.href,journey.tenant.slug,returnTo):null;
   const headingId=React.useId();const panelId=React.useId();
-  return <section className={styles.workspace} aria-labelledby={headingId} data-testid="organization-setup-workspace">
-    <header className={styles.header}>
+  return <section style={brandCss(palette)} className={styles.workspace} aria-labelledby={headingId} data-testid="organization-setup-workspace">
+    <header className={`${styles.header} ${palette?.active?brandStyles.liveHeader:""}`}>
       <div><span className={styles.eyebrow}>{journey.organization_label} · Configuración guiada</span>
         <h2 id={headingId}>{journey.heading}</h2><p>{journey.description}</p></div>
       <button type="button" className={styles.refresh} onClick={onRefresh} disabled={loading}>
