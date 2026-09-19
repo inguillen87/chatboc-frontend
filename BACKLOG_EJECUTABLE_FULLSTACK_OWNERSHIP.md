@@ -294,3 +294,18 @@ Detalle: docs/ORGANIZATION_PROFILE_SAVE_RELEASE.md.
 Pendiente: release backend/frontend coordinada y prueba autorizada de lectura y
 guardado en QA. Esto no cierra la operacion productiva, marca blanca completa,
 integracion de horarios con agentes ni la migracion de infraestructura.
+
+### SS-PROFILE-ACCEPTANCE: sesiones y SPA reales sobre entorno desechable
+
+Implementado: prueba coordinada con create_app, login por contraseña, sesiones,
+middleware, roles y persistencia reales; sin mocks de autorización ni API.
+Corregidos país vacío convertido en cambio falso y administración delegada
+bloqueada por rol global. Mensajes de mantenimiento separados de permisos.
+Contrato editability opcional y contrastes del perfil revisados en modo oscuro.
+
+Evidencia y ejecución: docs/ORGANIZATION_PROFILE_HTTP_ACCEPTANCE.md. CI frontend
+mantiene suite/tipos/build/fixtures; CI backend suma diez recorridos HTTP completos
+y conserva PostgreSQL para concurrencia. El recorrido SPA coordinado es local.
+Sigue abierto el gate de aceptación institucional contra QA desplegado y la
+publicación coordinada. No se cierra WhatsApp del proveedor, MFA, las ocho
+migraciones ni el 503 de arranque en frío por pasar estas pruebas.

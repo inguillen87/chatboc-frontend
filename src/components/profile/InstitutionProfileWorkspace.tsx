@@ -132,7 +132,7 @@ export default function InstitutionProfileWorkspace({
               <h2 className="truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {institutionName || (isMunicipal ? "Gobierno local" : "Organización")}
               </h2>
-              <Badge variant="outline" className="rounded-md">
+              <Badge variant="outline" className="rounded-md !bg-muted !text-foreground border-border">
                 {workspace?.organization_label || (isMunicipal ? "Gobierno" : "Organización")}
               </Badge>
               {plan ? (

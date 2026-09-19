@@ -860,4 +860,40 @@ describe('Perfil request lifecycle', () => {
     expect(runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(0);
     expect(screen.queryByText('Los datos de la organización quedaron confirmados por el servidor.')).toBeNull();
   });
+  it('uses an explicit tenant editing capability for a delegated administrator',async()=>{
+    runtime.user={...verifiedUser('junin'),rol:'empleado'};
+    renderProfile('/perfil?section=general');
+    await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    expect(runtime.user.rol).toBe('empleado');
+  });
+  it('does not invent changes for empty institutional country and explicit null coordinates',async()=>{
+    const previous=runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async(path:string,options?:any)=>{
+      const response=await previous(path,options);
+      if(path!=='/api/me')return response;
+      return {...response,lat:12,lng:34,organization_profile:{...response.organization_profile,
+        values:{...response.organization_profile.values,pais:'',latitud:null,longitud:null}}};
+    });
+    renderProfile('/perfil?section=general');
+    await screen.findByRole('textbox',{name:'Nombre legal o institucional'});
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Guardar'})).toBeEnabled());
+    expect(screen.getByText('Sin cambios pendientes en el perfil institucional.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'Guardar'}));
+    expect(runtime.apiFetch.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(0);
+  });
+  it('explains maintenance without attributing it to a loss of administrator permissions',async()=>{
+    const previous=runtime.apiFetch.getMockImplementation()!;
+    const message='Mantenimiento temporal de aceptación: tu permiso sigue vigente.';
+    runtime.apiFetch.mockImplementation(async(path:string,options?:any)=>{
+      const response=await previous(path,options);
+      if(path!=='/api/me')return response;
+      return {...response,organization_profile:{...response.organization_profile,can_edit:false,
+        editability:{mode:'read_only',reason_code:'maintenance',message}}};
+    });
+    renderProfile('/perfil?section=general');
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(screen.getByRole('button',{name:'Guardar'})).toBeDisabled();
+    expect(runtime.user?.rol).toBe('admin');
+  });
 });

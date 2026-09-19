@@ -10,6 +10,7 @@ name: Organization profile workspace
       - tests/fixtures/organization-workspaces.json
       - tests/e2e/fixtures/organization-profile.*
       - tests/profile-save.browser.mjs
+      - tests/profile-http.browser.mjs
       - tests/e2e/fixtures/profile-version-review*
       - tests/organization-profile.browser.mjs
       - .github/workflows/organization-profile.yml

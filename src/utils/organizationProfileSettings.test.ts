@@ -24,4 +24,21 @@ describe('organization profile settings contract',()=>{
     const receipt={contract_version:'organization.profile_save.v1',ok:true,saved:true,provider_calls_performed:false,tenant:profile.tenant,profile};
     expect(readProfileSaveReceipt(receipt,profile,{nombre_empresa:'Never saved'})).toBeNull();
   });
+  it('preserves a server-provided maintenance explanation',()=>{
+    const value={...fresh(),can_edit:false,editability:{mode:'read_only',reason_code:'maintenance',message:'Consulta temporal'}};
+    expect(readOrganizationProfile(value,'tenant-a')?.editability).toEqual(value.editability);
+  });
+  it.each([
+    {mode:'editable',reason_code:'maintenance',message:'Contradictory'},
+    {mode:'read_only',reason_code:'ready',message:'Contradictory'},
+    {mode:'editable',reason_code:'ready',message:''},
+    {mode:'editable',reason_code:'ready',message:'x'.repeat(501)},
+    null,
+  ])('rejects contradictory or malformed editability metadata',(editability)=>{
+    expect(readOrganizationProfile({...fresh(),editability},'tenant-a')).toBeNull();
+  });
+  it('does not turn a read-only profile into an editable capability',()=>{
+    expect(readOrganizationProfile({...fresh(),can_edit:false,
+      editability:{mode:'editable',reason_code:'ready',message:'Unexpected'}},'tenant-a')).toBeNull();
+  });
 });
