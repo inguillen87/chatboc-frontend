@@ -1,0 +1,94 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
+import { waitForAbort } from '@/utils/waitForAbort';
+import { CATALOG_PATH, DRAFT_PATH, TemplatePackContractError, readDraftReceipt,
+  readTemplateCatalog, templateDraftKey, type TemplatePack, type TemplatePackCatalog } from '@/components/admin/whatsappTemplatePackContract';
+
+const WAIT_MS = 30000;
+const accessFailure = (error: unknown) => error instanceof TemplatePackContractError
+  || (error instanceof ApiError && [401, 403, 404].includes(error.status));
+
+/** Mount once per organization. Cancels local waits, not a server transaction. */
+export function useWhatsappTemplatePacks(scope: string) {
+  const [catalog, setCatalog] = useState<TemplatePackCatalog | null>(null);
+  const [loading, setLoading] = useState(Boolean(scope));
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [savingVertical, setSavingVertical] = useState<string | null>(null);
+  const active = useRef(true);
+  const revision = useRef(0);
+  const controller = useRef<AbortController | null>(null);
+  const mutation = useRef(false);
+  const keys = useRef(new Map<string, string>());
+  const mountedCatalog = useRef(catalog);
+  mountedCatalog.current = catalog;
+  const current = (version: number) => active.current && revision.current === version;
+  const reading = useRef(false);
+  const refresh = useCallback(async () => {
+    if (!scope || mutation.current) return;
+    const version = ++revision.current;
+    controller.current?.abort();
+    const waiting = new AbortController(); controller.current = waiting;
+    const timer = setTimeout(() => waiting.abort(), WAIT_MS);
+    reading.current = true; setLoading(true); setError(null); setNotice(null);
+    try {
+      const value = await waitForAbort(apiFetch<unknown>(CATALOG_PATH, { tenantSlug: scope, cache: 'no-store' }), waiting.signal);
+      if (!current(version)) return;
+      const verified = readTemplateCatalog(value, scope);
+      setCatalog(verified);
+    } catch (failure) {
+      if (!current(version)) return;
+      if (accessFailure(failure)) { setCatalog(null); mountedCatalog.current = null; keys.current.clear(); }
+      setError(failure instanceof TemplatePackContractError ? failure.message
+        : waiting.signal.aborted ? 'La consulta tardó demasiado. Actualizá para volver a verificar las plantillas.'
+        : getErrorMessage(failure, 'No pudimos verificar las plantillas. Actualizá antes de crear borradores.'));
+    } finally {
+      clearTimeout(timer);
+      if (current(version)) { reading.current = false; setLoading(false); }
+    }
+  }, [scope]);
+  useEffect(() => {
+    active.current = true; void refresh();
+    return () => { active.current = false; ++revision.current; controller.current?.abort(); };
+  }, [refresh]);
+  const materialize = async (selected: TemplatePack) => {
+    const snapshot = mountedCatalog.current;
+    const pack = snapshot?.packs.find((item) => item.vertical === selected.vertical);
+    if (!active.current || !scope || mutation.current || reading.current || error || !snapshot || !pack
+      || snapshot.capabilities?.materialize_local_draft !== true || snapshot.endpoints?.materialize_template !== DRAFT_PATH
+      || selected.pack_id !== pack.pack_id || selected.pack_version !== pack.pack_version
+      || !pack.templates.length || pack.templates.every((item) => item.materialized)) return;
+    const operationKey = `${snapshot.tenant.id}:${pack.pack_id}:${pack.pack_version}`;
+    let key = keys.current.get(operationKey);
+    try { if (!key) { key = templateDraftKey(pack); keys.current.set(operationKey, key); } }
+    catch (failure) { setError((failure as Error).message); return; }
+    mutation.current = true; const version = ++revision.current;
+    controller.current?.abort(); const waiting = new AbortController(); controller.current = waiting;
+    const timer = setTimeout(() => waiting.abort(), WAIT_MS);
+    setSavingVertical(pack.vertical); setError(null); setNotice(null);
+    try {
+      const response = await waitForAbort(apiFetch<unknown>(DRAFT_PATH.replace('{vertical}', encodeURIComponent(pack.vertical)), {
+        method: 'POST', tenantSlug: scope, cache: 'no-store', headers: { 'Idempotency-Key': key }, body: { pack_version: pack.pack_version },
+      }), waiting.signal);
+      if (!current(version)) return;
+      const verified = readDraftReceipt(response, snapshot, pack);
+      setCatalog((prior) => prior ? { ...prior, packs: prior.packs.map((item) => item.vertical === pack.vertical ? verified : item) } : null);
+      keys.current.delete(operationKey);
+      setNotice('Borradores confirmados. Este paso no envía mensajes ni solicita aprobación a Meta.');
+    } catch (failure) {
+      if (!current(version)) return;
+      if (accessFailure(failure)) { setCatalog(null); mountedCatalog.current = null; }
+      // A timeout does NOT prove that the server rolled back. Keep the same key.
+      // After an uncertain outcome, reload evidence before retrying explicitly.
+      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) keys.current.delete(operationKey);
+      setError(failure instanceof TemplatePackContractError ? failure.message
+        : 'No pudimos confirmar la creación. Actualizá el estado antes de reintentar; no se enviaron mensajes desde este panel.');
+    } finally {
+      clearTimeout(timer);
+      if (current(version)) { mutation.current = false; setSavingVertical(null); }
+    }
+  };
+  return { catalog, loading, error, notice, savingVertical, refresh, materialize,
+    canMaterialize: Boolean(scope && catalog?.capabilities?.materialize_local_draft === true
+      && catalog.endpoints?.materialize_template === DRAFT_PATH && !loading && !error && !savingVertical) };
+}
