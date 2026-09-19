@@ -1,10 +1,21 @@
-name: Runtime readiness lease
+name: Startup recovery and paired Preview
 "on":
   pull_request:
     paths:
       - src/utils/backendBootstrapGate*
       - src/utils/backendReadinessLease*
       - src/config/publicPresentationRoutes.ts
+      - src/App.tsx
+      - src/App.session-bootstrap.test.tsx
+      - src/components/app-shell/BackendStartupBoundary*
+      - src/components/app-shell/StartupRecovery*
+      - src/config/startupExperience.ts
+      - scripts/previewBackendTarget*
+      - scripts/generateVercelPreviewConfig.mjs
+      - scripts/guardVercelPreviewRewrites*
+      - scripts/buildVercelPreviewQa.ps1
+      - tests/runtime-recovery.browser.mjs
+      - tests/e2e/fixtures/startup-runtime.*
       - .github/workflows/runtime-readiness.yml
 permissions:
   contents: read
@@ -14,7 +25,7 @@ concurrency:
 jobs:
   readiness:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -25,5 +36,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck && npm run typecheck:scope
-      - run: npm test -- src/utils/backendBootstrapGate.test.ts src/utils/backendBootstrapGate.release.test.ts src/utils/backendReadinessLease.test.ts --maxWorkers=2
+      - run: npm test -- --maxWorkers=2
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/runtime-recovery.browser.mjs

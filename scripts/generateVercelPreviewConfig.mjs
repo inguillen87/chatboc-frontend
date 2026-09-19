@@ -1,3 +1,4 @@
+import { resolvePreviewBackend } from './previewBackendTarget.mjs';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
@@ -9,7 +10,7 @@ const canonicalConfigPath = resolve(projectRoot, 'vercel.json');
 const previewConfigPath = resolve(projectRoot, '.vercel', 'qa', 'vercel.preview.json');
 
 const PRODUCTION_BACKEND_ORIGIN = 'https://api.chatboc.ar';
-const PREVIEW_BACKEND_ORIGIN = 'https://api-preview.chatboc.ar';
+const {origin: PREVIEW_BACKEND_ORIGIN, revision: expectedBackendRevision} = resolvePreviewBackend(process.env);
 const EXPECTED_BACKEND_REWRITE_SOURCES = new Set([
   '/ask/(.*)',
   '/archivos/(.*)',
@@ -102,6 +103,7 @@ process.stdout.write(
     contract: 'chatboc.frontend.preview-routing.v1',
     output: relative(projectRoot, previewConfigPath).replaceAll('\\', '/'),
     preview_backend_origin: PREVIEW_BACKEND_ORIGIN,
+    expected_backend_revision: expectedBackendRevision,
     rewrites_transformed: transformedSources.length,
     canonical_sha256: sha256(canonicalRaw),
     preview_sha256: sha256(previewRaw),

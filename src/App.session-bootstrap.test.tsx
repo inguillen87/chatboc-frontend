@@ -313,7 +313,7 @@ describe('App session bootstrap ordering', () => {
 
     const view = render(<App />);
 
-    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Preparando tu espacio' })).toBeInTheDocument();
     expect(bootstrapMocks.backendReady).toHaveBeenCalledExactlyOnceWith({ enabled: true });
     expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
     expect(clerkMocks.bridgeMounts).not.toHaveBeenCalled();
@@ -394,7 +394,7 @@ describe('App session bootstrap ordering', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar inicio' }));
 
-    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Preparando tu espacio' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(2);
     expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
@@ -425,7 +425,7 @@ describe('App session bootstrap ordering', () => {
 
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Preparando tu espacio' })).toBeInTheDocument();
     expect(bootstrapMocks.backendReady).toHaveBeenCalledTimes(1);
     expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
     expect(bootstrapMocks.clerkConfig).not.toHaveBeenCalled();
@@ -491,7 +491,7 @@ describe('App session bootstrap ordering', () => {
 
     const view = render(<App />);
 
-    expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Preparando tu espacio' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Borrador transitorio')).not.toBeInTheDocument();
     expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
 
@@ -569,7 +569,7 @@ describe('App session bootstrap ordering', () => {
     try {
       render(<App />);
 
-      expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Preparando tu espacio' })).toBeInTheDocument();
       expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
 
       await act(async () => {
@@ -616,7 +616,7 @@ describe('App session bootstrap ordering', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Preparando Chatboc' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Preparando tu espacio' })).not.toBeInTheDocument();
       expect(screen.getByLabelText('Borrador transitorio')).toBeInTheDocument();
     });
     expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);

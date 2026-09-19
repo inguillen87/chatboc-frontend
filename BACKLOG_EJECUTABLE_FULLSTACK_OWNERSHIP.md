@@ -309,3 +309,16 @@ y conserva PostgreSQL para concurrencia. El recorrido SPA coordinado es local.
 Sigue abierto el gate de aceptación institucional contra QA desplegado y la
 publicación coordinada. No se cierra WhatsApp del proveedor, MFA, las ocho
 migraciones ni el 503 de arranque en frío por pasar estas pruebas.
+
+### SS-STARTUP-UX: recuperación clara y par inmutable de Preview
+
+Implementado para release: estados de inicio/espera/offline/error/versiones,
+reintento de lectura sin recarga ni repetición de acciones; pantalla ya montada
+permanece estable. Interfaz neutra por marca, claro/oscuro, teclado y movimiento
+reducido. No reconfigura la identidad del cliente ni introduce contenido de negocio.
+El flujo QA admite un candidato de backend exacto con SHA requerida, manteniendo
+las ocho rutas auditadas y el rechazo de producción. Pin verificado en bundle.
+Detalle y comandos: docs/STARTUP_RECOVERY_RELEASE.md. La verificación del par y
+la autenticación institucional son gates diferentes; no se cambian alias estables
+ni escrituras por construir el candidato. Cold start y ocho migraciones pendientes
+conservan su seguimiento. Junín y el piloto TDF no se duplican ni se reconfiguran.

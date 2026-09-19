@@ -49,10 +49,8 @@ import {
   DISABILITY_AI_AGENT_DEMO_PATH,
   resolvePublicDemoPreloadTarget,
 } from '@/config/publicPresentationRoutes';
-import {
-  ensureBackendRuntimeReady,
-  isBackendBootstrapGateEnabled,
-} from '@/utils/backendBootstrapGate';
+import { BackendStartupBoundary as BackendBootstrapBoundary } from '@/components/app-shell/BackendStartupBoundary';
+import { StartupRecovery } from '@/components/app-shell/StartupRecovery';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
@@ -149,92 +147,7 @@ export const RouteLoadingFallback = () => (
   </main>
 );
 
-const AppBootstrapFallback = () => (
-  <main
-    id="main-content"
-    tabIndex={-1}
-    className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground"
-    aria-labelledby="app-bootstrap-title"
-    aria-describedby="app-bootstrap-description"
-    aria-busy="true"
-  >
-    <div
-      className="flex max-w-sm items-center gap-4 rounded-2xl border border-border/70 bg-card/80 px-5 py-4 shadow-sm"
-      role="status"
-      aria-live="polite"
-    >
-      <span
-        className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      <div>
-        <h1 id="app-bootstrap-title" className="text-sm font-semibold">
-          Preparando Chatboc
-        </h1>
-        <p id="app-bootstrap-description" className="mt-1 text-xs text-muted-foreground">
-          Validando la configuracion segura de acceso...
-        </p>
-      </div>
-    </div>
-  </main>
-);
-
-const AppBootstrapUnavailable = ({ onRetry }: { onRetry: () => void }) => (
-  <main
-    id="main-content"
-    tabIndex={-1}
-    className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground"
-    aria-labelledby="app-bootstrap-error-title"
-    aria-describedby="app-bootstrap-error-description"
-  >
-    <div className="w-full max-w-md rounded-2xl border border-border/70 bg-card px-6 py-5 shadow-sm" role="alert">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inicio seguro</p>
-      <h1 id="app-bootstrap-error-title" className="mt-2 text-lg font-semibold">
-        No pudimos iniciar tu espacio
-      </h1>
-      <p id="app-bootstrap-error-description" className="mt-2 text-sm leading-6 text-muted-foreground">
-        El servicio está tardando más de lo esperado. Reintentá para acceder a tu espacio de trabajo.
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        Reintentar inicio
-      </button>
-    </div>
-  </main>
-);
-
-const BackendBootstrapBoundary = ({ children }: { children: React.ReactNode }) => {
-  const enabled = React.useMemo(() => isBackendBootstrapGateEnabled(), []);
-  const [attempt, setAttempt] = React.useState(0);
-  const [status, setStatus] = React.useState<'ready' | 'loading' | 'error'>(
-    enabled ? 'loading' : 'ready',
-  );
-
-  React.useEffect(() => {
-    if (!enabled) return undefined;
-    let cancelled = false;
-    setStatus('loading');
-    void ensureBackendRuntimeReady({ enabled: true })
-      .then(() => {
-        if (!cancelled) setStatus('ready');
-      })
-      .catch(() => {
-        if (!cancelled) setStatus('error');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt, enabled]);
-
-  if (status === 'loading') return <AppBootstrapFallback />;
-  if (status === 'error') {
-    return <AppBootstrapUnavailable onRetry={() => setAttempt((value) => value + 1)} />;
-  }
-  return <>{children}</>;
-};
+const AppBootstrapFallback = () => <StartupRecovery phase="session" />;
 
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const allowEnvFallback = import.meta.env.DEV;
