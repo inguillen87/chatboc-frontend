@@ -76,6 +76,14 @@ export const buildTenantJourneyHref = (
     const returnTarget = new URL(safeReturnTo, base);
     if (target.origin !== base.origin || returnTarget.origin !== base.origin) return null;
 
+    for (const candidate of [target, returnTarget]) {
+      const scopes=tenantScopeAliases.flatMap(key=>candidate.searchParams.getAll(key));
+      if(scopes.some(scope=>normalizeTenantSlug(scope)!==normalizedTenant))return null;
+      const path=decodeURIComponent(candidate.pathname);
+      if(path.includes('\\')||path.startsWith('//'))return null;
+      const match=path.match(/^\/(?:t|e)\/([^/]+)(?:\/|$)/i);
+      if(match&&match[1].toLowerCase()!==normalizedTenant)return null;
+    }
     const publishedScopes = tenantScopeAliases.flatMap((key) => target.searchParams.getAll(key));
     if (publishedScopes.some((scope) => normalizeTenantSlug(scope) !== normalizedTenant)) {
       return null;
@@ -246,7 +254,7 @@ const TenantLaunchJourney: React.FC<TenantLaunchJourneyProps> = ({
     ? journey.stages.find((stage) => stage.id === currentStageId) || null
     : null;
   const nextAction = journey.summary.next_action;
-  const safeActionHref = nextAction && currentStage
+  const safeActionHref = !loading && !error && nextAction && currentStage
     ? buildTenantJourneyHref(nextAction.href, tenantSlug, returnTo)
     : null;
 

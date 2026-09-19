@@ -1,0 +1,844 @@
+{
+  "municipio": {
+    "contract_version": "tenant.implementation_journey.v2",
+    "tenant": {
+      "id": 1,
+      "slug": "tenant-a"
+    },
+    "organization_type": "municipio",
+    "organization_label": "Municipio",
+    "heading": "Puesta en marcha del municipio",
+    "description": "Trámites, atención ciudadana y seguimiento con responsables.",
+    "continuity_note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión.",
+    "readiness_note": "El progreso refleja estos pasos de configuración. No certifica el plan Full, la aceptación productiva ni la entrega de mensajes.",
+    "government_setup": true,
+    "stages": [
+      {
+        "id": "institutional_identity",
+        "label": "Identidad del espacio",
+        "description": "Revisá nombre y marca sin crear otra cuenta. El dominio propio y la marca blanca requieren validación y derechos de tu plan.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "institutional_branding"
+        ],
+        "evidence": [
+          "institutional_branding: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "channels",
+        "label": "Canales y atención",
+        "description": "Revisá las conexiones existentes antes de agregar otra. Un número registrado no acredita recepción ni entrega de mensajes.",
+        "status": "pending",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "whatsapp",
+          "widget",
+          "templates",
+          "live_chat"
+        ],
+        "evidence": [
+          "whatsapp: pending",
+          "widget: ready",
+          "templates: ready",
+          "live_chat: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_whatsapp",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "knowledge",
+        "label": "Conocimiento y contenidos",
+        "description": "Cargar contenido institucional y certificar su disponibilidad para respuestas asistidas.",
+        "status": "action_required",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "knowledge_content"
+        ],
+        "evidence": [
+          "knowledge_content: action_required"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_knowledge_content",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "team",
+        "label": "Equipo y responsables",
+        "description": "Asignar operadores, categorias y responsables para que ningun caso quede sin atender.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "team_routing"
+        ],
+        "evidence": [
+          "team_routing: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "validation_release",
+        "label": "Validacion y salida",
+        "description": "Completar identidad, accesibilidad, territorio, proteccion publica y participacion antes del canario.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "crm",
+          "identity_auth",
+          "accessibility",
+          "territorial_intelligence",
+          "public_intake_security",
+          "analytics_surveys"
+        ],
+        "evidence": [
+          "crm: ready",
+          "identity_auth: ready",
+          "accessibility: ready",
+          "territorial_intelligence: ready",
+          "public_intake_security: ready",
+          "analytics_surveys: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      }
+    ],
+    "summary": {
+      "total": 5,
+      "ready": 3,
+      "blocked": 0,
+      "published": 5,
+      "progress": 60,
+      "current_stage_id": "channels",
+      "next_action": {
+        "id": "open_whatsapp",
+        "label": "Revisar configuración",
+        "href": "/perfil?section=channels",
+        "kind": "link",
+        "primary": true
+      }
+    },
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "gobierno": {
+    "contract_version": "tenant.implementation_journey.v2",
+    "tenant": {
+      "id": 1,
+      "slug": "tenant-a"
+    },
+    "organization_type": "gobierno",
+    "organization_label": "Gobierno",
+    "heading": "Puesta en marcha del gobierno",
+    "description": "Servicios públicos y atención institucional en el mismo espacio.",
+    "continuity_note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión.",
+    "readiness_note": "El progreso refleja estos pasos de configuración. No certifica el plan Full, la aceptación productiva ni la entrega de mensajes.",
+    "government_setup": true,
+    "stages": [
+      {
+        "id": "institutional_identity",
+        "label": "Identidad del espacio",
+        "description": "Revisá nombre y marca sin crear otra cuenta. El dominio propio y la marca blanca requieren validación y derechos de tu plan.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "institutional_branding"
+        ],
+        "evidence": [
+          "institutional_branding: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "channels",
+        "label": "Canales y atención",
+        "description": "Revisá las conexiones existentes antes de agregar otra. Un número registrado no acredita recepción ni entrega de mensajes.",
+        "status": "pending",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "whatsapp",
+          "widget",
+          "templates",
+          "live_chat"
+        ],
+        "evidence": [
+          "whatsapp: pending",
+          "widget: ready",
+          "templates: ready",
+          "live_chat: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_whatsapp",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "knowledge",
+        "label": "Conocimiento y contenidos",
+        "description": "Cargar contenido institucional y certificar su disponibilidad para respuestas asistidas.",
+        "status": "action_required",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "knowledge_content"
+        ],
+        "evidence": [
+          "knowledge_content: action_required"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_knowledge_content",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "team",
+        "label": "Equipo y responsables",
+        "description": "Asignar operadores, categorias y responsables para que ningun caso quede sin atender.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "team_routing"
+        ],
+        "evidence": [
+          "team_routing: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "validation_release",
+        "label": "Validacion y salida",
+        "description": "Completar identidad, accesibilidad, territorio, proteccion publica y participacion antes del canario.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "crm",
+          "identity_auth",
+          "accessibility",
+          "territorial_intelligence",
+          "public_intake_security",
+          "analytics_surveys"
+        ],
+        "evidence": [
+          "crm: ready",
+          "identity_auth: ready",
+          "accessibility: ready",
+          "territorial_intelligence: ready",
+          "public_intake_security: ready",
+          "analytics_surveys: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      }
+    ],
+    "summary": {
+      "total": 5,
+      "ready": 3,
+      "blocked": 0,
+      "published": 5,
+      "progress": 60,
+      "current_stage_id": "channels",
+      "next_action": {
+        "id": "open_whatsapp",
+        "label": "Revisar configuración",
+        "href": "/perfil?section=channels",
+        "kind": "link",
+        "primary": true
+      }
+    },
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "colegio": {
+    "contract_version": "tenant.implementation_journey.v2",
+    "tenant": {
+      "id": 1,
+      "slug": "tenant-a"
+    },
+    "organization_type": "colegio",
+    "organization_label": "Colegio",
+    "heading": "Puesta en marcha del colegio",
+    "description": "Servicios educativos, atención a familias y cobros según las funciones contratadas.",
+    "continuity_note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión.",
+    "readiness_note": "El progreso refleja estos pasos de configuración. No certifica el plan Full, la aceptación productiva ni la entrega de mensajes.",
+    "government_setup": false,
+    "stages": [
+      {
+        "id": "institutional_identity",
+        "label": "Identidad del espacio",
+        "description": "Revisá nombre y marca sin crear otra cuenta. El dominio propio y la marca blanca requieren validación y derechos de tu plan.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "institutional_branding"
+        ],
+        "evidence": [
+          "institutional_branding: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "channels",
+        "label": "Canales y atención",
+        "description": "Revisá las conexiones existentes antes de agregar otra. Un número registrado no acredita recepción ni entrega de mensajes.",
+        "status": "pending",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "whatsapp",
+          "widget",
+          "templates",
+          "live_chat"
+        ],
+        "evidence": [
+          "whatsapp: pending",
+          "widget: ready",
+          "templates: ready",
+          "live_chat: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_whatsapp",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "knowledge",
+        "label": "Servicios y cuotas",
+        "description": "Comprobá los contenidos y cobros del espacio. Una conexión o un borrador no confirma una operación real.",
+        "status": "action_required",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "knowledge_content",
+          "catalog_marketplace",
+          "payments_checkout"
+        ],
+        "evidence": [
+          "knowledge_content: action_required",
+          "catalog_marketplace: ready",
+          "payments_checkout: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_knowledge_content",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "team",
+        "label": "Equipo y responsables",
+        "description": "Asignar operadores, categorias y responsables para que ningun caso quede sin atender.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "team_routing"
+        ],
+        "evidence": [
+          "team_routing: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "validation_release",
+        "label": "Validacion y salida",
+        "description": "Revisá atención, acceso, accesibilidad y protección de las consultas. La aceptación productiva se valida por separado.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "crm",
+          "identity_auth",
+          "accessibility",
+          "public_intake_security"
+        ],
+        "evidence": [
+          "crm: ready",
+          "identity_auth: ready",
+          "accessibility: ready",
+          "public_intake_security: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      }
+    ],
+    "summary": {
+      "total": 5,
+      "ready": 3,
+      "blocked": 0,
+      "published": 5,
+      "progress": 60,
+      "current_stage_id": "channels",
+      "next_action": {
+        "id": "open_whatsapp",
+        "label": "Revisar configuración",
+        "href": "/perfil?section=channels",
+        "kind": "link",
+        "primary": true
+      }
+    },
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "empresa": {
+    "contract_version": "tenant.implementation_journey.v2",
+    "tenant": {
+      "id": 1,
+      "slug": "tenant-a"
+    },
+    "organization_type": "empresa",
+    "organization_label": "Empresa",
+    "heading": "Puesta en marcha de la empresa",
+    "description": "Catálogo, consultas, pedidos y cobros con seguimiento del equipo.",
+    "continuity_note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión.",
+    "readiness_note": "El progreso refleja estos pasos de configuración. No certifica el plan Full, la aceptación productiva ni la entrega de mensajes.",
+    "government_setup": false,
+    "stages": [
+      {
+        "id": "institutional_identity",
+        "label": "Identidad del espacio",
+        "description": "Revisá nombre y marca sin crear otra cuenta. El dominio propio y la marca blanca requieren validación y derechos de tu plan.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "institutional_branding"
+        ],
+        "evidence": [
+          "institutional_branding: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "channels",
+        "label": "Canales y atención",
+        "description": "Revisá las conexiones existentes antes de agregar otra. Un número registrado no acredita recepción ni entrega de mensajes.",
+        "status": "pending",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "whatsapp",
+          "widget",
+          "templates",
+          "live_chat"
+        ],
+        "evidence": [
+          "whatsapp: pending",
+          "widget: ready",
+          "templates: ready",
+          "live_chat: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_whatsapp",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "knowledge",
+        "label": "Catálogo, contenido y cobros",
+        "description": "Comprobá los contenidos y cobros del espacio. Una conexión o un borrador no confirma una operación real.",
+        "status": "action_required",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "knowledge_content",
+          "catalog_marketplace",
+          "payments_checkout"
+        ],
+        "evidence": [
+          "knowledge_content: action_required",
+          "catalog_marketplace: ready",
+          "payments_checkout: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_knowledge_content",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "team",
+        "label": "Equipo y responsables",
+        "description": "Asignar operadores, categorias y responsables para que ningun caso quede sin atender.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "team_routing"
+        ],
+        "evidence": [
+          "team_routing: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "validation_release",
+        "label": "Validacion y salida",
+        "description": "Revisá atención, acceso, accesibilidad y protección de las consultas. La aceptación productiva se valida por separado.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "crm",
+          "identity_auth",
+          "accessibility",
+          "public_intake_security"
+        ],
+        "evidence": [
+          "crm: ready",
+          "identity_auth: ready",
+          "accessibility: ready",
+          "public_intake_security: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      }
+    ],
+    "summary": {
+      "total": 5,
+      "ready": 3,
+      "blocked": 0,
+      "published": 5,
+      "progress": 60,
+      "current_stage_id": "channels",
+      "next_action": {
+        "id": "open_whatsapp",
+        "label": "Revisar configuración",
+        "href": "/perfil?section=channels",
+        "kind": "link",
+        "primary": true
+      }
+    },
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "pyme": {
+    "contract_version": "tenant.implementation_journey.v2",
+    "tenant": {
+      "id": 1,
+      "slug": "tenant-a"
+    },
+    "organization_type": "pyme",
+    "organization_label": "Pyme",
+    "heading": "Puesta en marcha de la pyme",
+    "description": "Atención y ventas sobre una configuración compartida, sin duplicar cuentas.",
+    "continuity_note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión.",
+    "readiness_note": "El progreso refleja estos pasos de configuración. No certifica el plan Full, la aceptación productiva ni la entrega de mensajes.",
+    "government_setup": false,
+    "stages": [
+      {
+        "id": "institutional_identity",
+        "label": "Identidad del espacio",
+        "description": "Revisá nombre y marca sin crear otra cuenta. El dominio propio y la marca blanca requieren validación y derechos de tu plan.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "institutional_branding"
+        ],
+        "evidence": [
+          "institutional_branding: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "channels",
+        "label": "Canales y atención",
+        "description": "Revisá las conexiones existentes antes de agregar otra. Un número registrado no acredita recepción ni entrega de mensajes.",
+        "status": "pending",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "whatsapp",
+          "widget",
+          "templates",
+          "live_chat"
+        ],
+        "evidence": [
+          "whatsapp: pending",
+          "widget: ready",
+          "templates: ready",
+          "live_chat: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_whatsapp",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "knowledge",
+        "label": "Catálogo, contenido y cobros",
+        "description": "Comprobá los contenidos y cobros del espacio. Una conexión o un borrador no confirma una operación real.",
+        "status": "action_required",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "knowledge_content",
+          "catalog_marketplace",
+          "payments_checkout"
+        ],
+        "evidence": [
+          "knowledge_content: action_required",
+          "catalog_marketplace: ready",
+          "payments_checkout: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_knowledge_content",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "team",
+        "label": "Equipo y responsables",
+        "description": "Asignar operadores, categorias y responsables para que ningun caso quede sin atender.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "team_routing"
+        ],
+        "evidence": [
+          "team_routing: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "validation_release",
+        "label": "Validacion y salida",
+        "description": "Revisá atención, acceso, accesibilidad y protección de las consultas. La aceptación productiva se valida por separado.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "crm",
+          "identity_auth",
+          "accessibility",
+          "public_intake_security"
+        ],
+        "evidence": [
+          "crm: ready",
+          "identity_auth: ready",
+          "accessibility: ready",
+          "public_intake_security: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      }
+    ],
+    "summary": {
+      "total": 5,
+      "ready": 3,
+      "blocked": 0,
+      "published": 5,
+      "progress": 60,
+      "current_stage_id": "channels",
+      "next_action": {
+        "id": "open_whatsapp",
+        "label": "Revisar configuración",
+        "href": "/perfil?section=channels",
+        "kind": "link",
+        "primary": true
+      }
+    },
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "organizacion": {
+    "contract_version": "tenant.implementation_journey.v2",
+    "tenant": {
+      "id": 1,
+      "slug": "tenant-a"
+    },
+    "organization_type": "organizacion",
+    "organization_label": "Organización",
+    "heading": "Puesta en marcha de la organización",
+    "description": "Configuración general sin asumir un sector que no fue confirmado.",
+    "continuity_note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión.",
+    "readiness_note": "El progreso refleja estos pasos de configuración. No certifica el plan Full, la aceptación productiva ni la entrega de mensajes.",
+    "government_setup": false,
+    "stages": [
+      {
+        "id": "institutional_identity",
+        "label": "Identidad del espacio",
+        "description": "Revisá nombre y marca sin crear otra cuenta. El dominio propio y la marca blanca requieren validación y derechos de tu plan.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "institutional_branding"
+        ],
+        "evidence": [
+          "institutional_branding: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "channels",
+        "label": "Canales y atención",
+        "description": "Revisá las conexiones existentes antes de agregar otra. Un número registrado no acredita recepción ni entrega de mensajes.",
+        "status": "pending",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "whatsapp",
+          "widget",
+          "templates",
+          "live_chat"
+        ],
+        "evidence": [
+          "whatsapp: pending",
+          "widget: ready",
+          "templates: ready",
+          "live_chat: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_whatsapp",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "knowledge",
+        "label": "Conocimiento y contenidos",
+        "description": "Cargar contenido institucional y certificar su disponibilidad para respuestas asistidas.",
+        "status": "action_required",
+        "ready": false,
+        "published": true,
+        "source_ids": [
+          "knowledge_content"
+        ],
+        "evidence": [
+          "knowledge_content: action_required"
+        ],
+        "reason_codes": [],
+        "primary_action": {
+          "id": "open_knowledge_content",
+          "label": "Revisar configuración",
+          "href": "/perfil?section=channels",
+          "kind": "link",
+          "primary": true
+        }
+      },
+      {
+        "id": "team",
+        "label": "Equipo y responsables",
+        "description": "Asignar operadores, categorias y responsables para que ningun caso quede sin atender.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "team_routing"
+        ],
+        "evidence": [
+          "team_routing: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      },
+      {
+        "id": "validation_release",
+        "label": "Validacion y salida",
+        "description": "Revisá atención, acceso, accesibilidad y protección de las consultas. La aceptación productiva se valida por separado.",
+        "status": "ready",
+        "ready": true,
+        "published": true,
+        "source_ids": [
+          "crm",
+          "identity_auth",
+          "accessibility",
+          "public_intake_security"
+        ],
+        "evidence": [
+          "crm: ready",
+          "identity_auth: ready",
+          "accessibility: ready",
+          "public_intake_security: ready"
+        ],
+        "reason_codes": [],
+        "primary_action": null
+      }
+    ],
+    "summary": {
+      "total": 5,
+      "ready": 3,
+      "blocked": 0,
+      "published": 5,
+      "progress": 60,
+      "current_stage_id": "channels",
+      "next_action": {
+        "id": "open_whatsapp",
+        "label": "Revisar configuración",
+        "href": "/perfil?section=channels",
+        "kind": "link",
+        "primary": true
+      }
+    },
+    "writes_performed": false,
+    "provider_calls_performed": false
+  }
+}

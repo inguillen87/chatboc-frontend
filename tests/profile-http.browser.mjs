@@ -18,7 +18,7 @@ const server = await createServer({cacheDir:'.vercel/profile-http-cache',
   server:{host:'127.0.0.1',port:0}, logLevel:'error'});
 let browser;
 const results=[];
-const failures=[];
+const failures=[]; const requestPaths=[];
 try {
   await server.listen();
   const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
@@ -30,6 +30,7 @@ try {
       ? route.continue() : route.abort('blockedbyclient'));
     const page=await context.newPage(); page.setDefaultTimeout(45000);
     page.on('pageerror', error=>failures.push(error.message));
+    page.on('request',r=>requestPaths.push(new URL(r.url()).pathname));
     await page.goto(origin+'/login?next=%2Fperfil%3Fsection%3Dgeneral');
     await page.getByPlaceholder('Correo electrónico',{exact:true}).fill(accounts[account].email);
     await page.getByPlaceholder('Contraseña',{exact:true}).fill(password);
@@ -114,6 +115,27 @@ try {
     await delegated.page.screenshot({path:`.vercel/profile-http-evidence/profile-${width}.png`,fullPage:true});
   }
   results.push('actual_profile_responsive_1440_820_390_dark_320');
+  await first.page.goto(origin+'/implementacion?tenant_slug=acceptance-a');
+  await expect(first.page.getByRole('heading',{name:'Puesta en marcha del municipio'})).toBeVisible();
+  const stepNav=first.page.getByRole('navigation',{name:'Pasos de configuración'});
+  await stepNav.getByRole('button',{name:/2 Canales y atención/}).click();
+  await expect(first.page.getByRole('region',{name:'Detalle de Canales y atención'})).toBeVisible();
+  for(const [width,dark] of [[1440,false],[820,false],[390,true],[320,false]]) {
+    await first.page.setViewportSize({width,height:900});
+    await first.page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),dark);
+    assert.equal(await first.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/setup-${width}.png`,fullPage:true});
+  }
+  await first.page.setViewportSize({width:1440,height:1000});
+  await stepNav.getByRole('button',{name:/1 Identidad del espacio/}).click();
+  const identityAction=first.page.getByRole('region',{name:'Detalle de Identidad del espacio'}).getByRole('link');
+  if(await identityAction.count()) {
+    const href=await identityAction.getAttribute('href');
+    assert.equal(new URL(href,origin).searchParams.get('tenant_slug'),'acceptance-a');
+    await identityAction.click();await first.page.waitForURL(/tenant_slug=acceptance-a/);
+  }
+  assert.equal(requestPaths.some(path=>path.startsWith('/api/implementacion/')),false);
+  results.push('real_organization_setup_server_steps_navigation_and_responsive_layout');
   assert.deepEqual(failures,[],'No uncaught application exceptions');
   await writeFile('.vercel/profile-http-evidence/result.json', JSON.stringify({
     full_spa:true, api_mocks:false, disposable_accounts:true, results},null,2));

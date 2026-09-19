@@ -25,6 +25,7 @@ import {
 import {
   fetchTenantChannelActivation,
   parseTenantImplementationJourney,
+  parseTenantChannelActivation,
   type ChannelActivationChannel,
   type ChannelActivationContract,
 } from '@/api/v2/channelActivation';
@@ -33,6 +34,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import {parseOrganizationSetupJourney} from '@/utils/organizationSetupJourney';
+import OrganizationSetupWorkspace from '@/components/implementation/OrganizationSetupWorkspace';
 
 const channelIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   crm: TicketCheck,
@@ -91,7 +94,8 @@ const ChannelTechnicalGrid: React.FC<{
   channels: ChannelActivationChannel[];
   secureTenantSlug?: string;
   returnTo?: string;
-}> = ({ channels, secureTenantSlug, returnTo }) => {
+  allowActions?: boolean;
+}> = ({ channels, secureTenantSlug, returnTo, allowActions=true }) => {
   const hasChannels = channels.length > 0;
 
   return (
@@ -118,9 +122,9 @@ const ChannelTechnicalGrid: React.FC<{
         const status = String(channel.status || 'action_required');
         const primary = (channel.actions || []).find((item) => item.primary && item.href && item.kind !== 'api')
           || (channel.actions || []).find((item) => item.href && item.kind !== 'api');
-        const primaryHref = primary?.href && secureTenantSlug
+        const primaryHref = allowActions && primary?.href && secureTenantSlug
           ? buildTenantJourneyHref(primary.href, secureTenantSlug, returnTo)
-          : primary?.href || null;
+          : null;
 
         return (
           <article
@@ -190,46 +194,53 @@ export interface ChannelActivationChecklistProps {
   initialData?: ChannelActivationContract | null;
   highlighted?: boolean;
   presentation?: 'overview' | 'launch-journey';
+  onSetupType?: (kind:string) => void;
   returnTo?: string;
 }
 
-const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
+const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = (props) => {
+  const scope=(props.tenantSlug ?? props.initialData?.tenant?.slug ?? '').trim().toLowerCase();
+  if(!/^[a-z0-9][a-z0-9_-]{0,119}$/.test(scope))return null;
+  return <ScopedChannelActivationChecklist key={scope} {...props} tenantSlug={scope}/>;
+};
+const ScopedChannelActivationChecklist: React.FC<ChannelActivationChecklistProps & {tenantSlug:string}> = ({
   tenantSlug,
   initialData,
   highlighted = false,
   presentation = 'overview',
   returnTo,
+  onSetupType,
 }) => {
-  const [data, setData] = React.useState<ChannelActivationContract | null>(initialData || null);
-  const [loading, setLoading] = React.useState(Boolean(tenantSlug || initialData));
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    // `/me` may finish after the workspace mounts. Keep the visible contract
-    // aligned with that verified tenant snapshot instead of retaining a stale
-    // session payload (for example, an obsolete Free plan badge).
-    setData(initialData || null);
-  }, [initialData, tenantSlug]);
-
-  const load = React.useCallback(async () => {
-    if (!tenantSlug && !initialData) return;
-    setLoading(true);
-    setError(null);
+  const safeSnapshot = (value?:ChannelActivationContract|null) => {
+    try { return value ? parseTenantChannelActivation(value, tenantSlug) : null; } catch { return null; }
+  };
+  const [data,setData]=React.useState<ChannelActivationContract|null>(()=>safeSnapshot(initialData));
+  const [loading,setLoading]=React.useState(true);
+  const [error,setError]=React.useState<string|null>(null);
+  const active=React.useRef(false);const sequence=React.useRef(0);const pending=React.useRef(false);const denied=React.useRef(false);
+  const load=React.useCallback(async()=>{
+    if(!active.current||pending.current)return;
+    const current=++sequence.current;pending.current=true;setLoading(true);setError(null);
+    let received=false;
     try {
-      const response = await fetchTenantChannelActivation(tenantSlug);
-      setData(response);
-    } catch (err) {
-      setError(syncErrorMessage);
+      const raw=await fetchTenantChannelActivation(tenantSlug);received=true;
+      const response=parseTenantChannelActivation(raw,tenantSlug);
+      if(!active.current||sequence.current!==current)return;
+      denied.current=false;setData(response);
+    } catch(err:any) {
+      if(!active.current||sequence.current!==current)return;
+      const forbidden=[401,403].includes(Number(err?.status??err?.statusCode));
+      const invalid=typeof err?.message==='string'&&err.message.startsWith('channel_activation_');
+      if(forbidden||received||invalid){denied.current=forbidden;setData(null);}
+      setError(forbidden?'No tenés acceso a la configuración de esta organización.':syncErrorMessage);
     } finally {
-      setLoading(false);
+      if(active.current&&sequence.current===current){pending.current=false;setLoading(false);}
     }
-  }, [initialData, tenantSlug]);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (!tenantSlug && !data) return null;
+  },[tenantSlug]);
+  React.useEffect(()=>{
+    active.current=true;if(!denied.current)setData(safeSnapshot(initialData));void load();
+    return()=>{active.current=false;++sequence.current;pending.current=false;};
+  },[load,initialData]);
 
   const channels = Array.isArray(data?.channels) ? data.channels : [];
   const progress = normalizeProgress(data?.summary?.progress);
@@ -240,9 +251,18 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   const hasChannels = channels.length > 0;
   const integrationStatus = String(data?.integration_access?.status || '').toLowerCase();
   const selfServiceActive = integrationStatus === 'partial';
-  const implementationJourney = parseTenantImplementationJourney(data?.implementation_journey);
+  const hasModern=!!data && Object.prototype.hasOwnProperty.call(data,'organization_setup');
+  const setup=parseOrganizationSetupJourney(data?.organization_setup,tenantSlug,data?.tenant?.id);
+  const implementationJourney = hasModern ? null : parseTenantImplementationJourney(data?.implementation_journey);
+  const actionsEnabled=!loading&&!error;
+  React.useEffect(()=>{ if(setup)onSetupType?.(setup.organization_type); },[setup?.organization_type,onSetupType]);
+  if(setup) return <OrganizationSetupWorkspace journey={setup} loading={loading} error={error}
+    onRefresh={()=>void load()} returnTo={returnTo} technicalDetails={
+      <ChannelTechnicalGrid channels={channels} secureTenantSlug={tenantSlug} returnTo={returnTo} allowActions={actionsEnabled}/>
+    }/>;
 
-  if (presentation === 'launch-journey') {
+
+  if (presentation === 'launch-journey' || hasModern) {
     return (
       <div data-testid="channel-activation-checklist" data-presentation="launch-journey">
         <TenantLaunchJourney
@@ -257,6 +277,7 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
               channels={channels}
               secureTenantSlug={tenantSlug || data?.tenant?.slug || ''}
               returnTo={returnTo}
+              allowActions={actionsEnabled && !hasModern}
             />
           )}
         />
@@ -322,9 +343,9 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             {hasChannels ? `${ready} de ${total || channels.length} frentes listos.` : 'Esperando sincronizacion del backend.'}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            {primaryAction?.href && primaryAction?.kind !== 'api' ? (
+            {actionsEnabled && primaryAction?.href && primaryAction?.kind !== 'api' && buildTenantJourneyHref(primaryAction.href,tenantSlug,returnTo) ? (
               <Button asChild size="sm" className="h-9">
-                <a href={primaryAction.href}>
+                <a href={buildTenantJourneyHref(primaryAction.href,tenantSlug,returnTo)!}>
                   {primaryAction.label || 'Continuar'}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
@@ -346,7 +367,7 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
       </div>
 
       <div className="p-4">
-        <ChannelTechnicalGrid channels={channels} />
+        <ChannelTechnicalGrid channels={channels} secureTenantSlug={tenantSlug} returnTo={returnTo} allowActions={actionsEnabled} />
       </div>
     </section>
   );
