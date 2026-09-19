@@ -30,5 +30,11 @@ export class BackendReadinessLeases {
     return tracked;
   }
 
+  /** Forget a completed observation, but never start a second concurrent probe. */
+  invalidateSettled(key: string): void {
+    const entry = this.entries.get(key);
+    if (entry && entry.readyAt !== null) this.entries.delete(key);
+  }
+
   clear(): void { this.entries.clear(); }
 }

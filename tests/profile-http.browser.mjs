@@ -13,6 +13,7 @@ process.env.VITE_BACKEND_URL = '/api';
 process.env.VITE_API_URL = '/api';
 process.env.VITE_PROXY_TARGET = backend.origin;
 process.env.VITE_USE_LOCAL_API_PROXY = 'true';
+process.env.VITE_BACKEND_BOOTSTRAP_GATE_ENABLED = 'true';
 const server = await createServer({cacheDir:'.vercel/profile-http-cache',
   server:{host:'127.0.0.1',port:0}, logLevel:'error'});
 let browser;
@@ -42,6 +43,31 @@ try {
   const second=await login('second');
   const name=first.page.getByRole('textbox',{name:'Nombre legal o institucional'});
   await name.fill('Institución verificada por HTTP');
+  await first.page.evaluate(()=>{
+    Object.defineProperty(navigator,'onLine',{configurable:true,value:false});
+    window.dispatchEvent(new Event('offline'));
+  });
+  await expect(first.page.getByText('Sin conexión',{exact:true})).toBeVisible();
+  const resumed=first.page.waitForResponse(r=>new URL(r.url()).pathname==='/api/version');
+  await first.page.evaluate(()=>{
+    Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
+    window.dispatchEvent(new Event('online'));
+  });
+  assert.equal((await resumed).status(),200);
+  await expect(name).toHaveValue('Institución verificada por HTTP');
+  await expect(first.page.getByText('El servicio volvió a responder',{exact:true})).toBeVisible();
+  for(const width of [1440,820,390,320]) {
+    await first.page.setViewportSize({width,height:900});
+    await first.page.waitForTimeout(150);
+    const header=await first.page.locator('.chatboc-brand-navbar').boundingBox();
+    const banner=await first.page.getByTestId('runtime-recovery-bar').boundingBox();
+    assert.ok(header && banner && banner.y >= header.y+header.height-1,'Status bar must not overlap fixed navbar');
+    await expect(name).toHaveValue('Institución verificada por HTTP');
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/live-recovery-${width}.png`,fullPage:true});
+  }
+  await first.page.setViewportSize({width:1440,height:1000});
+  await first.page.getByRole('button',{name:'Cerrar estado del servicio'}).click();
+  results.push('reconnection_of_actual_spa_preserves_unsaved_profile');
   await first.page.getByRole('button',{name:'Guardar',exact:true}).click();
   await first.page.getByText('Los datos de la organización quedaron confirmados por el servidor.',{exact:true}).waitFor();
   await second.page.getByRole('textbox',{name:'Nombre legal o institucional'}).fill('Edición de segunda sesión');
