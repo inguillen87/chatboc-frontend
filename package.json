@@ -13,6 +13,7 @@
     "setup-env": "node scripts/setupEnv.cjs",
     "postinstall": "npm run setup-env",
     "test": "vitest run",
+    "test:release": "vitest run scripts/guardVercelPreviewRewrites.test.mjs scripts/verifyVercelProductionBuild.test.mjs scripts/vercelGitPreviewPolicy.test.mjs --maxWorkers=2",
     "test:watch": "vitest",
     "verify:local": "npm run build && npm test -- --pool=threads && npm run test:e2e -- --project=chromium",
     "test:e2e:pwa": "npm run build && playwright test --config=playwright.pwa.config.ts",

@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "node scripts/vercelGitPreviewPolicy.mjs",
   "headers": [
     {
       "source": "/((?!iframe(?:$|/|\\.html$)).*)",
