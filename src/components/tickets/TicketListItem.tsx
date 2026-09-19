@@ -8,9 +8,9 @@ import { shiftDateByHours } from '@/utils/date';
 import { AlertTriangle, CheckCircle2, Clock, MapPin, Sparkles, UserRound } from 'lucide-react';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
-import { motion } from 'framer-motion';
+import styles from './TicketListItem.module.css';
 import { TicketSlaClocks } from './TicketSlaClocks';
-import { resolveTicketSlaSource } from '@/utils/ticketSla';
+import { normalizeTicketSla, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -122,11 +122,10 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
 
   if (compact) {
     return (
-      <motion.button
+      <button
         type="button"
-        whileHover={{ x: 2 }}
-        whileTap={{ scale: 0.99 }}
         className={cn(
+          styles.row,
           'relative w-full p-2.5 text-left transition-all rounded-xl border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
           categoryColors.border,
           isSelected
@@ -142,11 +141,6 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
         aria-describedby={ariaDescribedBy}
         aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
       >
-        {hasUnread && !isSelected && (
-          <span className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
-            {unreadBadgeLabel}
-          </span>
-        )}
         <div className="flex min-w-0 items-start gap-2.5">
           <IdentityAvatar
             name={displayName}
@@ -172,7 +166,14 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300">{formattedTime}</span>
+                <div className="flex items-center gap-1">
+                  {hasUnread && !isSelected ? <span data-testid="ticket-unread-indicator"
+                    aria-label="Actividad sin leer" title="Actividad sin leer"
+                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                    {unreadBadgeLabel}
+                  </span> : null}
+                  <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300">{formattedTime}</span>
+                </div>
                 <span className={statusClass}>{statusLabel}</span>
               </div>
             </div>
@@ -189,6 +190,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
                 )}
               </div>
             )}
+            {normalizeTicketSla(slaSource).state !== 'unknown' ? (
+              <div className="mt-1.5 flex flex-wrap gap-1" data-testid="compact-queue-sla">
+                <TicketSlaClocks sla={slaSource} compact />
+              </div>
+            ) : null}
             {nextAction ? (
               <p
                 className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"
@@ -200,17 +206,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
             ) : null}
           </div>
         </div>
-      </motion.button>
+      </button>
     );
   }
 
   return (
-    <motion.button
+    <button
       type="button"
-      whileHover={{ y: -1.5, scale: 1.008 }}
-      whileTap={{ scale: 0.99 }}
-      transition={{ duration: 0.15 }}
       className={cn(
+        styles.row,
         'relative w-full rounded-2xl border text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 border-l-[5px]',
         categoryColors.border,
         'p-3.5 shadow-sm',
@@ -228,7 +232,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
       aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
     >
       {hasUnread && !isSelected && (
-        <span className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground shadow-sm animate-pulse">
+        <span className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground shadow-sm">
           {unreadBadgeLabel}
         </span>
       )}
@@ -317,7 +321,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
           </span>
         </div>
       ) : null}
-    </motion.button>
+    </button>
   );
 };
 

@@ -1,0 +1,51 @@
+name: Enterprise inbox regression
+"on":
+  pull_request:
+    paths:
+      - src/components/tickets/**
+      - src/utils/ticketFocusFilters*
+      - src/utils/ticketOperationalQueue*
+      - src/utils/ticketSla*
+      - src/context/TicketContext*
+      - tests/e2e/ticket-workspace-layout.spec.ts
+      - .github/workflows/enterprise-inbox.yml
+      - package.json
+      - package-lock.json
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: enterprise-inbox-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  inbox:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked frontend dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Type checks
+        run: npm run typecheck && npm run typecheck:scope
+      - name: Full unit and component suite
+        run: npm test -- --maxWorkers=2
+      - name: Production build
+        run: npm run build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Focus filters and SLA evidence on desktop and mobile
+        run: npx playwright test tests/e2e/ticket-workspace-layout.spec.ts --grep "focus shortcuts" --project=chromium --workers=1
+      - name: Preserve synthetic visual evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: inbox-focus-screenshots
+          path: test-results/**/inbox-focus-*.png
+          if-no-files-found: ignore
+          retention-days: 7

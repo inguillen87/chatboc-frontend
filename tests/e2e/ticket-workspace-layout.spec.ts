@@ -923,3 +923,63 @@ for (const viewport of E2E_VIEWPORTS) {
     await expectDocumentLocked(page);
   });
 }
+
+for (const viewport of [{ width: 1440, height: 1000, name: 'desktop', dark: false },
+  { width: 390, height: 844, name: 'mobile-dark', dark: true }]) {
+  test(`focus shortcuts share server filters and expose SLA: ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: viewport.dark ? 'dark' : 'light' });
+    const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+    const reads: URLSearchParams[] = [];
+    await installWorkspaceSession(page);
+    await mockWorkspaceApis(page, capture);
+    await page.route('**/*', async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname.toLowerCase().endsWith('/api/tickets')) {
+        const params = url.searchParams; reads.push(params);
+        let data = tickets.map((ticket, index) => ({ ...ticket,
+          assignedAgentId: index < 3 ? null : 'operator-e2e',
+          sla: index < 2 ? { clocks: { resolution: {
+            status: 'overdue', due_at: '2026-07-10T09:00:00Z', known: true,
+          } } } : null,
+        }));
+        if (params.get('sla') === 'risk') data = data.slice(0, 2);
+        if (params.get('unread') === 'unread') data = data.filter((ticket) => ticket.hasUnreadMessages);
+        await json(route, { tickets: data, pagination: { page: 1, per_page: 25,
+          pages: 1, total: data.length, has_more: false } });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto('/perfil?tab=tickets&tenant_slug=municipio-demo&channel=whatsapp', { waitUntil: 'domcontentloaded' });
+    if (viewport.dark) await page.evaluate(() => document.documentElement.classList.add('dark', 'a11y-reduced-motion'));
+    const focus = page.getByTestId('ticket-queue-focus').filter({ visible: true }).first();
+    await expect(focus).toBeVisible();
+    await focus.getByRole('button', { name: 'Enfocar: SLA vencido' }).click();
+    await expect.poll(() => reads.some((p) => p.get('sla') === 'risk' && p.get('channel') === 'whatsapp')).toBe(true);
+    await expect(focus.getByRole('button', { name: 'Enfocar: SLA vencido' })).toHaveAttribute('aria-pressed', 'true');
+    const queue = page.getByTestId('sidebar-ticket-queue').filter({ visible: true }).first();
+    await expect(queue.locator('[data-ticket-queue-index]')).toHaveCount(2);
+    await expect(queue.getByTestId('compact-queue-sla').first()).toContainText('Resolución vencida');
+    await expectNoHorizontalOverflow(page);
+    if (viewport.dark) {
+      // Apply the visual theme after async tenant/theme bootstrap has settled.
+      await page.evaluate(() => document.documentElement.classList.add('dark', 'a11y-reduced-motion'));
+      await expect(page.locator('html')).toHaveClass(/dark/);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`inbox-focus-${viewport.name}.png`), fullPage: false });
+    await focus.getByRole('button', { name: 'Enfocar: No leídos' }).click();
+    await expect.poll(() => reads.some((p) => p.get('sla') === 'risk' && p.get('unread') === 'unread' && p.get('channel') === 'whatsapp')).toBe(true);
+    await expect(focus.getByText('Deben cumplirse todos los enfoques elegidos.')).toBeVisible();
+    const clear = focus.getByRole('button', { name: 'Quitar enfoque sin borrar los demás filtros' });
+    await clear.focus(); await page.keyboard.press('Enter');
+    // Clearing may reuse this viewer's scoped cache; do not require a redundant network read.
+    await expect(queue.locator('[data-ticket-queue-index]')).toHaveCount(18);
+    await expect(page.getByTestId('sidebar-list-summary-bar').first()).toHaveAttribute('title', 'Canal: whatsapp');
+    await expect(focus.getByRole('button', { name: 'Enfocar: No leídos' })).toHaveAttribute('aria-pressed', 'false');
+    const row = queue.locator('[data-ticket-queue-index]').first();
+    await row.hover();
+    await expect.poll(() => row.evaluate((element) => getComputedStyle(element).transform)).toBe('none');
+    expect(capture.replies).toHaveLength(0);
+  });
+}

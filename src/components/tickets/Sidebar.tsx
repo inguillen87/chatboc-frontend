@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,6 +17,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
+import { TicketQueueFocusBar } from './TicketQueueFocusBar';
+import { toggleTicketFocus, clearTicketFocus } from '@/utils/ticketFocusFilters';
 import TicketFilterPopover from './TicketFilterPopover';
 import { useTenant } from '@/context/TenantContext';
 import { useTickets } from '@/context/TicketContext';
@@ -95,9 +97,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     [key: string]: number;
   }>({});
   const [openCategories, setOpenCategories] = React.useState<string[]>([]);
-  const [backendCategories, setBackendCategories] = React.useState<string[]>(
-    [],
-  );
+  const [categorySnapshot, setCategorySnapshot] = React.useState<{
+    scope: string | null; items: string[];
+  }>({ scope: null, items: [] });
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
   const [listMode, setListMode] = React.useState<'queue' | 'categories'>('queue');
   const [queueVisibleCount, setQueueVisibleCount] = React.useState(
@@ -112,6 +114,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     () => resolveTenantSlug(currentSlug || tenant?.slug, undefined, { persist: false }),
     [currentSlug, tenant?.slug],
   );
+  const backendCategories = categorySnapshot.scope === categoryTenantSlug ? categorySnapshot.items : [];
+
 
   React.useEffect(() => {
     if (previousContextSearchRef.current !== contextSearchTerm && contextSearchTerm !== searchTerm) {
@@ -139,17 +143,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [compact]);
 
   React.useEffect(() => {
-    const fetchCategories = async () => {
-      if (categoryTenantSlug) {
-        try {
-          const cats = await apiClient.adminGetTicketCategories(categoryTenantSlug);
-          setBackendCategories(cats.map((c: any) => c.nombre));
-        } catch (e) {
-          console.error('Failed to load ticket categories', e);
-        }
-      }
-    };
-    fetchCategories();
+    let active = true;
+    setCategorySnapshot({ scope: categoryTenantSlug, items: [] });
+    if (categoryTenantSlug) {
+      void apiClient.adminGetTicketCategories(categoryTenantSlug).then((categories) => {
+        if (!active) return;
+        const items = Array.isArray(categories)
+          ? categories.flatMap((category) => typeof category?.nombre === 'string' && category.nombre.trim()
+            ? [category.nombre.trim()] : []) : [];
+        setCategorySnapshot({ scope: categoryTenantSlug, items });
+      }).catch(() => {
+        if (active) setCategorySnapshot({ scope: categoryTenantSlug, items: [] });
+      });
+    }
+    return () => { active = false; };
   }, [categoryTenantSlug]);
 
   const selectedCategory = React.useMemo(() => {
@@ -782,6 +789,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Button>
         ) : null}
       </div>
+      <TicketQueueFocusBar
+        filters={filters}
+        onToggle={(key) => setFilters((current) => toggleTicketFocus(current, key))}
+        onClear={() => setFilters((current) => clearTicketFocus(current))}
+      />
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (
           <div className="mx-3 mt-3 rounded-[8px] border border-dashed border-border bg-background/70 p-4 text-center">
