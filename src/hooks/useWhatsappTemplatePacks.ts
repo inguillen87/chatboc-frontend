@@ -38,7 +38,9 @@ export function useWhatsappTemplatePacks(scope: string) {
       setCatalog(verified);
     } catch (failure) {
       if (!current(version)) return;
-      if (accessFailure(failure)) { setCatalog(null); mountedCatalog.current = null; keys.current.clear(); }
+      // Remove visible data and write authority, not an uncertain operation's identity.
+      // A denied/malformed read does not prove that an earlier POST was rolled back.
+      if (accessFailure(failure)) { setCatalog(null); mountedCatalog.current = null; }
       setError(failure instanceof TemplatePackContractError ? failure.message
         : waiting.signal.aborted ? 'La consulta tardó demasiado. Actualizá para volver a verificar las plantillas.'
         : getErrorMessage(failure, 'No pudimos verificar las plantillas. Actualizá antes de crear borradores.'));
@@ -58,7 +60,9 @@ export function useWhatsappTemplatePacks(scope: string) {
       || snapshot.capabilities?.materialize_local_draft !== true || snapshot.endpoints?.materialize_template !== DRAFT_PATH
       || selected.pack_id !== pack.pack_id || selected.pack_version !== pack.pack_version
       || !pack.templates.length || pack.templates.every((item) => item.materialized)) return;
-    const operationKey = `${snapshot.tenant.id}:${pack.pack_id}:${pack.pack_version}`;
+    // Include the endpoint's vertical; JSON tuples cannot collide on ':' in metadata.
+    // Normalize numeric/string tenant IDs the same way as the verified contract.
+    const operationKey = JSON.stringify([scope, String(snapshot.tenant.id), pack.vertical, pack.pack_id, pack.pack_version]);
     let key = keys.current.get(operationKey);
     try { if (!key) { key = templateDraftKey(pack); keys.current.set(operationKey, key); } }
     catch (failure) { setError((failure as Error).message); return; }
@@ -78,9 +82,10 @@ export function useWhatsappTemplatePacks(scope: string) {
     } catch (failure) {
       if (!current(version)) return;
       if (accessFailure(failure)) { setCatalog(null); mountedCatalog.current = null; }
-      // A timeout does NOT prove that the server rolled back. Keep the same key.
-      // After an uncertain outcome, reload evidence before retrying explicitly.
-      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) keys.current.delete(operationKey);
+      // Neither a timeout nor an HTTP status proves that the server rolled back.
+      // In particular, 408/409/429 must not silently rotate the idempotency key.
+      // Keep it for this mounted workspace until a matching success is verified.
+      // A fresh authorized catalogue and an explicit click are still required.
       setError(failure instanceof TemplatePackContractError ? failure.message
         : 'No pudimos confirmar la creación. Actualizá el estado antes de reintentar; no se enviaron mensajes desde este panel.');
     } finally {
