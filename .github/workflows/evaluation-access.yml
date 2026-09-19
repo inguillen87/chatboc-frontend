@@ -1,0 +1,29 @@
+name: Isolated evaluation access
+"on":
+  pull_request:
+    paths:
+      - server/evaluation/**
+      - src/features/evaluation/**
+      - demo/evaluation/**
+      - scripts/packageEvaluation.mjs
+      - tests/evaluation/**
+      - vite.config.ts
+      - .github/workflows/evaluation-access.yml
+permissions:
+  contents: read
+jobs:
+  evaluation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/evaluation/security.node.mjs
+      - run: npm run typecheck && npm run typecheck:scope && npm run build
+      - run: node scripts/packageEvaluation.mjs
