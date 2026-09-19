@@ -136,6 +136,44 @@ try {
   }
   assert.equal(requestPaths.some(path=>path.startsWith('/api/implementacion/')),false);
   results.push('real_organization_setup_server_steps_navigation_and_responsive_layout');
+  await first.page.goto(origin+'/perfil?section=identity&tenant_slug=acceptance-a');
+  const studio=first.page.getByTestId('brand-studio');await expect(studio).toBeVisible();
+  await first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'}).check();
+  await first.page.getByRole('button',{name:'Violeta y coral',exact:true}).click();
+  const brandWrite=first.page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname.endsWith('/config'));
+  await first.page.getByRole('button',{name:'Publicar paleta',exact:true}).click();
+  await first.page.getByRole('button',{name:'Confirmar publicación',exact:true}).click();
+  assert.equal((await brandWrite).status(),200);
+  await first.page.getByText('La paleta quedó publicada y confirmada por el servidor.',{exact:true}).waitFor();
+  await expect(first.page.getByTestId('institution-profile-workspace')).toHaveCSS('--org-brand','#6D28D9');
+  await first.page.reload();await expect(first.page.getByLabel('Color principal',{exact:true})).toHaveValue('#6D28D9');
+  await expect(first.page.getByTestId('institution-profile-workspace')).toHaveCSS('--org-brand','#6D28D9');
+  for(const [width,dark] of [[1440,false],[820,false],[390,true],[320,false]]) {
+    await first.page.setViewportSize({width,height:1000});
+    await first.page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),dark);
+    await first.page.getByTestId('brand-studio').scrollIntoViewIfNeeded();
+    assert.equal(await first.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/brand-${width}.png`,fullPage:true});
+    await first.page.getByText('Vista previa · Sin publicar',{exact:true}).scrollIntoViewIfNeeded();
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/brand-preview-${width}.png`,fullPage:true});
+  }
+  await first.page.setViewportSize({width:1440,height:1100});
+  await first.page.goto(origin+'/implementacion?tenant_slug=acceptance-a');
+  await expect(first.page.getByTestId('organization-setup-workspace')).toHaveCSS('--org-brand','#6D28D9');
+  await first.page.screenshot({path:'.vercel/profile-http-evidence/brand-setup.png',fullPage:true});
+  await foreign.page.goto(origin+'/perfil?section=identity&tenant_slug=acceptance-b');
+  await foreign.page.getByTestId('brand-studio').waitFor();
+  await expect(foreign.page.getByRole('button',{name:'Publicar paleta',exact:true})).toBeDisabled();
+  await expect(foreign.page.getByTestId('institution-profile-workspace')).not.toHaveCSS('--org-brand','#6D28D9');
+  await first.page.goto(origin+'/perfil?section=identity&tenant_slug=acceptance-a');
+  await first.page.getByTestId('brand-studio').waitFor();
+  await first.page.getByText(/Historial de paleta/).click();
+  await first.page.getByRole('button',{name:'Restaurar versión 0',exact:true}).click();
+  await first.page.getByRole('button',{name:'Confirmar publicación',exact:true}).click();
+  await first.page.getByText('La paleta quedó publicada y confirmada por el servidor.',{exact:true}).waitFor();
+  await first.page.reload();await expect(first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'})).not.toBeChecked();
+  await expect(first.page.getByTestId('institution-profile-workspace')).not.toHaveCSS('--org-brand','#6D28D9');
+  results.push('brand_publish_reload_setup_propagation_full_gate_and_restore');
   assert.deepEqual(failures,[],'No uncaught application exceptions');
   await writeFile('.vercel/profile-http-evidence/result.json', JSON.stringify({
     full_spa:true, api_mocks:false, disposable_accounts:true, results},null,2));

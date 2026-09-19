@@ -1,3 +1,5 @@
+import {brandCss,readWorkspaceAppearance} from '@/utils/workspaceBranding';
+import brandStyles from './OrganizationBrandStudio.module.css';
 import type { OrganizationWorkspace } from "@/utils/organizationWorkspace";
 import type { FormEvent, ReactNode } from "react";
 import {
@@ -81,6 +83,7 @@ const sections: Array<{
 ];
 
 interface InstitutionProfileWorkspaceProps {
+  appearance?:unknown;tenantSlug?:string;
   workspace?: OrganizationWorkspace | null;
   activeSection: InstitutionProfileSection;
   children: ReactNode;
@@ -96,6 +99,7 @@ interface InstitutionProfileWorkspaceProps {
 }
 
 export default function InstitutionProfileWorkspace({
+  appearance,tenantSlug="",
   activeSection,
   workspace,
   children,
@@ -109,6 +113,7 @@ export default function InstitutionProfileWorkspace({
   onSave,
   onSectionChange,
 }: InstitutionProfileWorkspaceProps) {
+  const palette=readWorkspaceAppearance(appearance,tenantSlug);
   const presentedSections = sections.map((section) => {
     const published = workspace?.sections.find((item) => item.id === section.id);
     return published ? {...section, label: published.label, description: published.description} : section;
@@ -118,11 +123,12 @@ export default function InstitutionProfileWorkspace({
   return (
     <form
       onSubmit={onSave}
+      style={brandCss(palette)}
       className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm"
       data-testid="institution-profile-workspace"
       data-layout="viewport"
     >
-      <header className="shrink-0 border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5">
+      <header className={cn("shrink-0 border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5",palette?.active&&brandStyles.liveHeader)}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
@@ -132,11 +138,11 @@ export default function InstitutionProfileWorkspace({
               <h2 className="truncate text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {institutionName || (isMunicipal ? "Gobierno local" : "Organización")}
               </h2>
-              <Badge variant="outline" className="rounded-md !bg-muted !text-foreground border-border">
+              <Badge data-workspace-badge variant="outline" className="rounded-md !bg-muted !text-foreground border-border">
                 {workspace?.organization_label || (isMunicipal ? "Gobierno" : "Organización")}
               </Badge>
               {plan ? (
-                <Badge variant="secondary" className="rounded-md capitalize">
+                <Badge data-workspace-badge variant="secondary" className="rounded-md capitalize">
                   {plan}
                 </Badge>
               ) : null}
@@ -145,7 +151,7 @@ export default function InstitutionProfileWorkspace({
               {workspace?.description || "Configuración administrativa separada de la operación diaria. Cada sección guarda el mismo registro institucional."}
             </p>
           </div>
-          <Badge variant={isAdministrator ? "default" : "outline"} className={cn("w-fit rounded-md", !isAdministrator && "!bg-muted !text-foreground border-border")}>
+          <Badge data-workspace-badge variant={isAdministrator ? "default" : "outline"} className={cn("w-fit rounded-md", !isAdministrator && "!bg-muted !text-foreground border-border")}>
             {isAdministrator ? "Administración habilitada" : "Solo lectura operativa"}
           </Badge>
         </div>
