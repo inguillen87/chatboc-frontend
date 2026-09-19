@@ -24,6 +24,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test tests/evaluation/security.node.mjs
+      - run: node --test tests/evaluation/*.node.mjs
       - run: npm run typecheck && npm run typecheck:scope && npm run build
       - run: node scripts/packageEvaluation.mjs

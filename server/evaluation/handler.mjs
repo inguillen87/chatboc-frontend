@@ -1,5 +1,6 @@
 import { configuration, passwordMatches, issueSession, readSession, sessionCookie } from './security.mjs';
 import { loadGuide, responseFor } from './guide.mjs';
+import { buildWhatsAppPack } from './whatsapp-pack.mjs';
 
 // A bounded per-worker throttle for this non-production demonstration.
 // It is not a distributed account lockout or a production authentication service.
@@ -69,6 +70,12 @@ export function createHandler({ env = process.env, guideLoader = loadGuide, cloc
       return send(res, 200, { ...publicState, authenticated: false });
     }
     if (!session) return send(res, 401, { error: 'evaluation_login_required' });
+    if (action === 'whatsapp-pack' && req.method === 'GET') {
+      try {
+        res.setHeader('Content-Disposition', 'attachment; filename="conversa-whatsapp-draft.json"');
+        return send(res, 200, buildWhatsAppPack(guideLoader()));
+      } catch { return send(res, 503, { error: 'pack_unavailable' }); }
+    }
     if (action !== 'menu' || !isPost) return send(res, 404, { error: 'evaluation_action_unknown' });
     try {
       const input = await jsonBody(req);
