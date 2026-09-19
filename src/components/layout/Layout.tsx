@@ -24,7 +24,7 @@ const Layout = () => {
   const isProfileAnalyticsWorkspace =
     normalizedPath === '/perfil' &&
     profileTab === 'analytics';
-  const isProfileWorkspace = normalizedPath === '/perfil';
+  const isProfileWorkspace = normalizedPath === '/perfil' || normalizedPath === '/implementacion';
   const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
   const isDemoExperience = normalizedPath === '/demo';
   const isLandingExperience = normalizedPath === '/';

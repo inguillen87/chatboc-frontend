@@ -343,6 +343,7 @@ function AppRoutes() {
     '/chat',
     "/tracking",
     "/integracion",
+    "/implementacion",
     "/admin",
     "/perfil",
     "/empleados",

@@ -335,3 +335,20 @@ al cambiar de tamaño. Contrastes, teclado y movimiento reducido cubiertos.
 Detalle y evidencia: docs/RUNTIME_RESUME_RELEASE.md. Se mantiene pendiente resolver
 la latencia de arranque del servidor con mediciones remotas y cerrar aceptación
 institucional de QA. Este corte no sustituye migraciones, WhatsApp real o PWA física.
+
+### SS-ORGANIZATION-SETUP: centro de configuración por vertical
+
+Implementado: proyección opcional v2 por tipo autenticado (municipio, gobierno,
+colegio, empresa, pyme o genérico), preservando el contrato gubernamental v1.
+UI guiada por evidencia del servidor, próximos pasos y enlaces con scope de ida
+y retorno; detalles técnicos diferenciados y continuidad de cuentas/canales.
+No convierte sender registrado en conectado ni una etapa lista en salida productiva.
+
+Cierre de aislamiento visual: respuestas A-B-A, rechazo de acceso, fuente inválida,
+error temporal sin acciones y eliminación de inferencia de /implementacion como
+tenant público. Se mantienen permisos, planes y reglas de provisión existentes.
+Documentación/evidencia: docs/ORGANIZATION_SETUP_WORKSPACE.md.
+
+Siguientes gates: selección de módulos por cliente, marca/dominio versionados,
+aceptación institucional en QA y publicación coordinada. Mantener separados los
+pendientes de migración, WhatsApp/Meta/Twilio y pruebas de dispositivos físicos.

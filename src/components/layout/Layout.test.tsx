@@ -28,6 +28,7 @@ const renderLayout = (initialEntry: string) =>
         <Route element={<Layout />}>
           <Route path="/" element={<div>landing outlet</div>} />
           <Route path="/perfil" element={<div>profile outlet</div>} />
+          <Route path="/implementacion" element={<div>setup outlet</div>} />
           <Route path="/t/:tenant/reclamos" element={<div>tenant tickets outlet</div>} />
           <Route path="/e/:slug" element={<div>survey outlet</div>} />
           <Route path="/otra" element={<div>other outlet</div>} />
@@ -162,5 +163,11 @@ describe('Layout ticket workspace shell', () => {
     expect(main).toHaveClass('w-full', 'flex-1', 'pt-20');
     expect(main).not.toHaveClass('max-w-7xl');
     expect(main).not.toHaveClass('lg:px-16');
+  });
+
+  it('keeps the implementation workspace free of the marketing footer',()=>{
+    renderLayout('/implementacion?tenant_slug=tenant-a');
+    expect(screen.queryByTestId('site-footer')).toBeNull();
+    expect(screen.getByTestId('navbar')).toBeInTheDocument();
   });
 });

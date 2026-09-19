@@ -104,6 +104,7 @@ export interface ChannelActivationContract {
   counts?: Record<string, number>;
   channels?: ChannelActivationChannel[];
   implementation_journey?: TenantImplementationJourneyContract | null;
+  organization_setup?: unknown;
   blockers?: Array<{ id?: string; label?: string; reason_code?: string | null; required_plan?: string | null }>;
   integration_access?: {
     enabled?: boolean;

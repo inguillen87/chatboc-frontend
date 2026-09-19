@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
 import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
 import GovernmentJurisdictionReadinessPanel from '@/components/implementation/GovernmentJurisdictionReadinessPanel';
@@ -20,6 +20,9 @@ import {
 
 const TenantImplementationCenterPage = () => {
   const [searchParams] = useSearchParams();
+  const location=useLocation();
+  const [setupContext,setSetupContext]=React.useState<{slug:string;kind:string}|null>(null);
+  const [advancedOpen,setAdvancedOpen]=React.useState(false);
   const { currentSlug, tenant } = useTenant();
   const { user, loading } = useUser();
   const [activationRevision, setActivationRevision] = React.useState(0);
@@ -48,6 +51,10 @@ const TenantImplementationCenterPage = () => {
   const tenantLabel = initialActivation?.tenant?.nombre
     || (contextMatchesScope ? tenant?.nombre : null)
     || tenantSlug;
+  const knownType=setupContext?.slug===tenantSlug?setupContext.kind:null;
+  const showGovernmentTools=knownType===null || ['municipio','gobierno'].includes(knownType);
+  const onSetupType=React.useCallback((kind:string)=>{if(tenantSlug)setSetupContext({slug:tenantSlug,kind});},[tenantSlug]);
+  React.useEffect(()=>{setAdvancedOpen(location.hash==='#configuracion-base');},[tenantSlug,location.hash]);
   const profileHref = tenantSlug
     ? `/perfil?tenant_slug=${encodeURIComponent(tenantSlug)}`
     : '/perfil';
@@ -124,6 +131,27 @@ const TenantImplementationCenterPage = () => {
         )}
       />
 
+      <div
+        id="controles-salida"
+        className="scroll-mt-24"
+        data-testid="implementation-tenant-scope"
+        data-tenant-slug={tenantSlug}
+      >
+        <ChannelActivationChecklist
+          key={`${tenantSlug}:${activationRevision}`}
+          tenantSlug={tenantSlug}
+          initialData={initialActivation}
+          highlighted
+          presentation="launch-journey"
+          onSetupType={onSetupType}
+          returnTo={implementationReturnTo}
+        />
+      </div>
+      {showGovernmentTools ? <details className="rounded-2xl border border-border bg-card p-4" open={advancedOpen}
+        onToggle={event=>setAdvancedOpen(event.currentTarget.open)}>
+        <summary className="min-h-11 cursor-pointer py-2 font-semibold text-foreground">Herramientas de configuración gubernamental</summary>
+        <p className="mb-5 mt-2 text-sm text-muted-foreground">Preparación y revisión avanzada. Abrir estos controles no aplica cambios ni habilita el servicio.</p>
+        <div className="space-y-5">
       <TenantProvisioningReadinessPanel tenantSlug={tenantSlug} />
 
       <div id="configuracion-base" className="scroll-mt-24">
@@ -152,21 +180,10 @@ const TenantImplementationCenterPage = () => {
         </>
       ) : null}
 
-      <div
-        id="controles-salida"
-        className="scroll-mt-24"
-        data-testid="implementation-tenant-scope"
-        data-tenant-slug={tenantSlug}
-      >
-        <ChannelActivationChecklist
-          key={`${tenantSlug}:${activationRevision}`}
-          tenantSlug={tenantSlug}
-          initialData={initialActivation}
-          highlighted
-          presentation="launch-journey"
-          returnTo={implementationReturnTo}
-        />
-      </div>
+
+        </div>
+      </details> : null}
+
     </section>
   );
 };
