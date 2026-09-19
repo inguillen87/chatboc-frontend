@@ -39,7 +39,7 @@ if (/<link[^>]+rel=["']manifest/i.test(html)) throw new Error('global_manifest_n
 html=html.replace('</head>',`<meta name="evaluation-release" content="${revision}" /></head>`);
 await writeFile(path.join(staticRoot,'index.html'),html);
 await writeFile(path.join(staticRoot,'robots.txt'),'User-agent: *\nDisallow: /\n');
-for (const name of ['handler.mjs','security.mjs','guide.mjs']) await copyFile(`server/evaluation/${name}`,path.join(functionRoot,name));
+for (const name of ['handler.mjs','security.mjs','guide.mjs','whatsapp-pack.mjs']) await copyFile(`server/evaluation/${name}`,path.join(functionRoot,name));
 await writeFile(path.join(functionRoot,'guide.json'),bytes); loadGuide(path.join(functionRoot,'guide.json'),lock.sha256);
 await writeFile(path.join(functionRoot,'package.json'),JSON.stringify({type:'module'}));
 await writeFile(path.join(functionRoot,'.vc-config.json'),JSON.stringify({runtime:'nodejs22.x',handler:'handler.mjs',launcherType:'Nodejs',maxDuration:10,shouldAddHelpers:false},null,2));

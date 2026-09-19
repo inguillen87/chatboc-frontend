@@ -44,10 +44,18 @@ try {
     await page.getByLabel('Contraseña de prueba',{exact:true}).fill('local-test-only');
     await page.getByRole('button',{name:'Entrar',exact:true}).click();
     await page.getByRole('heading',{name:'¿Para quién es la consulta?'}).waitFor();
-    await page.getByRole('button',{name:/Para mí/}).click();
+    await page.getByLabel('También podés escribir una opción').fill('1');
+    await page.getByRole('button',{name:'Continuar',exact:true}).click();
     await page.getByRole('heading',{name:'¿Sobre qué querés consultar?'}).waitFor();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.screenshot({path:`.vercel/evidence/${name}-menu.png`,fullPage:true});
+    const packResponse=await context.request.get(`${origin}/api/evaluation?action=whatsapp-pack`);
+    assert.equal(packResponse.status(),200);
+    const pack=await packResponse.json();
+    assert.equal(pack.messages.length,29);
+    assert.equal(pack.provider_calls,0);
+    assert.equal(pack.send_enabled,false);
+
     await page.getByRole('button',{name:/Documentación: CUD/}).click();
     await page.getByRole('button',{name:/Vigencia y prórrogas/}).click();
     await page.getByRole('heading',{name:'Vigencia y avisos'}).waitFor();
@@ -65,8 +73,9 @@ try {
     await page.getByRole('heading',{name:'Ingresar a la demostración'}).waitFor();
     const denied=await context.request.post(`${origin}/api/evaluation?action=menu`,{headers:{Origin:origin},data:{node:'main'}});
     assert.equal(denied.status(),401);
+    assert.equal((await context.request.get(`${origin}/api/evaluation?action=whatsapp-pack`)).status(),401);
     assert.deepEqual(errors,[]);
-    results.push({name,width,height,passed:true,login:true,menu:true,source:true,feedback:true,reload:true,logout:true});
+    results.push({name,width,height,passed:true,login:true,menu:true,source:true,feedback:true,reload:true,logout:true,typedSelection:true,whatsappPack:29});
     await context.close();
   }
   console.log(JSON.stringify({browser:'Chromium',synthetic:true,real_devices:false,tests:results},null,2));

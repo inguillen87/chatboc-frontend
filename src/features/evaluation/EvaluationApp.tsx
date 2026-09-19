@@ -27,10 +27,11 @@ export default function EvaluationApp() {
   const [username, setUsername] = React.useState(''); const [password, setPassword] = React.useState('');
   const [visible, setVisible] = React.useState(false); const [busy, setBusy] = React.useState(false);
   const [menu, setMenu] = React.useState<Menu | null>(null);
+  const [choice, setChoice] = React.useState('');
   const epoch = React.useRef(0); const panel = React.useRef<HTMLHeadingElement>(null);
   const activeRequest = React.useRef<AbortController | null>(null);
   const reset = React.useCallback(() => {
-    epoch.current += 1; activeRequest.current?.abort(); setMenu(null); setPassword(''); setBusy(false);
+    epoch.current += 1; activeRequest.current?.abort(); setMenu(null); setChoice(''); setPassword(''); setBusy(false);
     setState((previous) => previous ? { ...previous, authenticated: false, session_expires_at: null } : previous);
   }, []);
   React.useEffect(() => {
@@ -45,10 +46,10 @@ export default function EvaluationApp() {
     const controller = new AbortController(); activeRequest.current = controller;
     setBusy(true); setError('');
     try { const data = await request('menu', { node, selection }, controller.signal);
-      if (epoch.current === current) { setMenu(data); requestAnimationFrame(() => panel.current?.focus()); }
+      if (epoch.current === current) { setMenu(data); setChoice(''); requestAnimationFrame(() => panel.current?.focus()); }
     } catch (failure) { if (epoch.current === current) {
       if (failure instanceof EvaluationError && [401,410].includes(failure.status)) { reset(); setError('La sesión de prueba terminó. Ingresá nuevamente.'); }
-      else setError('No pudimos cargar ese paso. Reintentá; no se envió ningún trámite.');
+      else setError(failure instanceof EvaluationError && failure.status === 400 ? 'Esa opción no está en este menú. Elegí un botón o escribí su número.' : 'No pudimos cargar ese paso. Reintentá; no se envió ningún trámite.');
     } } finally { if (epoch.current === current) setBusy(false); }
   }, [reset]);
   React.useEffect(() => { if (state?.authenticated) void choose(); }, [state?.authenticated, choose]);
@@ -119,6 +120,7 @@ export default function EvaluationApp() {
             <button className="evaluation-secondary" onClick={() => void choose('main')} disabled={busy}>Menú principal <ChevronRight size={16} /></button>
             <button className="evaluation-secondary" onClick={() => void choose()} disabled={busy}>Cambiar quién consulta</button>
             {state.presentation_url && <a className="evaluation-secondary" href={state.presentation_url} target="_blank" rel="noopener noreferrer">Ver presentación del piloto</a>}
+            <details className="evaluation-text-preview"><summary>Para el equipo técnico</summary><p>Paquete de mensajes interactivos para Meta y Twilio. Borrador sin envíos.</p><a className="evaluation-secondary" href="/api/evaluation?action=whatsapp-pack" download>Descargar paquete WhatsApp</a></details>
             <div className="evaluation-boundary"><strong>Entorno de evaluación</strong><p>Sin consultas a registros oficiales, trámites enviados ni respuestas de satisfacción guardadas.</p></div>
           </aside>
           <section className="evaluation-conversation" aria-label="Recorrido conversacional" aria-busy={busy}>
@@ -138,6 +140,7 @@ export default function EvaluationApp() {
                 </details>
               </div>
             )}
+            <form className="evaluation-choice" onSubmit={(event) => { event.preventDefault(); if (choice.trim() && !busy) void choose(menu?.id || "start", choice.trim()); }}><label htmlFor="menu-choice">También podés escribir una opción</label><div><input id="menu-choice" inputMode="numeric" maxLength={16} value={choice} onChange={(event) => setChoice(event.target.value)} placeholder="Número, menú o inicio" disabled={busy || !menu} autoComplete="off" /><button className="evaluation-primary" type="submit" disabled={busy || !menu || !choice.trim()}>Continuar</button></div></form>
             <div className="evaluation-chat-footer" role="status">{busy ? 'Consultando el siguiente paso…' : 'Elegí una opción. No hace falta escribir datos personales.'}</div>
           </section>
         </div>
