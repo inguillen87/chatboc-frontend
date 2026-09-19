@@ -1,0 +1,203 @@
+# Chatboc: marca blanca y PWA multidispositivo
+
+Estado: **PLANIFICADO**. Este documento define alcance y aceptación; no certifica funciones desplegadas.
+Decisión de producto confirmada por Marcelo: las organizaciones con plan Full activo usan TODA la plataforma SaaS compartida con nombre, dominio/URL, colores, logos y WhatsApp propios configurables desde Configuración e Integraciones; no se desarrolla otra aplicación por cliente.
+Se integra al backlog full-stack, no reemplaza seguridad, pagos, encuestas ni la migración Render/Vercel/Neon.
+
+## 1. Base revisada y brechas
+
+Frontend revisado: `44eaf7b62cafe743c7032c3ac84fedba05288171`; backend de migración: `8b54e0114856e1ff21815a60f247bad8041d4ad4`.
+- `AGENTS.md` ya exige presentación white label controlada por backend. Se conserva ese principio.
+- `routes/public_resolver.py` expone contratos de tenant/widget y usa `services/tenant_resolver.py`; no crear otro resolvedor paralelo.
+- `tests/test_white_label_phase0_security.py` contiene casos para dominio desconocido y tenant inactivo. Existencia de pruebas no equivale a haberlas ejecutado en este corte.
+- `vite.config.ts` genera hoy un manifest global con nombre/iconos de Chatboc; eso no certifica una PWA de marca independiente por organización.
+- `src/pwa.ts` desactiva el service worker en hosts efímeros `.vercel.app`; la aceptación PWA requiere un origen QA estable autorizado, no quitar ese resguardo.
+- Referencia histórica: `src/pages/public/disabilityAIAgentDemo.content.ts` todavía usa **Faro TDF** para una demo conceptual de discapacidad en Tierra del Fuego. Marcelo aclara que solicitaron cambiar nombre y URL; FARO no debe usarse como marca vigente/aprobada. La referencia operativa actual se recuperó en Vercel y se verificó por HTTP: `agente-conversa.vercel.app`, título «Agente conversacional accesible · Mesa Única de Discapacidad». Ver evidencia y condición de inicio en 10.1.
+- La entrada institucional histórica excluye el manifest global. Usarla sólo como referencia de identidad configurable, no como plataforma paralela ni como datos reales.
+
+## 2. Decisiones de arquitectura
+
+Una plataforma multi-tenant, con una línea de código por componente; separar portal/backoffice o infraestructura dedicada sólo cuando el aislamiento o un contrato lo justifique, nunca por cambiar un logo.
+Mantener `tenant_id` como identidad estable: ni el nombre comercial, ni un slug, ni el dominio reemplazan la autorización del servidor.
+Primera opción white label: un origen propio verificado por organización. Mantener `/t/{slug}` como ruta compatible; no prometer aislamiento de almacenamiento sólo por separar rutas del mismo origen.
+El dominio propio puede seguir registrado y administrado por el cliente. No transferir dominios, delegar DNS ni comprar planes sin autorización específica.
+Extender los contratos públicos existentes con un bloque tipado y versionado; validar compatibilidad antes de decidir nombres de endpoints o nuevas tablas.
+
+### 2.1. Decisión comercial: SaaS completo con marca propia en plan Full
+
+**No se vende sólo un widget, una landing ni una demo personalizada.** Se vende el uso de toda la plataforma SaaS compartida bajo la identidad del cliente: agente IA, bandeja/CRM, reclamos, encuestas, catálogo/marketplace, pedidos, pagos, analítica y portal, según funciones disponibles, vertical, roles y alcance del plan Full.
+**Plan Full activo + organización activa + permiso del usuario + integración verificada** son condiciones independientes. Full no concede acceso a otras organizaciones, superadministración ni funciones todavía no implementadas.
+Cada municipio/gobierno/empresa configura su organización. No crear repositorio, aplicación, base o despliegue por cliente por razones de marca; el mismo producto sirve dominios distintos.
+Versionar configuración, marca e integraciones por tenant y desplegar versiones compartidas con activación gradual. “Versión para cada cliente” significa configuración aislada, no una rama de código permanente por cliente.
+El alcance multidispositivo/PWA se conserva para la plataforma completa; no reservar la usabilidad móvil a un plan superior.
+
+**Control de plan y contratación:**
+- Extender el control comercial existente del backend, no comprobar `plan === 'full'` únicamente en React.
+- `services/plan_access.py` ya contiene `plan_allows_full_integrations`, aliases de planes y capacidades alternativas. Auditar su mapeo al SKU Full sin quitar derechos contratados existentes ni otorgar marca blanca a planes inferiores por un alias/capacidad genéricos.
+- El derecho Full/marca blanca y su vigencia proceden de una fuente comercial autorizada del servidor; no de `localStorage`, query strings o configuración editable del tenant. Un pago retornado por URL no activa Full.
+- Definir capacidades explícitas de marca/dominio/PWA, roles de edición/publicación/conexión y pruebas negativas: Free/plan inferior, expirado, tenant inactivo, usuario sin permiso y manipulación de flags.
+- El plan inferior ve el estado bloqueado y la opción de upgrade apropiada. No retirar en este corte funciones ya contratadas de otros planes.
+- Upgrade idempotente con activación y checklist; downgrade/suspensión con política explícita, notificación y transición, sin borrar datos, transferir dominios/números ni romper enlaces de forma improvisada.
+- Full habilita capacidades del producto; cuotas de IA, mensajes, voz, almacenamiento y otros consumos se definen y muestran por organización. No convertirlo implícitamente en consumo ilimitado ni inventar precios en este plan.
+
+### 2.2. Autoservicio dentro de Configuración e Integraciones
+
+| Ubicación prevista | Qué configura el administrador autorizado |
+| --- | --- |
+| Configuración → Marca y apariencia | Nombre de plataforma/agente, logos, avatar, colores, tipografía controlada, favicon, atribución y previsualización por dispositivo. |
+| Configuración → Dominios y URLs | Dominio/subdominio elegido bajo su control, verificación DNS/TLS, URL principal, enlaces públicos y estado de activación. |
+| Configuración → Aplicación PWA | Nombre e icono instalados, acceso de inicio, apariencia y guía de instalación según dispositivo. |
+| Integraciones → WhatsApp | Conectar la cuenta y número de su organización mediante onboarding autorizado; identidad admitida por proveedor, plantillas, Flows, catálogo, estado y prueba del canal. |
+| Integraciones → Pagos y otros canales | Conexiones autorizadas de cada organización, secretos sólo en servidor, diagnósticos y cuotas; no reutilizar credenciales de otro cliente. |
+| Configuración → Plan y consumo | Full activo, funciones habilitadas, vencimiento/renovación, límites y uso; acciones comerciales sujetas a permisos. |
+
+Guía autoservicio: alta de organización → Full confirmado → elegir módulos/vocabulario de vertical → marca → dominio → canales → vista previa → validación → publicación. La intervención de soporte es una excepción diagnosticada, no edición de código por cliente.
+**Aceptación adicional:** dos organizaciones Full usan el SaaS completo bajo identidades y dominios propios; sus administradores configuran sin commits; una organización sin Full no consigue publicar marca blanca mediante API directa; actualizar el producto no borra configuraciones ni conecta WhatsApp al tenant incorrecto.
+
+## 3. WL-01: contrato de identidad y configuración (Backend + Frontend)
+
+Modelo objetivo: `branding_version`, `display_name`, `agent_name`, logos claro/oscuro, favicon, iconos PWA, tokens de color y tipografía, identidad de soporte, URLs públicas canónicas y modo de atribución.
+Reutilizar TenantProfile/configuración existente donde corresponda; documentar migración incremental y separar campos públicos de secretos de proveedores.
+Accesos separados para consultar, editar, previsualizar y publicar identidad/dominios, aplicados por backend y auditados por actor/tenant.
+No aceptar HTML/JavaScript/CSS arbitrarios como personalización. Validar assets, MIME, dimensiones y límites; sanitizar/rasterizar SVG y evitar carga de URLs internas o no autorizadas.
+Los colores de marca no pueden anular señales semánticas de error, riesgo o éxito, ni la preferencia de accesibilidad del usuario.
+**Aceptación:** contrato público sin secretos; tenant A no lee borradores ni publica cambios de B; configuración desconocida o inválida produce fallback neutro, no la marca de otro cliente.
+
+## 4. WL-02: estudio de marca y publicación (Frontend + Backend)
+
+Integrar el estudio en Configuración → Marca y apariencia, junto a Dominios y URLs y Aplicación PWA; conectar los canales en Integraciones. Plan Full y permisos de usuario se validan en servidor; sin habilitar módulos no contratados.
+Previsualizar borrador en móvil/tablet/escritorio, claro/oscuro, con validación de contraste y assets antes de publicar.
+Flujo: borrador → validación → publicación de versión → historial → restauración de una versión válida. Control de concurrencia para no sobrescribir cambios de otro administrador.
+Propagar identidad a login, navegación, widget, conversación, formularios, encuestas, catálogos, pedidos, seguimiento, portal y documentos exportados cuando corresponda.
+Evitar el destello inicial de la marca Chatboc en una marca blanca: resolver identidad pública antes de renderizarla; registrar todos los fallbacks globales a eliminar.
+Definir atribución co-branded o marca blanca completa mediante entitlement explícito; cambiar apariencia no elimina identificación legal ni atribuciones obligatorias de terceros.
+**Aceptación:** mismo build, dos organizaciones con identidad distinta; actualización sin despliegue por cliente; rollback sin mezclar cachés ni perder sesiones/borradores.
+
+## 5. WL-03: dominios y URLs por organización (Backend + Plataforma)
+
+Registrar dominio/subdominio, probar control DNS, validar destino y certificado TLS antes de activarlo. Estados: solicitado, pendiente de verificación, TLS pendiente, activo, suspendido, retirado.
+Reservar slugs/hosts de administración; unicidad del hostname normalizado; tratar mayúsculas, IDN, puertos y conflictos de forma explícita.
+Asociar `hostname → tenant_id` en servidor; aceptar cabeceras reenviadas sólo desde proxies autorizados. Un Host desconocido no obtiene el tenant por defecto.
+Comprobar conflictos host/ruta/sesión; un header o un slug de otro tenant no puede cambiar silenciosamente el contexto autorizado.
+Revisar cookies host-only, CSRF/Origin, CORS con orígenes exactos, CSP/frame-ancestors, login/Clerk/OAuth, Socket.IO y enlaces de restablecimiento de acceso.
+Separar dominios de pruebas y producción; evitar comodines indiscriminados y redirecciones abiertas. No asumir que cookies o sesiones migran entre dominios.
+Generar enlaces canónicos por tenant para encuestas, reclamos, catálogo, pedidos, pagos y portal; probar apertura desde WhatsApp y retorno de la pasarela.
+Al retirar o reasignar un dominio, desactivar routing, cachés, callbacks y sesiones afectados; verificar nueva propiedad antes de asignarlo a otro cliente.
+**Aceptación:** alta DNS/TLS, conflicto, dominio no verificado, baja y recuperación ensayados; ninguna navegación o respuesta sirve contenido de otro tenant.
+
+## 6. WL-04: PWA con identidad propia (Frontend + Backend)
+
+Manifest por organización/superficie con `id` estable, `name`, `short_name`, `start_url`, `scope`, colores e iconos maskable; `apple-touch-icon` y metadatos iniciales coherentes.
+Nombre e icono instalados corresponden a la organización. No derivar la identidad de un tenant almacenado previamente en localStorage.
+Preferir origen separado para instalaciones independientes; manifest/scope no es una barrera de seguridad. En rutas compartidas, diseñar explícitamente service worker, cachés, storage y navegación.
+Conservar API sensible NetworkOnly. Offline inicial: shell y estado de conexión; no copiar historias, documentación de discapacidad, pagos o datos personales a caché por conveniencia.
+Borradores offline y sincronización: fase posterior, opt-in según sensibilidad, TTL, aislamiento por actor/tenant, gestión de dispositivo compartido e idempotencia. No prometer cola en segundo plano universal.
+Actualizar service worker sin recargar una conversación/formulario con cambios pendientes; revalidar acceso al reconectar, limpiar al salir y evitar mezcla de assets/configuración entre marcas.
+Notificaciones push opt-in, detección de capacidades y alternativa dentro de la app; asociar suscripción a instalación, usuario y tenant; no revelar datos sensibles en pantalla bloqueada.
+Permisos de cámara, micrófono y ubicación sólo al usarlos, con alternativa funcional si son denegados.
+**Aceptación:** instalar, abrir, cerrar/reabrir, actualizar, desinstalar y reinstalar; dos marcas en un dispositivo; offline/reconexión; logout; renovación de sesión; retorno desde WhatsApp/pago.
+
+## 7. UX-DEVICE: criterio transversal de terminado (Frontend + QA)
+
+Todos los módulos conservan su tarea principal en teléfono, tablet y escritorio; no basta con encoger el dashboard.
+- Teléfono: una tarea/panel principal; navegación lista → conversación → detalle con retorno y selección conservados; compositor por encima del teclado virtual.
+- Tablet: disposición adaptada al espacio disponible, vertical/horizontal y multiventana; táctil, teclado y lápiz sin depender de hover.
+- Escritorio: densidad útil, paneles redimensionables y atajos accesibles; tablas/mapas con scroll contenido donde la naturaleza del contenido lo requiera.
+- Tamaños QA orientativos: 320/360/390/430, 768/820/1024 y 1280/1440/1920 CSS px; probar además altura, zoom, texto ampliado y orientación, no sólo ancho.
+- Safe areas de iPhone, barras dinámicas del navegador, `dvh`, modales, foco, permisos y subida de foto/audio/archivo sin bloquear controles.
+- Objetivo WCAG 2.2 AA por recorrido completo; objetivos táctiles de producto 44×44 CSS px donde sea viable, sin confundirlo con el mínimo normativo AA; texto normal 4,5:1 y controles/indicadores 3:1 cuando aplica.
+- Animaciones breves no esenciales, sin parpadeos continuos; honrar movimiento reducido y alto contraste. Nunca usar sólo el color para comunicar estado.
+- Reflow a 320 CSS px, zoom/texto ampliado y foco no oculto; ofrecer alternativa accesible a mapas o controles gestuales.
+- Presupuesto de rendimiento por superficie y estado de red; medir LCP/INP/CLS y tamaño de shell en dispositivo objetivo. Umbrales y medición deben quedar registrados antes de certificar.
+**Aceptación:** tarea completa sin pérdida de información, foco o datos; emulación de viewport no equivale a prueba de iPhone/Android físico.
+
+## 8. Matriz de pruebas y evidencia (QA + responsables de producto)
+
+Automatización: Chromium, Firefox y WebKit en tamaños de teléfono/tablet/escritorio, con API sintética para regresión; contratos y pruebas backend reales por separado.
+Dispositivos físicos: iPhone/Safari y PWA instalada; iPad/Safari y PWA con orientación/multiventana; Android/Chrome en teléfono y tablet; desktop Chrome/Edge/Firefox y Safari macOS.
+Registrar modelo, versión de SO/navegador, modo navegador/instalado, tenant/branding version, revisión frontend/backend y resultado por recorrido. Definir ventana de versiones soportadas al comenzar QA; no vender compatibilidad con todas las versiones históricas.
+VoiceOver, TalkBack y teclado: lectura de estado, errores, formularios y navegación; evaluación manual además de herramientas automáticas.
+Recorridos: acceso/2FA, cambio de organización, bandeja/respuesta/adjuntos, reclamo con ubicación, encuesta, catálogo/pedido, retorno de pago, portal, exportación y actualización PWA.
+Estados: carga, vacío, sin permiso, error, timeout, offline, reconexión y datos antiguos; ninguna pantalla debe presentar un fallo como éxito.
+Cada evidencia se marca **sintética**, **integración QA** o **dispositivo real**. Un escenario pendiente permanece pendiente; no reutilizar las capturas de bandeja como prueba de instalación PWA.
+
+## 9. WL-05: canales, agentes y operación (Backend + Integraciones)
+
+Cada organización configura nombre/presentación del agente, contenidos aprobados, idioma, horarios y módulos de su vertical. La marca nunca modifica permisos ni reglas de negocio.
+Extender la misma identidad a enlaces de WhatsApp, Flows/webviews, encuestas, confirmaciones, email y documentos; registrar las superficies que siguen mostrando al proveedor externo.
+Inventariar WABA, números, display names, plantillas, dominios de botones y aprobaciones Meta/Twilio antes de prometer el cambio. Publicar un logo web no certifica la identidad de WhatsApp.
+Los dominios del checkout de terceros, permisos del navegador y plataformas externas no se sustituyen por CSS ni se ocultan mediante proxy de credenciales.
+No asignar un número/proveedor de un tenant a otro, ni compartir campañas, audiencias, consentimientos o push entre organizaciones. Medir costos por tenant/canal.
+**Aceptación:** mensaje autorizado → enlace de marca → entidad correcta → respuesta/pago verificado; referencias cruzadas a otro tenant rechazadas; auditoría de cambios y costos.
+
+## 10. WL-06: caso TDF y segunda organización sobre el SaaS completo (Producto + QA)
+
+El caso de Tierra del Fuego, antes identificado como FARO, sirve para probar la identidad elegida por ese cliente sobre TODO el SaaS Full. Se conserva la URL actual verificada `agente-conversa.vercel.app`; usar el título publicado como referencia, sin inventar razón social, marca contractual o dominio nuevo. El contenido histórico es conceptual y no acredita contratación o producción.
+Preservar el alias actual y confirmar derecho de uso de identidad, responsable de aprobación, canales y catálogo de servicios; cualquier dominio adicional requiere validación propia. No se registra un dominio nuevo en su nombre.
+No reutilizar como datos reales los casos, personas, indicadores, ventanas de atención o promesas de la demo. Aislar tenant demo y tenant operativo.
+Probar una segunda organización empresarial sobre el MISMO build, con catálogo/pedidos, y otra identidad institucional cuando corresponda. Ambas deben poder coexistir sin logos, sesiones, enlaces, documentos ni suscripciones cruzados.
+La aceptación del caso TDF incluye accesibilidad y sensibilidad de documentación: sólo fixtures anonimizados en QA, sin información clínica o de discapacidad real para generar capturas.
+**Aceptación:** administrador autorizado publica marca y dominio desde configuración; persona instala y usa su PWA; equipo atiende con roles reales en QA; rollback de marca y dominio ensayado.
+
+### 10.1. Reutilización del MVP actual y condición de inicio
+
+Decisión posterior de Marcelo: conservar la URL actual del MVP TDF y usarlo como primer caso de adopción del SaaS completo; comenzar sus mejoras y primeras pruebas cuando se confirme el primer pago de la factura próxima. No consta factura emitida ni pago recibido en este corte.
+**Referencia pública localizada, no inventada:** `https://agente-conversa.vercel.app`, HTTP 200, título HTML «Agente conversacional accesible · Mesa Única de Discapacidad».
+La API autenticada de aliases Vercel vincula `agente-conversa.vercel.app` y el alias histórico `faro-tdf.vercel.app` al mismo deployment `dpl_FWeNSTinsRTN6GapmQaAhVkzk4fy`, proyecto compartido `chatboc-frontend` (`prj_CEIKYsPgxlSEOBEKjizziSJBsGKf`).
+El deployment está READY y su metadata informa fuente `b048e199f513f3f5ee747f6c8af749fa181d6266`, rama `codex/junin-enterprise-crm-p0-20260827`. Eso identifica el antecedente; no certifica igualdad del árbol desplegado ni aceptación funcional del SaaS. Reconciliar diferencias con los sprints recientes antes de sustituir el destino del alias.
+FARO queda como nombre histórico. El título/URL publicados son la referencia operativa recuperada; la razón social de facturación, branding final y contrato se validan por separado.
+
+**Secuencia acordada para TDF:**
+1. Antes del pago: preparar arquitectura y plan genéricos, registrar baseline/URL; no cambiar identidad, destino del alias, datos, canales ni experiencia del MVP por este requerimiento.
+2. Primer pago confirmado: asociarlo al cliente, factura y etapa correctos mediante conciliación/registro autorizado. Emitir factura, ver un comprobante o recibir `status=approved` en una URL no basta. El evento se registra una sola vez.
+3. Habilitar inicio del trabajo específico y pruebas TDF, conforme al acuerdo. No convertir automáticamente un anticipo de implementación en suscripción Full activa sin validar qué cubre; son estados comerciales distintos.
+4. Inventariar tenant, cuentas, canales, contenido y rutas actuales; incorporar el caso al SaaS compartido con identidad propia y permisos/funciones de su plan. No crear otro repositorio/aplicación para mantener la URL.
+5. Validar en QA las tareas del cliente, la separación de organizaciones, los enlaces, el acceso desde móvil/tablet/escritorio y la experiencia de continuidad. Las pruebas iniciales no envían mensajes ni usan datos sensibles reales por defecto.
+6. Publicar tras aceptación y rollback preparado, conservando la URL conocida por el cliente. No prometer migración de cookies/sesiones entre orígenes ni cero interrupciones sin prueba; documentar cualquier reautenticación necesaria.
+La URL Vercel actual puede conservarse para acceso al piloto; no implica una PWA white label certificada. El código actual desactiva service workers en `.vercel.app`: preparar un origen estable autorizado para ensayos PWA, o una política explícita de alias estable con pruebas de aislamiento, sin retirar globalmente esa protección.
+
+### 10.2. Onboarding reutilizable: más clientes, menos trabajo manual
+
+Extender `services/tenant_implementation_journey.py` y los flujos actuales de alta/integraciones después de revisar sus contratos; no crear un proceso paralelo por TDF.
+Asistente único en Configuración e Integraciones: organización → contratación/Full verificado → marca → dominio → WhatsApp/pagos → validación → activación. Cada paso guarda progreso y muestra listo/pendiente/error con acción concreta.
+Automatizar lo repetible mediante tareas persistentes, idempotentes y reanudables: validación de assets, resolución de dominio/TLS, publicación de configuración, manifest, comprobaciones de canal y salud. Un reintento no crea otro tenant ni duplica suscripciones o conexiones.
+Conservar las decisiones que requieren al cliente: autoridad sobre DNS, autorización de su cuenta/número, aceptación de configuración y permisos. El sistema guía y verifica; no promete eliminar aprobaciones de terceros.
+Consola central de Chatboc: estado de cada alta, última validación, consumo, bloqueo y responsable; soporte sólo por excepción, auditado y limitado por organización. No ampliar permisos de soporte por conveniencia.
+Actualizaciones comunes con compatibilidad de configuración, flags y rollback: el cliente mantiene su marca/dominio y no debe reconfigurar todo con cada release.
+Medir minutos de intervención manual por alta, pasos completados en autoservicio, bloqueos por proveedor, reintentos, tickets de soporte y tiempo hasta primera tarea real completada. Establecer baseline y objetivos después del primer caso, no inventar porcentajes de ahorro.
+**Aceptación de escalabilidad:** repetir el alta con una segunda organización Full sin commits, fork, copiado manual de credenciales ni cambios ad hoc en código. Las tareas y configuración quedan trazables y recuperables; uso y datos no se mezclan.
+
+## 11. Secuencia de implementación y ownership
+
+| Fase | Trabajo | Responsable funcional | Gate de salida |
+| --- | --- | --- | --- |
+| WL-00 | Inventario y contrato; reconciliar ramas y capacidades actuales | Full-stack | Evidencia por commit, superficies y brechas |
+| WL-01 | Entitlement Full, identidad versionada, validación, permisos y API pública | Backend | Plan/permisos/tenant verificados por separado |
+| WL-02 | Estudio de marca, previews y publicación/rollback | Frontend + Backend | Dos marcas sobre un build |
+| WL-03 | Dominios verificados, routing, autenticación y enlaces | Plataforma + Backend | DNS/TLS y ciclo de baja seguros |
+| WL-04 | Manifest/instalación/storage/actualización por organización | Frontend + Backend | Instalación real sin contaminación |
+| WL-05 | Coherencia de canales y plantillas | Integraciones | Proveedores y enlaces verificados |
+| WL-06 | TDF con identidad actual + organización empresarial Full | QA + Producto | SaaS completo autoservicio, multidispositivo y rollback |
+
+UX-DEVICE se aplica desde el próximo cambio de cada módulo, no se deja como retoque final. Tablet y dispositivos físicos tienen evidencia propia.
+Implementar primero contrato/identidad y QA sin bloquear ensayos de migración. La activación de dominios productivos depende de release reconciliado, paridad Render/Neon, un solo escritor y rollback; no cambia esos gates.
+Las ocho migraciones pendientes del plan de infraestructura no se sustituyen por este roadmap. No aplicar migraciones, mover DNS, adquirir números ni promover producción en este corte documental.
+Futuro por contrato: SSO/SAML/OIDC, SCIM, infraestructura dedicada y gestión de revendedores; fuera del primer cierre white label y sin afirmar que estén disponibles.
+
+## 12. Operación, costos y criterio comercial
+
+Sin fork/repositorio nuevo por cliente, sin base/compute siempre activo por cambiar marca y sin rebuild para cada edición visual.
+Presupuestar dominios, almacenamiento de assets, mensajes, IA, push y observabilidad por tenant; respetar planes/límites actuales y pedir aprobación para ampliaciones pagas.
+Flag de activación por organización, despliegue progresivo, panel de salud de dominio/certificado y registro de quién cambió qué versión y cuándo.
+La reversión de marca no reabre un dominio retirado ni restaura permisos revocados. Registrar versión de aplicación, esquema, branding y dominio separadamente.
+Cierre comercial: demostrar identidad propia, instalación y circuitos funcionales; nunca vender la demo institucional histórica ni un Preview responsive como white label productivo certificado.
+
+## 13. Referencias técnicas consultadas
+
+- Vercel, dominios multi-tenant y verificación: https://vercel.com/docs/platforms/multi-tenant-platforms/configuring-domains
+- W3C, Web Application Manifest (`id`, `scope`, `start_url`, iconos): https://www.w3.org/TR/appmanifest/
+- WebKit, Home Screen apps y Web Push en iOS/iPadOS: https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
+- W3C, WCAG 2.2: https://www.w3.org/TR/WCAG22/
+
+En iOS/iPadOS, diseñar el permiso push alrededor de la instalación en pantalla de inicio y la acción explícita de la persona, según WebKit; verificar comportamiento en las versiones soportadas al ejecutar QA.
+No prometer APIs idénticas ni instalación automática en todos los navegadores: detección de capacidades, instrucciones específicas y alternativa usable en navegador.

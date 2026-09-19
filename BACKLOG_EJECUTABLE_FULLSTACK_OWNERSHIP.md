@@ -253,3 +253,27 @@ Este orden minimiza riesgo de drift y maximiza valor operativo temprano.
 - `docs/analytics.identity_coverage.v1.contract.md`
 - `docs/shared.error.v1.contract.md`
 - `docs/rbac.capability_matrix.v1.md`
+
+
+## 4) Fase transversal: marca blanca y PWA multidispositivo
+
+**Decisión comercial confirmada:** el plan Full activo incluye el uso del SaaS completo con identidad, dominio/URL y canales propios; no sólo un widget ni una plataforma nueva por cliente. Autoservicio en Configuración (marca, dominio, PWA, plan/consumo) e Integraciones (WhatsApp, pagos y otros canales).
+**WL-FULL:** derecho comercial de servidor + tenant activo + permiso de usuario + conexión verificada; no desbloquear por flags editables o permisos genéricos. Integrar controles existentes, definir cuotas y upgrade/downgrade sin pérdida de datos. Versionar configuración de cada organización sobre versiones compartidas del producto, no ramas permanentes por cliente.
+
+Estado: **PLANIFICADO**, incorporado por requerimiento de Marcelo. No declara funciones nuevas implementadas.
+Especificación compartida, ownership y criterios de aceptación: [WHITE_LABEL_PWA_ENTERPRISE_PLAN](docs/WHITE_LABEL_PWA_ENTERPRISE_PLAN.md).
+
+- **UX-DEVICE**: condición de terminado de cada módulo en móvil/tablet/escritorio, iPhone/iPad/Android y navegadores desktop. Incluye táctil/teclado, safe areas, modo oscuro, movimiento reducido, accesibilidad y evidencia física separada de emulación.
+- **WL-00/01**: inventario y contrato de identidad por tenant, permisos, validación de assets y configuración pública sin secretos.
+- **WL-02**: estudio de marca (nombre, logos, iconos, colores, soporte), vista previa, publicación auditada y rollback. Un build, no un fork por cliente.
+- **WL-03**: dominio propio/subdominio verificado, HTTPS, autenticación, canonical URLs y aislamiento de sesiones/enlaces.
+- **WL-04**: PWA de identidad propia, manifest/iconos, instalación y actualización seguras, cachés/storage/push separados; API sensible NetworkOnly.
+- **WL-05**: misma identidad en widget, portal, encuestas, catálogos/pedidos y comunicaciones. Configuración/aprobaciones Meta/Twilio comprobadas por separado.
+- **WL-06**: reutilizar el MVP TDF en `agente-conversa.vercel.app` (título verificado: Agente conversacional accesible · Mesa Única de Discapacidad) y una segunda organización Full. FARO queda como referencia histórica. El primer pago de la factura, aún no confirmado, habilita el inicio de mejoras/pruebas específicas del cliente, no una promoción automática a producción.
+
+Dependencias: CT-01/02/04, BE-01/02/08 y FE-01/03/05/07; conservar contratos existentes y las líneas de septiembre.
+La activación productiva depende además de los gates de Render/Vercel/Neon. Esta fase no autoriza cambios DNS, compras, migraciones, retiro de Render ni promoción de dominios.
+Cada entrega registra estado planificado/implementado/probado/publicado y versión de esquema, aplicación, branding y dominio por separado.
+- **ONB-01**: extender el onboarding existente con progreso persistente, tareas idempotentes, validación y reanudación en Configuración/Integraciones; contrataciones, Full y pagos confirmados se registran por separado.
+- **ONB-02**: consola de altas por organización y soporte por excepción; medir intervención manual y tiempo hasta primera tarea completada. Segunda alta Full sin forks, commits por marca ni copia manual de credenciales.
+- **TDF-START**: conservar MVP/URL actual antes del primer pago; después ensayar adopción del SaaS completo, aceptación y rollback sin cambiar innecesariamente la dirección conocida por el cliente. Ver 10.1/10.2 del plan.
