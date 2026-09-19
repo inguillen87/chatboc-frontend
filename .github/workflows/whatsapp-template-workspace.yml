@@ -1,0 +1,43 @@
+name: WhatsApp template workspace
+"on":
+  pull_request:
+    paths:
+      - src/components/admin/WhatsappTemplatePacksPanel*
+      - src/components/admin/whatsappTemplatePackContract.ts
+      - src/hooks/useWhatsappTemplatePacks.ts
+      - src/utils/waitForAbort*
+      - tests/template-workspace/**
+      - .github/workflows/whatsapp-template-workspace.yml
+permissions:
+  contents: read
+concurrency:
+  group: whatsapp-template-workspace-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run typecheck:scope
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise responsive workspace using synthetic API responses only
+        shell: bash
+        run: |
+          npm exec -- vite --host 127.0.0.1 --port 5193 --strictPort > /tmp/template-vite.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:5193/tests/template-workspace/index.html >/dev/null; then break; fi
+            sleep 1
+          done
+          node tests/template-workspace/browser.mjs
