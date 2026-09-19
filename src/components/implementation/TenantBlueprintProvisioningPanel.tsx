@@ -39,6 +39,8 @@ import {
 } from '@/hooks/useClerkStepUpAction';
 import { ApiError, NetworkError } from '@/utils/api';
 
+import SetupPreparationGuide from './SetupPreparationGuide';
+
 const activationStateLabels: Record<string, string> = {
   configuration_required: 'Requiere configuración',
   evidence_required: 'Requiere evidencia',
@@ -480,6 +482,9 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
       </div>
 
       <div className="space-y-5 p-5 sm:p-6">
+        {!loadError ? (
+          <SetupPreparationGuide state={applied ? 'prepared' : detail && workflowReady ? 'review' : 'choose'} />
+        ) : null}
         {loadingCatalog ? (
           <div aria-live="polite" className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
