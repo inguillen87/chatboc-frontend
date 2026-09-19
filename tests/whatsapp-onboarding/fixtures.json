@@ -1,0 +1,128 @@
+{
+  "qa-municipio": {
+    "contract_version": "twilio.tech_provider.v1",
+    "tenant": {
+      "id": 1,
+      "slug": "qa-municipio"
+    },
+    "state": {
+      "sender_sid": "XE-qa-municipio",
+      "sender_id": "whatsapp:+15555550100",
+      "sender_status": "disconnected",
+      "waba_id": null,
+      "phone_number_id": null
+    },
+    "automation": {
+      "env": {
+        "ready": true,
+        "missing": []
+      }
+    },
+    "operator_checklist": [],
+    "self_service": {
+      "contract_version": "whatsapp.self_service.v1",
+      "tenant": {
+        "id": 1,
+        "slug": "qa-municipio"
+      },
+      "organization_label": "Municipio",
+      "mode": "existing_connection",
+      "heading": "Continuá con tu conexión existente",
+      "description": "Conservá la cuenta y el número registrados. Revisá su estado y completá lo que falta; no necesitás iniciar otra alta.",
+      "existing_connection": true,
+      "provider_calls_performed": false,
+      "writes_performed": false,
+      "permissions_note": "Cada pantalla valida tu plan y tus permisos. Un enlace no habilita funciones adicionales.",
+      "verification_note": "Tener un número registrado no confirma la entrega de mensajes ni la aprobación de plantillas.",
+      "sections": [
+        {
+          "id": "profile",
+          "label": "Perfil del municipio",
+          "href": "/t/qa-municipio/perfil",
+          "description": "Revisá la identidad y los datos del espacio actual."
+        },
+        {
+          "id": "implementation",
+          "label": "Módulos y equipo",
+          "href": "/t/qa-municipio/implementacion",
+          "description": "Continuá los pasos disponibles según el plan y los permisos de tu equipo."
+        },
+        {
+          "id": "integrations",
+          "label": "Integraciones",
+          "href": "/t/qa-municipio/integracion",
+          "description": "Administrá los canales de esta organización sin crear otro espacio."
+        },
+        {
+          "id": "templates",
+          "label": "Mensajes y plantillas",
+          "href": "/t/qa-municipio/perfil/plantillas-respuesta",
+          "description": "Prepará las respuestas y consultá su aprobación antes de utilizarlas."
+        }
+      ]
+    }
+  },
+  "qa-empresa": {
+    "contract_version": "twilio.tech_provider.v1",
+    "tenant": {
+      "id": 2,
+      "slug": "qa-empresa"
+    },
+    "state": {
+      "sender_sid": "XE-qa-empresa",
+      "sender_id": "whatsapp:+15555550100",
+      "sender_status": "disconnected",
+      "waba_id": null,
+      "phone_number_id": null
+    },
+    "automation": {
+      "env": {
+        "ready": true,
+        "missing": []
+      }
+    },
+    "operator_checklist": [],
+    "self_service": {
+      "contract_version": "whatsapp.self_service.v1",
+      "tenant": {
+        "id": 2,
+        "slug": "qa-empresa"
+      },
+      "organization_label": "Empresa",
+      "mode": "existing_connection",
+      "heading": "Continuá con tu conexión existente",
+      "description": "Conservá la cuenta y el número registrados. Revisá su estado y completá lo que falta; no necesitás iniciar otra alta.",
+      "existing_connection": true,
+      "provider_calls_performed": false,
+      "writes_performed": false,
+      "permissions_note": "Cada pantalla valida tu plan y tus permisos. Un enlace no habilita funciones adicionales.",
+      "verification_note": "Tener un número registrado no confirma la entrega de mensajes ni la aprobación de plantillas.",
+      "sections": [
+        {
+          "id": "profile",
+          "label": "Perfil de la empresa",
+          "href": "/t/qa-empresa/perfil",
+          "description": "Revisá la identidad y los datos del espacio actual."
+        },
+        {
+          "id": "implementation",
+          "label": "Módulos y equipo",
+          "href": "/t/qa-empresa/implementacion",
+          "description": "Continuá los pasos disponibles según el plan y los permisos de tu equipo."
+        },
+        {
+          "id": "integrations",
+          "label": "Integraciones",
+          "href": "/t/qa-empresa/integracion",
+          "description": "Administrá los canales de esta organización sin crear otro espacio."
+        },
+        {
+          "id": "templates",
+          "label": "Mensajes y plantillas",
+          "href": "/t/qa-empresa/perfil/plantillas-respuesta",
+          "description": "Prepará las respuestas y consultá su aprobación antes de utilizarlas."
+        }
+      ]
+    }
+  }
+}
