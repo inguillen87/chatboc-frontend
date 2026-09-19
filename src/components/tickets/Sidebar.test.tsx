@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Sidebar from './Sidebar';
@@ -234,7 +234,7 @@ describe('Tickets Sidebar category density', () => {
       'aria-pressed',
       'true',
     );
-    expect(screen.getByRole('button', { name: /no le/i })).toHaveAttribute(
+    expect(within(screen.getByTestId('sidebar-filter-panel')).getByRole('button', { name: /no le/i })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
@@ -617,4 +617,48 @@ describe('Tickets Sidebar category density', () => {
     const updater = lastCall?.[0] as (previous: typeof defaultFilters) => typeof defaultFilters;
     expect(updater(defaultFilters)).toMatchObject({ agent: 'unassigned' });
   });
+  it('keeps focus shortcuts visible when desktop metrics are delegated to the page header', () => {
+    render(<Sidebar showFilterControl={false} showQueueMetrics={false} showListSummaryBar={false} />);
+    expect(screen.getByTestId('ticket-queue-focus')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Enfocar: SLA vencido' })).toBeEnabled();
+  });
+
+  it('patches the shared filter state and preserves existing channel/search scope', () => {
+    render(<Sidebar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Enfocar: No leídos' }));
+    const updater = setFiltersMock.mock.calls.at(-1)?.[0];
+    expect(typeof updater).toBe('function');
+    expect(updater({ ...defaultFilters, search: 'pozo', channel: 'whatsapp', agent: 'staff-3' }))
+      .toEqual({ ...defaultFilters, search: 'pozo', channel: 'whatsapp', agent: 'staff-3', unread: 'unread' });
+    expect(selectTicketMock).not.toHaveBeenCalled();
+  });
+
+  it('discards a late category response from another tenant', async () => {
+    let finishOld!: (value: unknown) => void;
+    adminGetTicketCategoriesMock.mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve; }));
+    adminGetTicketCategoriesMock.mockResolvedValueOnce([{ nombre: 'Categoría beta' }]);
+    const { rerender } = render(<Sidebar />);
+    useTenantMock.mockReturnValue({ currentSlug: 'beta', tenant: { slug: 'beta', tipo: 'pyme' } });
+    rerender(<Sidebar />);
+    await waitFor(() => expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('beta'));
+    await act(async () => { finishOld([{ nombre: 'Categoría privada anterior' }]); });
+    fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /mostrar .*rubros vacios/i }));
+    expect(screen.getByText('Categoría beta (0)')).toBeInTheDocument();
+    expect(screen.queryByText(/Categoría privada anterior/)).not.toBeInTheDocument();
+  });
+
+  it('does not retain loaded category names while the next tenant is loading', async () => {
+    adminGetTicketCategoriesMock.mockResolvedValueOnce([{ nombre: 'Solo tenant anterior' }]);
+    const { rerender } = render(<Sidebar />);
+    fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /mostrar 3 rubros vacios/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /mostrar 3 rubros vacios/i }));
+    expect(screen.getByText('Solo tenant anterior (0)')).toBeInTheDocument();
+    adminGetTicketCategoriesMock.mockReturnValueOnce(new Promise(() => {}));
+    useTenantMock.mockReturnValue({ currentSlug: 'beta', tenant: { slug: 'beta', tipo: 'pyme' } });
+    rerender(<Sidebar />);
+    expect(screen.queryByText('Solo tenant anterior (0)')).not.toBeInTheDocument();
+  });
+
 });

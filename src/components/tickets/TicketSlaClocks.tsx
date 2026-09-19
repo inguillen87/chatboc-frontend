@@ -41,7 +41,7 @@ const statePresentation: Record<TicketSlaClockState, {
   overdue: {
     label: 'Vencido',
     compactLabel: 'SLA vencido',
-    className: 'border-destructive/35 bg-destructive/10 text-destructive',
+    className: 'border-destructive/35 bg-destructive/10 text-destructive dark:border-rose-400/45 dark:bg-rose-400/10 dark:text-rose-200',
     icon: AlertTriangle,
   },
   due: {

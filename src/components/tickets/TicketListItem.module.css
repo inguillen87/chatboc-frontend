@@ -1,0 +1,9 @@
+.row { transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .row:hover { transform: translateX(1px); }
+  .row:active { transform: scale(.995); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row { transition: none !important; transform: none !important; }
+}
+:global(.a11y-reduced-motion) .row { transition: none !important; transform: none !important; }
