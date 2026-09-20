@@ -86,6 +86,7 @@ try {
   await first.page.reload();
   await expect(first.page.getByRole('textbox',{name:'Nombre legal o institucional'})).toHaveValue('Edición de segunda sesión');
   results.push('two_browser_sessions_explicit_conflict_resolution_and_reread');
+  await second.context.close();
   const delegated=await login('delegated',390);
   await expect(delegated.page.getByRole('button',{name:'Guardar',exact:true})).toBeEnabled();
   await delegated.page.getByRole('textbox',{name:'Nombre legal o institucional'}).fill('Administración delegada verificada');
@@ -108,6 +109,7 @@ try {
     expected_revision:readonly.revision, organization_profile:{nombre_empresa:'Forbidden HTTP write'}}});
   assert.equal(forbidden.status(),403);
   results.push('employee_readonly_ui_and_server_rejection');
+  await viewer.context.close();
   for(const [width,dark] of [[1440,false],[820,false],[390,true],[320,false]]) {
     await delegated.page.setViewportSize({width,height:900});
     await delegated.page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),dark);
@@ -115,6 +117,7 @@ try {
     await delegated.page.screenshot({path:`.vercel/profile-http-evidence/profile-${width}.png`,fullPage:true});
   }
   results.push('actual_profile_responsive_1440_820_390_dark_320');
+  await delegated.context.close();
   await first.page.goto(origin+'/implementacion?tenant_slug=acceptance-a');
   await expect(first.page.getByRole('heading',{name:'Puesta en marcha del municipio'})).toBeVisible();
   const stepNav=first.page.getByRole('navigation',{name:'Pasos de configuración'});
@@ -140,12 +143,55 @@ try {
   const studio=first.page.getByTestId('brand-studio');await expect(studio).toBeVisible();
   await first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'}).check();
   await first.page.getByRole('button',{name:'Violeta y coral',exact:true}).click();
+  const pendingBrand=first.page.getByRole('group',{name:'Cambios de paleta',exact:true});
+  await expect(pendingBrand.getByText('Activada',{exact:true})).toBeVisible();
+  await expect(pendingBrand.getByText('Desactivada',{exact:true})).toBeVisible();
+  await expect(first.page.getByTestId('brand-preview')).toHaveAttribute('data-brand-active','true');
+  await first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'}).uncheck();
+  await expect(first.page.getByTestId('brand-preview')).toHaveAttribute('data-brand-active','false');
+  assert.equal(await first.page.getByTestId('brand-preview').evaluate(el=>el.style.getPropertyValue('--sample-brand')),'');
+  await first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'}).check();
+  const nativeClose=first.page.waitForEvent('dialog');
+  const interruptedReload=first.page.reload({timeout:5000}).catch(()=>null);
+  const warning=await nativeClose;assert.equal(warning.type(),'beforeunload');await warning.dismiss();
+  await interruptedReload;
+  await expect(first.page.getByLabel('Color principal',{exact:true})).toHaveValue('#6D28D9');
+  await first.page.getByRole('button',{name:'Descartar borrador',exact:true}).click();
+  await first.page.getByRole('button',{name:'Confirmar descarte',exact:true}).click();
+  await expect(first.page.getByRole('button',{name:'Publicar paleta',exact:true})).toBeDisabled();
+  await first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'}).check();
+  await first.page.getByRole('button',{name:'Violeta y coral',exact:true}).click();
+  for(const [width,dark] of [[1440,false],[820,false],[390,true],[320,false]]) {
+    await first.page.setViewportSize({width,height:900});
+    await first.page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),dark);
+    await pendingBrand.scrollIntoViewIfNeeded();
+    assert.equal(await first.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/brand-comparison-${width}.png`});
+    await first.page.getByRole('button',{name:'Publicar paleta',exact:true}).click();
+    const dialog=first.page.getByRole('alertdialog');await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCSS('opacity','1');
+    await expect(dialog).toHaveCSS('animation-name','none');
+    const confirmButton=dialog.getByRole('button',{name:'Confirmar publicación'});
+    await expect.poll(()=>confirmButton.evaluate(el=>{const b=el.getBoundingClientRect();return el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));})).toBe(true);
+    const bounds=await dialog.boundingBox();assert.ok(bounds&&bounds.x>=0&&bounds.x+bounds.width<=width+1,'Dialog fits viewport');
+    await expect(dialog.getByRole('group',{name:'Resumen de publicación'})).toBeVisible();
+    await expect(dialog.getByRole('button',{name:'Confirmar publicación'})).toBeVisible();
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/brand-confirmation-${width}.png`});
+    await dialog.getByRole('button',{name:'Seguir revisando'}).click();
+    await expect(first.page.getByLabel('Color principal',{exact:true})).toHaveValue('#6D28D9');
+  }
+  await first.page.setViewportSize({width:1440,height:1000});
+  results.push('brand_draft_discard_native_close_preview_and_comparison_four_widths');
   const brandWrite=first.page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname.endsWith('/config'));
   await first.page.getByRole('button',{name:'Publicar paleta',exact:true}).click();
   await first.page.getByRole('button',{name:'Confirmar publicación',exact:true}).click();
   assert.equal((await brandWrite).status(),200);
   await first.page.getByText('La paleta quedó publicada y confirmada por el servidor.',{exact:true}).waitFor();
   await expect(first.page.getByTestId('institution-profile-workspace')).toHaveCSS('--org-brand','#6D28D9');
+  await first.page.getByLabel('Color principal',{exact:true}).fill('#112233');
+  await expect(first.page.getByText('La paleta quedó publicada y confirmada por el servidor.',{exact:true})).toHaveCount(0);
+  await first.page.getByRole('button',{name:'Descartar borrador',exact:true}).click();
+  await first.page.getByRole('button',{name:'Confirmar descarte',exact:true}).click();
   await first.page.reload();await expect(first.page.getByLabel('Color principal',{exact:true})).toHaveValue('#6D28D9');
   await expect(first.page.getByTestId('institution-profile-workspace')).toHaveCSS('--org-brand','#6D28D9');
   for(const [width,dark] of [[1440,false],[820,false],[390,true],[320,false]]) {

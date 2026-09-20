@@ -5,6 +5,7 @@ name: Organization profile workspace
       - src/pages/Perfil*
       - src/hooks/useBrandStudio.ts
       - src/utils/workspaceBranding*
+      - src/utils/brandWorkflowUI.ts
       - tests/fixtures/workspace-branding.json
       - src/components/profile/**
       - src/utils/organizationWorkspace*

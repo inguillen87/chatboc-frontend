@@ -48,7 +48,9 @@ describe('organization brand publication',()=>{
     await screen.findByRole('button',{name:'Conservar mi borrador'});
     expect(screen.getByRole('button',{name:'Publicar paleta'})).toBeDisabled();
     fireEvent.click(screen.getByRole('button',{name:'Conservar mi borrador'}));
-    expect(screen.getByRole('button',{name:'Publicar paleta'})).toBeEnabled();expect(api).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole('button',{name:'Publicar paleta'})).toBeDisabled();expect(api).toHaveBeenCalledTimes(3);
+    fireEvent.change(screen.getByLabelText('Color principal'),{target:{value:'#112233'}});
+    expect(screen.getByRole('button',{name:'Publicar paleta'})).toBeEnabled();
   });
   it('keeps the preview but blocks publication for a lower plan',async()=>{
     api.mockResolvedValueOnce(read(fixtures.locked));renderStudio();await screen.findByTestId('brand-studio');

@@ -366,3 +366,25 @@ Documentación: docs/WORKSPACE_BRAND_STUDIO.md. No certifica white label integra
 quedan módulos opcionales, propagación a más superficies, dominios verificados,
 PWA propia y onboarding real de WhatsApp. Conserva los gates de migración y QA.
 La configuración de una organización no crea otro repositorio, despliegue o cuenta.
+
+### WL-BRAND-CONTINUITY: edición, comparación y preview fiel al interruptor
+
+Implementado en código: borrador explícito, comparación de los tres valores,
+confirmación del descarte sin escritura y resumen exacto de publicación/restauración.
+Aviso nativo de cierre condicionado; sin persistencia, guardado automático ni bloqueo
+SPA. Paleta desactivada/inválida representada como muestra neutra. Éxito anterior
+se limpia al editar; no-op, conflicto y resultados inciertos conservan sus controles.
+Detalle, pruebas y límites: docs/BRAND_EDITING_CONTINUITY.md. Release por verificar.
+
+Siguiente bloque funcional: selección de módulos por organización con disponibilidad,
+permisos y dependencias decididos por el backend, no etiquetas locales ni nuevas apps.
+Luego, recomendaciones operativas explicables basadas en señales reales y enlaces
+al trabajo pendiente, sin ejecutar mensajes, pagos o cambios en nombre del operador.
+El cierre productivo sigue condicionado a arranque medido, aceptación institucional,
+contratos emparejados y migraciones; no se abren dominios/PWA o WhatsApp por este corte.
+
+Revisión WL-BRAND-CONTINUITY: eliminado el vocabulario de negocio fijo del cliente.
+Frontend #1754 requiere backend #2788 y el contrato de 70 textos workflow_ui.v1;
+validación estricta, overrides de organización acotados y sanitización pública.
+3183 pruebas frontend / 409 archivos y nueve recorridos SPA reales aprobados.
+La rama mantiene los gates de arranque y QA institucional, sin promoción productiva.

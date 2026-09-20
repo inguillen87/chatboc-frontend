@@ -1,7 +1,9 @@
+import {readBrandWorkflowUI,type BrandWorkflowCopy} from './brandWorkflowUI';
 export interface BrandValues {enabled:boolean; primary_color:string; accent_color:string}
 export interface ColorPair {background:string;foreground:string;contrast:number}
 export interface BrandAppearance {active:boolean;primary:ColorPair;accent:ColorPair}
 export interface BrandSnapshot {
+  workflow_ui:{contract_version:'organization.branding_workflow_ui.v1';texts:BrandWorkflowCopy};
   contract_version:'organization.branding.v1';tenant:{id:number;slug:string};revision:string;version:number;
   values:BrandValues;history:{version:number;values:BrandValues}[];can_edit:boolean;reason_code:string;
   appearance:BrandAppearance;message:string;save_endpoint:string;heading:string;scope_note:string;
@@ -43,7 +45,9 @@ export function readBrandSnapshot(raw:unknown,slug:string):BrandSnapshot|null {
   if(raw.presets.some((p:any)=>!object(p)||!short(p.id,80)||!short(p.label,120)||!isBrandColor(p.primary_color)||!isBrandColor(p.accent_color)))return null;
   if(raw.appearance.primary.background!==raw.values.primary_color||raw.appearance.accent.background!==raw.values.accent_color
     ||(!raw.values.enabled&&raw.appearance.active))return null;
-  return raw as BrandSnapshot;
+  const ui=readBrandWorkflowUI(raw.workflow_ui);
+  if(!ui)return null;
+  return {...raw,workflow_ui:{contract_version:'organization.branding_workflow_ui.v1',texts:ui}} as BrandSnapshot;
 }
 export function readWorkspaceAppearance(raw:unknown,slug:string):BrandAppearance|null {
   return object(raw)&&raw.contract_version==='organization.workspace_appearance.v1'&&object(raw.tenant)
@@ -52,4 +56,11 @@ export function readWorkspaceAppearance(raw:unknown,slug:string):BrandAppearance
 export function brandCss(appearance:BrandAppearance|null):Record<string,string>|undefined {
   return appearance?.active?{'--org-brand':appearance.primary.background,'--org-on-brand':appearance.primary.foreground,
     '--org-accent':appearance.accent.background,'--org-on-accent':appearance.accent.foreground}:undefined;
+}
+
+/** HEX casing is presentation, not an additional saved change. */
+export function sameBrandValues(left:BrandValues,right:BrandValues):boolean {
+  return left.enabled===right.enabled
+    &&left.primary_color.toUpperCase()===right.primary_color.toUpperCase()
+    &&left.accent_color.toUpperCase()===right.accent_color.toUpperCase();
 }
