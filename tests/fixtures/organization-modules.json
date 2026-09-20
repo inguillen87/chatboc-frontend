@@ -1,0 +1,83 @@
+{
+  "contract_version": "organization.setup_modules.v1",
+  "tenant": {
+    "id": 1,
+    "slug": "tenant-a"
+  },
+  "revision": "870e65728c3ba72204e4b09e815b88681db203c54f8b0a48a11da65c0538247b",
+  "version": 0,
+  "selected": [
+    "whatsapp",
+    "surveys",
+    "territory"
+  ],
+  "catalog_version": 1,
+  "catalog": [
+    {
+      "id": "whatsapp",
+      "label": "WhatsApp y plantillas",
+      "description": "Preparar el canal y sus mensajes sin reemplazar la conexión existente.",
+      "requires": []
+    },
+    {
+      "id": "catalog",
+      "label": "Catálogo de productos o servicios",
+      "description": "Organizar lo que las personas pueden consultar y pedir.",
+      "requires": []
+    },
+    {
+      "id": "payments",
+      "label": "Cobros y pedidos",
+      "description": "Preparar cobros asociados al catálogo. No inicia pagos ni conecta una pasarela.",
+      "requires": [
+        "catalog"
+      ]
+    },
+    {
+      "id": "surveys",
+      "label": "Encuestas y participación",
+      "description": "Preparar consultas y seguimiento de la experiencia.",
+      "requires": []
+    },
+    {
+      "id": "territory",
+      "label": "Territorio y mapas",
+      "description": "Preparar la jurisdicción y atención territorial de un gobierno o municipio.",
+      "requires": []
+    }
+  ],
+  "defaults": [
+    "whatsapp",
+    "surveys",
+    "territory"
+  ],
+  "can_edit": true,
+  "reason_code": "ready",
+  "message": "Podés guardar la preparación que necesita esta organización.",
+  "ui": {
+    "heading": "Elegí qué preparar en este espacio",
+    "description": "Personalizá los pasos de implementación. No cambia tu plan, permisos ni desactiva servicios que ya funcionan.",
+    "save": "Guardar selección",
+    "saving": "Verificando guardado…",
+    "refresh": "Leer versión actual",
+    "reset": "Descartar edición",
+    "dirty": "Tenés una selección pendiente de guardar.",
+    "success": "La selección quedó confirmada por el servidor.",
+    "error": "No pudimos confirmar la operación. Conservamos tu edición; revisá la versión actual antes de continuar.",
+    "conflict": "Otra persona cambió la selección. Revisá la versión guardada antes de volver a publicar.",
+    "loading": "Consultando las funciones de esta organización…",
+    "missing": "La configuración de módulos todavía no está disponible.",
+    "current": "Selección guardada",
+    "draft": "Tu selección",
+    "review": "Usar mi edición sobre la versión revisada",
+    "dependency": "Para preparar esta función también debe estar seleccionada su dependencia.",
+    "confirm": "¿Guardar esta selección?",
+    "confirm_detail": "Sólo cambiarán los pasos de preparación. Los datos, conexiones y suscripciones se conservan.",
+    "cancel": "Seguir editando",
+    "discard_title": "¿Descartar la selección pendiente?",
+    "discard_detail": "Volverás a la última selección leída. No se enviará ningún cambio al servidor."
+  },
+  "save_endpoint": "/api/admin/tenants/tenant-a/config",
+  "provider_calls_performed": false,
+  "changes_permissions": false
+}

@@ -8,6 +8,7 @@ import GovernmentMesaUnicaLaunchPanel from '@/components/implementation/Governme
 import TenantBlueprintProvisioningPanel from '@/components/implementation/TenantBlueprintProvisioningPanel';
 import TenantProvisioningReadinessPanel from '@/components/implementation/TenantProvisioningReadinessPanel';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
+import OrganizationModuleSelector from '@/components/implementation/OrganizationModuleSelector';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
@@ -130,6 +131,8 @@ const TenantImplementationCenterPage = () => {
           </Button>
         )}
       />
+
+      <OrganizationModuleSelector tenantSlug={tenantSlug} onSaved={handleBlueprintApplied}/>
 
       <div
         id="controles-salida"

@@ -3,6 +3,8 @@ name: Guided setup regression
   pull_request:
     paths:
       - src/components/implementation/**
+      - src/utils/organizationModules*
+      - tests/fixtures/organization-modules.json
       - src/pages/TenantImplementationCenterPage*
       - .github/workflows/setup-guide.yml
 permissions:
@@ -24,5 +26,5 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck && npm run typecheck:scope
-      - run: npm test -- src/components/implementation/SetupPreparationGuide.test.tsx src/components/implementation/TenantBlueprintProvisioningPanel.stepUp.test.tsx src/components/implementation/TenantLaunchJourney.test.tsx src/pages/TenantImplementationCenterPage.test.tsx --maxWorkers=2
+      - run: npm test -- --maxWorkers=2
       - run: npm run build
