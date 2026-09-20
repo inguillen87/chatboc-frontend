@@ -1,3 +1,6 @@
+import OrganizationSetupWorkspace from './OrganizationSetupWorkspace';
+import journeyFixtures from '../../../tests/fixtures/organization-setup-journeys.json';
+import {parseOrganizationSetupJourney} from '@/utils/organizationSetupJourney';
 import React from 'react';
 import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
@@ -78,5 +81,17 @@ describe('module preparation selector',()=>{
     const view=show();view.rerender(<OrganizationModuleSelector slug="tenant-b" copy={full.ui} onSaved={()=>{}}/>);
     await act(async()=>resolve({organization_modules:full}));
     await screen.findByText(full.ui.error);expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+  it('keeps unsaved choices when the setup section is collapsed and opened again',async()=>{
+    const parsed=parseOrganizationSetupJourney(journeyFixtures.municipio,'tenant-a',1)!;
+    render(<OrganizationSetupWorkspace journey={{...parsed,module_selector_ui:full.ui}} onRefresh={()=>{}}/>);
+    const disclosure=screen.getByText(full.ui.heading).closest('details')!;
+    act(()=>{disclosure.open=true;fireEvent(disclosure,new Event('toggle'));});
+    await screen.findByRole('checkbox',{name:/^WhatsApp/});
+    fireEvent.click(screen.getByRole('checkbox',{name:/^WhatsApp/}));
+    act(()=>{disclosure.open=false;fireEvent(disclosure,new Event('toggle'));});
+    act(()=>{disclosure.open=true;fireEvent(disclosure,new Event('toggle'));});
+    expect(screen.getByRole('checkbox',{name:/^WhatsApp/})).not.toBeChecked();
+    expect(api).toHaveBeenCalledTimes(1);
   });
 });

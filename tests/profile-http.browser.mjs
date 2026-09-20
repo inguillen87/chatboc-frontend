@@ -229,6 +229,9 @@ try {
   await expect(modulePanel.getByRole('checkbox',{name:/^Cobros/})).toBeDisabled();
   await modulePanel.getByRole('checkbox',{name:/^Catálogo/}).check();await modulePanel.getByRole('checkbox',{name:/^Cobros/}).check();
   await expect(modulePanel.getByRole('checkbox',{name:/^Catálogo/})).toBeDisabled();
+  await openModules();await openModules();
+  await expect(modulePanel.getByRole('checkbox',{name:/^Cobros/})).toBeChecked();
+  await expect(modulePanel.getByRole('checkbox',{name:/^WhatsApp/})).not.toBeChecked();
   await modulePanel.getByRole('button',{name:'Guardar selección',exact:true}).click();
   await first.page.getByRole('alertdialog').getByRole('button',{name:'Confirmar selección',exact:true}).click();
   await modulePanel.getByText('La selección quedó confirmada por el servidor.',{exact:true}).waitFor();
