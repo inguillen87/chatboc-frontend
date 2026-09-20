@@ -1,0 +1,78 @@
+{
+  "contract_version": "chatboc.paired_preview_probe.v1",
+  "observed_at": "2026-09-20T10:30:45.469725+00:00",
+  "frontend_origin": "https://chatboc-frontend-hm971kmx4-marcelos-projects-c26aa499.vercel.app",
+  "backend_origin": "https://chatboc-backend-bnu4lz2kg-marcelos-projects-c26aa499.vercel.app",
+  "frontend_revision": "2fbf08a0f5dfe235cb7c350b5ed3de308fa601c8",
+  "backend_revision": "8386769a81cd797af83b48e30ec90ea3969aaff5",
+  "version_pair_verified": true,
+  "first_attempt_ready": false,
+  "promotion_authorized": false,
+  "authenticated_acceptance": false,
+  "writes_performed": false,
+  "samples": [
+    {
+      "stage": "frontend",
+      "attempt": 1,
+      "http_status": 200,
+      "duration_ms": 719,
+      "reason": "ok"
+    },
+    {
+      "stage": "direct_backend",
+      "attempt": 1,
+      "http_status": 503,
+      "duration_ms": 6000,
+      "reason": "bootstrap_retryable"
+    },
+    {
+      "stage": "direct_backend",
+      "attempt": 2,
+      "http_status": 200,
+      "duration_ms": 1937,
+      "reason": "ok"
+    },
+    {
+      "stage": "readiness",
+      "attempt": 1,
+      "http_status": 200,
+      "duration_ms": 1188,
+      "reason": "ok"
+    },
+    {
+      "stage": "proxied_backend",
+      "attempt": 1,
+      "http_status": 200,
+      "duration_ms": 1187,
+      "reason": "ok"
+    },
+    {
+      "stage": "access",
+      "attempt": 1,
+      "http_status": 401,
+      "duration_ms": 422,
+      "reason": "ok"
+    },
+    {
+      "stage": "frontend_recheck",
+      "attempt": 1,
+      "http_status": 200,
+      "duration_ms": 328,
+      "reason": "ok"
+    },
+    {
+      "stage": "proxied_backend_recheck",
+      "attempt": 1,
+      "http_status": 503,
+      "duration_ms": 5672,
+      "reason": "bootstrap_retryable"
+    },
+    {
+      "stage": "proxied_backend_recheck",
+      "attempt": 2,
+      "http_status": 200,
+      "duration_ms": 219,
+      "reason": "ok"
+    }
+  ]
+}

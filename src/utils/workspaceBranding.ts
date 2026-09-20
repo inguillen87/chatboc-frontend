@@ -53,3 +53,10 @@ export function brandCss(appearance:BrandAppearance|null):Record<string,string>|
   return appearance?.active?{'--org-brand':appearance.primary.background,'--org-on-brand':appearance.primary.foreground,
     '--org-accent':appearance.accent.background,'--org-on-accent':appearance.accent.foreground}:undefined;
 }
+
+/** HEX casing is presentation, not an additional saved change. */
+export function sameBrandValues(left:BrandValues,right:BrandValues):boolean {
+  return left.enabled===right.enabled
+    &&left.primary_color.toUpperCase()===right.primary_color.toUpperCase()
+    &&left.accent_color.toUpperCase()===right.accent_color.toUpperCase();
+}
