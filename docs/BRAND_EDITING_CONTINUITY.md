@@ -72,3 +72,34 @@ terminó con código 0 y liberó los contextos de navegador tras cada grupo de p
 Resultados: docs/evidence/brand-continuity/local-spa.json y previous-preview-pair.json.
 La aceptación institucional, el candidato de este commit y sus checks remotos
 se registran por separado en el PR; no se deducen de estas pruebas locales.
+
+## Corrección de revisión P1: textos controlados por el backend
+
+La revisión de d6cd07c detectó vocabulario fijo en React incompatible con la política
+white-label. Este corte sustituye ese candidato. Requiere backend PR #2788,
+eee58b52024c86dee41e23e820e6fb1967778f5f, con workflow_ui versionado dentro de la
+respuesta autenticada organization.branding.v1 y sus recibos de publicación.
+
+Los 70 textos de estados, comparación, controles, preview, historial, confirmación
+y resultado de publicación provienen ahora del servidor. Las personalizaciones
+por organización se limitan a claves conocidas y texto plano de hasta 600 caracteres,
+sin HTML ni controles, preservando variables obligatorias. Esa configuración no
+sale en respuestas públicas. No existe todavía una pantalla para editar esos textos.
+El cliente valida el contrato completo y no fabrica una paleta publicable si falta.
+La UI usa texto escapado; comparar activación compara booleanos, no las traducciones.
+El estado genérico de carga/fallo anterior al contrato permanece independiente.
+
+La extensión es aditiva para clientes anteriores; el frontend corregido debe usar
+el nuevo backend. No modifica almacenamiento de paleta, revisión, roles, Full,
+auditoría, bootstrap, migraciones o acciones de proveedores.
+
+Validación de la corrección: 3183 pruebas frontend en 409 archivos, TypeScript,
+scope y nueve recorridos SPA reales aprobados sobre este backend desechable.
+Se agregaron ocho regresiones de contrato/renderizado a las 16 de continuidad.
+Backend focal: 21 pruebas locales aprobadas y una carrera PostgreSQL omitida en
+SQLite; ocho pruebas nuevas de vocabulario. La CI PostgreSQL existente incluye
+el módulo nuevo y verifica su propia carrera real. No se deduce su éxito localmente.
+
+El candidato previo 6phrr6ns6 / d6cd07c queda como evidencia histórica, no como
+entrega corregida. El nuevo par inmutable, sus checks de CI y la lectura remota se
+registran en el PR después de observarlos. No se promovió producción ni alias QA.

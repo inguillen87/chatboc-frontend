@@ -69,12 +69,12 @@ export function useBrandStudio(slug:string,onPublished?:(brand:BrandSnapshot)=>v
         ||raw.provider_calls_performed!==false||!expectedValues||['enabled','primary_color','accent_color'].some(key=>brand.values[key as keyof BrandValues]!==expectedValues[key as keyof BrandValues])
         ||brand.version!==(raw.saved?snapshot.version+1:snapshot.version))throw new Error('invalid_brand_receipt');
       setSnapshot(brand);setDraft(brand.values);setLatest(null);setNeedsReview(false);
-      setMessage(raw.saved?'La paleta quedó publicada y confirmada por el servidor.':'La paleta ya coincidía con la versión guardada.');
+      setMessage(raw.saved?brand.workflow_ui.texts.publish_saved:brand.workflow_ui.texts.publish_unchanged);
       onPublished?.(brand);
     }catch(e:any){
       if(!live.current||seq!==generation.current)return;
       if([401,403].includes(e?.status)){setSnapshot(null);setDraft(null);setLatest(null);}
-      setNeedsReview(true);setError(e?.status===412?'Otra persona cambió la marca. Revisá la versión actual sin perder tu borrador.':'No pudimos confirmar la publicación. Consultá el estado antes de reintentar.');
+      setNeedsReview(true);setError(e?.status===412?snapshot.workflow_ui.texts.conflict_error:snapshot.workflow_ui.texts.publish_unconfirmed);
     }finally{if(live.current&&seq===generation.current){clearTimer();busy.current=false;setPending(false);setWriting(false);}}
   };
   useEffect(()=>{

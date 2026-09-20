@@ -382,3 +382,9 @@ Luego, recomendaciones operativas explicables basadas en señales reales y enlac
 al trabajo pendiente, sin ejecutar mensajes, pagos o cambios en nombre del operador.
 El cierre productivo sigue condicionado a arranque medido, aceptación institucional,
 contratos emparejados y migraciones; no se abren dominios/PWA o WhatsApp por este corte.
+
+Revisión WL-BRAND-CONTINUITY: eliminado el vocabulario de negocio fijo del cliente.
+Frontend #1754 requiere backend #2788 y el contrato de 70 textos workflow_ui.v1;
+validación estricta, overrides de organización acotados y sanitización pública.
+3183 pruebas frontend / 409 archivos y nueve recorridos SPA reales aprobados.
+La rama mantiene los gates de arranque y QA institucional, sin promoción productiva.
