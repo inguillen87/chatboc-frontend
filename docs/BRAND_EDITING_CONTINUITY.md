@@ -103,3 +103,8 @@ el módulo nuevo y verifica su propia carrera real. No se deduce su éxito local
 El candidato previo 6phrr6ns6 / d6cd07c queda como evidencia histórica, no como
 entrega corregida. El nuevo par inmutable, sus checks de CI y la lectura remota se
 registran en el PR después de observarlos. No se promovió producción ni alias QA.
+
+Corrección P2 Unicode: se rechaza la categoría Unicode Cc completa, incluidos C1
+U+0085 y U+009B incrustados en texto. Las regresiones se ejecutan en ambos lados;
+la API usa unicodedata.category y el cliente una propiedad Unicode de RegExp.
+La representación sigue siendo texto escapado; el contrato no cambia.

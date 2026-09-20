@@ -19,7 +19,7 @@ export function readBrandWorkflowUI(raw:unknown):BrandWorkflowCopy|null {
   if(value.contract_version!=='organization.branding_workflow_ui.v1'||!value.texts||typeof value.texts!=='object')return null;
   const texts=value.texts as Record<string,unknown>;
   if(BRAND_UI_KEYS.some(key=>typeof texts[key]!=='string'||!(texts[key] as string).trim()||(texts[key] as string).length>600
-    ||Array.from(texts[key] as string).some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)===127||c==='<'||c==='>')))return null;
+    ||Array.from(texts[key] as string).some(c=>/\p{Cc}|[<>]/u.test(c))))return null;
   return Object.fromEntries(BRAND_UI_KEYS.map(key=>[key,texts[key]])) as BrandWorkflowCopy;
 }
 /** Plain text substitution only; the result is rendered as escaped React text. */

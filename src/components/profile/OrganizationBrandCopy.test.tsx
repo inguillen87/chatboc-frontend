@@ -21,7 +21,8 @@ describe('backend-owned branding vocabulary',()=>{
     const invalid=[null,{}, {...fixtures.initial.workflow_ui,contract_version:'unknown'},
       {contract_version:'organization.branding_workflow_ui.v1',texts:{...vocabulary,discard_action:''}},
       {contract_version:'organization.branding_workflow_ui.v1',texts:{...vocabulary,discard_action:'x'.repeat(601)}},
-      {contract_version:'organization.branding_workflow_ui.v1',texts:{...vocabulary,discard_action:'<b>Discard</b>'}}];
+      {contract_version:'organization.branding_workflow_ui.v1',texts:{...vocabulary,discard_action:'<b>Discard</b>'}},
+      ...[0x85,0x9B].map(code=>({contract_version:'organization.branding_workflow_ui.v1',texts:{...vocabulary,discard_action:'A'+String.fromCharCode(code)+'B'}}))];
     for(const value of invalid)expect(readBrandWorkflowUI(value)).toBeNull();
   });
   it('detaches presentation values and ignores fields that cannot grant permissions',()=>{
