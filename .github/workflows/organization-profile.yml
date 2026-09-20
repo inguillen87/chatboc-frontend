@@ -3,6 +3,11 @@ name: Organization profile workspace
   pull_request:
     paths:
       - src/pages/Perfil*
+      - src/components/implementation/OrganizationModuleSelector*
+      - src/components/implementation/OrganizationSetupWorkspace*
+      - src/utils/organizationModules*
+      - src/hooks/useModuleSelection*
+      - tests/fixtures/organization-modules.json
       - src/hooks/useBrandStudio.ts
       - src/utils/workspaceBranding*
       - src/utils/brandWorkflowUI.ts

@@ -220,6 +220,32 @@ try {
   await first.page.reload();await expect(first.page.getByRole('checkbox',{name:'Usar mi paleta en el espacio'})).not.toBeChecked();
   await expect(first.page.getByTestId('institution-profile-workspace')).not.toHaveCSS('--org-brand','#6D28D9');
   results.push('brand_publish_reload_setup_propagation_full_gate_and_restore');
+  await first.page.goto(origin+'/implementacion?tenant_slug=acceptance-a');
+  const openModules=()=>first.page.locator('summary').filter({hasText:'Elegí qué preparar en este espacio'}).click();
+  await openModules();
+  let modulePanel=first.page.getByTestId('organization-module-selector');
+  await expect(modulePanel.getByRole('checkbox',{name:/^WhatsApp/})).toBeVisible();
+  for(const name of [/^WhatsApp/,/^Encuestas/,/^Territorio/])await modulePanel.getByRole('checkbox',{name}).uncheck();
+  await expect(modulePanel.getByRole('checkbox',{name:/^Cobros/})).toBeDisabled();
+  await modulePanel.getByRole('checkbox',{name:/^Catálogo/}).check();await modulePanel.getByRole('checkbox',{name:/^Cobros/}).check();
+  await expect(modulePanel.getByRole('checkbox',{name:/^Catálogo/})).toBeDisabled();
+  await modulePanel.getByRole('button',{name:'Guardar selección',exact:true}).click();
+  await first.page.getByRole('alertdialog').getByRole('button',{name:'Confirmar selección',exact:true}).click();
+  await modulePanel.getByText('La selección quedó confirmada por el servidor.',{exact:true}).waitFor();
+  await first.page.reload();await openModules();modulePanel=first.page.getByTestId('organization-module-selector');
+  await expect(modulePanel.getByRole('checkbox',{name:/^Cobros/})).toBeChecked();
+  await expect(modulePanel.getByRole('checkbox',{name:/^WhatsApp/})).not.toBeChecked();
+  const selection=await first.context.request.get(origin+'/api/v2/tenants/acceptance-a/activation/channels');
+  assert.deepEqual((await selection.json()).organization_setup.selected_modules,['catalog','payments']);
+  for(const [width,dark] of [[1440,false],[820,false],[390,true],[320,false]]) {
+    await first.page.setViewportSize({width,height:900});
+    await first.page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),dark);
+    await modulePanel.scrollIntoViewIfNeeded();
+    assert.equal(await first.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await first.page.evaluate(()=>{document.activeElement?.blur?.();window.scrollTo({top:0,behavior:'instant'});});
+    await first.page.screenshot({path:`.vercel/profile-http-evidence/modules-${width}.png`,fullPage:true});
+  }
+  results.push('module_selection_dependency_confirmation_persistence_and_setup_projection');
   assert.deepEqual(failures,[],'No uncaught application exceptions');
   await writeFile('.vercel/profile-http-evidence/result.json', JSON.stringify({
     full_spa:true, api_mocks:false, disposable_accounts:true, results},null,2));

@@ -388,3 +388,14 @@ Frontend #1754 requiere backend #2788 y el contrato de 70 textos workflow_ui.v1;
 validación estricta, overrides de organización acotados y sanitización pública.
 3183 pruebas frontend / 409 archivos y nueve recorridos SPA reales aprobados.
 La rama mantiene los gates de arranque y QA institucional, sin promoción productiva.
+
+
+### SS-MODULE-PREPARATION: selección versionada de objetivos por organización
+
+Editor en Implementación con catálogo y dependencias publicados por backend,
+Full y permiso administrativo validados por servidor, confirmación de guardado,
+revisión de conflictos y persistencia/auditoría atómicas. La selección ajusta
+el asistente v2; no habilita ni desconecta servicios, borra datos o cambia planes.
+Detalle: docs/MODULE_SELECTION_VERIFIED.md. Reconciliar la rama aislada con el
+trabajo concurrente antes de fusionar. Pendientes: aceptación QA institucional,
+arranque en frío, módulos operativos completos, dominio/PWA y WhatsApp real.
