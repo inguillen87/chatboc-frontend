@@ -3,6 +3,13 @@ name: Organization profile workspace
   pull_request:
     paths:
       - src/pages/Perfil*
+      - src/components/admin/WhatsappTemplateWorkspace*
+      - src/components/admin/WhatsappTemplatePacksPanel*
+      - src/components/admin/templateWorkspaceUI*
+      - src/components/admin/whatsappTemplatePackContract*
+      - src/hooks/useWhatsappTemplatePacks*
+      - tests/fixtures/template-workspace-ui.json
+      - tests/e2e/fixtures/template-workspace.*
       - src/components/implementation/OrganizationModuleSelector*
       - src/components/implementation/OrganizationSetupWorkspace*
       - src/utils/moduleCatalog*

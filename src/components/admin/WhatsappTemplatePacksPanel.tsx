@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWhatsappTemplatePacks } from "@/hooks/useWhatsappTemplatePacks";
 import { displayedTemplateState, normalizeTemplateScope, type TemplatePack } from "./whatsappTemplatePackContract";
+import { readTemplateWorkspaceUI } from './templateWorkspaceUI';
+import WhatsappTemplateWorkspace from './WhatsappTemplateWorkspace';
 
 const lifecycleTone = (state?: string) => {
   if (state === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200";
@@ -16,8 +18,9 @@ const lifecycleTone = (state?: string) => {
 };
 
 function TemplatePacksWorkspace({ scope }: { scope: string }) {
+  const workspace = useWhatsappTemplatePacks(scope);
   const { catalog: scopedCatalog, loading, error, notice, savingVertical,
-    refresh: load, materialize, canMaterialize } = useWhatsappTemplatePacks(scope);
+    refresh: load, materialize, canMaterialize } = workspace;
   const [selectedVertical, setSelectedVertical] = useState('');
   const [filter, setFilter] = useState('all');
   const copy = scopedCatalog?.frontend_contract?.copy || {};
@@ -28,7 +31,11 @@ function TemplatePacksWorkspace({ scope }: { scope: string }) {
   const states = Array.from(new Set<string>((selectedPack?.templates || []).map(displayedTemplateState)));
   const selectedFilter = states.includes(filter) ? filter : 'all';
   if (!scope) return <Card data-testid="whatsapp-template-packs"><CardContent className="p-5">Elegí una organización autorizada para revisar sus plantillas.</CardContent></Card>;
-
+  const workspaceUI = readTemplateWorkspaceUI(scopedCatalog?.frontend_contract?.workspace_ui);
+  if (scopedCatalog && workspaceUI) return <WhatsappTemplateWorkspace key={String(scopedCatalog.tenant.id)}
+    catalog={scopedCatalog} ui={workspaceUI} state={workspace} />;
+  // Compatibility for a server that does not yet publish the additive workspace contract.
+  // A malformed published contract is rejected by readTemplateCatalog, not downgraded here.
 
   return (
     <Card className="border-border/70" data-testid="whatsapp-template-packs">
