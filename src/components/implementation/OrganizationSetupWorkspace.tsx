@@ -1,3 +1,5 @@
+import {readModuleUI} from '@/utils/organizationModules';
+import OrganizationModuleSelector from './OrganizationModuleSelector';
 import {brandCss,readWorkspaceAppearance} from '@/utils/workspaceBranding';
 import brandStyles from '@/components/profile/OrganizationBrandStudio.module.css';
 import React from 'react';
@@ -20,6 +22,9 @@ function SetupSteps({journey,loading=false,error,onRefresh,returnTo,technicalDet
   const active=states[stage.status]; const ActiveIcon=active.Icon;
   const href=stage.primary_action&&!loading&&!error?buildTenantJourneyHref(stage.primary_action.href,journey.tenant.slug,returnTo):null;
   const headingId=React.useId();const panelId=React.useId();
+  const [modulesOpen,setModulesOpen]=React.useState(false);
+  const [modulesVisited,setModulesVisited]=React.useState(false);
+  const moduleCopy=readModuleUI(journey.module_selector_ui);
   return <section style={brandCss(palette)} className={styles.workspace} aria-labelledby={headingId} data-testid="organization-setup-workspace">
     <header className={`${styles.header} ${palette?.active?brandStyles.liveHeader:""}`}>
       <div><span className={styles.eyebrow}>{journey.organization_label} · Configuración guiada</span>
@@ -29,6 +34,7 @@ function SetupSteps({journey,loading=false,error,onRefresh,returnTo,technicalDet
       </button>
     </header>
     <div className={styles.continuity}><ShieldCheck size={18} aria-hidden="true"/><span>{journey.continuity_note}</span></div>
+    {moduleCopy ? <details className={styles.technical} open={modulesOpen} onToggle={e => {setModulesOpen(e.currentTarget.open);if(e.currentTarget.open)setModulesVisited(true);}}><summary>{moduleCopy.heading}</summary>{modulesVisited ? <OrganizationModuleSelector slug={journey.tenant.slug} copy={moduleCopy} onSaved={onRefresh} /> : null}</details> : null}
     <div className={styles.progress}><span>{journey.summary.ready} de {journey.summary.total} pasos comprobados</span>
       <span>{journey.summary.progress}%</span><progress max={100} value={journey.summary.progress} aria-label="Pasos de configuración comprobados"/>
     </div>

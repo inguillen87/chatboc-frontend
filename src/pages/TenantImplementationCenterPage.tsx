@@ -122,7 +122,7 @@ const TenantImplementationCenterPage = () => {
         description="Marca, equipo, contenido, canales y controles de salida en un recorrido institucional reutilizable."
         meta={`Contexto de trabajo: ${tenantLabel || tenantSlug}`}
         actions={(
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="!bg-background !text-foreground">
             <Link to={profileHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Volver al centro de control
