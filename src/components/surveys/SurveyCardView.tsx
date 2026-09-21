@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BarChart3, CalendarDays, ChevronDown, Edit, LinkIcon, Send, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,7 @@ interface SurveyCardProps {
   deleting?: boolean;
   onSeed?: () => Promise<void>;
   seeding?: boolean;
+  interactionsBlocked?: boolean;
 }
 
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString('es-AR') : 'Sin fecha');
@@ -127,6 +128,7 @@ export const SurveyCard = ({
   deleting,
   onSeed,
   seeding,
+  interactionsBlocked = false,
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -163,7 +165,15 @@ export const SurveyCard = ({
         lifecycle.actions.publish.next_action,
       )
     : null;
-  const busy = Boolean(publishing || closing);
+  const busy = Boolean(interactionsBlocked || publishing || closing || deleting || seeding);
+  useEffect(() => {
+    // An unrelated operation invalidates a dialog awaiting confirmation. Keep
+    // the dialog of an already-running close/delete visible with its own status.
+    if (busy && !closing && !deleting) {
+      setCloseDialogOpen(false);
+      setDeleteDialogOpen(false);
+    }
+  }, [busy, closing, deleting]);
   const primaryAction = governedDraft && onManageGovernance
     ? 'governance'
     : canPublish && onPublish
@@ -186,7 +196,7 @@ export const SurveyCard = ({
       | undefined;
 
   const handleConfirmDelete = async () => {
-    if (!onDelete || deleting) return;
+    if (!onDelete || busy) return;
     try {
       await onDelete();
       setDeleteDialogOpen(false);
@@ -196,7 +206,7 @@ export const SurveyCard = ({
   };
 
   const handleConfirmClose = async () => {
-    if (!onClose || closing) return;
+    if (!onClose || busy) return;
     try {
       await onClose();
       setCloseDialogOpen(false);
@@ -345,7 +355,7 @@ export const SurveyCard = ({
 
       <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/10 px-5 py-3">
         {primaryAction === 'publish' && onPublish ? (
-          <Button size="sm" onClick={onPublish} disabled={publishing} className="inline-flex items-center gap-2">
+          <Button size="sm" onClick={onPublish} disabled={busy} className="inline-flex items-center gap-2">
             <Send className="h-4 w-4" /> {publishing ? 'Publicando…' : 'Publicar'}
           </Button>
         ) : null}
@@ -379,7 +389,7 @@ export const SurveyCard = ({
         {canClose && onClose ? (
           <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="inline-flex items-center gap-2" disabled={Boolean(closing)}>
+              <Button variant="outline" size="sm" className="inline-flex items-center gap-2" disabled={busy}>
                 <CalendarDays className="h-4 w-4" /> {closing ? 'Cerrando…' : 'Cerrar participación'}
               </Button>
             </AlertDialogTrigger>
@@ -392,9 +402,9 @@ export const SurveyCard = ({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={Boolean(closing)}>Volver</AlertDialogCancel>
+                <AlertDialogCancel disabled={busy}>Volver</AlertDialogCancel>
                 <AlertDialogAction
-                  disabled={Boolean(closing)}
+                  disabled={busy}
                   onClick={(event) => {
                     event.preventDefault();
                     void handleConfirmClose();
@@ -421,10 +431,10 @@ export const SurveyCard = ({
         ) : null}
         {onSeed && !busy ? <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} labels={seedLabels} /> : null}
 
-        {canDelete && onDelete && !busy ? (
+        {canDelete && onDelete ? (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="inline-flex items-center gap-2">
+              <Button variant="destructive" size="sm" className="inline-flex items-center gap-2" disabled={busy}>
                 <Trash2 className="h-4 w-4" /> Borrar borrador
               </Button>
             </AlertDialogTrigger>
@@ -436,9 +446,9 @@ export const SurveyCard = ({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={Boolean(deleting)}>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
-                  disabled={Boolean(deleting)}
+                  disabled={busy}
                   onClick={(event) => {
                     event.preventDefault();
                     void handleConfirmDelete();

@@ -3,17 +3,17 @@ import { SurveyCard as SurveyCardView } from './SurveyCardView';
 import { useSurveyCardActions } from '@/hooks/useSurveyCardActions';
 import styles from './SurveyCard.module.css';
 
-type Props = ComponentProps<typeof SurveyCardView>;
+type Props = Omit<ComponentProps<typeof SurveyCardView>, 'interactionsBlocked'>;
 
-/** A confirmation belongs to the displayed survey snapshot, not just its numeric ID.
- * Changing tenant, content or lifecycle discards only the local dialog. It never
- * cancels or repeats a request that the server may already be processing.
+/** Every API survey field belongs to the reviewed snapshot. Canonical object
+ * ordering avoids resetting a confirmation merely because JSON keys were reordered.
+ * Callbacks are not part of this payload and remain separately capability-checked.
  */
 export const SurveyCard = (props: Props) => {
-  const { survey, tenantSlug } = props;
-  const scope = JSON.stringify([tenantSlug ?? null, survey.id, survey.titulo, survey.slug,
-    survey.descripcion, survey.tipo, survey.estado, survey.inicio_at, survey.fin_at,
-    survey.admin_lifecycle, survey.metricas, survey.governance, survey.preguntas]);
+  const scope = JSON.stringify([props.tenantSlug ?? null, props.survey], (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]))
+      : value);
   return <ScopedSurveyCard key={scope} {...props} />;
 };
 
@@ -29,9 +29,11 @@ function ScopedSurveyCard(props: Props) {
     close: canClose ? props.onClose : undefined,
     delete: canDelete ? props.onDelete : undefined,
   });
-  return <div className={styles.frame} aria-busy={externallyBusy || actions.pending !== null}>
+  const blocked = externallyBusy || actions.pending !== null;
+  return <div className={styles.frame} aria-busy={blocked}>
     <SurveyCardView
       {...props}
+      interactionsBlocked={blocked}
       closing={Boolean(props.closing || actions.pending === 'close')}
       deleting={Boolean(props.deleting || actions.pending === 'delete')}
       onClose={props.onClose && canClose ? actions.close : undefined}
