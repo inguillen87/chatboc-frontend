@@ -1,4 +1,5 @@
 import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
+import { BackendReadinessLeases } from './backendReadinessLease';
 
 const BOOTSTRAP_CONTRACT_VERSION = 'chatboc.bootstrap.v1';
 const BOOTSTRAP_REASON_CODE = 'application_initializing';
@@ -19,6 +20,8 @@ type BootstrapGateOptions = {
   fetcher?: typeof fetch;
   maxAttempts?: number;
   timeoutMs?: number;
+  expectedRevision?: string;
+  refresh?: boolean;
   wait?: (delayMs: number) => Promise<void>;
 };
 
@@ -35,7 +38,7 @@ export class BackendBootstrapError extends Error {
   }
 }
 
-const readinessByUrl = new Map<string, Promise<void>>();
+const readinessByUrl = new BackendReadinessLeases();
 
 const parseBooleanFlag = (value: unknown): boolean | null => {
   if (typeof value === 'boolean') return value;
@@ -66,14 +69,11 @@ const normalizeHttpBase = (value?: string | null): string => {
 export const resolveBackendReadinessUrl = (baseUrl?: string | null): string => {
   const normalizedBase = normalizeHttpBase(baseUrl);
   if (!normalizedBase) return '/api/version';
-
   try {
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
     const url = new URL(normalizedBase, currentOrigin);
     const normalizedPath = url.pathname.replace(/\/$/, '');
-    url.pathname = normalizedPath.endsWith('/api')
-      ? `${normalizedPath}/version`
-      : '/api/version';
+    url.pathname = normalizedPath.endsWith('/api') ? `${normalizedPath}/version` : '/api/version';
     url.search = '';
     url.hash = '';
     return url.origin === currentOrigin ? `${url.pathname}` : url.toString();
@@ -85,21 +85,14 @@ export const resolveBackendReadinessUrl = (baseUrl?: string | null): string => {
 const readJsonBody = async (response: Response): Promise<unknown> => {
   const text = await response.text().catch(() => '');
   if (!text.trim()) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+  try { return JSON.parse(text); } catch { return text; }
 };
 
 const isExplicitBootstrapRejection = (response: Response, body: unknown): boolean => {
   if (response.status !== 503 || !body || typeof body !== 'object') return false;
   const payload = body as BootstrapPayload;
-  return (
-    payload.contract_version === BOOTSTRAP_CONTRACT_VERSION &&
-    payload.reason_code === BOOTSTRAP_REASON_CODE &&
-    payload.retryable === true
-  );
+  return payload.contract_version === BOOTSTRAP_CONTRACT_VERSION &&
+    payload.reason_code === BOOTSTRAP_REASON_CODE && payload.retryable === true;
 };
 
 const resolveRetryDelay = (response: Response): number => {
@@ -110,83 +103,77 @@ const resolveRetryDelay = (response: Response): number => {
   return Math.min(MAX_RETRY_DELAY_MS, Math.max(250, Math.round(seconds * 1_000)));
 };
 
-const defaultWait = (delayMs: number) =>
-  new Promise<void>((resolve) => {
-    globalThis.setTimeout(resolve, delayMs);
-  });
+const defaultWait = (delayMs: number) => new Promise<void>((resolve) => {
+  globalThis.setTimeout(resolve, delayMs);
+});
 
 const probeBackend = async (
   readinessUrl: string,
   options: Required<Pick<BootstrapGateOptions, 'fetcher' | 'maxAttempts' | 'wait'>>,
   signal: AbortSignal,
+  expectedRevision: string | null,
 ): Promise<void> => {
   for (let attempt = 1; attempt <= options.maxAttempts; attempt += 1) {
     signal.throwIfAborted();
     let response: Response;
     try {
       response = await options.fetcher(readinessUrl, {
-        method: 'GET',
-        credentials: 'omit',
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-        signal,
+        method: 'GET', credentials: 'omit', cache: 'no-store',
+        headers: { Accept: 'application/json' }, signal,
       });
     } catch (error) {
-      throw new BackendBootstrapError(
-        'No pudimos contactar el servicio para iniciar la plataforma.',
-        null,
-        error,
-      );
+      throw new BackendBootstrapError('No pudimos contactar el servicio para iniciar la plataforma.', null, error);
     }
-
     const body = await readJsonBody(response);
-    if (
-      response.ok && body && typeof body === 'object' &&
-      'backend' in body && typeof body.backend === 'string' && body.backend.trim() &&
-      'frontend' in body && typeof body.frontend === 'string'
-    ) return;
-
+    signal.throwIfAborted();
+    if (response.ok && body && typeof body === 'object' &&
+        'backend' in body && typeof body.backend === 'string' && body.backend.trim() &&
+        'frontend' in body && typeof body.frontend === 'string') {
+      if (expectedRevision !== null && body.backend !== expectedRevision) {
+        throw new BackendBootstrapError(
+          'La interfaz y el servicio corresponden a versiones distintas. No se enviaron cambios.',
+          409, { reason_code: 'backend_revision_mismatch' },
+        );
+      }
+      return;
+    }
     if (!isExplicitBootstrapRejection(response, body)) {
-      throw new BackendBootstrapError(
-        'El servicio no pudo completar el inicio seguro.',
-        response.status,
-        body,
-      );
+      throw new BackendBootstrapError('El servicio no pudo completar el inicio seguro.', response.status, body);
     }
-
     if (attempt === options.maxAttempts) {
-      throw new BackendBootstrapError(
-        'La plataforma sigue iniciando. Reintenta en unos segundos.',
-        response.status,
-        body,
-      );
+      throw new BackendBootstrapError('La plataforma sigue iniciando. Reintenta en unos segundos.', response.status, body);
     }
-
     await options.wait(resolveRetryDelay(response));
   }
+  // Defensive: no configuration can make an empty probe loop report success.
+  throw new BackendBootstrapError('No se pudo verificar el inicio del servicio.');
 };
 
-/**
- * Coalesces every caller behind one readiness request. Preview containers can
- * scale from zero; serializing that first probe prevents the application from
- * fanning out tenant reads, realtime connections and business mutations while
- * the canonical Flask application is still loading.
+/** Only GET /api/version is retried. Business mutations are never replayed here.
+ * A short lease reduces fan-out but is not proof of a permanently warm instance.
+ * QA may pin an exact backend revision; ordinary deployments remain compatible.
  */
-export const ensureBackendRuntimeReady = (
-  options: BootstrapGateOptions = {},
-): Promise<void> => {
+export const ensureBackendRuntimeReady = (options: BootstrapGateOptions = {}): Promise<void> => {
   const enabled = options.enabled ?? isBackendBootstrapGateEnabled();
   if (!enabled) return Promise.resolve();
-
+  const requestedAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const requestedTimeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const expectedRevision = options.expectedRevision ?? import.meta.env.VITE_EXPECTED_BACKEND_REVISION;
+  if (!Number.isFinite(requestedAttempts) || !Number.isInteger(requestedAttempts) ||
+      !Number.isFinite(requestedTimeout) ||
+      (expectedRevision !== undefined && (typeof expectedRevision !== 'string' || !/^[0-9a-f]{40}$/.test(expectedRevision)))) {
+    return Promise.reject(new BackendBootstrapError('La configuración de verificación del servicio no es válida.'));
+  }
   const readinessUrl = resolveBackendReadinessUrl(options.baseUrl);
-  const existing = readinessByUrl.get(readinessUrl);
+  const key = JSON.stringify([readinessUrl, expectedRevision ?? null]);
+  if (options.refresh === true) readinessByUrl.invalidateSettled(key);
+  const existing = readinessByUrl.get(key);
   if (existing) return existing;
-
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
-  const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS, 8));
+  const maxAttempts = Math.max(1, Math.min(requestedAttempts, 8));
   const wait = options.wait ?? defaultWait;
   const controller = new AbortController();
-  const timeoutMs = Math.max(250, Math.min(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, 30_000));
+  const timeoutMs = Math.max(250, Math.min(requestedTimeout, 30_000));
   let timer: ReturnType<typeof setTimeout>;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -194,20 +181,11 @@ export const ensureBackendRuntimeReady = (
       reject(new BackendBootstrapError('El servicio está tardando en responder. Puedes reintentar.'));
     }, timeoutMs);
   });
-
   const readiness = Promise.race([
-    probeBackend(readinessUrl, { fetcher, maxAttempts, wait }, controller.signal),
+    probeBackend(readinessUrl, { fetcher, maxAttempts, wait }, controller.signal, expectedRevision ?? null),
     deadline,
-  ]).finally(() => clearTimeout(timer)).catch((error) => {
-    if (readinessByUrl.get(readinessUrl) === readiness) {
-      readinessByUrl.delete(readinessUrl);
-    }
-    throw error;
-  });
-  readinessByUrl.set(readinessUrl, readiness);
-  return readiness;
+  ]).finally(() => clearTimeout(timer));
+  return readinessByUrl.track(key, readiness);
 };
 
-export const resetBackendBootstrapGateForTests = () => {
-  readinessByUrl.clear();
-};
+export const resetBackendBootstrapGateForTests = () => { readinessByUrl.clear(); };

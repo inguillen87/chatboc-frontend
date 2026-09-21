@@ -1,7 +1,18 @@
-name: Production profile layout
+name: Production UI continuity
 "on":
   pull_request:
     paths:
+      - src/components/app-shell/AppShellStatusBar*
+      - src/components/app-shell/RuntimeRecoveryBar*
+      - src/components/layout/Navbar.tsx
+      - src/config/runtimeRecovery.ts
+      - src/hooks/useRuntimeRecovery*
+      - src/hooks/useFixedHeaderOffset*
+      - src/utils/backendBootstrapGate*
+      - src/utils/backendReadinessLease*
+      - src/utils/runtimeRecoveryPolicy*
+      - tests/runtime-resume.browser.mjs
+      - tests/e2e/fixtures/runtime-resume.*
       - src/components/profile/InstitutionProfileWorkspace.tsx
       - tests/production-profile.browser.mjs
       - tests/e2e/fixtures/production-profile.*
@@ -26,4 +37,4 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck && npm test -- --maxWorkers=2 && npm run build
       - run: npx playwright install --with-deps chromium
-      - run: node tests/production-profile.browser.mjs
+      - run: node tests/production-profile.browser.mjs && node tests/runtime-resume.browser.mjs
