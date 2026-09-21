@@ -17,7 +17,8 @@ describe('survey snapshot and disabled controls review', () => {
     const view = render(<SurveyCard tenantSlug="tenant-a" survey={survey} {...actions}/>);
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar participación' }));
     expect(screen.getByRole('alertdialog')).toBeVisible();
-    view.rerender(<SurveyCard tenantSlug="tenant-a" survey={{ ...survey, ...change }} {...actions}/>);
+    const updated = { ...survey, ...change } as typeof survey;
+    view.rerender(<SurveyCard tenantSlug="tenant-a" survey={updated} {...actions}/>);
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(actions.onClose).not.toHaveBeenCalled();
   });

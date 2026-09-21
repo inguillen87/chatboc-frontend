@@ -1,9 +1,8 @@
-import type { ComponentProps } from 'react';
 import { SurveyCard as SurveyCardView } from './SurveyCardView';
 import { useSurveyCardActions } from '@/hooks/useSurveyCardActions';
 import styles from './SurveyCard.module.css';
 
-type Props = Omit<ComponentProps<typeof SurveyCardView>, 'interactionsBlocked'>;
+type Props = Omit<Parameters<typeof SurveyCardView>[0], 'interactionsBlocked'>;
 
 /** Every API survey field belongs to the reviewed snapshot. Canonical object
  * ordering avoids resetting a confirmation merely because JSON keys were reordered.
