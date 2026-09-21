@@ -20,6 +20,7 @@ import type { SurveyAdmin } from '@/types/encuestas';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 import { isGovernedSurvey } from '@/utils/surveyPublicationLifecycle';
+import styles from './SurveyCard.module.css';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
@@ -382,7 +383,7 @@ export const SurveyCard = ({
                 <CalendarDays className="h-4 w-4" /> {closing ? 'Cerrando…' : 'Cerrar participación'}
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className={styles.dialog}>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Cerrar {instrumentLabel.toLowerCase()}?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -427,7 +428,7 @@ export const SurveyCard = ({
                 <Trash2 className="h-4 w-4" /> Borrar borrador
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className={styles.dialog}>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar borrador?</AlertDialogTitle>
                 <AlertDialogDescription>

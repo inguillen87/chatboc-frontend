@@ -40,8 +40,18 @@ try {
     await trigger.focus(); await page.keyboard.press('Enter');
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();
+    const appearance = await dialog.evaluate(element => {
+      const style = getComputedStyle(element);
+      return { opacity: style.opacity, animation: style.animationName, background: style.backgroundColor,
+        overflowY: style.overflowY, buttonHeights: [...element.querySelectorAll('button')].map(b => b.getBoundingClientRect().height) };
+    });
+    assert.equal(appearance.opacity, '1', 'Reduced-motion confirmation must be fully opaque');
+    assert.equal(appearance.animation, 'none', 'Portal must also respect reduced motion');
+    assert.match(appearance.background, /^rgb\([^/]+\)$/, 'Dialog surface must be opaque');
+    assert.ok(appearance.buttonHeights.every(height => height >= 44), 'Confirmation actions must be touch accessible');
     const modal = await dialog.boundingBox();
-    assert.ok(modal && modal.x >= -1 && modal.x + modal.width <= width + 1, 'Modal must fit the viewport');
+    assert.ok(modal && modal.x >= 15 && modal.x + modal.width <= width - 15, 'Modal must fit with safe horizontal space');
+    assert.ok(modal.y >= 15 && modal.y + modal.height <= 885, 'Modal must fit vertically');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.screenshot({ path: `test-evidence/survey-card/confirmation-${width}.png`, fullPage: true });
     await page.getByRole('button', { name: confirmation, exact: true }).evaluate(button => { button.click(); button.click(); });
@@ -53,7 +63,8 @@ try {
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
     assert.deepEqual(errors, []); assert.deepEqual(apiRequests, []);
     await page.screenshot({ path: `test-evidence/survey-card/card-${width}.png`, fullPage: true });
-    results.push({ width, mode, syntheticCallbackInvocations: 1, outdatedDialogsRemoved: true, touchTarget: true, apiRequests: 0 });
+    results.push({ width, mode, syntheticCallbackInvocations: 1, outdatedDialogsRemoved: true, touchTarget: true,
+      opaqueConfirmation: true, reducedMotionRespected: true, modalFitsViewport: true, apiRequests: 0 });
     await context.close();
   }
   const report = { realSurveyCardAndHook: true, syntheticDataAndHandlers: true, serverAcceptance: false, results };
