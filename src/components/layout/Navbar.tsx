@@ -43,6 +43,7 @@ import { useSessionAuthority } from "@/components/access/SessionAuthorityContext
 import { useTenant } from "@/context/TenantContext";
 import useCartCount from "@/hooks/useCartCount";
 import { useUser } from "@/hooks/useUser";
+import { useFixedHeaderOffset } from "@/hooks/useFixedHeaderOffset";
 import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getValidStoredToken } from "@/utils/authTokens";
@@ -92,6 +93,8 @@ const parseStoredUser = (raw: string | null) => {
 };
 
 const Navbar: React.FC = () => {
+  const headerRef = useRef<HTMLElement>(null);
+  useFixedHeaderOffset(headerRef);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
@@ -329,7 +332,7 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
+    <header ref={headerRef} className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
         <button
           ref={brandHomeButtonRef}
