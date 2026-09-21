@@ -1,8 +1,9 @@
 import React,{useState} from 'react';
-import {Layers3,Link2,RefreshCw,ShieldCheck} from 'lucide-react';
+import {Layers3,RefreshCw,ShieldCheck} from 'lucide-react';
 import {useModuleSelection} from '@/hooks/useModuleSelection';
 import {validModules,type ModuleId,type ModuleDefinition} from '@/utils/organizationModules';
 import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction} from '@/components/ui/alert-dialog';
+import ModuleSelectionGrid from './ModuleSelectionGrid';
 import styles from './OrganizationModuleSelector.module.css';
 interface Props {slug:string;copy:Record<string,string>;onSaved:()=>void}
 export default function OrganizationModuleSelector(props:Props) {
@@ -25,19 +26,7 @@ function Selector({slug,copy,onSaved}:Props) {
       {!snapshot.can_edit?<p className={styles.notice}>{snapshot.message}</p>:null}
       {error?<p role="alert" className={styles.notice}>{error}</p>:null}
       {message?<p role="status" className={styles.success}>{message}</p>:null}
-      <div className={styles.grid}>{snapshot.catalog.map(module=>{
-        const chosen=draft.includes(module.id);
-        const missing=module.requires.filter(id=>!draft.includes(id));
-        const neededBy=snapshot.catalog.filter(m=>draft.includes(m.id)&&m.requires.includes(module.id));
-        return <label key={module.id} className={styles.card} data-selected={chosen}>
-          <input type="checkbox" checked={chosen} disabled={disabled||missing.length>0||(chosen&&neededBy.length>0)}
-            onChange={()=>state.edit(chosen?draft.filter(id=>id!==module.id):[...draft,module.id])}/>
-          <span><strong>{module.label}</strong><span className={styles.description}>{module.description}</span>
-            {module.requires.length?<small><Link2 size={13} aria-hidden="true"/>{ui.requires}: {labels(module.requires)}</small>:null}
-            {chosen&&neededBy.length?<small>{ui.dependency} {neededBy.map(m=>m.label).join(' · ')}</small>:null}
-          </span>
-        </label>;
-      })}</div>
+      <ModuleSelectionGrid snapshot={snapshot} draft={draft} disabled={disabled||!!error||review||!!latest} onChange={state.edit}/>
       <p className={styles.note}>{ui.scope_note}</p>
       {latest?<section className={styles.compare} aria-label={ui.compare}>
         <h4>{ui.compare}</h4><div className={styles.columns}><p><strong>{ui.current}</strong>{labels(latest.selected,latest.catalog)}</p><p><strong>{ui.draft}</strong>{labels(draft)}</p></div>

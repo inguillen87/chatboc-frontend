@@ -1,0 +1,11 @@
+{
+  "contract_version": "organization.setup_module_assistance.v1",
+  "select_title": "Revisá las funciones necesarias",
+  "remove_title": "Revisá las funciones que dependen de esta selección",
+  "detail": "Este paso sólo modifica tu borrador. Después deberás guardar la selección. No desconecta servicios ni modifica datos, permisos o planes.",
+  "added_heading": "Se agregarán a tu preparación",
+  "removed_heading": "Se quitarán de tu preparación",
+  "apply_draft": "Aplicar al borrador",
+  "cancel": "Mantener mi selección",
+  "hint": "Podés elegir una función directamente. Si necesita otras, revisaremos el conjunto antes de cambiar tu borrador."
+}
