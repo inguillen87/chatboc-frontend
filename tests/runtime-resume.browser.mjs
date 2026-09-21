@@ -26,6 +26,13 @@ try {
     await page.goto(origin+'/tests/e2e/fixtures/runtime-resume.html');
     if(width===390)await page.evaluate(()=>document.documentElement.classList.add('dark'));
     const draft=page.getByRole('textbox',{name:'Borrador de prueba'}); await draft.fill('Edición local que permanece abierta');
+    const bottom=page.getByTestId('workspace-bottom');
+    await expect(bottom).toBeInViewport({ratio:1});
+    const initialBottom=await bottom.boundingBox();
+    const stableBottom=async()=>{
+      await expect(bottom).toBeInViewport({ratio:1});
+      const bounds=await bottom.boundingBox(); assert.ok(bounds&&initialBottom&&Math.abs(bounds.y-initialBottom.y)<1);
+    };
     const network=async online=>page.evaluate(value=>{
       Object.defineProperty(navigator,'onLine',{configurable:true,value});
       window.dispatchEvent(new Event(value?'online':'offline'));
@@ -34,6 +41,7 @@ try {
     const titles={failure:'No pudimos confirmar la conexión',mismatch:'La versión del servicio no coincide',offline:'Sin conexión',waiting:'El servicio está tardando'};
     await expect(page.getByText(titles[scenario],{exact:true})).toBeVisible();
     await expect(draft).toHaveValue('Edición local que permanece abierta');
+    await stableBottom();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     assert.equal(await page.getByRole('progressbar').count(),0);
     if(scenario==='waiting')assert.equal(await page.locator('[data-testid="runtime-recovery-bar"] > svg').evaluate(el=>getComputedStyle(el).animationName),'none');
@@ -43,6 +51,7 @@ try {
       await button.focus();await page.keyboard.press('Enter');
       await expect(page.getByText('El servicio volvió a responder',{exact:true})).toBeVisible();
       await expect(draft).toHaveValue('Edición local que permanece abierta');
+      await stableBottom();
       await page.getByRole('button',{name:'Cerrar estado del servicio'}).click();
       await expect(page.getByRole('region',{name:'Estado del servicio'})).toHaveCount(0);
     }
@@ -51,10 +60,11 @@ try {
       responseMode='ready'; if(scenario==='offline')await page.getByRole('button',{name:'Comprobar servicio'}).click();
       await expect(page.getByText('El servicio volvió a responder',{exact:true})).toBeVisible({timeout:10000});
       await expect(draft).toHaveValue('Edición local que permanece abierta');
+      await stableBottom();
     }
     assert.ok(calls.length>0&&calls.every(call=>call.method==='GET'&&call.cookie===null));
     assert.deepEqual(errors,[]);
-    results.push({width,scenario,requests:calls.length,onlyAnonymousGet:true,draftPreserved:true});
+    results.push({width,scenario,requests:calls.length,onlyAnonymousGet:true,draftPreserved:true,workspaceBottomPreserved:true});
     await context.close();
   }
   await writeFile('.vercel/runtime-resume-evidence/results.json',JSON.stringify({syntheticApi:true,syntheticNetworkEvents:true,results},null,2));

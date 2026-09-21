@@ -8,7 +8,8 @@ const online = () => typeof navigator === 'undefined' || navigator.onLine;
 
 /** A read-only service check, without owning the page, session, or its data. */
 export function useRuntimeRecovery() {
-  const [phase, setPhase] = useState<RecoveryPhase>(() => online() ? 'quiet' : 'offline');
+  const [phase, setPhase] = useState<RecoveryPhase>(() =>
+    isRuntimeRecoveryEnabled() && !online() ? 'offline' : 'quiet');
   const active = useRef(false);
   const generation = useRef(0);
   const inFlight = useRef(false);
@@ -38,8 +39,8 @@ export function useRuntimeRecovery() {
   useEffect(() => {
     active.current = true;
     const disconnected = () => {
-      ++generation.current; inFlight.current = false; needsReconnect.current = true;
-      clearSlow(); setPhase('offline');
+      ++generation.current; inFlight.current = false; needsReconnect.current = isRuntimeRecoveryEnabled();
+      clearSlow(); setPhase(needsReconnect.current ? 'offline' : 'quiet');
     };
     const connected = () => { if (needsReconnect.current) check(true); };
     const resumed = () => {

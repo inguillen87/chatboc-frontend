@@ -1,4 +1,4 @@
-.bar { position:sticky; top:var(--chatboc-fixed-header-height,0px); z-index:40; display:grid; grid-template-columns:20px minmax(0,1fr) auto; align-items:start; gap:.8rem; padding:1rem max(1rem,env(safe-area-inset-right)) 1rem max(1rem,env(safe-area-inset-left)); border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); box-shadow:0 2px 10px hsl(var(--foreground)/.04); }
+.bar { position:fixed; left:0; right:0; top:var(--chatboc-fixed-header-height,0px); max-height:calc(100dvh - var(--chatboc-fixed-header-height,0px) - env(safe-area-inset-bottom,0px)); overflow-y:auto; z-index:40; display:grid; grid-template-columns:20px minmax(0,1fr) auto; align-items:start; gap:.8rem; padding:1rem max(1rem,env(safe-area-inset-right)) 1rem max(1rem,env(safe-area-inset-left)); border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--foreground)); box-shadow:0 2px 10px hsl(var(--foreground)/.04); }
 .bar > svg { margin-top:.3rem; }
 .content { min-width:0; }
 .title { font-size:.85rem; line-height:1.4; font-weight:650; }
