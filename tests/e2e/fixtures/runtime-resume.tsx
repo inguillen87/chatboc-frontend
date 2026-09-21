@@ -1,8 +1,10 @@
 import {createRoot} from 'react-dom/client';
 import {AppShellStatusBar} from '@/components/app-shell/AppShellStatusBar';
+import {loadRuntimeRecoveryUI} from '@/services/runtimeRecoveryConfig';
 import '@/index.css';
 
-// Match the constrained geometry of viewport workspaces, using only synthetic content.
+// The served JSON is mocked by the browser test from the exact backend file.
+await loadRuntimeRecoveryUI();
 document.body.style.overflow='hidden';
 document.documentElement.style.overflow='hidden';
 const root=document.getElementById('root')!;

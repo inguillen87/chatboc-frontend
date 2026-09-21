@@ -5,7 +5,9 @@ name: Production UI continuity
       - src/components/app-shell/AppShellStatusBar*
       - src/components/app-shell/RuntimeRecoveryBar*
       - src/components/layout/Navbar.tsx
-      - src/config/runtimeRecovery.ts
+      - src/config/runtimeRecovery*
+      - src/services/runtimeRecoveryConfig*
+      - tests/fixtures/runtime-recovery-ui.json
       - src/hooks/useRuntimeRecovery*
       - src/hooks/useFixedHeaderOffset*
       - src/utils/backendBootstrapGate*

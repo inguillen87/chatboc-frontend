@@ -1,11 +1,28 @@
-import type { RecoveryPhase } from '@/hooks/useRuntimeRecovery';
+export const RECOVERY_STATES = ['offline', 'checking', 'waiting', 'verified', 'unavailable', 'mismatch'] as const;
+export type RecoveryState = typeof RECOVERY_STATES[number];
+export interface RuntimeRecoveryUI {
+  contract_version: 'chatboc.runtime_recovery_ui.v1';
+  scope: 'platform';
+  region_label: string;
+  check_label: string;
+  dismiss_label: string;
+  states: Record<RecoveryState, { title: string; detail: string }>;
+}
+const object = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+const text = (value: unknown, max = 200): value is string =>
+  typeof value === 'string' && !!value.trim() && value.length <= max && !/\p{Cc}/u.test(value);
 
-/** Platform status copy only, not tenant branding or business responses. */
-export const RUNTIME_RECOVERY_COPY = {
-  offline: { title: 'Sin conexión', detail: 'El dispositivo informa una desconexión. Los datos pueden estar desactualizados; revisá los resultados antes de repetir una acción.' },
-  checking: { title: 'Comprobando el servicio', detail: 'No hace falta recargar. Esta comprobación no guarda cambios ni reenvía mensajes.' },
-  waiting: { title: 'El servicio está tardando', detail: 'La comprobación tiene un tiempo límite. Tu pantalla no se cerrará mientras esperamos.' },
-  verified: { title: 'El servicio volvió a responder', detail: 'Esto no confirma las acciones anteriores. Revisá su resultado antes de volver a enviarlas.' },
-  unavailable: { title: 'No pudimos confirmar la conexión', detail: 'Podés comprobar otra vez sin recargar ni repetir las acciones de esta pantalla.' },
-  mismatch: { title: 'La versión del servicio no coincide', detail: 'No repitas acciones pendientes. Volvé a comprobar el servicio o consultá al equipo de soporte.' },
-} satisfies Record<Exclude<RecoveryPhase, 'quiet'>, { title: string; detail: string }>;
+/** Only server-published platform copy is accepted; there are no local messages. */
+export function readRuntimeRecoveryUI(value: unknown): RuntimeRecoveryUI | null {
+  if (!object(value) || value.contract_version !== 'chatboc.runtime_recovery_ui.v1' || value.scope !== 'platform' ||
+      !text(value.region_label) || !text(value.check_label) || !text(value.dismiss_label) || !object(value.states)) return null;
+  const states = {} as RuntimeRecoveryUI['states'];
+  for (const name of RECOVERY_STATES) {
+    const state = value.states[name];
+    if (!object(state) || !text(state.title) || !text(state.detail, 1600)) return null;
+    states[name] = { title: state.title, detail: state.detail };
+  }
+  return { contract_version: value.contract_version, scope: value.scope, region_label: value.region_label,
+    check_label: value.check_label, dismiss_label: value.dismiss_label, states };
+}

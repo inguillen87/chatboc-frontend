@@ -1,30 +1,32 @@
-# Estado de revisión de la recuperación
+# Recuperación: cierre del contrato de presentación
 
-Este documento complementa PRODUCTION_RUNTIME_CONTINUITY.md. No está autorizado
-marcar este corte como listo para promover sólo porque la CI esté verde.
+El P1 de textos locales se aborda junto con backend #2791 / c1fa43dc, aislado sobre
+la revisión pública 912446bf. La nueva fuente es config/runtime_recovery_ui.json,
+servida por GET /api/config/runtime-recovery bajo chatboc.runtime_recovery_ui.v1.
+El frontend ya no declara RUNTIME_RECOVERY_COPY ni etiquetas locales de respaldo.
+Valida seis estados, textos acotados/sin controles y scope platform; renderiza
+texto escapado y descarta propiedades fuera del contrato. Los textos del fixture
+se usan sólo en pruebas y corresponden al JSON del backend, no al bundle runtime.
 
-## Correcciones funcionales de revisión
-La política de deshabilitación se aplica tanto al montaje inicial sin conexión
-como al evento offline. Cuatro pruebas nuevas cubren función deshabilitada,
-ruta excluida, retiro de una barra previa y ausencia de comprobación al reconectar.
-La barra es fixed, no sticky dentro del flujo del documento. El fixture de
-navegador reproduce un espacio h-dvh con root/body sin scroll y comprueba la
-posición y visibilidad del extremo inferior antes, durante y después de recuperar.
-Los recorridos son sintéticos y no certifican el Layout completo con sesión real.
+La configuración pública se obtiene con GET anónimo, tiempo límite de ocho
+segundos y operación pendiente compartida. La copia validada permanece únicamente
+en memoria del documento, sin tokens, cookies, localStorage ni datos de tenant.
+La carga inicial no afirma disponibilidad: la revalidación se hace separadamente
+con GET /api/version. No se reenvían acciones de negocio.
 
-## P1 pendiente: textos gobernados por el backend
-La revisión 4058846875 es válida. RUNTIME_RECOVERY_COPY y etiquetas de botones
-siguen definidos en frontend; eso no cumple AGENTS.md. No se resuelve trasladando
-los mismos literales a otro archivo del frontend ni dando por aprobados los textos.
-La fuente pública actual comprobada es routes/config.py del backend productivo
-912446bf96f8330664a9dec009ae57dbf935c73c. Expone /api/config y /api/version, pero
-no un contrato de mensajes de recuperación. Falta añadir un contrato público
-acotado y consumirlo sin inventar texto, datos de tenant ni éxito de operaciones.
-También debe definirse la conducta sin configuración recibida/al iniciar offline.
-Esta tarea requiere una entrega coordinada del backend, separada de la migración.
-El PR permanece draft y el hilo P1 abierto hasta completar esa integración.
+Sin contrato recibido en una primera visita offline o ante un backend anterior
+sin endpoint, la nueva barra no se fabrica; la app y la edición permanecen montadas.
+Al reconectar puede obtener el contrato y entonces verificar el servicio.
+Esto no certifica pérdida de red física, dispositivos/PWA o sesión institucional.
 
-## Despliegue
-No desplegado ni promovido. Además del P1, el acceso local está pausado por cuota
-de Desktop Commander y el conector Vercel no dispone de equipo autorizado.
-No se modificaron producción, bases, números, permisos o capacidad contratada.
+Las correcciones de política offline y geometría h-dvh se conservan. Los cuatro
+recorridos de navegador comprueban edición y borde inferior estable en error,
+revisión incompatible, offline y espera, más los cuatro del perfil anterior.
+Hay pruebas específicas de mensajes publicados/escapados, ausencia de contrato,
+carga tardía, límites, red fallida, deduplicación y timeout de la configuración.
+
+Pruebas del head anterior no certifican este head nuevo. El PR permanece draft
+hasta terminar CI y revisar el contrato coordinado. No hay publicación automática.
+Debe publicarse y comprobarse el backend antes de presentar esta barra como activa.
+Desktop Commander está pausado por cuota; Vercel no dispone de equipo autorizado.
+No se cambian permisos, capacidad, bases, números ni callbacks para sortearlo.

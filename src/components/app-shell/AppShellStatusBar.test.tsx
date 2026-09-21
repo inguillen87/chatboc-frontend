@@ -3,9 +3,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShellStatusBar } from './AppShellStatusBar';
 import { BackendBootstrapError } from '@/utils/backendBootstrapGate';
+import recoveryUI from '../../../tests/fixtures/runtime-recovery-ui.json';
 const probe = vi.hoisted(() => ({ enabled: true, run: vi.fn() }));
 vi.mock('@/utils/backendBootstrapGate', async importOriginal => ({
   ...(await importOriginal<typeof import('@/utils/backendBootstrapGate')>()), ensureBackendRuntimeReady: probe.run,
+}));
+vi.mock('@/services/runtimeRecoveryConfig', () => ({
+  getRuntimeRecoveryUI: () => recoveryUI, loadRuntimeRecoveryUI: async () => recoveryUI,
 }));
 vi.mock('@/utils/runtimeRecoveryPolicy', () => ({ isRuntimeRecoveryEnabled: () => probe.enabled }));
 const net = (isOnline: boolean) => {
@@ -23,8 +27,8 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 describe('non-blocking runtime recovery', () => {
-  it('does not poll or duplicate the startup probe when a page is mounted', () => {
-    render(<AppShellStatusBar />); act(() => vi.advanceTimersByTime(120000));
+  it('does not poll or duplicate the startup probe when a page is mounted', async () => {
+    render(<AppShellStatusBar />); await flush(); act(() => vi.advanceTimersByTime(120000));
     expect(probe.run).not.toHaveBeenCalled(); expect(screen.queryByRole('status')).toBeNull();
   });
   it('retains a mounted draft through offline, reconnect and dismissal', async () => {
