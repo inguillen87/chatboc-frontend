@@ -1,0 +1,40 @@
+name: Survey card confirmation integrity
+"on":
+  pull_request:
+    paths:
+      - src/components/surveys/SurveyCard*
+      - src/hooks/useSurveyCardActions*
+      - tests/fixtures/survey-card-actions.ts
+      - tests/e2e/fixtures/survey-card-actions.*
+      - tests/survey-card-actions.browser.mjs
+      - .github/workflows/survey-card-actions.yml
+permissions:
+  contents: read
+concurrency:
+  group: survey-card-actions-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  survey-card:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run typecheck:scope
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build
+      - run: npx playwright install chromium
+      - run: node tests/survey-card-actions.browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: survey-card-acceptance
+          path: test-evidence/survey-card/
+          if-no-files-found: ignore
+          retention-days: 3

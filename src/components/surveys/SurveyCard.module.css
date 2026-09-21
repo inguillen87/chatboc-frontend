@@ -1,0 +1,8 @@
+.frame { min-width:0; height:100%; }
+.frame > div { height:100%; min-width:0; display:flex; flex-direction:column; }
+.frame > div > :last-child { margin-top:auto; }
+.frame :global(button),.frame :global(summary),.frame :global(a[role='button']) { min-height:44px; }
+.frame :global(summary) { align-items:center; }
+.frame :global(h3),.frame :global(dd),.frame :global(p) { overflow-wrap:anywhere; }
+@media (prefers-reduced-motion:reduce) { .frame *, .frame *::before, .frame *::after { transition:none!important; animation:none!important; } }
+:global(.a11y-reduced-motion) .frame * { transition:none!important; animation:none!important; }
