@@ -27,23 +27,45 @@ const mount = async (catalog = source()) => {
   await waitFor(() => expect(hook.result.current.canMaterialize).toBe(true));
   return { ...hook, catalog };
 };
-beforeEach(() => api.mockReset());
-afterEach(() => cleanup());
+beforeEach(() => { api.mockReset(); });
+afterEach(() => { cleanup(); });
 
 describe('synchronous authority for WhatsApp draft operations', () => {
-  it('blocks a retained writer immediately after an uncertain POST, before rerender', async () => {
+  it('blocks a retained writer immediately after an uncertain POST settles', async () => {
     const { result, catalog } = await mount();
     const retained = result.current.materialize;
-    api.mockRejectedValue(new Error('lost response'));
-    await act(async () => { await retained(catalog.packs[0]); await retained(catalog.packs[0]); });
+    const selected = result.current.catalog!.packs[0];
+    expect(result.current.catalog).toBe(catalog);
+    expect(result.current.error).toBeNull();
+    let reject!: (reason: Error) => void;
+    api.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+    let first!: Promise<void>;
+    act(() => { first = retained(selected); });
+    expect(posts(), result.current.error || 'The authorized first POST must start').toHaveLength(1);
+    await act(async () => {
+      reject(new Error('lost response'));
+      await first;
+      await retained(selected);
+    });
     expect(posts()).toHaveLength(1);
     expect(result.current.canMaterialize).toBe(false);
   });
-  it('does not create a second operation after a verified receipt in the same render turn', async () => {
+  it('does not create a second operation after a verified receipt using the retained callback', async () => {
     const { result, catalog } = await mount();
     const retained = result.current.materialize;
-    api.mockResolvedValue(receipt(catalog));
-    await act(async () => { await retained(catalog.packs[0]); await retained(catalog.packs[0]); });
+    const selected = result.current.catalog!.packs[0];
+    expect(result.current.catalog).toBe(catalog);
+    expect(result.current.error).toBeNull();
+    let resolve!: (value: unknown) => void;
+    api.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    let first!: Promise<void>;
+    act(() => { first = retained(selected); });
+    expect(posts(), result.current.error || 'The authorized first POST must start').toHaveLength(1);
+    await act(async () => {
+      resolve(receipt(catalog));
+      await first;
+      await retained(selected);
+    });
     expect(posts()).toHaveLength(1);
     expect(result.current.catalog?.packs[0].templates[0].materialized).toBe(true);
   });
