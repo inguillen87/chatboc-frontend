@@ -5,6 +5,7 @@ name: Organization profile workspace
       - src/pages/Perfil*
       - src/components/implementation/OrganizationModuleSelector*
       - src/components/implementation/OrganizationSetupWorkspace*
+      - src/utils/moduleCatalog*
       - src/utils/organizationModules*
       - src/hooks/useModuleSelection*
       - tests/fixtures/organization-modules.json

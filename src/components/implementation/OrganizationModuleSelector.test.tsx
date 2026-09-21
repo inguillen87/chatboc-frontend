@@ -69,9 +69,9 @@ describe('module preparation selector',()=>{
     fireEvent.click(screen.getByRole('button',{name:full.ui.save}));fireEvent.click(screen.getByRole('button',{name:full.ui.confirmed}));
     await screen.findByText(full.ui.error);expect(screen.queryByRole('checkbox')).toBeNull();
   });
-  it('rejects invalid contracts and dependency-free forged catalogs',()=>{
+  it('rejects invalid contracts and dangling catalog dependencies',()=>{
     for(const bad of [{...full,ui:{...full.ui,heading:'A\u0085B'}},{...full,selected:['payments']},
-      {...full,catalog:full.catalog.map(m=>m.id==='payments'?{...m,requires:[]}:m)},
+      {...full,catalog:full.catalog.map(m=>m.id==='payments'?{...m,requires:['missing-module']}:m)},
       {...full,can_edit:true,reason_code:'full'},{...full,save_endpoint:'/api/private'}]) {
       expect(readModuleSelection(bad,'tenant-a')).toBeNull();
     }

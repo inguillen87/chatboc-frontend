@@ -60,7 +60,8 @@ export function useModuleSelection(slug:string,ui:Record<string,string>,onSaved:
   const choose=(keepDraft:boolean)=>{
     if(!latest||busy.current)return;
     if(keepDraft&&!validModules(draft,latest.catalog))return;
-    setSnapshot(latest);if(!keepDraft)setDraft(latest.selected);setLatest(null);setReview(false);setError(null);setMessage(null);
+    setSnapshot(latest);setDraft(keepDraft?latest.catalog.filter(m=>draft.includes(m.id)).map(m=>m.id):latest.selected);
+    setLatest(null);setReview(false);setError(null);setMessage(null);
   };
   const discard=()=>{if(!snapshot||busy.current||review||latest||error)return;setDraft(snapshot.selected);setMessage(null);};
   return {snapshot,draft,dirty,latest,pending,review,error,message,edit,save,discard,choose,

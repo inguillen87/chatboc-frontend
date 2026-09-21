@@ -1,7 +1,7 @@
 import React,{useState} from 'react';
 import {Layers3,Link2,RefreshCw,ShieldCheck} from 'lucide-react';
 import {useModuleSelection} from '@/hooks/useModuleSelection';
-import {validModules,type ModuleId} from '@/utils/organizationModules';
+import {validModules,type ModuleId,type ModuleDefinition} from '@/utils/organizationModules';
 import {AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction} from '@/components/ui/alert-dialog';
 import styles from './OrganizationModuleSelector.module.css';
 interface Props {slug:string;copy:Record<string,string>;onSaved:()=>void}
@@ -16,7 +16,7 @@ function Selector({slug,copy,onSaved}:Props) {
   const ui=snapshot?.ui||copy;
   const disabled=pending||!snapshot?.can_edit;
   const canSave=!!snapshot?.can_edit&&!pending&&!error&&!review&&!latest&&(dirty||snapshot.source==='defaults');
-  const labels=(ids:ModuleId[])=>ids.map(id=>snapshot?.catalog.find(m=>m.id===id)?.label||id).join(' · ')||'—';
+  const labels=(ids:ModuleId[],catalog:ModuleDefinition[]=snapshot?.catalog||[])=>ids.map(id=>catalog.find(m=>m.id===id)?.label||id).join(' · ')||'-';
   return <section className={styles.panel} aria-label={ui.heading} data-testid="organization-module-selector">
     <div className={styles.intro}><Layers3 size={21} aria-hidden="true"/><div><h3>{ui.heading}</h3><p>{ui.description}</p></div></div>
     {!snapshot?<div className={styles.notice} role="status">{pending?ui.loading:error||ui.missing}
@@ -40,7 +40,7 @@ function Selector({slug,copy,onSaved}:Props) {
       })}</div>
       <p className={styles.note}>{ui.scope_note}</p>
       {latest?<section className={styles.compare} aria-label={ui.compare}>
-        <h4>{ui.compare}</h4><div className={styles.columns}><p><strong>{ui.current}</strong>{labels(latest.selected)}</p><p><strong>{ui.draft}</strong>{labels(draft)}</p></div>
+        <h4>{ui.compare}</h4><div className={styles.columns}><p><strong>{ui.current}</strong>{labels(latest.selected,latest.catalog)}</p><p><strong>{ui.draft}</strong>{labels(draft)}</p></div>
         <p>{ui.review_note}</p><div className={styles.actions}>
           <button type="button" disabled={pending||!validModules(draft,latest.catalog)} onClick={()=>state.choose(true)}>{ui.review}</button>
           <button type="button" disabled={pending} onClick={()=>state.choose(false)}>{ui.current}</button>
