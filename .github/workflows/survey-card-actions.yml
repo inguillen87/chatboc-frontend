@@ -4,6 +4,9 @@ name: Survey card confirmation integrity
     paths:
       - src/components/surveys/SurveyCard*
       - src/hooks/useSurveyCardActions*
+      - src/hooks/useSurveyWorkspaceLease*
+      - src/hooks/useSurveyAdmin*
+      - src/pages/admin/encuestas/index*
       - tests/fixtures/survey-card-actions.ts
       - tests/e2e/fixtures/survey-card-actions.*
       - tests/survey-card-actions.browser.mjs
@@ -27,7 +30,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck && npm run typecheck:scope
-      - run: npm test -- --maxWorkers=2
+      - run: npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=test-evidence/survey-card/vitest-results.json
       - run: npm run build
       - run: npx playwright install chromium
       - run: node tests/survey-card-actions.browser.mjs

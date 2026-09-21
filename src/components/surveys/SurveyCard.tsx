@@ -2,7 +2,10 @@ import { SurveyCard as SurveyCardView } from './SurveyCardView';
 import { useSurveyCardActions } from '@/hooks/useSurveyCardActions';
 import styles from './SurveyCard.module.css';
 
-type Props = Omit<Parameters<typeof SurveyCardView>[0], 'interactionsBlocked'>;
+type Props = Omit<Parameters<typeof SurveyCardView>[0], 'interactionsBlocked'> & {
+  /** Workspace reconciliation or another in-flight action; never grants permission. */
+  blocked?: boolean;
+};
 
 /** Every API survey field belongs to the reviewed snapshot. Canonical object
  * ordering avoids resetting a confirmation merely because JSON keys were reordered.
@@ -22,7 +25,7 @@ function ScopedSurveyCard(props: Props) {
     ? lifecycle.capabilities.can_close && lifecycle.actions.close.enabled
     : props.survey.estado === 'publicada';
   const canDelete = lifecycle?.capabilities.can_delete ?? props.survey.estado === 'borrador';
-  const externallyBusy = Boolean(props.publishing || props.closing || props.deleting || props.seeding);
+  const externallyBusy = Boolean(props.blocked || props.publishing || props.closing || props.deleting || props.seeding);
   const actions = useSurveyCardActions({
     blocked: externallyBusy,
     close: canClose ? props.onClose : undefined,
