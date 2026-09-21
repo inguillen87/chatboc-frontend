@@ -1,3 +1,4 @@
+import { readTemplateWorkspaceUI, type TemplateWorkspaceUI } from './templateWorkspaceUI';
 // The server owns tenant identity, permissions, content and approval evidence.
 export type TemplateLifecycle = { state?: string; production_send_allowed?: boolean };
 export type TemplatePackItem = {
@@ -16,7 +17,7 @@ export type TemplatePackCatalog = {
   packs: TemplatePack[];
   capabilities?: { read?: boolean; materialize_local_draft?: boolean; required_for_mutation?: string };
   endpoints?: { materialize_template?: string };
-  frontend_contract?: { copy?: Record<string, string>; lifecycle_labels?: Record<string, string>; blocker_labels?: Record<string, string> };
+  frontend_contract?: { copy?: Record<string, string>; lifecycle_labels?: Record<string, string>; blocker_labels?: Record<string, string>; workspace_ui?: TemplateWorkspaceUI };
 };
 export const CATALOG_PATH = '/api/admin/whatsapp/template-packs';
 export const DRAFT_PATH = `${CATALOG_PATH}/{vertical}/drafts`;
@@ -61,7 +62,8 @@ export function readTemplateCatalog(value: unknown, scope: string): TemplatePack
     || (value.endpoints != null && (!record(value.endpoints) || value.endpoints.materialize_template !== DRAFT_PATH))) throw new TemplatePackContractError();
   if (value.frontend_contract != null && (!record(value.frontend_contract)
     || !labels(value.frontend_contract.copy) || !labels(value.frontend_contract.lifecycle_labels)
-    || !labels(value.frontend_contract.blocker_labels))) throw new TemplatePackContractError();
+    || !labels(value.frontend_contract.blocker_labels)
+    || (value.frontend_contract.workspace_ui !== undefined && !readTemplateWorkspaceUI(value.frontend_contract.workspace_ui)))) throw new TemplatePackContractError();
   return value as TemplatePackCatalog;
 }
 export function readDraftReceipt(value: unknown, catalog: TemplatePackCatalog, pack: TemplatePack): TemplatePack {
