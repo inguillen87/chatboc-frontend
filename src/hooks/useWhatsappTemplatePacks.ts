@@ -20,21 +20,27 @@ export function useWhatsappTemplatePacks(scope: string) {
   const controller = useRef<AbortController | null>(null);
   const mutation = useRef(false);
   const keys = useRef(new Map<string, string>());
-  const mountedCatalog = useRef(catalog);
-  mountedCatalog.current = catalog;
+  const mountedCatalog = useRef<TemplatePackCatalog | null>(null);
+  // Synchronous authority: retained callbacks cannot reuse a render's old error state.
+  const verifiedAuthority = useRef(false);
   const current = (version: number) => active.current && revision.current === version;
   const reading = useRef(false);
   const refresh = useCallback(async () => {
-    if (!scope || mutation.current) return;
+    if (!active.current || !scope || mutation.current) return;
+    verifiedAuthority.current = false;
     const version = ++revision.current;
     controller.current?.abort();
     const waiting = new AbortController(); controller.current = waiting;
     const timer = setTimeout(() => waiting.abort(), WAIT_MS);
     reading.current = true; setLoading(true); setError(null); setNotice(null);
     try {
-      const value = await waitForAbort(apiFetch<unknown>(CATALOG_PATH, { tenantSlug: scope, cache: 'no-store' }), waiting.signal);
+      const value = await waitForAbort(apiFetch<unknown>(CATALOG_PATH, {
+        tenantSlug: scope, persistTenantSlug: false, cache: 'no-store',
+      }), waiting.signal);
       if (!current(version)) return;
       const verified = readTemplateCatalog(value, scope);
+      mountedCatalog.current = verified;
+      verifiedAuthority.current = true;
       setCatalog(verified);
     } catch (failure) {
       if (!current(version)) return;
@@ -51,32 +57,39 @@ export function useWhatsappTemplatePacks(scope: string) {
   }, [scope]);
   useEffect(() => {
     active.current = true; void refresh();
-    return () => { active.current = false; ++revision.current; controller.current?.abort(); };
+    return () => {
+      active.current = false; verifiedAuthority.current = false;
+      ++revision.current; controller.current?.abort();
+    };
   }, [refresh]);
   const materialize = async (selected: TemplatePack) => {
     const snapshot = mountedCatalog.current;
     const pack = snapshot?.packs.find((item) => item.vertical === selected.vertical);
-    if (!active.current || !scope || mutation.current || reading.current || error || !snapshot || !pack
+    if (!active.current || !verifiedAuthority.current || !scope || mutation.current || reading.current || error || !snapshot || !pack
       || snapshot.capabilities?.materialize_local_draft !== true || snapshot.endpoints?.materialize_template !== DRAFT_PATH
-      || selected.pack_id !== pack.pack_id || selected.pack_version !== pack.pack_version
+      || selected !== pack || selected.pack_id !== pack.pack_id || selected.pack_version !== pack.pack_version
       || !pack.templates.length || pack.templates.every((item) => item.materialized)) return;
     // Include the endpoint's vertical; JSON tuples cannot collide on ':' in metadata.
     // Normalize numeric/string tenant IDs the same way as the verified contract.
     const operationKey = JSON.stringify([scope, String(snapshot.tenant.id), pack.vertical, pack.pack_id, pack.pack_version]);
     let key = keys.current.get(operationKey);
     try { if (!key) { key = templateDraftKey(pack); keys.current.set(operationKey, key); } }
-    catch (failure) { setError((failure as Error).message); return; }
-    mutation.current = true; const version = ++revision.current;
+    catch (failure) { verifiedAuthority.current = false; setError((failure as Error).message); return; }
+    mutation.current = true; verifiedAuthority.current = false; const version = ++revision.current;
     controller.current?.abort(); const waiting = new AbortController(); controller.current = waiting;
     const timer = setTimeout(() => waiting.abort(), WAIT_MS);
     setSavingVertical(pack.vertical); setError(null); setNotice(null);
     try {
       const response = await waitForAbort(apiFetch<unknown>(DRAFT_PATH.replace('{vertical}', encodeURIComponent(pack.vertical)), {
-        method: 'POST', tenantSlug: scope, cache: 'no-store', headers: { 'Idempotency-Key': key }, body: { pack_version: pack.pack_version },
+        method: 'POST', tenantSlug: scope, persistTenantSlug: false, cache: 'no-store', headers: { 'Idempotency-Key': key }, body: { pack_version: pack.pack_version },
       }), waiting.signal);
       if (!current(version)) return;
       const verified = readDraftReceipt(response, snapshot, pack);
-      setCatalog((prior) => prior ? { ...prior, packs: prior.packs.map((item) => item.vertical === pack.vertical ? verified : item) } : null);
+      const next = { ...snapshot, packs: snapshot.packs.map((item) => item.vertical === pack.vertical ? verified : item) };
+      // Commit local authority before releasing the in-flight guard or React rerenders.
+      mountedCatalog.current = next;
+      verifiedAuthority.current = true;
+      setCatalog(next);
       keys.current.delete(operationKey);
       setNotice('Borradores confirmados. Este paso no envía mensajes ni solicita aprobación a Meta.');
     } catch (failure) {
