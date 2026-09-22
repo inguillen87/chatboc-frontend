@@ -161,7 +161,7 @@ export default function InstitutionProfileWorkspace({
         <aside className="min-h-0 min-w-0 border-b border-border/70 bg-muted/10 p-2 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-3">
           <nav
             aria-label="Secciones del perfil institucional"
-            className="flex min-w-0 max-w-full snap-x gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0"
+            className="flex min-w-0 max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0"
           >
             {presentedSections.map((section) => {
               const Icon = section.icon;
@@ -174,7 +174,7 @@ export default function InstitutionProfileWorkspace({
                   aria-current={selected ? "page" : undefined}
                   data-testid={`institution-profile-section-${section.id}`}
                   className={cn(
-                    "flex min-w-[12rem] snap-start items-start gap-3 rounded-xl border px-3 py-3 text-left motion-safe:transition lg:w-full lg:min-w-0",
+                    "flex min-w-[12rem] shrink-0 snap-start items-start gap-3 rounded-xl border px-3 py-3 text-left motion-safe:transition lg:w-full lg:min-w-0",
                     selected
                       ? "border-primary/30 bg-primary/10 text-foreground shadow-sm"
                       : "border-transparent text-muted-foreground hover:border-border/70 hover:bg-background/80 hover:text-foreground",
@@ -186,7 +186,7 @@ export default function InstitutionProfileWorkspace({
                       selected ? "border-primary/30 text-primary" : "border-border/70",
                     )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">{section.label}</span>
@@ -225,15 +225,15 @@ export default function InstitutionProfileWorkspace({
         </section>
       </div>
 
-      <footer className="z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <footer className="z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <p className="text-xs leading-5 text-muted-foreground">
           Los cambios quedan auditados por la sesión y la organización activa.
         </p>
         <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+          <Button type="button" variant="outline" className="min-h-11 !bg-background !text-foreground" onClick={onCancel} disabled={loading}>
             Cancelar cambios
           </Button>
-          <Button type="submit" disabled={loading || !isAdministrator || !canSave}>
+          <Button type="submit" className="min-h-11" disabled={loading || !isAdministrator || !canSave}>
             <Save className="mr-2 h-4 w-4" />
             {loading ? "Guardando..." : "Guardar"}
           </Button>
