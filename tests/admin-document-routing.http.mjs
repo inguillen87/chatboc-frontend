@@ -56,7 +56,7 @@ try {
     assert.equal(backendCalls.length, before, 'Document leaked into backend proxy');
     results.push({path, repeatedNavigation: true, documentServed: true});
   }
-  for (const method of ['GET', 'HEAD', 'DELETE', 'PATCH', 'PUT', 'OPTIONS']) {
+  for (const method of ['GET', 'HEAD', 'DELETE', 'PATCH', 'PUT']) {
     const path = '/admin/encuestas/301?tenant_slug=qa-only';
     const headers = {accept: 'application/json', 'x-tenant-slug': 'qa-only',
       cookie: 'qa-only=synthetic', authorization: 'Bearer synthetic-not-a-token'};
@@ -73,6 +73,22 @@ try {
     if (body) assert.equal(seen.body, body);
     results.push({method, backendDenialPreserved: true, contextUnchanged: true});
   }
+  // Vite's existing CORS middleware handles OPTIONS before its proxy. This
+  // response is a preflight, not successful API authorization or a SPA document.
+  const beforePreflight = backendCalls.length;
+  const preflight = await send('/admin/encuestas/301?tenant_slug=qa-only', {
+    method: 'OPTIONS', headers: {
+      accept: 'application/json', origin,
+      'access-control-request-method': 'DELETE',
+      'access-control-request-headers': 'authorization,x-tenant-slug',
+    },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.body, '');
+  assert.equal(preflight.headers['access-control-allow-origin'], origin);
+  assert.match(preflight.headers['access-control-allow-methods'], /DELETE/);
+  assert.equal(backendCalls.length, beforePreflight);
+  results.push({method: 'OPTIONS', originalCorsPreflightPreserved: true, noDocumentOrData: true});
   // Browser-like metadata cannot turn an attempted write into a static page.
   const write = await send('/admin/encuestas', {method: 'POST', headers: documentHeaders, body: 'fixture'});
   assert.equal(write.status, 409);
