@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
@@ -18,6 +18,7 @@ import { SurveyOperationsOverview } from '@/components/surveys/SurveyOperationsO
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
+import { useSurveyWorkspaceLease } from '@/hooks/useSurveyWorkspaceLease';
 import type {
   SurveyAdmin,
   SurveyAdminOperationalScope,
@@ -200,6 +201,12 @@ const focusCopy = {
 }>;
 
 const AdminSurveysIndex = () => {
+  const admin = useSurveyAdmin();
+  // Reset local dialogs, filters and operation feedback on every tenant mount.
+  return <AdminSurveyWorkspace key={JSON.stringify(admin.tenantSlug)} admin={admin} />;
+};
+
+const AdminSurveyWorkspace = ({ admin }: { admin: ReturnType<typeof useSurveyAdmin> }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusMode = normalizeFocusMode(searchParams.get('focus'));
@@ -209,20 +216,17 @@ const AdminSurveysIndex = () => {
     isLoadingMoreSurveys,
     hasMoreSurveys,
     listError,
+    listRefreshError,
     loadMoreError,
     surveyListProgress,
     publishSurvey,
     closeSurvey,
     deleteSurvey,
     seedSurvey,
-    isPublishing,
-    isClosing,
-    isDeleting,
-    isSeeding,
     refetchList,
     loadMoreSurveys,
     tenantSlug,
-  } = useSurveyAdmin();
+  } = admin;
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [closingId, setClosingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -231,31 +235,77 @@ const AdminSurveysIndex = () => {
   const [workspaceQuery, setWorkspaceQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SurveyWorkspaceStatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<SurveyWorkspaceKindFilter>('all');
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const captureLease = useSurveyWorkspaceLease();
+  const operationLock = useRef(false);
+  const recoveryNeeded = Boolean(refreshFailed || listRefreshError);
+  const workspaceBusy = publishingId !== null || closingId !== null || deletingId !== null || seedingId !== null;
+  const controlsBlocked = workspaceBusy || refreshing || recoveryNeeded;
+
+  const beginAction = () => {
+    if (!tenantSlug || operationLock.current || recoveryNeeded || refreshing) return null;
+    const isCurrent = captureLease();
+    operationLock.current = true;
+    return isCurrent;
+  };
+
+  // Read-back is a separate outcome. Never retry a write or turn its confirmed
+  // success into a mutation error merely because the list failed to refresh.
+  const reconcileList = async (isCurrent: () => boolean) => {
+    if (!isCurrent()) return;
+    try {
+      const result = await refetchList({ throwOnError: true });
+      if (isCurrent()) setRefreshFailed(!result);
+    } catch {
+      if (isCurrent()) setRefreshFailed(true);
+    }
+  };
+
+  const handleRefreshList = async () => {
+    if (operationLock.current) return;
+    const isCurrent = captureLease();
+    operationLock.current = true;
+    setRefreshing(true);
+    try {
+      await reconcileList(isCurrent);
+    } finally {
+      if (isCurrent()) {
+        operationLock.current = false;
+        setRefreshing(false);
+      }
+    }
+  };
 
   const handlePublish = async (survey: SurveyAdmin) => {
     if (isGovernedSurvey(survey)) {
       navigate(getSurveyGovernanceWorkspacePath(survey.id));
       return;
     }
+    const isCurrent = beginAction();
+    if (!isCurrent) return;
     try {
       setPublishingId(survey.id);
       setPublishFailure(null);
       await publishSurvey(survey.id);
-      toast({ title: 'Encuesta publicada', description: 'Ya podés compartir el enlace público.' });
-      await refetchList();
+      if (isCurrent()) toast({ title: 'Encuesta publicada', description: 'Ya podés compartir el enlace público.' });
     } catch (error) {
-      const failure = resolveSurveyPublicationFailure(error);
-      setPublishFailure({ ...failure, surveyId: survey.id });
-      toast({ title: failure.title, description: failure.message, variant: 'destructive' });
-      // A 409 frequently means the backend advanced or blocked the lifecycle.
-      // Refresh regardless so the card never keeps offering an action from a stale state.
-      await refetchList().catch(() => undefined);
+      if (isCurrent()) {
+        const failure = resolveSurveyPublicationFailure(error);
+        setPublishFailure({ ...failure, surveyId: survey.id });
+        toast({ title: failure.title, description: failure.message, variant: 'destructive' });
+      }
     } finally {
-      setPublishingId(null);
+      await reconcileList(isCurrent);
+      if (isCurrent()) {
+        operationLock.current = false;
+        setPublishingId(null);
+      }
     }
   };
 
   const handleCopyLink = async (survey: SurveyAdmin) => {
+    const isCurrent = captureLease();
     const publicUrl = getPublicSurveyUrlFromRecord(survey, { tenantSlug });
     if (!publicUrl) {
       toast({
@@ -267,61 +317,74 @@ const AdminSurveysIndex = () => {
     }
     try {
       await navigator.clipboard.writeText(publicUrl);
-      toast({ title: 'Link copiado', description: 'Compartilo en redes, mailings o un QR impreso.' });
+      if (isCurrent()) toast({ title: 'Link copiado', description: 'Compartilo en redes, mailings o un QR impreso.' });
     } catch (error) {
-      toast({ title: 'No se pudo copiar el enlace', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+      if (isCurrent()) toast({ title: 'No se pudo copiar el enlace', description: String((error as Error)?.message ?? error), variant: 'destructive' });
     }
   };
 
   const handleClose = async (survey: SurveyAdmin) => {
+    const isCurrent = beginAction();
+    if (!isCurrent) throw new Error('survey_workspace_action_unavailable');
     try {
       setClosingId(survey.id);
       await closeSurvey(survey.id);
-      toast({
+      if (isCurrent()) toast({
         title: survey.admin_lifecycle?.instrument_kind === 'voting' ? 'Votación cerrada' : 'Encuesta cerrada',
         description: 'La participación quedó cerrada y las respuestas registradas se conservaron.',
       });
-      await refetchList();
     } catch (error) {
-      toast({
+      if (isCurrent()) toast({
         title: 'No pudimos cerrar la participación',
         description: String((error as Error)?.message ?? error),
         variant: 'destructive',
       });
       throw error;
     } finally {
-      setClosingId(null);
+      await reconcileList(isCurrent);
+      if (isCurrent()) {
+        operationLock.current = false;
+        setClosingId(null);
+      }
     }
   };
 
   const handleDelete = async (survey: SurveyAdmin) => {
+    const isCurrent = beginAction();
+    if (!isCurrent) throw new Error('survey_workspace_action_unavailable');
     try {
       setDeletingId(survey.id);
       await deleteSurvey(survey.id);
-      toast({ title: 'Encuesta eliminada', description: 'La encuesta se borró correctamente.' });
-      await refetchList();
+      if (isCurrent()) toast({ title: 'Encuesta eliminada', description: 'La encuesta se borró correctamente.' });
     } catch (error) {
-      toast({
+      if (isCurrent()) toast({
         title: 'No pudimos borrar la encuesta',
         description: String((error as Error)?.message ?? error),
         variant: 'destructive',
       });
+      // The real card must observe rejection, not close its dialog as success.
+      throw error;
     } finally {
-      setDeletingId(null);
+      await reconcileList(isCurrent);
+      if (isCurrent()) {
+        operationLock.current = false;
+        setDeletingId(null);
+      }
     }
   };
 
   const handleSeed = async (survey: SurveyAdmin) => {
+    const isCurrent = beginAction();
+    if (!isCurrent) return;
     try {
       setSeedingId(survey.id);
       const result = await seedSurvey(survey.id, { cantidad: 100, reset: true });
-      toast({
+      if (isCurrent()) toast({
         title: 'Datos generados',
         description: `Se agregaron ${result.creadas} respuestas de prueba.`
       });
-      // Optionally refresh analytics data if needed, but refetchList might not be enough if it doesn't return analytics counts
-      await refetchList();
     } catch (error) {
+      if (!isCurrent()) return;
       if (isSurveyResponseDuplicateError(error)) {
         toast({
           title: SURVEY_RESPONSE_DUPLICATE_ADMIN_TITLE,
@@ -335,7 +398,11 @@ const AdminSurveysIndex = () => {
         variant: 'destructive',
       });
     } finally {
-      setSeedingId(null);
+      await reconcileList(isCurrent);
+      if (isCurrent()) {
+        operationLock.current = false;
+        setSeedingId(null);
+      }
     }
   };
 
@@ -421,7 +488,7 @@ const AdminSurveysIndex = () => {
     <SectionErrorBoundary
       title="No pudimos cargar las encuestas"
       description="Reintentá o volvé al inicio mientras recuperamos el panel de encuestas."
-      onRetry={() => refetchList()}
+      onRetry={handleRefreshList}
     >
       <div className="space-y-6">
       <a
@@ -435,7 +502,7 @@ const AdminSurveysIndex = () => {
           <h1 className="text-2xl font-semibold">Centro de participación ciudadana</h1>
           <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados en un solo lugar.</p>
         </div>
-        <Button onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
+        <Button onClick={() => navigate('/admin/encuestas/new')} disabled={controlsBlocked || !tenantSlug} className="inline-flex items-center gap-2">
           <Plus className="h-4 w-4" /> Nueva encuesta
         </Button>
       </div>
@@ -477,7 +544,7 @@ const AdminSurveysIndex = () => {
         </div>
       ) : null}
 
-      {surveys?.overview && tenantSlug && !listError ? (
+      {surveys?.overview && tenantSlug && !listError && !recoveryNeeded ? (
         <SurveyOperationsOverview
           overview={operationalOverview}
           freshness={surveys.freshness}
@@ -495,12 +562,27 @@ const AdminSurveysIndex = () => {
         />
       ) : null}
 
+      {recoveryNeeded && !listError ? (
+        <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 p-4">
+          <div role="status" aria-live="polite">
+            <p className="font-medium text-foreground">Listado pendiente de actualización</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              No pudimos verificar el estado más reciente. La vista anterior se conserva sólo como referencia.
+              Actualizá el listado antes de continuar; esta recuperación no repite publicaciones, cierres ni borrados.
+            </p>
+          </div>
+          <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={workspaceBusy || refreshing} onClick={() => void handleRefreshList()}>
+            {refreshing ? 'Actualizando…' : 'Actualizar listado'}
+          </Button>
+        </div>
+      ) : null}
+
       {listError ? (
         <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
           <p className="font-medium text-destructive">No pudimos cargar el panel operativo</p>
           <p className="mt-1 text-sm text-muted-foreground">{listError}</p>
           {tenantSlug ? (
-            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void refetchList()}>
+            <Button type="button" variant="outline" size="sm" className="mt-3" disabled={workspaceBusy || refreshing} onClick={() => void handleRefreshList()}>
               Reintentar
             </Button>
           ) : null}
@@ -677,6 +759,7 @@ const AdminSurveysIndex = () => {
               <SurveyCard
                 survey={survey}
                 tenantSlug={tenantSlug}
+                blocked={controlsBlocked}
                 onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                 onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics${focusMode ? `?focus=${focusMode}` : ''}`)}
                 onPublish={
@@ -689,17 +772,18 @@ const AdminSurveysIndex = () => {
                     ? () => navigate(getSurveyGovernanceWorkspacePath(survey.id))
                     : undefined
                 }
-                publishing={isPublishing && publishingId === survey.id}
+                publishing={publishingId === survey.id}
                 onClose={survey.admin_lifecycle?.capabilities.can_close ? () => handleClose(survey) : undefined}
-                closing={isClosing && closingId === survey.id}
+                closing={closingId === survey.id}
                 onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
                 onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
+                deleting={deletingId === survey.id}
                 onSeed={
                   isSurveySyntheticSeedQaEnabled({ tenantId: survey.tenant_id }) && survey.estado !== 'cerrada'
                     ? () => handleSeed(survey)
                     : undefined
                 }
-                seeding={isSeeding && seedingId === survey.id}
+                seeding={seedingId === survey.id}
               />
             </div>
           ))}
@@ -735,7 +819,7 @@ const AdminSurveysIndex = () => {
                   size="sm"
                   className="mt-3"
                   onClick={() => void loadMoreSurveys()}
-                  disabled={isLoadingMoreSurveys}
+                  disabled={isLoadingMoreSurveys || controlsBlocked}
                 >
                   {isLoadingMoreSurveys ? 'Cargando más…' : 'Cargar más resultados'}
                 </Button>
@@ -799,6 +883,7 @@ const AdminSurveysIndex = () => {
                     <SurveyCard
                       survey={survey}
                       tenantSlug={tenantSlug}
+                      blocked={controlsBlocked}
                       onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                       onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics`)}
                       onPublish={
@@ -806,11 +891,12 @@ const AdminSurveysIndex = () => {
                           ? () => handlePublish(survey)
                           : undefined
                       }
-                      publishing={isPublishing && publishingId === survey.id}
+                      publishing={publishingId === survey.id}
                       onClose={survey.admin_lifecycle?.capabilities.can_close ? () => handleClose(survey) : undefined}
-                      closing={isClosing && closingId === survey.id}
+                      closing={closingId === survey.id}
                       onCopyLink={survey.admin_lifecycle?.capabilities.can_share ? () => handleCopyLink(survey) : undefined}
                       onDelete={survey.admin_lifecycle?.capabilities.can_delete ? () => handleDelete(survey) : undefined}
+                      deleting={deletingId === survey.id}
                     />
                   </div>
                 ))}
@@ -834,7 +920,7 @@ const AdminSurveysIndex = () => {
                   type="button"
                   variant="outline"
                   onClick={() => void loadMoreSurveys()}
-                  disabled={isLoadingMoreSurveys}
+                  disabled={isLoadingMoreSurveys || controlsBlocked}
                   aria-describedby="survey-list-progress"
                 >
                   {isLoadingMoreSurveys ? (
