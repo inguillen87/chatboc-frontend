@@ -2,6 +2,10 @@ name: Survey card confirmation integrity
 "on":
   pull_request:
     paths:
+      - vite.config.ts
+      - src/utils/adminDocumentNavigation.ts
+      - tests/admin-document-navigation.node.mjs
+      - tests/admin-document-routing.http.mjs
       - src/components/surveys/SurveyCard*
       - src/hooks/useSurveyCardActions*
       - src/hooks/useSurveyWorkspaceLease*
@@ -30,6 +34,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck && npm run typecheck:scope
+      - run: node --experimental-strip-types --test tests/admin-document-navigation.node.mjs && node tests/admin-document-routing.http.mjs
       - run: npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=test-evidence/survey-card/vitest-results.json
       - run: npm run build
       - run: npx playwright install chromium

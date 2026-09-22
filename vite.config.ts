@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 import { configDefaults } from 'vitest/config';
+import { adminDocumentNavigation } from './src/utils/adminDocumentNavigation';
 
 const pwaCoreStaticAssets = [
   'apple-touch-icon.png',
@@ -312,6 +313,7 @@ export default defineConfig(({ mode }) => {
           target: backendTarget,
           changeOrigin: true,
           secure: false,
+          bypass: adminDocumentNavigation,
         },
         '/me': {
           target: backendTarget,
