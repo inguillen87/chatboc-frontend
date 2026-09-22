@@ -397,6 +397,9 @@ export const SurveyCard = ({
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Cerrar {instrumentLabel.toLowerCase()}?</AlertDialogTitle>
                 <AlertDialogDescription>
+                  <span className="mb-3 block break-words rounded-md border border-border bg-muted/30 p-3 font-semibold text-foreground [overflow-wrap:anywhere]" data-testid="survey-confirmation-identity">
+                    {survey.titulo}
+                  </span>
                   La participación se cerrará de forma irreversible y las respuestas nuevas serán rechazadas. Los
                   resultados ya registrados se conservarán.
                 </AlertDialogDescription>
@@ -442,6 +445,9 @@ export const SurveyCard = ({
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar borrador?</AlertDialogTitle>
                 <AlertDialogDescription>
+                  <span className="mb-3 block break-words rounded-md border border-border bg-muted/30 p-3 font-semibold text-foreground [overflow-wrap:anywhere]" data-testid="survey-confirmation-identity">
+                    {survey.titulo}
+                  </span>
                   Esta acción es permanente. Sólo se ofrece para borradores sin respuestas registradas.
                 </AlertDialogDescription>
               </AlertDialogHeader>
