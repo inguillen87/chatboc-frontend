@@ -90,3 +90,11 @@ https://www.qualtrics.com/support/survey-platform/survey-module/survey-checker/r
 Conservar los planes previos del proyecto: docs/FRONTEND_UXUI_ENCUESTAS_TASKS.md,
 y en frontend docs/analytics_frontend_backend_audit.md. Este archivo agrega la
 fase de evidencia sin reemplazar ni declarar terminadas las fases futuras.
+
+
+## Continuidad: registro metodologico implementado
+
+El modulo de declaraciones versionadas se describe en [SURVEY_METHODOLOGY.md](SURVEY_METHODOLOGY.md).
+La persistencia, auditoria, historial y formulario fueron implementados con activacion
+explicita pendiente de migracion/rollout. No se declara cerrada la verificacion
+metodologica, operacion de campo o inferencia estadistica por este avance.

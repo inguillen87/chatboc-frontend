@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
+import { SurveyMethodologyWorkspace } from '@/components/surveys/SurveyMethodologyWorkspace';
 import { SurveyLiveResultsPanel } from '@/components/surveys/SurveyLiveResultsPanel';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { SurveyRecentResponses } from '@/components/surveys/SurveyRecentResponses';
@@ -1802,6 +1803,10 @@ export default function SurveyAnalyticsPage() {
           </div>
         ) : null}
       </div>
+
+      <SurveyMethodologyWorkspace surveyId={surveyId ?? undefined}
+        tenantId={typeof effectiveSurvey?.tenant_id === 'number' ? effectiveSurvey.tenant_id : undefined}
+        tenantSlug={effectiveTenantSlug} />
 
       <Card
         id="survey-analytics-visuals-focus"

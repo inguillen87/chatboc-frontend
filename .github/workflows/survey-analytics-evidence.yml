@@ -3,6 +3,10 @@ name: Survey analytics evidence
   pull_request:
     paths:
       - src/components/surveys/SurveyAnalytics*
+      - src/components/surveys/SurveyMethodology*
+      - src/utils/surveyMethodology*
+      - src/api/surveyMethodology*
+      - tests/fixtures/survey-methodology.json
       - src/hooks/useSurveyAnalytics*
       - src/utils/surveyAnalyticsEvidence*
       - src/utils/surveyAnalyticsFallback*
