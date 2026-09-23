@@ -38,12 +38,19 @@ function EditorSession({ lead, onLockChange, onSaved, onRevoked, onBack }: Props
   const readVersion = useRef(0);
   const historyReadLock = useRef(false);
   const writeLock = useRef(false);
+  const uncertainRef = useRef(false);
+  const lastServerStage = useRef(lead.stage);
   const dirty = Boolean(note.trim() || reason.trim() || nextStage !== currentStage);
   const dirtyRef = useRef(dirty); dirtyRef.current = dirty;
   const callbacks = useRef({ onLockChange, onSaved, onRevoked }); callbacks.current = { onLockChange, onSaved, onRevoked };
   useEffect(() => { onLockChange({ dirty, busy: saving }); }, [dirty, saving, onLockChange]);
-  useEffect(() => { setCurrentStage(lead.stage); setNextStage(lead.stage); }, [lead.stage]);
+  useEffect(() => {
+    if (lastServerStage.current === lead.stage) return;
+    lastServerStage.current = lead.stage;
+    setCurrentStage(lead.stage); setNextStage(lead.stage);
+  }, [lead.stage]);
   const revoke = () => {
+    uncertainRef.current = true;
     setEvents([]); setNote(''); setReason(''); setConfirmStage(false); setUncertain(true); setHistoryState('error');
     callbacks.current.onRevoked();
   };
@@ -55,7 +62,7 @@ function EditorSession({ lead, onLockChange, onSaved, onRevoked, onBack }: Props
     try {
       const response = await commercialFollowUpApi.timeline(lead);
       if (!alive.current || version !== readVersion.current) return;
-      setEvents(response); setHistoryState('ready'); setUncertain(false);
+      setEvents(response); setHistoryState('ready'); uncertainRef.current = false; setUncertain(false);
     } catch (error) {
       if (!alive.current || version !== readVersion.current) return;
       if (isDenied(error)) { revoke(); return; }
@@ -67,7 +74,7 @@ function EditorSession({ lead, onLockChange, onSaved, onRevoked, onBack }: Props
     return () => { alive.current = false; readVersion.current += 1; callbacks.current.onLockChange({ dirty: false, busy: false }); };
   }, []);
   const startWrite = () => {
-    if (writeLock.current || historyReadLock.current || uncertain || historyState !== 'ready') return false;
+    if (writeLock.current || historyReadLock.current || uncertainRef.current || uncertain || historyState !== 'ready') return false;
     writeLock.current = true; setSaving(true); setWriteError(''); setMessage('');
     callbacks.current.onLockChange({ dirty: dirtyRef.current, busy: true });
     return true;
@@ -79,7 +86,7 @@ function EditorSession({ lead, onLockChange, onSaved, onRevoked, onBack }: Props
   const failedWrite = (error: unknown) => {
     if (!alive.current) return;
     if (isDenied(error)) { revoke(); return; }
-    setUncertain(true);
+    uncertainRef.current = true; setUncertain(true);
     setWriteError('No se confirmó el guardado. Conservamos el borrador y no lo reenviamos. Actualizá el historial y revisá si se registró antes de volver a intentar.');
   };
   const saveNote = async (event: React.FormEvent) => {

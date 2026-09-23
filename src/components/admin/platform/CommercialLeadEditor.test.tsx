@@ -22,6 +22,39 @@ const reviewStage = async () => {
 beforeEach(() => { mocks.timeline.mockReset().mockResolvedValue([]); mocks.addNote.mockReset(); mocks.changeStage.mockReset(); });
 afterEach(cleanup);
 describe('commercial lead editor', () => {
+  it('does not overwrite a stage chosen before passive mount effects flush', async () => {
+    function ImmediateSelection() {
+      const container = React.useRef<HTMLDivElement>(null);
+      React.useLayoutEffect(() => {
+        const select = container.current?.querySelector('select');
+        if (!select) throw new Error('Stage selector missing');
+        fireEvent.change(select, { target: { value: 'ganado' } });
+      }, []);
+      return <div ref={container}><CommercialLeadEditor lead={lead()} {...props()} /></div>;
+    }
+    render(<ImmediateSelection />); await ready();
+    expect(screen.getByLabelText('Nueva etapa')).toHaveValue('ganado');
+    expect(mocks.changeStage).not.toHaveBeenCalled();
+  });
+  it('keeps the prior stage and reason after a rejected 409 instead of announcing success', async () => {
+    mocks.changeStage.mockRejectedValue({ status: 409 }); const handlers = props();
+    render(<CommercialLeadEditor lead={lead()} {...handlers} />); const dialog = await reviewStage();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar cambio' }));
+    await screen.findByText(/No se confirmó el guardado/);
+    expect(screen.getByLabelText('Motivo del cambio')).toHaveValue('Propuesta aceptada');
+    expect(screen.getByRole('button', { name: 'Revisar cambio de etapa' })).toBeDisabled();
+    expect(handlers.onSaved).not.toHaveBeenCalled(); expect(mocks.changeStage).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/Etapa Ganado guardada/)).not.toBeInTheDocument();
+  });
+  it('allows only one pending manual history read', async () => {
+    render(<CommercialLeadEditor lead={lead()} {...props()} />); await ready();
+    const pending = deferred<CommercialEvent[]>(); mocks.timeline.mockReturnValueOnce(pending.promise);
+    const button = screen.getByRole('button', { name: 'Actualizar historial' });
+    fireEvent.click(button); fireEvent.click(button);
+    expect(mocks.timeline).toHaveBeenCalledTimes(2);
+    await act(async () => pending.resolve([]));
+  });
+
   it('canceling a reviewed stage change never writes', async () => {
     render(<CommercialLeadEditor lead={lead()} {...props()} />); const dialog = await reviewStage();
     expect(dialog).toHaveTextContent('ID 12'); expect(dialog).toHaveTextContent('quedará cerrado');

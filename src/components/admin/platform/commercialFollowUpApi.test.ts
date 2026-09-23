@@ -5,7 +5,7 @@ import { commercialFollowUpApi as api } from './commercialFollowUpApi';
 const identity = { tenantSlug: 'org-a', ticketType: 'municipio' as const, ticketId: '12' };
 const receipt = { ok: true, ticket_id: 12, ticket_type: 'municipio' };
 describe('commercial follow-up transport and receipts', () => {
-  beforeEach(() => mocks.fetch.mockReset());
+  beforeEach(() => { mocks.fetch.mockReset(); });
   it('uses explicit tenant context for the limited list', async () => {
     mocks.fetch.mockResolvedValue({ tenant_slug: 'org-a', items: [], total: 0 });
     await api.list('org-a');
