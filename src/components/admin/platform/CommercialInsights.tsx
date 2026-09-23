@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { COMMERCIAL_STAGES, STAGE_LABELS, type CommercialLead } from './commercialFollowUp';
-import { buildCommercialInsights, type CommercialAttention } from './commercialInsights';
+import { buildCommercialInsights, type CommercialAttention } from './commercialInsightsModel';
 import './commercialInsights.css';
 interface Props {
   items: CommercialLead[]; now: number; stage: string; attention: CommercialAttention;

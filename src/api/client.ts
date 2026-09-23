@@ -1,5 +1,6 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
+import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
 import {
   AdminOrdersResponse,
   Order,
@@ -98,9 +99,9 @@ const normalizeAdminOrder = (value: unknown): Order => {
     ...(record as Record<string, unknown>),
     id: (record.id as string | number | undefined) ?? (record.source_id as string | number | undefined) ?? 'order',
     total,
-    status: asStringOrUndefined(record.status) || 'nuevo',
+    status: asStringOrUndefined(record.status) || '',
     items,
-    created_at: asStringOrUndefined(record.created_at) || new Date().toISOString(),
+    created_at: asStringOrUndefined(record.created_at) || '',
     updated_at: asStringOrUndefined(record.updated_at),
     channel: asStringOrUndefined(record.channel),
     notes: asStringOrUndefined(record.notes),
@@ -705,6 +706,8 @@ export const apiClient = {
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
     const encodedId = encodeURIComponent(String(orderId));
     const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, { tenantSlug });
+    // Validate the transport receipt before display defaults can disguise a missing identity or state.
+    assertOrderReceipt(raw, String(orderId), undefined, tenantSlug);
     return normalizeAdminOrder(raw);
   },
 
@@ -1084,6 +1087,7 @@ export const apiClient = {
       tenantSlug,
       body: data,
     });
+    assertOrderReceipt(raw, String(orderId), data.status, tenantSlug);
     return normalizeAdminOrder(raw);
   },
 
