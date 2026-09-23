@@ -3,8 +3,10 @@ name: SuperAdmin commercial follow-up
   pull_request:
     paths:
       - src/components/admin/platform/**
-      - tests/commercial-followup.browser.mjs
-      - tests/e2e/fixtures/commercial-followup.*
+      - src/components/ui/TrackingMap*
+      - src/utils/trackingMapPoints*
+      - tests/commercial-insights.browser.mjs
+      - tests/e2e/fixtures/commercial-insights.*
       - .github/workflows/superadmin-commercial-followup.yml
 permissions:
   contents: read
@@ -14,7 +16,7 @@ concurrency:
 jobs:
   regression:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -30,3 +32,16 @@ jobs:
         run: npm test -- --maxWorkers=2
       - name: Production build
         run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Responsive CRM, accessibility and safe writes
+        run: node tests/commercial-insights.browser.mjs
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: commercial-insights-evidence
+          path: .vercel/commercial-insights-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
