@@ -1204,7 +1204,16 @@ export async function apiFetch<T>(
        headers["Anon-Id"] = anonId;
     }
   }
-  if (effectiveEntityToken && !omitEntityToken && !shouldOmitEntityTokenForRoute) {
+  // A Clerk panel cookie is the selected identity. An automatically recovered
+  // widget token would outrank that cookie on the backend and invalidate it.
+  // Keep explicit widget/entity credentials and existing Bearer requests intact.
+  const omitImplicitEntityTokenForClerkCookie =
+    !treatAsWidget &&
+    !token &&
+    entityToken === undefined &&
+    safeLocalStorage.getItem('authProvider') === 'clerk' &&
+    safeLocalStorage.getItem('clerkSessionTransport') === 'cookie';
+  if (effectiveEntityToken && !omitEntityToken && !shouldOmitEntityTokenForRoute && !omitImplicitEntityTokenForClerkCookie) {
     headers["X-Entity-Token"] = effectiveEntityToken;
     headers["X-Token"] = effectiveEntityToken;
   }
