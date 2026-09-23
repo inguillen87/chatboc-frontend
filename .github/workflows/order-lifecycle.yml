@@ -1,0 +1,49 @@
+name: Order lifecycle and scoped operations
+"on":
+  pull_request:
+    paths:
+      - src/features/orders/**
+      - src/components/orders/OrderLifecycleSummary.tsx
+      - src/components/orders/orderLifecycle.css
+      - src/pages/admin/AdminOrderDetailPage*
+      - src/pages/pyme/pedidos/OrderTrackingPage*
+      - tests/order-lifecycle.browser.mjs
+      - tests/e2e/fixtures/order-lifecycle.*
+      - .github/workflows/order-lifecycle.yml
+permissions:
+  contents: read
+concurrency:
+  group: order-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Full application regression
+        run: npm test -- --maxWorkers=2
+      - name: Production build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Responsive order lifecycle and guarded writes
+        run: node tests/order-lifecycle.browser.mjs
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: order-lifecycle-evidence
+          path: .vercel/order-lifecycle-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
