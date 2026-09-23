@@ -6,8 +6,11 @@ export function parsePublicOrder(value: unknown, code: string): PublicOrderTrack
   if (data.nro_pedido !== code || (data.tracking_id !== undefined && data.tracking_id !== code)) throw new Error('El pedido recibido no corresponde a esta referencia.');
   let details = data.detalles;
   if (typeof details === 'string') { try { details = JSON.parse(details); } catch { details = []; } }
-  // Keep source values; missing prices/quantities are not invented by the view.
-  return { ...data, detalles: Array.isArray(details) ? details.filter((item) => item !== null && typeof item === 'object' && !Array.isArray(item)) : [] } as unknown as PublicOrderTrackingResponse;
+  const tenantSlug = publicOrderText(data.tenant_slug);
+  const items = Array.isArray(details) ? details.filter((item) => item !== null && typeof item === 'object' && !Array.isArray(item)) : [];
+  // Malformed display keys do not reach JSX; missing money and quantities stay missing.
+  return { ...data, tenant_slug: /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(tenantSlug) ? tenantSlug : undefined,
+    detalles: items.map((item) => ({ ...item, sku: publicOrderText(item.sku) || undefined })) } as unknown as PublicOrderTrackingResponse;
 }
 export function publicOrderPoint(value: unknown, name: string): { lat: number; lng: number; name: string } | null {
   const point = record(value);

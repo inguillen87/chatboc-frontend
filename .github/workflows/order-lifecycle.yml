@@ -31,7 +31,11 @@ jobs:
       - name: TypeScript
         run: npm run typecheck
       - name: Full application regression
-        run: npm test -- --maxWorkers=2
+        shell: bash
+        run: |
+          mkdir -p .vercel/order-lifecycle-evidence
+          set -o pipefail
+          npm test -- --maxWorkers=2 2>&1 | tee .vercel/order-lifecycle-evidence/vitest.log
       - name: Production build
         run: npm run build
       - name: Install Chromium

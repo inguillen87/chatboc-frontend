@@ -14,10 +14,19 @@
 .order-lifecycle.is-compact { padding: .75rem; }
 .order-lifecycle.is-compact .order-lifecycle-signal { padding: .65rem; }
 .order-workspace { overflow-wrap: anywhere; }
-.order-workspace :where(button, a[role="button"]) { min-height: 44px; }
+.order-workspace button, .order-workspace-confirm button { min-height: 44px; height: auto; white-space: normal; }
 .order-workspace-notice { border: 1px solid hsl(var(--border)); border-radius: .75rem; padding: 1rem; display: grid; gap: .75rem; background: hsl(var(--muted) / .3); }
-.order-workspace-confirm { max-width: min(36rem, calc(100vw - 2rem)); max-height: 85dvh; overflow-y: auto; overflow-wrap: anywhere; }
+.order-workspace-confirm { color: hsl(var(--foreground)); background-color: hsl(var(--background)); max-width: min(36rem, calc(100vw - 2rem)); max-height: 85dvh; overflow-y: auto; overflow-wrap: anywhere; }
 @media (max-width: 580px) { .order-lifecycle dl { grid-template-columns: minmax(0, 1fr); } .order-lifecycle-signal { padding: .75rem; } }
 @media (prefers-reduced-motion: no-preference) { .order-lifecycle-signal { animation: order-lifecycle-enter 180ms ease-out both; } .order-lifecycle-signal:nth-child(2) { animation-delay: 35ms; } .order-lifecycle-signal:nth-child(3) { animation-delay: 70ms; } }
 [data-reduce-motion="true"] .order-lifecycle-signal { animation: none; }
 @keyframes order-lifecycle-enter { from { opacity: .6; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) { .order-workspace button, .order-workspace-confirm button { transition: none; transform: none; } .order-workspace .animate-spin { animation: none; } }
+[data-reduce-motion="true"] .order-workspace button, [data-reduce-motion="true"] .order-workspace-confirm button { transition: none; transform: none; }
+[data-reduce-motion="true"] .order-workspace .animate-spin { animation: none; }
+
+/* The confirmation stays legible while honoring the user's reduced-motion setting. */
+.order-workspace-confirm-description { color: hsl(var(--foreground)); }
+@media (prefers-reduced-motion: reduce) { .order-workspace-confirm { animation: none; transition: none; } }
+[data-reduce-motion="true"] .order-workspace-confirm { animation: none; transition: none; }

@@ -46,6 +46,11 @@ describe('public order boundary', () => {
     expect(() => parsePublicOrder({ nro_pedido: 'A' }, 'B')).toThrow();
     expect(() => parsePublicOrder({ nro_pedido: 'A', tracking_id: 'B' }, 'A')).toThrow();
   });
+  it('omits non-scalar SKUs and invalid support tenant identifiers', () => {
+    const value = parsePublicOrder({ nro_pedido: 'A', tenant_slug: '../other', detalles: [{ sku: { unsafe: true } }] }, 'A');
+    expect(value.detalles[0].sku).toBeUndefined(); expect(value.tenant_slug).toBeUndefined();
+    expect(parsePublicOrder({ nro_pedido: 'A', tenant_slug: 'org-a', detalles: [{ sku: ' SKU-1 ' }] }, 'A').detalles[0].sku).toBe('SKU-1');
+  });
   it('normalizes details without mutating the transport response', () => {
     const raw = { nro_pedido: 'A', detalles: '[{"nombre_producto":"Caja"},null,3]' };
     expect(parsePublicOrder(raw, 'A').detalles).toHaveLength(1); expect(typeof raw.detalles).toBe('string');

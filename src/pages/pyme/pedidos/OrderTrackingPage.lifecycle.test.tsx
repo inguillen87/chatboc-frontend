@@ -26,6 +26,12 @@ describe('public order lifecycle page', () => {
     expect(screen.queryByText('Persona privada')).not.toBeInTheDocument(); expect(screen.queryByText('Calle privada 999')).not.toBeInTheDocument();
     expect(screen.queryByText('+54123456789')).not.toBeInTheDocument(); expect(mocks.map).not.toHaveBeenCalled();
   });
+  it('renders incomplete items without invented prices or unsafe display objects', async () => {
+    mocks.fetch.mockResolvedValue({ ...response(), tenant_slug: { invalid: true }, detalles: [{ sku: { invalid: true }, nombre_producto: 'Artículo incompleto' }] });
+    render(<OrderTrackingPage />); await screen.findByText('Artículo incompleto');
+    expect(screen.getByText(/Cantidad no informada/)).toBeVisible(); expect(screen.getByText('Canal de soporte no informado.')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Abrir chat de soporte' })).not.toBeInTheDocument();
+  });
   it('clears old data on route changes and ignores late responses', async () => {
     const old = deferred<ReturnType<typeof response>>(); mocks.fetch.mockReturnValueOnce(old.promise);
     const view = render(<OrderTrackingPage />); mocks.code = 'B'; mocks.fetch.mockResolvedValueOnce(response('B')); view.rerender(<OrderTrackingPage />);

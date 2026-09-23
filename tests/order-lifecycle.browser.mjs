@@ -63,9 +63,11 @@ try {
       const dialog = page.getByRole('alertdialog', { name: 'Revisar cambio de estado' });
       await expect(dialog).toContainText('market:42');
       await expect(dialog).toContainText('qa-order');
+      assert.equal(await dialog.evaluate((element) => getComputedStyle(element).animationName), 'none');
       const modalAxe = await new AxeBuilder({ page }).include('[role="alertdialog"]').withTags(['wcag2a','wcag2aa']).analyze();
+      await writeFile(`${folder}/admin-${width}-axe.json`, JSON.stringify(modalAxe.violations, null, 2));
       const modalSerious = modalAxe.violations.filter((issue) => ['critical','serious'].includes(issue.impact));
-      assert.deepEqual(modalSerious.map((issue) => issue.id), []);
+      assert.deepEqual(modalSerious.map((issue) => ({ id: issue.id, nodes: issue.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })) })), []);
       await page.screenshot({ path: `${folder}/admin-${width}-review.png`, fullPage: true });
       await page.getByRole('button', { name: 'Volver sin cambiar' }).click(); assert.equal(writes.length, 0);
       await page.getByRole('button', { name: 'Marcar Enviado' }).click();

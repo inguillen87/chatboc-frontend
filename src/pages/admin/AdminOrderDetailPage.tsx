@@ -349,9 +349,9 @@ function AdminOrderDetailSession({ tenantSlug, id }: { tenantSlug: string; id: s
       <AlertDialog open={Boolean(pendingStatus)} onOpenChange={(open) => { if (!open && !busy && !actionLock.current) setPendingStatus(null); }}>
         <AlertDialogContent className="order-workspace-confirm">
           <AlertDialogHeader><AlertDialogTitle>Revisar cambio de estado</AlertDialogTitle>
-            <AlertDialogDescription>Organización {tenantSlug}, pedido {id}. Estado actual: {STATUS_MAP[order.status]?.label || order.status}. Nuevo estado: {pendingStatus ? STATUS_MAP[pendingStatus]?.label || pendingStatus : ''}.</AlertDialogDescription>
+            <AlertDialogDescription className="order-workspace-confirm-description">Organización {tenantSlug}, pedido {id}. Estado actual: {STATUS_MAP[order.status]?.label || order.status}. Nuevo estado: {pendingStatus ? STATUS_MAP[pendingStatus]?.label || pendingStatus : ''}.</AlertDialogDescription>
           </AlertDialogHeader>
-          <p className="text-sm">{pendingStatus === 'cancelled' ? 'Cancelar este pedido no confirma una devolución del pago.' : pendingStatus === 'delivered' ? 'Marcá entregado sólo si la entrega ocurrió. Esto no confirma ni cobra el pago.' : 'El cambio modifica el estado operativo. No registra un pago ni envía mensajes desde esta pantalla.'}</p>
+          <p className="text-sm">{pendingStatus === 'cancelled' ? 'Cancelar este pedido no confirma una devolución del pago.' : pendingStatus === 'delivered' ? 'Marcá entregado sólo si la entrega ocurrió. Esto no confirma ni cobra el pago.' : 'El cambio modifica el estado operativo. Esta confirmación no acredita un pago ni la entrega de notificaciones.'}</p>
           <AlertDialogFooter><Button variant="outline" onClick={() => setPendingStatus(null)} disabled={busy}>Volver sin cambiar</Button><Button onClick={() => void confirmStatusChange()} disabled={writesBlocked}>{busy ? 'Confirmando…' : 'Confirmar cambio de estado'}</Button></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
