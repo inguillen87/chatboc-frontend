@@ -254,6 +254,21 @@ describe('SurveyAnalyticsPage operational focus', () => {
     expect(screen.getByTestId('mock-survey-live-results')).toBeInTheDocument();
   });
 
+  it('offers current backend territory series as a usable neighborhood filter', async () => {
+    const state = mocks.useSurveyAnalytics.getMockImplementation()!();
+    mocks.useSurveyAnalytics.mockReturnValue({ ...state,
+      summary: { ...state.summary, demografia: { territorio: [
+        { key: 'barrios', label: 'Barrios', series: [{ label: 'Centro QA', value: 4 }] },
+      ] } },
+    });
+    renderPage('/admin/encuestas/3/analytics');
+    const neighborhood = await screen.findByRole('combobox', { name: 'Barrio' });
+    expect(neighborhood).not.toBeDisabled();
+    fireEvent.keyDown(neighborhood, { key: 'ArrowDown' });
+    fireEvent.keyDown(await screen.findByRole('option', { name: 'Centro QA' }), { key: 'Enter' });
+    expect(state.setFilters).toHaveBeenCalledWith({ barrio: 'Centro QA' });
+  });
+
   it('does not query or present public live results for an unpublished draft', async () => {
     const draftSurvey = {
       ...surveyFixture,

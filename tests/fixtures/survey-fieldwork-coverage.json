@@ -1,0 +1,691 @@
+{
+  "partial": {
+    "encuesta_id": 5,
+    "total_respuestas": 510,
+    "participantes_unicos": 510,
+    "respuestas_completas": 510,
+    "tasa_completitud": 100.0,
+    "preguntas": [
+      {
+        "muestras_texto": [],
+        "opciones": [],
+        "pregunta_id": 5,
+        "respuestas_elegibles": 510,
+        "respuestas_respondidas": 0,
+        "series": [],
+        "tasa_respuesta_elegible": 0.0,
+        "texto": "Consulta de prueba",
+        "tipo": "text",
+        "tipo_interno": "abierta",
+        "total_respuestas": 510
+      }
+    ],
+    "data_provenance": {
+      "channel_distinct_total": 4,
+      "channel_top_limit": 20,
+      "channel_truncated": false,
+      "completion_estimated_from_sample": true,
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "dimension_top_limit": 50,
+      "eligibility_estimated_from_sample": true,
+      "exact_aggregates": true,
+      "mode": "real",
+      "partial": true,
+      "population_size": 510,
+      "real_responses_included": 510,
+      "sample_contract_version": "surveys.analytics_sample.v1",
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "sample_size": 500,
+      "sampled": true,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 2,
+      "synthetic_responses_included": 0,
+      "text_examples_sampled": true,
+      "unverified_responses_excluded": 1,
+      "unverified_responses_included": 0,
+      "utm_top_limit": 500
+    },
+    "fieldwork_coverage": {
+      "basis": {
+        "exact": true,
+        "selected_records": 510
+      },
+      "contract_version": "surveys.fieldwork_coverage.v1",
+      "dimensions": [
+        {
+          "coverage_percent": 99.61,
+          "detail": "Canal registrado con texto no vacío.",
+          "id": "channel",
+          "label": "Canal",
+          "missing_count": 2,
+          "recorded_count": 508
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Campaña UTM registrada con texto no vacío; no acredita contactos enviados.",
+          "id": "campaign",
+          "label": "Campaña",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Dato registrado con texto no vacío; puede ser opcional y no se infiere.",
+          "id": "gender",
+          "label": "Género",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Dato registrado con texto no vacío; no verifica edad ni identidad.",
+          "id": "age_range",
+          "label": "Rango etario",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "neighborhood",
+          "label": "Barrio",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "city",
+          "label": "Ciudad",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "province",
+          "label": "Provincia",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.96,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "country",
+          "label": "País",
+          "missing_count": 500,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 1.57,
+          "detail": "Latitud entre -90 y 90 y longitud entre -180 y 180, ambas presentes; no verifica jurisdicción ni precisión.",
+          "id": "coordinates",
+          "label": "Coordenadas",
+          "missing_count": 502,
+          "recorded_count": 8
+        }
+      ],
+      "inference_authorized": false,
+      "limitations": [
+        {
+          "detail": "Cada porcentaje divide registros con el dato entre respuestas del origen y filtros seleccionados. No mide contactos, elegibilidad, rechazos ni tasa de respuesta.",
+          "id": "received_records",
+          "title": "Base de respuestas recibidas"
+        },
+        {
+          "detail": "Un campo puede ser opcional o no haberse solicitado. Sin dato utilizable no significa abandono, incumplimiento ni una respuesta inválida.",
+          "id": "optional_fields",
+          "title": "Ausencia no significa rechazo"
+        },
+        {
+          "detail": "El texto no vacío se cuenta como registrado, aunque su contenido no haya sido validado. Las coordenadas solo se comprueban por rango; no acreditan residencia o jurisdicción.",
+          "id": "recorded_not_verified",
+          "title": "Presencia, no verificación"
+        },
+        {
+          "detail": "La cobertura ayuda a interpretar filtros y cruces; no acredita representatividad poblacional ni autoriza inferencia estadística.",
+          "id": "descriptive_only",
+          "title": "Alcance descriptivo"
+        }
+      ],
+      "response_rate": null,
+      "scope": {
+        "filtered": false,
+        "mode": "real",
+        "survey_id": 5,
+        "tenant_id": 1
+      },
+      "ui": {
+        "coverage": "Cobertura",
+        "description": "Base exacta: 510 respuestas del origen y filtros seleccionados. Revisá qué datos están disponibles para interpretar filtros y cruces.",
+        "details": "Ver definiciones y límites",
+        "empty": "Todavía no hay respuestas en esta selección.",
+        "eyebrow": "Trabajo de campo",
+        "heading": "Cobertura para segmentar",
+        "missing": "Sin dato utilizable",
+        "recorded": "Con dato"
+      }
+    }
+  },
+  "empty": {
+    "encuesta_id": 6,
+    "total_respuestas": 0,
+    "participantes_unicos": 0,
+    "respuestas_completas": 0,
+    "tasa_completitud": 0.0,
+    "preguntas": [
+      {
+        "muestras_texto": [],
+        "opciones": [],
+        "pregunta_id": 6,
+        "respuestas_elegibles": 0,
+        "respuestas_respondidas": 0,
+        "series": [],
+        "tasa_respuesta_elegible": 0,
+        "texto": "Consulta de prueba",
+        "tipo": "text",
+        "tipo_interno": "abierta",
+        "total_respuestas": 0
+      }
+    ],
+    "data_provenance": {
+      "channel_distinct_total": 0,
+      "channel_top_limit": 20,
+      "channel_truncated": false,
+      "completion_estimated_from_sample": false,
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "dimension_top_limit": 50,
+      "eligibility_estimated_from_sample": false,
+      "exact_aggregates": true,
+      "mode": "real",
+      "partial": false,
+      "population_size": 0,
+      "real_responses_included": 0,
+      "sample_contract_version": "surveys.analytics_sample.v1",
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "sample_size": 0,
+      "sampled": false,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 0,
+      "synthetic_responses_included": 0,
+      "text_examples_sampled": false,
+      "unverified_responses_excluded": 0,
+      "unverified_responses_included": 0,
+      "utm_top_limit": 500
+    },
+    "fieldwork_coverage": {
+      "basis": {
+        "exact": true,
+        "selected_records": 0
+      },
+      "contract_version": "surveys.fieldwork_coverage.v1",
+      "dimensions": [
+        {
+          "coverage_percent": null,
+          "detail": "Canal registrado con texto no vacío.",
+          "id": "channel",
+          "label": "Canal",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Campaña UTM registrada con texto no vacío; no acredita contactos enviados.",
+          "id": "campaign",
+          "label": "Campaña",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Dato registrado con texto no vacío; puede ser opcional y no se infiere.",
+          "id": "gender",
+          "label": "Género",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Dato registrado con texto no vacío; no verifica edad ni identidad.",
+          "id": "age_range",
+          "label": "Rango etario",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "neighborhood",
+          "label": "Barrio",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "city",
+          "label": "Ciudad",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "province",
+          "label": "Provincia",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "country",
+          "label": "País",
+          "missing_count": 0,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": null,
+          "detail": "Latitud entre -90 y 90 y longitud entre -180 y 180, ambas presentes; no verifica jurisdicción ni precisión.",
+          "id": "coordinates",
+          "label": "Coordenadas",
+          "missing_count": 0,
+          "recorded_count": 0
+        }
+      ],
+      "inference_authorized": false,
+      "limitations": [
+        {
+          "detail": "Cada porcentaje divide registros con el dato entre respuestas del origen y filtros seleccionados. No mide contactos, elegibilidad, rechazos ni tasa de respuesta.",
+          "id": "received_records",
+          "title": "Base de respuestas recibidas"
+        },
+        {
+          "detail": "Un campo puede ser opcional o no haberse solicitado. Sin dato utilizable no significa abandono, incumplimiento ni una respuesta inválida.",
+          "id": "optional_fields",
+          "title": "Ausencia no significa rechazo"
+        },
+        {
+          "detail": "El texto no vacío se cuenta como registrado, aunque su contenido no haya sido validado. Las coordenadas solo se comprueban por rango; no acreditan residencia o jurisdicción.",
+          "id": "recorded_not_verified",
+          "title": "Presencia, no verificación"
+        },
+        {
+          "detail": "La cobertura ayuda a interpretar filtros y cruces; no acredita representatividad poblacional ni autoriza inferencia estadística.",
+          "id": "descriptive_only",
+          "title": "Alcance descriptivo"
+        }
+      ],
+      "response_rate": null,
+      "scope": {
+        "filtered": false,
+        "mode": "real",
+        "survey_id": 6,
+        "tenant_id": 1
+      },
+      "ui": {
+        "coverage": "Cobertura",
+        "description": "Base exacta: 0 respuestas del origen y filtros seleccionados. Revisá qué datos están disponibles para interpretar filtros y cruces.",
+        "details": "Ver definiciones y límites",
+        "empty": "Todavía no hay respuestas en esta selección.",
+        "eyebrow": "Trabajo de campo",
+        "heading": "Cobertura para segmentar",
+        "missing": "Sin dato utilizable",
+        "recorded": "Con dato"
+      }
+    }
+  },
+  "filtered": {
+    "encuesta_id": 5,
+    "total_respuestas": 10,
+    "participantes_unicos": 10,
+    "respuestas_completas": 10,
+    "tasa_completitud": 100.0,
+    "preguntas": [
+      {
+        "muestras_texto": [],
+        "opciones": [],
+        "pregunta_id": 5,
+        "respuestas_elegibles": 10,
+        "respuestas_respondidas": 0,
+        "series": [],
+        "tasa_respuesta_elegible": 0.0,
+        "texto": "Consulta de prueba",
+        "tipo": "text",
+        "tipo_interno": "abierta",
+        "total_respuestas": 10
+      }
+    ],
+    "data_provenance": {
+      "channel_distinct_total": 1,
+      "channel_top_limit": 20,
+      "channel_truncated": false,
+      "completion_estimated_from_sample": false,
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "dimension_top_limit": 50,
+      "eligibility_estimated_from_sample": false,
+      "exact_aggregates": true,
+      "mode": "real",
+      "partial": false,
+      "population_size": 10,
+      "real_responses_included": 10,
+      "sample_contract_version": "surveys.analytics_sample.v1",
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "sample_size": 10,
+      "sampled": false,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 0,
+      "synthetic_responses_included": 0,
+      "text_examples_sampled": false,
+      "unverified_responses_excluded": 0,
+      "unverified_responses_included": 0,
+      "utm_top_limit": 500
+    },
+    "fieldwork_coverage": {
+      "basis": {
+        "exact": true,
+        "selected_records": 10
+      },
+      "contract_version": "surveys.fieldwork_coverage.v1",
+      "dimensions": [
+        {
+          "coverage_percent": 100.0,
+          "detail": "Canal registrado con texto no vacío.",
+          "id": "channel",
+          "label": "Canal",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Campaña UTM registrada con texto no vacío; no acredita contactos enviados.",
+          "id": "campaign",
+          "label": "Campaña",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; puede ser opcional y no se infiere.",
+          "id": "gender",
+          "label": "Género",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; no verifica edad ni identidad.",
+          "id": "age_range",
+          "label": "Rango etario",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "neighborhood",
+          "label": "Barrio",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "city",
+          "label": "Ciudad",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "province",
+          "label": "Provincia",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "country",
+          "label": "País",
+          "missing_count": 0,
+          "recorded_count": 10
+        },
+        {
+          "coverage_percent": 80.0,
+          "detail": "Latitud entre -90 y 90 y longitud entre -180 y 180, ambas presentes; no verifica jurisdicción ni precisión.",
+          "id": "coordinates",
+          "label": "Coordenadas",
+          "missing_count": 2,
+          "recorded_count": 8
+        }
+      ],
+      "inference_authorized": false,
+      "limitations": [
+        {
+          "detail": "Cada porcentaje divide registros con el dato entre respuestas del origen y filtros seleccionados. No mide contactos, elegibilidad, rechazos ni tasa de respuesta.",
+          "id": "received_records",
+          "title": "Base de respuestas recibidas"
+        },
+        {
+          "detail": "Un campo puede ser opcional o no haberse solicitado. Sin dato utilizable no significa abandono, incumplimiento ni una respuesta inválida.",
+          "id": "optional_fields",
+          "title": "Ausencia no significa rechazo"
+        },
+        {
+          "detail": "El texto no vacío se cuenta como registrado, aunque su contenido no haya sido validado. Las coordenadas solo se comprueban por rango; no acreditan residencia o jurisdicción.",
+          "id": "recorded_not_verified",
+          "title": "Presencia, no verificación"
+        },
+        {
+          "detail": "La cobertura ayuda a interpretar filtros y cruces; no acredita representatividad poblacional ni autoriza inferencia estadística.",
+          "id": "descriptive_only",
+          "title": "Alcance descriptivo"
+        }
+      ],
+      "response_rate": null,
+      "scope": {
+        "filtered": true,
+        "mode": "real",
+        "survey_id": 5,
+        "tenant_id": 1
+      },
+      "ui": {
+        "coverage": "Cobertura",
+        "description": "Base exacta: 10 respuestas del origen y filtros seleccionados. Revisá qué datos están disponibles para interpretar filtros y cruces.",
+        "details": "Ver definiciones y límites",
+        "empty": "Todavía no hay respuestas en esta selección.",
+        "eyebrow": "Trabajo de campo",
+        "heading": "Cobertura para segmentar",
+        "missing": "Sin dato utilizable",
+        "recorded": "Con dato"
+      }
+    }
+  },
+  "synthetic": {
+    "encuesta_id": 5,
+    "total_respuestas": 2,
+    "participantes_unicos": 2,
+    "respuestas_completas": 2,
+    "tasa_completitud": 100.0,
+    "preguntas": [
+      {
+        "muestras_texto": [],
+        "opciones": [],
+        "pregunta_id": 5,
+        "respuestas_elegibles": 2,
+        "respuestas_respondidas": 0,
+        "series": [],
+        "tasa_respuesta_elegible": 0.0,
+        "texto": "Consulta de prueba",
+        "tipo": "text",
+        "tipo_interno": "abierta",
+        "total_respuestas": 2
+      }
+    ],
+    "data_provenance": {
+      "channel_distinct_total": 1,
+      "channel_top_limit": 20,
+      "channel_truncated": false,
+      "completion_estimated_from_sample": false,
+      "contains_synthetic": true,
+      "contract_version": "surveys.response_provenance.v1",
+      "dimension_top_limit": 50,
+      "eligibility_estimated_from_sample": false,
+      "exact_aggregates": true,
+      "mode": "synthetic",
+      "partial": false,
+      "population_size": 2,
+      "real_responses_included": 0,
+      "sample_contract_version": "surveys.analytics_sample.v1",
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "sample_size": 2,
+      "sampled": false,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 0,
+      "synthetic_responses_included": 2,
+      "text_examples_sampled": false,
+      "unverified_responses_excluded": 1,
+      "unverified_responses_included": 0,
+      "utm_top_limit": 500
+    },
+    "fieldwork_coverage": {
+      "basis": {
+        "exact": true,
+        "selected_records": 2
+      },
+      "contract_version": "surveys.fieldwork_coverage.v1",
+      "dimensions": [
+        {
+          "coverage_percent": 100.0,
+          "detail": "Canal registrado con texto no vacío.",
+          "id": "channel",
+          "label": "Canal",
+          "missing_count": 0,
+          "recorded_count": 2
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Campaña UTM registrada con texto no vacío; no acredita contactos enviados.",
+          "id": "campaign",
+          "label": "Campaña",
+          "missing_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": 100.0,
+          "detail": "Dato registrado con texto no vacío; puede ser opcional y no se infiere.",
+          "id": "gender",
+          "label": "Género",
+          "missing_count": 0,
+          "recorded_count": 2
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Dato registrado con texto no vacío; no verifica edad ni identidad.",
+          "id": "age_range",
+          "label": "Rango etario",
+          "missing_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "neighborhood",
+          "label": "Barrio",
+          "missing_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "city",
+          "label": "Ciudad",
+          "missing_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "province",
+          "label": "Provincia",
+          "missing_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Dato registrado con texto no vacío; no verifica residencia.",
+          "id": "country",
+          "label": "País",
+          "missing_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "coverage_percent": 0.0,
+          "detail": "Latitud entre -90 y 90 y longitud entre -180 y 180, ambas presentes; no verifica jurisdicción ni precisión.",
+          "id": "coordinates",
+          "label": "Coordenadas",
+          "missing_count": 2,
+          "recorded_count": 0
+        }
+      ],
+      "inference_authorized": false,
+      "limitations": [
+        {
+          "detail": "Estos registros son de demostración y no representan participación real.",
+          "id": "synthetic",
+          "title": "Datos sintéticos"
+        },
+        {
+          "detail": "Cada porcentaje divide registros con el dato entre respuestas del origen y filtros seleccionados. No mide contactos, elegibilidad, rechazos ni tasa de respuesta.",
+          "id": "received_records",
+          "title": "Base de respuestas recibidas"
+        },
+        {
+          "detail": "Un campo puede ser opcional o no haberse solicitado. Sin dato utilizable no significa abandono, incumplimiento ni una respuesta inválida.",
+          "id": "optional_fields",
+          "title": "Ausencia no significa rechazo"
+        },
+        {
+          "detail": "El texto no vacío se cuenta como registrado, aunque su contenido no haya sido validado. Las coordenadas solo se comprueban por rango; no acreditan residencia o jurisdicción.",
+          "id": "recorded_not_verified",
+          "title": "Presencia, no verificación"
+        },
+        {
+          "detail": "La cobertura ayuda a interpretar filtros y cruces; no acredita representatividad poblacional ni autoriza inferencia estadística.",
+          "id": "descriptive_only",
+          "title": "Alcance descriptivo"
+        }
+      ],
+      "response_rate": null,
+      "scope": {
+        "filtered": false,
+        "mode": "synthetic",
+        "survey_id": 5,
+        "tenant_id": 1
+      },
+      "ui": {
+        "coverage": "Cobertura",
+        "description": "Datos sintéticos de demostración. Base exacta: 2 respuestas del origen y filtros seleccionados. Revisá qué datos están disponibles para interpretar filtros y cruces.",
+        "details": "Ver definiciones y límites",
+        "empty": "Todavía no hay respuestas en esta selección.",
+        "eyebrow": "Trabajo de campo",
+        "heading": "Cobertura para segmentar",
+        "missing": "Sin dato utilizable",
+        "recorded": "Con dato"
+      }
+    }
+  }
+}

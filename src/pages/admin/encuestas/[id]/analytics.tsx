@@ -56,6 +56,7 @@ import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import type { SnapshotCreatePayload } from '@/types/encuestas';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
+import { readSurveyDemographicFilters } from '@/utils/surveyDemographicFilters';
 import {
   buildSurveyResultEvidence,
   validateSurveyGovernanceReleaseList,
@@ -985,43 +986,9 @@ export default function SurveyAnalyticsPage() {
       adminTemplateVisualModules.length,
   );
 
-  const demographicFilterOptions = useMemo(() => {
-    const breakdowns = summary?.demografia ?? {};
-    const buildOptions = (keys: string[]) => {
-      for (const key of keys) {
-        const items = breakdowns[key];
-        if (!Array.isArray(items) || !items.length) continue;
-        const normalized = items
-          .map((item) => {
-            const rawValue = item?.clave ?? item?.etiqueta;
-            if (rawValue === undefined || rawValue === null || rawValue === '') {
-              return null;
-            }
-            const value = String(rawValue);
-            const label = String(item?.etiqueta ?? rawValue);
-            return { value, label };
-          })
-          .filter((option): option is { value: string; label: string } => Boolean(option));
-        if (!normalized.length) continue;
-        const unique = normalized.filter(
-          (option, index, array) => array.findIndex((candidate) => candidate.value === option.value) === index,
-        );
-        if (unique.length) {
-          return unique;
-        }
-      }
-      return [] as Array<{ value: string; label: string }>;
-    };
-
-    return {
-      genero: buildOptions(['genero', 'generos']),
-      rango_etario: buildOptions(['rango_etario', 'rangos_etarios', 'rangoEtario', 'rangosEtarios']),
-      pais: buildOptions(['pais', 'paises']),
-      provincia: buildOptions(['provincia', 'provincias']),
-      ciudad: buildOptions(['ciudad', 'ciudades']),
-      barrio: buildOptions(['barrio', 'barrios']),
-    };
-  }, [summary?.demografia]);
+  const demographicFilterOptions = useMemo(
+    () => readSurveyDemographicFilters(summary?.demografia), [summary?.demografia],
+  );
 
   const SELECT_ALL = '__all__';
 
