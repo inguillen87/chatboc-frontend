@@ -7,7 +7,7 @@ export function CommercialKanban({ items, disabled, onSelect }: Props) {
     { stage: 'unknown', label: 'Etapa no informada', items: items.filter((item) => !isCommercialStage(item.stage)) }];
   return <section aria-label="Tablero comercial por etapas" className="commercial-board-region">
     <p className="commercial-hint">Las etapas se cambian desde la ficha, con motivo y confirmación. El tablero no mueve casos al arrastrar.</p>
-    <div className="commercial-kanban" tabIndex={0} aria-label="Columnas del tablero; desplazamiento horizontal">
+    <div className="commercial-kanban" role="group" tabIndex={0} aria-label="Columnas del tablero; desplazamiento horizontal">
       {columns.filter((column) => column.stage !== 'unknown' || column.items.length > 0).map((column) => <section key={column.stage} className="commercial-kanban-column" aria-label={`${column.label}: ${column.items.length} casos`}>
         <h3><span>{column.label}</span><span className="commercial-stage">{column.items.length}</span></h3>
         {!column.items.length ? <p className="commercial-hint">Sin casos en esta selección.</p> : <ul>

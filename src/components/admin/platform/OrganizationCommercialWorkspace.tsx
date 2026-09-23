@@ -58,8 +58,9 @@ function WorkspaceSession({ tenant, onClose, returnFocus }: Props) {
   };
   useEffect(() => { void load(); return () => { version.current += 1; }; }, []);
   useEffect(() => {
-    if (selected) editorFocus.current?.focus({ preventScroll: true });
-    else if (hadSelection.current) listFocus.current?.focus({ preventScroll: true });
+    const target = selected ? editorFocus.current : hadSelection.current ? listFocus.current : null;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
     hadSelection.current = Boolean(selected);
   }, [selected?.key]);
   const filtered = useMemo(() => queryCommercialLeads(list?.items || [], query, stage, attention, sort, evaluatedAt), [list, query, stage, attention, sort, evaluatedAt]);

@@ -65,7 +65,7 @@ export default function TrackingMap({ className, labels: suppliedLabels, ...sour
     } catch { setMapError(true); }
     return () => {
       active = false; observer?.disconnect();
-      Object.values(markers.current).forEach((marker) => marker?.remove());
+      for (const role of ['store', 'customer', 'driver'] as const) markers.current[role]?.remove();
       markers.current = {}; previousGeometry.current = '';
       map.current?.remove(); map.current = null;
     };
