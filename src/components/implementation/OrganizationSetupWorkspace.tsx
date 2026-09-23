@@ -16,8 +16,16 @@ export default function OrganizationSetupWorkspace(props:Props) {
 }
 function SetupSteps({journey,loading=false,error,onRefresh,returnTo,technicalDetails}:Props) {
   const palette=readWorkspaceAppearance(journey.workspace_appearance,journey.tenant.slug);
-  const [selected,setSelected]=React.useState(journey.summary.current_stage_id||journey.stages[0].id);
-  React.useEffect(()=>setSelected(journey.summary.current_stage_id||journey.stages[0].id),[journey.summary.current_stage_id]);
+  const recommendedStage=journey.summary.current_stage_id||journey.stages[0].id;
+  const [selected,setSelected]=React.useState(recommendedStage);
+  const lastRecommendation=React.useRef(recommendedStage);
+  React.useEffect(()=>{
+    // Initial state already selects the recommendation. A delayed mount effect
+    // must not overwrite a navigation choice made before passive effects flush.
+    if(lastRecommendation.current===recommendedStage)return;
+    lastRecommendation.current=recommendedStage;
+    setSelected(recommendedStage);
+  },[recommendedStage]);
   const stage=journey.stages.find(item=>item.id===selected)||journey.stages[0];
   const active=states[stage.status]; const ActiveIcon=active.Icon;
   const href=stage.primary_action&&!loading&&!error?buildTenantJourneyHref(stage.primary_action.href,journey.tenant.slug,returnTo):null;

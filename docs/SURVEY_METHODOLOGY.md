@@ -117,7 +117,7 @@ cacheadas de ese estudio e impide refetch mientras esa vista siga revocada.
 Antes del arreglo fallaban las dos variantes de revalidacion de cache; despues
 pasaron los42 casos focales de contrato, transporte e interfaz.
 
-La aceptacion HTTP a?ade recibos ligados al actor, permiso comprobado despues
+La aceptacion HTTP agrega recibos ligados al actor, permiso comprobado despues
 del lock e historial alterado rechazado para lectura y nuevas versiones. El
 cambio de rol se inyecta en un entorno desechable; no certifica una carrera real
 entre transacciones PostgreSQL. El recorrido de navegador pulsa Enter realmente,
@@ -127,3 +127,28 @@ confirmado y uno409), botones de44px y ausencia de desbordamiento de viewport.
 La evidencia final, SHA de la pareja y estado de publicacion se registran en los
 PR existentes. No presentar estas pruebas locales/CI como habilitacion productiva
 ni una certificacion metodologica externa.
+
+## Estado del paquete de activacion y regresion detectada en CI
+
+La propuesta de migracion backend permanece en migrations/pending, fuera del
+grafo Alembic del cutover previamente revisado. SURVEY_METHODOLOGY_ENABLED sigue
+false. La activacion requiere una release coordinada, revision PostgreSQL y
+promocion explicita de la migracion; no ejecutar DDL ni modificar la allowlist
+para hacer desaparecer un control rojo. Ver docs/SURVEY_METHODOLOGY.md backend.
+
+El primer SHA frontend5307ed78 aprobo Survey analytics evidence en GitHub Actions
+35816939877 (incluye la suite completa y el recorrido de evidencia analitica).
+Otra ejecucion de la suite completa, Enterprise checkout regression35816940176,
+fallo en la navegacion de OrganizationSetupWorkspace: un efecto de montaje podia
+reponer el paso inicial despues de un clic temprano. Una prueba determinista
+emite ese clic antes de los efectos pasivos y reproduce el fallo sin reintentos.
+La correccion evita el reset redundante de montaje y conserva la sincronizacion
+cuando cambia la recomendacion del servidor. Se agrega una segunda prueba para
+refresco con recomendacion igual/nueva. No se alteran pagos ni la API de checkout.
+No se considera resuelto el gate por volver a lanzarlo sin corregir esa carrera.
+
+Validacion local del cierre de navegacion:3408 pruebas aprobadas en429 archivos,
+sin fallidas ni pendientes; TypeScript general/scope y build aprobados. Incluye
+42 pruebas focales de metodologia y11 de configuracion guiada. La regresion de
+montaje valida fallo con el codigo anterior y paso tras la correccion, sin
+ampliar timeouts, eliminar comprobaciones ni reintentar hasta obtener verde.

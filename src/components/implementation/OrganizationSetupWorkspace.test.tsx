@@ -3,6 +3,8 @@ import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/reac
 import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
 import fixtures from '../../../tests/fixtures/organization-setup-journeys.json';
 import ChannelActivationChecklist from '@/components/profile/ChannelActivationChecklist';
+import OrganizationSetupWorkspace from './OrganizationSetupWorkspace';
+import type {OrganizationSetupJourney} from '@/utils/organizationSetupJourney';
 import {fetchTenantChannelActivation} from '@/api/v2/channelActivation';
 vi.mock('@/api/v2/channelActivation',async load=>({...await load<typeof import('@/api/v2/channelActivation')>(),fetchTenantChannelActivation:vi.fn()}));
 const snapshot=(slug='tenant-a',heading='Espacio autorizado')=>({
@@ -26,6 +28,30 @@ describe('guided organization setup on the actual activation component',()=>{
     fireEvent.click(screen.getByRole('button',{name:/3 Catálogo/}));
     expect(screen.getByRole('region',{name:'Detalle de Catálogo, contenido y cobros'})).toBeVisible();
     expect(api).toHaveBeenCalledTimes(1);
+  });
+  it('does not reset an immediate navigation choice when mount effects flush',()=>{
+    const journey=snapshot().organization_setup as OrganizationSetupJourney;
+    function ImmediateNavigation(){
+      const container=React.useRef<HTMLDivElement>(null);
+      React.useLayoutEffect(()=>{
+        const buttons=container.current?.querySelectorAll('nav button');
+        const catalog=buttons?.[2];
+        if(!(catalog instanceof HTMLButtonElement))throw new Error('Missing third setup step');
+        catalog.click();
+      },[]);
+      return <div ref={container}><OrganizationSetupWorkspace journey={journey} onRefresh={()=>{}}/></div>;
+    }
+    render(<ImmediateNavigation/>);
+    expect(screen.getByRole('region',{name:`Detalle de ${journey.stages[2].label}`})).toBeVisible();
+  });
+  it('keeps a manual step on same-recommendation refresh and follows a new recommendation',()=>{
+    const journey=snapshot().organization_setup as OrganizationSetupJourney;
+    const view=render(<OrganizationSetupWorkspace journey={journey} onRefresh={()=>{}}/>);
+    fireEvent.click(screen.getByRole('button',{name:new RegExp(`3 ${journey.stages[2].label}`)}));
+    view.rerender(<OrganizationSetupWorkspace journey={{...journey,summary:{...journey.summary}}} onRefresh={()=>{}}/>);
+    expect(screen.getByRole('region',{name:`Detalle de ${journey.stages[2].label}`})).toBeVisible();
+    view.rerender(<OrganizationSetupWorkspace journey={{...journey,summary:{...journey.summary,current_stage_id:journey.stages[0].id}}} onRefresh={()=>{}}/>);
+    expect(screen.getByRole('region',{name:`Detalle de ${journey.stages[0].label}`})).toBeVisible();
   });
   it('removes previous organization data before a new response and ignores late A-B-A results',async()=>{
     const old=deferred(),middle=deferred(),latest=deferred();
