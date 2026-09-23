@@ -9,12 +9,17 @@ describe('commercial follow-up transport and receipts', () => {
   it('uses explicit tenant context for the limited list', async () => {
     mocks.fetch.mockResolvedValue({ tenant_slug: 'org-a', items: [], total: 0 });
     await api.list('org-a');
-    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads?limit=100', { tenantSlug: 'org-a' });
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads?limit=100', { tenantSlug: 'org-a', persistTenantSlug: false });
+  });
+  it('reads history without persisting the customer as platform browser context', async () => {
+    mocks.fetch.mockResolvedValue({ ...receipt, timeline: [] });
+    await api.timeline(identity);
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads/municipio/12/timeline', { tenantSlug: 'org-a', persistTenantSlug: false });
   });
   it('writes only the canonical ID and confirms note content', async () => {
     mocks.fetch.mockResolvedValue({ ...receipt, timeline: [{ event: 'tenant_note', note: 'Visitado' }] });
     expect((await api.addNote(identity, ' Visitado '))[0].note).toBe('Visitado');
-    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads/municipio/12/timeline', { method: 'POST', body: { note: 'Visitado' }, tenantSlug: 'org-a' });
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads/municipio/12/timeline', { method: 'POST', body: { note: 'Visitado' }, tenantSlug: 'org-a', persistTenantSlug: false });
   });
   it('rejects a 200 without matching note content and does not retry', async () => {
     mocks.fetch.mockResolvedValue({ ...receipt, timeline: [{ event: 'tenant_note', note: 'Otra nota' }] });
@@ -24,7 +29,7 @@ describe('commercial follow-up transport and receipts', () => {
   it('requires ok, target identity and the confirmed stage', async () => {
     mocks.fetch.mockResolvedValue({ ...receipt, lead_stage: 'ganado' });
     await api.changeStage(identity, 'ganado', ' Aceptado ');
-    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads/municipio/12/stage', { method: 'PATCH', body: { stage: 'ganado', note: 'Aceptado' }, tenantSlug: 'org-a' });
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/org-a/leads/municipio/12/stage', { method: 'PATCH', body: { stage: 'ganado', note: 'Aceptado' }, tenantSlug: 'org-a', persistTenantSlug: false });
   });
   it.each([401, 403, 404, 409, 500])('never retries a mutation rejected with %s', async (status) => {
     mocks.fetch.mockRejectedValue({ status });
