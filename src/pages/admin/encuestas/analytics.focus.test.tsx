@@ -1,11 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SurveyAnalyticsPage from './[id]/analytics';
+import segmentFixtures from '../../../../tests/fixtures/survey-segment-compare.json';
 
 const mocks = vi.hoisted(() => ({
+  currentSlug: null as string | null,
   useSurveyAdmin: vi.fn(),
   useSurveyAnalytics: vi.fn(),
   useAnchor: vi.fn(),
@@ -24,7 +26,9 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
+vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 vi.mock('@/hooks/useSurveyAdmin', () => ({ useSurveyAdmin: mocks.useSurveyAdmin }));
+vi.mock('@/context/TenantContext', () => ({ useTenant: () => ({ currentSlug: mocks.currentSlug }) }));
 vi.mock('@/hooks/useSurveyAnalytics', () => ({ useSurveyAnalytics: mocks.useSurveyAnalytics }));
 vi.mock('@/hooks/useAnchor', () => ({ useAnchor: mocks.useAnchor }));
 vi.mock('@/hooks/useSurveyResponses', () => ({ useSurveyResponses: mocks.useSurveyResponses }));
@@ -152,13 +156,15 @@ function renderPage(path: string) {
           <Route path="/admin/encuestas/:id/analytics" element={<SurveyAnalyticsPage />} />
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 
 describe('SurveyAnalyticsPage operational focus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.currentSlug = null;
+    mocks.trackEvent.mockResolvedValue(undefined);
     Element.prototype.scrollIntoView = vi.fn();
     mocks.useSurveyAdmin.mockReturnValue({
       survey: surveyFixture,
@@ -267,6 +273,71 @@ describe('SurveyAnalyticsPage operational focus', () => {
     fireEvent.keyDown(neighborhood, { key: 'ArrowDown' });
     fireEvent.keyDown(await screen.findByRole('option', { name: 'Centro QA' }), { key: 'Enter' });
     expect(state.setFilters).toHaveBeenCalledWith({ barrio: 'Centro QA' });
+  });
+
+  const segmentState = (key: keyof typeof segmentFixtures = 'main') => {
+    mocks.currentSlug = 'junin';
+    const report = structuredClone(segmentFixtures[key]);
+    report.scope.survey_id = 3; report.scope.tenant_id = 10;
+    const state = mocks.useSurveyAnalytics.getMockImplementation()!();
+    mocks.useSurveyAnalytics.mockReturnValue({ ...state, evidenceCurrent: true,
+      summary: { ...state.summary, total_respuestas: report.basis.selected_records, data_provenance: report.data_provenance },
+      filters: report.scope.global_filters,
+    });
+    mocks.getSurveySegmentsSuggestions.mockResolvedValue({ dimensions: { canal: [
+      { label: 'Canal WhatsApp publicado', filters: report.scope.segment_a_filters },
+      { label: 'Canal web publicado', filters: report.scope.segment_b_filters },
+    ] } });
+    mocks.getSurveySegmentsCompare.mockResolvedValue(report);
+    return report;
+  };
+
+  it('passes the global filters and source mode to suggestions and comparison', async () => {
+    const report = segmentState('filtered'); renderPage('/admin/encuestas/3/analytics');
+    await waitFor(() => expect(mocks.getSurveySegmentsSuggestions).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.getSurveySegmentsCompare).toHaveBeenCalled());
+    expect(await screen.findByTestId('survey-segment-compare')).toHaveAttribute('data-selected-records', String(report.basis.selected_records));
+    expect(mocks.getSurveySegmentsSuggestions).toHaveBeenCalledWith(3,
+      expect.objectContaining({ barrio: 'centro', data_mode: 'real' }), expect.objectContaining({ tenantSlug: 'junin' }));
+    expect(mocks.getSurveySegmentsCompare).toHaveBeenCalledWith(3,
+      expect.objectContaining({ barrio: 'centro', data_mode: 'real', a_canal: 'whatsapp', b_canal: 'web' }),
+      expect.objectContaining({ tenantSlug: 'junin' }));
+  });
+
+  it('refreshes a fresh cached comparison and hides it until the replacement read finishes', async () => {
+    segmentState(); renderPage('/admin/encuestas/3/analytics');
+    await screen.findByTestId('survey-segment-compare');
+    const previousCalls = mocks.getSurveySegmentsCompare.mock.calls.length;
+    let finish!: (value: unknown) => void;
+    mocks.getSurveySegmentsCompare.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actualizar', exact: true })[0]);
+    await waitFor(() => expect(mocks.getSurveySegmentsCompare).toHaveBeenCalledTimes(previousCalls + 1));
+    await waitFor(() => expect(screen.queryByTestId('survey-segment-compare')).toBeNull());
+    const updated = structuredClone(segmentFixtures.main); updated.scope.survey_id = 3; updated.scope.tenant_id = 10;
+    updated.questions[0].label = 'Pregunta actualizada por el servidor';
+    await act(async () => finish(updated));
+    expect(await screen.findByTestId('survey-segment-compare')).toHaveTextContent('Pregunta actualizada por el servidor');
+  });
+
+  it('keeps the selected group identified when refreshed suggestions no longer contain it', async () => {
+    segmentState(); renderPage('/admin/encuestas/3/analytics');
+    await screen.findByTestId('survey-segment-compare');
+    mocks.getSurveySegmentsSuggestions.mockResolvedValue({ dimensions: { canal: [
+      { label: 'Canal WhatsApp publicado', filters: { canal: 'whatsapp' } },
+    ] } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actualizar', exact: true })[0]);
+    await waitFor(() => expect(mocks.getSurveySegmentsSuggestions).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('survey-segment-compare')).toHaveTextContent('Canal web publicado');
+    expect(document.getElementById('segment-b-selector')).toHaveTextContent('Canal web publicado');
+  });
+
+  it('withdraws a previous private result after a failed revalidation', async () => {
+    segmentState(); renderPage('/admin/encuestas/3/analytics');
+    await screen.findByTestId('survey-segment-compare');
+    mocks.getSurveySegmentsCompare.mockRejectedValueOnce(Object.assign(new Error('Acceso revocado'), { status: 403 }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actualizar', exact: true })[0]);
+    await waitFor(() => expect(screen.queryByTestId('survey-segment-compare')).toBeNull());
+    expect(await screen.findByText('Acceso revocado')).toBeVisible();
   });
 
   it('does not query or present public live results for an unpublished draft', async () => {

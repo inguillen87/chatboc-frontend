@@ -2551,14 +2551,7 @@ export const getSurveyBrief = (id: number, options?: ApiFetchOptions): Promise<S
 
 export const getSurveySegmentsCompare = (
   id: number,
-  params?: {
-    a_canal?: string;
-    b_canal?: string;
-    a_genero?: string;
-    b_genero?: string;
-    a_territorio?: string;
-    b_territorio?: string;
-  },
+  params?: Record<string, string | string[]>,
   options?: ApiFetchOptions,
 ): Promise<SurveySegmentsCompare> =>
   callAdminSurveyEndpoint(`${id}/analytics/segments/compare${buildQueryString(params)}`, options);
@@ -2566,7 +2559,7 @@ export const getSurveySegmentsCompare = (
 
 export const getSurveySegmentsSuggestions = (
   id: number,
-  params?: { limit?: number },
+  params?: Record<string, string | string[] | number>,
   options?: ApiFetchOptions,
 ): Promise<SurveySegmentsSuggestions> =>
   callAdminSurveyEndpoint(`${id}/analytics/segments/suggestions${buildQueryString(params)}`, options);

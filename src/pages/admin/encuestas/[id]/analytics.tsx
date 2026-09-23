@@ -57,6 +57,8 @@ import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import type { SnapshotCreatePayload } from '@/types/encuestas';
 import { isSurveySyntheticSeedQaEnabled } from '@/utils/surveySyntheticSeedGate';
 import { readSurveyDemographicFilters } from '@/utils/surveyDemographicFilters';
+import { buildSegmentCompareParams, normalizeSegmentCompareFilters, readSurveySegmentComparison } from '@/utils/surveySegmentCompare';
+import { SurveySegmentComparison, formatSegmentDelta } from '@/components/surveys/SurveySegmentComparison';
 import {
   buildSurveyResultEvidence,
   validateSurveyGovernanceReleaseList,
@@ -495,34 +497,14 @@ function SurveyAdminCommentsPanel({
   );
 }
 
-function normalizeSegmentFilterValue(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.trim()) return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) {
-    const values = value
-      .map((item) => normalizeSegmentFilterValue(item))
-      .filter((item): item is string => Boolean(item));
-    if (values.length) return values.join(',');
-  }
-  return undefined;
-}
-
 function encodeSegmentFilters(filters: Record<string, unknown>) {
-  const normalizedEntries = Object.entries(filters)
-    .map(([key, value]) => [key, normalizeSegmentFilterValue(value)] as const)
-    .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
-    .sort(([a], [b]) => a.localeCompare(b));
-  return normalizedEntries.map(([key, value]) => `${key}:${value}`).join('|');
+  const normalized = normalizeSegmentCompareFilters(filters);
+  return normalized && Object.keys(normalized).length ? JSON.stringify(normalized) : '';
 }
 
 function decodeSegmentFilters(encodedValue: string) {
-  if (!encodedValue || encodedValue.startsWith('__empty__')) return {} as Record<string, string>;
-  return encodedValue.split('|').reduce<Record<string, string>>((acc, pair) => {
-    const [key, ...rest] = pair.split(':');
-    const value = rest.join(':');
-    if (key && value) acc[key] = value;
-    return acc;
-  }, {});
+  try { return normalizeSegmentCompareFilters(JSON.parse(encodedValue)) ?? {}; }
+  catch { return {}; }
 }
 
 
@@ -576,8 +558,13 @@ export default function SurveyAnalyticsPage() {
   } = useSurveyResponses(surveyId ?? undefined, undefined, tenantScopeSlug);
   const queryClient = useQueryClient();
   const { seed: seedSurveyResponses, isSeeding, progress: seedProgress } = useSurveySeedResponses();
-  const [segmentAKey, setSegmentAKey] = useState<string>('');
-  const [segmentBKey, setSegmentBKey] = useState<string>('');
+  const segmentScopeKey = JSON.stringify([surveyId, tenantScopeSlug, summary?.data_provenance?.mode]);
+  const [segmentASelection, setSegmentASelection] = useState<{ key: string; label: string; scope: string } | null>(null);
+  const [segmentBSelection, setSegmentBSelection] = useState<{ key: string; label: string; scope: string } | null>(null);
+  const selectedA = segmentASelection?.scope === segmentScopeKey ? segmentASelection : null;
+  const selectedB = segmentBSelection?.scope === segmentScopeKey ? segmentBSelection : null;
+  const segmentAKey = selectedA?.key ?? '';
+  const segmentBKey = selectedB?.key ?? '';
 
   const forecastQuery = useQuery({
     queryKey: queryKeys.surveys.analytics('forecast', surveyId ?? 'missing', tenantScopeSlug),
@@ -603,35 +590,35 @@ export default function SurveyAnalyticsPage() {
     queryFn: () => getSurveyBrief(surveyId as number, surveyRequestOptions),
     staleTime: 60_000,
   });
+  const comparisonMode = summary?.data_provenance?.server_trusted_classification === true ? summary.data_provenance.mode : undefined;
+  const suggestionParams = useMemo(() => {
+    const normalized = normalizeSegmentCompareFilters(filters, true);
+    return normalized && comparisonMode ? { ...normalized, data_mode: comparisonMode, limit: 5 } : null;
+  }, [filters, comparisonMode]);
   const segmentsSuggestionsQuery = useQuery({
-    queryKey: queryKeys.surveys.analytics('segments-suggestions', surveyId ?? 'missing', tenantScopeSlug),
-    enabled: Boolean(surveyId),
-    queryFn: () => getSurveySegmentsSuggestions(surveyId as number, { limit: 5 }, surveyRequestOptions),
+    queryKey: queryKeys.surveys.analytics('segments-suggestions', surveyId ?? 'missing', tenantScopeSlug, suggestionParams ?? {}),
+    enabled: Boolean(surveyId && tenantScopeSlug && suggestionParams && evidenceCurrent && !analyticsError && !provenance?.synthetic),
+    queryFn: () => getSurveySegmentsSuggestions(surveyId as number, suggestionParams ?? undefined, surveyRequestOptions),
+    retry: false,
     staleTime: 60_000,
   });
 
   const segmentSuggestionOptions = useMemo(() => {
     const dimensions = segmentsSuggestionsQuery.data?.dimensions;
-    if (!dimensions || typeof dimensions !== 'object') return [] as Array<{ key: string; label: string; dimension: string }>;
+    if (segmentsSuggestionsQuery.isFetching || segmentsSuggestionsQuery.error || !dimensions || typeof dimensions !== 'object') return [] as Array<{ key: string; label: string; dimension: string }>;
 
     return Object.entries(dimensions).flatMap(([dimension, suggestions]) =>
       (Array.isArray(suggestions) ? suggestions : [])
-        .map((suggestion, index) => {
+        .map((suggestion) => {
           const filters = asRecord(suggestion?.filters) ?? {};
           const encoded = encodeSegmentFilters(filters);
-          const fallbackKey = encoded || `__empty__:${dimension}:${index}`;
           const label = asRenderableText(suggestion?.label);
-          if (!label) return null;
-          return { key: fallbackKey, label, dimension };
+          if (!label || !encoded) return null;
+          return { key: encoded, label, dimension };
         })
         .filter((option): option is { key: string; label: string; dimension: string } => Boolean(option)),
-    );
-  }, [segmentsSuggestionsQuery.data?.dimensions]);
-
-  useEffect(() => {
-    setSegmentAKey('');
-    setSegmentBKey('');
-  }, [surveyId, tenantScopeSlug]);
+    ).filter((option, index, items) => items.findIndex(item => item.key === option.key) === index);
+  }, [segmentsSuggestionsQuery.data?.dimensions, segmentsSuggestionsQuery.isFetching, segmentsSuggestionsQuery.error]);
 
   useEffect(() => {
     if (!focusCopy?.targetId) return;
@@ -643,31 +630,38 @@ export default function SurveyAnalyticsPage() {
 
   useEffect(() => {
     if (!segmentSuggestionOptions.length) return;
-    setSegmentAKey((current) => current || segmentSuggestionOptions[0]?.key || '');
-    setSegmentBKey((current) => current || segmentSuggestionOptions[1]?.key || segmentSuggestionOptions[0]?.key || '');
-  }, [segmentSuggestionOptions]);
+    const first = segmentSuggestionOptions[0]; const second = segmentSuggestionOptions[1] ?? first;
+    setSegmentASelection(current => current?.scope === segmentScopeKey ? current : { key: first.key, label: first.label, scope: segmentScopeKey });
+    setSegmentBSelection(current => current?.scope === segmentScopeKey ? current : { key: second.key, label: second.label, scope: segmentScopeKey });
+  }, [segmentSuggestionOptions, segmentScopeKey]);
+  const segmentSelectOptions = useMemo(() => [...segmentSuggestionOptions, ...(selectedA ? [selectedA] : []), ...(selectedB ? [selectedB] : [])]
+    .map(option => ({ key: option.key, label: option.label }))
+    .filter((option, index, options) => options.findIndex(candidate => candidate.key === option.key) === index),
+  [segmentSuggestionOptions, selectedA, selectedB]);
+  const setSegmentAKey = (key: string) => {
+    const option = segmentSelectOptions.find(item => item.key === key);
+    if (option) setSegmentASelection({ key, label: option.label, scope: segmentScopeKey });
+  };
+  const setSegmentBKey = (key: string) => {
+    const option = segmentSelectOptions.find(item => item.key === key);
+    if (option) setSegmentBSelection({ key, label: option.label, scope: segmentScopeKey });
+  };
 
-  const compareParams = useMemo(() => {
-    const aFilters = decodeSegmentFilters(segmentAKey);
-    const bFilters = decodeSegmentFilters(segmentBKey);
-
-    const aEntries = Object.entries(aFilters).map(([key, value]) => [`a_${key}`, value] as const);
-    const bEntries = Object.entries(bFilters).map(([key, value]) => [`b_${key}`, value] as const);
-
-    return Object.fromEntries([...aEntries, ...bEntries]);
-  }, [segmentAKey, segmentBKey]);
-
-  const hasCompareFiltersReady = useMemo(
-    () => Boolean(segmentAKey && segmentBKey && Object.keys(compareParams).length > 0),
-    [segmentAKey, segmentBKey, compareParams],
-  );
+  const compareParams = useMemo(() => buildSegmentCompareParams(filters, decodeSegmentFilters(segmentAKey),
+    decodeSegmentFilters(segmentBKey), comparisonMode), [filters, segmentAKey, segmentBKey, comparisonMode]);
 
   const compareQuery = useQuery({
-    queryKey: queryKeys.surveys.analytics('segments-compare', surveyId ?? 'missing', tenantScopeSlug, compareParams),
-    enabled: Boolean(surveyId && hasCompareFiltersReady),
-    queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams, surveyRequestOptions),
+    queryKey: queryKeys.surveys.analytics('segments-compare', surveyId ?? 'missing', tenantScopeSlug, compareParams ?? {}),
+    enabled: Boolean(surveyId && tenantScopeSlug && compareParams && evidenceCurrent && !analyticsError && !provenance?.synthetic),
+    queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams ?? undefined, surveyRequestOptions),
+    retry: false,
     staleTime: 30_000,
   });
+  const refreshSurveyAnalytics = () => Promise.allSettled([
+    refreshAnalytics(),
+    ...(compareParams ? [compareQuery.refetch()] : []),
+    ...(suggestionParams ? [segmentsSuggestionsQuery.refetch()] : []),
+  ]);
   const anomaliesQuery = useQuery({
     queryKey: queryKeys.surveys.analytics('anomalies', surveyId ?? 'missing', tenantScopeSlug),
     enabled: Boolean(surveyId),
@@ -1238,7 +1232,12 @@ export default function SurveyAnalyticsPage() {
   const forecast = forecastQuery.data;
   const alerts = Array.isArray(alertsQuery.data) ? alertsQuery.data : [];
   const brief = briefQuery.data;
-  const segmentsCompare = compareQuery.data;
+  const segmentsCompare = useMemo(() => compareParams && comparisonMode && surveyId && effectiveSurvey?.tenant_id &&
+    evidenceCurrent && !analyticsError && !provenance?.synthetic && compareQuery.isSuccess && !compareQuery.isFetching && !compareQuery.error
+    ? readSurveySegmentComparison(compareQuery.data, { surveyId, tenantId: effectiveSurvey.tenant_id, mode: comparisonMode,
+      globalFilters: filters, segmentA: decodeSegmentFilters(segmentAKey), segmentB: decodeSegmentFilters(segmentBKey) }) : null,
+    [compareParams, comparisonMode, surveyId, effectiveSurvey?.tenant_id, evidenceCurrent, analyticsError, provenance?.synthetic,
+      compareQuery.isSuccess, compareQuery.isFetching, compareQuery.error, compareQuery.data, filters, segmentAKey, segmentBKey]);
   const anomalies = anomaliesQuery.data;
   const responsesTotalHint = typeof summary?.total_respuestas === 'number' ? summary.total_respuestas : null;
   const backendAlerts = Array.isArray(dashboardBundle?.modules?.alerts) ? dashboardBundle.modules.alerts : [];
@@ -1307,29 +1306,11 @@ export default function SurveyAnalyticsPage() {
 
 
   const segmentDeltaData = useMemo(
-    () =>
-      (Array.isArray(segmentsCompare?.buckets) ? segmentsCompare.buckets : [])
-        .map((bucket, index) => {
-          const segmentA = toFiniteNumber(bucket.segment_a, 0);
-          const segmentB = toFiniteNumber(bucket.segment_b, 0);
-          const rawDelta = bucket.delta;
-          const delta =
-            typeof rawDelta === 'number' && Number.isFinite(rawDelta)
-              ? rawDelta
-              : segmentA === 0
-                ? 0
-                : ((segmentB - segmentA) / Math.max(segmentA, 1)) * 100;
-
-          return {
-            key: String(bucket.question_id ?? index + 1),
-            question: asRenderableText(bucket.question_text) || String(bucket.question_id ?? index + 1),
-            delta,
-            segmentA,
-            segmentB,
-          };
-        })
-        .slice(0, 8),
-    [segmentsCompare?.buckets],
+    () => (segmentsCompare?.questions ?? []).flatMap(question => question.options
+      .filter(option => option.delta_percentage_points !== null)
+      .map(option => ({ key: `${question.id}:${option.id}`, question: `${question.label} · ${option.label}`,
+        delta: option.delta_percentage_points }))).slice(0, 8),
+    [segmentsCompare],
   );
 
   const formatSignalLabel = (rawType: string) => {
@@ -1355,14 +1336,8 @@ export default function SurveyAnalyticsPage() {
     [topAnomalies],
   );
 
-  const selectedSegmentALabel = useMemo(
-    () => segmentSuggestionOptions.find((option) => option.key === segmentAKey)?.label ?? asRenderableText(segmentsCompare?.segment_a_label),
-    [segmentSuggestionOptions, segmentAKey, segmentsCompare?.segment_a_label],
-  );
-  const selectedSegmentBLabel = useMemo(
-    () => segmentSuggestionOptions.find((option) => option.key === segmentBKey)?.label ?? asRenderableText(segmentsCompare?.segment_b_label),
-    [segmentSuggestionOptions, segmentBKey, segmentsCompare?.segment_b_label],
-  );
+  const selectedSegmentALabel = selectedA?.label;
+  const selectedSegmentBLabel = selectedB?.label;
 
   const shouldRenderAdvancedVisuals = segmentDeltaData.length > 0 || anomalySignalsData.length > 0;
 
@@ -1657,7 +1632,7 @@ export default function SurveyAnalyticsPage() {
         }
         onRefresh={() => {
           void Promise.allSettled([
-            refreshAnalytics(),
+            refreshSurveyAnalytics(),
             resultEvidenceReleasesQuery.refetch(),
           ]);
         }}
@@ -1705,9 +1680,9 @@ export default function SurveyAnalyticsPage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                void refreshAnalytics();
+                void refreshSurveyAnalytics();
               }}
-              disabled={isRefreshingAnalytics}
+              disabled={isRefreshingAnalytics || compareQuery.isFetching || segmentsSuggestionsQuery.isFetching}
               className="inline-flex items-center gap-2"
             >
               {isRefreshingAnalytics ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -1911,7 +1886,7 @@ export default function SurveyAnalyticsPage() {
           <CardDescription>{asSafeText(enterpriseUiConfig?.territorial_center_description)}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
-          {segmentSuggestionOptions.length ? (
+          {segmentSelectOptions.length ? (
             <div className="lg:col-span-2 grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="segment-a-selector">{asSafeText(enterpriseUiConfig?.segment_selector_a_label)}</Label>
@@ -1920,7 +1895,7 @@ export default function SurveyAnalyticsPage() {
                     <SelectValue placeholder={asSafeText(enterpriseUiConfig?.segment_selector_placeholder)} />
                   </SelectTrigger>
                   <SelectContent>
-                    {segmentSuggestionOptions.map((option) => (
+                    {segmentSelectOptions.map((option) => (
                       <SelectItem key={`segment-a-${option.key}`} value={option.key}>
                         {option.label}
                       </SelectItem>
@@ -1935,7 +1910,7 @@ export default function SurveyAnalyticsPage() {
                     <SelectValue placeholder={asSafeText(enterpriseUiConfig?.segment_selector_placeholder)} />
                   </SelectTrigger>
                   <SelectContent>
-                    {segmentSuggestionOptions.map((option) => (
+                    {segmentSelectOptions.map((option) => (
                       <SelectItem key={`segment-b-${option.key}`} value={option.key}>
                         {option.label}
                       </SelectItem>
@@ -1945,24 +1920,13 @@ export default function SurveyAnalyticsPage() {
               </div>
             </div>
           ) : null}
-          <div className="rounded-lg border border-border/60 p-4">
-            <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_comparator_title)}</p>
-            {compareQuery.isLoading ? (
+          <div className="min-w-0 lg:col-span-2">
+            {compareQuery.isFetching ? (
               <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.loading_label)}</p>
             ) : compareQuery.error ? (
               <p className="text-sm text-destructive">{getErrorMessage(compareQuery.error)}</p>
-            ) : segmentsCompare?.buckets?.length ? (
-              <div className="space-y-2">
-                {(Array.isArray(segmentsCompare?.buckets) ? segmentsCompare.buckets : []).slice(0, 6).map((bucket, index) => (
-                  <div key={`${bucket.question_id ?? index}`} className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{asRenderableText(bucket.question_text)}</p>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-primary/10 px-2 py-1">{selectedSegmentALabel || asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
-                      <div className="rounded bg-amber-500/10 px-2 py-1">{selectedSegmentBLabel || asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            ) : segmentsCompare ? (
+              <SurveySegmentComparison comparison={segmentsCompare} labelA={selectedSegmentALabel} labelB={selectedSegmentBLabel} />
             ) : (
               <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_comparator_empty_label)}</p>
             )}
@@ -2016,9 +1980,9 @@ export default function SurveyAnalyticsPage() {
                         tick={{ fontSize: 11 }}
                         height={70}
                       />
-                      <YAxis tickFormatter={(value) => `${Math.round(Number(value))}%`} tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(value) => formatSegmentDelta(Number(value), segmentsCompare?.ui.delta_unit ?? '')} tick={{ fontSize: 11 }} />
                       <Tooltip
-                        formatter={(value: number) => [asPercentage(toFiniteNumber(value, 0)), asSafeText(enterpriseUiConfig?.segment_delta_label)]}
+                        formatter={(value: number) => [formatSegmentDelta(value, segmentsCompare?.ui.delta_unit ?? ''), segmentsCompare?.ui.delta]}
                         labelFormatter={(label) => `${label}`}
                       />
                       <Bar dataKey="delta" fill="#2563eb" radius={[6, 6, 0, 0]} />

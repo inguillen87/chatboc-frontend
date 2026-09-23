@@ -1206,6 +1206,14 @@ export interface SurveySegmentMeta {
 }
 
 export interface SurveySegmentsCompare {
+  /** Optional exact comparison contract; consumers validate its scope and measurements. */
+  contract_version?: unknown;
+  scope?: unknown;
+  basis?: unknown;
+  questions?: unknown;
+  ui?: unknown;
+  limitations?: unknown;
+  inference_authorized?: unknown;
   segment_a_label?: string;
   segment_b_label?: string;
   segment_a?: { meta?: SurveySegmentMeta; [key: string]: unknown };
