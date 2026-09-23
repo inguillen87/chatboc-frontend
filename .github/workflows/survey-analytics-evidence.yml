@@ -1,4 +1,4 @@
-name: Survey analytics evidence
+name: Survey and organization evidence
 "on":
   pull_request:
     paths:
@@ -19,6 +19,20 @@ name: Survey analytics evidence
       - tests/analytics-evidence.browser.mjs
       - tests/e2e/fixtures/analytics-evidence.*
       - tests/fixtures/analytics-evidence.json
+      - src/api/panelLogin*
+      - src/utils/panelLogin*
+      - src/utils/privateConversationGuide*
+      - src/utils/adminOrganizationIdentity*
+      - src/utils/organizationSetupJourney*
+      - src/components/implementation/PrivateConversationGuide*
+      - src/components/implementation/OrganizationSetupWorkspace*
+      - src/components/layout/Navbar*
+      - src/features/evaluation/**
+      - src/hooks/useUser*
+      - src/pages/Login.tsx
+      - src/pages/Perfil.tsx
+      - tests/useUserStability.test.tsx
+      - tests/fixtures/private-conversation-guide.json
       - .github/workflows/survey-analytics-evidence.yml
 permissions:
   contents: read
@@ -41,6 +55,7 @@ jobs:
       - run: npm run typecheck && npm run typecheck:scope
       - run: npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=test-evidence/analytics-evidence/vitest-results.json
       - run: npm run build
+      - run: node --test tests/evaluation/*.node.mjs
       - run: npx playwright install chromium
       - run: node tests/analytics-evidence.browser.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

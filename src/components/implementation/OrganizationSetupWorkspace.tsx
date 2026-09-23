@@ -1,5 +1,6 @@
 import {readModuleUI} from '@/utils/organizationModules';
 import OrganizationModuleSelector from './OrganizationModuleSelector';
+import PrivateConversationGuide from './PrivateConversationGuide';
 import {brandCss,readWorkspaceAppearance} from '@/utils/workspaceBranding';
 import brandStyles from '@/components/profile/OrganizationBrandStudio.module.css';
 import React from 'react';
@@ -65,6 +66,7 @@ function SetupSteps({journey,loading=false,error,onRefresh,returnTo,technicalDet
           <ul>{stage.evidence.map((item,index)=><li key={index}>{item}</li>)}</ul>
         </details>
         <p className={styles.note}>{journey.readiness_note}</p>
+        {stage.id==='knowledge' ? <PrivateConversationGuide value={journey.conversation_guide} tenant={journey.tenant} disabled={loading||!!error}/> : null}
       </section>
     </div>
     {technicalDetails?<details className={styles.technical}><summary>Todos los canales y controles</summary>{technicalDetails}</details>:null}

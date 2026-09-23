@@ -1,5 +1,6 @@
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { advanceChatbocSessionRevision } from "@/utils/sessionLogout";
+import { usePanelSessionStore } from '@/stores';
 
 export interface PanelLoginUser {
   id?: string | number;
@@ -23,6 +24,8 @@ export interface PersistPanelLoginSessionInput {
   entityToken?: string | null;
   tipoChat?: "pyme" | "municipio" | string | null;
   tenantSlugHint?: string | null;
+  /** Credential login establishes a new identity instead of filling an old profile. */
+  replaceIdentity?: boolean;
   setUser?: (user: PanelLoginUser) => void;
 }
 
@@ -54,22 +57,25 @@ export const persistPanelLoginSession = ({
   entityToken,
   tipoChat,
   tenantSlugHint,
+  replaceIdentity = false,
   setUser,
 }: PersistPanelLoginSessionInput): PanelLoginUser | null => {
   safeLocalStorage.removeItem("authProvider");
   safeLocalStorage.removeItem("clerkUserId");
   if (token) {
     advanceChatbocSessionRevision();
-    safeLocalStorage.setItem("authToken", token);
+    usePanelSessionStore.getState().setAuthToken(token);
   }
   if (entityToken) {
     safeLocalStorage.setItem("entityToken", entityToken);
   }
 
-  const storedUser = { ...parseStoredUser() };
+  const storedUser: PanelLoginUser = replaceIdentity ? {} : { ...parseStoredUser() };
   delete storedUser.authProvider;
   delete storedUser.auth_provider;
   delete storedUser.clerkUserId;
+  delete storedUser.organization_profile;
+  delete storedUser.organization_workspace;
   const resolvedTenantSlug = firstText(
     user?.tenant_slug,
     user?.tenantSlug,
@@ -80,12 +86,15 @@ export const persistPanelLoginSession = ({
     storedUser.tenantSlug,
     storedUser.tenant?.slug,
     storedUser.tenant?.tenant_slug,
-    safeLocalStorage.getItem("tenantSlug"),
+    replaceIdentity ? null : safeLocalStorage.getItem("tenantSlug"),
   );
 
   if (resolvedTenantSlug) {
     safeLocalStorage.setItem("tenantSlug", resolvedTenantSlug);
+  } else if (replaceIdentity) {
+    safeLocalStorage.removeItem("tenantSlug");
   }
+  if (replaceIdentity && !entityToken) safeLocalStorage.removeItem("entityToken");
 
   const resolvedRole = firstText(user?.rol, user?.role, storedUser.rol, storedUser.role);
   const resolvedTipoChat = firstText(tipoChat, user?.tipo_chat, storedUser.tipo_chat);

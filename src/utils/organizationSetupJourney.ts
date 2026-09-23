@@ -5,6 +5,7 @@ export interface OrganizationSetupJourney {
   heading:string; description:string; continuity_note:string; readiness_note:string;
   workspace_appearance?:unknown;
   module_selector_ui?:unknown;
+  conversation_guide?:unknown;
   government_setup:boolean; stages:TenantImplementationJourneyStage[];
   summary:TenantImplementationJourneyContract['summary'];
   writes_performed:false; provider_calls_performed:false;

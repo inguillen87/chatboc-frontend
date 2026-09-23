@@ -467,7 +467,7 @@ import ProfileVersionReview from '@/components/profile/ProfileVersionReview';
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, setUser } = useUser();
+  const { user, setUser, refreshUser } = useUser();
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
     organization_workspace: null as OrganizationWorkspace | null,
@@ -1936,6 +1936,7 @@ export default function Perfil() {
     const verified = await profileSave.save(organizationDraft());
     if (!verified) return;
     applyOrganizationSnapshot(verified);
+    void refreshUser?.();
     setMensaje('Los datos de la organización quedaron confirmados por el servidor.');
   };
 

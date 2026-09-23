@@ -1,0 +1,80 @@
+{
+  "access": {
+    "contract_version": "tenant.conversation_guide_access.v1",
+    "endpoint": "/api/admin/tenants/acceptance-a/conversation-guide",
+    "evaluation_only": true,
+    "guide_id": "accessible-support-evaluation",
+    "tenant": {
+      "id": 1,
+      "slug": "acceptance-a"
+    },
+    "ui": {
+      "back_to_menu": "Volver al menú",
+      "description": "Recorrido privado de evaluación basado en el plan de IA accesible y Mesa Única. No crea trámites ni consulta registros oficiales. Usá ejemplos sin datos personales.",
+      "error": "No pudimos cargar este paso. Volvé a intentar; no se creó ningún trámite.",
+      "heading": "Guía de atención accesible",
+      "loading": "Cargando la guía de esta organización…",
+      "open": "Explorar la guía",
+      "source_label": "Fuente del contenido",
+      "start": "Volver al inicio"
+    }
+  },
+  "guide": {
+    "contract_version": "tenant.conversation_guide.v1",
+    "evaluation_only": true,
+    "guide_id": "accessible-support-evaluation",
+    "guide_sha256": "f028f657752ecc74c9cb1d7f4ae8408d210f42a9b0d8ccb6a9afc7bf83d4bf41",
+    "menu": {
+      "actions": [
+        {
+          "code": "1",
+          "label": "Para mí",
+          "target": "main"
+        },
+        {
+          "code": "2",
+          "label": "Para un familiar o persona que acompaño",
+          "target": "main"
+        }
+      ],
+      "id": "start",
+      "kind": "menu",
+      "source_pages": [
+        1,
+        8,
+        9
+      ],
+      "text": "Bienvenida a la evaluación del agente conversacional accesible. Usá sólo ejemplos: no ingreses DNI, documentación médica ni datos personales. El recorrido no consulta registros oficiales ni envía mensajes.",
+      "title": "¿Para quién es la consulta?"
+    },
+    "policy": {
+      "accepts_personal_data": false,
+      "creates_real_cases": false,
+      "queries_official_records": false,
+      "sends_notifications": false,
+      "stores_feedback": false
+    },
+    "provider_calls_performed": false,
+    "source": {
+      "approval_status": "institutional_validation_required",
+      "label": "Plan de implementación: IA accesible y Mesa Única",
+      "page_count": 14,
+      "sha256": "1f6de63d4f70ede4e967077cc9eae768c64574b022d66c5ebb8868aac3d4a6ee"
+    },
+    "tenant": {
+      "id": 1,
+      "slug": "acceptance-a"
+    },
+    "ui": {
+      "back_to_menu": "Volver al menú",
+      "description": "Recorrido privado de evaluación basado en el plan de IA accesible y Mesa Única. No crea trámites ni consulta registros oficiales. Usá ejemplos sin datos personales.",
+      "error": "No pudimos cargar este paso. Volvé a intentar; no se creó ningún trámite.",
+      "heading": "Guía de atención accesible",
+      "loading": "Cargando la guía de esta organización…",
+      "open": "Explorar la guía",
+      "source_label": "Fuente del contenido",
+      "start": "Volver al inicio"
+    },
+    "writes_performed": false
+  }
+}

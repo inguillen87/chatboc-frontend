@@ -52,6 +52,7 @@ import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
 import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionLogout";
+import { readAdminOrganizationIdentity } from '@/utils/adminOrganizationIdentity';
 
 interface AdminNavLink {
   to: string;
@@ -100,7 +101,7 @@ const Navbar: React.FC = () => {
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
-  const { user } = useUser();
+  const { user, organizationProfileVerified } = useUser();
   const cartCount = useCartCount();
   const clerkRuntime = useClerkRuntime();
   const { currentSlug } = useTenant();
@@ -126,12 +127,15 @@ const Navbar: React.FC = () => {
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
   const isMunicipal = effectiveUser?.tipo_chat === "municipio";
+  const organizationIdentity = readAdminOrganizationIdentity(user, currentSlug, location.pathname, location.search,
+    hasVerifiedSession && organizationProfileVerified === true);
+  const [failedOrganizationLogo, setFailedOrganizationLogo] = useState<string | null>(null);
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
-  const organizationName =
+  const organizationName = organizationIdentity?.name ||
     String(
       effectiveUser?.nombre_empresa ||
         effectiveUser?.tenant?.nombre ||
@@ -139,7 +143,7 @@ const Navbar: React.FC = () => {
         effectiveUser?.organization_name ||
         "",
     ).trim() || "Organización";
-  const organizationType = isMunicipal ? "Municipio" : "Empresa";
+  const organizationType = organizationIdentity?.label || (isMunicipal ? "Municipio" : "Organización");
   const normalizedPlan = String(effectiveUser?.plan || effectiveUser?.tenant?.plan || "").trim().toLowerCase();
   const readablePlanName = normalizedPlan
     .split("_")
@@ -334,7 +338,22 @@ const Navbar: React.FC = () => {
   return (
     <header ref={headerRef} className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-        <button
+        {organizationIdentity ? <RouterLink
+          to={`/perfil?tenant_slug=${encodeURIComponent(organizationIdentity.tenantSlug)}`}
+          data-testid="admin-organization-identity"
+          data-tenant-slug={organizationIdentity.tenantSlug}
+          className="flex min-h-11 min-w-0 max-w-[min(48vw,24rem)] items-center gap-2 rounded-lg px-1.5 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label={organizationIdentity.name}
+        >
+          {organizationIdentity.logoUrl && failedOrganizationLogo !== organizationIdentity.logoUrl ?
+            <img src={organizationIdentity.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-md object-contain" referrerPolicy="no-referrer"
+              onError={() => setFailedOrganizationLogo(organizationIdentity.logoUrl)} /> :
+            <Building2 aria-hidden="true" className="h-8 w-8 shrink-0 text-muted-foreground" />}
+          <span className="min-w-0 text-left">
+            <span className="block truncate text-sm font-semibold text-foreground">{organizationIdentity.name}</span>
+            <span className="block truncate text-xs text-muted-foreground">{organizationIdentity.label}</span>
+          </span>
+        </RouterLink> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
@@ -346,7 +365,7 @@ const Navbar: React.FC = () => {
             size="nav"
             tone="auto"
           />
-        </button>
+        </button>}
 
         {isLanding ? (
           <nav aria-label="Navegación principal" className="hidden flex-1 items-center justify-center gap-1 md:flex">
