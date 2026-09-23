@@ -28,6 +28,8 @@ const renderLayout = (initialEntry: string) =>
         <Route element={<Layout />}>
           <Route path="/" element={<div>landing outlet</div>} />
           <Route path="/perfil" element={<div>profile outlet</div>} />
+          <Route path="/superadmin" element={<div>platform outlet</div>} />
+          <Route path="/admin/tenants" element={<div>platform outlet</div>} />
           <Route path="/t/:tenant/reclamos" element={<div>tenant tickets outlet</div>} />
           <Route path="/e/:slug" element={<div>survey outlet</div>} />
           <Route path="/otra" element={<div>other outlet</div>} />
@@ -37,6 +39,12 @@ const renderLayout = (initialEntry: string) =>
   );
 
 describe('Layout ticket workspace shell', () => {
+  it.each(['/superadmin', '/admin/tenants'])('gives %s the platform application shell', (path) => {
+    renderLayout(path);
+    expect(screen.getByText('platform outlet')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-footer')).not.toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveClass('max-w-[100rem]', 'min-w-0');
+  });
   beforeEach(() => {
     vi.stubGlobal('scrollTo', vi.fn());
     document.documentElement.style.overflow = '';

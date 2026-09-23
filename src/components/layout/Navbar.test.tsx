@@ -64,6 +64,27 @@ describe('Navbar account menu routing', () => {
     });
   });
 
+  it.each(['/superadmin', '/superadmin?section=crm&tenant_slug=junin'])('shows platform identity at %s instead of the linked trial business', (path) => {
+    useUserMock.mockReturnValue({ user: { rol: 'super_admin', name: 'Marcelo', nombre_empresa: 'MyB Store', plan: 'free' } });
+    render(<MemoryRouter initialEntries={[path]}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByText('ChatBoc · Plataforma')).toBeInTheDocument();
+    expect(screen.getByText('Superadministrador')).toBeInTheDocument();
+    expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
+    expect(screen.queryByText('Plan y facturación')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /carrito/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Organizaciones' })).toHaveAttribute('href', '/superadmin?section=organizations');
+    expect(screen.getByRole('link', { name: 'CRM comercial' })).toHaveAttribute('href', '/superadmin?section=crm');
+  });
+
+  it.each(['/t/junin/perfil', '/T/junin/perfil', '/junin/analytics', '/junin/estadisticas', '/junin/analytics/operations'])('retains organization identity at %s', (path) => {
+    useUserMock.mockReturnValue({ user: { rol: 'super_admin', nombre_empresa: 'Municipalidad de Junín' } });
+    render(<MemoryRouter initialEntries={[path]}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
+    expect(screen.queryByText('ChatBoc · Plataforma')).not.toBeInTheDocument();
+  });
+
   it('opens municipal claims from the tenant profile tab instead of the protected root route on mobile', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>

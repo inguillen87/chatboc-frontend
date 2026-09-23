@@ -954,7 +954,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<CatalogQualityResponse>(
       `/api/admin/catalog/quality?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -968,7 +968,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<LeadsPipelineResponse>(
       `/api/admin/leads/pipeline?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1037,7 +1037,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<StrategicOverviewResponse>(
       `/api/admin/leads/strategic-overview?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1078,7 +1078,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<LeadInteractionsResponse>(
       `/api/admin/leads/interactions?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1337,7 +1337,7 @@ export const enterpriseService = {
   getGlobalEncuestasOverview: async (tenantSlug?: string) => {
     return apiFetch<{ items?: any[]; totals?: any }>(
       `/api/admin/encuestas/overview`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1365,9 +1365,14 @@ export const enterpriseService = {
     tenantSlug?: string,
   ) => {
     const query = buildQueryString(filters);
-    const canonicalPath = tenantSlug
-      ? `/api/v2/tenants/${encodeURIComponent(tenantSlug)}/health${query ? `?${query}` : ""}`
-      : `/api/v2/tenant-health${query ? `?${query}` : ""}`;
+    // /api/v2/tenant-health resolves one tenant; the platform needs the collection.
+    if (!tenantSlug) {
+      return apiFetch<{ items?: any[] }>(
+        `/api/admin/analytics/tenant-health${query ? `?${query}` : ""}`,
+        { omitTenant: true },
+      );
+    }
+    const canonicalPath = `/api/v2/tenants/${encodeURIComponent(tenantSlug)}/health${query ? `?${query}` : ""}`;
     return apiFetchWithFallback<{ items?: any[] }>(
       canonicalPath,
       `/api/admin/analytics/tenant-health?${query}`,
@@ -1438,7 +1443,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<RealtimeAiOverviewResponse>(
       `/api/admin/analytics/realtime-ai?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1449,7 +1454,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<StrategicHeatmapResponse>(
       `/api/admin/analytics/heatmap-categories-zones?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 

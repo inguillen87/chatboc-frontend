@@ -195,6 +195,30 @@ describe('ClerkAuthBridge session lifecycle', () => {
     clerkMocks.backendLogout.mockReset().mockResolvedValue({ ok: true });
   });
 
+  it('starts a verified superadministrator at the platform instead of the linked business', async () => {
+    const navigation = vi.spyOn(console, 'log').mockImplementation(() => {});
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({
+      contract_version: 'auth.clerk.v1', auth_provider: 'clerk',
+      user: { id: 42, rol: 'super_admin', tenant_slug: 'trial-business' },
+      tenant: { id: 7, slug: 'trial-business' }, onboarding: { required: false },
+    });
+    renderBridge();
+    await waitFor(() => expect(navigation).toHaveBeenCalledWith('Mocked navigate to: /superadmin'));
+    navigation.mockRestore();
+  });
+
+  it('preserves an explicit tenant destination for a superadministrator', async () => {
+    const navigation = vi.spyOn(console, 'log').mockImplementation(() => {});
+    persistClerkAuthContext({ intent: 'tenant_owner', tenantSlug: 'junin', returnTo: '/t/junin/perfil' });
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({
+      contract_version: 'auth.clerk.v1', auth_provider: 'clerk',
+      user: { id: 42, rol: 'super_admin' }, onboarding: { required: false },
+    });
+    renderBridge();
+    await waitFor(() => expect(navigation).toHaveBeenCalledWith('Mocked navigate to: /t/junin/perfil'));
+    navigation.mockRestore();
+  });
+
   it('marks synchronized sessions as Clerk sessions', async () => {
     renderBridge();
 

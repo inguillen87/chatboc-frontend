@@ -1,37 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useRef } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import { apiClient } from "@/api/client";
 import { apiFetch } from "@/utils/api";
-import { getSuperadminCommandCenterV2, getSuperadminExecutiveSummaryV2, getTenantHealthV2 } from "@/api/v2/saas";
+import { getSuperadminCommandCenterV2, getSuperadminExecutiveSummaryV2 } from "@/api/v2/saas";
 import useRequireRole from "@/hooks/useRequireRole";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight, Bell, Flame, MessageSquare, Target } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, LayoutDashboard, Building2, MessageSquare, Radio, Activity, ShieldCheck, ArrowUpRight, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { Tenant } from "@/types/superAdmin";
-import {
-  WhatsappExternalNumberPayload,
-  WhatsappNumberCreatePayload,
-  WhatsappNumberInventoryItem,
-} from "@/types/whatsapp";
-import { TenantTable } from "@/components/admin/TenantTable";
+import type { Tenant } from "@/types/superAdmin";
+import type { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import { TenantModal } from "@/components/admin/TenantModal";
 import { WhatsappInventoryPanel } from "@/components/admin/WhatsappInventoryPanel";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -40,230 +20,152 @@ import { useSocket } from "@/context/SocketContext";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
 import ProductionSmokeReport from "@/components/admin/ProductionSmokeReport";
 import { enterpriseService } from "@/services/enterpriseService";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OrganizationDirectory } from "@/components/admin/platform/OrganizationDirectory";
+import { PlatformOverview } from "@/components/admin/platform/PlatformOverview";
+import { buildPlatformOverview } from "@/components/admin/platform/data";
+import "@/components/admin/platform/platform.css";
 
-const SuperAdminStatCard = ({
-  label,
-  value,
-  icon: Icon,
-  tone = "primary",
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon: React.ElementType;
-  tone?: "primary" | "emerald" | "amber" | "violet";
-}) => {
-  const toneMap = {
-    primary: "bg-primary/10 text-primary ring-primary/20",
-    emerald: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/20",
-    amber: "bg-amber-500/10 text-amber-600 ring-amber-500/20",
-    violet: "bg-violet-500/10 text-violet-600 ring-violet-500/20",
-  } as const;
-
-  return (
-    <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-background/80 p-4 shadow-sm backdrop-blur">
-      <div className="absolute -right-6 top-2 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
-      <div className="relative">
-        <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl ring-1 ${toneMap[tone]}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-        <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
-      </div>
-    </div>
-  );
+const sections = [
+  { id: 'overview', label: 'Resumen', icon: LayoutDashboard },
+  { id: 'organizations', label: 'Organizaciones', icon: Building2 },
+  { id: 'crm', label: 'CRM', icon: MessageSquare },
+  { id: 'channels', label: 'Canales', icon: Radio },
+  { id: 'diagnostics', label: 'Diagnóstico', icon: Activity },
+] as const;
+type Section = typeof sections[number]['id'];
+const dateLabel = (value?: string | null) => {
+  const date = value ? new Date(value) : null;
+  return date && Number.isFinite(date.getTime()) ? date.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Fecha no disponible';
 };
-
-interface SuperadminCrmLead {
-  contact_id?: string;
-  name?: string;
-  telefono?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  summary?: string | null;
-  motivo?: string | null;
-  lead_temperature?: string | null;
-  lead_score?: number | null;
-  conversation_status?: string | null;
-  last_seen?: string | null;
-  tenant?: {
-    slug?: string;
-    nombre?: string;
-    tipo?: string | null;
-  };
-}
+const leadSummary = (lead: any) => {
+  const value = lead.summary || lead.motivo;
+  return typeof value === 'string' && value.trim() && !/^__.*__$/.test(value.trim()) && !value.includes('__INIT__') ? value : 'Conversación iniciada; sin motivo registrado.';
+};
 
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section: Section = sections.some((item) => item.id === searchParams.get('section')) ? searchParams.get('section') as Section : 'overview';
+  const reducedMotion = useReducedMotion();
   const { socket, isConnected } = useSocket();
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [whatsappNumbers, setWhatsappNumbers] = useState<
-    WhatsappNumberInventoryItem[]
-  >([]);
+  const [directoryUpdatedAt, setDirectoryUpdatedAt] = useState<string | null>(null);
+  const listRevision = useRef(0);
+  const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappLoading, setWhatsappLoading] = useState(true);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
-  const [tenantHealth, setTenantHealth] = useState<any[]>([]);
   const [executiveSummary, setExecutiveSummary] = useState<any | null>(null);
   const [commandCenter, setCommandCenter] = useState<any | null>(null);
   const [executiveLoading, setExecutiveLoading] = useState(true);
+  const [executiveError, setExecutiveError] = useState(false);
+  const [commandError, setCommandError] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [selectedProfileSlug, setSelectedProfileSlug] = useState("");
   const [tenantProfile360, setTenantProfile360] = useState<any | null>(null);
-  const [crmLeads, setCrmLeads] = useState<SuperadminCrmLead[]>([]);
+  const selectedProfileSlug = section === 'organizations' ? searchParams.get('organization') || '' : '';
+  const [crmLeads, setCrmLeads] = useState<any[]>([]);
   const [crmLeadsSummary, setCrmLeadsSummary] = useState<Record<string, number>>({});
   const [crmLeadsLoading, setCrmLeadsLoading] = useState(true);
-  const [crmRealtimeEvents, setCrmRealtimeEvents] = useState(0);
+  const [crmError, setCrmError] = useState<string | null>(null);
+  const crmRevision = useRef(0);
   const [crmRealtimeAt, setCrmRealtimeAt] = useState<string | null>(null);
-
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
-  const [modalTab, setModalTab] = useState<
-    "general" | "users" | "integrations"
-  >("general");
+  const [modalTab, setModalTab] = useState<'general' | 'users' | 'integrations'>('general');
   const [purgeTenant, setPurgeTenant] = useState<Tenant | null>(null);
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [purgeConfirmed, setPurgeConfirmed] = useState(false);
   const [purgeUsers, setPurgeUsers] = useState(true);
 
-  const fetchTenants = async () => {
+  const sectionUrl = (id: Section, slug?: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('section', id);
+    if (slug) next.set('organization', slug); else next.delete('organization');
+    return next;
+  };
+  const openSection = (id: Section) => setSearchParams(sectionUrl(id));
+  const openProfile = (slug: string) => setSearchParams(sectionUrl('organizations', slug));
+
+  const fetchTenants = async (nextPage = 1) => {
+    const revision = ++listRevision.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await apiClient.superAdminListTenants(1, 100);
-      setTenants(data.tenants || []);
-      setTotal(data.total || 0);
-    } catch (error) {
-      console.error("Failed to fetch tenants", error);
-      setError(
-        "No se pudieron cargar los tenants. Por favor, intente de nuevo más tarde.",
-      );
-      toast.error("Error al cargar los tenants.");
-      setTenants([]);
-      setTotal(0);
+      const data = await apiClient.superAdminListTenants(nextPage, 100);
+      if (revision !== listRevision.current) return;
+      if (!Array.isArray(data?.tenants)) throw new Error('Invalid directory');
+      setTenants((previous) => nextPage === 1 ? data.tenants : [...new Map([...previous, ...data.tenants].map((item) => [item.id, item])).values()]);
+      setTotal(Number.isSafeInteger(data.total) && data.total >= 0 ? data.total : null);
+      setPage(nextPage);
+      setDirectoryUpdatedAt(new Date().toISOString());
+    } catch {
+      if (revision !== listRevision.current) return;
+      setError('No se pudo cargar el directorio. Volvé a intentarlo.');
+      if (nextPage === 1) { setTenants([]); setTotal(null); }
     } finally {
-      setLoading(false);
+      if (revision === listRevision.current) setLoading(false);
     }
   };
-
   const fetchWhatsappNumbers = async () => {
-    setWhatsappLoading(true);
-    setWhatsappError(null);
+    setWhatsappLoading(true); setWhatsappError(null);
     try {
       const data = await apiClient.superAdminListWhatsappNumbers();
-      setWhatsappNumbers(data.numbers || []);
-    } catch (error) {
-      console.error("Failed to fetch WhatsApp numbers", error);
-      setWhatsappError("No se pudieron cargar los números de WhatsApp.");
-      toast.error("Error al cargar números de WhatsApp.");
-      setWhatsappNumbers([]);
-    } finally {
-      setWhatsappLoading(false);
-    }
+      if (!Array.isArray(data?.numbers)) throw new Error('Invalid inventory');
+      setWhatsappNumbers(data.numbers);
+    } catch { setWhatsappError('No se pudo cargar el inventario de WhatsApp.'); setWhatsappNumbers([]); }
+    finally { setWhatsappLoading(false); }
   };
-
-  const fetchCrmLeads = React.useCallback(async (options: { silent?: boolean } = {}) => {
-    if (!options.silent) setCrmLeadsLoading(true);
+  const fetchExecutive = async () => {
+    setExecutiveLoading(true); setExecutiveError(false); setCommandError(false);
+    const [executive, command] = await Promise.allSettled([getSuperadminExecutiveSummaryV2(), getSuperadminCommandCenterV2()]);
+    setExecutiveSummary(executive.status === 'fulfilled' ? executive.value : null);
+    setExecutiveError(executive.status === 'rejected');
+    setCommandCenter(command.status === 'fulfilled' ? command.value : null);
+    setCommandError(command.status === 'rejected');
+    setExecutiveLoading(false);
+  };
+  const fetchCrmLeads = React.useCallback(async () => {
+    const revision = ++crmRevision.current;
+    setCrmLeadsLoading(true); setCrmError(null);
     try {
-      const response = await apiFetch<{ items?: SuperadminCrmLead[]; summary?: Record<string, number> }>("/api/admin/crm/leads?limit=8");
-      setCrmLeads(Array.isArray(response?.items) ? response.items : []);
-      setCrmLeadsSummary(response?.summary || {});
-    } catch (crmError) {
-      console.warn("No se pudo cargar CRM comercial superadmin", crmError);
-      setCrmLeads([]);
-      setCrmLeadsSummary({});
-    } finally {
-      if (!options.silent) setCrmLeadsLoading(false);
-    }
+      const response = await apiFetch<{ items?: any[]; summary?: Record<string, number> }>('/api/admin/crm/leads?limit=8', { omitTenant: true });
+      if (revision !== crmRevision.current) return;
+      if (!Array.isArray(response?.items)) throw new Error('Invalid CRM selection');
+      setCrmLeads(response.items); setCrmLeadsSummary(response.summary || {});
+    } catch { if (revision === crmRevision.current) { setCrmLeads([]); setCrmLeadsSummary({}); setCrmError('No se pudieron cargar los contactos recientes.'); } }
+    finally { if (revision === crmRevision.current) setCrmLeadsLoading(false); }
   }, []);
-
-  useEffect(() => {
-    fetchTenants();
-    fetchWhatsappNumbers();
-    setExecutiveLoading(true);
-    getSuperadminCommandCenterV2()
-      .then((response) => setCommandCenter(response || null))
-      .catch((commandError) => {
-        console.warn("No se pudo cargar command center v2", commandError);
-        setCommandCenter(null);
-      });
-    getSuperadminExecutiveSummaryV2()
-      .then((response) => {
-        setExecutiveSummary(response || null);
-        const tenantHealthValue = (response?.tenant_health ?? []) as any;
-        const bundledHealth = Array.isArray(tenantHealthValue)
-          ? tenantHealthValue
-          : Array.isArray(tenantHealthValue?.items)
-            ? tenantHealthValue.items
-            : [];
-        setTenantHealth(bundledHealth);
-      })
-      .catch((executiveError) => {
-        console.error(executiveError);
-        setExecutiveSummary(null);
-        return getTenantHealthV2();
-      })
-      .then((healthResponse) => {
-        if (!healthResponse) return;
-        setTenantHealth(Array.isArray((healthResponse as any)?.items) ? (healthResponse as any).items : []);
-      })
-      .finally(() => setExecutiveLoading(false));
-    void fetchCrmLeads();
-  }, [fetchCrmLeads]);
-
+  useEffect(() => { void fetchTenants(); void fetchWhatsappNumbers(); void fetchExecutive(); void fetchCrmLeads(); }, [fetchCrmLeads]);
   useEffect(() => {
     if (!socket) return;
-
-    const refreshGlobalCrm = () => {
-      setCrmRealtimeEvents((prev) => prev + 1);
-      setCrmRealtimeAt(new Date().toISOString());
-      void fetchCrmLeads({ silent: true });
-    };
-
-    socket.on("crm.contact.updated", refreshGlobalCrm);
-    socket.on("crm_contact_updated", refreshGlobalCrm);
-    socket.on("crm.notification.updated", refreshGlobalCrm);
-    socket.on("crm_notification_updated", refreshGlobalCrm);
-    socket.on("notification.updated", refreshGlobalCrm);
-    socket.on("notification.sent", refreshGlobalCrm);
-    socket.on("notification.failed", refreshGlobalCrm);
-    return () => {
-      socket.off("crm.contact.updated", refreshGlobalCrm);
-      socket.off("crm_contact_updated", refreshGlobalCrm);
-      socket.off("crm.notification.updated", refreshGlobalCrm);
-      socket.off("crm_notification_updated", refreshGlobalCrm);
-      socket.off("notification.updated", refreshGlobalCrm);
-      socket.off("notification.sent", refreshGlobalCrm);
-      socket.off("notification.failed", refreshGlobalCrm);
-    };
-  }, [fetchCrmLeads, socket]);
-
+    const refresh = () => { setCrmRealtimeAt(new Date().toISOString()); void fetchCrmLeads(); };
+    const events = ['crm.contact.updated', 'crm_contact_updated', 'crm.notification.updated', 'crm_notification_updated', 'notification.updated', 'notification.sent', 'notification.failed'];
+    events.forEach((event) => socket.on(event, refresh));
+    return () => { events.forEach((event) => socket.off(event, refresh)); };
+  }, [socket, fetchCrmLeads]);
   useEffect(() => {
-    const fallbackSlug = selectedProfileSlug || tenants[0]?.slug || "";
-    if (!fallbackSlug) return;
-    setSelectedProfileSlug((prev) => prev || fallbackSlug);
-  }, [selectedProfileSlug, tenants]);
-
+    let cancelled = false;
+    setTenantProfile360(null); setProfileError(null);
+    if (!selectedProfileSlug) { setProfileLoading(false); return; }
+    setProfileLoading(true);
+    enterpriseService.getTenantProfile360(selectedProfileSlug, { since_days: 30 }).then((response) => {
+      if (cancelled) return;
+      if (!response?.tenant || response.tenant.slug !== selectedProfileSlug) throw new Error('Profile identity mismatch');
+      setTenantProfile360(response);
+    }).catch(() => { if (!cancelled) setProfileError('No se pudo verificar la ficha de esta organización.'); })
+      .finally(() => { if (!cancelled) setProfileLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedProfileSlug]);
   useEffect(() => {
     if (!selectedProfileSlug) return;
-    setProfileLoading(true);
-    setProfileError(null);
-    enterpriseService
-      .getTenantProfile360(selectedProfileSlug, { since_days: 30 })
-      .then((response) => setTenantProfile360(response || null))
-      .catch((profileFetchError) => {
-        console.error(profileFetchError);
-        setTenantProfile360(null);
-        setProfileError("No se pudo cargar el perfil 360 del tenant.");
-      })
-      .finally(() => setProfileLoading(false));
-  }, [selectedProfileSlug]);
+    const heading = document.getElementById('platform-profile-title');
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView?.({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+  }, [selectedProfileSlug, tenantProfile360, reducedMotion]);
 
   const handleReserveNumber = async (payload: {
     number_id: string | number;
@@ -333,59 +235,6 @@ export default function SuperAdminDashboard() {
     setModalTab("general");
     setIsModalOpen(true);
   };
-
-  const sortedTenantHealth = tenantHealth
-    .slice()
-    .sort((a, b) => ((b?.health_score ?? b?.score ?? 0) || 0) - ((a?.health_score ?? a?.score ?? 0) || 0));
-
-  const profileHeader = tenantProfile360?.tenant || {};
-  const profileOwner = tenantProfile360?.owner || {};
-  const profileHealth = tenantProfile360?.health || {};
-  const profileMetrics = tenantProfile360?.metrics || {};
-  const profileOnboardingEntries = Object.entries(
-    tenantProfile360?.onboarding || {},
-  );
-  const executiveOverview = executiveSummary?.strategic_overview || {};
-  const commandSummary = commandCenter?.summary || {};
-  const commandTenants = Array.isArray(commandCenter?.tenants?.items) ? commandCenter.tenants.items : [];
-  const commandRiskyTenants = Array.isArray(commandCenter?.tenants?.top_risky) ? commandCenter.tenants.top_risky : [];
-  const tenantCreation = commandCenter?.tenant_creation || {};
-  const executiveRealtime = executiveSummary?.realtime || {};
-  const executiveRecommendedActions = Array.isArray(
-    executiveSummary?.recommended_actions,
-  )
-    ? executiveSummary.recommended_actions
-    : [];
-  const profileAlerts = Array.isArray(profileHealth?.alerts)
-    ? profileHealth.alerts
-    : Array.isArray(tenantProfile360?.meta?.alerts)
-      ? tenantProfile360.meta.alerts
-      : [];
-  const crmHotCount = crmLeadsSummary.hot ?? crmLeads.filter((lead) => lead.lead_temperature === "hot").length;
-  const crmWarmCount = crmLeadsSummary.warm ?? crmLeads.filter((lead) => lead.lead_temperature === "warm").length;
-  const crmColdCount = crmLeadsSummary.cold ?? crmLeads.filter((lead) => !lead.lead_temperature || lead.lead_temperature === "cold").length;
-  const formatLeadTemperature = (value?: string | null) => {
-    const raw = (value || "cold").toLowerCase();
-    if (raw === "hot") return { label: "Hot", className: "border-red-500/30 bg-red-500/10 text-red-600" };
-    if (raw === "warm") return { label: "Warm", className: "border-amber-500/30 bg-amber-500/10 text-amber-600" };
-    return { label: "Frio", className: "border-sky-500/30 bg-sky-500/10 text-sky-600" };
-  };
-  const formatDateTime = (value?: string | null) => {
-    if (!value) return "Sin fecha";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Sin fecha";
-    return date.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  };
-  const formatPercent = (value: unknown) =>
-    typeof value === "number" ? `${Math.round((value > 1 ? value / 100 : value) * 100)}%` : "—";
-  const formatHealthClass = (score?: number) =>
-    typeof score === "number"
-      ? (score > 1 ? score / 100 : score) >= 0.8
-        ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-        : (score > 1 ? score / 100 : score) >= 0.6
-          ? "bg-amber-100 text-amber-700 border-amber-200"
-          : "bg-red-100 text-red-700 border-red-200"
-      : "bg-slate-100 text-slate-700 border-slate-200";
 
   const handleEdit = (
     tenant: Tenant,
@@ -457,544 +306,47 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  return (
-    <div className="container mx-auto py-10 px-4 max-w-7xl space-y-8">
-      <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-6 shadow-sm">
-        <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-sky-500/10 blur-3xl" />
-        <div className="relative space-y-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
-                <Sparkles className="mr-2 h-3.5 w-3.5" />
-                Control center
-              </Badge>
-              <div>
-                <h1 className="text-4xl font-black tracking-tight text-foreground">Super Admin</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Gestión centralizada de tenants, salud operativa, realtime y prioridades ejecutivas en una sola vista.
-                </p>
-              </div>
-            </div>
-            <Button onClick={handleCreate} className="rounded-2xl shadow-lg shadow-primary/15">
-              <Plus className="mr-2 h-4 w-4" /> Nuevo Tenant
-            </Button>
-          </div>
+  const overview = buildPlatformOverview({ tenants, total, tenantsError: Boolean(error), commandCenter, commandError, executiveSummary, executiveError, crmItems: crmLeads, crmSummary: crmLeadsSummary, crmError: Boolean(crmError) });
+  const selectedTenant = tenants.find((tenant) => tenant.slug === selectedProfileSlug);
+  const profile = tenantProfile360?.tenant?.slug === selectedProfileSlug ? tenantProfile360.tenant : null;
+  const owner = tenantProfile360?.owner;
+  const updatedAt = tenantProfile360?.meta?.last_updated_at;
+  return <div className="platform-workspace" data-testid="platform-workspace">
+    <header className="platform-header"><div><div className="platform-eyebrow"><ShieldCheck size={15} aria-hidden="true" />Administración de plataforma</div><h1>Tu operación, en un solo lugar</h1><p>Organizaciones, relaciones comerciales y canales. Una vista compartida para decidir el próximo paso.</p></div><Button onClick={handleCreate}><Plus className="mr-2 h-4 w-4" />Nueva organización</Button></header>
+    <nav className="platform-navigation" aria-label="Secciones de plataforma">{sections.map(({ id, label, icon: Icon }) => <Link key={id} to={{ search: `?${sectionUrl(id)}` }} aria-current={section === id ? 'page' : undefined}><Icon size={17} aria-hidden="true" />{label}</Link>)}</nav>
+    <motion.div key={section} initial={reducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : .18 }} className="platform-section" data-testid={`platform-section-${section}`}>
+      {section === 'overview' && <PlatformOverview data={overview} directoryLoading={loading} crmLoading={crmLeadsLoading} healthLoading={executiveLoading} onOrganizations={() => openSection('organizations')} onCrm={() => openSection('crm')} onProfile={openProfile} onRefresh={() => { void Promise.all([fetchTenants(), fetchExecutive(), fetchCrmLeads()]); }} />}
+      {section === 'organizations' && <>
+        {selectedProfileSlug && <section className="platform-panel order-first" aria-labelledby="platform-profile-title" data-testid="platform-organization-profile"><div className="platform-panel-heading"><div><h2 id="platform-profile-title" tabIndex={-1}>{profile?.nombre || selectedTenant?.nombre || selectedProfileSlug}</h2><p>Ficha de la organización · actividad de los últimos 30 días</p></div><Button variant="ghost" onClick={() => openSection('organizations')}>Cerrar ficha</Button></div>
+          {profileLoading ? <div className="platform-empty" role="status">Cargando ficha…</div> : profileError ? <div className="platform-empty" role="alert">{profileError}</div> : profile && <div className="platform-panel-body"><dl className="platform-profile-facts"><div><dt>Responsable</dt><dd>{owner?.name || owner?.nombre || owner?.email || 'No disponible'}</dd></div><div><dt>Correo de contacto</dt><dd>{owner?.email || 'No disponible'}</dd></div><div><dt>Plan</dt><dd>{profile.plan || 'No disponible'}</dd></div><div><dt>Estado</dt><dd>{profile.is_active === true ? 'Activa' : profile.is_active === false ? 'Inactiva' : 'No disponible'}</dd></div><div><dt>Última actualización informada</dt><dd>{dateLabel(updatedAt)}</dd></div></dl>{selectedTenant && <div className="mt-6 flex flex-wrap gap-2"><Button variant="outline" onClick={() => handleEdit(selectedTenant)}>Editar organización</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'users')}>Administrar acceso</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'integrations')}>Configurar canales</Button></div>}</div>}
+        </section>}
+        <OrganizationDirectory tenants={tenants} total={total} loading={loading} error={error} onRefresh={() => void fetchTenants()} onLoadMore={() => void fetchTenants(page + 1)} onProfile={openProfile} onEdit={handleEdit} onImpersonate={handleImpersonate} onToggleStatus={handleToggleStatus} onPurge={handlePurge} />
+        {directoryUpdatedAt && !error && <p className="text-xs text-muted-foreground">Directorio consultado: {dateLabel(directoryUpdatedAt)}.</p>}
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <SuperAdminStatCard label="Tenants" value={(commandSummary?.tenants ?? total).toLocaleString?.("es-AR") ?? total.toLocaleString("es-AR")} icon={Building2} />
-            <SuperAdminStatCard label="Health rows" value={sortedTenantHealth.length.toLocaleString("es-AR")} icon={Shield} tone="emerald" />
-            <SuperAdminStatCard label="Realtime activas" value={executiveRealtime?.active_sessions ?? "—"} icon={Activity} tone="violet" />
-            <SuperAdminStatCard label="Acciones sugeridas" value={executiveRecommendedActions.length.toLocaleString("es-AR")} icon={ArrowUpRight} tone="amber" />
-          </div>
-        </div>
-      </div>
-
-      <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
-        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-red-500/5 via-amber-500/5 to-transparent">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                CRM comercial multi-tenant
-              </CardTitle>
-              <CardDescription>
-                Bandeja superadmin de leads capturados desde WhatsApp, widget y formularios, ordenada por temperatura y recencia.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={isConnected ? "default" : "outline"} className="gap-1">
-                <Bell className="h-3.5 w-3.5" />
-                {isConnected ? "Realtime CRM" : "Polling CRM"}
-              </Badge>
-              <Badge variant="secondary">{crmRealtimeEvents} eventos live</Badge>
-              {crmRealtimeAt && (
-                <Badge variant="outline">Ultima senal {formatDateTime(crmRealtimeAt)}</Badge>
-              )}
-              <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-600">
-                <Flame className="mr-1 h-3.5 w-3.5" />
-                {crmHotCount} hot
-              </Badge>
-              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600">
-                {crmWarmCount} warm
-              </Badge>
-              <Badge variant="outline" className="border-sky-500/30 bg-sky-500/10 text-sky-600">
-                {crmColdCount} frio
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {crmLeadsLoading ? (
-            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 text-sm text-muted-foreground">
-              Cargando leads comerciales...
-            </div>
-          ) : crmLeads.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 p-4 text-sm text-muted-foreground">
-              Todavia no hay leads con actividad CRM consolidada.
-            </div>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {crmLeads.map((lead) => {
-                const temp = formatLeadTemperature(lead.lead_temperature);
-                const tenantSlug = lead.tenant?.slug || "";
-                const contactLabel = lead.name || lead.phone || lead.telefono || lead.email || "Contacto sin nombre";
-                return (
-                  <article
-                    key={lead.contact_id || `${tenantSlug}-${contactLabel}`}
-                    className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-base font-semibold">{contactLabel}</h3>
-                          <Badge variant="outline" className={temp.className}>
-                            {temp.label}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {lead.phone || lead.telefono || lead.email || "Sin canal publicado"}
-                        </p>
-                      </div>
-                      <Badge variant="secondary">{lead.lead_score ?? 0} pts</Badge>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="gap-1">
-                        <Building2 className="h-3.5 w-3.5" />
-                        {lead.tenant?.nombre || tenantSlug || "tenant"}
-                      </Badge>
-                      <Badge variant="outline" className="gap-1">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        {formatDateTime(lead.last_seen)}
-                      </Badge>
-                    </div>
-                    <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
-                      {lead.summary || lead.motivo || "Sin resumen automatico todavia."}
-                    </p>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={!tenantSlug}
-                        onClick={() => tenantSlug && setSelectedProfileSlug(tenantSlug)}
-                      >
-                        Abrir tenant
-                        <ArrowUpRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
-        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">
-          <CardTitle>Command center v2</CardTitle>
-          <CardDescription>
-            Bundle canonico desde `/api/v2/superadmin/command-center` para ranking, tenant creation y drilldowns.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border p-4">
-              <div className="text-xs text-muted-foreground">Health promedio</div>
-              <div className="mt-1 text-2xl font-semibold">{formatPercent(commandSummary?.avg_health_score)}</div>
-            </div>
-            <div className="rounded-2xl border p-4">
-              <div className="text-xs text-muted-foreground">Tenants riesgosos</div>
-              <div className="mt-1 text-2xl font-semibold">{commandSummary?.risky_tenants ?? commandRiskyTenants.length ?? "—"}</div>
-            </div>
-            <div className="rounded-2xl border p-4">
-              <div className="text-xs text-muted-foreground">Leads abiertos</div>
-              <div className="mt-1 text-2xl font-semibold">{commandSummary?.open_leads ?? "—"}</div>
-            </div>
-            <div className="rounded-2xl border p-4">
-              <div className="text-xs text-muted-foreground">Crear tenant</div>
-              <div className="mt-1 text-sm font-medium">{tenantCreation?.endpoint || "/api/admin/tenants"}</div>
-            </div>
-          </div>
-          <div className="rounded-2xl border p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="font-semibold">Drilldowns tenant</div>
-              <Badge variant="outline">{commandCenter?.frontend_contract?.render_as || "superadmin_command_center"}</Badge>
-            </div>
-            <div className="grid gap-2">
-              {(commandRiskyTenants.length ? commandRiskyTenants : commandTenants).slice(0, 5).map((tenant: any, index: number) => {
-                const slug = tenant?.slug || tenant?.tenant_slug || tenant?.key;
-                return (
-                  <button
-                    type="button"
-                    key={`${slug || "tenant"}-${index}`}
-                    onClick={() => slug && setSelectedProfileSlug(slug)}
-                    className="flex items-center justify-between rounded-xl border px-3 py-2 text-left text-sm hover:bg-muted/40"
-                  >
-                    <span>{tenant?.display_name || tenant?.name || tenant?.tenant_name || slug || `tenant_${index + 1}`}</span>
-                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                );
-              })}
-              {!commandRiskyTenants.length && !commandTenants.length ? (
-                <div className="text-sm text-muted-foreground">Sin tenants en el command center actual.</div>
-              ) : null}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
-        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
-          <CardTitle>Executive summary</CardTitle>
-          <CardDescription>
-            Bundle canonico desde `/api/v2/superadmin/executive-summary` para CEO/superadmin con health multi-tenant.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {executiveLoading ? (
-            <div className="text-sm text-muted-foreground">
-              Cargando executive summary...
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">Tenants</div>
-              <div className="mt-1 text-2xl font-semibold">
-                {executiveOverview?.total_tenants ??
-                  executiveOverview?.tenant_count ??
-                  "—"}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">Tenants activos</div>
-              <div className="mt-1 text-2xl font-semibold">
-                {executiveOverview?.active_tenants ??
-                  executiveOverview?.active_tenant_count ??
-                  "—"}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">Health promedio</div>
-              <div className="mt-1 text-2xl font-semibold">
-                {formatPercent(executiveOverview?.avg_health_score)}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">
-                Realtime sesiones
-              </div>
-              <div className="mt-1 text-2xl font-semibold">
-                {executiveRealtime?.active_sessions ?? "—"}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">
-                Riesgo alto
-              </div>
-              <div className="mt-1 text-2xl font-semibold">
-                {executiveOverview?.risky_tenants ?? executiveSummary?.top_risky_tenants?.length ?? "—"}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-            <div className="mb-2 text-sm font-medium">Recommended actions</div>
-            <div className="flex flex-wrap gap-2">
-              {executiveRecommendedActions.length ? (
-                executiveRecommendedActions.map(
-                  (action: any, index: number) => (
-                    <Badge key={`recommended-${index}`} variant="outline">
-                      {action?.label ||
-                        action?.title ||
-                        action?.action ||
-                        `action_${index + 1}`}
-                    </Badge>
-                  ),
-                )
-              ) : (
-                <span className="text-sm text-muted-foreground">
-                  Sin acciones recomendadas en el bundle actual.
-                </span>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,1.2fr)]">
-        <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
-          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
-            <CardTitle>Tenant health ranking</CardTitle>
-            <CardDescription>
-              Ranking rápido por health score, SLA y activación para customer
-              success y comercial.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sortedTenantHealth.slice(0, 8).map((row, index) => (
-              <button
-                key={`${row?.tenant_slug || "tenant"}-${index}`}
-                type="button"
-                onClick={() => setSelectedProfileSlug(row?.tenant_slug || "")}
-                className="flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition hover:bg-muted/40"
-              >
-                <div className="space-y-1">
-                  <div className="font-medium">{row?.tenant_slug || "—"}</div>
-                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span>{row?.status || "status —"}</span>
-                    <span>Checks {row?.checks_count ?? 0}</span>
-                    <span>Errores {row?.errors_count ?? 0}</span>
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={formatHealthClass(row?.health_score ?? row?.score)}
-                >
-                  {typeof (row?.health_score ?? row?.score) === "number"
-                    ? `${(((row.health_score ?? row.score) > 1 ? (row.health_score ?? row.score) / 100 : (row.health_score ?? row.score)) * 100).toFixed(0)}%`
-                    : "—"}
-                </Badge>
-              </button>
-            ))}
-            {!sortedTenantHealth.length ? (
-              <div className="text-sm text-muted-foreground">
-                No hay datos de tenant health disponibles.
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
-          <CardHeader className="gap-4 border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle>Tenant profile 360</CardTitle>
-                <CardDescription>
-                  Vista ejecutiva de health, owner, onboarding y métricas clave
-                  por tenant.
-                </CardDescription>
-              </div>
-              <select
-                className="h-10 min-w-[220px] rounded-md border bg-background px-3 text-sm"
-                value={selectedProfileSlug}
-                onChange={(event) => setSelectedProfileSlug(event.target.value)}
-              >
-                {tenants.map((tenant) => (
-                  <option key={tenant.slug} value={tenant.slug}>
-                    {tenant.nombre} ({tenant.slug})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {profileError ? (
-              <div className="text-sm text-red-500">{profileError}</div>
-            ) : null}
-            {profileLoading ? (
-              <div className="text-sm text-muted-foreground">
-                Cargando perfil 360...
-              </div>
-            ) : null}
-            {!profileLoading && !profileError && tenantProfile360 ? (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-semibold">
-                    {profileHeader?.nombre ||
-                      profileHeader?.name ||
-                      selectedProfileSlug}
-                  </h3>
-                  <Badge variant="outline">
-                    {profileHeader?.plan || "Plan —"}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={formatHealthClass(profileHealth?.health_score)}
-                  >
-                    Health{" "}
-                    {typeof profileHealth?.health_score === "number"
-                      ? `${(profileHealth.health_score * 100).toFixed(0)}%`
-                      : "—"}
-                  </Badge>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl border p-3">
-                    <div className="text-xs text-muted-foreground">Owner</div>
-                    <div className="mt-1 font-medium">
-                      {profileOwner?.name ||
-                        profileOwner?.nombre ||
-                        profileOwner?.email ||
-                        "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border p-3">
-                    <div className="text-xs text-muted-foreground">
-                      Win rate
-                    </div>
-                    <div className="mt-1 font-medium">
-                      {formatPercent(
-                        profileHealth?.win_rate ?? profileMetrics?.win_rate,
-                      )}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border p-3">
-                    <div className="text-xs text-muted-foreground">
-                      Response rate
-                    </div>
-                    <div className="mt-1 font-medium">
-                      {formatPercent(
-                        profileHealth?.response_rate ??
-                          profileMetrics?.response_rate,
-                      )}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border p-3">
-                    <div className="text-xs text-muted-foreground">
-                      SLA breached
-                    </div>
-                    <div className="mt-1 font-medium">
-                      {profileHealth?.sla_breached ??
-                        profileMetrics?.sla_breached ??
-                        0}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-                    <div className="mb-2 text-sm font-medium">Alertas</div>
-                    <div className="flex flex-wrap gap-2">
-                      {profileAlerts.length ? (
-                        profileAlerts.map((alert: any, index: number) => (
-                          <Badge
-                            key={`alert-${index}`}
-                            variant="outline"
-                            className="bg-amber-100 text-amber-700 border-amber-200"
-                          >
-                            {typeof alert === "string"
-                              ? alert
-                              : alert?.label ||
-                                alert?.code ||
-                                `alerta_${index + 1}`}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Sin alertas activas.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-                    <div className="mb-2 text-sm font-medium">Onboarding</div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {profileOnboardingEntries.length ? (
-                        profileOnboardingEntries.map(([key, value]) => (
-                          <div
-                            key={key}
-                            className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
-                          >
-                            <span className="capitalize">
-                              {key.replaceAll("_", " ")}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={
-                                value
-                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                  : "bg-slate-100 text-slate-700 border-slate-200"
-                              }
-                            >
-                              {value ? "OK" : "Pendiente"}
-                            </Badge>
-                          </div>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Sin checklist de onboarding disponible.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="pipeline" className="w-full">
-         <TabsList className="mb-4">
-            <TabsTrigger value="pipeline">Pipeline Kanban</TabsTrigger>
-            <TabsTrigger value="list">Directorio</TabsTrigger>
-            <TabsTrigger value="smoke">Production smoke</TabsTrigger>
-         </TabsList>
-
-         <TabsContent value="pipeline" className="mt-0">
-            <SuperadminLeadsPipeline />
-         </TabsContent>
-
-         <TabsContent value="list" className="mt-0 space-y-6">
-            <Card className="border-muted/60 shadow-sm">
-              <CardHeader>
-                <CardTitle>Tenants ({total})</CardTitle>
-                <CardDescription>
-                  Listado completo de municipios, colegios y pymes registrados en la plataforma.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {error ? (
-                  <div className="text-center text-red-500 py-8">{error}</div>
-                ) : (
-                  <TenantTable
-                    tenants={tenants}
-                    loading={loading}
-                    onEdit={handleEdit}
-                    onImpersonate={handleImpersonate}
-                    onToggleStatus={handleToggleStatus}
-                    onPurge={handlePurge}
-                  />
-                )}
-              </CardContent>
-            </Card>
-         </TabsContent>
-
-         <TabsContent value="smoke" className="mt-0">
-            <ProductionSmokeReport />
-         </TabsContent>
-      </Tabs>
-
-      <TenantModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={fetchTenants}
-        tenantToEdit={editingTenant}
-        initialTab={modalTab}
-      />
-
-      <WhatsappInventoryPanel
-        numbers={whatsappNumbers}
-        tenants={tenants}
-        loading={whatsappLoading}
-        error={whatsappError}
-        onRefresh={fetchWhatsappNumbers}
-        onReserve={handleReserveNumber}
-        onRelease={handleReleaseNumber}
-        onAssign={handleAssignNumber}
-        onCreateNumber={handleCreateNumber}
-        onRegisterExternal={handleRegisterExternal}
-      />
-
+      </>}
+      {section === 'crm' && <>
+        <section className="platform-panel"><div className="platform-panel-heading"><div><h2>Contactos recientes</h2><p>Selección de hasta 8 contactos recibidos, ordenados por prioridad comercial. No es el total del CRM.</p></div><Button variant="outline" disabled={crmLeadsLoading} onClick={() => void fetchCrmLeads()}>Actualizar contactos</Button></div>
+          <p className="platform-note">{isConnected ? 'Conexión de eventos activa.' : 'Actualización en vivo desconectada. Podés actualizar manualmente.'}{crmRealtimeAt ? ` Última señal recibida: ${dateLabel(crmRealtimeAt)}.` : ''}</p>
+          {crmLeadsLoading ? <div className="platform-empty">Cargando contactos…</div> : crmError ? <div className="platform-empty" role="alert">{crmError}</div> : !crmLeads.length ? <div className="platform-empty">No hay contactos en esta selección.</div> : <div className="platform-panel-body platform-contact-grid">{crmLeads.map((lead, index) => <article className="platform-contact" key={lead.contact_id || index}><div className="flex items-start justify-between gap-3"><h3>{lead.name || lead.phone || lead.telefono || lead.email || 'Contacto sin nombre'}</h3><span className="platform-plan">{{ hot: 'Prioridad alta', warm: 'En seguimiento', cold: 'Contacto inicial' }[lead.lead_temperature] || 'Sin clasificación'}</span></div><p className="mt-1">{lead.phone || lead.telefono || lead.email || 'Sin canal informado'}</p><p className="mt-3">{leadSummary(lead)}</p><p className="mt-3">{lead.tenant?.nombre || lead.tenant?.slug || 'Organización no informada'} · {dateLabel(lead.last_seen)}</p>{lead.tenant?.slug && <Button variant="ghost" size="sm" className="mt-3" onClick={() => openProfile(lead.tenant.slug)}>Ver organización<ArrowUpRight className="ml-2 h-4 w-4" /></Button>}</article>)}</div>}
+        </section>
+        <section className="platform-panel" aria-label="Seguimiento comercial"><details className="platform-technical-details"><summary>Abrir seguimiento de oportunidades y herramientas comerciales</summary><div><SuperadminLeadsPipeline /></div></details></section>
+      </>}
+      {section === 'channels' && <><div className="platform-warning"><Radio className="shrink-0 mt-0.5" size={19} /><div><h2>Canales y asignaciones</h2><p className="mt-1 text-sm text-muted-foreground">Consultá el inventario de números y su organización asignada. La disponibilidad depende del estado informado por el servicio.</p></div></div><WhatsappInventoryPanel numbers={whatsappNumbers} tenants={tenants} loading={whatsappLoading} error={whatsappError} onRefresh={fetchWhatsappNumbers} onReserve={handleReserveNumber} onRelease={handleReleaseNumber} onAssign={handleAssignNumber} onCreateNumber={handleCreateNumber} onRegisterExternal={handleRegisterExternal} /></>}
+      {section === 'diagnostics' && <><section className="platform-panel"><div className="platform-panel-heading"><div><h2>Disponibilidad de la información</h2><p>Estado de las consultas realizadas en este panel. No representa la disponibilidad global de la plataforma.</p></div><Button variant="outline" disabled={loading || executiveLoading || whatsappLoading || crmLeadsLoading} onClick={() => { void fetchTenants(); void fetchExecutive(); void fetchWhatsappNumbers(); void fetchCrmLeads(); }}><RefreshCw className="mr-2 h-4 w-4" />Reconsultar</Button></div><div className="platform-panel-body">{[
+        { label: 'Directorio de organizaciones', loading, failed: Boolean(error) },
+        { label: 'Evaluaciones operativas', loading: executiveLoading, failed: executiveError },
+        { label: 'Resumen de seguimiento', loading: executiveLoading, failed: commandError },
+        { label: 'Contactos recientes', loading: crmLeadsLoading, failed: Boolean(crmError) },
+        { label: 'Inventario de WhatsApp', loading: whatsappLoading, failed: Boolean(whatsappError) },
+      ].map((item) => <div className="platform-service-row" key={item.label}><span>{item.label}</span><span className="platform-plan">{item.loading ? 'Consultando…' : item.failed ? 'No disponible' : 'Consulta recibida'}</span></div>)}</div></section><section className="platform-panel"><details className="platform-technical-details"><summary>Ver comprobaciones técnicas de producción</summary><div><ProductionSmokeReport /></div></details></section></>}
+    </motion.div>
+    <TenantModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={fetchTenants} tenantToEdit={editingTenant} initialTab={modalTab} />
       <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar tenant definitivamente</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar organización definitivamente</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción elimina el tenant y sus datos asociados. Confirmá para
+              Esta acción elimina la organización y sus datos asociados. Confirmá para
               continuar.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1006,7 +358,7 @@ export default function SuperAdminDashboard() {
                   setPurgeConfirmed(Boolean(checked))
                 }
               />
-              Confirmo que quiero eliminar este tenant.
+              Confirmo que quiero eliminar esta organización.
             </label>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <Checkbox
@@ -1027,6 +379,5 @@ export default function SuperAdminDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
+  </div>;
 }

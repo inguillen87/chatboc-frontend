@@ -25,11 +25,12 @@ const Layout = () => {
     normalizedPath === '/perfil' &&
     profileTab === 'analytics';
   const isProfileWorkspace = normalizedPath === '/perfil';
+  const isPlatformWorkspace = normalizedPath === '/superadmin' || normalizedPath === '/admin/tenants';
   const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
   const isDemoExperience = normalizedPath === '/demo';
   const isLandingExperience = normalizedPath === '/';
   const isFocusedPublicExperience = isDemoExperience || isPublicSurveyExperience;
-  const isFooterlessWorkspace = isTicketWorkspace || isProfileWorkspace || isFocusedPublicExperience;
+  const isFooterlessWorkspace = isTicketWorkspace || isProfileWorkspace || isPlatformWorkspace || isFocusedPublicExperience;
 
   // Public navigation should land immediately at the top of the new screen.
   useLayoutEffect(() => {
@@ -107,6 +108,8 @@ const Layout = () => {
         className={
           isViewportWorkspace
             ? 'flex min-h-0 w-full flex-1 overflow-hidden'
+            : isPlatformWorkspace
+              ? 'mx-auto w-full min-w-0 max-w-[100rem] flex-1 px-3 pb-8 pt-20 sm:px-6 lg:px-8'
             : isProfileAnalyticsWorkspace
               ? 'flex-1 w-full pt-14'
               : isDemoExperience
