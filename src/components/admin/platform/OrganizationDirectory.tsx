@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Search, MoreHorizontal, ArrowUpRight, Settings2, Users, MessageSquare, Power, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { Tenant } from '@/types/superAdmin';
 import { exportOrganizationsCsv } from './exportOrganizations';
+import { OrganizationCommercialWorkspace } from './OrganizationCommercialWorkspace';
 
 export const organizationTypeLabel = (type: string) => ({ pyme: 'Empresa', municipio: 'Municipio', colegio: 'Colegio' }[type] || type);
 const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
@@ -28,6 +29,8 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
   const [type, setType] = useState('all');
   const [status, setStatus] = useState('all');
   const [plan, setPlan] = useState('all');
+  const [commercialTenant, setCommercialTenant] = useState<Tenant | null>(null);
+  const commercialTrigger = useRef<HTMLElement | null>(null);
   const types = [...new Set(tenants.map((tenant) => tenant.tipo).filter(Boolean))].sort();
   const plans = [...new Set(tenants.map((tenant) => tenant.plan).filter(Boolean))].sort();
   const filtered = useMemo(() => tenants.filter((tenant) => {
@@ -58,7 +61,9 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
         : <div className="platform-directory-table"><table>
           <thead><tr><th>Organización</th><th>Plan</th><th>Estado</th><th>Responsable</th><th><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>{filtered.map((tenant) => <tr key={tenant.id}>
-            <td><button type="button" className="platform-organization-name" onClick={() => onProfile(tenant.slug)}>{tenant.nombre || tenant.slug}<ArrowUpRight size={14} aria-hidden="true" /></button><span className="platform-row-detail">{organizationTypeLabel(tenant.tipo)} · {tenant.slug}</span></td>
+            <td><button type="button" className="platform-organization-name" onClick={() => onProfile(tenant.slug)}>{tenant.nombre || tenant.slug}<ArrowUpRight size={14} aria-hidden="true" /></button><span className="platform-row-detail">{organizationTypeLabel(tenant.tipo)} · {tenant.slug}</span>
+              <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug} aria-label={`Abrir CRM de ${tenant.nombre || tenant.slug}`}
+                onClick={(event) => { commercialTrigger.current = event.currentTarget; setCommercialTenant(tenant); }}>Seguimiento comercial</Button></td>
             <td data-label="Plan"><span className="platform-plan">{tenant.plan || 'Sin dato'}</span></td>
             <td data-label="Estado"><span className={`platform-status ${tenant.is_active === true ? 'is-active' : tenant.is_active === false ? 'is-inactive' : ''}`}>{tenant.is_active === true ? 'Activa' : tenant.is_active === false ? 'Inactiva' : 'Sin dato'}</span></td>
             <td data-label="Responsable" className="platform-owner-email">{tenant.owner_email || 'Sin correo disponible'}</td>
@@ -76,5 +81,6 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
           </tr>)}</tbody>
         </table></div>}
     {total !== null && tenants.length < total && !error && <div className="platform-load-more"><Button variant="outline" disabled={loading} onClick={onLoadMore}>Cargar más organizaciones</Button></div>}
+    {commercialTenant && <OrganizationCommercialWorkspace tenant={commercialTenant} returnFocus={commercialTrigger.current} onClose={() => setCommercialTenant(null)} />}
   </section>;
 }
