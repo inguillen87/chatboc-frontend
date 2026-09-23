@@ -1,0 +1,43 @@
+name: Survey analytics evidence
+"on":
+  pull_request:
+    paths:
+      - src/components/surveys/SurveyAnalytics*
+      - src/hooks/useSurveyAnalytics*
+      - src/utils/surveyAnalyticsEvidence*
+      - src/utils/surveyAnalyticsFallback*
+      - src/pages/admin/encuestas/**/analytics.tsx
+      - tests/analytics-evidence.browser.mjs
+      - tests/e2e/fixtures/analytics-evidence.*
+      - tests/fixtures/analytics-evidence.json
+      - .github/workflows/survey-analytics-evidence.yml
+permissions:
+  contents: read
+concurrency:
+  group: analytics-evidence-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run typecheck:scope
+      - run: npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=test-evidence/analytics-evidence/vitest-results.json
+      - run: npm run build
+      - run: npx playwright install chromium
+      - run: node tests/analytics-evidence.browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: analytics-evidence-acceptance
+          path: test-evidence/analytics-evidence/
+          if-no-files-found: ignore
+          retention-days: 3

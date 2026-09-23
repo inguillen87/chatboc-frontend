@@ -37,9 +37,13 @@ import type {
 import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
+import { SurveyAnalyticsEvidence } from './SurveyAnalyticsEvidence';
+import { readAnalyticsEvidence, formatCompletionPercent } from '@/utils/surveyAnalyticsEvidence';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
+  surveyId?: number;
+  evidenceEnabled?: boolean;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
   heatmapPayload?: SurveyAnalyticsHeatmap;
@@ -1171,6 +1175,8 @@ function SurveyTerritoryCommandCenter({
 
 
 export const SurveyAnalytics = ({
+  surveyId,
+  evidenceEnabled = true,
   summary,
   timeseries,
   heatmap,
@@ -1580,31 +1586,10 @@ export const SurveyAnalytics = ({
     return [];
   }, [summary, summaryRecord]);
 
-  const completionRateLabel = useMemo(() => {
-    if (completionRateValue === null) {
-      return '—';
-    }
-
-    let normalized = completionRateValue;
-
-    if (!Number.isFinite(normalized)) {
-      return '—';
-    }
-
-    if (normalized > 1 && normalized <= 100) {
-      normalized /= 100;
-    }
-
-    if (normalized > 100) {
-      normalized = 1;
-    }
-
-    if (normalized < 0) {
-      normalized = 0;
-    }
-
-    return `${(normalized * 100).toFixed(1)}%`;
-  }, [completionRateValue]);
+  const completionRateLabel = formatCompletionPercent(completionRateValue, totalResponsesValue);
+  const evidence = useMemo(() => evidenceEnabled && !provenance?.synthetic
+    ? readAnalyticsEvidence(summary?.analytics_evidence, surveyId, tenantId, summary)
+    : null, [summary, surveyId, tenantId, evidenceEnabled, provenance?.synthetic]);
 
 
   const geoIntensity = useMemo(() => {
@@ -1719,6 +1704,7 @@ export const SurveyAnalytics = ({
         </div>
       </div>
 
+      {evidence ? <SurveyAnalyticsEvidence key={evidence.evidence_revision} evidence={evidence} /> : (
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
@@ -1748,6 +1734,8 @@ export const SurveyAnalytics = ({
           </CardContent>
         </Card>
       </div>
+
+      )}
 
       <Card>
         <CardHeader>

@@ -145,3 +145,11 @@ Si falla `dashboard`, recién ahí usar:
 5. **Captura mapa sin geometría visible**
    - El bloque puede quedar visualmente vacío aun con estado de filtro activo.
    - Acción recomendada: fallback explícito “sin geometría compatible” y tabla top puntos (ya disponible en el dashboard actual).
+
+
+## Continuidad de evidencia analitica (2026-09-22)
+
+El sprint de base de medicion y sus siguientes cierres se documenta en
+[SURVEY_ANALYTICS_EVIDENCE.md](SURVEY_ANALYTICS_EVIDENCE.md).
+La ficha distingue conteos observados, detalle reciente y limites inferenciales;
+no convierte un sondeo abierto en una muestra representativa por su volumen.

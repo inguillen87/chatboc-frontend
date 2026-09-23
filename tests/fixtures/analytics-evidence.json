@@ -1,0 +1,564 @@
+{
+  "low": {
+    "encuesta_id": 301,
+    "total_respuestas": 200,
+    "participantes_unicos": 200,
+    "respuestas_completas": 1,
+    "tasa_completitud": 0.5,
+    "data_provenance": {
+      "contract_version": "surveys.response_provenance.v1",
+      "server_trusted_classification": true,
+      "exact_aggregates": true,
+      "mode": "real",
+      "contains_synthetic": false,
+      "population_size": 200,
+      "sample_size": 200,
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "partial": false,
+      "sampled": false,
+      "completion_estimated_from_sample": false,
+      "eligibility_estimated_from_sample": false,
+      "real_responses_included": 200,
+      "synthetic_responses_included": 0,
+      "synthetic_responses_excluded": 5,
+      "unverified_responses_included": 0,
+      "unverified_responses_excluded": 2
+    },
+    "analytics_evidence": {
+      "contract_version": "surveys.analytics_evidence.v1",
+      "scope": {
+        "survey_id": 301,
+        "tenant_id": 7,
+        "mode": "real",
+        "filtered": false
+      },
+      "basis": {
+        "selected_records": 200,
+        "detail_records": 200,
+        "detail_limit": 500,
+        "detail_coverage_percent": 100.0,
+        "partial": false,
+        "complete_records": 1
+      },
+      "cards": [
+        {
+          "id": "responses",
+          "label": "Respuestas analizadas",
+          "value": 200,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Conteo de registros del origen y filtros seleccionados, completos o incompletos."
+        },
+        {
+          "id": "identities",
+          "label": "Identidades diferenciadas",
+          "value": 200,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Identificadores distintos según la regla del sistema; no acredita personas únicas."
+        },
+        {
+          "id": "completion",
+          "label": "Completitud observada",
+          "value": 0.5,
+          "unit": "percent",
+          "basis": "observed",
+          "detail": "Formularios completos / registros seleccionados. No es tasa de respuesta poblacional."
+        }
+      ],
+      "facts": [
+        {
+          "id": "detail_base",
+          "label": "Registros revisados en detalle",
+          "value": "200 / 200",
+          "note": "Se revisaron en detalle todos los registros seleccionados."
+        },
+        {
+          "id": "detail_limit",
+          "label": "Límite técnico de lectura",
+          "value": "500",
+          "note": "Este límite de procesamiento no define el diseño muestral del estudio."
+        },
+        {
+          "id": "synthetic_excluded",
+          "label": "Respuestas sintéticas excluidas",
+          "value": "5",
+          "note": "Excluidas de esta selección; no eliminadas."
+        },
+        {
+          "id": "unverified_excluded",
+          "label": "Origen no verificado excluido",
+          "value": "2",
+          "note": "No se cuentan como participación real verificada."
+        },
+        {
+          "id": "scope",
+          "label": "Alcance de esta lectura",
+          "value": "Sin filtros de segmentación",
+          "note": "Registros seleccionados por encuesta y origen."
+        }
+      ],
+      "limitations": [
+        {
+          "id": "inference",
+          "title": "Conclusiones descriptivas",
+          "detail": "Este resumen describe registros recibidos. No valida un diseño muestral ni la representatividad de una población."
+        },
+        {
+          "id": "precision",
+          "title": "Sin margen de error poblacional",
+          "detail": "No se publica un margen de error ni un intervalo de confianza: faltan un diseño o modelo inferencial verificados."
+        },
+        {
+          "id": "rates",
+          "title": "Denominadores distintos",
+          "detail": "Completitud, tasa de respuesta, abstención y cobertura poblacional no son intercambiables. Estas tres últimas no se calculan en esta ficha."
+        },
+        {
+          "id": "weighting",
+          "title": "Conteos sin ponderación estadística",
+          "detail": "Los conteos del resumen no aplican pesos de diseño, ajuste por no respuesta ni calibración poblacional."
+        }
+      ],
+      "ui": {
+        "heading": "Base y alcance de los resultados",
+        "eyebrow": "Evidencia analítica",
+        "description": "Separá lo observado, lo estimado y lo que estos datos no permiten concluir.",
+        "details": "Ver ficha de datos y límites",
+        "mode": "Origen real",
+        "observed": "Observado",
+        "estimated": "Estimado",
+        "unavailable": "Sin base suficiente",
+        "coverage": "Lectura detallada"
+      },
+      "inference_authorized": false,
+      "margin_of_error": null,
+      "evidence_revision": "b99cb6debbb6a8d065f86cc2830714f81afde3505fd83554819df80252a461f2"
+    }
+  },
+  "partial": {
+    "encuesta_id": 301,
+    "total_respuestas": 1200,
+    "participantes_unicos": 1200,
+    "respuestas_completas": 960,
+    "tasa_completitud": 80.0,
+    "data_provenance": {
+      "contract_version": "surveys.response_provenance.v1",
+      "server_trusted_classification": true,
+      "exact_aggregates": true,
+      "mode": "real",
+      "contains_synthetic": false,
+      "population_size": 1200,
+      "sample_size": 500,
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "partial": true,
+      "sampled": true,
+      "completion_estimated_from_sample": true,
+      "eligibility_estimated_from_sample": true,
+      "real_responses_included": 1200,
+      "synthetic_responses_included": 0,
+      "synthetic_responses_excluded": 5,
+      "unverified_responses_included": 0,
+      "unverified_responses_excluded": 2
+    },
+    "analytics_evidence": {
+      "contract_version": "surveys.analytics_evidence.v1",
+      "scope": {
+        "survey_id": 301,
+        "tenant_id": 7,
+        "mode": "real",
+        "filtered": true
+      },
+      "basis": {
+        "selected_records": 1200,
+        "detail_records": 500,
+        "detail_limit": 500,
+        "detail_coverage_percent": 41.67,
+        "partial": true,
+        "complete_records": 960
+      },
+      "cards": [
+        {
+          "id": "responses",
+          "label": "Respuestas analizadas",
+          "value": 1200,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Conteo de registros del origen y filtros seleccionados, completos o incompletos."
+        },
+        {
+          "id": "identities",
+          "label": "Identidades diferenciadas",
+          "value": 1200,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Identificadores distintos según la regla del sistema; no acredita personas únicas."
+        },
+        {
+          "id": "completion",
+          "label": "Completitud estimada",
+          "value": 80.0,
+          "unit": "percent",
+          "basis": "estimated",
+          "detail": "Estimación desde el subconjunto reciente. No es tasa de respuesta poblacional."
+        }
+      ],
+      "facts": [
+        {
+          "id": "detail_base",
+          "label": "Registros revisados en detalle",
+          "value": "500 / 1200",
+          "note": "Subconjunto de respuestas más recientes, no muestra aleatoria."
+        },
+        {
+          "id": "detail_limit",
+          "label": "Límite técnico de lectura",
+          "value": "500",
+          "note": "Este límite de procesamiento no define el diseño muestral del estudio."
+        },
+        {
+          "id": "synthetic_excluded",
+          "label": "Respuestas sintéticas excluidas",
+          "value": "5",
+          "note": "Excluidas de esta selección; no eliminadas."
+        },
+        {
+          "id": "unverified_excluded",
+          "label": "Origen no verificado excluido",
+          "value": "2",
+          "note": "No se cuentan como participación real verificada."
+        },
+        {
+          "id": "scope",
+          "label": "Alcance de esta lectura",
+          "value": "Filtros activos",
+          "note": "Canal"
+        }
+      ],
+      "limitations": [
+        {
+          "id": "recent_subset",
+          "title": "Hay indicadores estimados",
+          "detail": "La completitud y la elegibilidad por pregunta se estiman a partir de las respuestas más recientes; los totales agregados se consultan sobre todos los registros seleccionados."
+        },
+        {
+          "id": "inference",
+          "title": "Conclusiones descriptivas",
+          "detail": "Este resumen describe registros recibidos. No valida un diseño muestral ni la representatividad de una población."
+        },
+        {
+          "id": "precision",
+          "title": "Sin margen de error poblacional",
+          "detail": "No se publica un margen de error ni un intervalo de confianza: faltan un diseño o modelo inferencial verificados."
+        },
+        {
+          "id": "rates",
+          "title": "Denominadores distintos",
+          "detail": "Completitud, tasa de respuesta, abstención y cobertura poblacional no son intercambiables. Estas tres últimas no se calculan en esta ficha."
+        },
+        {
+          "id": "weighting",
+          "title": "Conteos sin ponderación estadística",
+          "detail": "Los conteos del resumen no aplican pesos de diseño, ajuste por no respuesta ni calibración poblacional."
+        }
+      ],
+      "ui": {
+        "heading": "Base y alcance de los resultados",
+        "eyebrow": "Evidencia analítica",
+        "description": "Separá lo observado, lo estimado y lo que estos datos no permiten concluir.",
+        "details": "Ver ficha de datos y límites",
+        "mode": "Origen real",
+        "observed": "Observado",
+        "estimated": "Estimado",
+        "unavailable": "Sin base suficiente",
+        "coverage": "Lectura detallada"
+      },
+      "inference_authorized": false,
+      "margin_of_error": null,
+      "evidence_revision": "7651d995ebf2096cba32034a1f1cd4ff8add41a0403745a502b4c0951d012937"
+    }
+  },
+  "empty": {
+    "encuesta_id": 301,
+    "total_respuestas": 0,
+    "participantes_unicos": 0,
+    "respuestas_completas": 0,
+    "tasa_completitud": 0,
+    "data_provenance": {
+      "contract_version": "surveys.response_provenance.v1",
+      "server_trusted_classification": true,
+      "exact_aggregates": true,
+      "mode": "real",
+      "contains_synthetic": false,
+      "population_size": 0,
+      "sample_size": 0,
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "partial": false,
+      "sampled": false,
+      "completion_estimated_from_sample": false,
+      "eligibility_estimated_from_sample": false,
+      "real_responses_included": 0,
+      "synthetic_responses_included": 0,
+      "synthetic_responses_excluded": 5,
+      "unverified_responses_included": 0,
+      "unverified_responses_excluded": 2
+    },
+    "analytics_evidence": {
+      "contract_version": "surveys.analytics_evidence.v1",
+      "scope": {
+        "survey_id": 301,
+        "tenant_id": 7,
+        "mode": "real",
+        "filtered": false
+      },
+      "basis": {
+        "selected_records": 0,
+        "detail_records": 0,
+        "detail_limit": 500,
+        "detail_coverage_percent": null,
+        "partial": false,
+        "complete_records": 0
+      },
+      "cards": [
+        {
+          "id": "responses",
+          "label": "Respuestas analizadas",
+          "value": 0,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Conteo de registros del origen y filtros seleccionados, completos o incompletos."
+        },
+        {
+          "id": "identities",
+          "label": "Identidades diferenciadas",
+          "value": 0,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Identificadores distintos según la regla del sistema; no acredita personas únicas."
+        },
+        {
+          "id": "completion",
+          "label": "Completitud observada",
+          "value": null,
+          "unit": "percent",
+          "basis": "unavailable",
+          "detail": "Formularios completos / registros seleccionados. No es tasa de respuesta poblacional."
+        }
+      ],
+      "facts": [
+        {
+          "id": "detail_base",
+          "label": "Registros revisados en detalle",
+          "value": "0 / 0",
+          "note": "Se revisaron en detalle todos los registros seleccionados."
+        },
+        {
+          "id": "detail_limit",
+          "label": "Límite técnico de lectura",
+          "value": "500",
+          "note": "Este límite de procesamiento no define el diseño muestral del estudio."
+        },
+        {
+          "id": "synthetic_excluded",
+          "label": "Respuestas sintéticas excluidas",
+          "value": "5",
+          "note": "Excluidas de esta selección; no eliminadas."
+        },
+        {
+          "id": "unverified_excluded",
+          "label": "Origen no verificado excluido",
+          "value": "2",
+          "note": "No se cuentan como participación real verificada."
+        },
+        {
+          "id": "scope",
+          "label": "Alcance de esta lectura",
+          "value": "Sin filtros de segmentación",
+          "note": "Registros seleccionados por encuesta y origen."
+        }
+      ],
+      "limitations": [
+        {
+          "id": "inference",
+          "title": "Conclusiones descriptivas",
+          "detail": "Este resumen describe registros recibidos. No valida un diseño muestral ni la representatividad de una población."
+        },
+        {
+          "id": "precision",
+          "title": "Sin margen de error poblacional",
+          "detail": "No se publica un margen de error ni un intervalo de confianza: faltan un diseño o modelo inferencial verificados."
+        },
+        {
+          "id": "rates",
+          "title": "Denominadores distintos",
+          "detail": "Completitud, tasa de respuesta, abstención y cobertura poblacional no son intercambiables. Estas tres últimas no se calculan en esta ficha."
+        },
+        {
+          "id": "weighting",
+          "title": "Conteos sin ponderación estadística",
+          "detail": "Los conteos del resumen no aplican pesos de diseño, ajuste por no respuesta ni calibración poblacional."
+        }
+      ],
+      "ui": {
+        "heading": "Base y alcance de los resultados",
+        "eyebrow": "Evidencia analítica",
+        "description": "Separá lo observado, lo estimado y lo que estos datos no permiten concluir.",
+        "details": "Ver ficha de datos y límites",
+        "mode": "Origen real",
+        "observed": "Observado",
+        "estimated": "Estimado",
+        "unavailable": "Sin base suficiente",
+        "coverage": "Lectura detallada"
+      },
+      "inference_authorized": false,
+      "margin_of_error": null,
+      "evidence_revision": "0932c040517350aa29aa1e0d73d7ba2e36a5f038017db4670dea88b3dc21b8ca"
+    }
+  },
+  "synthetic": {
+    "encuesta_id": 301,
+    "total_respuestas": 200,
+    "participantes_unicos": 200,
+    "respuestas_completas": 1,
+    "tasa_completitud": 0.5,
+    "data_provenance": {
+      "contract_version": "surveys.response_provenance.v1",
+      "server_trusted_classification": true,
+      "exact_aggregates": true,
+      "mode": "synthetic",
+      "contains_synthetic": true,
+      "population_size": 200,
+      "sample_size": 200,
+      "sample_limit": 500,
+      "sample_order": "latest",
+      "partial": false,
+      "sampled": false,
+      "completion_estimated_from_sample": false,
+      "eligibility_estimated_from_sample": false,
+      "real_responses_included": 0,
+      "synthetic_responses_included": 200,
+      "synthetic_responses_excluded": 0,
+      "unverified_responses_included": 0,
+      "unverified_responses_excluded": 2
+    },
+    "analytics_evidence": {
+      "contract_version": "surveys.analytics_evidence.v1",
+      "scope": {
+        "survey_id": 301,
+        "tenant_id": 7,
+        "mode": "synthetic",
+        "filtered": false
+      },
+      "basis": {
+        "selected_records": 200,
+        "detail_records": 200,
+        "detail_limit": 500,
+        "detail_coverage_percent": 100.0,
+        "partial": false,
+        "complete_records": 1
+      },
+      "cards": [
+        {
+          "id": "responses",
+          "label": "Respuestas analizadas",
+          "value": 200,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Conteo de registros del origen y filtros seleccionados, completos o incompletos."
+        },
+        {
+          "id": "identities",
+          "label": "Identidades diferenciadas",
+          "value": 200,
+          "unit": "count",
+          "basis": "observed",
+          "detail": "Identificadores distintos según la regla del sistema; no acredita personas únicas."
+        },
+        {
+          "id": "completion",
+          "label": "Completitud observada",
+          "value": 0.5,
+          "unit": "percent",
+          "basis": "observed",
+          "detail": "Formularios completos / registros seleccionados. No es tasa de respuesta poblacional."
+        }
+      ],
+      "facts": [
+        {
+          "id": "detail_base",
+          "label": "Registros revisados en detalle",
+          "value": "200 / 200",
+          "note": "Se revisaron en detalle todos los registros seleccionados."
+        },
+        {
+          "id": "detail_limit",
+          "label": "Límite técnico de lectura",
+          "value": "500",
+          "note": "Este límite de procesamiento no define el diseño muestral del estudio."
+        },
+        {
+          "id": "synthetic_excluded",
+          "label": "Respuestas sintéticas excluidas",
+          "value": "0",
+          "note": "Excluidas de esta selección; no eliminadas."
+        },
+        {
+          "id": "unverified_excluded",
+          "label": "Origen no verificado excluido",
+          "value": "2",
+          "note": "No se cuentan como participación real verificada."
+        },
+        {
+          "id": "scope",
+          "label": "Alcance de esta lectura",
+          "value": "Sin filtros de segmentación",
+          "note": "Registros seleccionados por encuesta y origen."
+        }
+      ],
+      "limitations": [
+        {
+          "id": "synthetic",
+          "title": "Modo de demostración",
+          "detail": "Esta vista usa respuestas sintéticas. No debe comunicarse como participación real ni como opinión de personas."
+        },
+        {
+          "id": "inference",
+          "title": "Conclusiones descriptivas",
+          "detail": "Este resumen describe registros recibidos. No valida un diseño muestral ni la representatividad de una población."
+        },
+        {
+          "id": "precision",
+          "title": "Sin margen de error poblacional",
+          "detail": "No se publica un margen de error ni un intervalo de confianza: faltan un diseño o modelo inferencial verificados."
+        },
+        {
+          "id": "rates",
+          "title": "Denominadores distintos",
+          "detail": "Completitud, tasa de respuesta, abstención y cobertura poblacional no son intercambiables. Estas tres últimas no se calculan en esta ficha."
+        },
+        {
+          "id": "weighting",
+          "title": "Conteos sin ponderación estadística",
+          "detail": "Los conteos del resumen no aplican pesos de diseño, ajuste por no respuesta ni calibración poblacional."
+        }
+      ],
+      "ui": {
+        "heading": "Base y alcance de los resultados",
+        "eyebrow": "Evidencia analítica",
+        "description": "Separá lo observado, lo estimado y lo que estos datos no permiten concluir.",
+        "details": "Ver ficha de datos y límites",
+        "mode": "Datos sintéticos",
+        "observed": "Observado",
+        "estimated": "Estimado",
+        "unavailable": "Sin base suficiente",
+        "coverage": "Lectura detallada"
+      },
+      "inference_authorized": false,
+      "margin_of_error": null,
+      "evidence_revision": "7df5b2e0911b03ebabe27f487c8c250adbc0b392dcf3f6b1c470126239d7ef92"
+    }
+  }
+}

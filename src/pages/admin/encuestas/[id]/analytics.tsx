@@ -549,6 +549,7 @@ export default function SurveyAnalyticsPage() {
     dashboardBundle,
     executiveSummary,
     provenance,
+    evidenceCurrent,
     isLoading,
     exportCsv,
     isExporting,
@@ -1824,6 +1825,8 @@ export default function SurveyAnalyticsPage() {
             </p>
           ) : null}
           <SurveyAnalytics
+            surveyId={surveyId ?? undefined}
+            evidenceEnabled={evidenceCurrent && !analyticsError}
             summary={summary}
             timeseries={timeseries}
             heatmap={heatmap}

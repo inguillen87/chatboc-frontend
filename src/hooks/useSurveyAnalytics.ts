@@ -43,6 +43,8 @@ interface UseSurveyAnalyticsResult {
   dashboardBundle?: SurveyDashboardBundle;
   executiveSummary?: SurveyExecutiveSummary;
   provenance: SurveyAnalyticsProvenance;
+  /** Only a successful current source read may publish its evidence as current. */
+  evidenceCurrent: boolean;
   isLoading: boolean;
   error: string | null;
   filters: SurveyAnalyticsFilters;
@@ -373,6 +375,10 @@ export function useSurveyAnalytics(
     dashboardBundle,
     executiveSummary,
     provenance,
+    evidenceCurrent: Boolean(tenantSlug) && !provenance.synthetic &&
+      (dashboardQuery.data?.modules?.summary
+        ? dashboardQuery.isSuccess && !dashboardQuery.isFetching && !dashboardQuery.error
+        : summaryQuery.isSuccess && !summaryQuery.isFetching && !summaryQuery.error),
     isLoading: dashboardQuery.isLoading || summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
     error: effectiveError,
     filters: normalizedFilters,

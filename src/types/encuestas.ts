@@ -1150,6 +1150,8 @@ export type SurveyDemographicBreakdowns = {
 };
 
 export interface SurveySummary {
+  /** Optional authenticated-only evidence; validate identity and values before rendering. */
+  analytics_evidence?: unknown;
   total_respuestas: number;
   participantes_unicos: number;
   tasa_completitud: number;

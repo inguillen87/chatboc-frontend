@@ -591,3 +591,16 @@ describe('SurveyAnalytics territory command center', () => {
     expect(screen.getAllByTestId('mock-survey-map').some((map) => map.getAttribute('data-points') === '1')).toBe(true);
   });
 });
+
+
+describe('canonical completion percentage rendered by the real analytics component', () => {
+  it.each([0.5,1,88])('does not infer units from the magnitude %s', value => {
+    render(<SurveyAnalytics summary={{...summaryFixture(),tasa_completitud:value}} onExport={async()=>{}} />);
+    expect(screen.getByText(`${value.toFixed(1)}%`)).toBeVisible();
+  });
+  it('does not display a percentage for a zero-response instrument', () => {
+    render(<SurveyAnalytics summary={{...summaryFixture(),total_respuestas:0,tasa_completitud:0}} onExport={async()=>{}} />);
+    const title=screen.getByText('Tasa de completitud');
+    expect(title.parentElement?.parentElement).not.toHaveTextContent('0.0%');
+  });
+});
