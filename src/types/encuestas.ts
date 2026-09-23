@@ -1152,6 +1152,8 @@ export type SurveyDemographicBreakdowns = {
 export interface SurveySummary {
   /** Optional authenticated-only evidence; validate identity and values before rendering. */
   analytics_evidence?: unknown;
+  /** Optional scoped coverage of recorded segmentation fields, never response-rate evidence. */
+  fieldwork_coverage?: unknown;
   total_respuestas: number;
   participantes_unicos: number;
   tasa_completitud: number;

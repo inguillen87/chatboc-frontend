@@ -3,6 +3,10 @@ name: Survey analytics evidence
   pull_request:
     paths:
       - src/components/surveys/SurveyAnalytics*
+      - src/components/surveys/SurveyFieldworkCoverage*
+      - src/utils/surveyFieldworkCoverage*
+      - src/utils/surveyDemographicFilters*
+      - tests/fixtures/survey-fieldwork-coverage.json
       - src/components/surveys/SurveyMethodology*
       - src/utils/surveyMethodology*
       - src/api/surveyMethodology*
@@ -11,6 +15,7 @@ name: Survey analytics evidence
       - src/utils/surveyAnalyticsEvidence*
       - src/utils/surveyAnalyticsFallback*
       - src/pages/admin/encuestas/**/analytics.tsx
+      - src/pages/admin/encuestas/analytics.focus.test.tsx
       - tests/analytics-evidence.browser.mjs
       - tests/e2e/fixtures/analytics-evidence.*
       - tests/fixtures/analytics-evidence.json

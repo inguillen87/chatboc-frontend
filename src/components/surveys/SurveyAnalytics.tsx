@@ -39,6 +39,8 @@ import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
 import { SurveyAnalyticsEvidence } from './SurveyAnalyticsEvidence';
 import { readAnalyticsEvidence, formatCompletionPercent } from '@/utils/surveyAnalyticsEvidence';
+import { SurveyFieldworkCoverage } from './SurveyFieldworkCoverage';
+import { hasSurveyFieldworkFilters, readSurveyFieldworkCoverage } from '@/utils/surveyFieldworkCoverage';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -1590,6 +1592,10 @@ export const SurveyAnalytics = ({
   const evidence = useMemo(() => evidenceEnabled && !provenance?.synthetic
     ? readAnalyticsEvidence(summary?.analytics_evidence, surveyId, tenantId, summary)
     : null, [summary, surveyId, tenantId, evidenceEnabled, provenance?.synthetic]);
+  const fieldworkCoverage = useMemo(() => evidenceEnabled && !provenance?.synthetic
+    ? readSurveyFieldworkCoverage(summary?.fieldwork_coverage, surveyId, tenantId, summary,
+      hasSurveyFieldworkFilters(filters))
+    : null, [summary, surveyId, tenantId, evidenceEnabled, provenance?.synthetic, filters]);
 
 
   const geoIntensity = useMemo(() => {
@@ -1736,6 +1742,8 @@ export const SurveyAnalytics = ({
       </div>
 
       )}
+
+      {fieldworkCoverage ? <SurveyFieldworkCoverage key={`${tenantId}:${surveyId}`} coverage={fieldworkCoverage} /> : null}
 
       <Card>
         <CardHeader>

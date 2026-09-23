@@ -98,3 +98,10 @@ El modulo de declaraciones versionadas se describe en [SURVEY_METHODOLOGY.md](SU
 La persistencia, auditoria, historial y formulario fueron implementados con activacion
 explicita pendiente de migracion/rollout. No se declara cerrada la verificacion
 metodologica, operacion de campo o inferencia estadistica por este avance.
+
+## Continuidad: cobertura para segmentar
+
+El sprint documentado en [SURVEY_FIELDWORK_COVERAGE.md](SURVEY_FIELDWORK_COVERAGE.md)
+agrega presencia y ausencia exactas de datos por dimension sobre las respuestas
+filtradas, y corrige la conexion de los filtros territoriales. No sustituye el
+registro de contactos/disposiciones de campo ni calcula tasas de respuesta.

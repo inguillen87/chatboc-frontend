@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SurveyAnalytics } from './SurveyAnalytics';
 import type { SurveyAnalyticsHeatmap, SurveySummary } from '@/types/encuestas';
+import coverageFixtures from '../../../tests/fixtures/survey-fieldwork-coverage.json';
+import { normalizeSurveySummary } from '@/api/encuestas';
 
 const motionHarness = vi.hoisted(() => ({ shouldReduceMotion: false }));
 
@@ -602,5 +604,39 @@ describe('canonical completion percentage rendered by the real analytics compone
     render(<SurveyAnalytics summary={{...summaryFixture(),total_respuestas:0,tasa_completitud:0}} onExport={async()=>{}} />);
     const title=screen.getByText('Tasa de completitud');
     expect(title.parentElement?.parentElement).not.toHaveTextContent('0.0%');
+  });
+});
+
+describe('fieldwork coverage in the existing analytics view', () => {
+  const report = () => normalizeSurveySummary(coverageFixtures.partial);
+  const scope = coverageFixtures.partial.fieldwork_coverage.scope;
+  const props = () => ({ summary: report(), surveyId: scope.survey_id, tenantId: scope.tenant_id, onExport: async () => {} });
+  it('retains the backend DTO through the existing summary normalizer and renders it', () => {
+    expect(report().fieldwork_coverage).toEqual(coverageFixtures.partial.fieldwork_coverage);
+    render(<SurveyAnalytics {...props()} />);
+    expect(screen.getByTestId('survey-fieldwork-coverage')).toBeVisible();
+  });
+  it('withdraws coverage during a refresh or failure and after a tenant or instrument swap', () => {
+    const view = render(<SurveyAnalytics {...props()} />);
+    expect(screen.getByTestId('survey-fieldwork-coverage')).toBeVisible();
+    view.rerender(<SurveyAnalytics {...props()} evidenceEnabled={false} />);
+    expect(screen.queryByTestId('survey-fieldwork-coverage')).toBeNull();
+    view.rerender(<SurveyAnalytics {...props()} tenantId={scope.tenant_id + 1} />);
+    expect(screen.queryByTestId('survey-fieldwork-coverage')).toBeNull();
+    view.rerender(<SurveyAnalytics {...props()} surveyId={scope.survey_id + 1} />);
+    expect(screen.queryByTestId('survey-fieldwork-coverage')).toBeNull();
+    view.rerender(<SurveyAnalytics {...props()} />);
+    expect(screen.getByTestId('survey-fieldwork-coverage')).toBeVisible();
+  });
+  it('does not certify frontend synthetic fallback or a stale filter selection', () => {
+    const view = render(<SurveyAnalytics {...props()} provenance={{ source: 'mixed', synthetic: true, affected_modules: ['summary'] }} />);
+    expect(screen.queryByTestId('survey-fieldwork-coverage')).toBeNull();
+    view.rerender(<SurveyAnalytics {...props()} filters={{ barrio: 'different' }} />);
+    expect(screen.queryByTestId('survey-fieldwork-coverage')).toBeNull();
+  });
+  it('keeps older summaries usable without fabricating a coverage report', () => {
+    render(<SurveyAnalytics {...props()} summary={summaryFixture()} />);
+    expect(screen.queryByTestId('survey-fieldwork-coverage')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeVisible();
   });
 });
