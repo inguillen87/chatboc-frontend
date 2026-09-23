@@ -20,9 +20,12 @@ const deferred = <T,>() => {
 };
 
 const catalog = {
+  contract_version: "whatsapp.template_pack.catalog.v1",
+  tenant: { id: 1, slug: "junin" },
   catalog_version: "2026.07.30",
   provider_calls_performed: false,
   capabilities: {
+    read: true,
     materialize_local_draft: true,
     required_for_mutation: "whatsapp.templates.manage",
   },
@@ -83,7 +86,7 @@ describe("WhatsappTemplatePacksPanel", () => {
 
     expect(await screen.findByText("Packs profesionales de WhatsApp")).toBeInTheDocument();
     expect(screen.getByText("Registramos tu reclamo REC-10482.")).toBeInTheDocument();
-    expect(screen.getByText("Borrador local")).toBeInTheDocument();
+    expect(screen.getAllByText("Borrador local")[0]).toBeInTheDocument();
     expect(
       screen.getByText("Todavia no existe contenido verificado en el proveedor."),
     ).toBeInTheDocument();
@@ -92,6 +95,7 @@ describe("WhatsappTemplatePacksPanel", () => {
 
   it("materializes only local drafts with one stable idempotency key", async () => {
     const materializedResponse = {
+      ok: true, provider_calls_performed: false, tenant: catalog.tenant,
       pack: {
         ...catalog.packs[0],
         templates: catalog.packs[0].templates.map((template) => ({
@@ -138,7 +142,7 @@ describe("WhatsappTemplatePacksPanel", () => {
 
     render(<WhatsappTemplatePacksPanel tenantSlug="junin" canManage />);
 
-    expect(await screen.findByText("Municipio")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Municipio" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Crear borradores locales" })).not.toBeInTheDocument();
   });
 
@@ -170,6 +174,7 @@ describe("WhatsappTemplatePacksPanel", () => {
     const juninResponse = deferred<typeof catalog>();
     const mendozaCatalog = {
       ...catalog,
+      tenant: { id: 2, slug: "mendoza" },
       frontend_contract: {
         ...catalog.frontend_contract,
         copy: { ...catalog.frontend_contract.copy, title: "Packs Mendoza" },

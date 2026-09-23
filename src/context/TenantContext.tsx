@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useLocation } from 'react-router-dom';
+import { resolvePublicDemoPreloadTarget } from '@/config/publicPresentationRoutes';
 
 import {
   followTenant as followTenantRequest,
@@ -86,7 +87,11 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
 const isTenantIndependentPath = (pathname: string) => {
   const normalized = pathname.trim().toLowerCase().replace(/\/+$/, '') || '/';
-  return normalized === '/superadmin' || normalized.startsWith('/superadmin/');
+  return (
+    normalized === '/superadmin' ||
+    normalized.startsWith('/superadmin/') ||
+    resolvePublicDemoPreloadTarget(normalized) !== null
+  );
 };
 const PORTAL_SECTION_SEGMENTS = new Set([
   'dashboard',

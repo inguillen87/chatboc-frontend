@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getNextOperationalTicket,
   getQueueScore,
+  isHighPriorityQueueTicket,
   isRiskQueueTicket,
   isUnreadQueueTicket,
   sortTicketsByOperationalPriority,
@@ -34,10 +35,50 @@ describe('ticketOperationalQueue', () => {
 
   it('keeps SLA risk above regular open tickets', () => {
     const regular = buildTicket({ id: 1, priority: 'media' });
-    const risk = buildTicket({ id: 2, sla_status: 'por vencer' });
+    const risk = buildTicket({
+      id: 2,
+      sla: {
+        clocks: {
+          resolution: {
+            status: 'overdue',
+            due_at: '2026-08-30T10:00:00Z',
+            known: true,
+          },
+        },
+      },
+    });
 
     expect(isRiskQueueTicket(risk)).toBe(true);
     expect(getQueueScore(risk)).toBeGreaterThan(getQueueScore(regular));
+  });
+
+  it('keeps priority high separate from authoritative SLA risk', () => {
+    const regular = buildTicket({ id: 1, priority: 'media' });
+    const priority = buildTicket({ id: 2, priority: 'alta', sla_status: 'active' });
+
+    expect(isHighPriorityQueueTicket(priority)).toBe(true);
+    expect(isRiskQueueTicket(priority)).toBe(false);
+    expect(getQueueScore(priority)).toBeGreaterThan(getQueueScore(regular));
+  });
+
+  it('does not call an explicit warning or missing evidence a breach', () => {
+    const warning = buildTicket({
+      id: 2,
+      sla: {
+        clocks: {
+          next_update: {
+            state: 'warning',
+            status: 'due',
+            due_at: '2026-08-30T13:00:00Z',
+            known: true,
+          },
+        },
+      },
+    });
+    const missing = buildTicket({ id: 3, sla_status: 'active' });
+
+    expect(isRiskQueueTicket(warning)).toBe(false);
+    expect(isRiskQueueTicket(missing)).toBe(false);
   });
 
   it('uses recent activity as the tie breaker inside the same priority', () => {

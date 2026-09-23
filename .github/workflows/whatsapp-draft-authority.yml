@@ -1,0 +1,29 @@
+name: WhatsApp draft authority
+"on":
+  pull_request:
+    paths:
+      - src/hooks/useWhatsappTemplatePacks*
+      - src/components/admin/WhatsappTemplatePacksPanel*
+      - src/components/admin/whatsappTemplatePackContract.ts
+      - .github/workflows/whatsapp-draft-authority.yml
+permissions:
+  contents: read
+concurrency:
+  group: whatsapp-draft-authority-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  authority:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run typecheck:scope
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build

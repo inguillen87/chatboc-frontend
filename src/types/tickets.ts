@@ -11,6 +11,38 @@ export type TicketStatus =
   | "en_vivo";
 export type TicketPriority = "baja" | "media" | "alta" | "urgente";
 
+export type TicketSlaClockState =
+  | "due"
+  | "overdue"
+  | "healthy"
+  | "satisfied"
+  | "paused"
+  | "inactive"
+  | "unknown";
+
+export interface TicketSlaClock {
+  state: TicketSlaClockState;
+  due_at: string | null;
+  fulfilled_at: string | null;
+  remaining_seconds: number | null;
+  known: boolean;
+  overdue: boolean;
+}
+
+export interface TicketSlaContract {
+  contract_version: string | null;
+  evaluated_at: string | null;
+  state: TicketSlaClockState;
+  known: boolean;
+  overdue: boolean;
+  paused: boolean;
+  clocks: {
+    first_response: TicketSlaClock;
+    next_update: TicketSlaClock;
+    resolution: TicketSlaClock;
+  };
+}
+
 export interface Horario {
   start_hour: number;
   end_hour: number;
@@ -196,12 +228,35 @@ export interface UnifiedConversationStreamItem {
   raw?: Record<string, unknown> | null;
 }
 
+export interface TicketHistoryPagination {
+  contract_version?: string;
+  direction?: string;
+  order?: string;
+  limit: number;
+  returned_count?: number;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
 export interface TicketTimelineResponse {
   estado_chat: string;
   timeline: TicketTimelineEvent[];
   historial_chat?: Array<Record<string, unknown>> | null;
   realtime_state?: TicketRealtimeState | null;
   unified_conversation_stream?: UnifiedConversationStreamItem[] | Array<Record<string, unknown>> | null;
+  pagination?: TicketHistoryPagination | null;
+  has_more?: boolean;
+  next_cursor?: string | null;
+}
+
+export interface TicketWorkflowInstance {
+  contract_version: "ticket.workflow.instance.v2" | string;
+  current_state: string;
+  canonical_state?: string | null;
+  next_states: string[];
+  can_transition: boolean;
+  final_state: boolean;
+  blocked_reason?: string | null;
 }
 
 export interface Ticket {
@@ -213,6 +268,9 @@ export interface Ticket {
   estado: TicketStatus;
   fecha: string; // ISO format
   categoria?: string;
+  categoria_reclamo?: string;
+  authoritative_category?: string;
+  authoritativeCategory?: string;
   categories?: string[];
   categoria_principal?: string;
   categoria_secundaria?: string;
@@ -307,6 +365,8 @@ export interface Ticket {
   title?: string; // Keep for components that might still use it
   lastMessage?: string; // Keep for components that might still use it
   description?: string;
+  pregunta?: string;
+  detalles?: string | Record<string, unknown> | null;
   channel?: "whatsapp" | "web" | "email" | "phone" | "other";
   assignedAgent?: User;
   whatsapp_conversation_id?: string;
@@ -322,6 +382,8 @@ export interface Ticket {
 
   // Operational context
   sla_status?: string | null;
+  sla?: TicketSlaContract | Record<string, unknown> | null;
+  sla_evaluation?: TicketSlaContract | Record<string, unknown> | null;
   operational_badges?:
     | string[]
     | Array<{ label?: string; text?: string; value?: string }>;
@@ -354,5 +416,7 @@ export interface Ticket {
   school_case?: Record<string, unknown> | null;
   realtime_state?: TicketRealtimeState | null;
   collaboration_state?: TicketCollaborationState | null;
+  next_states?: string[] | null;
+  workflow?: TicketWorkflowInstance | null;
   socket_room?: string | null;
 }

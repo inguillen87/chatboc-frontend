@@ -9,9 +9,11 @@ import { getContactPhone, getTicketChannel } from '@/utils/ticket';
 import { buildFullAddress } from '@/utils/ticketLocationAddress';
 import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
+import type { TicketPresentationCategory } from './ticketPresentationCategory';
 
 interface CaseStripProps {
   ticket: Ticket | null;
+  presentationCategory?: TicketPresentationCategory | null;
   isDetailsVisible?: boolean;
   onOpenDetails?: () => void;
   className?: string;
@@ -77,6 +79,7 @@ const resolveLocationLabel = (ticket: Ticket): string => {
 
 export const CaseStrip: React.FC<CaseStripProps> = ({
   ticket,
+  presentationCategory,
   isDetailsVisible = false,
   onOpenDetails,
   className,
@@ -89,7 +92,7 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
   const channel = getTicketChannel(ticket);
   const assignedLabel = resolveAssignedLabel(ticket);
   const locationLabel = resolveLocationLabel(ticket);
-  const priority = readText(ticket.priority, ticket.sla_status);
+  const priority = readText(ticket.priority);
   const ticketRef = ticket.nro_ticket || `#${ticket.id}`;
 
   return (
@@ -114,8 +117,14 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
               <Badge variant="secondary" className="max-w-[9rem] truncate text-[11px] capitalize">
                 {formatTicketStatusLabel(ticket.estado)}
               </Badge>
-              <Badge variant="outline" className="max-w-[10rem] truncate text-[11px]">
-                {ticket.categoria || ticket.asunto || 'General'}
+              <Badge
+                variant="outline"
+                className="max-w-[10rem] truncate text-[11px]"
+                aria-label={`${presentationCategory?.label || ticket.categoria || 'Categoría no informada'}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
+              >
+                <span title={presentationCategory?.detail}>
+                  {presentationCategory?.label || ticket.categoria || 'Categoría no informada'}
+                </span>
               </Badge>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground" title={guidance.label}>

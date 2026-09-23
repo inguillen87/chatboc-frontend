@@ -1,0 +1,51 @@
+name: Startup recovery and paired Preview
+"on":
+  pull_request:
+    paths:
+      - src/utils/backendBootstrapGate*
+      - src/utils/backendReadinessLease*
+      - src/config/publicPresentationRoutes.ts
+      - src/App.tsx
+      - src/App.session-bootstrap.test.tsx
+      - src/components/app-shell/BackendStartupBoundary*
+      - src/components/app-shell/StartupRecovery*
+      - src/config/startupExperience.ts
+      - src/components/app-shell/AppShellStatusBar*
+      - src/components/app-shell/RuntimeRecoveryBar.module.css
+      - src/config/runtimeRecovery.ts
+      - src/hooks/useRuntimeRecovery.ts
+      - src/hooks/useFixedHeaderOffset*
+      - src/components/layout/Navbar.tsx
+      - tests/runtime-resume.browser.mjs
+      - tests/e2e/fixtures/runtime-resume.*
+      - tests/profile-http.browser.mjs
+      - scripts/previewBackendTarget*
+      - scripts/generateVercelPreviewConfig.mjs
+      - scripts/guardVercelPreviewRewrites*
+      - scripts/buildVercelPreviewQa.ps1
+      - tests/runtime-recovery.browser.mjs
+      - tests/e2e/fixtures/startup-runtime.*
+      - .github/workflows/runtime-readiness.yml
+permissions:
+  contents: read
+concurrency:
+  group: runtime-readiness-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run typecheck:scope
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/runtime-recovery.browser.mjs && node tests/runtime-resume.browser.mjs

@@ -1,0 +1,51 @@
+name: Enterprise checkout regression
+"on":
+  pull_request:
+    paths:
+      - src/pages/OrderConfirmation*
+      - src/components/orders/OrderVerificationPanel*
+      - src/hooks/useVerifiedOrder*
+      - src/utils/verifiedPaymentStatus*
+      - tests/e2e/order-confirmation-verification.spec.ts
+      - tests/e2e/order-recovery-experience.spec.ts
+      - package.json
+      - package-lock.json
+      - .github/workflows/enterprise-checkout.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: enterprise-checkout-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checkout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Type checks
+        run: npm run typecheck && npm run typecheck:scope
+      - name: Unit and component regression suite
+        run: npm test -- --maxWorkers=2
+      - name: Production build
+        run: npm run build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile verified checkout
+        run: npx playwright test tests/e2e/order-confirmation-verification.spec.ts tests/e2e/order-recovery-experience.spec.ts --project=chromium --workers=1
+      - name: Preserve synthetic visual-review evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: order-experience-screenshots
+          path: test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7

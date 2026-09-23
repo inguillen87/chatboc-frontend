@@ -1,0 +1,54 @@
+name: Organization profile workspace
+"on":
+  pull_request:
+    paths:
+      - src/pages/Perfil*
+      - src/components/implementation/OrganizationModuleSelector*
+      - src/components/implementation/ModuleSelectionGrid*
+      - src/components/implementation/OrganizationSetupWorkspace*
+      - src/utils/moduleCatalog*
+      - src/utils/moduleSelectionAssistance*
+      - src/utils/organizationModules*
+      - src/hooks/useModuleSelection*
+      - tests/fixtures/organization-modules.json
+      - tests/fixtures/module-selection-assistance.json
+      - tests/module-assistance.browser.mjs
+      - tests/e2e/fixtures/module-assistance.*
+      - src/hooks/useBrandStudio.ts
+      - src/utils/workspaceBranding*
+      - src/utils/brandWorkflowUI.ts
+      - tests/fixtures/workspace-branding.json
+      - src/components/profile/**
+      - src/utils/organizationWorkspace*
+      - src/utils/organizationProfileSettings*
+      - src/hooks/useOrganizationProfileSave*
+      - tests/fixtures/organization-workspaces.json
+      - tests/e2e/fixtures/organization-profile.*
+      - tests/profile-save.browser.mjs
+      - tests/profile-http.browser.mjs
+      - tests/e2e/fixtures/profile-version-review*
+      - tests/organization-profile.browser.mjs
+      - .github/workflows/organization-profile.yml
+permissions:
+  contents: read
+concurrency:
+  group: organization-profile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run typecheck:scope
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/organization-profile.browser.mjs && node tests/profile-save.browser.mjs && node tests/module-assistance.browser.mjs

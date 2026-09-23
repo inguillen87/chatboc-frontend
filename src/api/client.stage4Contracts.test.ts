@@ -102,6 +102,17 @@ describe('apiClient stage4 contract integrations', () => {
     );
   });
 
+  it('loads catalog item detail from the authorized tenant-scoped endpoint', async () => {
+    apiFetchMock.mockResolvedValueOnce([{ catalogo_item_id: 91, nombre: 'Luminaria LED' }]);
+
+    const items = await apiClient.adminListProducts('junin');
+
+    expect(items).toHaveLength(1);
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/junin/catalog/items', {
+      tenantSlug: 'junin',
+    });
+  });
+
   it('normalizes tenant integrations returned with backend type fields', async () => {
     apiFetchMock.mockResolvedValueOnce([
       { type: 'MercadoLibre', connected: false },

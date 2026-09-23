@@ -1,0 +1,1684 @@
+{
+  "empty": {
+    "available": true,
+    "capabilities": {
+      "can_edit": true
+    },
+    "contract_version": "surveys.methodology.v1",
+    "coverage": {
+      "assessment": "self_declared",
+      "documented": 0,
+      "inference_authorized": false,
+      "missing": [
+        "purpose",
+        "sponsor",
+        "research_team",
+        "population",
+        "design",
+        "sampling_frame",
+        "recruitment",
+        "incentives",
+        "collection_modes",
+        "languages",
+        "fieldwork_start",
+        "fieldwork_end",
+        "quality_controls",
+        "weighting",
+        "limitations",
+        "instrument_notes"
+      ],
+      "total": 16
+    },
+    "current_instrument_revision": 1,
+    "history": [],
+    "history_has_more": false,
+    "inference_authorized": false,
+    "latest_revision": 0,
+    "linked_instrument_changed": false,
+    "profile": {
+      "actor_user_id": null,
+      "change_reason": null,
+      "created_at": null,
+      "digest": null,
+      "fields": {
+        "collection_modes": "",
+        "design": "unknown",
+        "fieldwork_end": "",
+        "fieldwork_start": "",
+        "incentives": "",
+        "instrument_notes": "",
+        "languages": "",
+        "limitations": "",
+        "population": "",
+        "purpose": "",
+        "quality_controls": "",
+        "recruitment": "",
+        "research_team": "",
+        "sampling_frame": "",
+        "sponsor": "",
+        "weighting": ""
+      },
+      "instrument_revision": null,
+      "previous_digest": null,
+      "revision": 0,
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "result_changes_applied": false,
+    "schema": [
+      {
+        "fields": [
+          {
+            "help": "Qué decisión o pregunta busca informar este estudio.",
+            "key": "purpose",
+            "kind": "textarea",
+            "label": "Objetivo del estudio",
+            "max_length": 1000
+          },
+          {
+            "help": "Organización responsable del encargo. No incluir datos de participantes.",
+            "key": "sponsor",
+            "kind": "text",
+            "label": "Quién encarga o financia",
+            "max_length": 200
+          },
+          {
+            "help": "Identificación del equipo o consultora responsable.",
+            "key": "research_team",
+            "kind": "text",
+            "label": "Equipo que realiza el estudio",
+            "max_length": 240
+          },
+          {
+            "help": "A quiénes se refiere el estudio; delimitar territorio y criterios de inclusión.",
+            "key": "population",
+            "kind": "textarea",
+            "label": "Universo de interés",
+            "max_length": 1000
+          }
+        ],
+        "id": "study",
+        "title": "Estudio y responsables"
+      },
+      {
+        "fields": [
+          {
+            "help": "Es una declaración del responsable, no una validación estadística.",
+            "key": "design",
+            "kind": "select",
+            "label": "Diseño declarado",
+            "max_length": 32,
+            "options": [
+              {
+                "label": "No documentado",
+                "value": "unknown"
+              },
+              {
+                "label": "Probabilístico declarado",
+                "value": "probability"
+              },
+              {
+                "label": "No probabilístico / participación abierta",
+                "value": "nonprobability"
+              },
+              {
+                "label": "Relevamiento censal declarado",
+                "value": "census"
+              },
+              {
+                "label": "Mixto declarado",
+                "value": "mixed"
+              },
+              {
+                "label": "Datos sintéticos / demostración",
+                "value": "synthetic"
+              }
+            ]
+          },
+          {
+            "help": "Describir la fuente o listado y su cobertura. No adjuntar datos individuales.",
+            "key": "sampling_frame",
+            "kind": "textarea",
+            "label": "Marco o fuente de selección",
+            "max_length": 1200
+          },
+          {
+            "help": "Procedimiento de selección, contacto o acceso abierto; exclusiones relevantes.",
+            "key": "recruitment",
+            "kind": "textarea",
+            "label": "Cómo se convocó o seleccionó",
+            "max_length": 1200
+          },
+          {
+            "help": "Indicar incentivos o declarar explícitamente que no se utilizaron.",
+            "key": "incentives",
+            "kind": "text",
+            "label": "Incentivos",
+            "max_length": 500
+          }
+        ],
+        "id": "sample",
+        "title": "Marco y reclutamiento"
+      },
+      {
+        "fields": [
+          {
+            "help": "Por ejemplo: web, WhatsApp, teléfono o entrevista presencial. No se infiere desde el tráfico.",
+            "key": "collection_modes",
+            "kind": "text",
+            "label": "Canales de recolección",
+            "max_length": 250
+          },
+          {
+            "help": "Idiomas efectivamente ofrecidos o previstos, aclarando la condición.",
+            "key": "languages",
+            "kind": "text",
+            "label": "Idiomas ofrecidos",
+            "max_length": 180
+          },
+          {
+            "help": "Fecha declarada; no cambia la apertura de la encuesta.",
+            "key": "fieldwork_start",
+            "kind": "date",
+            "label": "Inicio de campo declarado",
+            "max_length": 10
+          },
+          {
+            "help": "Fecha declarada; no cierra la participación.",
+            "key": "fieldwork_end",
+            "kind": "date",
+            "label": "Fin de campo declarado",
+            "max_length": 10
+          }
+        ],
+        "id": "fieldwork",
+        "title": "Trabajo de campo declarado"
+      },
+      {
+        "fields": [
+          {
+            "help": "Procedimientos usados o previstos y criterios de revisión. No ejecuta exclusiones.",
+            "key": "quality_controls",
+            "kind": "textarea",
+            "label": "Controles de calidad",
+            "max_length": 1200
+          },
+          {
+            "help": "Describir pesos y ajustes o declarar ausencia de ponderación. No los aplica al tablero.",
+            "key": "weighting",
+            "kind": "textarea",
+            "label": "Ponderación y ajustes",
+            "max_length": 1200
+          },
+          {
+            "help": "Cobertura, autoselección, no respuesta y otras restricciones de interpretación.",
+            "key": "limitations",
+            "kind": "textarea",
+            "label": "Limitaciones conocidas",
+            "max_length": 1200
+          },
+          {
+            "help": "Referencias y observaciones. La revisión del instrumento se vincula automáticamente al guardar.",
+            "key": "instrument_notes",
+            "kind": "textarea",
+            "label": "Notas del cuestionario",
+            "max_length": 1000
+          }
+        ],
+        "id": "analysis",
+        "title": "Procesamiento y límites"
+      }
+    ],
+    "scope": {
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "ui": {
+      "archive": "El instrumento está archivado. La ficha se conserva como lectura.",
+      "author": "Usuario que registró",
+      "cancel": "Seguir editando",
+      "change_help": "Explicá qué documentás o corregís (entre 8 y 500 caracteres).",
+      "change_reason": "Motivo del cambio",
+      "confirm_discard": "Descartar y recargar",
+      "conflict": "Hay una versión o cuestionario más reciente. Tu edición se conserva; revisá antes de reemplazarla.",
+      "coverage": "Campos documentados",
+      "current": "Ver ficha actual",
+      "description": "Documentá cómo se obtuvo y analizó la información. Cada guardado conserva una versión y su motivo.",
+      "disabled": "La ficha metodológica aún no está habilitada en este entorno.",
+      "discard": "Descartar cambios y recargar",
+      "discard_description": "Los cambios no guardados se perderán. Las versiones ya registradas permanecen intactas.",
+      "discard_title": "¿Descartar la edición local?",
+      "disclaimer": "Declaración del responsable: completar esta ficha no certifica representatividad, diseño ni margen de error. No modifica respuestas ni resultados.",
+      "documented": "Declaración registrada",
+      "edit": "Editar declaración",
+      "eyebrow": "Investigación y consultoría",
+      "history": "Historial reciente",
+      "history_more": "Se muestran las diez versiones más recientes.",
+      "instrument_revision": "Revisión del cuestionario",
+      "missing": "Pendiente de documentar",
+      "pending": "Cambios sin guardar",
+      "read_error": "No pudimos cargar una ficha verificable.",
+      "refresh": "Actualizar ficha",
+      "refresh_failed": "No se pudo verificar la ficha actual. No guardes desde datos desactualizados.",
+      "revision": "Versión de ficha",
+      "save": "Guardar nueva versión",
+      "saved": "Versión guardada y auditada.",
+      "saving": "Guardando…",
+      "stale": "El cuestionario cambió desde esta ficha. Revisá la declaración antes de guardar una versión vinculada al instrumento actual.",
+      "title": "Ficha metodológica del estudio",
+      "unchanged": "No hay cambios que registrar.",
+      "view_revision": "Ver versión",
+      "viewing_history": "Estás consultando una versión anterior, de solo lectura.",
+      "write_error": "No pudimos confirmar el guardado. Tu edición se conserva; actualizá antes de reintentar."
+    }
+  },
+  "first": {
+    "available": true,
+    "capabilities": {
+      "can_edit": true
+    },
+    "contract_version": "surveys.methodology.v1",
+    "coverage": {
+      "assessment": "self_declared",
+      "documented": 1,
+      "inference_authorized": false,
+      "missing": [
+        "sponsor",
+        "research_team",
+        "population",
+        "design",
+        "sampling_frame",
+        "recruitment",
+        "incentives",
+        "collection_modes",
+        "languages",
+        "fieldwork_start",
+        "fieldwork_end",
+        "quality_controls",
+        "weighting",
+        "limitations",
+        "instrument_notes"
+      ],
+      "total": 16
+    },
+    "current_instrument_revision": 1,
+    "history": [
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.538584+00:00",
+        "digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+        "instrument_revision": 1,
+        "revision": 1
+      }
+    ],
+    "history_has_more": false,
+    "inference_authorized": false,
+    "latest_revision": 1,
+    "linked_instrument_changed": false,
+    "profile": {
+      "actor_user_id": 1,
+      "change_reason": "Registro inicial de las fuentes.",
+      "created_at": "2026-09-23T02:09:29.538584+00:00",
+      "digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+      "fields": {
+        "collection_modes": "",
+        "design": "unknown",
+        "fieldwork_end": "",
+        "fieldwork_start": "",
+        "incentives": "",
+        "instrument_notes": "",
+        "languages": "",
+        "limitations": "",
+        "population": "",
+        "purpose": "Conocer necesidades de servicios",
+        "quality_controls": "",
+        "recruitment": "",
+        "research_team": "",
+        "sampling_frame": "",
+        "sponsor": "",
+        "weighting": ""
+      },
+      "instrument_revision": 1,
+      "previous_digest": null,
+      "revision": 1,
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "replayed": false,
+    "result_changes_applied": false,
+    "schema": [
+      {
+        "fields": [
+          {
+            "help": "Qué decisión o pregunta busca informar este estudio.",
+            "key": "purpose",
+            "kind": "textarea",
+            "label": "Objetivo del estudio",
+            "max_length": 1000
+          },
+          {
+            "help": "Organización responsable del encargo. No incluir datos de participantes.",
+            "key": "sponsor",
+            "kind": "text",
+            "label": "Quién encarga o financia",
+            "max_length": 200
+          },
+          {
+            "help": "Identificación del equipo o consultora responsable.",
+            "key": "research_team",
+            "kind": "text",
+            "label": "Equipo que realiza el estudio",
+            "max_length": 240
+          },
+          {
+            "help": "A quiénes se refiere el estudio; delimitar territorio y criterios de inclusión.",
+            "key": "population",
+            "kind": "textarea",
+            "label": "Universo de interés",
+            "max_length": 1000
+          }
+        ],
+        "id": "study",
+        "title": "Estudio y responsables"
+      },
+      {
+        "fields": [
+          {
+            "help": "Es una declaración del responsable, no una validación estadística.",
+            "key": "design",
+            "kind": "select",
+            "label": "Diseño declarado",
+            "max_length": 32,
+            "options": [
+              {
+                "label": "No documentado",
+                "value": "unknown"
+              },
+              {
+                "label": "Probabilístico declarado",
+                "value": "probability"
+              },
+              {
+                "label": "No probabilístico / participación abierta",
+                "value": "nonprobability"
+              },
+              {
+                "label": "Relevamiento censal declarado",
+                "value": "census"
+              },
+              {
+                "label": "Mixto declarado",
+                "value": "mixed"
+              },
+              {
+                "label": "Datos sintéticos / demostración",
+                "value": "synthetic"
+              }
+            ]
+          },
+          {
+            "help": "Describir la fuente o listado y su cobertura. No adjuntar datos individuales.",
+            "key": "sampling_frame",
+            "kind": "textarea",
+            "label": "Marco o fuente de selección",
+            "max_length": 1200
+          },
+          {
+            "help": "Procedimiento de selección, contacto o acceso abierto; exclusiones relevantes.",
+            "key": "recruitment",
+            "kind": "textarea",
+            "label": "Cómo se convocó o seleccionó",
+            "max_length": 1200
+          },
+          {
+            "help": "Indicar incentivos o declarar explícitamente que no se utilizaron.",
+            "key": "incentives",
+            "kind": "text",
+            "label": "Incentivos",
+            "max_length": 500
+          }
+        ],
+        "id": "sample",
+        "title": "Marco y reclutamiento"
+      },
+      {
+        "fields": [
+          {
+            "help": "Por ejemplo: web, WhatsApp, teléfono o entrevista presencial. No se infiere desde el tráfico.",
+            "key": "collection_modes",
+            "kind": "text",
+            "label": "Canales de recolección",
+            "max_length": 250
+          },
+          {
+            "help": "Idiomas efectivamente ofrecidos o previstos, aclarando la condición.",
+            "key": "languages",
+            "kind": "text",
+            "label": "Idiomas ofrecidos",
+            "max_length": 180
+          },
+          {
+            "help": "Fecha declarada; no cambia la apertura de la encuesta.",
+            "key": "fieldwork_start",
+            "kind": "date",
+            "label": "Inicio de campo declarado",
+            "max_length": 10
+          },
+          {
+            "help": "Fecha declarada; no cierra la participación.",
+            "key": "fieldwork_end",
+            "kind": "date",
+            "label": "Fin de campo declarado",
+            "max_length": 10
+          }
+        ],
+        "id": "fieldwork",
+        "title": "Trabajo de campo declarado"
+      },
+      {
+        "fields": [
+          {
+            "help": "Procedimientos usados o previstos y criterios de revisión. No ejecuta exclusiones.",
+            "key": "quality_controls",
+            "kind": "textarea",
+            "label": "Controles de calidad",
+            "max_length": 1200
+          },
+          {
+            "help": "Describir pesos y ajustes o declarar ausencia de ponderación. No los aplica al tablero.",
+            "key": "weighting",
+            "kind": "textarea",
+            "label": "Ponderación y ajustes",
+            "max_length": 1200
+          },
+          {
+            "help": "Cobertura, autoselección, no respuesta y otras restricciones de interpretación.",
+            "key": "limitations",
+            "kind": "textarea",
+            "label": "Limitaciones conocidas",
+            "max_length": 1200
+          },
+          {
+            "help": "Referencias y observaciones. La revisión del instrumento se vincula automáticamente al guardar.",
+            "key": "instrument_notes",
+            "kind": "textarea",
+            "label": "Notas del cuestionario",
+            "max_length": 1000
+          }
+        ],
+        "id": "analysis",
+        "title": "Procesamiento y límites"
+      }
+    ],
+    "scope": {
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "ui": {
+      "archive": "El instrumento está archivado. La ficha se conserva como lectura.",
+      "author": "Usuario que registró",
+      "cancel": "Seguir editando",
+      "change_help": "Explicá qué documentás o corregís (entre 8 y 500 caracteres).",
+      "change_reason": "Motivo del cambio",
+      "confirm_discard": "Descartar y recargar",
+      "conflict": "Hay una versión o cuestionario más reciente. Tu edición se conserva; revisá antes de reemplazarla.",
+      "coverage": "Campos documentados",
+      "current": "Ver ficha actual",
+      "description": "Documentá cómo se obtuvo y analizó la información. Cada guardado conserva una versión y su motivo.",
+      "disabled": "La ficha metodológica aún no está habilitada en este entorno.",
+      "discard": "Descartar cambios y recargar",
+      "discard_description": "Los cambios no guardados se perderán. Las versiones ya registradas permanecen intactas.",
+      "discard_title": "¿Descartar la edición local?",
+      "disclaimer": "Declaración del responsable: completar esta ficha no certifica representatividad, diseño ni margen de error. No modifica respuestas ni resultados.",
+      "documented": "Declaración registrada",
+      "edit": "Editar declaración",
+      "eyebrow": "Investigación y consultoría",
+      "history": "Historial reciente",
+      "history_more": "Se muestran las diez versiones más recientes.",
+      "instrument_revision": "Revisión del cuestionario",
+      "missing": "Pendiente de documentar",
+      "pending": "Cambios sin guardar",
+      "read_error": "No pudimos cargar una ficha verificable.",
+      "refresh": "Actualizar ficha",
+      "refresh_failed": "No se pudo verificar la ficha actual. No guardes desde datos desactualizados.",
+      "revision": "Versión de ficha",
+      "save": "Guardar nueva versión",
+      "saved": "Versión guardada y auditada.",
+      "saving": "Guardando…",
+      "stale": "El cuestionario cambió desde esta ficha. Revisá la declaración antes de guardar una versión vinculada al instrumento actual.",
+      "title": "Ficha metodológica del estudio",
+      "unchanged": "No hay cambios que registrar.",
+      "view_revision": "Ver versión",
+      "viewing_history": "Estás consultando una versión anterior, de solo lectura.",
+      "write_error": "No pudimos confirmar el guardado. Tu edición se conserva; actualizá antes de reintentar."
+    },
+    "unchanged": false
+  },
+  "second": {
+    "available": true,
+    "capabilities": {
+      "can_edit": true
+    },
+    "contract_version": "surveys.methodology.v1",
+    "coverage": {
+      "assessment": "self_declared",
+      "documented": 9,
+      "inference_authorized": false,
+      "missing": [
+        "sponsor",
+        "sampling_frame",
+        "recruitment",
+        "incentives",
+        "quality_controls",
+        "weighting",
+        "instrument_notes"
+      ],
+      "total": 16
+    },
+    "current_instrument_revision": 1,
+    "history": [
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.550604+00:00",
+        "digest": "1ed464e5d71845be0f1e037363f0088df8d61706d1b5099bd4b841198e77f8af",
+        "instrument_revision": 1,
+        "revision": 2
+      },
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.538584+00:00",
+        "digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+        "instrument_revision": 1,
+        "revision": 1
+      }
+    ],
+    "history_has_more": false,
+    "inference_authorized": false,
+    "latest_revision": 2,
+    "linked_instrument_changed": false,
+    "profile": {
+      "actor_user_id": 1,
+      "change_reason": "Registro inicial de las fuentes.",
+      "created_at": "2026-09-23T02:09:29.550604+00:00",
+      "digest": "1ed464e5d71845be0f1e037363f0088df8d61706d1b5099bd4b841198e77f8af",
+      "fields": {
+        "collection_modes": "Web y WhatsApp",
+        "design": "nonprobability",
+        "fieldwork_end": "2026-09-22",
+        "fieldwork_start": "2026-09-01",
+        "incentives": "",
+        "instrument_notes": "",
+        "languages": "Espanol",
+        "limitations": "Participacion voluntaria. No se extrapola a una poblacion.",
+        "population": "Personas que utilizan los servicios de la organizacion",
+        "purpose": "Consulta abierta sobre prioridades de servicios",
+        "quality_controls": "",
+        "recruitment": "",
+        "research_team": "Equipo de investigacion de prueba",
+        "sampling_frame": "",
+        "sponsor": "",
+        "weighting": ""
+      },
+      "instrument_revision": 1,
+      "previous_digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+      "revision": 2,
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "replayed": false,
+    "result_changes_applied": false,
+    "schema": [
+      {
+        "fields": [
+          {
+            "help": "Qué decisión o pregunta busca informar este estudio.",
+            "key": "purpose",
+            "kind": "textarea",
+            "label": "Objetivo del estudio",
+            "max_length": 1000
+          },
+          {
+            "help": "Organización responsable del encargo. No incluir datos de participantes.",
+            "key": "sponsor",
+            "kind": "text",
+            "label": "Quién encarga o financia",
+            "max_length": 200
+          },
+          {
+            "help": "Identificación del equipo o consultora responsable.",
+            "key": "research_team",
+            "kind": "text",
+            "label": "Equipo que realiza el estudio",
+            "max_length": 240
+          },
+          {
+            "help": "A quiénes se refiere el estudio; delimitar territorio y criterios de inclusión.",
+            "key": "population",
+            "kind": "textarea",
+            "label": "Universo de interés",
+            "max_length": 1000
+          }
+        ],
+        "id": "study",
+        "title": "Estudio y responsables"
+      },
+      {
+        "fields": [
+          {
+            "help": "Es una declaración del responsable, no una validación estadística.",
+            "key": "design",
+            "kind": "select",
+            "label": "Diseño declarado",
+            "max_length": 32,
+            "options": [
+              {
+                "label": "No documentado",
+                "value": "unknown"
+              },
+              {
+                "label": "Probabilístico declarado",
+                "value": "probability"
+              },
+              {
+                "label": "No probabilístico / participación abierta",
+                "value": "nonprobability"
+              },
+              {
+                "label": "Relevamiento censal declarado",
+                "value": "census"
+              },
+              {
+                "label": "Mixto declarado",
+                "value": "mixed"
+              },
+              {
+                "label": "Datos sintéticos / demostración",
+                "value": "synthetic"
+              }
+            ]
+          },
+          {
+            "help": "Describir la fuente o listado y su cobertura. No adjuntar datos individuales.",
+            "key": "sampling_frame",
+            "kind": "textarea",
+            "label": "Marco o fuente de selección",
+            "max_length": 1200
+          },
+          {
+            "help": "Procedimiento de selección, contacto o acceso abierto; exclusiones relevantes.",
+            "key": "recruitment",
+            "kind": "textarea",
+            "label": "Cómo se convocó o seleccionó",
+            "max_length": 1200
+          },
+          {
+            "help": "Indicar incentivos o declarar explícitamente que no se utilizaron.",
+            "key": "incentives",
+            "kind": "text",
+            "label": "Incentivos",
+            "max_length": 500
+          }
+        ],
+        "id": "sample",
+        "title": "Marco y reclutamiento"
+      },
+      {
+        "fields": [
+          {
+            "help": "Por ejemplo: web, WhatsApp, teléfono o entrevista presencial. No se infiere desde el tráfico.",
+            "key": "collection_modes",
+            "kind": "text",
+            "label": "Canales de recolección",
+            "max_length": 250
+          },
+          {
+            "help": "Idiomas efectivamente ofrecidos o previstos, aclarando la condición.",
+            "key": "languages",
+            "kind": "text",
+            "label": "Idiomas ofrecidos",
+            "max_length": 180
+          },
+          {
+            "help": "Fecha declarada; no cambia la apertura de la encuesta.",
+            "key": "fieldwork_start",
+            "kind": "date",
+            "label": "Inicio de campo declarado",
+            "max_length": 10
+          },
+          {
+            "help": "Fecha declarada; no cierra la participación.",
+            "key": "fieldwork_end",
+            "kind": "date",
+            "label": "Fin de campo declarado",
+            "max_length": 10
+          }
+        ],
+        "id": "fieldwork",
+        "title": "Trabajo de campo declarado"
+      },
+      {
+        "fields": [
+          {
+            "help": "Procedimientos usados o previstos y criterios de revisión. No ejecuta exclusiones.",
+            "key": "quality_controls",
+            "kind": "textarea",
+            "label": "Controles de calidad",
+            "max_length": 1200
+          },
+          {
+            "help": "Describir pesos y ajustes o declarar ausencia de ponderación. No los aplica al tablero.",
+            "key": "weighting",
+            "kind": "textarea",
+            "label": "Ponderación y ajustes",
+            "max_length": 1200
+          },
+          {
+            "help": "Cobertura, autoselección, no respuesta y otras restricciones de interpretación.",
+            "key": "limitations",
+            "kind": "textarea",
+            "label": "Limitaciones conocidas",
+            "max_length": 1200
+          },
+          {
+            "help": "Referencias y observaciones. La revisión del instrumento se vincula automáticamente al guardar.",
+            "key": "instrument_notes",
+            "kind": "textarea",
+            "label": "Notas del cuestionario",
+            "max_length": 1000
+          }
+        ],
+        "id": "analysis",
+        "title": "Procesamiento y límites"
+      }
+    ],
+    "scope": {
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "ui": {
+      "archive": "El instrumento está archivado. La ficha se conserva como lectura.",
+      "author": "Usuario que registró",
+      "cancel": "Seguir editando",
+      "change_help": "Explicá qué documentás o corregís (entre 8 y 500 caracteres).",
+      "change_reason": "Motivo del cambio",
+      "confirm_discard": "Descartar y recargar",
+      "conflict": "Hay una versión o cuestionario más reciente. Tu edición se conserva; revisá antes de reemplazarla.",
+      "coverage": "Campos documentados",
+      "current": "Ver ficha actual",
+      "description": "Documentá cómo se obtuvo y analizó la información. Cada guardado conserva una versión y su motivo.",
+      "disabled": "La ficha metodológica aún no está habilitada en este entorno.",
+      "discard": "Descartar cambios y recargar",
+      "discard_description": "Los cambios no guardados se perderán. Las versiones ya registradas permanecen intactas.",
+      "discard_title": "¿Descartar la edición local?",
+      "disclaimer": "Declaración del responsable: completar esta ficha no certifica representatividad, diseño ni margen de error. No modifica respuestas ni resultados.",
+      "documented": "Declaración registrada",
+      "edit": "Editar declaración",
+      "eyebrow": "Investigación y consultoría",
+      "history": "Historial reciente",
+      "history_more": "Se muestran las diez versiones más recientes.",
+      "instrument_revision": "Revisión del cuestionario",
+      "missing": "Pendiente de documentar",
+      "pending": "Cambios sin guardar",
+      "read_error": "No pudimos cargar una ficha verificable.",
+      "refresh": "Actualizar ficha",
+      "refresh_failed": "No se pudo verificar la ficha actual. No guardes desde datos desactualizados.",
+      "revision": "Versión de ficha",
+      "save": "Guardar nueva versión",
+      "saved": "Versión guardada y auditada.",
+      "saving": "Guardando…",
+      "stale": "El cuestionario cambió desde esta ficha. Revisá la declaración antes de guardar una versión vinculada al instrumento actual.",
+      "title": "Ficha metodológica del estudio",
+      "unchanged": "No hay cambios que registrar.",
+      "view_revision": "Ver versión",
+      "viewing_history": "Estás consultando una versión anterior, de solo lectura.",
+      "write_error": "No pudimos confirmar el guardado. Tu edición se conserva; actualizá antes de reintentar."
+    },
+    "unchanged": false
+  },
+  "history": {
+    "available": true,
+    "capabilities": {
+      "can_edit": false
+    },
+    "contract_version": "surveys.methodology.v1",
+    "coverage": {
+      "assessment": "self_declared",
+      "documented": 1,
+      "inference_authorized": false,
+      "missing": [
+        "sponsor",
+        "research_team",
+        "population",
+        "design",
+        "sampling_frame",
+        "recruitment",
+        "incentives",
+        "collection_modes",
+        "languages",
+        "fieldwork_start",
+        "fieldwork_end",
+        "quality_controls",
+        "weighting",
+        "limitations",
+        "instrument_notes"
+      ],
+      "total": 16
+    },
+    "current_instrument_revision": 1,
+    "history": [
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.550604+00:00",
+        "digest": "1ed464e5d71845be0f1e037363f0088df8d61706d1b5099bd4b841198e77f8af",
+        "instrument_revision": 1,
+        "revision": 2
+      },
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.538584+00:00",
+        "digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+        "instrument_revision": 1,
+        "revision": 1
+      }
+    ],
+    "history_has_more": false,
+    "inference_authorized": false,
+    "latest_revision": 2,
+    "linked_instrument_changed": false,
+    "profile": {
+      "actor_user_id": 1,
+      "change_reason": "Registro inicial de las fuentes.",
+      "created_at": "2026-09-23T02:09:29.538584+00:00",
+      "digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+      "fields": {
+        "collection_modes": "",
+        "design": "unknown",
+        "fieldwork_end": "",
+        "fieldwork_start": "",
+        "incentives": "",
+        "instrument_notes": "",
+        "languages": "",
+        "limitations": "",
+        "population": "",
+        "purpose": "Conocer necesidades de servicios",
+        "quality_controls": "",
+        "recruitment": "",
+        "research_team": "",
+        "sampling_frame": "",
+        "sponsor": "",
+        "weighting": ""
+      },
+      "instrument_revision": 1,
+      "previous_digest": null,
+      "revision": 1,
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "result_changes_applied": false,
+    "schema": [
+      {
+        "fields": [
+          {
+            "help": "Qué decisión o pregunta busca informar este estudio.",
+            "key": "purpose",
+            "kind": "textarea",
+            "label": "Objetivo del estudio",
+            "max_length": 1000
+          },
+          {
+            "help": "Organización responsable del encargo. No incluir datos de participantes.",
+            "key": "sponsor",
+            "kind": "text",
+            "label": "Quién encarga o financia",
+            "max_length": 200
+          },
+          {
+            "help": "Identificación del equipo o consultora responsable.",
+            "key": "research_team",
+            "kind": "text",
+            "label": "Equipo que realiza el estudio",
+            "max_length": 240
+          },
+          {
+            "help": "A quiénes se refiere el estudio; delimitar territorio y criterios de inclusión.",
+            "key": "population",
+            "kind": "textarea",
+            "label": "Universo de interés",
+            "max_length": 1000
+          }
+        ],
+        "id": "study",
+        "title": "Estudio y responsables"
+      },
+      {
+        "fields": [
+          {
+            "help": "Es una declaración del responsable, no una validación estadística.",
+            "key": "design",
+            "kind": "select",
+            "label": "Diseño declarado",
+            "max_length": 32,
+            "options": [
+              {
+                "label": "No documentado",
+                "value": "unknown"
+              },
+              {
+                "label": "Probabilístico declarado",
+                "value": "probability"
+              },
+              {
+                "label": "No probabilístico / participación abierta",
+                "value": "nonprobability"
+              },
+              {
+                "label": "Relevamiento censal declarado",
+                "value": "census"
+              },
+              {
+                "label": "Mixto declarado",
+                "value": "mixed"
+              },
+              {
+                "label": "Datos sintéticos / demostración",
+                "value": "synthetic"
+              }
+            ]
+          },
+          {
+            "help": "Describir la fuente o listado y su cobertura. No adjuntar datos individuales.",
+            "key": "sampling_frame",
+            "kind": "textarea",
+            "label": "Marco o fuente de selección",
+            "max_length": 1200
+          },
+          {
+            "help": "Procedimiento de selección, contacto o acceso abierto; exclusiones relevantes.",
+            "key": "recruitment",
+            "kind": "textarea",
+            "label": "Cómo se convocó o seleccionó",
+            "max_length": 1200
+          },
+          {
+            "help": "Indicar incentivos o declarar explícitamente que no se utilizaron.",
+            "key": "incentives",
+            "kind": "text",
+            "label": "Incentivos",
+            "max_length": 500
+          }
+        ],
+        "id": "sample",
+        "title": "Marco y reclutamiento"
+      },
+      {
+        "fields": [
+          {
+            "help": "Por ejemplo: web, WhatsApp, teléfono o entrevista presencial. No se infiere desde el tráfico.",
+            "key": "collection_modes",
+            "kind": "text",
+            "label": "Canales de recolección",
+            "max_length": 250
+          },
+          {
+            "help": "Idiomas efectivamente ofrecidos o previstos, aclarando la condición.",
+            "key": "languages",
+            "kind": "text",
+            "label": "Idiomas ofrecidos",
+            "max_length": 180
+          },
+          {
+            "help": "Fecha declarada; no cambia la apertura de la encuesta.",
+            "key": "fieldwork_start",
+            "kind": "date",
+            "label": "Inicio de campo declarado",
+            "max_length": 10
+          },
+          {
+            "help": "Fecha declarada; no cierra la participación.",
+            "key": "fieldwork_end",
+            "kind": "date",
+            "label": "Fin de campo declarado",
+            "max_length": 10
+          }
+        ],
+        "id": "fieldwork",
+        "title": "Trabajo de campo declarado"
+      },
+      {
+        "fields": [
+          {
+            "help": "Procedimientos usados o previstos y criterios de revisión. No ejecuta exclusiones.",
+            "key": "quality_controls",
+            "kind": "textarea",
+            "label": "Controles de calidad",
+            "max_length": 1200
+          },
+          {
+            "help": "Describir pesos y ajustes o declarar ausencia de ponderación. No los aplica al tablero.",
+            "key": "weighting",
+            "kind": "textarea",
+            "label": "Ponderación y ajustes",
+            "max_length": 1200
+          },
+          {
+            "help": "Cobertura, autoselección, no respuesta y otras restricciones de interpretación.",
+            "key": "limitations",
+            "kind": "textarea",
+            "label": "Limitaciones conocidas",
+            "max_length": 1200
+          },
+          {
+            "help": "Referencias y observaciones. La revisión del instrumento se vincula automáticamente al guardar.",
+            "key": "instrument_notes",
+            "kind": "textarea",
+            "label": "Notas del cuestionario",
+            "max_length": 1000
+          }
+        ],
+        "id": "analysis",
+        "title": "Procesamiento y límites"
+      }
+    ],
+    "scope": {
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "ui": {
+      "archive": "El instrumento está archivado. La ficha se conserva como lectura.",
+      "author": "Usuario que registró",
+      "cancel": "Seguir editando",
+      "change_help": "Explicá qué documentás o corregís (entre 8 y 500 caracteres).",
+      "change_reason": "Motivo del cambio",
+      "confirm_discard": "Descartar y recargar",
+      "conflict": "Hay una versión o cuestionario más reciente. Tu edición se conserva; revisá antes de reemplazarla.",
+      "coverage": "Campos documentados",
+      "current": "Ver ficha actual",
+      "description": "Documentá cómo se obtuvo y analizó la información. Cada guardado conserva una versión y su motivo.",
+      "disabled": "La ficha metodológica aún no está habilitada en este entorno.",
+      "discard": "Descartar cambios y recargar",
+      "discard_description": "Los cambios no guardados se perderán. Las versiones ya registradas permanecen intactas.",
+      "discard_title": "¿Descartar la edición local?",
+      "disclaimer": "Declaración del responsable: completar esta ficha no certifica representatividad, diseño ni margen de error. No modifica respuestas ni resultados.",
+      "documented": "Declaración registrada",
+      "edit": "Editar declaración",
+      "eyebrow": "Investigación y consultoría",
+      "history": "Historial reciente",
+      "history_more": "Se muestran las diez versiones más recientes.",
+      "instrument_revision": "Revisión del cuestionario",
+      "missing": "Pendiente de documentar",
+      "pending": "Cambios sin guardar",
+      "read_error": "No pudimos cargar una ficha verificable.",
+      "refresh": "Actualizar ficha",
+      "refresh_failed": "No se pudo verificar la ficha actual. No guardes desde datos desactualizados.",
+      "revision": "Versión de ficha",
+      "save": "Guardar nueva versión",
+      "saved": "Versión guardada y auditada.",
+      "saving": "Guardando…",
+      "stale": "El cuestionario cambió desde esta ficha. Revisá la declaración antes de guardar una versión vinculada al instrumento actual.",
+      "title": "Ficha metodológica del estudio",
+      "unchanged": "No hay cambios que registrar.",
+      "view_revision": "Ver versión",
+      "viewing_history": "Estás consultando una versión anterior, de solo lectura.",
+      "write_error": "No pudimos confirmar el guardado. Tu edición se conserva; actualizá antes de reintentar."
+    }
+  },
+  "stale": {
+    "available": true,
+    "capabilities": {
+      "can_edit": true
+    },
+    "contract_version": "surveys.methodology.v1",
+    "coverage": {
+      "assessment": "self_declared",
+      "documented": 9,
+      "inference_authorized": false,
+      "missing": [
+        "sponsor",
+        "sampling_frame",
+        "recruitment",
+        "incentives",
+        "quality_controls",
+        "weighting",
+        "instrument_notes"
+      ],
+      "total": 16
+    },
+    "current_instrument_revision": 2,
+    "history": [
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.550604+00:00",
+        "digest": "1ed464e5d71845be0f1e037363f0088df8d61706d1b5099bd4b841198e77f8af",
+        "instrument_revision": 1,
+        "revision": 2
+      },
+      {
+        "actor_user_id": 1,
+        "change_reason": "Registro inicial de las fuentes.",
+        "created_at": "2026-09-23T02:09:29.538584+00:00",
+        "digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+        "instrument_revision": 1,
+        "revision": 1
+      }
+    ],
+    "history_has_more": false,
+    "inference_authorized": false,
+    "latest_revision": 2,
+    "linked_instrument_changed": true,
+    "profile": {
+      "actor_user_id": 1,
+      "change_reason": "Registro inicial de las fuentes.",
+      "created_at": "2026-09-23T02:09:29.550604+00:00",
+      "digest": "1ed464e5d71845be0f1e037363f0088df8d61706d1b5099bd4b841198e77f8af",
+      "fields": {
+        "collection_modes": "Web y WhatsApp",
+        "design": "nonprobability",
+        "fieldwork_end": "2026-09-22",
+        "fieldwork_start": "2026-09-01",
+        "incentives": "",
+        "instrument_notes": "",
+        "languages": "Espanol",
+        "limitations": "Participacion voluntaria. No se extrapola a una poblacion.",
+        "population": "Personas que utilizan los servicios de la organizacion",
+        "purpose": "Consulta abierta sobre prioridades de servicios",
+        "quality_controls": "",
+        "recruitment": "",
+        "research_team": "Equipo de investigacion de prueba",
+        "sampling_frame": "",
+        "sponsor": "",
+        "weighting": ""
+      },
+      "instrument_revision": 1,
+      "previous_digest": "5c140275a49574ff3235daa4894a90c7c589589fc7d232a3ef9e6625af5c4a9d",
+      "revision": 2,
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "result_changes_applied": false,
+    "schema": [
+      {
+        "fields": [
+          {
+            "help": "Qué decisión o pregunta busca informar este estudio.",
+            "key": "purpose",
+            "kind": "textarea",
+            "label": "Objetivo del estudio",
+            "max_length": 1000
+          },
+          {
+            "help": "Organización responsable del encargo. No incluir datos de participantes.",
+            "key": "sponsor",
+            "kind": "text",
+            "label": "Quién encarga o financia",
+            "max_length": 200
+          },
+          {
+            "help": "Identificación del equipo o consultora responsable.",
+            "key": "research_team",
+            "kind": "text",
+            "label": "Equipo que realiza el estudio",
+            "max_length": 240
+          },
+          {
+            "help": "A quiénes se refiere el estudio; delimitar territorio y criterios de inclusión.",
+            "key": "population",
+            "kind": "textarea",
+            "label": "Universo de interés",
+            "max_length": 1000
+          }
+        ],
+        "id": "study",
+        "title": "Estudio y responsables"
+      },
+      {
+        "fields": [
+          {
+            "help": "Es una declaración del responsable, no una validación estadística.",
+            "key": "design",
+            "kind": "select",
+            "label": "Diseño declarado",
+            "max_length": 32,
+            "options": [
+              {
+                "label": "No documentado",
+                "value": "unknown"
+              },
+              {
+                "label": "Probabilístico declarado",
+                "value": "probability"
+              },
+              {
+                "label": "No probabilístico / participación abierta",
+                "value": "nonprobability"
+              },
+              {
+                "label": "Relevamiento censal declarado",
+                "value": "census"
+              },
+              {
+                "label": "Mixto declarado",
+                "value": "mixed"
+              },
+              {
+                "label": "Datos sintéticos / demostración",
+                "value": "synthetic"
+              }
+            ]
+          },
+          {
+            "help": "Describir la fuente o listado y su cobertura. No adjuntar datos individuales.",
+            "key": "sampling_frame",
+            "kind": "textarea",
+            "label": "Marco o fuente de selección",
+            "max_length": 1200
+          },
+          {
+            "help": "Procedimiento de selección, contacto o acceso abierto; exclusiones relevantes.",
+            "key": "recruitment",
+            "kind": "textarea",
+            "label": "Cómo se convocó o seleccionó",
+            "max_length": 1200
+          },
+          {
+            "help": "Indicar incentivos o declarar explícitamente que no se utilizaron.",
+            "key": "incentives",
+            "kind": "text",
+            "label": "Incentivos",
+            "max_length": 500
+          }
+        ],
+        "id": "sample",
+        "title": "Marco y reclutamiento"
+      },
+      {
+        "fields": [
+          {
+            "help": "Por ejemplo: web, WhatsApp, teléfono o entrevista presencial. No se infiere desde el tráfico.",
+            "key": "collection_modes",
+            "kind": "text",
+            "label": "Canales de recolección",
+            "max_length": 250
+          },
+          {
+            "help": "Idiomas efectivamente ofrecidos o previstos, aclarando la condición.",
+            "key": "languages",
+            "kind": "text",
+            "label": "Idiomas ofrecidos",
+            "max_length": 180
+          },
+          {
+            "help": "Fecha declarada; no cambia la apertura de la encuesta.",
+            "key": "fieldwork_start",
+            "kind": "date",
+            "label": "Inicio de campo declarado",
+            "max_length": 10
+          },
+          {
+            "help": "Fecha declarada; no cierra la participación.",
+            "key": "fieldwork_end",
+            "kind": "date",
+            "label": "Fin de campo declarado",
+            "max_length": 10
+          }
+        ],
+        "id": "fieldwork",
+        "title": "Trabajo de campo declarado"
+      },
+      {
+        "fields": [
+          {
+            "help": "Procedimientos usados o previstos y criterios de revisión. No ejecuta exclusiones.",
+            "key": "quality_controls",
+            "kind": "textarea",
+            "label": "Controles de calidad",
+            "max_length": 1200
+          },
+          {
+            "help": "Describir pesos y ajustes o declarar ausencia de ponderación. No los aplica al tablero.",
+            "key": "weighting",
+            "kind": "textarea",
+            "label": "Ponderación y ajustes",
+            "max_length": 1200
+          },
+          {
+            "help": "Cobertura, autoselección, no respuesta y otras restricciones de interpretación.",
+            "key": "limitations",
+            "kind": "textarea",
+            "label": "Limitaciones conocidas",
+            "max_length": 1200
+          },
+          {
+            "help": "Referencias y observaciones. La revisión del instrumento se vincula automáticamente al guardar.",
+            "key": "instrument_notes",
+            "kind": "textarea",
+            "label": "Notas del cuestionario",
+            "max_length": 1000
+          }
+        ],
+        "id": "analysis",
+        "title": "Procesamiento y límites"
+      }
+    ],
+    "scope": {
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "ui": {
+      "archive": "El instrumento está archivado. La ficha se conserva como lectura.",
+      "author": "Usuario que registró",
+      "cancel": "Seguir editando",
+      "change_help": "Explicá qué documentás o corregís (entre 8 y 500 caracteres).",
+      "change_reason": "Motivo del cambio",
+      "confirm_discard": "Descartar y recargar",
+      "conflict": "Hay una versión o cuestionario más reciente. Tu edición se conserva; revisá antes de reemplazarla.",
+      "coverage": "Campos documentados",
+      "current": "Ver ficha actual",
+      "description": "Documentá cómo se obtuvo y analizó la información. Cada guardado conserva una versión y su motivo.",
+      "disabled": "La ficha metodológica aún no está habilitada en este entorno.",
+      "discard": "Descartar cambios y recargar",
+      "discard_description": "Los cambios no guardados se perderán. Las versiones ya registradas permanecen intactas.",
+      "discard_title": "¿Descartar la edición local?",
+      "disclaimer": "Declaración del responsable: completar esta ficha no certifica representatividad, diseño ni margen de error. No modifica respuestas ni resultados.",
+      "documented": "Declaración registrada",
+      "edit": "Editar declaración",
+      "eyebrow": "Investigación y consultoría",
+      "history": "Historial reciente",
+      "history_more": "Se muestran las diez versiones más recientes.",
+      "instrument_revision": "Revisión del cuestionario",
+      "missing": "Pendiente de documentar",
+      "pending": "Cambios sin guardar",
+      "read_error": "No pudimos cargar una ficha verificable.",
+      "refresh": "Actualizar ficha",
+      "refresh_failed": "No se pudo verificar la ficha actual. No guardes desde datos desactualizados.",
+      "revision": "Versión de ficha",
+      "save": "Guardar nueva versión",
+      "saved": "Versión guardada y auditada.",
+      "saving": "Guardando…",
+      "stale": "El cuestionario cambió desde esta ficha. Revisá la declaración antes de guardar una versión vinculada al instrumento actual.",
+      "title": "Ficha metodológica del estudio",
+      "unchanged": "No hay cambios que registrar.",
+      "view_revision": "Ver versión",
+      "viewing_history": "Estás consultando una versión anterior, de solo lectura.",
+      "write_error": "No pudimos confirmar el guardado. Tu edición se conserva; actualizá antes de reintentar."
+    }
+  },
+  "disabled": {
+    "available": false,
+    "capabilities": {
+      "can_edit": false
+    },
+    "contract_version": "surveys.methodology.v1",
+    "coverage": {
+      "assessment": "self_declared",
+      "documented": 0,
+      "inference_authorized": false,
+      "missing": [
+        "purpose",
+        "sponsor",
+        "research_team",
+        "population",
+        "design",
+        "sampling_frame",
+        "recruitment",
+        "incentives",
+        "collection_modes",
+        "languages",
+        "fieldwork_start",
+        "fieldwork_end",
+        "quality_controls",
+        "weighting",
+        "limitations",
+        "instrument_notes"
+      ],
+      "total": 16
+    },
+    "current_instrument_revision": 2,
+    "history": [],
+    "history_has_more": false,
+    "inference_authorized": false,
+    "latest_revision": 0,
+    "linked_instrument_changed": false,
+    "profile": {
+      "actor_user_id": null,
+      "change_reason": null,
+      "created_at": null,
+      "digest": null,
+      "fields": {
+        "collection_modes": "",
+        "design": "unknown",
+        "fieldwork_end": "",
+        "fieldwork_start": "",
+        "incentives": "",
+        "instrument_notes": "",
+        "languages": "",
+        "limitations": "",
+        "population": "",
+        "purpose": "",
+        "quality_controls": "",
+        "recruitment": "",
+        "research_team": "",
+        "sampling_frame": "",
+        "sponsor": "",
+        "weighting": ""
+      },
+      "instrument_revision": null,
+      "previous_digest": null,
+      "revision": 0,
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "result_changes_applied": false,
+    "schema": [
+      {
+        "fields": [
+          {
+            "help": "Qué decisión o pregunta busca informar este estudio.",
+            "key": "purpose",
+            "kind": "textarea",
+            "label": "Objetivo del estudio",
+            "max_length": 1000
+          },
+          {
+            "help": "Organización responsable del encargo. No incluir datos de participantes.",
+            "key": "sponsor",
+            "kind": "text",
+            "label": "Quién encarga o financia",
+            "max_length": 200
+          },
+          {
+            "help": "Identificación del equipo o consultora responsable.",
+            "key": "research_team",
+            "kind": "text",
+            "label": "Equipo que realiza el estudio",
+            "max_length": 240
+          },
+          {
+            "help": "A quiénes se refiere el estudio; delimitar territorio y criterios de inclusión.",
+            "key": "population",
+            "kind": "textarea",
+            "label": "Universo de interés",
+            "max_length": 1000
+          }
+        ],
+        "id": "study",
+        "title": "Estudio y responsables"
+      },
+      {
+        "fields": [
+          {
+            "help": "Es una declaración del responsable, no una validación estadística.",
+            "key": "design",
+            "kind": "select",
+            "label": "Diseño declarado",
+            "max_length": 32,
+            "options": [
+              {
+                "label": "No documentado",
+                "value": "unknown"
+              },
+              {
+                "label": "Probabilístico declarado",
+                "value": "probability"
+              },
+              {
+                "label": "No probabilístico / participación abierta",
+                "value": "nonprobability"
+              },
+              {
+                "label": "Relevamiento censal declarado",
+                "value": "census"
+              },
+              {
+                "label": "Mixto declarado",
+                "value": "mixed"
+              },
+              {
+                "label": "Datos sintéticos / demostración",
+                "value": "synthetic"
+              }
+            ]
+          },
+          {
+            "help": "Describir la fuente o listado y su cobertura. No adjuntar datos individuales.",
+            "key": "sampling_frame",
+            "kind": "textarea",
+            "label": "Marco o fuente de selección",
+            "max_length": 1200
+          },
+          {
+            "help": "Procedimiento de selección, contacto o acceso abierto; exclusiones relevantes.",
+            "key": "recruitment",
+            "kind": "textarea",
+            "label": "Cómo se convocó o seleccionó",
+            "max_length": 1200
+          },
+          {
+            "help": "Indicar incentivos o declarar explícitamente que no se utilizaron.",
+            "key": "incentives",
+            "kind": "text",
+            "label": "Incentivos",
+            "max_length": 500
+          }
+        ],
+        "id": "sample",
+        "title": "Marco y reclutamiento"
+      },
+      {
+        "fields": [
+          {
+            "help": "Por ejemplo: web, WhatsApp, teléfono o entrevista presencial. No se infiere desde el tráfico.",
+            "key": "collection_modes",
+            "kind": "text",
+            "label": "Canales de recolección",
+            "max_length": 250
+          },
+          {
+            "help": "Idiomas efectivamente ofrecidos o previstos, aclarando la condición.",
+            "key": "languages",
+            "kind": "text",
+            "label": "Idiomas ofrecidos",
+            "max_length": 180
+          },
+          {
+            "help": "Fecha declarada; no cambia la apertura de la encuesta.",
+            "key": "fieldwork_start",
+            "kind": "date",
+            "label": "Inicio de campo declarado",
+            "max_length": 10
+          },
+          {
+            "help": "Fecha declarada; no cierra la participación.",
+            "key": "fieldwork_end",
+            "kind": "date",
+            "label": "Fin de campo declarado",
+            "max_length": 10
+          }
+        ],
+        "id": "fieldwork",
+        "title": "Trabajo de campo declarado"
+      },
+      {
+        "fields": [
+          {
+            "help": "Procedimientos usados o previstos y criterios de revisión. No ejecuta exclusiones.",
+            "key": "quality_controls",
+            "kind": "textarea",
+            "label": "Controles de calidad",
+            "max_length": 1200
+          },
+          {
+            "help": "Describir pesos y ajustes o declarar ausencia de ponderación. No los aplica al tablero.",
+            "key": "weighting",
+            "kind": "textarea",
+            "label": "Ponderación y ajustes",
+            "max_length": 1200
+          },
+          {
+            "help": "Cobertura, autoselección, no respuesta y otras restricciones de interpretación.",
+            "key": "limitations",
+            "kind": "textarea",
+            "label": "Limitaciones conocidas",
+            "max_length": 1200
+          },
+          {
+            "help": "Referencias y observaciones. La revisión del instrumento se vincula automáticamente al guardar.",
+            "key": "instrument_notes",
+            "kind": "textarea",
+            "label": "Notas del cuestionario",
+            "max_length": 1000
+          }
+        ],
+        "id": "analysis",
+        "title": "Procesamiento y límites"
+      }
+    ],
+    "scope": {
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "ui": {
+      "archive": "El instrumento está archivado. La ficha se conserva como lectura.",
+      "author": "Usuario que registró",
+      "cancel": "Seguir editando",
+      "change_help": "Explicá qué documentás o corregís (entre 8 y 500 caracteres).",
+      "change_reason": "Motivo del cambio",
+      "confirm_discard": "Descartar y recargar",
+      "conflict": "Hay una versión o cuestionario más reciente. Tu edición se conserva; revisá antes de reemplazarla.",
+      "coverage": "Campos documentados",
+      "current": "Ver ficha actual",
+      "description": "Documentá cómo se obtuvo y analizó la información. Cada guardado conserva una versión y su motivo.",
+      "disabled": "La ficha metodológica aún no está habilitada en este entorno.",
+      "discard": "Descartar cambios y recargar",
+      "discard_description": "Los cambios no guardados se perderán. Las versiones ya registradas permanecen intactas.",
+      "discard_title": "¿Descartar la edición local?",
+      "disclaimer": "Declaración del responsable: completar esta ficha no certifica representatividad, diseño ni margen de error. No modifica respuestas ni resultados.",
+      "documented": "Declaración registrada",
+      "edit": "Editar declaración",
+      "eyebrow": "Investigación y consultoría",
+      "history": "Historial reciente",
+      "history_more": "Se muestran las diez versiones más recientes.",
+      "instrument_revision": "Revisión del cuestionario",
+      "missing": "Pendiente de documentar",
+      "pending": "Cambios sin guardar",
+      "read_error": "No pudimos cargar una ficha verificable.",
+      "refresh": "Actualizar ficha",
+      "refresh_failed": "No se pudo verificar la ficha actual. No guardes desde datos desactualizados.",
+      "revision": "Versión de ficha",
+      "save": "Guardar nueva versión",
+      "saved": "Versión guardada y auditada.",
+      "saving": "Guardando…",
+      "stale": "El cuestionario cambió desde esta ficha. Revisá la declaración antes de guardar una versión vinculada al instrumento actual.",
+      "title": "Ficha metodológica del estudio",
+      "unchanged": "No hay cambios que registrar.",
+      "view_revision": "Ver versión",
+      "viewing_history": "Estás consultando una versión anterior, de solo lectura.",
+      "write_error": "No pudimos confirmar el guardado. Tu edición se conserva; actualizá antes de reintentar."
+    }
+  }
+}

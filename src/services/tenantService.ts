@@ -1,6 +1,10 @@
 import { ApiError, apiFetch } from "@/utils/api";
 import { CreateTenantPayload, CreateTenantResponse, TenantConfigBundle } from "@/types/TenantConfig";
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
+import type {
+  TenantRuntimeWidgetConfig,
+  TenantRuntimeWidgetUpdate,
+} from "@/utils/chatCustomizerPersistence";
 
 const BASE_URL = "/api/admin/tenants";
 const PUBLIC_BASE_URL = "/api/public/tenants";
@@ -26,6 +30,29 @@ export const tenantService = {
       return response;
     }
     return tenantService.getTenantConfig(slug);
+  },
+
+  getRuntimeWidgetConfig: async (slug: string): Promise<TenantRuntimeWidgetConfig> => {
+    return apiFetch<TenantRuntimeWidgetConfig>('/api/tenant/config', {
+      tenantSlug: slug,
+    });
+  },
+
+  updateRuntimeWidgetConfig: async (
+    slug: string,
+    payload: TenantRuntimeWidgetUpdate,
+  ): Promise<{ status?: string }> => {
+    return apiFetch<{ status?: string }>('/api/tenant/config', {
+      method: 'PUT',
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
+  getPublicRuntimeWidgetConfig: async (slug: string): Promise<TenantRuntimeWidgetConfig> => {
+    return apiFetch<TenantRuntimeWidgetConfig>(`/api/public/tenants/${slug}/widget-config`, {
+      tenantSlug: slug,
+    });
   },
 
   assignWhatsappNumber: async (slug: string): Promise<{ assigned: boolean; phone_number: string; sender_id: string }> => {

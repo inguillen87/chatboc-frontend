@@ -113,7 +113,7 @@ describe('SurveyLiveResultsPanel', () => {
       'href',
       '/admin/encuestas/1/analytics?focus=heatmap&include_heatmap=1',
     );
-    expect(screen.getByRole('status')).toHaveTextContent('En vivo');
+    expect(screen.getByText('Polling automático', { selector: '[role="status"]' })).toBeInTheDocument();
     expect(screen.getByText('Prioridad barrial')).toBeInTheDocument();
     expect(screen.getByText('Centro concentra la actividad reciente.')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('SurveyLiveResultsPanel', () => {
       mocks.socketOptions.onUpdate(payloadFixture(24, 2));
     });
 
-    expect(screen.getByRole('status')).toHaveTextContent('Socket live');
+    expect(screen.getByText('Socket live', { selector: '[role="status"]' })).toBeInTheDocument();
     expect(screen.getAllByText('24').length).toBeGreaterThan(0);
   });
 
@@ -171,10 +171,12 @@ describe('SurveyLiveResultsPanel', () => {
       });
     });
 
-    expect(screen.getByRole('status')).toHaveTextContent('Socket live');
+    expect(screen.getByText('Socket live', { selector: '[role="status"]' })).toBeInTheDocument();
     expect(screen.getByText('Emergencia escolar')).toBeInTheDocument();
     expect(screen.getAllByText('31').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('Puntos: 1');
+    const pointsCount = screen.getByTestId('survey-live-heatmap-points-count');
+    expect(pointsCount).toHaveTextContent('Puntos');
+    expect(pointsCount).toHaveTextContent('1');
   });
 
   it('shows validated citizen provenance on the public live surface', () => {
@@ -206,5 +208,42 @@ describe('SurveyLiveResultsPanel', () => {
     render(<SurveyLiveResultsPanel slug="" enabled={false} />);
 
     expect(screen.getByTestId('survey-live-results-panel-disabled')).toHaveTextContent('Activa resultados en vivo');
+  });
+
+  it('keeps HTTP polling active without opening a socket when the backend disables it', () => {
+    mocks.liveHook = {
+      ...mocks.liveHook,
+      liveResults: {
+        ...payloadFixture(),
+        realtime: {
+          contract_version: 'surveys.realtime.v2',
+          enabled: true,
+          socket: { enabled: false },
+          polling: { interval_ms: 5000 },
+        },
+      },
+    };
+
+    render(<SurveyLiveResultsPanel slug="voto-plaza" tenantSlug="junin" />);
+
+    expect(mocks.socketOptions.enabled).toBe(false);
+    expect(screen.getByText('Polling automático', { selector: '[role="status"]' })).toBeInTheDocument();
+    expect(screen.getAllByText('12').length).toBeGreaterThan(0);
+  });
+
+  it('rejects a socket payload scoped to another survey and refreshes the authoritative polling payload', () => {
+    render(<SurveyLiveResultsPanel slug="voto-plaza" tenantSlug="junin" />);
+
+    act(() => {
+      mocks.socketOptions.onUpdate({
+        ...payloadFixture(99, 10),
+        slug_publico: 'otra-votacion',
+        tenant_slug: 'otra-organizacion',
+      });
+    });
+
+    expect(mocks.refetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('99')).not.toBeInTheDocument();
+    expect(screen.getByText('Polling automático', { selector: '[role="status"]' })).toBeInTheDocument();
   });
 });

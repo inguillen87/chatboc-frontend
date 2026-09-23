@@ -96,6 +96,8 @@ export interface SurveyResponseProvenance {
   real_responses_included: number;
   synthetic_responses_included: number;
   synthetic_responses_excluded: number;
+  unverified_responses_included?: number;
+  unverified_responses_excluded?: number;
   synthetic_marker_contract: 'surveys.demo_seeding.v1';
 }
 
@@ -104,6 +106,8 @@ export interface SurveyLiveResults {
   result_version?: number | string;
   snapshot_version?: string;
   updated_at?: string;
+  seeded_responses?: number;
+  interactive_demo_responses?: number;
   total_respuestas: number;
   preguntas: Record<string, SurveyLiveQuestionResult>;
   realtime?: SurveyRealtimeContract;
@@ -223,9 +227,71 @@ export interface SurveyLiveHeatmapCell {
   [key: string]: unknown;
 }
 
+export interface SurveyHeatmapJurisdiction {
+  contract_version?: string;
+  country?: string | null;
+  province?: string | null;
+  municipality?: string | null;
+  display_name?: string | null;
+  center?:
+    | {
+        lat?: number | string;
+        lng?: number | string;
+        lon?: number | string;
+        [key: string]: unknown;
+      }
+    | [number, number]
+    | null;
+  coordinate_reference?: string | null;
+  coordinate_source?: string | null;
+  [key: string]: unknown;
+}
+
+export type SurveyAdminJurisdictionScopeStatus = 'compatible' | 'conflict' | 'unverified';
+
+export interface SurveyJurisdictionSummary {
+  contract_version?: 'surveys.jurisdiction_guard.v1' | string;
+  readiness_included?: boolean;
+  jurisdiction_ref?: string | null;
+  tenant_jurisdiction_ref?: string | null;
+  survey_jurisdiction_ref?: string | null;
+  content_origin?: string | null;
+  content_origin_ref?: string | null;
+  scope_status?: SurveyAdminJurisdictionScopeStatus | string;
+  scope_reason_code?: string | null;
+  tenant_verified_ref?: string | null;
+  content_review_included?: boolean;
+  ready?: boolean;
+  reason_code?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminJurisdictionScope {
+  contract_version: 'surveys.admin_jurisdiction_scope.v1';
+  status: SurveyAdminJurisdictionScopeStatus;
+  compatible: boolean | null;
+  reason_code: string;
+  action_hint: string | null;
+  tenant_verified_ref: string | null;
+  survey_ref: string | null;
+  authoritative_source: 'server_owned_persisted_refs';
+  content_review_included: false;
+}
+
+export interface SurveyAdminScopeContract {
+  contract_version: 'surveys.admin_scope.v1';
+  jurisdiction: SurveyAdminJurisdictionScope;
+  separation: {
+    required: boolean;
+    reason_code: string | null;
+  };
+}
+
 export interface SurveyLiveHeatmap {
   points?: SurveyLiveHeatmapPoint[];
   cells?: SurveyLiveHeatmapCell[];
+  source?: string;
+  jurisdiction?: SurveyHeatmapJurisdiction | string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -301,6 +367,8 @@ export interface SurveyLivePublicResultsPayload {
   request_id?: string;
   slug?: string;
   slug_publico?: string;
+  seeded_responses?: number;
+  interactive_demo_responses?: number;
   total_respuestas?: number;
   data_provenance?: SurveyResponseProvenance;
   response_provenance?: SurveyResponseProvenance;
@@ -336,6 +404,13 @@ export interface SurveyPublic {
   id?: number;
   /** Authoritative tenant selector required when public slugs are reused across organizations. */
   tenant_slug?: string | null;
+  /** Server-owned public tenant identity used for white-label presentation. */
+  tenant?: {
+    slug: string;
+    nombre: string;
+    branding?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
   /** Durable builder document that materialized this survey, when applicable. */
   document_ref?: string | null;
   slug: string;
@@ -382,6 +457,7 @@ export interface SurveyPublic {
   security?: SurveySecurityContract;
   frontend_contract?: SurveyFrontendContract;
   governance?: SurveyPublicGovernanceContract;
+  jurisdiction?: SurveyJurisdictionSummary;
 
   [key: string]: unknown;
 }
@@ -544,6 +620,7 @@ export interface SurveyAdmin extends SurveyPublic {
   };
   metricas?: SurveyAdminMetrics;
   admin_lifecycle?: SurveyAdminLifecycle;
+  admin_scope?: SurveyAdminScopeContract;
 }
 
 export interface SurveyAdminMetrics {
@@ -573,7 +650,9 @@ export interface SurveyAdminLifecycleAction {
   enabled: boolean;
   confirmation_required?: boolean;
   irreversible?: boolean;
+  required_capabilities?: string[];
   disabled_reason_code?: string | null;
+  next_action?: string | null;
 }
 
 export interface SurveyAdminLifecycle {
@@ -582,6 +661,22 @@ export interface SurveyAdminLifecycle {
   phase: SurveyAdminLifecyclePhase;
   persisted_state: SurveyAdmin['estado'] | string;
   accepts_responses: boolean;
+  operational_block: {
+    reason_code: 'survey_jurisdiction_binding_conflict';
+    action_hint: 'separate_and_review_foreign_jurisdiction_instrument';
+  } | null;
+  jurisdiction: {
+    status: SurveyAdminJurisdictionScopeStatus;
+    reason_code: string;
+    content_review_included: false;
+  };
+  government_survey_evidence_gate?: {
+    contract_version: 'surveys.government_evidence_gate.v1' | string;
+    required: boolean;
+    ready: boolean;
+    reason_code: string;
+    next_action: string | null;
+  };
   schedule: {
     opens_at: string | null;
     closes_at: string | null;
@@ -839,6 +934,9 @@ export interface SurveyListResponse {
     source: string;
     synthetic: boolean;
   };
+  data_provenance?: SurveyResponseProvenance;
+  data_quality?: SurveyAdminDataQuality;
+  executive_summary?: SurveyAdminExecutiveOverview;
   overview?: SurveyAdminOverview;
   pagination?: SurveyListPagination;
   meta?: {
@@ -882,6 +980,123 @@ export interface SurveyAdminOverview {
     available: boolean;
     reason_code: string | null;
   };
+  jurisdiccion?: SurveyAdminJurisdictionAggregate;
+  politica_agregacion?: SurveyAdminAggregatePolicy;
+  alcance_operativo?: SurveyAdminOperationalScope;
+}
+
+export interface SurveyAdminAggregationScope {
+  mode: 'returned_page';
+  returned_items: number;
+  query_total_items: number;
+  complete_for_query: boolean;
+}
+
+export interface SurveyAdminJurisdictionAggregate {
+  contract_version: 'surveys.admin_jurisdiction_aggregate.v1';
+  aggregation_scope: SurveyAdminAggregationScope;
+  compatible: number;
+  conflict: number;
+  unverified: number;
+  separation_required: number;
+  review_required: number;
+  authoritative_source: 'server_owned_persisted_refs';
+  title_inference_used: false;
+  content_review_included: false;
+}
+
+export interface SurveyAdminAggregatePolicy {
+  contract_version: 'surveys.admin_aggregate_policy.v1';
+  general_scope: {
+    included_jurisdiction_statuses: SurveyAdminJurisdictionScopeStatus[];
+    conflict_instruments_included: number;
+  };
+  operational_scope: {
+    included_jurisdiction_statuses: SurveyAdminJurisdictionScopeStatus[];
+    excluded_jurisdiction_statuses: SurveyAdminJurisdictionScopeStatus[];
+    unverified_is_compatible: false;
+  };
+}
+
+export interface SurveyAdminGeolocationCoverage {
+  available: boolean;
+  numerator: number;
+  denominator: number | null;
+  percentage: number | null;
+  reason_code: string | null;
+}
+
+export interface SurveyAdminOperationalScope {
+  contract_version: 'surveys.admin_operational_scope.v1';
+  aggregation_scope: SurveyAdminAggregationScope;
+  selection: SurveyAdminAggregatePolicy['operational_scope'];
+  instruments: {
+    included: number;
+    excluded_conflict: number;
+    active: number;
+    accepting_responses: number;
+    with_responses: number;
+    surveys: number;
+    votings: number;
+    governed: number;
+  };
+  participation: {
+    real_responses: number;
+    responses_last_24h: number;
+    eligible_population: null;
+    participation_rate: null;
+  };
+  territorial: {
+    responses_with_coordinates: number;
+    geolocation_coverage: SurveyAdminGeolocationCoverage;
+  };
+}
+
+export interface SurveyAdminLimitation {
+  reason_code: string;
+  impact: string;
+}
+
+export interface SurveyAdminExecutiveOverview {
+  contract_version: 'surveys.admin_executive_overview.v1';
+  aggregation_scope: SurveyAdminAggregationScope;
+  instruments: {
+    returned: number;
+    active: number;
+    accepting_responses: number;
+    with_responses: number;
+    surveys: number;
+    votings: number;
+    governed: number;
+  };
+  jurisdiction: SurveyAdminJurisdictionAggregate;
+  aggregate_policy: SurveyAdminAggregatePolicy;
+  operational_scope: SurveyAdminOperationalScope;
+  participation: {
+    real_responses: number;
+    responses_last_24h: number;
+    eligible_population: null;
+    participation_rate: null;
+  };
+  territorial: {
+    responses_with_coordinates: number;
+    geolocation_coverage: SurveyAdminGeolocationCoverage;
+  };
+  assurance: {
+    regulated_election_certified: false;
+    result_certified: false;
+    external_verification: 'not_performed';
+  };
+  limitations: SurveyAdminLimitation[];
+}
+
+export interface SurveyAdminDataQuality {
+  contract_version: 'surveys.admin_data_quality.v1';
+  aggregation_scope: SurveyAdminAggregationScope;
+  geolocation_coverage: SurveyAdminGeolocationCoverage;
+  jurisdiction: SurveyAdminJurisdictionAggregate;
+  response_provenance: SurveyResponseProvenance;
+  limitations: SurveyAdminLimitation[];
 }
 
 export interface SurveySummaryOptionBreakdown {
@@ -935,6 +1150,8 @@ export type SurveyDemographicBreakdowns = {
 };
 
 export interface SurveySummary {
+  /** Optional authenticated-only evidence; validate identity and values before rendering. */
+  analytics_evidence?: unknown;
   total_respuestas: number;
   participantes_unicos: number;
   tasa_completitud: number;

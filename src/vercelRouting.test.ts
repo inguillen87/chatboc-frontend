@@ -46,4 +46,64 @@ describe('Vercel routing contract', () => {
     expect(adminSpaIndex).toBeGreaterThan(analyticsCsvExportIndex);
     expect(adminApiIndex).toBeGreaterThan(adminSpaIndex);
   });
+
+  it('serves the institutional disability demo through its unbranded HTML entry', () => {
+    const configPath = resolve(process.cwd(), 'vercel.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      rewrites?: RewriteRule[];
+    };
+    const rewrites = config.rewrites ?? [];
+
+    const institutionalEntryIndex = rewrites.findIndex(
+      (rule) =>
+        rule.source === '/demo/institucional/tdf-discapacidad' &&
+        rule.destination === '/demo/institucional/tdf-discapacidad/index.html',
+    );
+    const catchAllIndex = rewrites.findIndex(
+      (rule) =>
+        rule.source === '/((?!assets/|api/|ask/|archivos/|public/|socket.io/).*)' &&
+        rule.destination === '/index.html',
+    );
+
+    expect(institutionalEntryIndex).toBeGreaterThanOrEqual(0);
+    expect(catchAllIndex).toBeGreaterThan(institutionalEntryIndex);
+
+    const institutionalHtmlPath = resolve(
+      process.cwd(),
+      'demo/institucional/tdf-discapacidad/index.html',
+    );
+    const institutionalHtml = readFileSync(institutionalHtmlPath, 'utf8').replace(/\r\n?/g, '\n');
+    expect(institutionalHtml).toContain(
+      '<title>Faro TDF · El agente que guía y acompaña</title>',
+    );
+    expect(institutionalHtml).toContain(
+      '<meta property="og:site_name" content="Faro TDF" />',
+    );
+    expect(institutionalHtml).toContain(
+      '<meta property="og:image" content="https://faro-tdf.vercel.app/images/og-tdf-discapacidad.png" />',
+    );
+    expect(institutionalHtml).toContain(
+      '<link\n      rel="canonical"\n      href="https://faro-tdf.vercel.app/"',
+    );
+    expect(institutionalHtml).toContain(
+      '<link rel="icon" type="image/webp" href="/branding/faro-agent-icon-v1.webp" />',
+    );
+    const institutionalVisibleMetadata = institutionalHtml.replaceAll(
+      'https://faro-tdf.vercel.app',
+      'https://preview.example',
+    );
+    expect(institutionalVisibleMetadata).not.toMatch(/Chatboc|manifest\.webmanifest|chatboc-favicon/i);
+
+    const institutionalEntry = readFileSync(
+      resolve(process.cwd(), 'src/tdfDisabilityDemoEntry.tsx'),
+      'utf8',
+    );
+    expect(institutionalEntry).toContain("import('./pages/public/DisabilityAIAgentDemoPage')");
+    expect(institutionalEntry).not.toMatch(/(?:import\s+['"]\.\/main['"]|setupPWA|<App\s*\/>)/);
+
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
+    expect(viteConfig).toContain(
+      "^\\/demo\\/institucional\\/tdf-discapacidad(?:\\/|$)",
+    );
+  });
 });

@@ -6,17 +6,17 @@ import { useNavigate } from "react-router-dom";
 const pricingOptions = [
   {
     name: "Plan Esencial",
-    headline: "Activacion guiada para validar rapido",
+    headline: "Activación guiada para validar rápido",
     description:
-      "Ideal para probar atencion con IA, cargar contenido base y medir primeras conversaciones sin una implementacion pesada.",
+      "Para validar un canal, cargar contenido base y medir las primeras conversaciones con un alcance controlado.",
     features: [
       "Chat web listo para activar",
       "Base inicial de respuestas y documentos",
       "Seguimiento de conversaciones clave",
-      "Configuracion acompanada por especialista",
-      "Panel basico con metricas esenciales",
+      "Configuración acompañada por especialista",
+      "Panel básico con métricas esenciales",
     ],
-    cta: "Agendar activacion",
+    cta: "Agendar activación",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Quiero%20activar%20el%20Plan%20Esencial%20de%20Chatboc%20junto%20a%20un%20especialista",
     highlight: false,
@@ -24,15 +24,15 @@ const pricingOptions = [
   },
   {
     name: "Plan Operativo",
-    headline: "Omnicanalidad, tickets y automatizacion",
+    headline: "Omnicanalidad, tickets y automatización",
     description:
-      "Para equipos que ya atienden demanda real y necesitan conectar chat, leads, pedidos, soporte y reportes.",
+      "Para equipos que atienden demanda real y necesitan conectar conversaciones, pedidos, soporte y reportes.",
     features: [
       "Todo lo del Plan Esencial",
       "Chat web, WhatsApp y panel operativo",
       "Tickets, leads y acciones contextuales",
-      "Metricas, tiempos y alertas principales",
-      "Acompanamiento estrategico continuo",
+      "Métricas, tiempos y alertas principales",
+      "Acompañamiento estratégico continuo",
     ],
     cta: "Hablar con un asesor",
     ctaLink:
@@ -42,17 +42,17 @@ const pricingOptions = [
   },
   {
     name: "Plan Institucional",
-    headline: "Procesos, integraciones y escala",
+    headline: "Procesos, integraciones y escala institucional",
     description:
-      "Para gobiernos, instituciones y organizaciones que necesitan seguridad, gobierno de datos e integraciones a medida.",
+      "Para gobiernos y organizaciones que requieren seguridad, gobierno de datos, permisos e integraciones a medida.",
     features: [
-      "Consultoria de arquitectura y operacion",
-      "Integracion con sistemas existentes",
-      "Dashboards ejecutivos multi-organizacion",
+      "Consultoría de arquitectura y operación",
+      "Integración con sistemas existentes",
+      "Tableros ejecutivos multi-organización",
       "Tiempos, permisos y trazabilidad avanzada",
-      "Soporte dedicado para evolucion continua",
+      "Soporte dedicado para evolución continua",
     ],
-    cta: "Coordinar reunion",
+    cta: "Coordinar reunión",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Necesito%20una%20propuesta%20institucional%20de%20Chatboc",
     highlight: false,
@@ -64,14 +64,20 @@ const PricingSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="precios" className="chatboc-muted-band py-16 text-foreground md:py-24">
+    <section
+      id="precios"
+      aria-labelledby="plans-title"
+      className="chatboc-muted-band py-16 text-foreground md:py-24"
+    >
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="chatboc-section-kicker mb-4">Planes</div>
-          <h2 className="chatboc-section-heading">Paquetes claros para empezar y escalar</h2>
+          <h2 id="plans-title" className="chatboc-section-heading">
+            Planes claros para implementar y escalar
+          </h2>
           <p className="chatboc-section-copy mt-4">
-            La propuesta se adapta al nivel de operacion: validar el canal, conectar procesos o desplegar una solucion
-            institucional con procesos e integraciones.
+            La propuesta se adapta al nivel de operación: validar un canal, conectar procesos o desplegar una solución
+            institucional con integraciones y acompañamiento.
           </p>
         </div>
 
@@ -91,9 +97,9 @@ const PricingSection = () => {
                   </div>
                 ) : null}
 
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-amber-500 opacity-80" />
+                <div className="absolute inset-x-0 top-0 h-1 bg-primary/80" />
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                  <Icon className="h-6 w-6" />
+                  <Icon className="h-6 w-6" aria-hidden="true" />
                 </div>
                 <h3 className="text-2xl font-bold text-foreground">{option.name}</h3>
                 <p className="mt-2 text-sm font-semibold text-primary">{option.headline}</p>
@@ -102,7 +108,7 @@ const PricingSection = () => {
                 <ul className="mt-6 flex-1 space-y-3 text-sm text-muted-foreground">
                   {option.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2.5">
-                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
                       <span>{feature}</span>
                     </li>
                   ))}
@@ -114,7 +120,7 @@ const PricingSection = () => {
                   className="mt-7 w-full rounded-[8px] font-semibold"
                   onClick={() => {
                     if (option.ctaLink.startsWith("http")) {
-                      window.open(option.ctaLink, "_blank");
+                      window.open(option.ctaLink, "_blank", "noopener,noreferrer");
                     } else {
                       navigate(option.ctaLink);
                     }

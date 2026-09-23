@@ -1,6 +1,7 @@
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
+import { isTicketSlaOverdue, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 export type OperationalGuidance = {
   label: string;
@@ -18,7 +19,6 @@ const hasAssignedOperator = (ticket: Ticket): boolean =>
   Boolean(
     normalizeTextValue(
       ticket.assignedAgent?.nombre_usuario ||
-        ticket.user?.nombre_usuario ||
         ticket.assignedAgentId ||
         ticket.assigned_agent_id ||
         ticket.assigned_user_id,
@@ -63,9 +63,9 @@ const hasAttachmentSignal = (ticket: Ticket): boolean =>
       ticket.messages?.some((message) => message.attachments?.length || message.archivos_adjuntos?.length),
   );
 
-const isRiskSignal = (value: unknown): boolean => {
+const isHighPrioritySignal = (value: unknown): boolean => {
   const normalized = normalizeTextValue(value).toLowerCase();
-  return ['risk', 'riesgo', 'alto', 'alta', 'high', 'urgente', 'critical', 'critico', 'vencido', 'breached'].some((token) =>
+  return ['alto', 'alta', 'high', 'urgente', 'critical', 'critico'].some((token) =>
     normalized.includes(token),
   );
 };
@@ -85,7 +85,8 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
   const hasLocation = hasTicketLocationSignal(ticket);
   const hasAttachments = hasAttachmentSignal(ticket);
   const isMunicipalTicket = ticket.tipo === 'municipio';
-  const priorityRisk = isRiskSignal(ticket.priority) || isRiskSignal(ticket.sla_status);
+  const slaOverdue = isTicketSlaOverdue(resolveTicketSlaSource(ticket));
+  const highPriority = isHighPrioritySignal(ticket.priority);
 
   if (status === 'resuelto') {
     return {
@@ -103,11 +104,19 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
     };
   }
 
-  if (priorityRisk) {
+  if (slaOverdue) {
     return {
-      label: 'Priorizar este caso, revisar SLA y dejar una respuesta operativa antes de derivarlo.',
+      label: 'Revisar el compromiso SLA vencido y dejar una respuesta operativa antes de derivarlo.',
       source: 'ui',
       tags: ['riesgo', 'SLA'],
+    };
+  }
+
+  if (highPriority) {
+    return {
+      label: 'Priorizar este caso por su criticidad y confirmar el próximo paso operativo.',
+      source: 'ui',
+      tags: ['prioridad alta'],
     };
   }
 
@@ -156,15 +165,15 @@ export const buildOperationalReplyDraft = (ticket: Ticket, guidance: Operational
   }
 
   if (tags.has('riesgo') || tags.has('sla')) {
-    return `Gracias por la informacion${ticketLabel}. Estamos priorizando el caso${category} y vamos a dejar actualizaciones por este mismo canal.`;
+    return `Gracias por la información${ticketLabel}. Tu actualización queda registrada en el caso${category} para revisar el próximo paso.`;
   }
 
   if (tags.has('asignacion')) {
-    return `Reclamo recibido${ticketLabel}. Lo estamos asignando al area correspondiente y te avisamos el avance por este chat.`;
+    return `Tu reclamo${ticketLabel} está registrado. El próximo paso es que el área responsable lo revise.`;
   }
 
   if (tags.has('cierre')) {
-    return `El reclamo${ticketLabel} figura con seguimiento de cierre. Si todavia ves el problema, respondeme por aca y lo reabrimos para revision.`;
+    return `El reclamo${ticketLabel} figura con seguimiento de cierre. Si el problema continúa, contanos qué sucede para evaluar el seguimiento.`;
   }
 
   if (tags.has('evidencia')) {

@@ -252,16 +252,33 @@ export interface WhatsappFunnelResponse {
   stages: WhatsappFunnelStage[];
 }
 
-export interface AnalyticsEventIngestAckV1 {
+export interface AnalyticsEventIngestAcceptedAckV1 {
   ok: true;
   contract_version: 'analytics.event_ingest.v1';
   request_id: string;
+  accepted: true;
+  ignored: false;
   tenant_id: number;
   event_name: string;
   contact_key?: string;
   conversation_id?: string;
   identity_source?: string;
 }
+
+export interface AnalyticsEventIngestIgnoredAckV1 {
+  ok: true;
+  contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
+  accepted: false;
+  ignored: true;
+  reason: string;
+  tenant_id: number | null;
+  event_name: string;
+}
+
+export type AnalyticsEventIngestAckV1 =
+  | AnalyticsEventIngestAcceptedAckV1
+  | AnalyticsEventIngestIgnoredAckV1;
 
 export interface AnalyticsEventSchemaV1 {
   contract_version: 'analytics.event_schema.v1';
@@ -519,12 +536,32 @@ export const parseAnalyticsEventIngestAckV1 = (input: unknown): AnalyticsEventIn
   const tenantId = asFiniteNumber(input.tenant_id);
   const eventName = typeof input.event_name === 'string' ? input.event_name.trim() : '';
   const requestId = typeof input.request_id === 'string' ? input.request_id.trim() : '';
-  if (tenantId === undefined || !eventName || !requestId) return null;
+  if (!eventName || !requestId) return null;
+
+  if (input.accepted === false && input.ignored === true) {
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (!reason || (input.tenant_id !== null && tenantId === undefined)) return null;
+
+    return {
+      ok: true,
+      contract_version: 'analytics.event_ingest.v1',
+      request_id: requestId,
+      accepted: false,
+      ignored: true,
+      reason,
+      tenant_id: input.tenant_id === null ? null : tenantId!,
+      event_name: eventName,
+    };
+  }
+
+  if (input.accepted !== true || input.ignored !== false || tenantId === undefined) return null;
 
   return {
     ok: true,
     contract_version: 'analytics.event_ingest.v1',
     request_id: requestId,
+    accepted: true,
+    ignored: false,
     tenant_id: tenantId,
     event_name: eventName,
     ...(typeof input.contact_key === 'string' ? { contact_key: input.contact_key } : {}),

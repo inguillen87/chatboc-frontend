@@ -2,6 +2,10 @@ import { panelApi } from '@/api/v2/client';
 import { ApiError, apiFetch } from '@/utils/api';
 import { getOrCreateAnonId } from '@/utils/anonIdGenerator';
 import { createLeadCaptureIdempotencyKey } from '@/utils/leadCapture';
+import {
+  createMunicipalChatIdempotencyKey,
+  normalizeMunicipalChatIdempotencyKey,
+} from '@/utils/municipalChatIdempotency';
 import type { ChatBootstrapConfig, ChatRatingValue } from './chatTypes';
 import type { ChatLeadCaptureConfig } from '@/types/chat';
 
@@ -20,6 +24,7 @@ export interface ChatBootstrapMessagePayload {
   audioEndpoint?: string;
   action_id?: string | null;
   extraPayload?: Record<string, unknown>;
+  idempotencyKey?: string;
 }
 
 export interface LeadCaptureNextAction {
@@ -207,18 +212,53 @@ const collectOperationalAttachments = (source: Record<string, unknown>): Operati
     });
 };
 
+const hasExplicitTicketSignal = (source: unknown) => {
+  if (!isRecord(source)) return false;
+  return [
+    'nro_ticket',
+    'ticket_number',
+    'ticket_id',
+    'reclamo_id',
+    'case_id',
+    'nro_caso',
+    'ticket_type',
+    'categoria',
+    'category',
+    'direccion',
+    'address',
+    'latitud',
+    'latitude',
+    'longitud',
+    'longitude',
+    'nombre_vecino',
+    'telefono_vecino',
+  ].some((key) => source[key] !== undefined && source[key] !== null && source[key] !== '');
+};
+
+const hasTicketActionSignal = (source: Record<string, unknown>) => {
+  const action = [source.accion_backend, source.action_id, source.fuente, source.ticket_type]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+  return /reclamo|ticket|school[_ -]?case|caso[_ -]?(?:creado|escolar|municipal)/.test(action);
+};
+
 const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | null => {
   if (!isRecord(source)) return null;
   const location = isRecord(source.location) ? source.location : {};
   const map = isRecord(source.map) ? source.map : {};
   const contact = isRecord(source.contact) ? source.contact : {};
+  const publicStatusHint = isRecord(source.public_status_hint) ? source.public_status_hint : {};
   const archivos = collectOperationalAttachments(source);
   const archivosRaw = readFirstValue(source, ['archivos', 'archivos_count', 'cantidad_archivos', 'attachments_count']);
   const archivosCount = Array.isArray(archivosRaw)
     ? archivosRaw.length
     : readNumber(source, ['archivos_count', 'cantidad_archivos', 'attachments_count']);
   const ticket: OperationalTicketResult = {
-    nro_ticket: readString(source, ['nro_ticket', 'ticket_number', 'ticket_id', 'id']),
+    nro_ticket:
+      readString(source, ['nro_ticket', 'ticket_number']) ??
+      readString(publicStatusHint, ['ticket', 'code', 'nro_ticket']) ??
+      readString(source, ['ticket_id', 'id']),
     ticket_id: readString(source, ['ticket_id', 'id']),
     chat_id: readString(source, ['chat_id', 'case_id', 'nro_caso']),
     status: readString(source, ['status', 'estado']),
@@ -301,25 +341,29 @@ const normalizeOperationalOrder = (source: unknown): OperationalOrderResult | nu
 };
 
 const extractOperationalTicket = (source: Record<string, unknown>): OperationalTicketResult | null => {
+  const data = readNestedRecord(source, ['data']);
+  const createdEntity = isRecord(source.created_entity) ? source.created_entity : null;
+  const dataCreatedEntity = isRecord(data?.created_entity) ? data.created_entity : null;
   const candidates = [
     source.ticket,
-    source.created_entity,
     source.reclamo,
     source.claim,
     source.case,
-    readNestedRecord(source, ['data']),
-    readNestedRecord(source, ['data'])?.school_case,
-    readNestedRecord(source, ['data'])?.created_entity,
+    data?.school_case,
     readNestedRecord(source, ['lead'])?.ticket,
     readNestedRecord(source, ['lead'])?.reclamo,
-    readNestedRecord(source, ['data'])?.ticket,
-    readNestedRecord(source, ['data'])?.reclamo,
+    data?.ticket,
+    data?.reclamo,
+    hasExplicitTicketSignal(data) ? data : null,
+    hasExplicitTicketSignal(createdEntity) || hasTicketActionSignal(source) ? createdEntity : null,
+    hasExplicitTicketSignal(dataCreatedEntity) || hasTicketActionSignal(source) ? dataCreatedEntity : null,
+    hasExplicitTicketSignal(source) ? source : null,
   ];
   for (const candidate of candidates) {
     const normalized = normalizeOperationalTicket(candidate);
     if (normalized) return normalized;
   }
-  return normalizeOperationalTicket(source);
+  return null;
 };
 
 const extractOperationalOrder = (source: Record<string, unknown>): OperationalOrderResult | null => {
@@ -417,7 +461,7 @@ const readShortChatSessionId = (value: unknown): string | null => {
 const readBootstrapSession = (bootstrap: ChatBootstrapConfig): Record<string, unknown> | undefined =>
   isRecord(bootstrap.session) ? bootstrap.session : undefined;
 
-const getBootstrapSessionValues = (bootstrap: ChatBootstrapConfig) => {
+export const getBootstrapSessionValues = (bootstrap: ChatBootstrapConfig) => {
   const headers = normalizeHeaders(bootstrap.headers) ?? {};
   const session = readBootstrapSession(bootstrap);
   const demoSessionId =
@@ -504,6 +548,52 @@ const normalizeChatBootstrapEndpoint = (endpoint: string) => {
   const trimmed = endpoint.trim();
   if (!isBackendRootChatEndpoint(trimmed)) return trimmed;
   return `/${trimmed.replace(/^\/+/, '').replace(/^ask\b/i, 'api/ask')}`;
+};
+
+const readChatVertical = (value: unknown): 'municipio' | 'pyme' | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'municipio' || normalized === 'pyme' ? normalized : null;
+};
+
+const isMunicipalChatEndpoint = (endpoint: string) => {
+  const withoutQuery = endpoint.trim().split(/[?#]/, 1)[0]?.toLowerCase() ?? '';
+  try {
+    const path = /^https?:\/\//i.test(withoutQuery)
+      ? new URL(withoutQuery).pathname.toLowerCase()
+      : withoutQuery;
+    return /\/(?:api\/)?ask\/municipio(?:\/|$)/.test(path);
+  } catch {
+    return false;
+  }
+};
+
+const isMunicipalBootstrapRequest = (
+  bootstrap: ChatBootstrapConfig,
+  payload: ChatBootstrapMessagePayload,
+  endpoint: string,
+) => {
+  const verticals = [
+    readChatVertical(payload.extraPayload?.tipo_chat),
+    readChatVertical(bootstrap.payload?.tipo_chat),
+    readChatVertical(bootstrap.query?.tipo_chat),
+  ].filter((vertical): vertical is 'municipio' | 'pyme' => Boolean(vertical));
+
+  // A contradictory contract must fail closed: never attach municipal
+  // idempotency credentials to an explicitly PYME request.
+  if (verticals.includes('pyme')) return false;
+  if (verticals.includes('municipio')) return true;
+
+  return [endpoint, bootstrap.same_origin_endpoint, bootstrap.endpoint].some(
+    (candidate) => typeof candidate === 'string' && isMunicipalChatEndpoint(candidate),
+  );
+};
+
+const removeHeader = (headers: Record<string, string>, headerName: string) => {
+  const normalizedName = headerName.toLowerCase();
+  Object.keys(headers).forEach((key) => {
+    if (key.toLowerCase() === normalizedName) delete headers[key];
+  });
 };
 
 const resolveSameOriginChatBase = (endpoint: string) => {
@@ -864,18 +954,30 @@ export const sendChatBootstrapMessage = async (
     throw new ApiError('El contrato de chat demo no incluye endpoint.', 400);
   }
   const endpoint = normalizeChatBootstrapEndpoint(rawEndpoint);
+  const isMunicipalRequest = isMunicipalBootstrapRequest(bootstrap, payload, endpoint);
+  const suppliedIdempotencyKey = normalizeMunicipalChatIdempotencyKey(payload.idempotencyKey);
+  if (payload.idempotencyKey !== undefined && !suppliedIdempotencyKey) {
+    throw new ApiError('La Idempotency-Key municipal no cumple el contrato.', 400);
+  }
+  const idempotencyKey = isMunicipalRequest
+    ? suppliedIdempotencyKey || createMunicipalChatIdempotencyKey()
+    : null;
 
   const requestEndpoint = async (target: string) =>
     apiFetch<unknown>(appendQuery(target, sanitizeBootstrapQuery(bootstrap)), {
       method: resolveBootstrapMethod(bootstrap.method),
       body: payload.audioBlob ? buildAudioPayload(bootstrap, payload) : buildJsonPayload(bootstrap, payload),
       headers: (() => {
-        const headers = normalizeBootstrapHeaders(bootstrap);
-        if (payload.audioBlob && headers) {
+        const headers = normalizeBootstrapHeaders(bootstrap) ?? {};
+        removeHeader(headers, 'Idempotency-Key');
+        if (idempotencyKey) {
+          headers['Idempotency-Key'] = idempotencyKey;
+        }
+        if (payload.audioBlob) {
           delete headers['Content-Type'];
           delete headers['content-type'];
         }
-        return headers;
+        return Object.keys(headers).length ? headers : undefined;
       })(),
       skipAuth: true,
       isWidgetRequest: true,

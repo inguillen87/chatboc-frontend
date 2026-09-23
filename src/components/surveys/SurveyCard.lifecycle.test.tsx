@@ -114,6 +114,136 @@ describe('SurveyCard lifecycle actions', () => {
     expect(screen.queryByRole('button', { name: 'Cerrar participación' })).toBeNull();
   });
 
+  it('explains why a draft cannot be published without exposing the mutation', () => {
+    const adminLifecycle = lifecycle('draft', { can_publish: false });
+    adminLifecycle.actions.publish.disabled_reason_code = 'survey_questions_required';
+
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={survey(adminLifecycle)}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
+    expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
+      'Agregá al menos una pregunta antes de publicar.',
+    );
+  });
+
+  it('routes a governed draft to release review without exposing direct publication', () => {
+    const adminLifecycle = lifecycle('draft', { can_publish: false, can_view_results: false });
+    adminLifecycle.actions.publish.disabled_reason_code = 'survey_governance_release_required';
+    adminLifecycle.actions.publish.next_action = 'Revisá la política, creá un release y aprobalo antes de publicar.';
+    const item = survey(adminLifecycle);
+    item.governance = { mode: 'governed_release', release_required: true };
+    const onManageGovernance = vi.fn();
+    const onPublish = vi.fn();
+
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={item}
+        onPublish={onPublish}
+        onManageGovernance={onManageGovernance}
+      />,
+    );
+
+    expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
+      'Revisá la política, creá un release y aprobalo antes de publicar.',
+    );
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar release' }));
+    expect(onManageGovernance).toHaveBeenCalledTimes(1);
+    expect(onPublish).not.toHaveBeenCalled();
+  });
+
+  it('never renders a machine next_action as operator copy', () => {
+    const adminLifecycle = lifecycle('draft', { can_publish: false });
+    adminLifecycle.actions.publish.disabled_reason_code = 'survey_questions_required';
+    adminLifecycle.actions.publish.next_action = 'add_required_question_then_retry';
+
+    render(<SurveyCard {...baseProps} survey={survey(adminLifecycle)} />);
+
+    expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
+      'Agregá al menos una pregunta antes de publicar.',
+    );
+    expect(screen.queryByText('add_required_question_then_retry')).toBeNull();
+  });
+
+  it('explains jurisdiction conflicts without offering publication', () => {
+    const adminLifecycle = lifecycle('draft', { can_publish: false });
+    adminLifecycle.actions.publish.disabled_reason_code = 'survey_jurisdiction_binding_conflict';
+
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={survey(adminLifecycle)}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
+    expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
+      'La jurisdicción del contenido no coincide con esta organización.',
+    );
+  });
+
+  it('keeps the summary to three metrics and collapses technical details by default', () => {
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={survey(lifecycle('collecting', { can_close: true, can_view_results: true }))}
+      />,
+    );
+
+    const metrics = screen.getByRole('group', { name: 'Métricas de participación' });
+    expect(metrics.querySelectorAll('dt')).toHaveLength(3);
+    expect(metrics).toHaveTextContent('Respuestas');
+    expect(metrics).toHaveTextContent('Participantes');
+    expect(metrics).toHaveTextContent('Últimas 24 h');
+
+    const details = screen.getByText('Detalles y configuración').closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Detalles y configuración'));
+    expect(details).toHaveAttribute('open');
+  });
+
+  it('surfaces dates, territorial coverage and certification scope before expanding details', () => {
+    const item = survey(lifecycle('collecting', { can_close: true, can_view_results: true }));
+    item.metricas = {
+      total_respuestas: 12,
+      participantes_unicos: 10,
+      respuestas_ultimas_24h: 3,
+      respuestas_con_coordenadas: 9,
+      ultima_respuesta_at: '2026-08-02T09:30:00Z',
+    };
+    item.governance = { result_certified: false };
+
+    render(<SurveyCard {...baseProps} survey={item} />);
+
+    const evidence = screen.getByLabelText('Vigencia, territorio y certificación');
+    expect(evidence).toBeTruthy();
+    expect(screen.getByText('Cobertura territorial')).toBeTruthy();
+    expect(screen.getByText('75% · 9 con coordenadas')).toBeTruthy();
+    expect(screen.getByText('Resultado no certificado')).toBeTruthy();
+    expect(screen.getAllByText(/1\/8\/2026/).length).toBeGreaterThan(0);
+  });
+
+  it('does not expose analytics when the lifecycle capability denies it', () => {
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={survey(lifecycle('draft', { can_view_results: false }))}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Resultados' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Editar' })).toBeTruthy();
+  });
+
   it('requires an irreversible close confirmation and invokes it once', async () => {
     const onClose = vi.fn().mockResolvedValue(undefined);
     render(

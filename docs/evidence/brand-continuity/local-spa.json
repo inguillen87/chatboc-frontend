@@ -1,0 +1,16 @@
+{
+  "full_spa": true,
+  "api_mocks": false,
+  "disposable_accounts": true,
+  "results": [
+    "reconnection_of_actual_spa_preserves_unsaved_profile",
+    "two_browser_sessions_explicit_conflict_resolution_and_reread",
+    "tenant_scoped_administrator_can_save_without_global_role_escalation",
+    "other_organization_has_own_profile_and_cannot_read_foreign_config",
+    "employee_readonly_ui_and_server_rejection",
+    "actual_profile_responsive_1440_820_390_dark_320",
+    "real_organization_setup_server_steps_navigation_and_responsive_layout",
+    "brand_draft_discard_native_close_preview_and_comparison_four_widths",
+    "brand_publish_reload_setup_propagation_full_gate_and_restore"
+  ]
+}

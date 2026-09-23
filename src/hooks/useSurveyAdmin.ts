@@ -8,7 +8,6 @@ import {
   adminDuplicateSurvey,
   adminGetSurvey,
   adminListSurveys,
-  adminPublishSurvey,
   adminSeedSurvey,
   adminUpdateSurvey,
 } from '@/api/encuestas';
@@ -24,6 +23,7 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { queryKeys } from '@/lib/queryKeys';
 import { withExpectedSurveyStructureRevision } from '@/utils/surveyStructureGuard';
+import { publishSurveyV2 } from '@/features/surveys/surveysApi';
 
 interface UseSurveyAdminOptions {
   id?: number | null;
@@ -44,12 +44,13 @@ interface UseSurveyAdminResult {
   hasMoreSurveys: boolean;
   surveyError: string | null;
   listError: string | null;
+  listRefreshError: string | null;
   loadMoreError: string | null;
   surveyListProgress: SurveyListProgress;
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   duplicateSurvey: (id?: number, payload?: { titulo?: string; slug?: string }) => Promise<SurveyAdmin>;
-  publishSurvey: (id?: number) => Promise<SurveyAdmin>;
+  publishSurvey: (id?: number) => Promise<void>;
   closeSurvey: (id?: number) => Promise<SurveyAdmin>;
   seedSurvey: (
     id: number,
@@ -63,11 +64,15 @@ interface UseSurveyAdminResult {
   isSeeding: boolean;
   isDeleting: boolean;
   refetchSurvey: () => Promise<SurveyAdmin | undefined>;
-  refetchList: () => Promise<SurveyListResponse | undefined>;
+  refetchList: (options?: { throwOnError?: boolean }) => Promise<SurveyListResponse | undefined>;
   loadMoreSurveys: () => Promise<void>;
   tenantSlug: string | null;
   tenantScopeError: string | null;
 }
+
+const isSurveyAccessDenied = (error: unknown) =>
+  typeof error === 'object' && error !== null && 'status' in error &&
+  (error.status === 401 || error.status === 403);
 
 const buildListKey = (params?: SurveyAdminListParams) =>
   params ? JSON.stringify(Object.fromEntries(Object.entries(params).sort())) : 'default';
@@ -131,6 +136,12 @@ const mergeSurveyListPages = (pages?: SurveyListResponse[]): SurveyListResponse 
   return {
     ...firstPage,
     freshness: lastPage.freshness ?? firstPage.freshness,
+    // These contracts are explicitly scoped to one returned page. Once pages
+    // are merged, retaining the first page summary would mislabel a partial
+    // aggregate as the loaded collection; the view derives and labels it.
+    executive_summary: pages.length === 1 ? firstPage.executive_summary : undefined,
+    data_quality: pages.length === 1 ? firstPage.data_quality : undefined,
+    data_provenance: pages.length === 1 ? firstPage.data_provenance : undefined,
     overview: allVersioned
       ? aggregateLoadedOverview(data, firstPage.overview)
       : firstPage.overview,
@@ -190,9 +201,12 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     retry: false,
   });
 
+  // A cached response cannot keep authorizing its contents after a 401/403.
+  // Transient refresh errors keep the snapshot, explicitly marked stale below.
+  const listAccessDenied = isSurveyAccessDenied(listQuery.error);
   const surveys = useMemo(
-    () => mergeSurveyListPages(listQuery.data?.pages),
-    [listQuery.data?.pages],
+    () => tenantSlug && !listAccessDenied ? mergeSurveyListPages(listQuery.data?.pages) : undefined,
+    [tenantSlug, listAccessDenied, listQuery.data?.pages],
   );
   const surveyListProgress = useMemo<SurveyListProgress>(() => {
     const loaded = surveys?.data.length ?? 0;
@@ -238,11 +252,13 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     mutationFn: async (payload?: { id?: number }) => {
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
-      const published = await adminPublishSurvey(targetId, requireAdminRequestOptions());
-      queryClient.setQueryData(queryKeys.surveys.admin(targetId, tenantSlug), published);
+      if (!tenantSlug) throw new Error('survey_admin_tenant_required');
+      const published = await publishSurveyV2(targetId, tenantSlug);
+      if (!published || published.id !== String(targetId)) {
+        throw new Error('No pudimos verificar la confirmación de publicación del servidor. Actualizá el listado antes de reintentar.');
+      }
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId, tenantSlug) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
-      return published;
     },
   });
 
@@ -283,14 +299,18 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   });
 
   return {
-    survey: surveyQuery.data,
+    survey: tenantSlug && !isSurveyAccessDenied(surveyQuery.error) ? surveyQuery.data : undefined,
     surveys,
     isLoadingSurvey: Boolean(tenantSlug) && surveyQuery.isLoading,
     isLoadingList: Boolean(tenantSlug) && listQuery.isLoading,
     isLoadingMoreSurveys: listQuery.isFetchingNextPage,
-    hasMoreSurveys: Boolean(listQuery.hasNextPage),
+    hasMoreSurveys: !listAccessDenied && Boolean(listQuery.hasNextPage),
     surveyError: tenantScopeError ?? (surveyQuery.error ? getErrorMessage(surveyQuery.error) : null),
     listError: tenantScopeError ?? (!surveys && listQuery.error ? getErrorMessage(listQuery.error) : null),
+    listRefreshError:
+      surveys && listQuery.isRefetchError && listQuery.error
+        ? getErrorMessage(listQuery.error)
+        : null,
     loadMoreError:
       surveys && listQuery.isFetchNextPageError && listQuery.error
         ? getErrorMessage(listQuery.error)
@@ -315,13 +335,19 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       const result = await surveyQuery.refetch();
       return result.data;
     },
-    refetchList: async () => {
+    refetchList: async (refreshOptions) => {
       if (!tenantSlug) return undefined;
-      const result = await listQuery.refetch();
+      const result = await listQuery.refetch({ throwOnError: refreshOptions?.throwOnError ?? false });
+      // React Query can return cached data alongside an error. That data is not
+      // a successful read-back of the write that the caller just performed.
+      if (result.error) {
+        if (refreshOptions?.throwOnError) throw result.error;
+        return undefined;
+      }
       return mergeSurveyListPages(result.data?.pages);
     },
     loadMoreSurveys: async () => {
-      if (!tenantSlug || !listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
+      if (!tenantSlug || listAccessDenied || !listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
       await listQuery.fetchNextPage();
     },
     tenantSlug,

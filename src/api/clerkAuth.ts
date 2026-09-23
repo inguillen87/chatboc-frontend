@@ -201,7 +201,7 @@ const clerkHeaders = (token: string) => ({
 });
 
 export const fetchClerkFrontendConfig = () =>
-  apiFetch<ClerkFrontendConfigResponse>('/auth/clerk/config', {
+  apiFetch<ClerkFrontendConfigResponse>('/api/auth/clerk/config', {
     method: 'GET',
     skipAuth: true,
     suppressPanel401Redirect: true,
@@ -217,7 +217,7 @@ export const syncClerkSession = (
   user: ClerkUserProfilePayload,
   context: { intent?: ClerkAuthIntent; tenant_slug?: string | null } = {},
 ) =>
-  apiFetch<ClerkSessionResponse>('/auth/clerk/session', {
+  apiFetch<ClerkSessionResponse>('/api/auth/clerk/session', {
     method: 'POST',
     skipAuth: true,
     omitTenant: true,
@@ -227,7 +227,7 @@ export const syncClerkSession = (
   });
 
 export const completeClerkOnboarding = (token: string, payload: ClerkOnboardingPayload) =>
-  apiFetch<ClerkSessionResponse>('/auth/clerk/onboarding', {
+  apiFetch<ClerkSessionResponse>('/api/auth/clerk/onboarding', {
     method: 'POST',
     skipAuth: true,
     omitTenant: true,

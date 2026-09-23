@@ -1,6 +1,7 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import type { MapProvider } from '@/hooks/useMapProvider';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
+import type { TerritorialTicketSourceModel } from '@/utils/territorialTicketIdentity';
 
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
@@ -15,10 +16,21 @@ export interface HeatPoint {
   lat: number;
   lng: number;
   weight?: number;
-  id?: number;
+  id?: string | number;
   ticket?: string;
+  ticketId?: string;
+  sourceModel?: TerritorialTicketSourceModel;
+  recordId?: string | number;
+  recordSource?: string;
+  ticketIdentityStatus?: 'valid' | 'missing' | 'ambiguous' | 'unsupported';
+  ticketHref?: string;
+  tenantSlug?: string;
   categoria?: string;
   direccion?: string;
+  /** Aggregated address/cell label; unlike direccion it must not identify a household. */
+  addressCellLabel?: string;
+  addressCellKey?: string;
+  addressCorridorKey?: string;
   distrito?: string;
   barrio?: string;
   tipo_ticket?: string;
@@ -50,6 +62,8 @@ export interface HeatPoint {
   // New fields for completeness
   source?: string;
   cellId?: string;
+  locationQuality?: string;
+  locationProvenance?: string;
   pointCount?: number;
   aggregatedCanales?: HeatmapBreakdownItem[];
   aggregatedFuentes?: HeatmapBreakdownItem[];
@@ -141,6 +155,7 @@ export interface TicketStatsResponse {
 
 export interface HeatmapParams {
   tipo?: string;
+  tenant_slug?: string;
   fecha_inicio?: string;
   fecha_fin?: string;
   tipo_ticket?: string; // legacy support
@@ -262,7 +277,7 @@ const COORDINATE_CONTAINER_KEYWORDS = [
 const NORMALIZED_STRING_FIELDS = {
   categoria: ['categoria', 'category', 'rubro'],
   direccion: ['direccion', 'address', 'domicilio', 'calle'],
-  distrito: ['distrito', 'district', 'municipio', 'localidad', 'zone', 'zona'],
+  distrito: ['distrito', 'district', 'zone', 'zona'],
   barrio: ['barrio', 'neighborhood', 'colonia', 'sector'],
   tipoTicket: ['tipo_ticket', 'tipo', 'ticket_type', 'type'],
   estado: ['estado', 'status', 'situacion', 'situacion', 'situation'],
@@ -270,7 +285,7 @@ const NORMALIZED_STRING_FIELDS = {
   severidad: ['severidad', 'severity'],
   canal: ['canal', 'channel'],
   fuente: ['fuente', 'source', 'origen'],
-  ciudad: ['ciudad', 'city'],
+  ciudad: ['ciudad', 'city', 'localidad', 'municipio'],
   provincia: ['provincia', 'province', 'estado_provincial'],
   pais: ['pais', 'país', 'country'],
   lastTicketAt: ['last_ticket_at', 'last_ticket', 'last_at', 'last_seen', 'ultimo_ticket', 'ultima_actualizacion'],
@@ -284,22 +299,6 @@ const NORMALIZED_NUMBER_FIELDS = {
 
 const STRING_FIELD_KEYWORDS = Object.values(NORMALIZED_STRING_FIELDS).flat();
 const NUMBER_FIELD_KEYWORDS = Object.values(NORMALIZED_NUMBER_FIELDS).flat();
-
-const CHART_CONTAINER_KEYS = [
-  'chart',
-  'charts',
-  'chartdata',
-  'chartsdata',
-  'graphs',
-  'graph',
-  'graficos',
-  'grafico',
-  'datasets',
-  'series',
-  'breakdown',
-  'distribucion',
-  'distribution',
-];
 
 const CHART_LABEL_KEYS = [
   'label',
@@ -317,6 +316,20 @@ const CHART_LABEL_KEYS = [
   'class',
   'nivel',
   'level',
+  'distrito',
+  'district',
+  'barrio',
+  'neighborhood',
+  'canal',
+  'channel',
+  'mes',
+  'month',
+  'semana',
+  'week',
+  'fecha',
+  'date',
+  'periodo',
+  'period',
 ];
 
 const CHART_VALUE_KEYS = [
@@ -335,21 +348,6 @@ const CHART_VALUE_KEYS = [
 ];
 
 const CHART_TITLE_KEYS = ['title', 'titulo', 'name', 'label'];
-
-const NESTED_CONTAINER_KEYS = [
-  'data',
-  'datos',
-  'payload',
-  'result',
-  'results',
-  'response',
-  'contenido',
-  'content',
-  'body',
-  'attributes',
-  'attributesdata',
-  'meta',
-];
 
 // Helper Functions
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -612,6 +610,41 @@ const findStringByKeywords = (record: Record<string, unknown>, keywords: string[
   return null;
 };
 
+const pointMetadataRecords = (record: Record<string, unknown>): Record<string, unknown>[] => {
+  const properties = isPlainObject(record.properties) ? record.properties : null;
+  const feature = isPlainObject(record.feature) ? record.feature : null;
+  const featureProperties = feature && isPlainObject(feature.properties) ? feature.properties : null;
+  const location = isPlainObject(record.location) ? record.location : null;
+
+  // GeoJSON reserves `type` for structural values such as Feature and Point.
+  // Prefer its explicit properties before the wrapper so those values never
+  // masquerade as a municipal ticket type.
+  return [properties, featureProperties, location, record].filter(
+    (candidate): candidate is Record<string, unknown> => Boolean(candidate),
+  );
+};
+
+const GEOJSON_STRUCTURAL_TYPES = new Set(['feature', 'featurecollection', 'point', 'multipoint']);
+
+const findPointTicketType = (records: Record<string, unknown>[]): string | null => {
+  for (const record of records) {
+    const value = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.tipoTicket);
+    if (value && !GEOJSON_STRUCTURAL_TYPES.has(value.toLowerCase())) return value;
+  }
+  return null;
+};
+
+const findPointStringByKeywords = (
+  records: Record<string, unknown>[],
+  keywords: string[],
+): string | null => {
+  for (const record of records) {
+    const value = findStringByKeywords(record, keywords);
+    if (value) return value;
+  }
+  return null;
+};
+
 const findNumberByKeywords = (record: Record<string, unknown>, keywords: string[]): number | null => {
   for (const [key, value] of Object.entries(record)) {
     const normalizedKey = normalizeKey(key);
@@ -619,6 +652,17 @@ const findNumberByKeywords = (record: Record<string, unknown>, keywords: string[
       const numberValue = coerceNumber(value);
       if (numberValue !== null) return numberValue;
     }
+  }
+  return null;
+};
+
+const findPointNumberByKeywords = (
+  records: Record<string, unknown>[],
+  keywords: string[],
+): number | null => {
+  for (const record of records) {
+    const value = findNumberByKeywords(record, keywords);
+    if (value !== null) return value;
   }
   return null;
 };
@@ -719,53 +763,74 @@ const normalizeChartCollection = (value: unknown): NormalizedChart[] => {
   return [];
 };
 
-const extractChartsFromPayload = (payload: unknown): NormalizedChart[] => {
+const readNestedRecordValue = (record: Record<string, unknown>, path: readonly string[]): unknown => {
+  let current: unknown = record;
+  for (const key of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+};
+
+const OPERATIONAL_CHART_SPECS = [
+  { title: 'Reclamos por estado', path: ['estados'] },
+  { title: 'Reclamos por categoría', path: ['por_categoria'] },
+  { title: 'Reclamos por distrito', path: ['por_distrito'] },
+  { title: 'Canales de ingreso', path: ['por_canal'] },
+  { title: 'Evolución mensual', path: ['tendencia_mensual'] },
+  { title: 'Evolución semanal', path: ['tendencia_semanal'] },
+  { title: 'Satisfacción ciudadana', path: ['satisfaccion', 'distribucion'] },
+] as const;
+
+/**
+ * Builds only charts that represent municipal operations. Heatmap contracts also
+ * expose nested metadata named `charts`, `series` and `breakdown`; recursively
+ * interpreting those objects used to turn coordinates, supported formats and KPI
+ * descriptors into meaningless bar charts.
+ */
+export const extractOperationalCharts = (payload: unknown): NormalizedChart[] => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
+  const root = payload as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object' && !Array.isArray(root.data)
+    ? root.data as Record<string, unknown>
+    : null;
+  const statsCandidate = root.stats ?? data?.stats ?? root;
+  const stats = statsCandidate && typeof statsCandidate === 'object' && !Array.isArray(statsCandidate)
+    ? statsCandidate as Record<string, unknown>
+    : null;
+
   const charts: NormalizedChart[] = [];
-  const visited = new Set<unknown>();
-  const queue: unknown[] = [payload];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || visited.has(current)) continue;
-    visited.add(current);
-    if (Array.isArray(current)) {
-      current.forEach((item) => {
-        if (item && typeof item === 'object' && !visited.has(item)) queue.push(item);
-      });
-      continue;
-    }
-    if (typeof current !== 'object') continue;
-    const record = current as Record<string, unknown>;
-    for (const [key, value] of Object.entries(record)) {
-      const normalizedKey = normalizeKey(key);
-      if (CHART_CONTAINER_KEYS.some((keyword) => normalizedKey.includes(keyword))) {
-        const extracted = normalizeChartCollection(value);
-        extracted.forEach((chart) => charts.push(chart));
-      }
-      if (value && typeof value === 'object' && !visited.has(value)) queue.push(value);
-    }
-    for (const containerKey of NESTED_CONTAINER_KEYS) {
-      if (containerKey in record) {
-        const nested = record[containerKey];
-        if (nested && !visited.has(nested)) queue.push(nested);
+  const explicitCharts = root.charts ?? root.graficos ?? data?.charts ?? data?.graficos;
+  if (explicitCharts) charts.push(...normalizeChartCollection(explicitCharts));
+
+  if (stats) {
+    for (const spec of OPERATIONAL_CHART_SPECS) {
+      const chartData = buildChartData(readNestedRecordValue(stats, spec.path));
+      if (Object.keys(chartData).length > 0) {
+        charts.push({ title: spec.title, data: chartData });
       }
     }
   }
-  if (charts.length === 0 && payload && typeof payload === 'object') {
-    const fallback = normalizeChartCollection(payload);
-    if (fallback.length > 0) charts.push(...fallback);
-  }
+
   const dedupe = new Map<string, NormalizedChart>();
-  charts.forEach((chart) => {
-    const key = `${chart.title.toLowerCase()}|${JSON.stringify(chart.data)}`;
-    if (!dedupe.has(key)) dedupe.set(key, chart);
-  });
-  return Array.from(dedupe.values()).map((chart, index) => ({ title: chart.title && chart.title.trim().length > 0 ? chart.title : `Gráfico ${index + 1}`, data: chart.data }));
+  for (const chart of charts) {
+    const dataEntries = Object.entries(chart.data).filter(([, value]) => Number.isFinite(value));
+    if (dataEntries.length === 0) continue;
+    const normalizedChart = { title: chart.title.trim() || 'Indicador operativo', data: Object.fromEntries(dataEntries) };
+    const key = `${normalizedChart.title.toLowerCase()}|${JSON.stringify(normalizedChart.data)}`;
+    if (!dedupe.has(key)) dedupe.set(key, normalizedChart);
+  }
+  return Array.from(dedupe.values());
 };
 
 const looksLikeHeatmapPoint = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.length >= 2;
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
+  if (record.type === 'FeatureCollection') return false;
+  if (record.type === 'Feature' && isPlainObject(record.geometry)) {
+    return record.geometry.type === 'Point' && Array.isArray(record.geometry.coordinates);
+  }
   return Object.keys(record).some((key) => {
     const normalizedKey = normalizeKey(key);
     return LATITUDE_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || LONGITUDE_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || COORDINATE_CONTAINER_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || STRING_FIELD_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) || NUMBER_FIELD_KEYWORDS.some((keyword) => normalizedKey.includes(keyword));
@@ -777,23 +842,24 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   const record = raw as Record<string, unknown>;
   const coords = extractCoordinates(record);
   if (coords.lat === undefined || coords.lng === undefined) return null;
-  const id = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.id);
-  const categoria = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.categoria);
-  const direccion = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.direccion);
-  const distrito = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.distrito);
-  const barrio = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.barrio);
-  const tipoTicket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.tipoTicket);
-  const estado = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.estado);
-  const ticket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ticket);
-  const severidad = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.severidad);
-  const canal = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.canal);
-  const fuente = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.fuente);
-  const ciudad = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ciudad);
-  const provincia = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.provincia);
-  const pais = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.pais);
-  const lastTicketAt = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.lastTicketAt);
-  const weight = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.weight);
-  const total = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.total);
+  const metadataRecords = pointMetadataRecords(record);
+  const id = findPointNumberByKeywords(metadataRecords, NORMALIZED_NUMBER_FIELDS.id);
+  const categoria = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.categoria);
+  const direccion = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.direccion);
+  const distrito = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.distrito);
+  const barrio = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.barrio);
+  const tipoTicket = findPointTicketType(metadataRecords);
+  const estado = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.estado);
+  const ticket = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.ticket);
+  const severidad = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.severidad);
+  const canal = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.canal);
+  const fuente = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.fuente);
+  const ciudad = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.ciudad);
+  const provincia = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.provincia);
+  const pais = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.pais);
+  const lastTicketAt = findPointStringByKeywords(metadataRecords, NORMALIZED_STRING_FIELDS.lastTicketAt);
+  const weight = findPointNumberByKeywords(metadataRecords, NORMALIZED_NUMBER_FIELDS.weight);
+  const total = findPointNumberByKeywords(metadataRecords, NORMALIZED_NUMBER_FIELDS.total);
   return {
     lat: coords.lat,
     lng: coords.lng,
@@ -814,6 +880,7 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
     last_ticket_at: lastTicketAt ?? undefined,
     weight: weight ?? undefined,
     total: total ?? undefined,
+    feature: isPlainObject(record.feature) ? record.feature : record.type === 'Feature' ? record : undefined,
   };
 };
 
@@ -828,14 +895,16 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
     visited.add(current);
     if (Array.isArray(current)) {
       current.forEach((item) => {
+        let normalizedItem = false;
         if (item && looksLikeHeatmapPoint(item)) {
           const normalized = normalizeHeatPoint(item);
           if (normalized) {
             const key = `${normalized.lat.toFixed(6)}|${normalized.lng.toFixed(6)}|${normalized.categoria ?? ''}|${normalized.estado ?? ''}|${normalized.ticket ?? ''}`;
             if (!seen.has(key)) { seen.add(key); points.push(normalized); }
+            normalizedItem = true;
           }
         }
-        if (item && typeof item === 'object' && !visited.has(item)) queue.push(item);
+        if (!normalizedItem && item && typeof item === 'object' && !visited.has(item)) queue.push(item);
       });
       continue;
     }
@@ -846,6 +915,7 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
       if (directPoint) {
         const key = `${directPoint.lat.toFixed(6)}|${directPoint.lng.toFixed(6)}|${directPoint.categoria ?? ''}|${directPoint.estado ?? ''}|${directPoint.ticket ?? ''}`;
         if (!seen.has(key)) { seen.add(key); points.push(directPoint); }
+        continue;
       }
     }
     for (const value of Object.values(record)) {
@@ -1080,15 +1150,18 @@ export const getTicketStats = async (params?: TicketStatsParams): Promise<Ticket
     delete (normalizedParams as any).tipo_ticket;
     const query = buildSearchParams(normalizedParams as unknown as Record<string, unknown>).toString();
     const candidatePaths = [`/api/estadisticas/tickets${query ? `?${query}` : ''}`, `/estadisticas/tickets${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/tickets${query ? `?${query}` : ''}`, `/municipal/estadisticas/tickets${query ? `?${query}` : ''}`];
+    const tenantRequestOptions = normalizedParams.tenant_slug
+      ? { tenantSlug: normalizedParams.tenant_slug }
+      : null;
     let resp: unknown = null;
     let lastError: unknown = null;
     for (const path of candidatePaths) {
-      try { resp = await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
+      try { resp = tenantRequestOptions ? await apiFetch<unknown>(path, tenantRequestOptions) : await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
     }
     if (resp === null) throw lastError ?? new Error('No stats endpoint responded successfully');
     const normalizedPayload = normalizeApiPayload(resp);
     if (isHtmlPayload(normalizedPayload)) { console.warn('[statsService] Received HTML payload for /api/estadisticas/tickets, aborting further alias attempts.'); const error = new Error('HTML payload returned from /api/estadisticas/tickets'); (error as Error & { code?: string }).code = 'HTML_PAYLOAD'; throw error; }
-    const charts = extractChartsFromPayload(normalizedPayload).map((chart) => ({ title: chart.title, data: chart.data }));
+    const charts = extractOperationalCharts(normalizedPayload).map((chart) => ({ title: chart.title, data: chart.data }));
     const heatmapDataset = extractHeatmapDataset(normalizedPayload);
     const heatmap = heatmapDataset.points;
     return { charts, heatmap, heatmapDataset };
@@ -1109,10 +1182,13 @@ export const getHeatmapDataset = async (params?: HeatmapParams): Promise<Heatmap
     delete (normalizedParams as any).tipo_ticket;
     const query = buildSearchParams(normalizedParams as unknown as Record<string, unknown>).toString();
     const candidatePaths = [`/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`];
+    const tenantRequestOptions = normalizedParams.tenant_slug
+      ? { tenantSlug: normalizedParams.tenant_slug }
+      : null;
     let payload: unknown = null;
     let lastError: unknown = null;
     for (const path of candidatePaths) {
-      try { payload = await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
+      try { payload = tenantRequestOptions ? await apiFetch<unknown>(path, tenantRequestOptions) : await apiFetch<unknown>(path); break; } catch (error) { lastError = error; const errorCode = (error as Error & { code?: string }).code; if (errorCode === 'HTML_PAYLOAD') continue; if (error instanceof ApiError) { if (error.status === 404) continue; if (error.message && error.message.includes('Respuesta inesperada')) continue; } throw error; }
     }
     if (payload === null) throw lastError ?? new Error('No heatmap endpoint responded successfully');
     const normalizedPayload = normalizeApiPayload(payload);

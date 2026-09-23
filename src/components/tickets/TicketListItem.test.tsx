@@ -1,3 +1,4 @@
+import { normalizeTicketSla } from '@/utils/ticketSla';
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -150,4 +151,19 @@ describe('TicketListItem', () => {
     expect(screen.getByText(/responder desde la mesa operativa/i)).toBeInTheDocument();
     expect(container.querySelector('.bg-primary\\/5')).toBeInTheDocument();
   });
+  it('surfaces an authoritative overdue clock directly in the compact queue', () => {
+    render(<TicketListItem ticket={{ ...baseTicket, sla: normalizeTicketSla({ clocks: {
+      resolution: { status: 'overdue', due_at: '2026-06-05T18:00:00Z', known: true },
+    } }) }} isSelected={false} onClick={vi.fn()} compact />);
+    expect(screen.getByTestId('compact-queue-sla')).toHaveTextContent('Resolución vencida');
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'overdue');
+  });
+
+  it('does not manufacture a deadline from an old date or high priority', () => {
+    render(<TicketListItem ticket={{ ...baseTicket, priority: 'alta', fecha: '2020-01-01T00:00:00Z' }}
+      isSelected={false} onClick={vi.fn()} compact />);
+    expect(screen.queryByTestId('compact-queue-sla')).not.toBeInTheDocument();
+    expect(screen.queryByText(/vencida|por vencer/i)).not.toBeInTheDocument();
+  });
+
 });

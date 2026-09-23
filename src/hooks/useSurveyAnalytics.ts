@@ -43,12 +43,16 @@ interface UseSurveyAnalyticsResult {
   dashboardBundle?: SurveyDashboardBundle;
   executiveSummary?: SurveyExecutiveSummary;
   provenance: SurveyAnalyticsProvenance;
+  /** Only a successful current source read may publish its evidence as current. */
+  evidenceCurrent: boolean;
   isLoading: boolean;
   error: string | null;
   filters: SurveyAnalyticsFilters;
   setFilters: (next: SurveyAnalyticsFilters) => void;
   exportCsv: () => Promise<Blob>;
   isExporting: boolean;
+  refresh: () => Promise<void>;
+  isRefreshing: boolean;
 }
 
 const sanitizeBoundingBox = (value: SurveyAnalyticsFilters['bbox']): string | undefined => {
@@ -371,11 +375,29 @@ export function useSurveyAnalytics(
     dashboardBundle,
     executiveSummary,
     provenance,
+    evidenceCurrent: Boolean(tenantSlug) && !provenance.synthetic &&
+      (dashboardQuery.data?.modules?.summary
+        ? dashboardQuery.isSuccess && !dashboardQuery.isFetching && !dashboardQuery.error
+        : summaryQuery.isSuccess && !summaryQuery.isFetching && !summaryQuery.error),
     isLoading: dashboardQuery.isLoading || summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
     error: effectiveError,
     filters: normalizedFilters,
     setFilters: (next: SurveyAnalyticsFilters) => setFiltersState(normalizeFilters(next)),
     exportCsv: async () => exportMutation.mutateAsync(),
     isExporting: exportMutation.isPending,
+    refresh: async () => {
+      const dashboardResult = await dashboardQuery.refetch();
+      const modules = dashboardResult.data?.modules;
+      const fallbackRefreshes: Array<Promise<unknown>> = [];
+      if (!modules?.summary) fallbackRefreshes.push(summaryQuery.refetch());
+      if (!modules?.timeseries) fallbackRefreshes.push(timeseriesQuery.refetch());
+      if (!modules?.heatmap) fallbackRefreshes.push(heatmapQuery.refetch());
+      await Promise.allSettled(fallbackRefreshes);
+    },
+    isRefreshing:
+      dashboardQuery.isFetching ||
+      summaryQuery.isFetching ||
+      timeseriesQuery.isFetching ||
+      heatmapQuery.isFetching,
   };
 }

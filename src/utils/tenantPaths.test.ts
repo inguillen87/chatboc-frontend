@@ -182,3 +182,10 @@ describe('sanitizePublicInternalNavigationPath', () => {
     },
   );
 });
+
+describe('implementation workspace routing',()=>{
+  it('never builds a public cart under a reserved setup route',()=>{
+    expect(buildTenantPath('/cart','implementacion')).toBe('/cart');
+    expect(buildTenantApiPath('/carrito','implementacion')).toBe('/api/carrito');
+  });
+});

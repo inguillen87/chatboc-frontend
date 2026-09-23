@@ -40,6 +40,9 @@ export default function ChatComposer({
   draftText,
   intent,
   payload,
+  tenantSlug,
+  demoSessionId,
+  chatSessionId,
   disabled = false,
 }: {
   onSend: (payload: ChatComposerPayload) => void;
@@ -49,6 +52,9 @@ export default function ChatComposer({
   draftText?: string | null;
   intent?: string | null;
   payload?: Record<string, unknown> | null;
+  tenantSlug?: string | null;
+  demoSessionId?: string | null;
+  chatSessionId?: string | null;
   disabled?: boolean;
 }) {
   const [text, setText] = useState('');
@@ -143,7 +149,11 @@ export default function ChatComposer({
     };
     setComposerState('uploading');
     try {
-      const response = await uploadChatAttachment<Record<string, unknown>>(endpoint, createFormData);
+      const response = await uploadChatAttachment<Record<string, unknown>>(
+        endpoint,
+        createFormData,
+        { tenantSlug, demoSessionId, chatSessionId },
+      );
       const attachmentInfo = response?.[responseKey] ?? response;
       onSend({
         text: text.trim(),
@@ -327,7 +337,7 @@ export default function ChatComposer({
       ) : null}
       <div className="flex gap-2">
         <input
-          className="min-w-0 flex-1 rounded border px-2 py-1"
+          className="min-w-0 flex-1 rounded border bg-background px-2 py-1 text-foreground placeholder:text-muted-foreground"
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder={resolvedPlaceholder}

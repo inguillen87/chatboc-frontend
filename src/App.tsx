@@ -11,7 +11,6 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 // Páginas principales
 import Layout from "./components/layout/Layout";
 import NotFound from "./pages/NotFound";
-import ScrollMascotGuide from "@/components/guidance/ScrollMascotGuide";
 import routes from "./routesConfig";
 import AccessRoute from "@/components/access/AccessRoute";
 import SessionBootstrapGuard from "@/components/access/SessionBootstrapGuard";
@@ -35,15 +34,43 @@ import {
   ClerkRuntimeProvider,
   DEFAULT_CLERK_RUNTIME,
   type ClerkRuntimeValue,
+  useClerkRuntime,
 } from '@/components/auth/ClerkRuntimeContext';
 import {
   buildClerkBackendUnavailableRuntime,
+  buildPublicClerkBypassRuntime,
   buildClerkRuntimeFromEnv,
   CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS,
   isClerkOriginCompatible,
+  isPublicClerkBypassPresentation,
+  shouldReloadAfterPublicPreviewNavigation,
 } from '@/components/auth/clerkRuntimeResolver';
+import {
+  DISABILITY_AI_AGENT_DEMO_PATH,
+  resolvePublicDemoPreloadTarget,
+} from '@/config/publicPresentationRoutes';
+import { BackendStartupBoundary as BackendBootstrapBoundary } from '@/components/app-shell/BackendStartupBoundary';
+import { StartupRecovery } from '@/components/app-shell/StartupRecovery';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
+
+// Public demo routes are presentation surfaces. Preload only the chunk that
+// owns the exact URL while the optional auth runtime is being resolved.
+if (typeof window !== 'undefined') {
+  const preloadTarget = resolvePublicDemoPreloadTarget(window.location.pathname);
+  const preloadPromise =
+    preloadTarget === 'disability-ai-agent'
+      ? import('@/pages/public/DisabilityAIAgentDemoPage')
+      : preloadTarget === 'executive-demo'
+        ? import('@/pages/Demo')
+        : preloadTarget === 'sector-landing'
+          ? import('@/pages/DemoLandingPage')
+          : null;
+
+  void preloadPromise?.catch((error) => {
+    console.warn('[Demo] No se pudo precargar la ruta pública', error);
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,62 +81,100 @@ const queryClient = new QueryClient({
     },
   },
 });
-const RouteLoadingFallback = () => (
+export const RouteLoadingFallback = () => (
   <main
     id="main-content"
     tabIndex={-1}
-    className="flex min-h-[45vh] items-center justify-center bg-background text-sm text-muted-foreground"
+    className="min-h-[65vh] bg-background px-4 py-8 text-foreground sm:px-6 lg:px-8"
     aria-labelledby="route-loading-title"
+    aria-describedby="route-loading-description"
     aria-busy="true"
   >
-    <h1 id="route-loading-title" className="text-sm font-medium">
-      Cargando modulo...
-    </h1>
-  </main>
-);
+    <div className="mx-auto w-full max-w-7xl" role="status" aria-live="polite">
+      <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-sm sm:px-5">
+        <span
+          className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+        <div>
+          <h1 id="route-loading-title" className="text-sm font-semibold sm:text-base">
+            Preparando tu espacio de trabajo
+          </h1>
+          <p id="route-loading-description" className="mt-1 text-xs leading-5 text-muted-foreground sm:text-sm">
+            Cargando datos y herramientas de forma segura.
+          </p>
+        </div>
+      </div>
 
-const AppBootstrapFallback = () => (
-  <main
-    id="main-content"
-    tabIndex={-1}
-    className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground"
-    aria-labelledby="app-bootstrap-title"
-    aria-describedby="app-bootstrap-description"
-    aria-busy="true"
-  >
-    <div
-      className="flex max-w-sm items-center gap-4 rounded-2xl border border-border/70 bg-card/80 px-5 py-4 shadow-sm"
-      role="status"
-      aria-live="polite"
-    >
-      <span
-        className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+      <div
+        className="mt-5 grid animate-pulse gap-4 motion-reduce:animate-none lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.75fr)]"
         aria-hidden="true"
-      />
-      <div>
-        <h1 id="app-bootstrap-title" className="text-sm font-semibold">
-          Preparando Chatboc
-        </h1>
-        <p id="app-bootstrap-description" className="mt-1 text-xs text-muted-foreground">
-          Validando la configuracion segura de acceso...
-        </p>
+      >
+        <section className="rounded-2xl border border-border/60 bg-card/60 p-5 shadow-sm sm:p-6">
+          <div className="h-3 w-28 rounded-full bg-muted" />
+          <div className="mt-4 h-7 w-3/5 max-w-md rounded-lg bg-muted" />
+          <div className="mt-3 h-3 w-full max-w-2xl rounded-full bg-muted/80" />
+          <div className="mt-2 h-3 w-4/5 max-w-xl rounded-full bg-muted/80" />
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="rounded-xl border border-border/50 bg-background/70 p-4">
+                <div className="h-3 w-20 rounded-full bg-muted" />
+                <div className="mt-3 h-8 w-24 rounded-lg bg-muted/80" />
+                <div className="mt-3 h-2.5 w-full rounded-full bg-muted/70" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 h-52 rounded-2xl border border-border/50 bg-muted/50 sm:h-64" />
+        </section>
+
+        <aside className="rounded-2xl border border-border/60 bg-card/60 p-5 shadow-sm sm:p-6">
+          <div className="h-3 w-24 rounded-full bg-muted" />
+          <div className="mt-4 h-6 w-2/3 rounded-lg bg-muted" />
+          <div className="mt-6 space-y-3">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/70 p-3">
+                <div className="h-9 w-9 shrink-0 rounded-xl bg-muted" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-3 w-2/3 rounded-full bg-muted" />
+                  <div className="mt-2 h-2.5 w-full rounded-full bg-muted/70" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
       </div>
     </div>
   </main>
 );
 
+const AppBootstrapFallback = () => <StartupRecovery phase="session" />;
+
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const allowEnvFallback = import.meta.env.DEV;
-  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
-    buildClerkRuntimeFromEnv({
-      allowEnvFallback,
-      envEnabled: CLERK_AUTH_ENABLED,
-      loading: true,
-      publishableKey: CLERK_PUBLISHABLE_KEY,
+  const [publicClerkBypassPresentation] = React.useState(() =>
+    typeof window !== 'undefined' && isPublicClerkBypassPresentation({
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      search: window.location.search,
     }),
+  );
+  const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
+    publicClerkBypassPresentation
+      ? buildPublicClerkBypassRuntime(CLERK_PUBLISHABLE_KEY)
+      : buildClerkRuntimeFromEnv({
+          allowEnvFallback,
+          envEnabled: CLERK_AUTH_ENABLED,
+          loading: true,
+          publishableKey: CLERK_PUBLISHABLE_KEY,
+        }),
   );
 
   React.useEffect(() => {
+    // Explicit public presentations are guest-only and never need Clerk.
+    // Resolve them synchronously; all normal and private routes keep the
+    // fail-closed bootstrap below.
+    if (publicClerkBypassPresentation) return undefined;
+
     let cancelled = false;
     let settled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -197,7 +262,7 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
       cancelled = true;
       if (timeoutId !== null) clearTimeout(timeoutId);
     };
-  }, [allowEnvFallback]);
+  }, [allowEnvFallback, publicClerkBypassPresentation]);
 
   return runtime;
 };
@@ -205,6 +270,23 @@ const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
 function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
+  const clerkRuntime = useClerkRuntime();
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!shouldReloadAfterPublicPreviewNavigation({
+      runtime: clerkRuntime,
+      hostname: window.location.hostname,
+      pathname: location.pathname,
+      search: location.search,
+    })) {
+      return;
+    }
+
+    // Crossing into or out of a no-Clerk presentation requires one reload so
+    // the provider topology stays stable before any private UI can mount.
+    window.location.reload();
+  }, [clerkRuntime, location.pathname, location.search]);
 
   React.useEffect(() => {
     const canonicalPath = toCanonicalTenantPath(location.pathname);
@@ -233,7 +315,12 @@ function AppRoutes() {
        console.warn("Failed to initialize anon session", e);
     }
   }, []);
-  const layoutExcludedPaths = ['/iframe', '/sso-callback', '/auth/sso-callback'];
+  const layoutExcludedPaths = [
+    '/iframe',
+    '/sso-callback',
+    '/auth/sso-callback',
+    DISABILITY_AI_AGENT_DEMO_PATH,
+  ];
   const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
   const portalRoutes = routes.filter(({ userPortal }) => userPortal);
   const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);
@@ -245,6 +332,7 @@ function AppRoutes() {
     "/iframe",
     "/demo",
     "/demo-catalogs",
+    "/e",
     "/login",
     "/register",
     "/sso-callback",
@@ -255,6 +343,7 @@ function AppRoutes() {
     '/chat',
     "/tracking",
     "/integracion",
+    "/implementacion",
     "/admin",
     "/perfil",
     "/empleados",
@@ -352,7 +441,6 @@ function AppRoutes() {
           />
         </React.Suspense>
       )}
-      <ScrollMascotGuide />
     </TokenRedirectWrapper>
   );
 }
@@ -439,7 +527,7 @@ const ClerkSessionBootstrapBoundary = () => {
   );
 };
 
-const App = () => {
+const ResolvedApp = () => {
   const clerkRuntime = useResolvedClerkRuntime();
 
   // The provider topology cannot change after product routes become interactive.
@@ -498,5 +586,11 @@ const App = () => {
     </GoogleOAuthProvider>
   );
 };
+
+const App = () => (
+  <BackendBootstrapBoundary>
+    <ResolvedApp />
+  </BackendBootstrapBoundary>
+);
 
 export default App;

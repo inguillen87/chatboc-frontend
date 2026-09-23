@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,6 +17,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
+import { TicketQueueFocusBar } from './TicketQueueFocusBar';
+import { toggleTicketFocus, clearTicketFocus } from '@/utils/ticketFocusFilters';
 import TicketFilterPopover from './TicketFilterPopover';
 import { useTenant } from '@/context/TenantContext';
 import { useTickets } from '@/context/TicketContext';
@@ -50,6 +52,7 @@ interface SidebarProps {
   compact?: boolean;
   showFilterControl?: boolean;
   showListSummaryBar?: boolean;
+  showQueueMetrics?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -71,6 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   compact = false,
   showFilterControl = true,
   showListSummaryBar = true,
+  showQueueMetrics = true,
 }) => {
   const { currentSlug, tenant } = useTenant();
   const {
@@ -93,9 +97,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     [key: string]: number;
   }>({});
   const [openCategories, setOpenCategories] = React.useState<string[]>([]);
-  const [backendCategories, setBackendCategories] = React.useState<string[]>(
-    [],
-  );
+  const [categorySnapshot, setCategorySnapshot] = React.useState<{
+    scope: string | null; items: string[];
+  }>({ scope: null, items: [] });
   const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
   const [listMode, setListMode] = React.useState<'queue' | 'categories'>('queue');
   const [queueVisibleCount, setQueueVisibleCount] = React.useState(
@@ -110,6 +114,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     () => resolveTenantSlug(currentSlug || tenant?.slug, undefined, { persist: false }),
     [currentSlug, tenant?.slug],
   );
+  const backendCategories = categorySnapshot.scope === categoryTenantSlug ? categorySnapshot.items : [];
+
 
   React.useEffect(() => {
     if (previousContextSearchRef.current !== contextSearchTerm && contextSearchTerm !== searchTerm) {
@@ -137,17 +143,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [compact]);
 
   React.useEffect(() => {
-    const fetchCategories = async () => {
-      if (categoryTenantSlug) {
-        try {
-          const cats = await apiClient.adminGetTicketCategories(categoryTenantSlug);
-          setBackendCategories(cats.map((c: any) => c.nombre));
-        } catch (e) {
-          console.error('Failed to load ticket categories', e);
-        }
-      }
-    };
-    fetchCategories();
+    let active = true;
+    setCategorySnapshot({ scope: categoryTenantSlug, items: [] });
+    if (categoryTenantSlug) {
+      void apiClient.adminGetTicketCategories(categoryTenantSlug).then((categories) => {
+        if (!active) return;
+        const items = Array.isArray(categories)
+          ? categories.flatMap((category) => typeof category?.nombre === 'string' && category.nombre.trim()
+            ? [category.nombre.trim()] : []) : [];
+        setCategorySnapshot({ scope: categoryTenantSlug, items });
+      }).catch(() => {
+        if (active) setCategorySnapshot({ scope: categoryTenantSlug, items: [] });
+      });
+    }
+    return () => { active = false; };
   }, [categoryTenantSlug]);
 
   const selectedCategory = React.useMemo(() => {
@@ -396,6 +405,38 @@ const Sidebar: React.FC<SidebarProps> = ({
   const queueUnassignedCount = queueEntries.filter(({ ticket }) => isUnassignedQueueTicket(ticket)).length;
   const visibleQueueEntries = queueEntries.slice(0, queueVisibleCount);
   const hasMoreQueueItems = visibleQueueEntries.length < queueEntries.length;
+  const selectedQueueIndex = visibleQueueEntries.findIndex(
+    ({ ticket }) => String(ticket.id) === String(selectedTicket?.id ?? ''),
+  );
+  const queueTabStopIndex = selectedQueueIndex >= 0 ? selectedQueueIndex : 0;
+  const handleQueueItemKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 1, visibleQueueEntries.length - 1);
+    if (event.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 1, 0);
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = visibleQueueEntries.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    if (nextIndex === currentIndex) return;
+
+    const nextTicket = visibleQueueEntries[nextIndex]?.ticket;
+    if (!nextTicket) return;
+
+    const queueRoot = event.currentTarget.closest<HTMLElement>('[data-testid="sidebar-ticket-queue"]');
+    selectTicket(nextTicket.id);
+    window.requestAnimationFrame(() => {
+      const nextButton = queueRoot?.querySelector<HTMLButtonElement>(
+        `[data-ticket-queue-index="${nextIndex}"]`,
+      );
+      nextButton?.focus();
+    });
+  };
   const queueCaseCountLabel =
     queueEntries.length === 1
       ? '1 caso'
@@ -506,15 +547,17 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="flex shrink-0 items-center gap-1"
               data-testid="sidebar-compact-toolbar"
             >
-              <span
-                data-testid="sidebar-compact-summary"
-                className={cn(
-                  'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground',
-                  delegatedHeader && 'max-[330px]:hidden',
-                )}
-              >
-                {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
-              </span>
+              {showQueueMetrics ? (
+                <span
+                  data-testid="sidebar-compact-summary"
+                  className={cn(
+                    'inline-flex shrink-0 rounded-full border border-border/70 bg-muted/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-700 dark:text-slate-300',
+                    delegatedHeader && 'max-[330px]:hidden',
+                  )}
+                >
+                  {filteredTickets.length.toLocaleString('es-AR')}/{totalBackendTickets.toLocaleString('es-AR')}
+                </span>
+              ) : null}
               {listModeToggle}
               {filterControl}
               {hasActiveFilters ? (
@@ -707,12 +750,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         title={listSummaryTitle}
       >
         <p
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[11px] leading-5 text-muted-foreground"
-          aria-label={`${listSummaryLabel}. ${filterSummaryLabel}. ${visibleTicketCountLabel}.`}
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[11px] leading-5 text-slate-700 dark:text-slate-300"
         >
           <span
             className={cn(
-              'max-w-[48%] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-semibold text-primary',
+              'max-w-[48%] truncate rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 font-semibold text-blue-800 dark:text-blue-300',
               compact && 'sr-only',
             )}
           >
@@ -722,13 +764,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             className={cn(
               'max-w-[32%] truncate rounded-full border px-2 py-0.5 font-semibold',
               hasActiveFilters
-                ? 'border-amber-300/60 bg-amber-500/10 text-amber-700 dark:text-amber-200'
-                : 'border-border/70 bg-muted/60 text-muted-foreground',
+                ? 'border-amber-300/60 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                : 'border-border/70 bg-muted/60 text-slate-700 dark:text-slate-300',
             )}
           >
             {filterSummaryLabel}
           </span>
-          <span className="shrink-0 rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-semibold text-muted-foreground">
+          <span className="shrink-0 rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-semibold text-slate-700 dark:text-slate-300">
             {visibleTicketCountLabel}
           </span>
         </p>
@@ -747,6 +789,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           </Button>
         ) : null}
       </div>
+      <TicketQueueFocusBar
+        filters={filters}
+        onToggle={(key) => setFilters((current) => toggleTicketFocus(current, key))}
+        onClear={() => setFilters((current) => clearTicketFocus(current))}
+      />
       <ScrollArea className="min-h-0 flex-1 overflow-hidden bg-background/30">
         {visibleCategoryEntries.length === 0 ? (
           <div className="mx-3 mt-3 rounded-[8px] border border-dashed border-border bg-background/70 p-4 text-center">
@@ -770,22 +817,31 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : null}
         {listMode === 'queue' && queueEntries.length > 0 ? (
-          <div className={cn(compact ? 'px-2 py-1.5' : 'px-2 py-2')} data-testid="sidebar-ticket-queue">
+          <div
+            className={cn(compact ? 'px-2 py-1.5' : 'px-2 py-2')}
+            data-testid="sidebar-ticket-queue"
+            aria-describedby="sidebar-queue-keyboard-help"
+          >
             <p data-testid="sidebar-queue-summary" className="sr-only">
               Cola priorizada: {queueEntries.length.toLocaleString('es-AR')} en cola;
               {queueUnreadCount.toLocaleString('es-AR')} no leidos;
               {queueRiskCount.toLocaleString('es-AR')} en riesgo;
               {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
             </p>
-            <div
-              data-testid="sidebar-queue-metrics"
-              className={cn(
-                'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                compact && 'mb-1',
-              )}
-              aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
-            >
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-primary">
+            <p id="sidebar-queue-keyboard-help" className="sr-only">
+              Usá flecha arriba y flecha abajo para recorrer reclamos. Inicio y Fin llevan al primer o último caso visible.
+            </p>
+            {showQueueMetrics ? (
+              <div
+                data-testid="sidebar-queue-metrics"
+                className={cn(
+                  'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                  compact && 'mb-1',
+                )}
+                role="group"
+                aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
+              >
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-800 dark:text-blue-300">
                 Cola
                 <strong className="tabular-nums">{queueEntries.length.toLocaleString('es-AR')}</strong>
               </span>
@@ -793,8 +849,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnreadCount > 0
-                    ? 'border-violet-400/40 bg-violet-500/10 text-violet-700 dark:text-violet-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    ? 'border-violet-400/40 bg-violet-500/10 text-violet-800 dark:text-violet-200'
+                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
                 )}
               >
                 No leidos
@@ -804,8 +860,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueRiskCount > 0
-                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    ? 'border-amber-400/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
                 )}
               >
                 Riesgo
@@ -815,21 +871,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnassignedCount > 0
-                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-700 dark:text-sky-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-800 dark:text-sky-200'
+                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
                 )}
               >
                 Sin resp.
                 <strong className="tabular-nums">{queueUnassignedCount.toLocaleString('es-AR')}</strong>
               </span>
-            </div>
+              </div>
+            ) : null}
             <div className="overflow-hidden rounded-[8px] border border-border/80 bg-background shadow-sm">
-              {visibleQueueEntries.map(({ ticket, category }) => (
+              {visibleQueueEntries.map(({ ticket, category }, index) => (
                 <div key={`${category}-${ticket.id}`} className="min-w-0 border-b border-border/60 last:border-b-0">
                   <TicketListItem
                     ticket={ticket}
                     isSelected={selectedTicket?.id === ticket.id}
                     compact
+                    queueIndex={index}
+                    tabIndex={index === queueTabStopIndex ? 0 : -1}
+                    ariaDescribedBy="sidebar-queue-keyboard-help"
+                    onKeyDown={(event) => handleQueueItemKeyDown(event, index)}
                     onClick={() => {
                       selectTicket(ticket.id);
                       onTicketSelected?.();

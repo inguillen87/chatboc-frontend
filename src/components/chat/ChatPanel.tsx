@@ -9,6 +9,7 @@ import React, {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader";
+import ChatHumanSupportBar from "./ChatHumanSupportBar";
 import type { Prefs } from "./AccessibilityToggle";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -53,6 +54,7 @@ import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import {
   createLeadCaptureIdempotencyKey,
+  getBootstrapSessionValues,
   submitLeadCapture,
   type LeadCaptureNextAction,
 } from "@/features/chat/chatApi";
@@ -65,6 +67,7 @@ import {
 } from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { readBackendFlag } from "@/utils/backendFlags";
+import { resolveBoundChatAttachmentUploadContext } from "@/features/chat/uploadChatAttachment";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
 import { resolveLiveChatRequestAction } from "@/utils/liveChatCta";
@@ -2204,6 +2207,8 @@ const ChatPanel = (props: ChatPanelProps) => {
         boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
       hasRecommendedWhatsAppHandoff,
   );
+  const showLiveChatSupport = canRenderLiveChat && !isToolbarActionCollapsed("live_chat");
+  const showWhatsAppSupport = canRenderWhatsAppBridge && !isToolbarActionCollapsed("whatsapp");
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
   const effectiveRealtimeVoice =
@@ -2952,24 +2957,6 @@ const ChatPanel = (props: ChatPanelProps) => {
       tone: action.active ? "primary" : "default",
     }));
 
-  if (!activeTicketId && canRenderLiveChat && !isToolbarActionCollapsed("live_chat")) {
-    compactFooterActions.push({
-      id: "live_chat",
-      label: liveChatButtonLabel,
-      icon: UserRound,
-      onClick: handleLiveChatRequest,
-    });
-  }
-
-  if (!activeTicketId && canRenderWhatsAppBridge && !isToolbarActionCollapsed("whatsapp")) {
-    compactFooterActions.push({
-      id: "whatsapp",
-      label: whatsappButtonLabel,
-      icon: MessageSquare,
-      onClick: handleWhatsAppBridge,
-    });
-  }
-
   if (!activeTicketId && realtimeVoiceEnabled && !isToolbarActionCollapsed("voice_call")) {
     compactFooterActions.push({
       id: "voice_call",
@@ -3370,6 +3357,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     ? null
     : "Para atenderte mejor, primero podes decirme tu nombre.";
   const bootstrapPayload = chatBootstrap?.payload as Record<string, unknown> | undefined;
+  const attachmentUploadContext = useMemo(() => {
+    const bootstrapSession = chatBootstrap
+      ? getBootstrapSessionValues(chatBootstrap)
+      : {};
+    return resolveBoundChatAttachmentUploadContext(tenantSlug, bootstrapSession);
+  }, [chatBootstrap, tenantSlug]);
   const bootstrapDemoMetadata = bootstrapPayload?.demo_metadata as Record<string, unknown> | undefined;
   const bootstrapWorkspace = bootstrapPayload?.workspace as Record<string, unknown> | undefined;
   const demoWorkspace = bootstrapDemoMetadata?.workspace as Record<string, unknown> | undefined;
@@ -3925,6 +3918,16 @@ const ChatPanel = (props: ChatPanelProps) => {
         recommendationLabel={recommendedExperienceLabel}
         compactActions={compactHeaderActions}
       />
+      {!activeTicketId && (showLiveChatSupport || showWhatsAppSupport) ? (
+        <ChatHumanSupportBar
+          liveChatLabel={showLiveChatSupport ? liveChatButtonLabel : null}
+          liveChatStatus={showLiveChatSupport ? availabilityLabel : null}
+          liveChatAvailable={Boolean(showLiveChatSupport && liveChatIsAvailable && isLiveChatEnabled)}
+          onLiveChat={showLiveChatSupport ? handleLiveChatRequest : undefined}
+          whatsappLabel={showWhatsAppSupport ? whatsappButtonLabel : null}
+          onWhatsApp={showWhatsAppSupport ? handleWhatsAppBridge : undefined}
+        />
+      ) : null}
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
           <div className={cn(chatContentMaxWidthClass, "rounded-2xl border border-border/70 bg-background/90 p-3 shadow-sm")}>
@@ -4821,6 +4824,9 @@ const ChatPanel = (props: ChatPanelProps) => {
             uiHints={uiHints}
             guidedFlow={guidedFlow}
             supportsMultimodalIntake={supportsMultimodalIntake}
+            tenantSlug={attachmentUploadContext.tenantSlug}
+            demoSessionId={attachmentUploadContext.demoSessionId}
+            chatSessionId={attachmentUploadContext.chatSessionId}
           />
         )}
       </div>

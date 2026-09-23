@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Sidebar from './Sidebar';
@@ -46,16 +46,28 @@ vi.mock('./TicketListItem', () => ({
     ticket,
     onClick,
     compact,
+    queueIndex,
+    tabIndex,
+    ariaDescribedBy,
+    onKeyDown,
   }: {
     ticket: { id?: number | string; asunto?: string; nro_ticket?: string };
     onClick: () => void;
     compact?: boolean;
+    queueIndex?: number;
+    tabIndex?: number;
+    ariaDescribedBy?: string;
+    onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
   }) => (
     <button
       type="button"
       data-testid={`ticket-row-${ticket.id || ticket.nro_ticket || ticket.asunto}`}
       data-compact={compact ? 'true' : 'false'}
+      data-ticket-queue-index={queueIndex}
+      tabIndex={tabIndex}
+      aria-describedby={ariaDescribedBy}
       onClick={onClick}
+      onKeyDown={onKeyDown}
     >
       {ticket.asunto || ticket.nro_ticket}
     </button>
@@ -195,7 +207,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-queue-summary')).toHaveTextContent('Cola priorizada');
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveAccessibleName(
-      'Cola priorizada, 1 caso, 1 no leidos, 1 en riesgo, 1 sin responsable',
+      'Cola priorizada, 1 caso, 1 no leidos, 0 en riesgo, 1 sin responsable',
     );
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('Cola');
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveTextContent('No leidos');
@@ -222,7 +234,7 @@ describe('Tickets Sidebar category density', () => {
       'aria-pressed',
       'true',
     );
-    expect(screen.getByRole('button', { name: /no le/i })).toHaveAttribute(
+    expect(within(screen.getByTestId('sidebar-filter-panel')).getByRole('button', { name: /no le/i })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
@@ -234,6 +246,71 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByLabelText(/filtrar por canal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/filtrar por estado/i)).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
+  });
+
+  it('supports keyboard-first navigation through the prioritized queue', async () => {
+    const tickets = [
+      {
+        id: 101,
+        tipo: 'municipio',
+        nro_ticket: 'M-101',
+        asunto: 'Caso uno',
+        categoria: 'Luminarias',
+        estado: 'nuevo',
+        priority: 'alta',
+      },
+      {
+        id: 102,
+        tipo: 'municipio',
+        nro_ticket: 'M-102',
+        asunto: 'Caso dos',
+        categoria: 'Luminarias',
+        estado: 'nuevo',
+        priority: 'media',
+      },
+      {
+        id: 103,
+        tipo: 'municipio',
+        nro_ticket: 'M-103',
+        asunto: 'Caso tres',
+        categoria: 'Luminarias',
+        estado: 'nuevo',
+        priority: 'baja',
+      },
+    ];
+
+    useTicketsMock.mockReturnValue({
+      tickets,
+      filteredTickets: tickets,
+      ticketsByCategory: { Luminarias: tickets },
+      selectedTicket: tickets[1],
+      selectTicket: selectTicketMock,
+      filters: defaultFilters,
+      setFilters: setFiltersMock,
+      filterOptions: defaultFilterOptions,
+    });
+
+    render(<Sidebar />);
+
+    await waitFor(() => {
+      expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('junin');
+    });
+
+    const first = screen.getByTestId('ticket-row-101');
+    const second = screen.getByTestId('ticket-row-102');
+    const third = screen.getByTestId('ticket-row-103');
+    expect(first).toHaveAttribute('tabindex', '-1');
+    expect(second).toHaveAttribute('tabindex', '0');
+    expect(third).toHaveAttribute('tabindex', '-1');
+
+    second.focus();
+    fireEvent.keyDown(second, { key: 'ArrowDown' });
+    expect(selectTicketMock).toHaveBeenCalledWith(103);
+    await waitFor(() => expect(third).toHaveFocus());
+
+    fireEvent.keyDown(third, { key: 'Home' });
+    expect(selectTicketMock).toHaveBeenLastCalledWith(101);
+    await waitFor(() => expect(first).toHaveFocus());
   });
 
   it('promotes sidebar search to the server-side ticket filters', async () => {
@@ -454,7 +531,7 @@ describe('Tickets Sidebar category density', () => {
     expect(screen.getByTestId('sidebar-list-summary-bar')).toHaveClass('sr-only');
     expect(screen.getByTestId('sidebar-ticket-queue')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-queue-metrics')).toHaveAccessibleName(
-      'Cola priorizada, 1 caso, 1 no leidos, 1 en riesgo, 1 sin responsable',
+      'Cola priorizada, 1 caso, 1 no leidos, 0 en riesgo, 1 sin responsable',
     );
     expect(screen.getByTestId('ticket-row-378430')).toHaveAttribute(
       'data-compact',
@@ -540,4 +617,48 @@ describe('Tickets Sidebar category density', () => {
     const updater = lastCall?.[0] as (previous: typeof defaultFilters) => typeof defaultFilters;
     expect(updater(defaultFilters)).toMatchObject({ agent: 'unassigned' });
   });
+  it('keeps focus shortcuts visible when desktop metrics are delegated to the page header', () => {
+    render(<Sidebar showFilterControl={false} showQueueMetrics={false} showListSummaryBar={false} />);
+    expect(screen.getByTestId('ticket-queue-focus')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Enfocar: SLA vencido' })).toBeEnabled();
+  });
+
+  it('patches the shared filter state and preserves existing channel/search scope', () => {
+    render(<Sidebar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Enfocar: No leídos' }));
+    const updater = setFiltersMock.mock.calls.at(-1)?.[0];
+    expect(typeof updater).toBe('function');
+    expect(updater({ ...defaultFilters, search: 'pozo', channel: 'whatsapp', agent: 'staff-3' }))
+      .toEqual({ ...defaultFilters, search: 'pozo', channel: 'whatsapp', agent: 'staff-3', unread: 'unread' });
+    expect(selectTicketMock).not.toHaveBeenCalled();
+  });
+
+  it('discards a late category response from another tenant', async () => {
+    let finishOld!: (value: unknown) => void;
+    adminGetTicketCategoriesMock.mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve; }));
+    adminGetTicketCategoriesMock.mockResolvedValueOnce([{ nombre: 'Categoría beta' }]);
+    const { rerender } = render(<Sidebar />);
+    useTenantMock.mockReturnValue({ currentSlug: 'beta', tenant: { slug: 'beta', tipo: 'pyme' } });
+    rerender(<Sidebar />);
+    await waitFor(() => expect(adminGetTicketCategoriesMock).toHaveBeenCalledWith('beta'));
+    await act(async () => { finishOld([{ nombre: 'Categoría privada anterior' }]); });
+    fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /mostrar .*rubros vacios/i }));
+    expect(screen.getByText('Categoría beta (0)')).toBeInTheDocument();
+    expect(screen.queryByText(/Categoría privada anterior/)).not.toBeInTheDocument();
+  });
+
+  it('does not retain loaded category names while the next tenant is loading', async () => {
+    adminGetTicketCategoriesMock.mockResolvedValueOnce([{ nombre: 'Solo tenant anterior' }]);
+    const { rerender } = render(<Sidebar />);
+    fireEvent.click(screen.getByRole('button', { name: /^rubros$/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /mostrar 3 rubros vacios/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /mostrar 3 rubros vacios/i }));
+    expect(screen.getByText('Solo tenant anterior (0)')).toBeInTheDocument();
+    adminGetTicketCategoriesMock.mockReturnValueOnce(new Promise(() => {}));
+    useTenantMock.mockReturnValue({ currentSlug: 'beta', tenant: { slug: 'beta', tipo: 'pyme' } });
+    rerender(<Sidebar />);
+    expect(screen.queryByText('Solo tenant anterior (0)')).not.toBeInTheDocument();
+  });
+
 });

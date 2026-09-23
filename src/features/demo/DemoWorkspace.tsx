@@ -18,10 +18,39 @@ import {
 } from 'lucide-react';
 import ChatPanel from '@/features/chat/ChatPanel';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import { formatDemoPresentationLabel } from './demoPresentationLabels';
 import { normalizeDemoRubroTools, type NormalizedDemoRubroTool } from './demoTools';
 import { readWorkspaceActionMenu } from '@/utils/widgetActionMenu';
 
-const readSectorLabel = (sector?: DemoSector | null) => (sector ? String(sector) : null);
+const DEMO_COPY_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bCatalogo\b/g, 'Catálogo'],
+  [/\bcatalogo\b/g, 'catálogo'],
+  [/\bTramites\b/g, 'Trámites'],
+  [/\btramites\b/g, 'trámites'],
+  [/\bUbicacion\b/g, 'Ubicación'],
+  [/\bubicacion\b/g, 'ubicación'],
+  [/\bTelefono\b/g, 'Teléfono'],
+  [/\btelefono\b/g, 'teléfono'],
+  [/\bAtencion\b/g, 'Atención'],
+  [/\batencion\b/g, 'atención'],
+  [/\bPublico\b/g, 'Público'],
+  [/\bpublico\b/g, 'público'],
+  [/\bEnvian\b/g, 'Envían'],
+  [/\benvian\b/g, 'envían'],
+  [/\bTodavia\b/g, 'Todavía'],
+  [/\btodavia\b/g, 'todavía'],
+  [/\bJunin\b/g, 'Junín'],
+  [/\bno esta\b/g, 'no está'],
+];
+
+const polishDemoCopy = (value: string) =>
+  DEMO_COPY_REPLACEMENTS.reduce(
+    (copy, [pattern, replacement]) => copy.replace(pattern, replacement),
+    value,
+  );
+
+const readSectorLabel = (sector?: DemoSector | null) =>
+  sector ? formatDemoPresentationLabel(String(sector)) : null;
 
 const readWorkspaceLabel = (
   workspace: DemoWorkspaceConfig | null | undefined,
@@ -33,10 +62,10 @@ const readWorkspaceLabel = (
 
   for (const key of keys) {
     const value = labels?.[key] ?? (source as Record<string, unknown> | undefined)?.[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'string' && value.trim()) return polishDemoCopy(value.trim());
   }
 
-  return fallback;
+  return polishDemoCopy(fallback);
 };
 
 const hasChatRuntime = (workspace: DemoWorkspaceConfig | null | undefined) =>
@@ -52,15 +81,19 @@ const readRuntimeUnavailableState = (workspace: DemoWorkspaceConfig | null | und
     workspace?.experience_blueprint?.empty_states?.runtime_unavailable;
 
   return {
-    title: state?.title || state?.label || 'Demo conversacional no disponible',
-    description:
+    title: polishDemoCopy(state?.title || state?.label || 'Demo conversacional no disponible'),
+    description: polishDemoCopy(
       state?.description ||
       state?.detail ||
       state?.subtitle ||
       state?.text ||
-      'Esta experiencia todavia no esta disponible para probar en vivo.',
+      'Esta experiencia todavía no está disponible para probar en vivo.',
+    ),
   };
 };
+
+const isContactTool = (kind: string) =>
+  ['contact', 'phone', 'telefono', 'whatsapp'].some((token) => kind.includes(token));
 
 const getToolIcon = (kind: string) => {
   if (kind.includes('catalog') || kind.includes('product')) return ShoppingCart;
@@ -92,7 +125,7 @@ const DemoRubroToolsPanel = ({
   const description = readWorkspaceLabel(
     workspace,
     ['rubro_tools_description', 'tools_description', 'toolkit_description'],
-    'Catalogo, precios, ubicacion, horarios y consultas disponibles para esta demo.',
+    'Catálogo, precios, ubicación, horarios y consultas disponibles para esta demo.',
   );
 
   return (
@@ -104,31 +137,68 @@ const DemoRubroToolsPanel = ({
       <div className="grid gap-2 sm:grid-cols-2">
         {tools.map((tool, toolIndex) => {
           const Icon = getToolIcon(tool.kind);
+          const contactTool = isContactTool(tool.kind);
 
           return (
-            <article key={`${tool.id}-${toolIndex}`} className="rounded-xl border bg-card/70 p-3">
+            <article
+              key={`${tool.id}-${toolIndex}`}
+              className={`min-w-0 overflow-hidden rounded-xl border bg-card/70 p-3 ${
+                contactTool ? 'sm:col-span-2' : ''
+              }`}
+            >
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-foreground">{tool.label}</p>
+                    <p className="min-w-0 break-words text-sm font-semibold text-foreground">
+                      {polishDemoCopy(tool.label)}
+                    </p>
                     {tool.statusLabel ? (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                        {tool.statusLabel}
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
+                        {formatDemoPresentationLabel(tool.statusLabel)}
                       </span>
                     ) : null}
                   </div>
                   {tool.description ? (
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{tool.description}</p>
+                    <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
+                      {polishDemoCopy(tool.description)}
+                    </p>
                   ) : null}
                   {tool.fields.length ? (
-                    <dl className="mt-2 grid gap-1 text-xs">
+                    <dl
+                      className={
+                        contactTool
+                          ? 'mt-3 grid min-w-0 gap-2 text-xs'
+                          : 'mt-2 grid gap-1.5 text-xs'
+                      }
+                    >
                       {tool.fields.slice(0, 4).map((field, fieldIndex) => (
-                        <div key={`${tool.id}-${field.label}-${fieldIndex}`} className="flex justify-between gap-3">
-                          <dt className="text-muted-foreground">{field.label}</dt>
-                          <dd className="text-right font-medium text-foreground">{field.value}</dd>
+                        <div
+                          key={`${tool.id}-${field.label}-${fieldIndex}`}
+                          className={
+                            contactTool
+                              ? 'min-w-0 rounded-lg border border-border/60 bg-background/70 px-3 py-2.5'
+                              : 'grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-start gap-3'
+                          }
+                        >
+                          <dt
+                            className={
+                              contactTool
+                                ? 'min-w-0 break-words text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground'
+                                : 'min-w-0 break-words text-muted-foreground'
+                            }
+                          >
+                            {polishDemoCopy(field.label)}
+                          </dt>
+                          <dd
+                            className={`min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere] ${
+                              contactTool ? 'mt-1 text-left leading-5' : 'text-right'
+                            }`}
+                          >
+                            {field.value}
+                          </dd>
                         </div>
                       ))}
                     </dl>
@@ -139,9 +209,9 @@ const DemoRubroToolsPanel = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       referrerPolicy="no-referrer"
-                      className="mt-3 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="mt-3 inline-flex max-w-full items-center gap-1 whitespace-normal break-words rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
-                      {tool.actionLabel}
+                      {polishDemoCopy(tool.actionLabel)}
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   ) : null}
@@ -160,14 +230,19 @@ export default function DemoWorkspace({
   sector,
   rubro,
   workspace,
+  loading = false,
   onRuntimeResult,
+  presentation = 'full',
 }: {
   tenantSlug?: string | null;
   sector?: DemoSector | null;
   rubro?: string | null;
   workspace?: DemoWorkspaceConfig | null;
+  loading?: boolean;
   onRuntimeResult?: (response: unknown, result: unknown) => void;
+  presentation?: 'full' | 'executive';
 }) {
+  const isExecutive = presentation === 'executive';
   const valueCards = workspace?.value_cards ?? [];
   const sampleConversations =
     workspace?.sample_conversations ?? workspace?.experience_blueprint?.sample_conversations ?? [];
@@ -193,13 +268,15 @@ export default function DemoWorkspace({
     .filter(([, config]) => config?.enabled !== false)
     .map(([key, config]) => {
       const label = (config as { label?: unknown } | undefined)?.label;
-      return typeof label === 'string' && label.trim() ? label.trim() : key;
+      return formatDemoPresentationLabel(
+        typeof label === 'string' && label.trim() ? label.trim() : key,
+      );
     })
     .filter((label) => label.trim().length > 0);
 
   return (
     <div className="space-y-4">
-      <section className="mx-auto w-full max-w-[440px] rounded-[2rem] border border-border/80 bg-card/90 p-2 shadow-2xl shadow-black/10 backdrop-blur dark:bg-[#10151d]">
+      <section className={`mx-auto w-full rounded-2xl border border-border/80 bg-card/90 p-2 shadow-lg shadow-black/5 ${isExecutive ? 'max-w-3xl' : 'max-w-[440px]'} dark:bg-[#10151d]`}>
         <div className="rounded-[1.6rem] border border-border/60 bg-background/95 p-3 shadow-inner dark:bg-[#0b1018]">
           <div className="mb-3 flex items-center justify-between rounded-[1.2rem] border border-border/60 bg-card/80 px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -211,16 +288,54 @@ export default function DemoWorkspace({
                 <p className="truncate text-xs text-muted-foreground">{phoneSubtitle}</p>
               </div>
             </div>
-            {runtimeAvailable ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[11px] font-semibold text-success">
+            {loading ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden="true" />
+                conectando
+              </span>
+            ) : runtimeAvailable ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">
                 <CheckCircle2 className="h-3 w-3" />
-                online
+                En línea
               </span>
             ) : null}
           </div>
 
           <div className="max-h-[720px] min-h-[560px] overflow-y-auto rounded-[1.2rem] border border-border/50 bg-muted/15 p-3">
-            {runtimeAvailable ? (
+            {loading ? (
+              <div
+                className="flex min-h-[520px] flex-col rounded-[1rem] border border-border/60 bg-card/50 p-5"
+                role="status"
+                aria-live="polite"
+                aria-label="Preparando la conversación de la demo"
+              >
+                <div className="flex items-center gap-3 border-b border-border/50 pb-4">
+                  <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-primary/15 motion-reduce:animate-none" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Preparando conversación operativa</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Conectando el canal y las herramientas del escenario.</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-4 animate-pulse motion-reduce:animate-none" aria-hidden="true">
+                  <div className="mr-10 rounded-2xl rounded-tl-sm bg-muted/80 p-4">
+                    <div className="h-3 w-4/5 rounded-full bg-muted-foreground/15" />
+                    <div className="mt-2 h-3 w-3/5 rounded-full bg-muted-foreground/15" />
+                  </div>
+                  <div className="ml-12 rounded-2xl rounded-tr-sm bg-primary/10 p-4">
+                    <div className="h-3 w-full rounded-full bg-primary/15" />
+                    <div className="mt-2 h-3 w-2/3 rounded-full bg-primary/15" />
+                  </div>
+                  <div className="mr-16 rounded-2xl rounded-tl-sm bg-muted/80 p-4">
+                    <div className="h-3 w-3/4 rounded-full bg-muted-foreground/15" />
+                    <div className="mt-2 h-3 w-full rounded-full bg-muted-foreground/15" />
+                    <div className="mt-2 h-3 w-1/2 rounded-full bg-muted-foreground/15" />
+                  </div>
+                </div>
+                <div className="mt-auto rounded-xl border border-border/60 bg-background/70 p-3" aria-hidden="true">
+                  <div className="h-10 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+                </div>
+              </div>
+            ) : runtimeAvailable ? (
               <ChatPanel
                 variant="standalone"
                 context={{
@@ -276,29 +391,33 @@ export default function DemoWorkspace({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 px-3 py-3 text-xs text-muted-foreground">
-          {sector ? <span className="rounded-full bg-muted px-3 py-1">{readSectorLabel(sector)}</span> : null}
+        {!isExecutive ? <div className="flex flex-wrap gap-2 px-3 py-3 text-xs text-muted-foreground">
+          {sector ? <span className="rounded-full bg-muted px-3 py-1 text-foreground">{readSectorLabel(sector)}</span> : null}
           {availableModes.slice(0, 4).map((mode) => (
-            <span key={mode} className="rounded-full bg-muted px-3 py-1">{mode}</span>
+            <span key={mode} className="rounded-full bg-muted px-3 py-1 text-foreground">{mode}</span>
           ))}
-        </div>
+        </div> : null}
       </section>
 
-      <DemoRubroToolsPanel workspace={workspace} tools={rubroTools} />
+      {!isExecutive ? <DemoRubroToolsPanel workspace={workspace} tools={rubroTools} /> : null}
 
-      {valueCards.length ? (
+      {!isExecutive && valueCards.length ? (
         <div className="grid gap-2 text-xs sm:grid-cols-2">
           {valueCards.map((card, index) => (
             <div key={card.key || `${card.title}-${index}`} className="rounded-xl border bg-background/70 p-3">
               <p className="font-medium text-foreground">{card.title}</p>
               {card.desc || card.description ? <p className="text-muted-foreground">{card.desc || card.description}</p> : null}
-              {card.status ? <p className="mt-2 text-[11px] text-muted-foreground">{card.status}</p> : null}
+              {card.status ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {formatDemoPresentationLabel(card.status)}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
       ) : null}
 
-      {analyticsEntries.length ? (
+      {!isExecutive && analyticsEntries.length ? (
         <div className="rounded-xl border bg-background/70 p-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <BarChart3 className="h-4 w-4 text-primary" />

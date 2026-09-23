@@ -2,7 +2,12 @@ import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 import { requestDemoCatalog } from '@/services/demoCatalogRequest';
 import { normalizeDemoResourceUrlsDeep } from '@/utils/demoResourceUrls';
+import {
+  retryApplicationInitializingRequest,
+  retryTransientRead,
+} from '@/utils/retryTransientRead';
 import { persistDemoRuntimeStorage } from './demoStorage';
+import { normalizeRequestedDemoTenantSlug } from './demoTenantSelection';
 import type {
   DemoAdminPreviewResponse,
   DemoCatalogResponse,
@@ -44,27 +49,68 @@ export const getDemoAdminPreview = async (params: {
   tenant_slug?: string | null;
   chat_session_id?: string | null;
   demo_session_id?: string | null;
+  presentation_mode?: 'executive' | (string & {}) | null;
 }): Promise<DemoAdminPreviewResponse> => {
   const query = new URLSearchParams();
   if (params.sector) query.set('sector', String(params.sector));
   if (params.tenant_slug) query.set('tenant_slug', params.tenant_slug);
   if (params.chat_session_id) query.set('chat_session_id', params.chat_session_id);
-  if (params.demo_session_id) query.set('demo_session_id', params.demo_session_id);
+  if (params.presentation_mode) query.set('presentation_mode', params.presentation_mode);
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
-    baseUrlOverride: '/api',
-  });
+  const demoSessionId = params.demo_session_id?.trim();
+  return retryTransientRead(() =>
+    demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
+      baseUrlOverride: '/api',
+      allowSafeBaseFallback: false,
+      ...(demoSessionId
+        ? {
+            headers: {
+              'X-Demo-Session-Id': demoSessionId,
+              'X-Demo-Session': demoSessionId,
+            },
+          }
+        : {}),
+    }),
+  );
 };
 
 export const createDemoSession = async (
   payload: DemoSessionPayload,
-  options: { strictSelection?: boolean } = {},
+  options: {
+    expectedTenantSlug?: string | null;
+    persistSession?: boolean;
+    strictSelection?: boolean;
+  } = {},
 ) => {
-  const response = await demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
-    baseUrlOverride: '/api',
-  });
+  const expectedTenantSlug = options.expectedTenantSlug
+    ? normalizeRequestedDemoTenantSlug(options.expectedTenantSlug)
+    : null;
+  if (options.expectedTenantSlug && !expectedTenantSlug) {
+    throw new Error('El tenant esperado para la demo no es valido.');
+  }
+  if (
+    expectedTenantSlug &&
+    normalizeRequestedDemoTenantSlug(payload.tenant_slug) !== expectedTenantSlug
+  ) {
+    throw new Error('El tenant solicitado no coincide con el alcance esperado de la demo.');
+  }
+
+  const response = await retryApplicationInitializingRequest(() =>
+    demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
+      baseUrlOverride: '/api',
+    }),
+  );
+  if (
+    expectedTenantSlug &&
+    !isRawDemoSessionBoundToExpectedTenant(response, expectedTenantSlug)
+  ) {
+    throw new Error('La sesion de demo recibida no coincide con el tenant solicitado.');
+  }
   const normalized = normalizeDemoSessionResponse(response);
   const isRubroSelectionStep = isDemoRubroSelectionStep(normalized);
+  if (expectedTenantSlug && isRubroSelectionStep) {
+    throw new Error('La demo solicitada no devolvio una conversacion utilizable.');
+  }
   if (!isUsableDemoSessionResponse(normalized)) {
     throw new Error('La demo real no devolvio sesion de chat utilizable.');
   }
@@ -78,11 +124,125 @@ export const createDemoSession = async (
     throw new Error('La demo real recibida no coincide con la seleccion solicitada.');
   }
 
-  if (!isRubroSelectionStep) {
+  if (!isRubroSelectionStep && options.persistSession !== false) {
     persistDemoRuntimeSession(normalized);
   }
 
   return normalized;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const collectPresentValues = (
+  record: Record<string, unknown> | null,
+  keys: string[],
+) => {
+  if (!record) return [];
+  return keys
+    .filter((key) => Object.prototype.hasOwnProperty.call(record, key))
+    .map((key) => record[key])
+    .filter((value) => value !== undefined && value !== null);
+};
+
+const collectDirectTenantScopes = (record: Record<string, unknown> | null) => {
+  const values = collectPresentValues(record, ['tenant_slug', 'tenantSlug']);
+  if (!record || !Object.prototype.hasOwnProperty.call(record, 'tenant')) return values;
+  const tenantValue = record.tenant;
+  if (tenantValue === undefined || tenantValue === null) return values;
+  if (typeof tenantValue === 'string') return [...values, tenantValue];
+  return [
+    ...values,
+    ...collectPresentValues(asRecord(tenantValue), ['slug', 'tenant_slug', 'tenantSlug']),
+  ];
+};
+
+const collectBootstrapTenantScopes = (bootstrapValue: unknown) => {
+  const bootstrap = asRecord(bootstrapValue);
+  if (!bootstrap) return null;
+  const values: unknown[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 8) return;
+    const record = asRecord(value);
+    if (!record) {
+      if (Array.isArray(value)) value.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    for (const [key, nestedValue] of Object.entries(record)) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey === 'tenant_slug' ||
+        normalizedKey === 'tenantslug' ||
+        normalizedKey === 'x-tenant-slug'
+      ) {
+        values.push(nestedValue);
+      } else if (normalizedKey === 'tenant') {
+        if (typeof nestedValue === 'string') {
+          values.push(nestedValue);
+        } else {
+          const tenantRecord = asRecord(nestedValue);
+          values.push(...collectPresentValues(tenantRecord, ['slug', 'tenant_slug', 'tenantSlug']));
+        }
+      }
+      visit(nestedValue, depth + 1);
+    }
+  };
+  visit(bootstrap, 0);
+  return values;
+};
+
+const isRawDemoSessionBoundToExpectedTenant = (
+  response: DemoSessionResponse,
+  expectedTenantSlug: string,
+) => {
+  const responseRecord = asRecord(response);
+  const tenant = asRecord(responseRecord?.tenant);
+  const session = asRecord(responseRecord?.session);
+  const workspace = asRecord(responseRecord?.workspace);
+  const workspaceSession = asRecord(workspace?.session);
+  const widgetOnboarding = asRecord(responseRecord?.widget_onboarding);
+  const frontendContract = asRecord(responseRecord?.frontend_contract);
+  const authoritativeScopes = [
+    ...collectPresentValues(responseRecord, ['tenant_slug']),
+    ...collectPresentValues(tenant, ['slug', 'tenant_slug']),
+    ...collectDirectTenantScopes(session),
+    ...collectDirectTenantScopes(workspaceSession),
+    ...collectDirectTenantScopes(widgetOnboarding),
+    ...collectDirectTenantScopes(frontendContract),
+  ];
+  if (!authoritativeScopes.length) return false;
+  if (
+    authoritativeScopes.some(
+      (scope) => normalizeRequestedDemoTenantSlug(String(scope)) !== expectedTenantSlug,
+    )
+  ) {
+    return false;
+  }
+
+  const responseChatSeed = asRecord(responseRecord?.chat_seed);
+  const workspaceChatSeed = asRecord(workspace?.chat_seed);
+  const bootstrapCandidates = [
+    responseRecord?.chat_bootstrap,
+    workspace?.chat_bootstrap,
+    responseChatSeed?.chat_bootstrap,
+    workspaceChatSeed?.chat_bootstrap,
+  ].filter((candidate) => candidate !== undefined && candidate !== null);
+
+  for (const bootstrap of bootstrapCandidates) {
+    const scopes = collectBootstrapTenantScopes(bootstrap);
+    if (!scopes?.length) return false;
+    if (
+      scopes.some(
+        (scope) => normalizeRequestedDemoTenantSlug(String(scope)) !== expectedTenantSlug,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 const isWidgetDemoSelectorPayload = (payload: DemoSessionPayload) => {
@@ -104,9 +264,11 @@ export const getDemoWhatsappSandbox = async (
   if (params.source) query.set('source', String(params.source));
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return normalizeDemoWhatsappSandboxResponse(
-    await demoApi.get<DemoWhatsappSandboxResponse>(`/api/v2/demo/whatsapp-sandbox${suffix}`, {
-      baseUrlOverride: '/api',
-    }),
+    await retryTransientRead(() =>
+      demoApi.get<DemoWhatsappSandboxResponse>(`/api/v2/demo/whatsapp-sandbox${suffix}`, {
+        baseUrlOverride: '/api',
+      }),
+    ),
   );
 };
 
@@ -114,9 +276,11 @@ export const createDemoWhatsappSandbox = async (
   payload: DemoWhatsappSandboxPayload = {},
 ): Promise<DemoWhatsappSandboxResponse> => {
   return normalizeDemoWhatsappSandboxResponse(
-    await demoApi.post<DemoWhatsappSandboxResponse>('/api/v2/demo/whatsapp-sandbox', payload, {
-      baseUrlOverride: '/api',
-    }),
+    await retryApplicationInitializingRequest(() =>
+      demoApi.post<DemoWhatsappSandboxResponse>('/api/v2/demo/whatsapp-sandbox', payload, {
+        baseUrlOverride: '/api',
+      }),
+    ),
   );
 };
 
@@ -202,7 +366,7 @@ const normalizeDemoWhatsappSandboxResponse = (
   };
 };
 
-const persistDemoRuntimeSession = (response: DemoSessionResponse) => {
+export const persistDemoRuntimeSession = (response: DemoSessionResponse) => {
   persistDemoRuntimeStorage(response);
 };
 

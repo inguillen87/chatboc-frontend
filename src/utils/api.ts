@@ -14,6 +14,7 @@ import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new 
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import { ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -30,14 +31,22 @@ export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
   public readonly requestId?: string;
+  public readonly retryAfterMs?: number;
 
-  constructor(message: string, status: number, body: any = null, requestId?: string) {
+  constructor(
+    message: string,
+    status: number,
+    body: any = null,
+    requestId?: string,
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     Object.setPrototypeOf(this, ApiError.prototype);
     this.status = status;
     this.body = body;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -65,6 +74,20 @@ const resolveResponseRequestId = (response: Response, data: unknown): string | u
   }
 
   return undefined;
+};
+
+const resolveRetryAfterMs = (response: Response): number | undefined => {
+  const rawValue = response.headers.get("Retry-After")?.trim();
+  if (!rawValue) return undefined;
+
+  const seconds = Number(rawValue);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1_000);
+  }
+
+  const retryAt = Date.parse(rawValue);
+  if (!Number.isFinite(retryAt)) return undefined;
+  return Math.max(0, retryAt - Date.now());
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
@@ -258,11 +281,26 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
     if (candidate) return candidate;
   }
 
+  // Versioned tenant contracts carry the tenant after `/tenants/`. Treating
+  // the API version (`v1`, `v2`, ...) as the tenant contaminates every query
+  // with values such as `tenant_slug=v2` and can resolve another/default
+  // contract even though the canonical path already names the real tenant.
+  const versionedTenantMatch = normalizedPath.match(
+    /^\/api\/v\d+\/tenants\/([^/?#]+)/i,
+  );
+  if (versionedTenantMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(versionedTenantMatch[1]);
+    if (candidate) return candidate;
+  }
+
   // 2. Generic API match
   // This might match /api/public/... -> 'public' (which is a placeholder)
   const apiMatch = normalizedPath.match(/^\/api\/([^/?#]+)/i);
   if (apiMatch?.[1]) {
-    const candidate = sanitizeTenantSlug(apiMatch[1]);
+    const apiNamespace = apiMatch[1];
+    const candidate = /^v\d+$/i.test(apiNamespace)
+      ? null
+      : sanitizeTenantSlug(apiNamespace);
     // If it's a valid tenant, return it.
     // If it's a placeholder (like 'public'), we continue to try other patterns.
     if (candidate) return candidate;
@@ -654,6 +692,11 @@ interface ApiFetchOptions {
    */
   omitChatSessionId?: boolean;
   /**
+   * Uses an already-issued chat session instead of the browser-global fallback.
+   * Demo bootstraps bind this value to their signed demo session.
+   */
+  chatSessionId?: string | null;
+  /**
    * When true, avoids sending browser cookies with the request.
    * Useful for widget requests where the visitor should remain anonymous.
    */
@@ -684,6 +727,12 @@ interface ApiFetchOptions {
    * different from the panel/API origin.
    */
   baseUrlOverride?: string | null;
+  /**
+   * For idempotent GET requests, allows a canonical/public host override to
+   * fall back to the normal API candidates when that host returns a gateway
+   * failure. Mutating requests never use this fallback.
+   */
+  allowSafeBaseFallback?: boolean;
   /**
    * Avoid sending the entity token header even if one is available globally.
    * Public endpoints should not depend on tenant secrets to serve content,
@@ -863,9 +912,11 @@ export async function apiFetch<T>(
     omitCredentials,
     isWidgetRequest,
     omitChatSessionId,
+    chatSessionId: explicitChatSessionId,
     tenantSlug,
     persistTenantSlug,
     baseUrlOverride,
+    allowSafeBaseFallback,
     omitEntityToken,
     omitTenant,
     pin,
@@ -966,7 +1017,9 @@ export async function apiFetch<T>(
     }
   }
   const shouldAttachChatSession = !omitChatSessionId;
-  const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
+  const chatSessionId = shouldAttachChatSession
+    ? normalizeHeaderValue(explicitChatSessionId) || getOrCreateChatSessionId()
+    : null;
 
   const anonId = getOrCreateAnonId();
 
@@ -1061,13 +1114,18 @@ export async function apiFetch<T>(
     return `${cleanBase}/${pathForBase}`;
   };
 
+  const isSafeReadRequest = method === 'GET';
+  const configuredCandidateBases = API_BASE_CANDIDATES.length
+    ? API_BASE_CANDIDATES
+    : [BASE_API_URL].filter((value): value is string => !!value);
   const candidateBases = isAbsolutePath
     ? []
     : preferredBase
-      ? [preferredBase.replace(/\/$/, "")]
-      : API_BASE_CANDIDATES.length
-        ? API_BASE_CANDIDATES
-        : [BASE_API_URL].filter((value): value is string => !!value);
+      ? Array.from(new Set([
+          preferredBase.replace(/\/$/, ""),
+          ...(allowSafeBaseFallback && isSafeReadRequest ? configuredCandidateBases : []),
+        ]))
+      : configuredCandidateBases;
 
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
@@ -1192,8 +1250,14 @@ export async function apiFetch<T>(
     cache,
   };
 
+  // Vercel Preview containers can scale from zero. Every request, including
+  // mutations, waits on the same contract-aware readiness promise so the first
+  // screen waits for readiness before sending its first business requests.
+  await ensureBackendRuntimeReady({ baseUrl: url });
+
   let response: Response | null = null;
   let lastError: unknown = null;
+  const attemptedUrls = new Set<string>();
 
   if (isAbsolutePath) {
     try {
@@ -1220,6 +1284,10 @@ export async function apiFetch<T>(
 
     for (let urlIndex = 0; urlIndex < urlsToTry.length; urlIndex++) {
       const candidateUrl = urlsToTry[urlIndex];
+      if (attemptedUrls.has(candidateUrl)) {
+        continue;
+      }
+      attemptedUrls.add(candidateUrl);
       url = candidateUrl;
 
       try {
@@ -1250,6 +1318,8 @@ export async function apiFetch<T>(
         const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
         const hasMoreBases = baseIndex < candidateBases.length - 1;
         const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
+        const isRetryableGatewayFailure =
+          isSafeReadRequest && [502, 503, 504].includes(candidateResponse.status);
         const candidateContentType =
           candidateResponse.headers.get("content-type")?.toLowerCase() ?? "";
         const looksLikeFrontendHtmlShell =
@@ -1272,6 +1342,12 @@ export async function apiFetch<T>(
             { contentType: candidateContentType, url: candidateUrl },
           );
           response = null;
+          break;
+        }
+
+        if (isRetryableGatewayFailure && hasMoreBases) {
+          // A gateway failure is tied to the host/proxy, not to a legacy path
+          // alias on that same host. Move directly to the next backend base.
           break;
         }
 
@@ -1508,6 +1584,7 @@ export async function apiFetch<T>(
         response.status,
         data,
         responseRequestId,
+        resolveRetryAfterMs(response),
       );
     }
 

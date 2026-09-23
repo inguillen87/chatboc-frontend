@@ -1,11 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChannelActivationChecklist from './ChannelActivationChecklist';
 import { fetchTenantChannelActivation } from '@/api/v2/channelActivation';
 
-vi.mock('@/api/v2/channelActivation', () => ({
+vi.mock('@/api/v2/channelActivation', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/api/v2/channelActivation')>(),
   fetchTenantChannelActivation: vi.fn(),
 }));
 
@@ -92,6 +93,18 @@ const activationPayload = {
   ],
 };
 
+const fullActivationPayload = {
+  ...activationPayload,
+  tenant: { ...activationPayload.tenant, plan: 'full' },
+  integration_access: {
+    ...activationPayload.integration_access,
+    enabled: true,
+    status: 'enabled',
+    current_plan: 'full',
+    required_plan: 'full',
+  },
+};
+
 describe('ChannelActivationChecklist', () => {
   beforeEach(() => {
     vi.mocked(fetchTenantChannelActivation).mockReset();
@@ -101,8 +114,9 @@ describe('ChannelActivationChecklist', () => {
   it('renders the activation contract with progress, statuses and CTAs', async () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
-    expect(await screen.findByRole('heading', { name: /activacion de canales/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /implementación operativa/i })).toBeInTheDocument();
     expect(screen.getByText('14%')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /progreso de implementación/i })).toBeInTheDocument();
     expect(screen.getByText(/1 de 7 frentes listos/i)).toBeInTheDocument();
     expect(screen.getByText(/self-service activo/i)).toBeInTheDocument();
     expect(screen.getByText('CRM operativo')).toBeInTheDocument();
@@ -116,11 +130,11 @@ describe('ChannelActivationChecklist', () => {
     expect(screen.getAllByText(/requiere plan full/i)).toHaveLength(2);
     expect(screen.getAllByRole('link', { name: /conectar whatsapp/i })[0]).toHaveAttribute(
       'href',
-      '/t/junin/integracion',
+      '/t/junin/integracion?tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin',
     );
-    expect(screen.getByRole('link', { name: /configurar cloudflare/i })).toHaveAttribute('href', '/t/junin/integracion');
-    expect(screen.getByRole('link', { name: /configurar cobros/i })).toHaveAttribute('href', '/t/junin/integracion');
-    expect(screen.getByRole('link', { name: /configurar equipo/i })).toHaveAttribute('href', '/perfil?tab=empleados');
+    expect(screen.getByRole('link', { name: /configurar cloudflare/i })).toHaveAttribute('href', '/t/junin/integracion?tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin');
+    expect(screen.getByRole('link', { name: /configurar cobros/i })).toHaveAttribute('href', '/t/junin/integracion?tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin');
+    expect(screen.getByRole('link', { name: /configurar equipo/i })).toHaveAttribute('href', '/perfil?tab=empleados&tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin');
   });
 
   it('refreshes the contract from the current tenant', async () => {
@@ -142,5 +156,99 @@ describe('ChannelActivationChecklist', () => {
     expect(screen.getByText(/sincronizacion pendiente/i)).toBeInTheDocument();
     expect(screen.getByText(/esperando sincronizacion del backend/i)).toBeInTheDocument();
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
+  });
+
+  it('replaces a stale session plan when the verified profile snapshot arrives', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockRejectedValue(new Error('temporarily unavailable'));
+    const { rerender } = render(
+      <ChannelActivationChecklist tenantSlug="junin" initialData={activationPayload} />,
+    );
+
+    await screen.findByText(/no pudimos sincronizar los canales ahora/i);
+    expect(screen.getByText(/^plan free$/i)).toBeInTheDocument();
+
+    rerender(
+      <ChannelActivationChecklist tenantSlug="junin" initialData={fullActivationPayload} />,
+    );
+
+    await waitFor(() => expect(screen.getByText(/^plan full$/i)).toBeInTheDocument());
+    expect(screen.queryByText(/^plan free$/i)).not.toBeInTheDocument();
+  });
+
+  it('renders reusable government workstreams published by the backend', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockResolvedValueOnce({
+      contract_version: 'tenant.channel_activation.v1',
+      tenant: { slug: 'gobierno-demo', nombre: 'Gobierno Demo', plan: 'enterprise' },
+      summary: { total: 3, ready: 0, progress: 0 },
+      channels: [
+        {
+          id: 'institutional_branding',
+          label: 'Identidad institucional',
+          status: 'action_required',
+          description: 'Marca y superficies públicas.',
+        },
+        {
+          id: 'accessibility',
+          label: 'Accesibilidad',
+          status: 'pending',
+          description: 'Preferencias y validación accesible.',
+        },
+        {
+          id: 'territorial_intelligence',
+          label: 'Inteligencia territorial',
+          status: 'blocked',
+          description: 'Cobertura y fuentes geográficas.',
+        },
+      ],
+    });
+
+    render(<ChannelActivationChecklist tenantSlug="gobierno-demo" />);
+
+    expect(await screen.findByText('Identidad institucional')).toBeInTheDocument();
+    expect(screen.getByText('Accesibilidad')).toBeInTheDocument();
+    expect(screen.getByText('Inteligencia territorial')).toBeInTheDocument();
+  });
+
+  it('never invents a launch route from channels and confines unknowns to folded technical detail', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockResolvedValueOnce({
+      contract_version: 'tenant.channel_activation.v1',
+      tenant: { slug: 'gobierno-demo', nombre: 'Gobierno Demo' },
+      channels: [{
+        id: 'future_provider_channel',
+        label: 'Canal futuro no clasificado',
+        status: 'ready',
+        ready: true,
+        description: 'Dato técnico aditivo.',
+      }],
+      implementation_journey: null,
+    });
+
+    render(
+      <ChannelActivationChecklist
+        tenantSlug="gobierno-demo"
+        presentation="launch-journey"
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: /ruta de salida no publicada/i })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /etapas de implementación/i })).not.toBeInTheDocument();
+    const details = screen.getByTestId('implementation-technical-details');
+    expect(within(details).getByText('Canal futuro no clasificado')).toBeInTheDocument();
+    expect(details).not.toHaveAttribute('open');
+  });
+
+  it('does not label a network failure as an unpublished launch route', async () => {
+    vi.mocked(fetchTenantChannelActivation).mockRejectedValueOnce(new Error('Failed to fetch'));
+
+    render(
+      <ChannelActivationChecklist
+        tenantSlug="gobierno-demo"
+        presentation="launch-journey"
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: /estado de la ruta no disponible/i })).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-launch-journey')).toHaveAttribute('data-state', 'unavailable');
+    expect(screen.queryByRole('heading', { name: /ruta de salida no publicada/i })).not.toBeInTheDocument();
   });
 });

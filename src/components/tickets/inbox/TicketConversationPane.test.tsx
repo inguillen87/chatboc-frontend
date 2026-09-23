@@ -127,6 +127,47 @@ describe('TicketConversationPane reply delivery contract', () => {
       .mockReturnValueOnce('crm-reply:attempt-0003');
   });
 
+  it('renders the three SLA clocks from the hydrated omnichannel detail', async () => {
+    getInboxDetailMock.mockResolvedValue({
+      item: {
+        ...ticket,
+        sla: {
+          contract_version: 'ticket.sla.v1',
+          clocks: {
+            first_response: {
+              state: 'ok',
+              status: 'due',
+              due_at: '2026-08-30T14:00:00Z',
+              known: true,
+            },
+            next_update: {
+              state: 'warning',
+              status: 'due',
+              due_at: '2026-08-30T13:00:00Z',
+              known: true,
+            },
+            resolution: {
+              state: 'breached',
+              status: 'overdue',
+              due_at: '2026-08-30T12:00:00Z',
+              known: true,
+            },
+          },
+        },
+      },
+      raw: null,
+    });
+
+    renderPane();
+
+    expect(await screen.findByRole('region', { name: 'Relojes de nivel de servicio' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('ticket-sla-clock-first_response')).toHaveAttribute('data-sla-state', 'healthy');
+      expect(screen.getByTestId('ticket-sla-clock-next_update')).toHaveAttribute('data-sla-state', 'due');
+      expect(screen.getByTestId('ticket-sla-clock-resolution')).toHaveAttribute('data-sla-state', 'overdue');
+    });
+  });
+
   it('reuses the same client_message_id after an ambiguous error and renders a durable queue honestly', async () => {
     postInboxActionMock
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))

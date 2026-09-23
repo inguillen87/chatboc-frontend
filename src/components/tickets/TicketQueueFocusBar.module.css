@@ -1,0 +1,19 @@
+.root { padding: 10px; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--background)); flex-shrink: 0; min-width: 0; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 24px; margin-bottom: 6px; }
+.heading > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 650; color: hsl(var(--muted-foreground)); }
+.clear { display: inline-flex; align-items: center; gap: 3px; border-radius: 6px; min-height: 28px; padding: 2px 6px; font-size: 11px; color: hsl(var(--foreground)); }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.choice { --tone: 216 85% 42%; min-height: 48px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 7px 3px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--muted) / .35); font-size: 11px; font-weight: 650; line-height: 1.25; color: hsl(var(--foreground)); transition: border-color 140ms ease, background-color 140ms ease; }
+.choice[data-tone='violet'] { --tone: 262 70% 46%; }
+.choice[data-tone='amber'] { --tone: 34 90% 30%; }
+.choice[data-tone='sky'] { --tone: 201 90% 34%; }
+.choice > svg { color: hsl(var(--tone)); }
+.choice[aria-pressed='true'] { border-color: hsl(var(--tone) / .65); background: linear-gradient(135deg, hsl(var(--tone) / .12), hsl(var(--tone) / .04)); color: hsl(var(--tone)); box-shadow: inset 0 -2px 0 hsl(var(--tone) / .65); }
+.choice:focus-visible, .clear:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+.help { color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.4; margin-top: 6px; margin-bottom: 0; }
+:global(.dark) .choice[data-tone='violet'] { --tone: 262 90% 82%; }
+:global(.dark) .choice[data-tone='amber'] { --tone: 40 95% 72%; }
+:global(.dark) .choice[data-tone='sky'] { --tone: 200 95% 74%; }
+@media (hover: hover) { .choice:hover { border-color: hsl(var(--tone) / .55); background-color: hsl(var(--tone) / .07); } .clear:hover { background: hsl(var(--muted)); } }
+@media (prefers-reduced-motion: reduce) { .choice { transition: none; } }
+:global(.a11y-reduced-motion) .choice { transition: none; }

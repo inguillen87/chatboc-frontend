@@ -124,13 +124,52 @@ const eligibleMultipleSummaryFixture = (): SurveySummary =>
     ],
   }) satisfies SurveySummary;
 
+const OFFICIAL_SOURCE = 'https://ide.mendoza.gov.ar/junin/survey-boundary';
+const OFFICIAL_SHA = 'a'.repeat(64);
+const JURISDICTION_CONTRACT_VERSION = 'surveys.heatmap.jurisdiction.v1';
+const PROVENANCE_CONTRACT_VERSION = 'surveys.heatmap.territorial_provenance.v1';
+const MAP_CONTRACT_VERSION = 'surveys.heatmap.map_render.v1';
+const POINT_EVIDENCE_CONTRACT_VERSION = 'surveys.heatmap.point_jurisdiction_evidence.v1';
+const containedJurisdictionEvidence = {
+  contract_version: POINT_EVIDENCE_CONTRACT_VERSION,
+  containment_verified: true,
+  coordinate_jurisdiction_status: 'within',
+  containment_method: 'point_in_polygon',
+  authority_kind: 'official',
+  source_ref: OFFICIAL_SOURCE,
+  snapshot_sha256: OFFICIAL_SHA,
+};
+const containedPoint = {
+  containment_verified: true,
+  coordinate_jurisdiction_status: 'within',
+  source_ref: OFFICIAL_SOURCE,
+  snapshot_sha256: OFFICIAL_SHA,
+  jurisdiction_evidence: containedJurisdictionEvidence,
+};
 const heatmapFixture = () => [
-  { lat: -33.086, lng: -68.471, respuestas: 12, categoria: 'Centro', canal: 'whatsapp' },
-  { lat: -33.081, lng: -68.462, respuestas: 7, categoria: 'Barrio Norte', canal: 'web' },
+  { lat: -33.086, lng: -68.471, respuestas: 12, categoria: 'Centro', canal: 'whatsapp', ...containedPoint },
+  { lat: -33.081, lng: -68.462, respuestas: 7, categoria: 'Barrio Norte', canal: 'web', ...containedPoint },
 ];
 
 const metadataFixture = (): NonNullable<SurveyAnalyticsHeatmap['metadata']> => ({
+  jurisdiction: {
+    contract_version: JURISDICTION_CONTRACT_VERSION,
+    enforced: true,
+    containment_verified: true,
+    containment_method: 'point_in_polygon',
+    boundary_authority: {
+      kind: 'official',
+      source_ref: OFFICIAL_SOURCE,
+      snapshot_sha256: OFFICIAL_SHA,
+    },
+  },
+  provenance: {
+    contract_version: PROVENANCE_CONTRACT_VERSION,
+    source_ref: OFFICIAL_SOURCE,
+    snapshot_sha256: OFFICIAL_SHA,
+  },
   map: {
+    contract_version: MAP_CONTRACT_VERSION,
     render_ready: true,
     provider_hint: 'maplibre',
     fallback_provider: 'maplibre',
@@ -244,7 +283,7 @@ describe('SurveyAnalytics territory command center', () => {
     const commandCenter = screen.getByTestId('survey-territory-command-center');
     expect(commandCenter).toHaveTextContent('Centro territorial');
     expect(commandCenter).toHaveTextContent('Mapa vivo de participación');
-    expect(commandCenter).toHaveTextContent('Mapa real activo');
+    expect(commandCenter).toHaveTextContent('Evidencia territorial activa');
     expect(commandCenter).toHaveTextContent('MapLibre GL');
     expect(commandCenter).toHaveTextContent('38.0%');
     expect(commandCenter).toHaveTextContent('50 respuestas totales');
@@ -253,7 +292,175 @@ describe('SurveyAnalytics territory command center', () => {
     expect(screen.getByTestId('survey-territory-telemetry')).toBeInTheDocument();
   });
 
-  it('marks synthetic survey heatmap data as fallback instead of real territory', () => {
+  it('keeps an explicit non-government territorial contract usable without an official polygon', () => {
+    const points = heatmapFixture().map(({ lat, lng, respuestas, categoria, canal }) => ({
+      lat,
+      lng,
+      respuestas,
+      categoria,
+      canal,
+    }));
+    const metadata = {
+      ...metadataFixture(),
+      jurisdiction: {
+        contract_version: JURISDICTION_CONTRACT_VERSION,
+        required: false,
+        state: 'not_required',
+      },
+      provenance: { contract_version: PROVENANCE_CONTRACT_VERSION },
+    };
+
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={points}
+        heatmapMeta={metadata}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('mock-survey-map')).toBeInTheDocument();
+    expect(screen.queryByTestId('survey-territory-evidence-block')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['missing authority contract', null],
+    ['missing provenance', { ...metadataFixture(), provenance: undefined }],
+    ['missing jurisdiction contract version', {
+      ...metadataFixture(),
+      jurisdiction: { ...metadataFixture().jurisdiction, contract_version: undefined },
+    }],
+    ['unknown jurisdiction contract version', {
+      ...metadataFixture(),
+      jurisdiction: { ...metadataFixture().jurisdiction, contract_version: 'surveys.heatmap.jurisdiction.v2' },
+    }],
+    ['missing provenance contract version', {
+      ...metadataFixture(),
+      provenance: { ...metadataFixture().provenance, contract_version: undefined },
+    }],
+    ['unknown provenance contract version', {
+      ...metadataFixture(),
+      provenance: { ...metadataFixture().provenance, contract_version: 'surveys.heatmap.territorial_provenance.v2' },
+    }],
+    ['missing map contract version', {
+      ...metadataFixture(),
+      map: { ...(metadataFixture().map as Record<string, unknown>), contract_version: undefined },
+    }],
+    ['unknown map contract version', {
+      ...metadataFixture(),
+      map: { ...(metadataFixture().map as Record<string, unknown>), contract_version: 'surveys.heatmap.map_render.v2' },
+    }],
+    ['case-sensitive provenance source mismatch', {
+      ...metadataFixture(),
+      provenance: {
+        ...metadataFixture().provenance,
+        source_ref: OFFICIAL_SOURCE.replace('/junin/', '/Junin/'),
+      },
+    }],
+    ['mismatched snapshot', {
+      ...metadataFixture(),
+      provenance: {
+        ...metadataFixture().provenance,
+        snapshot_sha256: 'b'.repeat(64),
+      },
+    }],
+    ['invalid authority snapshot', {
+      ...metadataFixture(),
+      jurisdiction: {
+        ...metadataFixture().jurisdiction,
+        boundary_authority: {
+          ...metadataFixture().jurisdiction?.boundary_authority,
+          snapshot_sha256: 'not-a-sha',
+        },
+      },
+    }],
+  ])('fails closed with an executive state for %s', (_label, metadata) => {
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={heatmapFixture()}
+        heatmapMeta={metadata ?? undefined}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-territory-evidence-block')).toHaveTextContent('Lectura territorial bloqueada');
+    expect(screen.queryByTestId('mock-survey-map')).not.toBeInTheDocument();
+    expect(screen.queryByText(/focos detectados/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Evidencia territorial activa')).not.toBeInTheDocument();
+  });
+
+  it('blocks the entire territorial reading when one point lacks verified containment', () => {
+    const points = heatmapFixture();
+    points[1] = { ...points[1], containment_verified: false };
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={points}
+        heatmapMeta={metadataFixture()}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const state = screen.getByTestId('survey-territory-evidence-block');
+    expect(state).toHaveTextContent('Puntos territoriales pendientes de validación');
+    expect(state).toHaveTextContent('Próxima acción');
+    expect(screen.queryByTestId('mock-survey-map')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['status', { coordinate_jurisdiction_status: 'outside' }],
+    ['source', { source_ref: 'https://untrusted.example/boundary' }],
+    ['case-sensitive source', { source_ref: OFFICIAL_SOURCE.replace('/junin/', '/Junin/') }],
+    ['snapshot', { snapshot_sha256: 'b'.repeat(64) }],
+    ['valid snapshot', { snapshot_sha256: 'not-a-sha' }],
+    ['missing point contract version', {
+      jurisdiction_evidence: { ...containedJurisdictionEvidence, contract_version: undefined },
+    }],
+    ['unknown point contract version', {
+      jurisdiction_evidence: {
+        ...containedJurisdictionEvidence,
+        contract_version: 'surveys.heatmap.point_jurisdiction_evidence.v2',
+      },
+    }],
+  ])('blocks territorial output when a point has mismatched %s evidence', (_field, override) => {
+    const points = heatmapFixture();
+    points[1] = { ...points[1], ...override };
+
+    render(
+      <SurveyAnalytics
+        summary={summaryFixture()}
+        heatmap={points}
+        heatmapMeta={metadataFixture()}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('survey-territory-evidence-block')).toHaveTextContent(
+      'Puntos territoriales pendientes de validación',
+    );
+    expect(screen.queryByTestId('mock-survey-map')).not.toBeInTheDocument();
+    expect(screen.queryByText(/focos detectados/i)).not.toBeInTheDocument();
+  });
+
+  it('uses an evidence-first empty state instead of drawing synthetic territory', () => {
+    render(
+      <SurveyAnalytics
+        summary={{ ...summaryFixture(), total_respuestas: 18 }}
+        heatmap={[]}
+        onExport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const commandCenter = screen.getByTestId('survey-territory-command-center');
+    expect(commandCenter).toHaveTextContent('Cobertura territorial pendiente');
+    expect(commandCenter).toHaveTextContent('0 registros georreferenciados');
+    expect(commandCenter).toHaveTextContent('No se generan puntos');
+    expect(commandCenter).not.toHaveTextContent('Cobertura geográfica');
+    expect(screen.queryByTestId('survey-territory-telemetry')).not.toBeInTheDocument();
+  });
+
+  it('keeps synthetic survey heatmap data out of territorial metrics and maps', () => {
     render(
       <SurveyAnalytics
         summary={summaryFixture()}
@@ -268,9 +475,9 @@ describe('SurveyAnalytics territory command center', () => {
     );
 
     const commandCenter = screen.getByTestId('survey-territory-command-center');
-    expect(commandCenter).toHaveTextContent('Fallback sintético');
-    expect(commandCenter).toHaveTextContent('demo/fallback');
-    expect(commandCenter).toHaveTextContent('No se presentan como precisión territorial real');
+    expect(commandCenter).toHaveTextContent('Cobertura territorial pendiente');
+    expect(screen.queryByTestId('mock-survey-map')).not.toBeInTheDocument();
+    expect(screen.queryByText(/focos detectados/i)).not.toBeInTheDocument();
   });
 
   it('uses authoritative backend geographic coverage when supplied', () => {
@@ -358,9 +565,10 @@ describe('SurveyAnalytics territory command center', () => {
         summary={summaryFixture()}
         heatmapPayload={{
           points: [
-            { lat: -33.086, lng: -68.471, value: 14, respuestas: 14, categoria: 'Centro', canal: 'whatsapp' },
+            { lat: -33.086, lng: -68.471, value: 14, respuestas: 14, categoria: 'Centro', canal: 'whatsapp', ...containedPoint },
           ],
           map: {
+            contract_version: MAP_CONTRACT_VERSION,
             render_ready: true,
             provider_hint: 'maplibre',
             fallback_provider: 'maplibre',
@@ -370,14 +578,29 @@ describe('SurveyAnalytics territory command center', () => {
             categories: [{ categoria: 'Centro', color: '#22d3ee', event_count: 14 }],
           },
           render_contract: { state: 'live', preferred_visualization: 'territory_map' },
+          jurisdiction: metadataFixture().jurisdiction,
+          provenance: metadataFixture().provenance,
         }}
         onExport={vi.fn().mockResolvedValue(undefined)}
       />,
     );
 
     const commandCenter = screen.getByTestId('survey-territory-command-center');
-    expect(commandCenter).toHaveTextContent('Mapa real activo');
+    expect(commandCenter).toHaveTextContent('Evidencia territorial activa');
     expect(commandCenter).toHaveTextContent('Centro con 14 respuestas');
     expect(screen.getAllByTestId('mock-survey-map').some((map) => map.getAttribute('data-points') === '1')).toBe(true);
+  });
+});
+
+
+describe('canonical completion percentage rendered by the real analytics component', () => {
+  it.each([0.5,1,88])('does not infer units from the magnitude %s', value => {
+    render(<SurveyAnalytics summary={{...summaryFixture(),tasa_completitud:value}} onExport={async()=>{}} />);
+    expect(screen.getByText(`${value.toFixed(1)}%`)).toBeVisible();
+  });
+  it('does not display a percentage for a zero-response instrument', () => {
+    render(<SurveyAnalytics summary={{...summaryFixture(),total_respuestas:0,tasa_completitud:0}} onExport={async()=>{}} />);
+    const title=screen.getByText('Tasa de completitud');
+    expect(title.parentElement?.parentElement).not.toHaveTextContent('0.0%');
   });
 });

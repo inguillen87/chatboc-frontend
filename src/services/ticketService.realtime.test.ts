@@ -27,9 +27,11 @@ import {
   getTickets,
   getTicketById,
   getTicketByNumber,
+  getTicketTimeline,
   isTicketAiEnrichmentUnavailable,
   normalizeTicketReplyDelivery,
   sendMessage,
+  updateTicketStatus,
 } from '@/services/ticketService';
 import { ApiError } from '@/utils/api';
 
@@ -325,14 +327,14 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
-  it('routes authenticated TenantTicket v2 text replies to the v2 public comments contract', async () => {
+  it('routes only explicitly internal TenantTicket notes to the v2 comments contract', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'tickets.v2.comment',
       ok: true,
       comment: {
         id: 1,
         body: 'Estamos revisando tu reclamo.',
-        visibility: 'public',
+        visibility: 'internal',
         created_at: '2026-07-04T12:00:00.000Z',
       },
     });
@@ -352,6 +354,7 @@ describe('ticketService realtime normalization', () => {
           source_model: 'TenantTicket',
           comments_endpoint: '/api/v2/tickets/378430/comments',
         } as any,
+        visibility: 'internal',
       },
     );
 
@@ -360,7 +363,7 @@ describe('ticketService realtime normalization', () => {
       method: 'POST',
       body: {
         body: 'Estamos revisando tu reclamo.',
-        visibility: 'public',
+        visibility: 'internal',
       },
       tenantSlug: 'junin',
     });
@@ -370,6 +373,32 @@ describe('ticketService realtime normalization', () => {
       actor_type: 'agent',
       es_admin: true,
     });
+  });
+
+  it('never treats TenantTicket comments as a fallback for an external reply', async () => {
+    await expect(sendMessage(
+      378430,
+      'municipio',
+      'Estamos revisando tu reclamo.',
+      undefined,
+      undefined,
+      {
+        tenantSlug: 'junin',
+        ticket: {
+          id: 378430,
+          tipo: 'municipio',
+          tenant_slug: 'junin',
+          channel: 'whatsapp',
+          source_model: 'TenantTicket',
+          comments_endpoint: '/api/v2/tickets/378430/comments',
+        } as any,
+      },
+    )).rejects.toMatchObject({
+      status: 409,
+      data: { code: 'tenant_ticket_external_reply_requires_v2_action' },
+    });
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it('uses the PyME legacy detail endpoint when the selected ticket is PyME', async () => {
@@ -512,6 +541,72 @@ describe('ticketService realtime normalization', () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).toHaveBeenCalledWith(endpoint, { tenantSlug: 'junin' });
   });
+
+  it.each([
+    {
+      ticketId: '0000419',
+      sourceModel: 'TenantTicket' as const,
+      endpoint: '/api/v2/tickets/0000419',
+      response: {
+        contract_version: 'tickets.v2.detail',
+        source_model: 'TenantTicket',
+        ticket: {
+          id: '0000419',
+          ticket_id: '0000419',
+          tipo: 'municipio',
+          nro_ticket: 'T-0000419',
+          estado: 'nuevo',
+          fecha: '2026-08-30T10:00:00.000Z',
+          messages: [{ id: 1, body: 'Detalle exacto', actor_type: 'citizen' }],
+        },
+      },
+    },
+    {
+      ticketId: '9007199254740993123',
+      sourceModel: 'MunicipioTicket' as const,
+      endpoint: '/api/tickets/municipio/9007199254740993123',
+      response: {
+        id: '9007199254740993123',
+        ticket_id: '9007199254740993123',
+        tipo: 'municipio',
+        nro_ticket: 'M-9007199254740993123',
+        asunto: 'Identidad fuera del rango seguro de JavaScript',
+        estado: 'nuevo',
+        fecha: '2026-08-30T10:00:00.000Z',
+        mensajes: [{ id: 2, mensaje: 'Detalle exacto', es_admin: false }],
+      },
+    },
+    {
+      ticketId: 'case:2026/08/30-A',
+      sourceModel: 'PymeTicket' as const,
+      endpoint: '/api/tickets/pyme/case%3A2026%2F08%2F30-A',
+      response: {
+        id: 'case:2026/08/30-A',
+        ticket_id: 'case:2026/08/30-A',
+        tipo: 'pyme',
+        nro_ticket: 'P-CASE-A',
+        asunto: 'Identidad opaca con separadores',
+        estado: 'nuevo',
+        fecha: '2026-08-30T10:00:00.000Z',
+        mensajes: [{ id: 3, mensaje: 'Detalle exacto', es_admin: false }],
+      },
+    },
+  ])(
+    'conserva el ID opaco $ticketId y el tenant al resolver $sourceModel',
+    async ({ ticketId, sourceModel, endpoint, response }) => {
+      apiFetchMock.mockResolvedValueOnce(response);
+
+      const ticket = await getInboxTicketById(ticketId, {
+        tenantSlug: 'junin',
+        sourceModel,
+      });
+
+      expect(String(ticket.id)).toBe(ticketId);
+      expect(ticket.source_model).toBe(sourceModel);
+      expect(apiFetchMock).toHaveBeenCalledTimes(1);
+      expect(apiFetchMock).toHaveBeenCalledWith(endpoint, { tenantSlug: 'junin' });
+    },
+  );
 
   it('rechaza un source_model ajeno al contrato antes de consultar la API', async () => {
     await expect(getInboxTicketById(99, {
@@ -708,6 +803,48 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('normalizes the authoritative legacy assignee so assigned tickets cannot be claimed again', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      tickets: [
+        {
+          id: 419,
+          tipo: 'municipio',
+          source_model: 'MunicipioTicket',
+          nro_ticket: 'M-419',
+          asunto: 'Demo reclamo - Alumbrado público',
+          estado: 'en_proceso',
+          fecha: '2026-08-29T12:00:00.000Z',
+          asignado_a: {
+            id: 10,
+            nombre: 'Marcelo',
+            email: 'operador@junin.example',
+          },
+        },
+      ],
+      pagination: {
+        page: 1,
+        per_page: 12,
+        total_items: 1,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+      },
+    });
+
+    const result = await getTickets('junin');
+
+    expect(result.tickets[0]).toMatchObject({
+      assignedAgentId: 10,
+      assigned_agent_id: 10,
+      assigned_user_id: 10,
+      assignedAgent: {
+        id: 10,
+        nombre_usuario: 'Marcelo',
+        email: 'operador@junin.example',
+      },
+    });
+  });
+
   it('passes unassigned inbox filters as backend query parameters', async () => {
     apiFetchMock.mockResolvedValueOnce({
       tickets: [],
@@ -784,6 +921,59 @@ describe('ticketService realtime normalization', () => {
     });
   });
 
+  it('sends the bounded history cursor and preserves pagination metadata', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      estado_chat: 'activo',
+      timeline: [],
+      historial_chat: [
+        {
+          id: 25,
+          comentario: 'Mensaje histórico 25',
+          fecha: '2026-08-20T11:25:00.000Z',
+          es_admin: false,
+        },
+      ],
+      unified_conversation_stream: [],
+      pagination: {
+        contract_version: 'conversation.history.cursor.v1',
+        direction: 'older',
+        order: 'chronological_asc',
+        limit: 25,
+        returned_count: 25,
+        has_more: true,
+        next_cursor: 'cursor-page-2',
+      },
+    });
+
+    const result = await getTicketTimeline(77, 'municipio', {
+      ticket: {
+        id: 77,
+        source_model: 'TenantTicket',
+        tenant_slug: 'junin',
+      } as any,
+      tenantSlug: 'junin',
+      cursor: 'cursor-page-1',
+      limit: 25,
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/v2/tickets/77/timeline?limit=25&cursor=cursor-page-1',
+      { tenantSlug: 'junin' },
+    );
+    expect(result.messages).toEqual([
+      expect.objectContaining({ id: 25, content: 'Mensaje histórico 25' }),
+    ]);
+    expect(result.pagination).toMatchObject({
+      contract_version: 'conversation.history.cursor.v1',
+      limit: 25,
+      returned_count: 25,
+      has_more: true,
+      next_cursor: 'cursor-page-2',
+    });
+    expect(result.has_more).toBe(true);
+    expect(result.next_cursor).toBe('cursor-page-2');
+  });
+
   it('classifies advisory AI enrichment gateway and network failures as unavailable', () => {
     const gatewayError = new Error('Bad Gateway') as Error & { status?: number };
     gatewayError.status = 502;
@@ -791,5 +981,66 @@ describe('ticketService realtime normalization', () => {
     expect(isTicketAiEnrichmentUnavailable(gatewayError)).toBe(true);
     expect(isTicketAiEnrichmentUnavailable(new TypeError('Failed to fetch'))).toBe(true);
     expect(isTicketAiEnrichmentUnavailable(new Error('validation failed'))).toBe(false);
+  });
+
+  it('updates a tenant ticket through v2 with optimistic concurrency and returns published transitions', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tickets.v2.detail',
+      ticket: {
+        id: 77,
+        status: 'en_vivo',
+        next_states: ['en_proceso', 'cerrado'],
+        workflow: {
+          contract_version: 'ticket.workflow.instance.v2',
+          current_state: 'en_vivo',
+          canonical_state: 'en_vivo',
+          next_states: ['en_proceso', 'cerrado'],
+          can_transition: true,
+          final_state: false,
+        },
+      },
+    });
+
+    const updated = await updateTicketStatus(77, 'municipio', 'en_vivo', {
+      ticket: {
+        id: 77,
+        tipo: 'municipio',
+        estado: 'en_proceso',
+        source_model: 'TenantTicket',
+        detail_endpoint: '/api/v2/tickets/77',
+      },
+      expectedStatus: 'en_proceso',
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/tickets/77', {
+      method: 'PATCH',
+      body: { status: 'en_vivo', expected_status: 'en_proceso' },
+    });
+    expect(updated).toMatchObject({
+      id: 77,
+      estado: 'en_vivo',
+      next_states: ['en_proceso', 'cerrado'],
+    });
+  });
+
+  it('keeps the legacy endpoint compatible while sending the expected state', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 41,
+      tipo: 'municipio',
+      nro_ticket: 'M-41',
+      asunto: 'Alumbrado',
+      estado: 'en_proceso',
+      fecha: '2026-08-29T12:00:00Z',
+      next_states: ['en_vivo', 'resuelto'],
+    });
+
+    await updateTicketStatus(41, 'municipio', 'en_proceso', {
+      expectedStatus: 'nuevo',
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/municipio/41/estado', {
+      method: 'PUT',
+      body: { estado: 'en_proceso', expected_estado: 'nuevo' },
+    });
   });
 });

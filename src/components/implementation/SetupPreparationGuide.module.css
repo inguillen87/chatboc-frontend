@@ -1,0 +1,6 @@
+.guide { border: 1px solid hsl(var(--border)); border-radius: 1rem; padding: 1rem; background: hsl(var(--muted) / .16); }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-top: .75rem; }
+.step { display: flex; align-items: flex-start; gap: .65rem; min-width: 0; padding: .9rem; border: 1px solid hsl(var(--border)); border-radius: .75rem; background: hsl(var(--background)); }
+.current { border-color: hsl(var(--primary) / .45); box-shadow: inset 3px 0 0 hsl(var(--primary)); }
+.number { display: inline-flex; flex-direction: column; align-items: center; gap: .2rem; flex-shrink: 0; color: hsl(var(--primary)); font-size: .75rem; font-weight: 600; }
+@media (max-width: 639px) { .steps { grid-template-columns: minmax(0, 1fr); gap: .5rem; } .step { padding: .75rem; } }

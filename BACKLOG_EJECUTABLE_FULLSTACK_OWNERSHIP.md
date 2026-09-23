@@ -253,3 +253,149 @@ Este orden minimiza riesgo de drift y maximiza valor operativo temprano.
 - `docs/analytics.identity_coverage.v1.contract.md`
 - `docs/shared.error.v1.contract.md`
 - `docs/rbac.capability_matrix.v1.md`
+
+
+## 6) Continuidad SaaS y autoservicio por vertical — septiembre 2026
+
+Detalle y referencias primarias: `docs/ORGANIZATION_PROFILE_WORKSPACE_RELEASE.md`.
+Complementa el plan white label del PR #1739; no reemplaza CT/BE/FE ni los gates
+pendientes de Render/Vercel/Neon. No implica que TDF ya tenga Full productivo.
+
+- **SS-PROFILE (implementado en este corte, publicación por verificar):** perfil
+  institucional existente con identidad y secciones recibidas del backend según
+  municipio/gobierno/colegio/empresa/pyme, sin convertir a todos en Empresa.
+- **SS-CONTINUITY (criterio transversal):** conservar organización, usuarios,
+  credenciales e integración de Junín; personalizar no crea otra aplicación ni número.
+- **UX-DEVICE (implementado en el perfil, resto por certificar):** corregir ancho
+  implícito de grid y desplazamiento interno que ocultaba información en móvil;
+  probar también el formulario interno, no sólo overflow del documento.
+- **SS-SELF-SERVICE (siguientes fases):** identidad versionada, invitaciones/roles,
+  onboarding reanudable e idempotente y diagnósticos de integraciones por tenant.
+- **WL-DOMAIN/PWA (pendiente):** dominio elegido bajo control del cliente, DNS/TLS,
+  identidad instalada y aislamiento por origen; no confundir link_web con un dominio
+  de acceso verificado ni emulación de viewport con instalación física.
+- **SS-PLAN (mantener separado):** Full vigente, autorización de usuario y conexión
+  del proveedor son condiciones independientes; no conceder derechos desde React.
+- **BENCH-ONBOARDING (planificado):** medir altas de autoservicio, minutos manuales,
+  bloqueos y primera tarea completada. Referencia funcional respond.io y Jelou;
+  no copiar métricas comerciales como resultados de Chatboc.
+- **DEP-UPGRADE (planificado):** evaluar React 19 y Vite actual con matriz de
+  compatibilidad y regresiones. Versiones instaladas y soporte revisados; sin
+  cambiar dependencias en este sprint ni generar forks por cada organización.
+
+### SS-PROFILE-SAVE: perfil institucional y edicion colaborativa
+
+Implementacion: revision esperada, recibo verificable, campos institucionales y
+auditoria en una transaccion. Perfil personal e institucional conservan su alcance.
+Interfaz: comparacion de versiones, conflictos con eleccion explicita, conservacion
+de cambios, confirmacion de descarte y aviso de cierre segun soporte del navegador.
+Detalle: docs/ORGANIZATION_PROFILE_SAVE_RELEASE.md.
+
+Pendiente: release backend/frontend coordinada y prueba autorizada de lectura y
+guardado en QA. Esto no cierra la operacion productiva, marca blanca completa,
+integracion de horarios con agentes ni la migracion de infraestructura.
+
+### SS-PROFILE-ACCEPTANCE: sesiones y SPA reales sobre entorno desechable
+
+Implementado: prueba coordinada con create_app, login por contraseña, sesiones,
+middleware, roles y persistencia reales; sin mocks de autorización ni API.
+Corregidos país vacío convertido en cambio falso y administración delegada
+bloqueada por rol global. Mensajes de mantenimiento separados de permisos.
+Contrato editability opcional y contrastes del perfil revisados en modo oscuro.
+
+Evidencia y ejecución: docs/ORGANIZATION_PROFILE_HTTP_ACCEPTANCE.md. CI frontend
+mantiene suite/tipos/build/fixtures; CI backend suma diez recorridos HTTP completos
+y conserva PostgreSQL para concurrencia. El recorrido SPA coordinado es local.
+Sigue abierto el gate de aceptación institucional contra QA desplegado y la
+publicación coordinada. No se cierra WhatsApp del proveedor, MFA, las ocho
+migraciones ni el 503 de arranque en frío por pasar estas pruebas.
+
+### SS-STARTUP-UX: recuperación clara y par inmutable de Preview
+
+Implementado para release: estados de inicio/espera/offline/error/versiones,
+reintento de lectura sin recarga ni repetición de acciones; pantalla ya montada
+permanece estable. Interfaz neutra por marca, claro/oscuro, teclado y movimiento
+reducido. No reconfigura la identidad del cliente ni introduce contenido de negocio.
+El flujo QA admite un candidato de backend exacto con SHA requerida, manteniendo
+las ocho rutas auditadas y el rechazo de producción. Pin verificado en bundle.
+Detalle y comandos: docs/STARTUP_RECOVERY_RELEASE.md. La verificación del par y
+la autenticación institucional son gates diferentes; no se cambian alias estables
+ni escrituras por construir el candidato. Cold start y ocho migraciones pendientes
+conservan su seguimiento. Junín y el piloto TDF no se duplican ni se reconfiguran.
+
+### SS-RUNTIME-RESUME: continuidad del trabajo al volver a la plataforma
+
+Implementado: aviso no modal en la barra existente; comprobación segura al volver
+a una pestaña o reconectar, con lease corto y un único GET concurrente. No hay
+polling, recarga de ruta, cierre de sesión ni repetición de acciones de negocio.
+Diferencia entre red informada, servicio verificado y resultado de acciones previas.
+La altura medida de la cabecera evita ocultar los controles del aviso, también
+al cambiar de tamaño. Contrastes, teclado y movimiento reducido cubiertos.
+
+Detalle y evidencia: docs/RUNTIME_RESUME_RELEASE.md. Se mantiene pendiente resolver
+la latencia de arranque del servidor con mediciones remotas y cerrar aceptación
+institucional de QA. Este corte no sustituye migraciones, WhatsApp real o PWA física.
+
+### SS-ORGANIZATION-SETUP: centro de configuración por vertical
+
+Implementado: proyección opcional v2 por tipo autenticado (municipio, gobierno,
+colegio, empresa, pyme o genérico), preservando el contrato gubernamental v1.
+UI guiada por evidencia del servidor, próximos pasos y enlaces con scope de ida
+y retorno; detalles técnicos diferenciados y continuidad de cuentas/canales.
+No convierte sender registrado en conectado ni una etapa lista en salida productiva.
+
+Cierre de aislamiento visual: respuestas A-B-A, rechazo de acceso, fuente inválida,
+error temporal sin acciones y eliminación de inferencia de /implementacion como
+tenant público. Se mantienen permisos, planes y reglas de provisión existentes.
+Documentación/evidencia: docs/ORGANIZATION_SETUP_WORKSPACE.md.
+
+Siguientes gates: selección de módulos por cliente, marca/dominio versionados,
+aceptación institucional en QA y publicación coordinada. Mantener separados los
+pendientes de migración, WhatsApp/Meta/Twilio y pruebas de dispositivos físicos.
+
+### WL-BRAND-PALETTE: publicación de identidad visual por organización
+
+Implementado: paleta del espacio bajo Full y permiso institucional comprobados
+por el servidor; presets, previsualización por tamaño/modo, confirmación, revisión
+esperada, publicación con auditoría e historial de diez versiones. Restaurar crea
+una nueva versión sin cambiar dominios o proveedores. Contrato exacto y scope en UI.
+Consumo inicial: encabezados de perfil institucional y centro de implementación.
+La imagen del operador deja de aparecer como preview de la marca institucional.
+
+Documentación: docs/WORKSPACE_BRAND_STUDIO.md. No certifica white label integral:
+quedan módulos opcionales, propagación a más superficies, dominios verificados,
+PWA propia y onboarding real de WhatsApp. Conserva los gates de migración y QA.
+La configuración de una organización no crea otro repositorio, despliegue o cuenta.
+
+### WL-BRAND-CONTINUITY: edición, comparación y preview fiel al interruptor
+
+Implementado en código: borrador explícito, comparación de los tres valores,
+confirmación del descarte sin escritura y resumen exacto de publicación/restauración.
+Aviso nativo de cierre condicionado; sin persistencia, guardado automático ni bloqueo
+SPA. Paleta desactivada/inválida representada como muestra neutra. Éxito anterior
+se limpia al editar; no-op, conflicto y resultados inciertos conservan sus controles.
+Detalle, pruebas y límites: docs/BRAND_EDITING_CONTINUITY.md. Release por verificar.
+
+Siguiente bloque funcional: selección de módulos por organización con disponibilidad,
+permisos y dependencias decididos por el backend, no etiquetas locales ni nuevas apps.
+Luego, recomendaciones operativas explicables basadas en señales reales y enlaces
+al trabajo pendiente, sin ejecutar mensajes, pagos o cambios en nombre del operador.
+El cierre productivo sigue condicionado a arranque medido, aceptación institucional,
+contratos emparejados y migraciones; no se abren dominios/PWA o WhatsApp por este corte.
+
+Revisión WL-BRAND-CONTINUITY: eliminado el vocabulario de negocio fijo del cliente.
+Frontend #1754 requiere backend #2788 y el contrato de 70 textos workflow_ui.v1;
+validación estricta, overrides de organización acotados y sanitización pública.
+3183 pruebas frontend / 409 archivos y nueve recorridos SPA reales aprobados.
+La rama mantiene los gates de arranque y QA institucional, sin promoción productiva.
+
+
+### SS-MODULE-PREPARATION: selección versionada de objetivos por organización
+
+Editor en Implementación con catálogo y dependencias publicados por backend,
+Full y permiso administrativo validados por servidor, confirmación de guardado,
+revisión de conflictos y persistencia/auditoría atómicas. La selección ajusta
+el asistente v2; no habilita ni desconecta servicios, borra datos o cambia planes.
+Detalle: docs/MODULE_SELECTION_VERIFIED.md. Reconciliar la rama aislada con el
+trabajo concurrente antes de fusionar. Pendientes: aceptación QA institucional,
+arranque en frío, módulos operativos completos, dominio/PWA y WhatsApp real.

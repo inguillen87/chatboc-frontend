@@ -3,7 +3,8 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { OmnichannelInboxItem, OmnichannelLiveChatStatus } from '@/api/v2/saas';
-import { MapPin, Paperclip, ShieldCheck } from 'lucide-react';
+import { MapPin, Paperclip } from 'lucide-react';
+import { TicketSlaClocks } from '../TicketSlaClocks';
 
 interface TicketListPaneProps {
   tickets: OmnichannelInboxItem[];
@@ -105,10 +106,7 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
-                    <span className="flex items-center gap-1 rounded-[8px] border bg-background px-2 py-1">
-                      <ShieldCheck className="h-3 w-3 text-primary" />
-                      {String(ticket.sla?.status ?? (ticket.sla?.overdue ? 'overdue' : 'sla'))}
-                    </span>
+                    <TicketSlaClocks sla={ticket.sla} compact />
                     <span className="flex items-center gap-1 rounded-[8px] border bg-background px-2 py-1">
                       <MapPin className="h-3 w-3 text-primary" />
                       {ticket.map?.can_render ? 'mapa' : 'timeline'}

@@ -8,43 +8,58 @@ import { shiftDateByHours } from '@/utils/date';
 import { AlertTriangle, CheckCircle2, Clock, MapPin, Sparkles, UserRound } from 'lucide-react';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
-import { motion } from 'framer-motion';
+import styles from './TicketListItem.module.css';
+import { TicketSlaClocks } from './TicketSlaClocks';
+import { normalizeTicketSla, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 interface TicketListItemProps {
   ticket: Ticket;
   isSelected: boolean;
   onClick: () => void;
   compact?: boolean;
+  queueIndex?: number;
+  tabIndex?: number;
+  ariaDescribedBy?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
 }
 
 const getCategoryColor = (category?: string) => {
   const cat = (category || '').toLowerCase();
   if (cat.includes('alumbrad') || cat.includes('luz') || cat.includes('electr')) {
-    return { border: 'border-l-amber-500', bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
+    return { border: 'border-l-amber-500', bg: 'bg-amber-500/10 text-amber-800 dark:text-amber-300' };
   }
   if (cat.includes('bach') || cat.includes('calle') || cat.includes('obra')) {
-    return { border: 'border-l-blue-500', bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+    return { border: 'border-l-blue-500', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
   }
   if (cat.includes('arbol') || cat.includes('poda') || cat.includes('verde') || cat.includes('plaza')) {
-    return { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
+    return { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' };
   }
   if (cat.includes('limpieza') || cat.includes('higiene') || cat.includes('residu') || cat.includes('basura')) {
-    return { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' };
+    return { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10 text-cyan-800 dark:text-cyan-300' };
   }
   if (cat.includes('seguridad') || cat.includes('transit') || cat.includes('vial')) {
-    return { border: 'border-l-purple-500', bg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' };
+    return { border: 'border-l-purple-500', bg: 'bg-purple-500/10 text-purple-700 dark:text-purple-300' };
   }
-  return { border: 'border-l-primary', bg: 'bg-primary/10 text-primary' };
+  return { border: 'border-l-primary', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
 };
 
-const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick, compact = false }) => {
+const TicketListItem: React.FC<TicketListItemProps> = ({
+  ticket,
+  isSelected,
+  onClick,
+  compact = false,
+  queueIndex,
+  tabIndex,
+  ariaDescribedBy,
+  onKeyDown,
+}) => {
   const normalizeText = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     return String(value).trim();
   };
 
   const priorityLabel = normalizeText(ticket.priority);
-  const slaLabel = normalizeText(ticket.sla_status);
+  const slaSource = resolveTicketSlaSource(ticket);
   const assignedLabel = normalizeText(
     ticket.assignedAgent?.nombre_usuario ||
       ticket.user?.nombre_usuario ||
@@ -53,7 +68,6 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   );
   const nextAction = normalizeText(ticket.recommended_next_action);
   const priorityTone = priorityLabel.toLowerCase();
-  const slaTone = slaLabel.toLowerCase();
   const unreadViewers = Number(ticket.collaboration_state?.unread_viewer_count || 0);
   const activeViewers = Number(ticket.collaboration_state?.active_viewers_count || 0);
   const hasUnread = ticket.hasUnreadMessages || unreadViewers > 0;
@@ -96,21 +110,22 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   
   const statusClass = cn(
     'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border',
-    normalizedStatus === 'nuevo' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
-    normalizedStatus === 'en_proceso' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
-    normalizedStatus === 'resuelto' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-    !normalizedStatus && 'bg-muted text-muted-foreground border-border/80',
+    normalizedStatus === 'nuevo' && 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+    normalizedStatus === 'esperando_agente_en_vivo' && 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+    normalizedStatus === 'en_vivo' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border-cyan-500/30',
+    normalizedStatus === 'en_proceso' && 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
+    normalizedStatus === 'resuelto' && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+    !normalizedStatus && 'bg-muted text-slate-700 dark:text-slate-300 border-border/80',
   );
 
   const categoryColors = getCategoryColor(categoryLabel);
 
   if (compact) {
     return (
-      <motion.button
+      <button
         type="button"
-        whileHover={{ x: 2 }}
-        whileTap={{ scale: 0.99 }}
         className={cn(
+          styles.row,
           'relative w-full p-2.5 text-left transition-all rounded-xl border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
           categoryColors.border,
           isSelected
@@ -119,14 +134,13 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           hasUnread && !isSelected && 'bg-primary/[0.04]',
         )}
         onClick={onClick}
+        onKeyDown={onKeyDown}
+        tabIndex={tabIndex}
+        data-ticket-queue-index={queueIndex}
         aria-pressed={isSelected}
+        aria-describedby={ariaDescribedBy}
         aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
       >
-        {hasUnread && !isSelected && (
-          <span className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
-            {unreadBadgeLabel}
-          </span>
-        )}
         <div className="flex min-w-0 items-start gap-2.5">
           <IdentityAvatar
             name={displayName}
@@ -138,11 +152,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0">
-                <h4 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
+                <h2 className="line-clamp-1 text-xs font-bold leading-4 text-foreground" title={subject}>
                   {subject}
-                </h4>
+                </h2>
                 <p
-                  className="line-clamp-1 text-[11px] text-muted-foreground"
+                  className="line-clamp-1 text-[11px] text-slate-700 dark:text-slate-300"
                   title={`${ticketNumber} - ${displayName}`}
                   aria-label={`Ticket ${ticketNumber}, contacto ${displayName}`}
                 >
@@ -152,7 +166,14 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="text-[10px] font-medium text-muted-foreground">{formattedTime}</span>
+                <div className="flex items-center gap-1">
+                  {hasUnread && !isSelected ? <span data-testid="ticket-unread-indicator"
+                    aria-label="Actividad sin leer" title="Actividad sin leer"
+                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                    {unreadBadgeLabel}
+                  </span> : null}
+                  <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300">{formattedTime}</span>
+                </div>
                 <span className={statusClass}>{statusLabel}</span>
               </div>
             </div>
@@ -169,6 +190,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                 )}
               </div>
             )}
+            {normalizeTicketSla(slaSource).state !== 'unknown' ? (
+              <div className="mt-1.5 flex flex-wrap gap-1" data-testid="compact-queue-sla">
+                <TicketSlaClocks sla={slaSource} compact />
+              </div>
+            ) : null}
             {nextAction ? (
               <p
                 className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"
@@ -180,17 +206,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
             ) : null}
           </div>
         </div>
-      </motion.button>
+      </button>
     );
   }
 
   return (
-    <motion.button
+    <button
       type="button"
-      whileHover={{ y: -1.5, scale: 1.008 }}
-      whileTap={{ scale: 0.99 }}
-      transition={{ duration: 0.15 }}
       className={cn(
+        styles.row,
         'relative w-full rounded-2xl border text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 border-l-[5px]',
         categoryColors.border,
         'p-3.5 shadow-sm',
@@ -200,11 +224,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         hasUnread && !isSelected && 'border-primary/40 bg-primary/[0.02]',
       )}
       onClick={onClick}
+      onKeyDown={onKeyDown}
+      tabIndex={tabIndex}
+      data-ticket-queue-index={queueIndex}
       aria-pressed={isSelected}
+      aria-describedby={ariaDescribedBy}
       aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
     >
       {hasUnread && !isSelected && (
-        <span className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground shadow-sm animate-pulse">
+        <span className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground shadow-sm">
           {unreadBadgeLabel}
         </span>
       )}
@@ -213,9 +241,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         <div className="flex min-w-0 items-start gap-3">
           <IdentityAvatar name={displayName} avatarUrl={avatarUrl} source={avatarSource} consented={avatar.consented} size="lg" />
           <div className="min-w-0 space-y-0.5">
-            <h4 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
+            <h2 className="line-clamp-2 text-sm font-extrabold leading-snug text-foreground tracking-tight" title={subject}>
               {subject}
-            </h4>
+            </h2>
             <div
               className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5"
               title={`${ticketNumber} - ${displayName}`}
@@ -231,7 +259,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
             <Clock className="w-3 h-3 text-muted-foreground/70" />
             {formattedTime}
           </span>
@@ -270,18 +298,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           </Badge>
         ) : null}
 
-        {slaLabel ? (
-          <Badge
-            variant="outline"
-            className={cn(
-              'text-[10px] font-bold rounded-lg px-2 py-0.5',
-              (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
-                'border-rose-400/70 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse',
-            )}
-          >
-            SLA: {slaLabel}
-          </Badge>
-        ) : null}
+        {slaSource ? <TicketSlaClocks sla={slaSource} compact className="h-5 px-1.5" /> : null}
 
         {assignedLabel ? (
           <Badge variant="secondary" className="gap-1 text-[10px] font-semibold rounded-lg px-2 py-0.5">
@@ -304,7 +321,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
           </span>
         </div>
       ) : null}
-    </motion.button>
+    </button>
   );
 };
 

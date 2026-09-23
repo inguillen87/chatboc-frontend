@@ -8,7 +8,7 @@ declare global {
 }
 
 let refreshToastId: string | number | undefined;
-let localCleanupStarted = false;
+let ephemeralCleanupStarted = false;
 let pwaSetupStarted = false;
 let registrationErrorCount = 0;
 let registrationRetryTimer: number | undefined;
@@ -38,6 +38,8 @@ const PUBLIC_RUNTIME_PREFIXES = [
   '/precios',
   '/casos',
   '/opinar',
+  '/encuestas',
+  '/e/',
   '/login',
   '/register',
   '/widget',
@@ -52,6 +54,11 @@ const PANEL_RUNTIME_PREFIXES = [
   '/integracion',
 ];
 
+// `/perfil` is the authenticated shell entry point but does not contain a
+// long-lived unsaved operation on initial load. Applying a waiting worker here
+// prevents an old lazy-chunk graph from breaking deep links after a release.
+const SAFE_AUTHENTICATED_REFRESH_PREFIXES = ['/perfil'];
+
 const dismissRefreshToast = () => {
   if (refreshToastId === undefined) {
     return;
@@ -61,12 +68,16 @@ const dismissRefreshToast = () => {
   refreshToastId = undefined;
 };
 
-const shouldAutoApplyPublicRefresh = () => {
+export const shouldAutoApplyPublicRefresh = () => {
   if (typeof window === 'undefined') return false;
 
   const pathname = window.location.pathname || '/';
   if (PANEL_RUNTIME_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return false;
+  }
+
+  if (SAFE_AUTHENTICATED_REFRESH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return true;
   }
 
   return PUBLIC_RUNTIME_PREFIXES.some((prefix) =>
@@ -79,9 +90,31 @@ const isLocalPreviewHost = () => {
   return LOCAL_PREVIEW_HOSTS.has(window.location.hostname);
 };
 
-const cleanupLocalPwaRuntime = async () => {
-  if (localCleanupStarted) return;
-  localCleanupStarted = true;
+const isLocalPwaLifecycleVerification = () => {
+  if (typeof window === 'undefined' || !isLocalPreviewHost()) return false;
+
+  const params = new URLSearchParams(window.location.search);
+  const hashQuery = window.location.hash.includes('?')
+    ? window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+    : '';
+  const hashParams = new URLSearchParams(hashQuery);
+  const hasVerificationFlag = (name: string) => params.has(name) || hashParams.has(name);
+
+  return (
+    hasVerificationFlag('pwa-lifecycle-e2e') ||
+    hasVerificationFlag('pwa-offline') ||
+    hasVerificationFlag('pwa-privacy-upgrade')
+  );
+};
+
+export const shouldDisablePwaForHost = (hostname?: string | null) => {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  return LOCAL_PREVIEW_HOSTS.has(normalized) || normalized.endsWith('.vercel.app');
+};
+
+const cleanupEphemeralPwaRuntime = async () => {
+  if (ephemeralCleanupStarted) return;
+  ephemeralCleanupStarted = true;
 
   const registrations = await navigator.serviceWorker.getRegistrations();
   await Promise.all(
@@ -99,8 +132,8 @@ const cleanupLocalPwaRuntime = async () => {
     );
   }
 
-  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-local-pwa-cleaned')) {
-    sessionStorage.setItem('chatboc-local-pwa-cleaned', '1');
+  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-ephemeral-pwa-cleaned')) {
+    sessionStorage.setItem('chatboc-ephemeral-pwa-cleaned', '1');
     window.location.reload();
   }
 };
@@ -268,9 +301,17 @@ export const setupPWA = () => {
     return;
   }
 
-  if (import.meta.env.DEV && isLocalPreviewHost()) {
-    cleanupLocalPwaRuntime().catch((error) => {
-      console.warn('Local PWA cleanup skipped', error);
+  // Vercel aliases are release-verification surfaces, not installable PWA
+  // origins. A worker registered on a stable Preview alias can combine a
+  // cached HTML shell from release A with immutable chunks from release B.
+  // Keep PWA support on production/custom domains and make Preview deterministic.
+  const allowLocalLifecycleVerification = import.meta.env.PROD && isLocalPwaLifecycleVerification();
+  if (
+    !allowLocalLifecycleVerification &&
+    ((import.meta.env.DEV && isLocalPreviewHost()) || shouldDisablePwaForHost(window.location.hostname))
+  ) {
+    cleanupEphemeralPwaRuntime().catch((error) => {
+      console.warn('Ephemeral PWA cleanup skipped', error);
     });
     return;
   }

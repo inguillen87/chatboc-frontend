@@ -304,7 +304,7 @@ const buildSummary = (
     });
   }
 
-  const completionRate = payloads.length ? completionAccumulator / payloads.length : 0;
+  const completionRate = payloads.length ? completionAccumulator / payloads.length * 100 : 0;
 
   return {
     total_respuestas: payloads.length,

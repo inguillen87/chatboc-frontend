@@ -48,6 +48,8 @@ describe('Navbar account menu routing', () => {
       user: {
         rol: 'admin',
         tipo_chat: 'municipio',
+        nombre_empresa: 'Municipalidad de Junín',
+        plan: 'full',
       },
     });
     useCapabilitiesMock.mockReturnValue({
@@ -74,6 +76,30 @@ describe('Navbar account menu routing', () => {
     expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets',
+    );
+  });
+
+  it('groups organization, plan, configuration and session inside the account menu', () => {
+    render(
+      <MemoryRouter initialEntries={['/perfil?tab=tickets']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+
+    expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
+    expect(screen.getByText('Organización')).toBeInTheDocument();
+    expect(screen.getByText('Plan y facturación')).toBeInTheDocument();
+    expect(screen.getByText('Configuración')).toBeInTheDocument();
+    expect(screen.getByText('Sesión')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Plan Full/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=perfil&section=plan',
+    );
+    expect(screen.getByRole('link', { name: /Perfil y organización/i })).toHaveAttribute(
+      'href',
+      '/perfil?tab=perfil',
     );
   });
 
@@ -264,6 +290,35 @@ describe('Navbar account menu routing', () => {
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
     expect(screen.queryByRole('link', { name: /^Reclamos$/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps the public landing navigation concise and the demo CTA stable', () => {
+    useUserMock.mockReturnValue({ user: null });
+    useSessionAuthorityMock.mockReturnValue({
+      clerkStatus: 'disabled',
+      hasBearerSession: false,
+      hasVerifiedSession: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    const navigation = screen.getByRole('navigation', { name: 'Navegación principal' });
+    expect(navigation).toHaveTextContent('Plataforma');
+    expect(navigation).toHaveTextContent('Soluciones');
+    expect(navigation).toHaveTextContent('Casos');
+    expect(navigation).toHaveTextContent('Planes');
+    expect(navigation.querySelectorAll('button')).toHaveLength(4);
+    expect(screen.getByRole('link', { name: 'Ver demo' })).toHaveAttribute('href', '/demo');
+    expect(screen.queryByRole('link', { name: 'Ver carrito' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ir al inicio de Chatboc' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Ir al inicio de Chatboc' })).toHaveAttribute(
+      'title',
+      'Chatboc.ar · Inicio',
+    );
   });
 
   it('exposes a keyboard-safe mobile navigation disclosure and coordinates the accessibility dock', () => {

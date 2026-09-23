@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 import { configDefaults } from 'vitest/config';
+import { adminDocumentNavigation } from './src/utils/adminDocumentNavigation';
 
 const pwaCoreStaticAssets = [
-  'favicon.ico',
   'apple-touch-icon.png',
   'masked-icon.svg',
   'favicon/favicon-192x192.png',
@@ -82,8 +82,16 @@ const keepInitialPwaShell = (manifestEntries: PwaManifestEntry[]) => {
     for (const importedEntry of chunk.imports ?? []) addViteEntry(importedEntry);
   };
 
-  addViteEntry('index.html');
-  addViteEntry('portal/index.html');
+  for (const htmlEntryKey of ['index.html', 'portal/index.html']) {
+    if (viteManifest[htmlEntryKey]) addViteEntry(htmlEntryKey);
+  }
+  // When two HTML shells share the same application bootstrap, Rollup may
+  // expose that bootstrap as a shared manifest chunk instead of retaining an
+  // `index.html` key. The URLs parsed from each generated HTML file remain the
+  // source of truth, so follow every matching chunk and its imports.
+  for (const [entryKey, chunk] of Object.entries(viteManifest)) {
+    if (shellUrls.has(normalizePwaAssetUrl(chunk.file))) addViteEntry(entryKey);
+  }
   for (const source of offlineEntrySources) addViteEntry(source);
 
   // Registration itself lazy-loads Workbox Window. Keeping this tiny helper
@@ -99,7 +107,7 @@ const keepInitialPwaShell = (manifestEntries: PwaManifestEntry[]) => {
 };
 
 const deferredModulePreloadPatterns = [
-  /(^|\/)assets\/vendor-(?:compression|pdf|charts|xlsx|docx|canvas-export|maplibre|google-maps)-/,
+  /(^|\/)assets\/vendor-(?:compression|pdf|charts|flow|xlsx|docx|canvas-export|maplibre|google-maps)-/,
   /(^|\/)assets\/widgetCommerce-/,
   /(^|\/)assets\/ChatWidget-/,
   /(^|\/)assets\/TrackingMap-/,
@@ -109,9 +117,30 @@ const deferredModulePreloadPatterns = [
 const shouldDeferModulePreload = (dependencyPath: string) =>
   deferredModulePreloadPatterns.some((pattern) => pattern.test(dependencyPath));
 
+const institutionalDisabilityShell = () => ({
+  name: 'institutional-disability-shell',
+  enforce: 'post' as const,
+  transformIndexHtml: {
+    order: 'post' as const,
+    handler(html: string, context: { filename: string }) {
+      const normalizedFilename = context.filename.replaceAll('\\', '/');
+      if (!normalizedFilename.endsWith('/demo/institucional/tdf-discapacidad/index.html')
+          && !normalizedFilename.endsWith('/demo/evaluation/index.html')) {
+        return html;
+      }
+      // This presentation is a separate white-label entry and must not expose
+      // the global Chatboc installation manifest.
+      return html.replace(/\s*<link\s+rel=["']manifest["'][^>]*>/gi, '');
+    },
+  },
+});
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const backendTarget = (env.VITE_BACKEND_URL || env.VITE_PROXY_TARGET || 'https://api.chatboc.ar').replace(/\/+$/, '');
+  // Keep the browser-facing backend URL and the local proxy target independent.
+  // This lets local QA use a same-origin `/api` base while explicitly proxying
+  // requests to a Preview backend, avoiding both CORS and proxy loops.
+  const backendTarget = (env.VITE_PROXY_TARGET || env.VITE_BACKEND_URL || 'https://api.chatboc.ar').replace(/\/+$/, '');
   const socketTarget = backendTarget.replace(/^http/i, 'ws');
 
   return {
@@ -196,6 +225,7 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [
             /^\/(?:api|ask|archivos|public|socket\.io)(?:\/|$)/,
             /^\/(?:iframe|widget)(?:\/|$)/,
+            /^\/demo\/institucional\/tdf-discapacidad(?:\/|$)/,
             /^\/widget\.js$/,
             /^\/portal(?:\/|$)/,
             /^\/iframe\.html$/,
@@ -251,7 +281,8 @@ export default defineConfig(({ mode }) => {
             }
           ]
         }
-      })
+      }),
+      institutionalDisabilityShell(),
     ],
     server: {
       port: 5173,
@@ -282,6 +313,7 @@ export default defineConfig(({ mode }) => {
           target: backendTarget,
           changeOrigin: true,
           secure: false,
+          bypass: adminDocumentNavigation,
         },
         '/me': {
           target: backendTarget,
@@ -329,11 +361,26 @@ export default defineConfig(({ mode }) => {
           main: path.resolve(__dirname, "index.html"),
           iframe: path.resolve(__dirname, "iframe.html"),
           portal: path.resolve(__dirname, "portal/index.html"),
+          evaluation: path.resolve(__dirname, "demo/evaluation/index.html"),
+          tdfDisabilityDemo: path.resolve(
+            __dirname,
+            "demo/institucional/tdf-discapacidad/index.html",
+          ),
         },
         output: {
           manualChunks(id) {
+            // This helper is shared by every dynamic import. Letting Rollup
+            // merge it into a lazy export chunk pulls PDF/compression into the
+            // initial shell again, even though PDF tools load only on export.
+            if (id === '\0vite/preload-helper.js') return 'vendor-preload';
             if (!id.includes('node_modules')) return;
 
+            // Keep React Flow outside the React runtime chunk. Matching the
+            // generic `react/` substring first also catches `@xyflow/react/`
+            // and creates a vendor-react <-> d3 charts cycle at runtime.
+            if (id.includes('@xyflow/react') || id.includes('@xyflow/system')) {
+              return 'vendor-flow';
+            }
             if (id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) {
               return 'vendor-react';
             }

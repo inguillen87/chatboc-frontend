@@ -116,6 +116,19 @@ describe('routesConfig route capabilities', () => {
     expect(content).toMatch(/path:\s*'\/catalog-mappings\/new'[\s\S]*?requiredAllCapabilities:\s*\['market\.catalog\.write'\]/);
   });
 
+  it('keeps the tenant implementation center lazy and restricted to configuration administrators', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const routeBlock = content.match(
+      /\{\s*path:\s*'\/implementacion',[\s\S]*?\n\s*\},/,
+    )?.[0] ?? '';
+
+    expect(content).toContain("import('@/pages/TenantImplementationCenterPage')");
+    expect(routeBlock).toContain("roles: ['tenant_admin', 'superadmin']");
+    expect(routeBlock).toContain("requiredAllCapabilities: ['settings.tenant.write']");
+    expect(routeBlock).not.toContain("'employee'");
+  });
+
   it('keeps the legacy root tickets route as a profile desk redirect without capability 403', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');

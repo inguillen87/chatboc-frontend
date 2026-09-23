@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import LegacyChatPanel from '@/components/chat/ChatPanel';
 import ChatMessageList from './ChatMessageList';
 import ChatComposer, { type ChatComposerPayload } from './ChatComposer';
+import { resolveBoundChatAttachmentUploadContext } from './uploadChatAttachment';
 import QuickReplies from './QuickReplies';
 import HandoffBanner from './HandoffBanner';
 import ConversationRating from './ConversationRating';
@@ -14,6 +15,7 @@ import { ExternalLink, FileText, Image as ImageIcon, MapPin, Mic, PackageCheck, 
 import {
   createLeadCaptureIdempotencyKey,
   extractChatBootstrapReplyText,
+  getBootstrapSessionValues,
   normalizeLeadCaptureResponse,
   sendChatBootstrapMessage,
   submitWidgetAssistedOrder,
@@ -36,6 +38,7 @@ import type {
   ChatLeadCaptureField,
   ChatMediaCapabilities,
 } from '@/types/chat';
+import { isSurveyMenuNavigationAction, normalizeSurveyChatMenu } from './surveyChatMenu';
 
 interface FeatureChatPanelProps {
   variant?: 'legacy-widget' | 'standalone';
@@ -65,7 +68,20 @@ type LegacyChatPanelProps = React.ComponentProps<typeof LegacyChatPanel> & {
 type StandaloneChatPanelProps = Omit<FeatureChatPanelProps, 'variant'>;
 
 const isHumanRequest = (text: string) => /human|persona|operador|agente/i.test(text);
-const HIGH_INTENT_TERMS = ['checkout', 'pedido', 'derivar_humano', 'humano', 'reclamo', 'estado'];
+const EXPLICIT_LEAD_CAPTURE_INTENTS = new Set([
+  'capturar_lead',
+  'capturar_lead_comercial',
+  'capture_lead',
+  'contact_sales',
+  'contactar_ventas',
+  'crear_lead',
+  'lead_capture',
+  'request_demo',
+  'solicitar_contacto_comercial',
+  'solicitar_demo',
+]);
+const EXPLICIT_LEAD_REQUEST =
+  /\b(asesor(?:a)? comercial|contactar (?:a )?ventas|que me contacten|que me llamen|solicitar (?:una )?demo)\b/i;
 const WIDGET_ASSISTED_ORDER_TERMS =
   /\b(pedido|cotiza|cotizacion|cotización|presupuesto|comprar|compra|stock|precio|factura|recibo|boleta|certificado|comprobante)\b/i;
 const WIDGET_QUANTITY_HINT = /\b\d+\s*(x|un|una|unidad|unidades|caja|cajas|bolsa|bolsas|kg|litro|litros|metro|metros)?\b/i;
@@ -369,7 +385,7 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
     .filter(Boolean) as QuickReplyItem[];
 };
 
-const extractRuntimeQuickReplies = (response: unknown): QuickReplyItem[] => {
+const extractRuntimeQuickReplies = (response: unknown, surveyMenu = false): QuickReplyItem[] => {
   if (!isRecord(response)) return [];
   const data = readNestedRecord(response, ['data']);
   const agent = readNestedRecord(response, ['agent']);
@@ -393,7 +409,8 @@ const extractRuntimeQuickReplies = (response: unknown): QuickReplyItem[] => {
     normalized?.next_actions,
   ].find(Array.isArray) ?? [];
   if (!Array.isArray(source)) return [];
-  return normalizeQuickMenu(source);
+  const compactSource = surveyMenu ? source.filter(isSurveyMenuNavigationAction).slice(0, 3) : source;
+  return normalizeQuickMenu(compactSource);
 };
 
 const normalizeActionMenuAsCtas = (quickMenu: unknown): ChatConversionCtaAction[] => {
@@ -442,6 +459,15 @@ const leadFieldLabel = (field: ChatLeadCaptureField, index: number) =>
 
 const isLeadEndpoint = (endpoint?: string | null) =>
   typeof endpoint === 'string' && endpoint.toLowerCase().includes('lead-capture');
+
+const isExplicitLeadCaptureIntent = (intent?: string | null) => {
+  const normalized = intent?.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    EXPLICIT_LEAD_CAPTURE_INTENTS.has(normalized) ||
+    /(?:^|[_-])(?:lead|ventas|sales)(?:[_-]|$)/.test(normalized)
+  );
+};
 
 const isTechnicalAssistantReply = (response: unknown, replyText?: string | null) => {
   if (response && typeof response === 'object' && !Array.isArray(response)) {
@@ -598,6 +624,10 @@ function StandaloneChatPanel({
   const resolvedAnimationTokens =
     animationTokens ?? resolvedContext.animationTokens ?? resolvedBlueprint?.animation_tokens ?? null;
   const resolvedChatBootstrap = resolvedContext.chatBootstrap ?? null;
+  const attachmentUploadContext = resolveBoundChatAttachmentUploadContext(
+    resolvedContext.tenantSlug,
+    resolvedChatBootstrap ? getBootstrapSessionValues(resolvedChatBootstrap) : {},
+  );
   const resolvedEmptyStates = {
     ...(resolvedBlueprint?.empty_states ?? {}),
     ...(resolvedContext.emptyStates ?? {}),
@@ -680,10 +710,13 @@ function StandaloneChatPanel({
     if (!leadEnabled || !resolvedLeadCapture) return false;
     if (isLeadEndpoint(candidate.endpoint)) return true;
     const intent = candidate.intent?.trim().toLowerCase();
-    if (intent && leadTriggers.includes(intent)) return true;
+    if (intent) {
+      const isConfiguredLeadIntent = leadTriggers.includes(intent);
+      return isExplicitLeadCaptureIntent(intent) && (isConfiguredLeadIntent || EXPLICIT_LEAD_CAPTURE_INTENTS.has(intent));
+    }
     const text = candidate.text?.trim().toLowerCase() || '';
     if (!text) return false;
-    return HIGH_INTENT_TERMS.some((term) => text.includes(term));
+    return EXPLICIT_LEAD_REQUEST.test(text);
   };
 
   const shouldCreateWidgetAssistedOrder = (candidate: {
@@ -852,19 +885,23 @@ function StandaloneChatPanel({
             throw new Error('Respuesta tecnica del runtime de chat demo.');
           }
           const runtimeLeadResult = extractRuntimeLeadResult(response);
+          const surveyMenu = normalizeSurveyChatMenu(response);
           if (runtimeLeadResult) {
             setLeadResult(runtimeLeadResult);
           }
           onRuntimeResult?.(response, runtimeLeadResult);
-          setRuntimeReplies(extractRuntimeQuickReplies(response));
+          setRuntimeReplies(extractRuntimeQuickReplies(response, Boolean(surveyMenu)));
           if (!replyText) return;
           setMessages((prev) => [
             ...prev,
             {
               id: `a-${Date.now()}`,
               role: 'assistant',
-              text: replyText,
+              text: surveyMenu
+                ? 'Estas son las consultas disponibles para participar.'
+                : replyText,
               timestamp: new Date().toISOString(),
+              surveyMenu,
             },
           ]);
         };
@@ -1059,7 +1096,7 @@ function StandaloneChatPanel({
         }}
       />
       {visibleCtas.length ? (
-        <div className="flex flex-wrap gap-2" aria-label="Acciones sugeridas">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Acciones sugeridas">
           {visibleCtas.map((action) => (
             <Button
               key={action.id}
@@ -1192,6 +1229,9 @@ function StandaloneChatPanel({
         draftText={composerDraft}
         intent={composerIntent}
         payload={composerPayload}
+        tenantSlug={attachmentUploadContext.tenantSlug}
+        demoSessionId={attachmentUploadContext.demoSessionId}
+        chatSessionId={attachmentUploadContext.chatSessionId}
         disabled={!hasRuntimeChat}
       />
       <ConversationRating conversationId={conversationId} />
@@ -1206,11 +1246,13 @@ function LeadCaptureResult({
   result: LeadCaptureResponse;
   onOpenResult?: () => void;
 }) {
-  const traceItems = [
-    result.lead_id ? { label: 'Seguimiento', value: String(result.lead_id) } : null,
-    result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
-    result.status ? { label: 'Estado', value: result.status } : null,
-  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const traceItems = result.ticket
+    ? []
+    : [
+        result.lead_id ? { label: 'Seguimiento', value: String(result.lead_id) } : null,
+        result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
+        result.status ? { label: 'Estado', value: result.status } : null,
+      ].filter((item): item is { label: string; value: string } => Boolean(item));
   const ticketTrackingEndpoint = result.ticket ? resolveTicketTrackingEndpoint(result.ticket) : null;
   const visibleActions = (result.next_actions ?? []).filter((action) => {
     if (!result.ticket) return true;
@@ -1246,7 +1288,14 @@ function LeadCaptureResult({
       ) : null}
       {hasActions ? <LeadCaptureNextActions actions={visibleActions} onOpenResult={onOpenResult} /> : null}
       {result.request_id ? (
-        <p className="break-all text-[11px] text-muted-foreground">request_id: {result.request_id}</p>
+        <details className="rounded-md border border-border/70 bg-background/65">
+          <summary className="cursor-pointer px-2.5 py-2 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            Trazabilidad técnica
+          </summary>
+          <p className="break-all border-t border-border/70 px-2.5 py-2 font-mono text-[10px] text-muted-foreground">
+            Solicitud: {result.request_id}
+          </p>
+        </details>
       ) : null}
     </div>
   );
@@ -1298,10 +1347,10 @@ function OperationalTicketCard({
     ticket.nro_ticket ? { label: 'Ticket', value: String(ticket.nro_ticket) } : null,
     ticket.chat_id ? { label: 'Caso', value: String(ticket.chat_id) } : null,
     ticket.status ? { label: 'Estado', value: ticket.status } : null,
-    ticket.categoria ? { label: 'Categoria', value: ticket.categoria } : null,
-    ticket.direccion ? { label: 'Direccion', value: ticket.direccion } : null,
+    ticket.categoria ? { label: 'Categoría', value: ticket.categoria } : null,
+    ticket.direccion ? { label: 'Dirección', value: ticket.direccion } : null,
     ticket.nombre_vecino ? { label: 'Vecino', value: ticket.nombre_vecino } : null,
-    ticket.telefono_vecino ? { label: 'Telefono', value: ticket.telefono_vecino } : null,
+    ticket.telefono_vecino ? { label: 'Teléfono', value: ticket.telefono_vecino } : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item));
   const hasLocation = hasFiniteCoordinates(ticket);
   const whatsappCase = ticket.canal_ingreso?.trim().toLowerCase() === 'whatsapp';
