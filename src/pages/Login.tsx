@@ -28,6 +28,7 @@ import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { getSafeAuthNextPath } from "@/utils/authRedirect";
 import { persistPanelLoginSession } from "@/utils/panelLoginSession";
 import { hasRequiredRole } from "@/utils/roles";
+import { loginPanelWithCredentials } from "@/api/panelLogin";
 
 
 const isDevEnvironment = () => {
@@ -48,20 +49,6 @@ const withRequestIdSuffix = (baseMessage: string, requestId?: string | null) => 
   const trimmed = typeof requestId === "string" ? requestId.trim() : "";
   return trimmed ? `${baseMessage} (ID: ${trimmed})` : baseMessage;
 };
-
-interface LoginResponse {
-  token: string;
-  user: {
-    id: number;
-    email: string;
-    name: string;
-    rol: string;
-    role?: string;
-    tenant_slug: string;
-  };
-  entityToken?: string;
-  tipo_chat?: 'pyme' | 'municipio';
-}
 
 const Login = () => {
   const navigate = useNavigate();
@@ -441,36 +428,23 @@ const Login = () => {
     };
   }, []);
 
-  const loginWithCredentials = async (nextEmail: string, nextPassword: string, tenantSlugOverride?: string) => {
+  const loginWithCredentials = async (nextEmail: string, nextPassword: string) => {
     setError("");
     setIsLoading(true);
 
-    const pathSegments = location.pathname.split('/').filter(Boolean);
-    const slugFromPath = (pathSegments.length > 0 && pathSegments[0] !== 'login') ? pathSegments[0] : null;
-
-    const storedSlug = safeLocalStorage.getItem("tenantSlug");
-    const effectiveSlug = tenantSlugOverride || slugFromPath || currentSlug || storedSlug;
-
-    const payload: any = { email: nextEmail, password: nextPassword };
-    if (effectiveSlug) {
-      payload.tenant_slug = effectiveSlug;
-    }
-
     try {
-      const data = await apiFetch<LoginResponse>("/auth/admin/login", {
-        method: "POST",
-        body: payload,
-      });
+      const data = await loginPanelWithCredentials(nextEmail, nextPassword, location.pathname);
 
       const responseTenantSlug = data.user?.tenant_slug;
       const responseRole = data.user?.rol || data.user?.role;
-      const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
+      const resolvedTenantSlug = responseTenantSlug || undefined;
       persistPanelLoginSession({
         token: data.token,
         user: data.user,
         entityToken: data.entityToken,
         tipoChat: data.tipo_chat,
         tenantSlugHint: resolvedTenantSlug,
+        replaceIdentity: true,
         setUser: setUser as any,
       });
 

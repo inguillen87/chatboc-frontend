@@ -1,10 +1,10 @@
 import React from 'react';
 import { ArrowRight, Check, ChevronRight, Eye, EyeOff, LogOut, MessageSquare, ShieldCheck } from 'lucide-react';
 import './evaluation.css';
+import ConversationMenu, { type ConversationMenuData } from './ConversationMenu';
 
 type State = { authenticated: boolean; title: string; institution: string; session_expires_at: number | null; release_sha: string; presentation_url?: string | null };
-type Menu = { id: string; title: string; text: string; kind: string; source_pages: number[];
-  actions: { code: string; label: string; target: string }[]; source: { label: string; approval_status: string } };
+type Menu = ConversationMenuData;
 class EvaluationError extends Error { constructor(public status: number, message: string) { super(message); } }
 async function request(action: string, body?: object, signal?: AbortSignal) {
   const abort = new AbortController(); const relay = () => abort.abort();
@@ -127,18 +127,7 @@ export default function EvaluationApp() {
             <div className="evaluation-chat-header"><MessageSquare size={20} aria-hidden="true" /><div><strong>Menús de atención</strong><span>Guía interactiva · canal simulado</span></div></div>
             {error && <div className="evaluation-error" role="alert">{error}<button onClick={() => void choose(menu?.id || 'start')} disabled={busy}>Reintentar</button></div>}
             {!menu ? <p role="status" className="evaluation-loading">Cargando el primer paso…</p> : (
-              <div className="evaluation-menu" key={menu.id}>
-                <span className="evaluation-badge">{menu.kind === 'handoff' ? 'Derivación de prueba' : menu.kind === 'feedback' ? 'Cierre de prueba' : 'Orientación'}</span>
-                <h2 ref={panel} tabIndex={-1}>{menu.title}</h2><p className="evaluation-message">{menu.text}</p>
-                <div className="evaluation-options" aria-label="Opciones disponibles">{menu.actions.map((action) => (
-                  <button key={action.code} disabled={busy} onClick={() => void choose(menu.id, action.code)}>
-                    <span className="evaluation-code" aria-hidden="true">{action.code}</span><span>{action.label}</span><ChevronRight size={17} aria-hidden="true" />
-                  </button>))}</div>
-                <p className="evaluation-source">{menu.source.label} · páginas {menu.source_pages.join(', ')}. Contenido operativo sujeto a validación institucional.</p>
-                <details className="evaluation-text-preview"><summary>Vista de texto para WhatsApp · sin envío</summary>
-                  <pre>{`${menu.title}\n\n${menu.text}\n\n${menu.actions.map((a) => `${a.code}. ${a.label}`).join('\n')}`}</pre>
-                </details>
-              </div>
+              <ConversationMenu key={menu.id} menu={menu} busy={busy} headingRef={panel} onChoose={(node, selection) => void choose(node, selection)} />
             )}
             <form className="evaluation-choice" onSubmit={(event) => { event.preventDefault(); if (choice.trim() && !busy) void choose(menu?.id || "start", choice.trim()); }}><label htmlFor="menu-choice">También podés escribir una opción</label><div><input id="menu-choice" inputMode="numeric" maxLength={16} value={choice} onChange={(event) => setChoice(event.target.value)} placeholder="Número, menú o inicio" disabled={busy || !menu} autoComplete="off" /><button className="evaluation-primary" type="submit" disabled={busy || !menu || !choice.trim()}>Continuar</button></div></form>
             <div className="evaluation-chat-footer" role="status">{busy ? 'Consultando el siguiente paso…' : 'Elegí una opción. No hace falta escribir datos personales.'}</div>

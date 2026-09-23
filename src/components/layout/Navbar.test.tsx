@@ -4,11 +4,15 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Navbar from './Navbar';
+import profileFixture from '../../../tests/fixtures/organization-profile-settings.json';
+import workspaceFixtures from '../../../tests/fixtures/organization-workspaces.json';
 
 const useUserMock = vi.fn();
 const useCapabilitiesMock = vi.fn();
 const useSessionAuthorityMock = vi.fn();
+const useTenantMock = vi.fn();
 
+vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 vi.mock('@/components/brand/ChatbocBrandLockup', () => ({
   default: () => <span>Chatboc.ar</span>,
 }));
@@ -26,7 +30,7 @@ vi.mock('@/hooks/useLandingExperience', () => ({
 }));
 
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({ currentSlug: 'junin' }),
+  useTenant: () => useTenantMock(),
 }));
 
 vi.mock('@/context/CapabilitiesContext', () => ({
@@ -43,6 +47,7 @@ describe('Navbar account menu routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    useTenantMock.mockReturnValue({ currentSlug: 'junin' });
     document.body.classList.remove('chatboc-mobile-menu-open');
     useUserMock.mockReturnValue({
       user: {
@@ -62,6 +67,55 @@ describe('Navbar account menu routing', () => {
       hasBearerSession: true,
       hasVerifiedSession: true,
     });
+  });
+
+  const institutionUser = () => {
+    const profile = structuredClone(profileFixture);
+    profile.tenant.slug = 'junin'; profile.save_endpoint = '/api/admin/tenants/junin/config';
+    profile.values.nombre_empresa = 'Organización institucional'; profile.values.logo_url = '/institution.svg';
+    return { id: 42, rol: 'tenant_admin', tenant_slug: 'junin', name: 'Nombre personal', avatar_url: '/operator.png',
+      organization_profile: profile,
+      organization_workspace: { ...structuredClone(workspaceFixtures.gobierno), tenant: profile.tenant },
+    };
+  };
+
+  it('identifies the administrative workspace with its institutional logo and server label', () => {
+    useUserMock.mockReturnValue({ user: institutionUser(), organizationProfileVerified: true });
+    render(<MemoryRouter initialEntries={['/admin/encuestas']}><Navbar /></MemoryRouter>);
+    const identity = screen.getByTestId('admin-organization-identity');
+    expect(identity).toHaveTextContent('Organización institucional');
+    expect(identity).toHaveTextContent(workspaceFixtures.gobierno.organization_label);
+    expect(identity).toHaveAttribute('href', '/perfil?tenant_slug=junin');
+    expect(identity.querySelector('img')).toHaveAttribute('src', '/institution.svg');
+    fireEvent.error(identity.querySelector('img')!);
+    expect(identity.querySelector('img')).toBeNull();
+    expect(identity).toHaveTextContent('Organización institucional');
+  });
+
+  it.each(['/', '/login', '/t/junin/productos'])('preserves the platform brand on %s for a signed-in administrator', path => {
+    useUserMock.mockReturnValue({ user: institutionUser(), organizationProfileVerified: true });
+    render(<MemoryRouter initialEntries={[path]}><Navbar /></MemoryRouter>);
+    expect(screen.queryByTestId('admin-organization-identity')).toBeNull();
+    expect(screen.getByText('Chatboc.ar')).toBeInTheDocument();
+  });
+
+  it('withdraws the institutional identity when context or session verification changes', () => {
+    useUserMock.mockReturnValue({ user: institutionUser(), organizationProfileVerified: true });
+    const tree = () => <MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>;
+    const view = render(tree());
+    expect(screen.getByTestId('admin-organization-identity')).toBeInTheDocument();
+    useTenantMock.mockReturnValue({ currentSlug: 'another-tenant' }); view.rerender(tree());
+    expect(screen.queryByTestId('admin-organization-identity')).toBeNull();
+    useTenantMock.mockReturnValue({ currentSlug: 'junin' });
+    useSessionAuthorityMock.mockReturnValue({ hasVerifiedSession: false }); view.rerender(tree());
+    expect(screen.queryByTestId('admin-organization-identity')).toBeNull();
+  });
+
+  it('does not render an institutional identity restored only from local storage', () => {
+    useUserMock.mockReturnValue({ user: institutionUser(), organizationProfileVerified: false });
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    expect(screen.queryByTestId('admin-organization-identity')).toBeNull();
+    expect(screen.getByText('Chatboc.ar')).toBeInTheDocument();
   });
 
   it('opens municipal claims from the tenant profile tab instead of the protected root route on mobile', () => {
