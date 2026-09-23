@@ -1,4 +1,5 @@
 import { panelApi } from '@/api/v2/client';
+import { assertOperationsResponseScope } from './operationsReadState';
 import type {
   AnalyticsOverview,
   OperationsAIOpsQueueItem,
@@ -1927,6 +1928,7 @@ export const getOperationsDashboardV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/dashboard${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeDashboard(response);
 };
 
@@ -1970,6 +1972,7 @@ export const getOperationsHeatmapV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/heatmap${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeHeatmap(response);
 };
 
@@ -1978,6 +1981,7 @@ export const getPublicMapConfigV1 = async (params?: { tenantSlug?: string | null
   const response = await panelApi.get<unknown>(`/api/map/config${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeMapConfig(response);
 };
 
@@ -1994,6 +1998,7 @@ export const getOperationsActionCenterV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/action-center${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeActionCenter(response);
 };
 
@@ -2010,6 +2015,7 @@ export const getOperationsAIBriefV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-brief${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeAIBrief(response);
 };
 
@@ -2027,6 +2033,7 @@ export const getOperationsAIOpsQueueV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-ops-queue${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeAIOpsQueue(response);
 };
 
@@ -2042,6 +2049,7 @@ export const getOperationsAIProviderStatusV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-provider-status${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeAIProviderStatus(response);
 };
 
@@ -2058,5 +2066,6 @@ export const getOperationsFreshnessV2 = async (params?: {
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/freshness${query}`, {
     tenantSlug: params?.tenantSlug,
   });
+  if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeFreshness(response);
 };

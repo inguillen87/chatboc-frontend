@@ -49,8 +49,9 @@ const socketMocks = vi.hoisted(() => {
   };
 });
 
+const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({ currentSlug: 'junin' }),
+  useTenant: () => ({ currentSlug: tenantContext.slug }),
 }));
 
 vi.mock('@/context/SocketContext', () => ({
@@ -579,6 +580,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     socketMocks.reset();
+    tenantContext.slug = 'junin';
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
@@ -899,7 +901,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     }
   });
 
-  it('refreshes operational analytics immediately when a realtime heatmap event arrives', async () => {
+  it('refreshes operational analytics after coalescing a scoped realtime event', async () => {
     renderPanel();
 
     expect(await screen.findByText('Centro territorial')).toBeTruthy();
@@ -1184,4 +1186,63 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(recoveryMap.getAttribute('data-contract')).toBe('operations.heatmap.recovery.v1');
     expect(recoveryMap.textContent).toContain('premium map 0 puntos');
   });
+  it('does not request operations from an unconfirmed context or a stored organization', () => {
+    tenantContext.slug = null;
+    renderPanel();
+    expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+    Object.values(mocks).forEach((mock) => expect(mock).not.toHaveBeenCalled());
+  });
+  it('rejects an explicitly foreign response without exposing its records', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue({ ...dashboardFixture(), tenant: { slug: 'foreign-org' }, alerts: [{ id: 'secret', title: 'FOREIGN PRIVATE ALERT' }] });
+    renderPanel();
+    expect(await screen.findByTestId('operations-dashboard-degraded')).toBeVisible();
+    expect(screen.queryByText('FOREIGN PRIVATE ALERT')).not.toBeInTheDocument();
+    expect(screen.getByTestId('operations-workspace-status')).toHaveTextContent('con error');
+  });
+  it('withdraws a previously successful private map after a denied refresh', async () => {
+    renderPanel(); await screen.findByText('Centro territorial');
+    expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 2 puntos');
+    mocks.getOperationsHeatmapV2.mockRejectedValue({ status: 403 });
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar', exact: true }));
+    await screen.findByText('Mapa temporalmente no disponible');
+    expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 0 puntos');
+    expect(screen.getByTestId('operations-workspace-status')).toHaveTextContent('Se retiró la información anterior.');
+  });
+  it('batches a burst of tenant events into one refresh without rebuilding the AI brief', async () => {
+    renderPanel(); await screen.findByText('Centro territorial');
+    const initial = mocks.getOperationsHeatmapV2.mock.calls.length;
+    const briefs = mocks.getOperationsAIBriefV2.mock.calls.length;
+    for (let i = 0; i < 40; i++) socketMocks.emit('ticket.updated', { tenant_slug: 'junin' });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(initial + 1));
+    expect(mocks.getOperationsAIBriefV2).toHaveBeenCalledTimes(briefs);
+  });
+  it('uses navigation targets without changing tenant, filters or issuing reads', async () => {
+    renderPanel(); await screen.findByText('Centro territorial');
+    const initial = mocks.getOperationsHeatmapV2.mock.calls.length;
+    fireEvent.click(screen.getByRole('link', { name: 'Mapa de calor', exact: true }));
+    expect(document.activeElement).toBe(screen.getByTestId('operations-heatmap'));
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(initial);
+  });
+  it('resets geographic filters and selected scope when the organization changes', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const view = render(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    await screen.findByText('Centro territorial');
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
+    tenantContext.slug = 'tierra-del-fuego';
+    view.rerender(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'tierra-del-fuego' })));
+    const latest = mocks.getOperationsHeatmapV2.mock.calls.at(-1)![0];
+    expect(latest.categoria).toBeUndefined();
+    expect(await screen.findByTestId('operations-workspace-status')).toHaveTextContent('tierra-del-fuego');
+  });
+  it('does not mix global hotspots with a filtered territorial response', async () => {
+    const data = dashboardFixture(); data.maps = { heatmap: { hotspots: [{ label: 'GLOBAL OUTSIDE FILTER', value: 9 }] } };
+    mocks.getOperationsDashboardV2.mockResolvedValue(data);
+    renderPanel(); await screen.findByText('Centro territorial');
+    expect(screen.getAllByText('GLOBAL OUTSIDE FILTER').length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    await waitFor(() => expect(screen.queryByText('GLOBAL OUTSIDE FILTER')).not.toBeInTheDocument());
+  });
+
 });

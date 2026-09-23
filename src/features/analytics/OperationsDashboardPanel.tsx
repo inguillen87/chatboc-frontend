@@ -32,7 +32,9 @@ import { useSocket } from '@/context/SocketContext';
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { operationsTenantSlug, assertOperationsResponseScope, visibleOperationsQuery } from './operationsReadState';
+import { useOperationsRefresh } from './useOperationsRefresh';
+import { OperationsWorkspaceStatus } from './OperationsWorkspaceStatus';
 
 import {
   getOperationsAIBriefV2,
@@ -114,11 +116,6 @@ const asString = (value: unknown): string | undefined => {
   const trimmed = value.trim();
   return trimmed || undefined;
 };
-
-const readStoredTenantSlug = () =>
-  asString(safeLocalStorage.getItem('tenantSlug')) ??
-  asString(safeLocalStorage.getItem('tenant_slug')) ??
-  asString(safeLocalStorage.getItem('currentTenantSlug'));
 
 const formatNumber = (value: unknown, suffix = '') => {
   const parsed = asNumber(value);
@@ -590,26 +587,6 @@ const OPERATIONS_REALTIME_FALLBACK_EVENTS = [
   'analytics.event.created',
 ] as const;
 
-const readRealtimeTenantSlug = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== 'object') return null;
-  const record = payload as Record<string, unknown>;
-  const nestedPayload = record.payload && typeof record.payload === 'object'
-    ? (record.payload as Record<string, unknown>)
-    : null;
-  const value =
-    record.tenant_slug ||
-    record.tenant ||
-    nestedPayload?.tenant_slug ||
-    nestedPayload?.tenant;
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-};
-
-const realtimeEventMatchesTenant = (payload: unknown, tenantSlug?: string) => {
-  if (!tenantSlug) return true;
-  const eventTenant = readRealtimeTenantSlug(payload);
-  return !eventTenant || eventTenant === tenantSlug;
-};
-
 const keepHeatmapPeriodFilters = (filters: HeatmapFilterState): OperationsPeriodState => {
   const next = Object.fromEntries(
     Object.entries(filters).filter(([key]) => HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey)),
@@ -623,9 +600,12 @@ interface OperationsDashboardPanelProps {
 
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { currentSlug } = useTenant();
+  const tenantSlug = operationsTenantSlug(currentSlug);
+  if (!tenantSlug) return <ViewState status="empty" title="Seleccioná una organización" description="El centro de decisiones necesita un contexto de organización confirmado." className={className} />;
+  return <ScopedOperationsDashboard key={tenantSlug} tenantSlug={tenantSlug} className={className} />;
+}
+function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboardPanelProps & { tenantSlug: string }) {
   const { socket, isConnected: socketConnected } = useSocket();
-  const storedTenantSlug = useMemo(() => readStoredTenantSlug(), []);
-  const tenantSlug = currentSlug || storedTenantSlug || undefined;
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
   const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
   const activeOperationsPeriod = useMemo(
@@ -633,88 +613,96 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     [activeHeatmapFilters],
   );
 
-  const dashboardQuery = useQuery({
+  const dashboardQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-dashboard', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod }),
+      getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_dashboard_timeout',
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
-  });
+  }));
 
-  const heatmapQuery = useQuery({
+  const heatmapQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-heatmap', tenantSlug, activeHeatmapFilters],
     queryFn: () => withOperationsTimeout(
-      getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters }),
+      getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_heatmap_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
-  });
+  }));
 
-  const mapConfigQuery = useQuery({
+  const mapConfigQuery = visibleOperationsQuery(useQuery({
     queryKey: ['public-map-config-v1', tenantSlug],
     queryFn: () => withOperationsTimeout(
-      getPublicMapConfigV1({ tenantSlug }),
+      getPublicMapConfigV1({ tenantSlug }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'public_map_config_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 10 * 60_000,
-  });
+  }));
 
-  const actionCenterQuery = useQuery({
+  const actionCenterQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-action-center', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod }),
+      getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_action_center_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
-  });
-  const aiBriefQuery = useQuery({
+  }));
+  const aiBriefQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-ai-brief', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod }),
+      getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_brief_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
-  });
-  const aiOpsQueueQuery = useQuery({
+  }));
+  const aiOpsQueueQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-ai-ops-queue', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod }),
+      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_ops_queue_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
-  });
-  const aiProviderStatusQuery = useQuery({
+  }));
+  const aiProviderStatusQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-ai-provider-status', tenantSlug],
     queryFn: () => withOperationsTimeout(
-      getOperationsAIProviderStatusV2({ tenantSlug }),
+      getOperationsAIProviderStatusV2({ tenantSlug }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_provider_status_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 60_000,
-  });
-  const freshnessQuery = useQuery({
+  }));
+  const freshnessQuery = visibleOperationsQuery(useQuery({
     queryKey: ['v2-operations-freshness', tenantSlug, activeOperationsPeriod],
     queryFn: () => withOperationsTimeout(
-      getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod }),
+      getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_freshness_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
     ),
     retry: 0,
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
-  });
+  }));
   const refetchDashboard = dashboardQuery.refetch;
   const refetchHeatmap = heatmapQuery.refetch;
   const refetchActionCenter = actionCenterQuery.refetch;
@@ -733,51 +721,22 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     freshnessQuery.data?.frontend_contract?.primary_refresh_seconds,
   );
 
-  useEffect(() => {
-    if (!refreshSeconds) return undefined;
-    const timer = window.setInterval(() => {
-      void refetchDashboard();
-      void refetchHeatmap();
-      void refetchActionCenter();
-      void refetchAIBrief();
-      void refetchAIOpsQueue();
-      void refetchAIProviderStatus();
-      void refetchFreshness();
-    }, refreshSeconds * 1000);
-
-    return () => window.clearInterval(timer);
-  }, [refetchAIBrief, refetchAIOpsQueue, refetchAIProviderStatus, refetchActionCenter, refetchDashboard, refetchFreshness, refetchHeatmap, refreshSeconds]);
-
-  const realtimeEvents = useMemo(() => {
-    const contractEvents = heatmapQuery.data?.realtime?.socket_events ?? [];
-    return Array.from(new Set([...contractEvents, ...OPERATIONS_REALTIME_FALLBACK_EVENTS]));
-  }, [heatmapQuery.data?.realtime?.socket_events]);
-
-  useEffect(() => {
-    if (!socket || !socketConnected || realtimeEvents.length === 0) return undefined;
-
-    const refreshOperations = (payload?: unknown) => {
-      if (!realtimeEventMatchesTenant(payload, tenantSlug)) return;
-      void refetchDashboard();
-      void refetchHeatmap();
-      void refetchActionCenter();
-      void refetchFreshness();
-    };
-
-    realtimeEvents.forEach((eventName) => socket.on(eventName, refreshOperations));
-    return () => {
-      realtimeEvents.forEach((eventName) => socket.off(eventName, refreshOperations));
-    };
-  }, [
-    refetchActionCenter,
-    refetchDashboard,
-    refetchFreshness,
-    refetchHeatmap,
-    realtimeEvents,
-    socket,
-    socketConnected,
-    tenantSlug,
-  ]);
+  const realtimeEvents = useMemo(() => Array.from(new Set([
+    ...(heatmapQuery.data?.realtime?.socket_events ?? []), ...OPERATIONS_REALTIME_FALLBACK_EVENTS,
+  ])), [heatmapQuery.data?.realtime?.socket_events]);
+  const liveRefresh = useOperationsRefresh({
+    tenantSlug, scopeKey: JSON.stringify([tenantSlug, activeHeatmapFilters]),
+    pollSeconds: refreshSeconds, socket, connected: Boolean(socketConnected), eventNames: realtimeEvents,
+    run: async (mode) => {
+      const options = { cancelRefetch: false };
+      const reads: Promise<unknown>[] = [refetchDashboard(options), refetchHeatmap(options), refetchActionCenter(options), refetchFreshness(options)];
+      if (mode === 'all') {
+        reads.push(refetchAIBrief(options), refetchAIOpsQueue(options), refetchAIProviderStatus(options));
+        if (mapConfigQuery.isError) reads.push(mapConfigQuery.refetch(options));
+      }
+      await Promise.allSettled(reads);
+    },
+  });
 
   const dashboardData = dashboardQuery.data;
   const dashboardFallbackActive = dashboardQuery.isError && !dashboardData;
@@ -805,6 +764,18 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       ? false
       : heatmapContractCanRender ?? heatmapQualityCanRender ?? freshness?.summary?.can_render_heatmap;
   const canRenderDashboard = freshness?.summary?.can_render_dashboard;
+  const readSources = [
+    { id: 'dashboard', label: 'Resumen y reclamos', ...dashboardQuery },
+    { id: 'heatmap', label: 'Mapa de calor', ...heatmapQuery },
+    { id: 'mapConfig', label: 'Configuración del mapa', ...mapConfigQuery },
+    { id: 'actions', label: 'Centro de acciones', ...actionCenterQuery },
+    { id: 'brief', label: 'Resumen IA', ...aiBriefQuery },
+    { id: 'queue', label: 'Cola IA', ...aiOpsQueueQuery },
+    { id: 'providers', label: 'Integraciones IA', ...aiProviderStatusQuery },
+    { id: 'freshness', label: 'Actualidad de fuentes', ...freshnessQuery },
+  ];
+  const mapFilterCount = Object.keys(activeHeatmapFilters).filter((key) => !HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey)).length;
+  const anyFetching = readSources.some((source) => source.isFetching);
   const focusCards: OperationsFocusCard[] = [
     {
       id: 'health',
@@ -817,14 +788,14 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
     },
     {
       id: 'actions',
-      title: actions.length ? `${actions.length} acciones sugeridas` : 'sin acciones críticas',
-      description: actions.length ? 'Revisar primero el centro de acciones.' : 'No hay acciones urgentes publicadas.',
+      title: actions.length ? `${actions.length} acciones sugeridas` : dashboardData || actionCenter ? 'sin acciones publicadas' : 'acciones no verificadas',
+      description: actions.length ? 'Revisar primero el centro de acciones.' : dashboardData || actionCenter ? 'Las fuentes recibidas no publican acciones.' : 'Revisá el estado de las fuentes antes de tomar decisiones.',
       icon: CheckCircle2,
-      tone: actions.length ? 'warning' : 'success',
+      tone: actions.length || (!dashboardData && !actionCenter) ? 'warning' : 'default',
     },
     {
       id: 'territory',
-      title: canRenderHeatmap === false ? 'mapa sin datos' : 'mapa disponible',
+      title: heatmapQuery.isError ? 'mapa no verificado' : canRenderHeatmap === false ? 'mapa sin datos' : heatmapQuery.data ? 'mapa disponible' : 'mapa pendiente',
       description: 'Zonas calientes y segmentos territoriales cuando backend publica puntos.',
       icon: MapPin,
       tone: canRenderHeatmap === false ? 'warning' : 'default',
@@ -857,7 +828,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   }
 
   return (
-    <section className={cn('space-y-5', className)}>
+    <section className={cn('operations-live-workspace space-y-5', className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -879,15 +850,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              void refetchDashboard();
-              void refetchHeatmap();
-              void refetchActionCenter();
-              void refetchAIBrief();
-              void refetchAIOpsQueue();
-              void refetchAIProviderStatus();
-              void refetchFreshness();
-            }}
+            className="operations-global-refresh"
+            disabled={anyFetching || liveRefresh.busy}
+            onClick={liveRefresh.refreshNow}
           >
             <RefreshCw className="h-4 w-4" />
             Actualizar
@@ -895,6 +860,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         </div>
       </div>
 
+      <OperationsWorkspaceStatus tenantSlug={tenantSlug} sources={readSources} paused={liveRefresh.paused} mapFilterCount={mapFilterCount} labels={data.frontend_contract?.labels} />
       {freshness ? <FreshnessBanner freshness={freshness} /> : null}
       {aiBrief ? <AIBriefBanner brief={aiBrief} /> : null}
       {dashboardFallbackActive ? (
@@ -918,6 +884,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         </div>
       ) : null}
 
+      <div id="operations-overview">
       <OperationsCommandCockpit
         data={data}
         heatmap={heatmapQuery.data}
@@ -929,6 +896,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       />
 
       <QueueTruthPanel data={data} />
+      </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
         {focusCards.map((card) => {
@@ -966,9 +934,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <div className="space-y-5">
           <TrendsPanel data={data} />
-          <TicketBreakdowns data={data} />
-          <EngagementPanel data={data} />
-          <EmployeePanel data={data} />
+          <div id="operations-tickets"><TicketBreakdowns data={data} /></div>
+          <div id="operations-engagement"><EngagementPanel data={data} /></div>
+          <div id="operations-team"><EmployeePanel data={data} /></div>
           <OperationsHeatmapPanel
             heatmap={heatmapQuery.data}
             freshness={freshness}
@@ -995,6 +963,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             error={aiProviderStatusQuery.error}
             refetch={() => void refetchAIProviderStatus()}
           />
+          <div id="operations-actions">
           <ActionCenterPanel
             items={actions}
             summary={actionCenter?.summary}
@@ -1002,7 +971,8 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             error={actionCenterQuery.error}
             refetch={() => void refetchActionCenter()}
           />
-          <HotspotsPanel data={data} heatmap={heatmapQuery.data} />
+          </div>
+          <HotspotsPanel data={data} heatmap={heatmapQuery.data} mapFiltered={mapFilterCount > 0} />
         </div>
       </div>
     </section>
@@ -3943,8 +3913,8 @@ function ActionCenterPanel({
   );
 }
 
-function HotspotsPanel({ data, heatmap }: { data: OperationsDashboardV1; heatmap?: OperationsHeatmapV1 }) {
-  const hotspots = [...(data.maps?.heatmap?.hotspots ?? []), ...(heatmap?.hotspots ?? [])].slice(0, 8);
+function HotspotsPanel({ data, heatmap, mapFiltered = false }: { data: OperationsDashboardV1; heatmap?: OperationsHeatmapV1; mapFiltered?: boolean }) {
+  const hotspots = [...(mapFiltered ? [] : (data.maps?.heatmap?.hotspots ?? [])), ...(heatmap?.hotspots ?? [])].slice(0, 8);
   if (!hotspots.length) return null;
 
   return <BreakdownCard title={resolveLabel(data, 'hotspots', 'Zonas calientes')} items={hotspots} />;
