@@ -1,0 +1,1408 @@
+{
+  "main": {
+    "basis": {
+      "exact": true,
+      "overlap_records": 0,
+      "segment_a_records": 100,
+      "segment_b_records": 500,
+      "selected_records": 600
+    },
+    "comparison_meta": {
+      "base_total": 600,
+      "gap_respuestas": -400
+    },
+    "contract_version": "surveys.segment_compare.v1",
+    "data_provenance": {
+      "aggregate_scope": "all_selected_records",
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "exact_aggregates": true,
+      "mode": "real",
+      "population_size": 600,
+      "raw_responses_materialized": 0,
+      "real_responses_included": 600,
+      "sample_limit": 0,
+      "sample_size": 0,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 2,
+      "synthetic_responses_included": 0,
+      "unverified_responses_excluded": 1,
+      "unverified_responses_included": 0
+    },
+    "encuesta_id": 5,
+    "inference_authorized": false,
+    "limitations": [
+      {
+        "detail": "Las diferencias describen registros recibidos; no miden causalidad ni significación estadística.",
+        "id": "descriptive",
+        "title": "Sin inferencia poblacional"
+      },
+      {
+        "detail": "Cada respuesta cuenta una sola vez por opción. Una respuesta puede incluir varias opciones, por lo que sus porcentajes pueden sumar más de 100%.",
+        "id": "multiple",
+        "title": "Selección múltiple"
+      },
+      {
+        "detail": "Una misma respuesta puede pertenecer a ambos grupos. No son muestras independientes; el solapamiento se informa por separado.",
+        "id": "overlap",
+        "title": "Grupos que pueden solaparse"
+      },
+      {
+        "detail": "Se cuentan opciones válidas del cuestionario actual. No se infiere si una pregunta fue mostrada, omitida o rechazada; no es una tasa de respuesta.",
+        "id": "recorded",
+        "title": "Base registrada por pregunta"
+      },
+      {
+        "detail": "En preguntas de opción única se excluye de esa pregunta a cada respuesta con más de una opción distinta. Se informa su cantidad, sin modificar ni borrar los registros originales.",
+        "id": "conflicts",
+        "title": "Selecciones incompatibles excluidas"
+      }
+    ],
+    "questions": [
+      {
+        "id": 5,
+        "label": "¿Está de acuerdo?",
+        "options": [
+          {
+            "delta_percentage_points": 49.9,
+            "id": 1,
+            "label": "Sí",
+            "segment_a_count": 99,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 250,
+            "segment_b_percent": 50.1
+          },
+          {
+            "delta_percentage_points": -49.9,
+            "id": 2,
+            "label": "No",
+            "segment_a_count": 0,
+            "segment_a_percent": 0.0,
+            "segment_b_count": 249,
+            "segment_b_percent": 49.9
+          }
+        ],
+        "segment_a_answered": 99,
+        "segment_a_conflicts": 1,
+        "segment_b_answered": 499,
+        "segment_b_conflicts": 0,
+        "type": "single_choice"
+      },
+      {
+        "id": 8,
+        "label": "¿Qué servicios usa?",
+        "options": [
+          {
+            "delta_percentage_points": 50.0,
+            "id": 3,
+            "label": "Servicio A",
+            "segment_a_count": 100,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 250,
+            "segment_b_percent": 50.0
+          },
+          {
+            "delta_percentage_points": -50.0,
+            "id": 4,
+            "label": "Servicio B",
+            "segment_a_count": 50,
+            "segment_a_percent": 50.0,
+            "segment_b_count": 500,
+            "segment_b_percent": 100.0
+          }
+        ],
+        "segment_a_answered": 100,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 500,
+        "segment_b_conflicts": 0,
+        "type": "multiple_choice"
+      }
+    ],
+    "scope": {
+      "filtered": false,
+      "global_filters": {},
+      "mode": "real",
+      "segment_a_filters": {
+        "canal": "whatsapp"
+      },
+      "segment_b_filters": {
+        "canal": "web"
+      },
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "segment_a": {
+      "filters": {
+        "canal": "whatsapp"
+      },
+      "meta": {
+        "count": 100,
+        "coverage": 16.67,
+        "filters": {
+          "canal": "whatsapp"
+        },
+        "label": "Segmento A",
+        "name": "a"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "whatsapp",
+            "value": 100
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 100.0,
+                "votos": 99
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 99
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 66.67,
+                "votos": 100
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 33.33,
+                "votos": 50
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 150
+          }
+        ],
+        "total_respuestas": 100
+      }
+    },
+    "segment_b": {
+      "filters": {
+        "canal": "web"
+      },
+      "meta": {
+        "count": 500,
+        "coverage": 83.33,
+        "filters": {
+          "canal": "web"
+        },
+        "label": "Segmento B",
+        "name": "b"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "web",
+            "value": 500
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 50.1,
+                "votos": 250
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 49.9,
+                "votos": 249
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 499
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 33.33,
+                "votos": 250
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 66.67,
+                "votos": 500
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 750
+          }
+        ],
+        "total_respuestas": 500
+      }
+    },
+    "ui": {
+      "answered": "Respondieron esta pregunta",
+      "base": "Respuestas seleccionadas",
+      "conflicts": "Respuestas con selecciones incompatibles",
+      "delta": "Diferencia A − B (puntos porcentuales)",
+      "delta_unit": "p.p.",
+      "description": "Comparación descriptiva de todas las respuestas seleccionadas. Cada opción usa como base las respuestas con una opción válida registrada en esa pregunta.",
+      "details": "Ver bases y límites",
+      "empty": "No hay respuestas o preguntas con opciones para esta comparación.",
+      "heading": "Comparar segmentos",
+      "option": "Opción",
+      "overlap": "Respuestas presentes en ambos segmentos",
+      "percent": "Porcentaje entre quienes respondieron",
+      "segment_a": "Segmento A",
+      "segment_b": "Segmento B",
+      "selected": "Respuestas que eligieron la opción"
+    },
+    "updated_at": "2026-09-23T14:13:58.090614+00:00"
+  },
+  "empty": {
+    "basis": {
+      "exact": true,
+      "overlap_records": 0,
+      "segment_a_records": 0,
+      "segment_b_records": 500,
+      "selected_records": 600
+    },
+    "comparison_meta": {
+      "base_total": 600,
+      "gap_respuestas": -500
+    },
+    "contract_version": "surveys.segment_compare.v1",
+    "data_provenance": {
+      "aggregate_scope": "all_selected_records",
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "exact_aggregates": true,
+      "mode": "real",
+      "population_size": 600,
+      "raw_responses_materialized": 0,
+      "real_responses_included": 600,
+      "sample_limit": 0,
+      "sample_size": 0,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 2,
+      "synthetic_responses_included": 0,
+      "unverified_responses_excluded": 1,
+      "unverified_responses_included": 0
+    },
+    "encuesta_id": 5,
+    "inference_authorized": false,
+    "limitations": [
+      {
+        "detail": "Las diferencias describen registros recibidos; no miden causalidad ni significación estadística.",
+        "id": "descriptive",
+        "title": "Sin inferencia poblacional"
+      },
+      {
+        "detail": "Cada respuesta cuenta una sola vez por opción. Una respuesta puede incluir varias opciones, por lo que sus porcentajes pueden sumar más de 100%.",
+        "id": "multiple",
+        "title": "Selección múltiple"
+      },
+      {
+        "detail": "Una misma respuesta puede pertenecer a ambos grupos. No son muestras independientes; el solapamiento se informa por separado.",
+        "id": "overlap",
+        "title": "Grupos que pueden solaparse"
+      },
+      {
+        "detail": "Se cuentan opciones válidas del cuestionario actual. No se infiere si una pregunta fue mostrada, omitida o rechazada; no es una tasa de respuesta.",
+        "id": "recorded",
+        "title": "Base registrada por pregunta"
+      },
+      {
+        "detail": "En preguntas de opción única se excluye de esa pregunta a cada respuesta con más de una opción distinta. Se informa su cantidad, sin modificar ni borrar los registros originales.",
+        "id": "conflicts",
+        "title": "Selecciones incompatibles excluidas"
+      }
+    ],
+    "questions": [
+      {
+        "id": 5,
+        "label": "¿Está de acuerdo?",
+        "options": [
+          {
+            "delta_percentage_points": null,
+            "id": 1,
+            "label": "Sí",
+            "segment_a_count": 0,
+            "segment_a_percent": null,
+            "segment_b_count": 250,
+            "segment_b_percent": 50.1
+          },
+          {
+            "delta_percentage_points": null,
+            "id": 2,
+            "label": "No",
+            "segment_a_count": 0,
+            "segment_a_percent": null,
+            "segment_b_count": 249,
+            "segment_b_percent": 49.9
+          }
+        ],
+        "segment_a_answered": 0,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 499,
+        "segment_b_conflicts": 0,
+        "type": "single_choice"
+      },
+      {
+        "id": 8,
+        "label": "¿Qué servicios usa?",
+        "options": [
+          {
+            "delta_percentage_points": null,
+            "id": 3,
+            "label": "Servicio A",
+            "segment_a_count": 0,
+            "segment_a_percent": null,
+            "segment_b_count": 250,
+            "segment_b_percent": 50.0
+          },
+          {
+            "delta_percentage_points": null,
+            "id": 4,
+            "label": "Servicio B",
+            "segment_a_count": 0,
+            "segment_a_percent": null,
+            "segment_b_count": 500,
+            "segment_b_percent": 100.0
+          }
+        ],
+        "segment_a_answered": 0,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 500,
+        "segment_b_conflicts": 0,
+        "type": "multiple_choice"
+      }
+    ],
+    "scope": {
+      "filtered": false,
+      "global_filters": {},
+      "mode": "real",
+      "segment_a_filters": {
+        "canal": "none"
+      },
+      "segment_b_filters": {
+        "canal": "web"
+      },
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "segment_a": {
+      "filters": {
+        "canal": "none"
+      },
+      "meta": {
+        "count": 0,
+        "coverage": 0.0,
+        "filters": {
+          "canal": "none"
+        },
+        "label": "Segmento A",
+        "name": "a"
+      },
+      "stats": {
+        "canales": [],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 0.0,
+                "votos": 0
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 0
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 0.0,
+                "votos": 0
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 0
+          }
+        ],
+        "total_respuestas": 0
+      }
+    },
+    "segment_b": {
+      "filters": {
+        "canal": "web"
+      },
+      "meta": {
+        "count": 500,
+        "coverage": 83.33,
+        "filters": {
+          "canal": "web"
+        },
+        "label": "Segmento B",
+        "name": "b"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "web",
+            "value": 500
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 50.1,
+                "votos": 250
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 49.9,
+                "votos": 249
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 499
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 33.33,
+                "votos": 250
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 66.67,
+                "votos": 500
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 750
+          }
+        ],
+        "total_respuestas": 500
+      }
+    },
+    "ui": {
+      "answered": "Respondieron esta pregunta",
+      "base": "Respuestas seleccionadas",
+      "conflicts": "Respuestas con selecciones incompatibles",
+      "delta": "Diferencia A − B (puntos porcentuales)",
+      "delta_unit": "p.p.",
+      "description": "Comparación descriptiva de todas las respuestas seleccionadas. Cada opción usa como base las respuestas con una opción válida registrada en esa pregunta.",
+      "details": "Ver bases y límites",
+      "empty": "No hay respuestas o preguntas con opciones para esta comparación.",
+      "heading": "Comparar segmentos",
+      "option": "Opción",
+      "overlap": "Respuestas presentes en ambos segmentos",
+      "percent": "Porcentaje entre quienes respondieron",
+      "segment_a": "Segmento A",
+      "segment_b": "Segmento B",
+      "selected": "Respuestas que eligieron la opción"
+    },
+    "updated_at": "2026-09-23T14:13:58.183583+00:00"
+  },
+  "overlap": {
+    "basis": {
+      "exact": true,
+      "overlap_records": 50,
+      "segment_a_records": 100,
+      "segment_b_records": 300,
+      "selected_records": 600
+    },
+    "comparison_meta": {
+      "base_total": 600,
+      "gap_respuestas": -200
+    },
+    "contract_version": "surveys.segment_compare.v1",
+    "data_provenance": {
+      "aggregate_scope": "all_selected_records",
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "exact_aggregates": true,
+      "mode": "real",
+      "population_size": 600,
+      "raw_responses_materialized": 0,
+      "real_responses_included": 600,
+      "sample_limit": 0,
+      "sample_size": 0,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 2,
+      "synthetic_responses_included": 0,
+      "unverified_responses_excluded": 1,
+      "unverified_responses_included": 0
+    },
+    "encuesta_id": 5,
+    "inference_authorized": false,
+    "limitations": [
+      {
+        "detail": "Las diferencias describen registros recibidos; no miden causalidad ni significación estadística.",
+        "id": "descriptive",
+        "title": "Sin inferencia poblacional"
+      },
+      {
+        "detail": "Cada respuesta cuenta una sola vez por opción. Una respuesta puede incluir varias opciones, por lo que sus porcentajes pueden sumar más de 100%.",
+        "id": "multiple",
+        "title": "Selección múltiple"
+      },
+      {
+        "detail": "Una misma respuesta puede pertenecer a ambos grupos. No son muestras independientes; el solapamiento se informa por separado.",
+        "id": "overlap",
+        "title": "Grupos que pueden solaparse"
+      },
+      {
+        "detail": "Se cuentan opciones válidas del cuestionario actual. No se infiere si una pregunta fue mostrada, omitida o rechazada; no es una tasa de respuesta.",
+        "id": "recorded",
+        "title": "Base registrada por pregunta"
+      },
+      {
+        "detail": "En preguntas de opción única se excluye de esa pregunta a cada respuesta con más de una opción distinta. Se informa su cantidad, sin modificar ni borrar los registros originales.",
+        "id": "conflicts",
+        "title": "Selecciones incompatibles excluidas"
+      }
+    ],
+    "questions": [
+      {
+        "id": 5,
+        "label": "¿Está de acuerdo?",
+        "options": [
+          {
+            "delta_percentage_points": 41.81,
+            "id": 1,
+            "label": "Sí",
+            "segment_a_count": 99,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 174,
+            "segment_b_percent": 58.19
+          },
+          {
+            "delta_percentage_points": -41.81,
+            "id": 2,
+            "label": "No",
+            "segment_a_count": 0,
+            "segment_a_percent": 0.0,
+            "segment_b_count": 125,
+            "segment_b_percent": 41.81
+          }
+        ],
+        "segment_a_answered": 99,
+        "segment_a_conflicts": 1,
+        "segment_b_answered": 299,
+        "segment_b_conflicts": 1,
+        "type": "single_choice"
+      },
+      {
+        "id": 8,
+        "label": "¿Qué servicios usa?",
+        "options": [
+          {
+            "delta_percentage_points": 41.67,
+            "id": 3,
+            "label": "Servicio A",
+            "segment_a_count": 100,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 175,
+            "segment_b_percent": 58.33
+          },
+          {
+            "delta_percentage_points": -41.67,
+            "id": 4,
+            "label": "Servicio B",
+            "segment_a_count": 50,
+            "segment_a_percent": 50.0,
+            "segment_b_count": 275,
+            "segment_b_percent": 91.67
+          }
+        ],
+        "segment_a_answered": 100,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 300,
+        "segment_b_conflicts": 0,
+        "type": "multiple_choice"
+      }
+    ],
+    "scope": {
+      "filtered": false,
+      "global_filters": {},
+      "mode": "real",
+      "segment_a_filters": {
+        "canal": "whatsapp"
+      },
+      "segment_b_filters": {
+        "barrio": "centro"
+      },
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "segment_a": {
+      "filters": {
+        "canal": "whatsapp"
+      },
+      "meta": {
+        "count": 100,
+        "coverage": 16.67,
+        "filters": {
+          "canal": "whatsapp"
+        },
+        "label": "Segmento A",
+        "name": "a"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "whatsapp",
+            "value": 100
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 100.0,
+                "votos": 99
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 99
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 66.67,
+                "votos": 100
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 33.33,
+                "votos": 50
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 150
+          }
+        ],
+        "total_respuestas": 100
+      }
+    },
+    "segment_b": {
+      "filters": {
+        "barrio": "centro"
+      },
+      "meta": {
+        "count": 300,
+        "coverage": 50.0,
+        "filters": {
+          "barrio": "centro"
+        },
+        "label": "Segmento B",
+        "name": "b"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "web",
+            "value": 250
+          },
+          {
+            "label": "whatsapp",
+            "value": 50
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 58.19,
+                "votos": 174
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 41.81,
+                "votos": 125
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 299
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 38.89,
+                "votos": 175
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 61.11,
+                "votos": 275
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 450
+          }
+        ],
+        "total_respuestas": 300
+      }
+    },
+    "ui": {
+      "answered": "Respondieron esta pregunta",
+      "base": "Respuestas seleccionadas",
+      "conflicts": "Respuestas con selecciones incompatibles",
+      "delta": "Diferencia A − B (puntos porcentuales)",
+      "delta_unit": "p.p.",
+      "description": "Comparación descriptiva de todas las respuestas seleccionadas. Cada opción usa como base las respuestas con una opción válida registrada en esa pregunta.",
+      "details": "Ver bases y límites",
+      "empty": "No hay respuestas o preguntas con opciones para esta comparación.",
+      "heading": "Comparar segmentos",
+      "option": "Opción",
+      "overlap": "Respuestas presentes en ambos segmentos",
+      "percent": "Porcentaje entre quienes respondieron",
+      "segment_a": "Segmento A",
+      "segment_b": "Segmento B",
+      "selected": "Respuestas que eligieron la opción"
+    },
+    "updated_at": "2026-09-23T14:13:58.292312+00:00"
+  },
+  "filtered": {
+    "basis": {
+      "exact": true,
+      "overlap_records": 0,
+      "segment_a_records": 50,
+      "segment_b_records": 250,
+      "selected_records": 300
+    },
+    "comparison_meta": {
+      "base_total": 300,
+      "gap_respuestas": -200
+    },
+    "contract_version": "surveys.segment_compare.v1",
+    "data_provenance": {
+      "aggregate_scope": "all_selected_records",
+      "contains_synthetic": false,
+      "contract_version": "surveys.response_provenance.v1",
+      "exact_aggregates": true,
+      "mode": "real",
+      "population_size": 300,
+      "raw_responses_materialized": 0,
+      "real_responses_included": 300,
+      "sample_limit": 0,
+      "sample_size": 0,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 0,
+      "synthetic_responses_included": 0,
+      "unverified_responses_excluded": 0,
+      "unverified_responses_included": 0
+    },
+    "encuesta_id": 5,
+    "inference_authorized": false,
+    "limitations": [
+      {
+        "detail": "Las diferencias describen registros recibidos; no miden causalidad ni significación estadística.",
+        "id": "descriptive",
+        "title": "Sin inferencia poblacional"
+      },
+      {
+        "detail": "Cada respuesta cuenta una sola vez por opción. Una respuesta puede incluir varias opciones, por lo que sus porcentajes pueden sumar más de 100%.",
+        "id": "multiple",
+        "title": "Selección múltiple"
+      },
+      {
+        "detail": "Una misma respuesta puede pertenecer a ambos grupos. No son muestras independientes; el solapamiento se informa por separado.",
+        "id": "overlap",
+        "title": "Grupos que pueden solaparse"
+      },
+      {
+        "detail": "Se cuentan opciones válidas del cuestionario actual. No se infiere si una pregunta fue mostrada, omitida o rechazada; no es una tasa de respuesta.",
+        "id": "recorded",
+        "title": "Base registrada por pregunta"
+      },
+      {
+        "detail": "En preguntas de opción única se excluye de esa pregunta a cada respuesta con más de una opción distinta. Se informa su cantidad, sin modificar ni borrar los registros originales.",
+        "id": "conflicts",
+        "title": "Selecciones incompatibles excluidas"
+      }
+    ],
+    "questions": [
+      {
+        "id": 5,
+        "label": "¿Está de acuerdo?",
+        "options": [
+          {
+            "delta_percentage_points": 50.0,
+            "id": 1,
+            "label": "Sí",
+            "segment_a_count": 49,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 125,
+            "segment_b_percent": 50.0
+          },
+          {
+            "delta_percentage_points": -50.0,
+            "id": 2,
+            "label": "No",
+            "segment_a_count": 0,
+            "segment_a_percent": 0.0,
+            "segment_b_count": 125,
+            "segment_b_percent": 50.0
+          }
+        ],
+        "segment_a_answered": 49,
+        "segment_a_conflicts": 1,
+        "segment_b_answered": 250,
+        "segment_b_conflicts": 0,
+        "type": "single_choice"
+      },
+      {
+        "id": 8,
+        "label": "¿Qué servicios usa?",
+        "options": [
+          {
+            "delta_percentage_points": 50.0,
+            "id": 3,
+            "label": "Servicio A",
+            "segment_a_count": 50,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 125,
+            "segment_b_percent": 50.0
+          },
+          {
+            "delta_percentage_points": -50.0,
+            "id": 4,
+            "label": "Servicio B",
+            "segment_a_count": 25,
+            "segment_a_percent": 50.0,
+            "segment_b_count": 250,
+            "segment_b_percent": 100.0
+          }
+        ],
+        "segment_a_answered": 50,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 250,
+        "segment_b_conflicts": 0,
+        "type": "multiple_choice"
+      }
+    ],
+    "scope": {
+      "filtered": true,
+      "global_filters": {
+        "barrio": "centro"
+      },
+      "mode": "real",
+      "segment_a_filters": {
+        "canal": "whatsapp"
+      },
+      "segment_b_filters": {
+        "canal": "web"
+      },
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "segment_a": {
+      "filters": {
+        "canal": "whatsapp"
+      },
+      "meta": {
+        "count": 50,
+        "coverage": 16.67,
+        "filters": {
+          "canal": "whatsapp"
+        },
+        "label": "Segmento A",
+        "name": "a"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "whatsapp",
+            "value": 50
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 100.0,
+                "votos": 49
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 49
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 66.67,
+                "votos": 50
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 33.33,
+                "votos": 25
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 75
+          }
+        ],
+        "total_respuestas": 50
+      }
+    },
+    "segment_b": {
+      "filters": {
+        "canal": "web"
+      },
+      "meta": {
+        "count": 250,
+        "coverage": 83.33,
+        "filters": {
+          "canal": "web"
+        },
+        "label": "Segmento B",
+        "name": "b"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "web",
+            "value": 250
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 50.0,
+                "votos": 125
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 50.0,
+                "votos": 125
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 250
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 33.33,
+                "votos": 125
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 66.67,
+                "votos": 250
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 375
+          }
+        ],
+        "total_respuestas": 250
+      }
+    },
+    "ui": {
+      "answered": "Respondieron esta pregunta",
+      "base": "Respuestas seleccionadas",
+      "conflicts": "Respuestas con selecciones incompatibles",
+      "delta": "Diferencia A − B (puntos porcentuales)",
+      "delta_unit": "p.p.",
+      "description": "Comparación descriptiva de todas las respuestas seleccionadas. Cada opción usa como base las respuestas con una opción válida registrada en esa pregunta.",
+      "details": "Ver bases y límites",
+      "empty": "No hay respuestas o preguntas con opciones para esta comparación.",
+      "heading": "Comparar segmentos",
+      "option": "Opción",
+      "overlap": "Respuestas presentes en ambos segmentos",
+      "percent": "Porcentaje entre quienes respondieron",
+      "segment_a": "Segmento A",
+      "segment_b": "Segmento B",
+      "selected": "Respuestas que eligieron la opción"
+    },
+    "updated_at": "2026-09-23T14:13:58.389901+00:00"
+  },
+  "synthetic": {
+    "basis": {
+      "exact": true,
+      "overlap_records": 0,
+      "segment_a_records": 2,
+      "segment_b_records": 0,
+      "selected_records": 2
+    },
+    "comparison_meta": {
+      "base_total": 2,
+      "gap_respuestas": 2
+    },
+    "contract_version": "surveys.segment_compare.v1",
+    "data_provenance": {
+      "aggregate_scope": "all_selected_records",
+      "contains_synthetic": true,
+      "contract_version": "surveys.response_provenance.v1",
+      "exact_aggregates": true,
+      "mode": "synthetic",
+      "population_size": 2,
+      "raw_responses_materialized": 0,
+      "real_responses_included": 0,
+      "sample_limit": 0,
+      "sample_size": 0,
+      "server_trusted_classification": true,
+      "synthetic_marker_contract": "surveys.demo_seeding.v1",
+      "synthetic_responses_excluded": 0,
+      "synthetic_responses_included": 2,
+      "unverified_responses_excluded": 1,
+      "unverified_responses_included": 0
+    },
+    "encuesta_id": 5,
+    "inference_authorized": false,
+    "limitations": [
+      {
+        "detail": "Las diferencias describen registros recibidos; no miden causalidad ni significación estadística.",
+        "id": "descriptive",
+        "title": "Sin inferencia poblacional"
+      },
+      {
+        "detail": "Cada respuesta cuenta una sola vez por opción. Una respuesta puede incluir varias opciones, por lo que sus porcentajes pueden sumar más de 100%.",
+        "id": "multiple",
+        "title": "Selección múltiple"
+      },
+      {
+        "detail": "Una misma respuesta puede pertenecer a ambos grupos. No son muestras independientes; el solapamiento se informa por separado.",
+        "id": "overlap",
+        "title": "Grupos que pueden solaparse"
+      },
+      {
+        "detail": "Se cuentan opciones válidas del cuestionario actual. No se infiere si una pregunta fue mostrada, omitida o rechazada; no es una tasa de respuesta.",
+        "id": "recorded",
+        "title": "Base registrada por pregunta"
+      },
+      {
+        "detail": "En preguntas de opción única se excluye de esa pregunta a cada respuesta con más de una opción distinta. Se informa su cantidad, sin modificar ni borrar los registros originales.",
+        "id": "conflicts",
+        "title": "Selecciones incompatibles excluidas"
+      }
+    ],
+    "questions": [
+      {
+        "id": 5,
+        "label": "¿Está de acuerdo?",
+        "options": [
+          {
+            "delta_percentage_points": null,
+            "id": 1,
+            "label": "Sí",
+            "segment_a_count": 0,
+            "segment_a_percent": 0.0,
+            "segment_b_count": 0,
+            "segment_b_percent": null
+          },
+          {
+            "delta_percentage_points": null,
+            "id": 2,
+            "label": "No",
+            "segment_a_count": 2,
+            "segment_a_percent": 100.0,
+            "segment_b_count": 0,
+            "segment_b_percent": null
+          }
+        ],
+        "segment_a_answered": 2,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 0,
+        "segment_b_conflicts": 0,
+        "type": "single_choice"
+      },
+      {
+        "id": 8,
+        "label": "¿Qué servicios usa?",
+        "options": [
+          {
+            "delta_percentage_points": null,
+            "id": 3,
+            "label": "Servicio A",
+            "segment_a_count": 0,
+            "segment_a_percent": null,
+            "segment_b_count": 0,
+            "segment_b_percent": null
+          },
+          {
+            "delta_percentage_points": null,
+            "id": 4,
+            "label": "Servicio B",
+            "segment_a_count": 0,
+            "segment_a_percent": null,
+            "segment_b_count": 0,
+            "segment_b_percent": null
+          }
+        ],
+        "segment_a_answered": 0,
+        "segment_a_conflicts": 0,
+        "segment_b_answered": 0,
+        "segment_b_conflicts": 0,
+        "type": "multiple_choice"
+      }
+    ],
+    "scope": {
+      "filtered": false,
+      "global_filters": {},
+      "mode": "synthetic",
+      "segment_a_filters": {
+        "canal": "whatsapp"
+      },
+      "segment_b_filters": {
+        "canal": "web"
+      },
+      "survey_id": 5,
+      "tenant_id": 1
+    },
+    "segment_a": {
+      "filters": {
+        "canal": "whatsapp"
+      },
+      "meta": {
+        "count": 2,
+        "coverage": 100.0,
+        "filters": {
+          "canal": "whatsapp"
+        },
+        "label": "Segmento A",
+        "name": "a"
+      },
+      "stats": {
+        "canales": [
+          {
+            "label": "whatsapp",
+            "value": 2
+          }
+        ],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 0.0,
+                "votos": 0
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 100.0,
+                "votos": 2
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 2
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 0.0,
+                "votos": 0
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 0
+          }
+        ],
+        "total_respuestas": 2
+      }
+    },
+    "segment_b": {
+      "filters": {
+        "canal": "web"
+      },
+      "meta": {
+        "count": 0,
+        "coverage": 0.0,
+        "filters": {
+          "canal": "web"
+        },
+        "label": "Segmento B",
+        "name": "b"
+      },
+      "stats": {
+        "canales": [],
+        "preguntas": [
+          {
+            "opciones": [
+              {
+                "label": "Sí",
+                "opcion_id": 1,
+                "porcentaje": 0.0,
+                "votos": 0
+              },
+              {
+                "label": "No",
+                "opcion_id": 2,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 5,
+            "texto": "¿Está de acuerdo?",
+            "tipo": "single_choice",
+            "total_votos": 0
+          },
+          {
+            "opciones": [
+              {
+                "label": "Servicio A",
+                "opcion_id": 3,
+                "porcentaje": 0.0,
+                "votos": 0
+              },
+              {
+                "label": "Servicio B",
+                "opcion_id": 4,
+                "porcentaje": 0.0,
+                "votos": 0
+              }
+            ],
+            "pregunta_id": 8,
+            "texto": "¿Qué servicios usa?",
+            "tipo": "multiple_choice",
+            "total_votos": 0
+          }
+        ],
+        "total_respuestas": 0
+      }
+    },
+    "ui": {
+      "answered": "Respondieron esta pregunta",
+      "base": "Respuestas seleccionadas",
+      "conflicts": "Respuestas con selecciones incompatibles",
+      "delta": "Diferencia A − B (puntos porcentuales)",
+      "delta_unit": "p.p.",
+      "description": "Datos sintéticos de demostración. Comparación descriptiva de todas las respuestas seleccionadas. Cada opción usa como base las respuestas con una opción válida registrada en esa pregunta.",
+      "details": "Ver bases y límites",
+      "empty": "No hay respuestas o preguntas con opciones para esta comparación.",
+      "heading": "Comparar segmentos",
+      "option": "Opción",
+      "overlap": "Respuestas presentes en ambos segmentos",
+      "percent": "Porcentaje entre quienes respondieron",
+      "segment_a": "Segmento A",
+      "segment_b": "Segmento B",
+      "selected": "Respuestas que eligieron la opción"
+    },
+    "updated_at": "2026-09-23T14:13:58.474035+00:00"
+  }
+}
