@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
-import { apiClient } from '@/api/client';
 import { ApiError } from '@/utils/api';
 import { Order } from '@/types/unified';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -12,6 +11,9 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/utils/currency';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
+import { OrderLifecycleSummary } from '@/components/orders/OrderLifecycleSummary';
+import { useAdminOrderSession } from '@/features/orders/useAdminOrderSession';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from '@/components/ui/alert-dialog';
 
 type BlockingReasonView = {
   code?: string | null;
@@ -35,17 +37,6 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = 
 
 const isRecord = (value: unknown): value is Record<string, any> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
-
-const resolveUpdatedOrder = (current: Order, response: unknown, fallbackStatus: string): Order => {
-  const candidate = isRecord(response)
-    ? isRecord(response.order)
-      ? response.order
-      : isRecord(response.data)
-        ? response.data
-        : response
-    : null;
-  return candidate ? ({ ...current, ...candidate } as Order) : { ...current, status: fallbackStatus as any };
-};
 
 const blockingReasonsFrom = (order: Order | null): BlockingReasonView[] => {
   if (!order) return [];
@@ -113,127 +104,60 @@ const blockerLabel = (reason: BlockingReasonView): string =>
 
 export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { currentSlug } = useTenant();
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  if (!currentSlug || !id) return <p role="alert" className="p-8">No se pudo identificar la organización y el pedido.</p>;
+  return <AdminOrderDetailSession key={JSON.stringify([currentSlug, id])} tenantSlug={currentSlug} id={id} />;
+}
+
+function AdminOrderDetailSession({ tenantSlug, id }: { tenantSlug: string; id: string }) {
+  const navigate = useNavigate();
+  const { order, loading, busy, error, requiresRefresh, dispatchInfo, refresh, mutate } = useAdminOrderSession(tenantSlug, id);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<BlockingReasonView[]>([]);
   const [resolvingCatalogCandidateKey, setResolvingCatalogCandidateKey] = useState<string | null>(null);
-  const [dispatchInfo, setDispatchInfo] = useState<{ email?: string; phone?: string }>({});
-
-  useEffect(() => {
-    if (currentSlug && id) {
-      loadOrder();
-      loadDispatchInfo();
-    }
-  }, [currentSlug, id]);
-
-  const loadDispatchInfo = async () => {
-      try {
-          if (!currentSlug) return;
-          // Use getFulfillmentConfig to get the authoritative dispatch settings
-          const settings = await apiClient.getFulfillmentConfig(currentSlug);
-          if (settings && settings.tenant) {
-              setDispatchInfo({
-                  email: settings.tenant.dispatch_email,
-                  phone: settings.tenant.dispatch_phone
-              });
-          }
-      } catch (e) {
-          console.warn("Could not load dispatch info", e);
-      }
-  };
-
-  const loadOrder = async () => {
-    setLoading(true);
+  const actionLock = useRef(false);
+  const writesBlocked = busy || requiresRefresh;
+  const refreshOrder = () => { if (actionLock.current) return; setPendingStatus(null); setStatusBlockers([]); void refresh(); };
+  const handleStatusChange = (status: string) => { if (!writesBlocked) setPendingStatus(status); };
+  const confirmStatusChange = async () => {
+    if (!pendingStatus || writesBlocked || actionLock.current) return;
+    actionLock.current = true;
+    const target = pendingStatus;
+    setUpdatingStatus(target); setStatusBlockers([]);
     try {
-      if (!currentSlug || !id) return;
-      const data = await apiClient.adminGetOrder(currentSlug, id);
-      setOrder(data);
-    } catch (error) {
-      console.error('Error loading order:', error);
-      toast.error("No se pudo cargar el pedido. Verifique que exista.");
-      // Fallback: try listing if direct get fails (optional, but robust)
-      try {
-          const orders = await apiClient.adminListOrders(currentSlug);
-          const found = orders.find(o => String(o.id) === id);
-          if (found) setOrder(found);
-      } catch (e) {
-          // ignore
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStatusChange = async (newStatus: string) => {
-    if (!currentSlug || !order) return;
-    if (newStatus === 'cancelled' && !window.confirm('Confirmas cancelar este pedido?')) return;
-    setUpdatingStatus(newStatus);
-    setStatusBlockers([]);
-    try {
-      const response = await apiClient.adminUpdateOrder(currentSlug, order.id, { status: newStatus });
-      setOrder(resolveUpdatedOrder(order, response, newStatus));
-      toast.success("Estado actualizado");
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      if (error instanceof ApiError && error.status === 409 && error.body?.error === 'assisted_order_needs_review') {
-        const reasons = Array.isArray(error.body?.blocking_reasons)
-          ? error.body.blocking_reasons.filter(isRecord)
-          : [];
-        setStatusBlockers(reasons as BlockingReasonView[]);
+      const updated = await mutate({ status: target });
+      if (updated) toast.success('Estado confirmado por el servidor');
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 409 && failure.body?.error === 'assisted_order_needs_review') {
+        setStatusBlockers(Array.isArray(failure.body.blocking_reasons) ? failure.body.blocking_reasons.filter(isRecord) : []);
         toast.error('Faltan resolver datos antes de confirmar.');
-      } else {
-        toast.error("Error al actualizar estado");
-      }
-    } finally {
-      setUpdatingStatus(null);
-    }
+      } else { toast.error('No se pudo confirmar el cambio. Revisá el estado antes de reintentar.'); }
+    } finally { actionLock.current = false; setUpdatingStatus(null); setPendingStatus(null); }
   };
-
-  const handleResolveCatalogCandidate = async (payload: {
-    lineId?: string | null;
-    sourceName: string;
-    catalogItemId: string | number;
-    candidateName: string;
-  }) => {
-    if (!currentSlug || !order) return;
-    const resolutionKey = `${payload.lineId || payload.sourceName}:${payload.catalogItemId}`;
-    setResolvingCatalogCandidateKey(resolutionKey);
-    setStatusBlockers([]);
+  const handleResolveCatalogCandidate = async (payload: { lineId?: string | null; sourceName: string; catalogItemId: string | number; candidateName: string }) => {
+    if (writesBlocked || actionLock.current) return;
+    actionLock.current = true;
+    setResolvingCatalogCandidateKey(`${payload.lineId || payload.sourceName}:${payload.catalogItemId}`); setStatusBlockers([]);
     try {
-      const response = await apiClient.adminUpdateOrder(currentSlug, order.id, {
-        catalog_resolutions: [
-          {
-            line_id: payload.lineId,
-            source_name: payload.sourceName,
-            catalog_item_id: payload.catalogItemId,
-          },
-        ],
-      });
-      setOrder(resolveUpdatedOrder(order, response, order.status));
-      toast.success(`Catálogo vinculado: ${payload.sourceName} -> ${payload.candidateName}`);
-    } catch (error) {
-      console.error('Error resolving catalog candidate:', error);
-      toast.error('No se pudo vincular el producto del catálogo.');
-    } finally {
-      setResolvingCatalogCandidateKey(null);
-    }
+      const updated = await mutate({ catalog_resolutions: [{ line_id: payload.lineId, source_name: payload.sourceName, catalog_item_id: payload.catalogItemId }] });
+      if (updated) toast.success('Pedido actualizado. Revisá la asociación en el borrador.');
+    } catch { toast.error('No se pudo confirmar la asociación. Actualizá el pedido antes de reintentar.'); }
+    finally { actionLock.current = false; setResolvingCatalogCandidateKey(null); }
   };
 
   if (loading) {
-      return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>;
+      return <div role="status" className="flex min-h-64 items-center justify-center gap-3"><Loader2 aria-hidden="true" className="h-8 w-8 motion-safe:animate-spin text-primary"/>Verificando pedido…</div>;
   }
 
   if (!order) {
-      return <div className="p-8 text-center">Pedido no encontrado. <Button variant="link" onClick={() => navigate(-1)}>Volver</Button></div>;
+      return <div className="p-8 space-y-4 text-center"><p role="alert">{error || 'Pedido no encontrado.'}</p><Button variant="outline" onClick={refreshOrder}>Actualizar pedido</Button><Button variant="link" onClick={() => navigate(-1)}>Volver</Button></div>;
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-6 max-w-5xl">
-      <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+    <div className="order-workspace container mx-auto p-4 md:p-8 space-y-6 max-w-5xl">
+      <div className="flex flex-wrap items-center gap-4">
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => navigate(-1)}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Volver
           </Button>
           <h1 className="text-2xl font-bold">Pedido #{order.id}</h1>
@@ -247,11 +171,17 @@ export default function AdminOrderDetailPage() {
           ) : null}
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Organización: {tenantSlug} · Referencia: {id}</p>
+        <Button variant="outline" onClick={refreshOrder} disabled={busy}>Actualizar pedido</Button>
+      </div>
+      {error && <div role="alert" className="order-workspace-notice">{error}</div>}
+      <OrderLifecycleSummary order={order} />
       <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-6">
               <AssistedRequestPanel
                 order={order}
-                onResolveCatalogCandidate={handleResolveCatalogCandidate}
+                onResolveCatalogCandidate={writesBlocked ? undefined : handleResolveCatalogCandidate}
                 resolvingCatalogCandidateKey={resolvingCatalogCandidateKey}
               />
 
@@ -284,7 +214,7 @@ export default function AdminOrderDetailPage() {
                   </CardHeader>
                   <CardContent>
                       <p className="text-sm text-muted-foreground mb-4">
-                          Creado el {new Date(order.created_at).toLocaleString()}
+                          {order.created_at && Number.isFinite(Date.parse(order.created_at)) ? `Creado el ${new Date(order.created_at).toLocaleString('es-AR')}` : 'Fecha de creación no informada'}
                       </p>
                       <div className="bg-muted/30 p-3 rounded text-sm">
                           {(order as any).notes || "Sin notas adicionales."}
@@ -346,11 +276,11 @@ export default function AdminOrderDetailPage() {
                       <CardTitle>Acciones</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                      {order.status === 'nuevo' && (
+                      {['nuevo', 'pending'].includes(order.status) && (
                           <Button
                             className="w-full"
                             onClick={() => handleStatusChange('confirmed')}
-                            disabled={!assistedCanConfirm(order) || updatingStatus === 'confirmed'}
+                            disabled={!assistedCanConfirm(order) || writesBlocked}
                           >
                             {updatingStatus === 'confirmed' ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -359,23 +289,23 @@ export default function AdminOrderDetailPage() {
                           </Button>
                       )}
                       {order.status === 'confirmed' && (
-                          <Button className="w-full" onClick={() => handleStatusChange('shipped')} disabled={updatingStatus === 'shipped'}>
+                          <Button className="w-full" onClick={() => handleStatusChange('shipped')} disabled={writesBlocked}>
                             {updatingStatus === 'shipped' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Marcar Enviado
                           </Button>
                       )}
                       {order.status === 'shipped' && (
-                          <Button className="w-full" onClick={() => handleStatusChange('delivered')} disabled={updatingStatus === 'delivered'}>
+                          <Button className="w-full" onClick={() => handleStatusChange('delivered')} disabled={writesBlocked}>
                             {updatingStatus === 'delivered' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Marcar Entregado
                           </Button>
                       )}
-                      {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                      {['nuevo', 'pending', 'confirmed', 'paid', 'shipped'].includes(order.status) && (
                           <Button
                             variant="outline"
                             className="w-full text-destructive hover:text-destructive"
                             onClick={() => handleStatusChange('cancelled')}
-                            disabled={updatingStatus === 'cancelled'}
+                            disabled={writesBlocked}
                           >
                             {updatingStatus === 'cancelled' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Cancelar Pedido
@@ -409,13 +339,22 @@ export default function AdminOrderDetailPage() {
                           {dispatchInfo.email && <p>Email: {dispatchInfo.email}</p>}
                           {dispatchInfo.phone && <p>Tel: {dispatchInfo.phone}</p>}
                           <p className="text-xs text-blue-600 mt-2 italic">
-                              * Las notificaciones se envían automáticamente a estos contactos.
+                              Contactos configurados. Esta pantalla no acredita el envío ni la recepción de notificaciones.
                           </p>
                       </CardContent>
                   </Card>
               )}
           </div>
       </div>
+      <AlertDialog open={Boolean(pendingStatus)} onOpenChange={(open) => { if (!open && !busy && !actionLock.current) setPendingStatus(null); }}>
+        <AlertDialogContent className="order-workspace-confirm">
+          <AlertDialogHeader><AlertDialogTitle>Revisar cambio de estado</AlertDialogTitle>
+            <AlertDialogDescription className="order-workspace-confirm-description">Organización {tenantSlug}, pedido {id}. Estado actual: {STATUS_MAP[order.status]?.label || order.status}. Nuevo estado: {pendingStatus ? STATUS_MAP[pendingStatus]?.label || pendingStatus : ''}.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <p className="text-sm">{pendingStatus === 'cancelled' ? 'Cancelar este pedido no confirma una devolución del pago.' : pendingStatus === 'delivered' ? 'Marcá entregado sólo si la entrega ocurrió. Esto no confirma ni cobra el pago.' : 'El cambio modifica el estado operativo. Esta confirmación no acredita un pago ni la entrega de notificaciones.'}</p>
+          <AlertDialogFooter><Button variant="outline" onClick={() => setPendingStatus(null)} disabled={busy}>Volver sin cambiar</Button><Button onClick={() => void confirmStatusChange()} disabled={writesBlocked}>{busy ? 'Confirmando…' : 'Confirmar cambio de estado'}</Button></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

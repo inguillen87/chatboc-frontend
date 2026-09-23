@@ -1,543 +1,94 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchPublicOrder } from '@/api/market';
-import { PublicOrderTrackingResponse } from '@/types/tracking';
-import { Loader2, Package, CheckCircle2, Clock, Truck, MapPin, XCircle, Copy, ArrowRight, MessageCircle, Phone, HelpCircle, ChevronRight, ShoppingBag } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import type { PublicOrderTrackingResponse } from '@/types/tracking';
+import { Package, Copy, MessageCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { OrderLifecycleSummary } from '@/components/orders/OrderLifecycleSummary';
 import { formatCurrency } from '@/utils/currency';
-import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Textarea } from '@/components/ui/textarea';
-import Confetti from '@/components/ui/Confetti';
 import { hexToHsl, getContrastColorHsl } from '@/utils/color';
-
+import { parsePublicOrder, publicOrderPoint, publicOrderBranding, publicOrderPrivacy, publicOrderText as text } from '@/features/orders/publicOrderView';
 const TrackingMap = React.lazy(() => import('@/components/ui/TrackingMap'));
-
-const STATUS_CONFIG = {
-  pendiente: { label: 'Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock, step: 1, description: 'Tu pedido ha sido recibido y está pendiente de confirmación.' },
-  confirmado: { label: 'Confirmado', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2, step: 2, description: '¡Tu pedido fue aceptado! Estamos preparando todo.' },
-  en_proceso: { label: 'En Preparación', color: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: Package, step: 3, description: 'Estamos armando tu pedido con cuidado.' },
-  enviado: { label: 'En Camino', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck, step: 4, description: '¡Ya sale! Tu pedido está en camino a tu dirección.' },
-  entregado: { label: 'Entregado', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2, step: 5, description: 'Disfruta tu compra. ¡Gracias por elegirnos!' },
-  cancelado: { label: 'Cancelado', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle, step: 0, description: 'El pedido fue cancelado.' },
-};
-
-const ORDER_STEPS = [
-  { id: 'pendiente', label: 'Recibido' },
-  { id: 'confirmado', label: 'Confirmado' },
-  { id: 'en_proceso', label: 'Preparación' },
-  { id: 'enviado', label: 'En Camino' },
-  { id: 'entregado', label: 'Entregado' },
-];
-
-type OrderMapPoint = { lat: number; lng: number; name?: string };
-
-const readNumber = (value: unknown): number | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-};
-
-const readString = (value: unknown): string | null =>
-  typeof value === 'string' && value.trim() ? value.trim() : null;
-
-const readPointFromRecord = (value: unknown, fallbackName?: string | null): OrderMapPoint | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const record = value as Record<string, unknown>;
-  const lat = readNumber(record.latitud ?? record.lat ?? record.latitude);
-  const lng = readNumber(record.longitud ?? record.lng ?? record.lon ?? record.longitude);
-  if (lat === null || lng === null) return null;
-  return {
-    lat,
-    lng,
-    name: readString(record.name) ?? readString(record.label) ?? fallbackName ?? undefined,
-  };
-};
-
-const readOrderPoint = (
-  order: PublicOrderTrackingResponse,
-  nestedKeys: Array<keyof PublicOrderTrackingResponse>,
-  fallbackName?: string | null,
-  includeTopLevel = true,
-) => {
-  for (const key of nestedKeys) {
-    const point = readPointFromRecord(order[key], fallbackName);
-    if (point) return point;
-  }
-  return includeTopLevel ? readPointFromRecord(order, fallbackName) : null;
-};
+const amount = (value: unknown, currency?: string) => typeof value === 'number' && Number.isFinite(value) ? formatCurrency(value, currency || 'ARS') : 'Importe no informado';
 
 export default function OrderTrackingPage() {
   const { nro_pedido } = useParams<{ nro_pedido: string }>();
+  if (!nro_pedido) return <p role="alert" className="p-8">Falta la referencia del pedido.</p>;
+  return <PublicOrderSession key={nro_pedido} code={nro_pedido} />;
+}
+function PublicOrderSession({ code }: { code: string }) {
   const [order, setOrder] = useState<PublicOrderTrackingResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
-  const [isSupportOpen, setIsSupportOpen] = useState(false);
-  const [tenantBranding, setTenantBranding] = useState<{
-    logoUrl: string | null;
-    primaryColor: string | null;
-    secondaryColor: string | null;
-  }>({
-    logoUrl: null,
-    primaryColor: null,
-    secondaryColor: null,
-  });
-
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const copying = useRef(false);
   useEffect(() => {
-    const loadOrder = async () => {
-      if (!nro_pedido) return;
-      try {
-        setLoading(true);
-        const data = await fetchPublicOrder(nro_pedido);
-
-        // Defensive check for 'detalles' field
-        if (typeof data.detalles === 'string') {
-          try {
-            data.detalles = JSON.parse(data.detalles);
-          } catch (e) {
-            console.error('Failed to parse order details string:', e);
-            data.detalles = [];
-          }
-        } else if (!Array.isArray(data.detalles)) {
-          data.detalles = [];
-        }
-
-        setOrder(data);
-        const rawBranding =
-          (data as any)?.tenant_branding ||
-          (data as any)?.branding ||
-          (data as any)?.tenantTheme ||
-          data.tenant_theme ||
-          null;
-
-        let parsedBranding: Record<string, unknown> | null = null;
-        if (typeof rawBranding === 'string') {
-          try {
-            parsedBranding = JSON.parse(rawBranding);
-          } catch (e) {
-            console.warn('Failed to parse tenant branding payload', e);
-          }
-        } else if (rawBranding && typeof rawBranding === 'object') {
-          parsedBranding = rawBranding as Record<string, unknown>;
-        }
-
-        const logoFromBranding =
-          typeof parsedBranding?.logo_url === 'string'
-            ? parsedBranding.logo_url
-            : typeof parsedBranding?.logoUrl === 'string'
-              ? parsedBranding.logoUrl
-              : null;
-        const primaryFromBranding =
-          typeof parsedBranding?.primary_color === 'string'
-            ? parsedBranding.primary_color
-            : typeof parsedBranding?.primaryColor === 'string'
-              ? parsedBranding.primaryColor
-              : null;
-        const secondaryFromBranding =
-          typeof parsedBranding?.secondary_color === 'string'
-            ? parsedBranding.secondary_color
-            : typeof parsedBranding?.secondaryColor === 'string'
-              ? parsedBranding.secondaryColor
-              : null;
-
-        setTenantBranding({
-          logoUrl: logoFromBranding || data.tenant_logo || null,
-          primaryColor: primaryFromBranding || null,
-          secondaryColor: secondaryFromBranding || null,
-        });
-      } catch (err) {
-        console.error('Failed to load order', err);
-        setError('No se pudo encontrar el pedido. Verifique el número e intente nuevamente.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadOrder();
-
-  }, [nro_pedido]);
-
-  const handleOpenChat = () => {
-      // Trigger global chat widget with context
-      window.postMessage({
-          type: 'OPEN_CHAT_WITH_CONTEXT',
-              tenantSlug: order?.tenant_slug,
-              tipoChat: 'pyme',
-              context: {
-              orderId: order?.id ?? order?.tracking_id ?? order?.nro_pedido,
-              orderNumber: order?.nro_pedido,
-              action: 'consultar_pedido'
-          }
-      }, '*');
-      setIsSupportOpen(false);
+    let active = true;
+    setLoading(true); setError(''); setOrder(null); setLogoFailed(false);
+    void fetchPublicOrder(code).then((raw) => {
+      if (!active) return;
+      setOrder(parsePublicOrder(raw, code));
+    }).catch(() => { if (active) setError('No pudimos verificar este pedido. Revisá la referencia o volvé a consultar.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [code, revision]);
+  if (loading) return <div role="status" className="flex min-h-64 items-center justify-center gap-3"><Package aria-hidden="true" />Consultando pedido…</div>;
+  if (!order) return <div className="mx-auto max-w-xl space-y-4 p-6"><p role="alert">{error}</p><Button onClick={() => setRevision((v) => v + 1)}>Reintentar consulta</Button></div>;
+  const branding = publicOrderBranding(order), privacy = publicOrderPrivacy(order);
+  const businessName = text(order.pyme_nombre) || 'Comercio';
+  // The explicit redaction policy wins over accidental contact/address/coordinate values.
+  const deliverySummary = privacy.address ? text(order.delivery_summary) || 'Dirección protegida' : text(order.delivery_summary) || text(order.direccion) || 'Dirección no informada';
+  const delivery = privacy.coordinates ? null : publicOrderPoint(order.delivery_location, deliverySummary) || publicOrderPoint(order.customer_location, deliverySummary) || publicOrderPoint(order, deliverySummary);
+  const store = privacy.coordinates ? null : publicOrderPoint(order.store_location, businessName);
+  const driver = privacy.coordinates ? null : publicOrderPoint(order.driver_location, 'Ubicación informada del reparto');
+  const style: React.CSSProperties = {
+    ...(branding.primary ? { '--primary': hexToHsl(branding.primary), '--primary-foreground': getContrastColorHsl(branding.primary) } : {}),
+    ...(branding.secondary ? { '--secondary': hexToHsl(branding.secondary) } : {}),
+  } as React.CSSProperties;
+  const openSupport = () => {
+    if (!order.tenant_slug) return;
+    window.postMessage({ type: 'OPEN_CHAT_WITH_CONTEXT', tenantSlug: order.tenant_slug, tipoChat: 'pyme',
+      context: { orderId: order.id ?? order.tracking_id ?? order.nro_pedido, orderNumber: order.nro_pedido, action: 'consultar_pedido' } }, window.location.origin);
   };
-
-  const handleSendMessage = () => {
-      if (!message.trim()) return;
-
-      // Since we don't have a direct "add note" public API confirmed,
-      // we'll use the chat widget as the carrier.
-      // We set the pending action/message and open the chat.
-      try {
-          localStorage.setItem('pending_widget_action', JSON.stringify({
-              action: 'send_message',
-              text: `[Consulta Pedido #${order?.nro_pedido}] ${message}`
-          }));
-          handleOpenChat();
-          toast.success("Abriendo chat de soporte...");
-          setIsSupportOpen(false);
-          setMessage('');
-      } catch (e) {
-          console.error("Failed to trigger chat", e);
-          toast.error("No se pudo conectar con el soporte.");
-      }
+  const copy = async () => {
+    if (copying.current) return;
+    copying.current = true;
+    try { await navigator.clipboard.writeText(code); toast.success('Número de pedido copiado'); }
+    catch { toast.error('No se pudo copiar. Seleccioná el número del pedido para copiarlo.'); }
+    finally { copying.current = false; }
   };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50/50 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-                <div className="h-12 w-12 rounded-full border-4 border-primary/20 animate-spin border-t-primary"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <Package className="h-5 w-5 text-primary/60" />
-                </div>
-            </div>
-            <p className="text-sm font-medium text-muted-foreground animate-pulse">Buscando tu pedido...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !order) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-        <Card className="w-full max-w-md text-center shadow-lg border-red-100">
-          <CardHeader>
-            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-2">
-                <XCircle className="h-6 w-6 text-red-600" />
-            </div>
-            <CardTitle className="text-xl text-gray-900">Pedido no encontrado</CardTitle>
-            <CardDescription className="text-gray-600 pt-2">{error || 'Verificá el número de seguimiento.'}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" onClick={() => window.location.reload()}>
-              Intentar nuevamente
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const StatusIcon = STATUS_CONFIG[order.estado]?.icon || Clock;
-  const statusInfo = STATUS_CONFIG[order.estado] || STATUS_CONFIG.pendiente;
-  const currentStep = STATUS_CONFIG[order.estado]?.step || 0;
-  const displayBusinessName = order.pyme_nombre || 'Comercio';
-  const displayDeliverySummary = order.delivery_summary || order.direccion || 'Direccion registrada';
-  const displayCustomerName = order.nombre_cliente || 'Cliente';
-  const displayCustomerPhone = order.telefono_cliente || null;
-  const isPublicRedacted = Boolean(order.privacy?.pii_redacted);
-  const deliveryPoint = readOrderPoint(order, ['delivery_location', 'customer_location'], displayDeliverySummary);
-  const storePoint = readOrderPoint(order, ['store_location'], displayBusinessName, false);
-  const driverPoint = readPointFromRecord(order.driver_location, 'Ubicacion actual');
-  const canRenderTrackingMap = Boolean(deliveryPoint || storePoint || driverPoint);
-  const brandingStyle: React.CSSProperties = {
-    ...(tenantBranding.primaryColor
-      ? {
-          ['--primary' as any]: tenantBranding.primaryColor.startsWith('#')
-            ? hexToHsl(tenantBranding.primaryColor)
-            : tenantBranding.primaryColor,
-          ['--primary-foreground' as any]: tenantBranding.primaryColor.startsWith('#')
-            ? getContrastColorHsl(tenantBranding.primaryColor)
-            : undefined,
-        }
-      : {}),
-    ...(tenantBranding.secondaryColor
-      ? {
-          ['--secondary' as any]: tenantBranding.secondaryColor.startsWith('#')
-            ? hexToHsl(tenantBranding.secondaryColor)
-            : tenantBranding.secondaryColor,
-        }
-      : {}),
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(order.nro_pedido);
-    toast.success("Número de pedido copiado");
-  };
-
-  return (
-    <div
-      className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-primary/10 relative"
-      style={brandingStyle}
-    >
-      {order.estado === 'entregado' && <Confetti />}
-
-      {/* Navbar-like Header */}
-      <div className="bg-white border-b sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/90">
-          <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {tenantBranding.logoUrl ? (
-                    <img src={tenantBranding.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
-                ) : (
-                    <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary font-bold">
-                        {displayBusinessName.charAt(0)}
-                    </div>
-                )}
-                <span className="font-semibold text-gray-900 truncate max-w-[150px] sm:max-w-none">{displayBusinessName}</span>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsSupportOpen(true)} className="text-primary hover:bg-primary/5">
-                  <MessageCircle className="h-5 w-5" />
-              </Button>
-          </div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mx-auto max-w-3xl px-4 py-6 space-y-6"
-      >
-        {/* Status Card */}
-        <Card className="border-0 shadow-lg ring-1 ring-black/5 overflow-hidden">
-            <div className={`h-1.5 w-full ${statusInfo.color.replace('text-', 'bg-').split(' ')[0]}`} />
-            <CardContent className="pt-6 pb-8 px-6 text-center">
-                <div className="mb-6 inline-flex p-3 rounded-full bg-slate-50 ring-1 ring-slate-100 shadow-sm">
-                    <StatusIcon className={`h-8 w-8 ${statusInfo.color.split(' ')[1]}`} />
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">{statusInfo.label}</h1>
-                <p className="text-gray-500 max-w-sm mx-auto leading-relaxed">{statusInfo.description}</p>
-
-                {/* Visual Timeline */}
-                {order.estado !== 'cancelado' && (
-                  <div className="mt-10 px-2 relative">
-                    {/* Progress Bar Background */}
-                    <div className="absolute top-[15px] left-6 right-6 h-1 bg-gray-100 rounded-full -z-10" />
-
-                    {/* Active Progress */}
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.max(0, ((currentStep - 1) / (ORDER_STEPS.length - 1)) * 100)}%` }}
-                        className="absolute top-[15px] left-6 h-1 bg-primary rounded-full -z-10 transition-all duration-1000 ease-out"
-                        style={{ maxWidth: 'calc(100% - 3rem)' }}
-                    />
-
-                    <div className="flex justify-between">
-                      {ORDER_STEPS.map((step, index) => {
-                        const isCompleted = index + 1 <= currentStep;
-                        const isCurrent = index + 1 === currentStep;
-                        const indicatorClasses = [
-                          'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 bg-white',
-                          isCompleted ? 'border-primary text-primary shadow-sm' : 'border-gray-200 text-gray-300',
-                          isCurrent ? 'ring-4 ring-primary/10 scale-110' : '',
-                        ].join(' ');
-                        const labelClasses = [
-                          'text-[8px] sm:text-xs font-semibold uppercase tracking-wide text-center max-w-[50px] sm:max-w-[70px] leading-tight',
-                          isCompleted ? 'text-gray-900' : 'text-gray-400',
-                        ].join(' ');
-
-                        return (
-                          <div key={step.id} className="flex flex-col items-center gap-3">
-                            <div className={indicatorClasses}>
-                                {isCompleted ? (
-                                    <CheckCircle2 className="h-4 w-4" />
-                                ) : (
-                                    <div className="h-2 w-2 rounded-full bg-current" />
-                                )}
-                            </div>
-                            <span className={labelClasses}>
-                                {step.label}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-            </CardContent>
-        </Card>
-
-        {/* Order Details */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Left Column: Items & Total */}
-            <div className="md:col-span-2 space-y-6">
-                <Card className="border-0 shadow-md ring-1 ring-black/5">
-                    <CardHeader className="pb-4 border-b border-gray-50">
-                        <div className="flex justify-between items-center">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <ShoppingBag className="h-5 w-5 text-gray-400" />
-                                Tu Compra
-                            </CardTitle>
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-md text-xs font-medium text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors" onClick={copyToClipboard}>
-                                #{order.nro_pedido}
-                                <Copy className="h-3 w-3" />
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="space-y-6">
-                            {order.detalles.map((item, i) => (
-                                <div key={i} className="flex gap-4 group">
-                                    <div className="h-16 w-16 flex-none rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-300 group-hover:border-primary/20 transition-colors">
-                                        <Package className="h-8 w-8 opacity-50" />
-                                    </div>
-                                    <div className="flex-1 min-w-0 py-1">
-                                        <div className="flex justify-between items-start gap-4">
-                                            <h3 className="text-base font-semibold text-gray-900 truncate pr-2">{item.nombre_producto}</h3>
-                                            <span className="font-semibold text-gray-900 whitespace-nowrap">
-                                                {formatCurrency(item.subtotal_con_descuento, item.moneda)}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm text-gray-500 mt-0.5">
-                                            {item.cantidad} x {formatCurrency(item.precio_unitario_original, item.moneda)}
-                                            {item.sku && <span className="text-xs text-gray-400 ml-2 font-mono">{item.sku}</span>}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <Separator className="my-6" />
-                        <div className="flex justify-between items-baseline">
-                            <span className="text-base font-medium text-gray-500">Total</span>
-                            <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                                {formatCurrency(order.monto_total, 'ARS')}
-                            </span>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Right Column: Info & Actions */}
-            <div className="space-y-6">
-                <Card className="border-0 shadow-md ring-1 ring-black/5 h-fit overflow-hidden">
-                    {canRenderTrackingMap ? (
-                      <div className="h-48 w-full bg-slate-100 relative">
-                          <React.Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500">Cargando mapa...</div>}>
-                            <TrackingMap
-                              status={order.estado}
-                              customerLocation={deliveryPoint}
-                              storeLocation={storePoint}
-                              driverLocation={driverPoint ?? undefined}
-                              showDriverMarker={Boolean(driverPoint)}
-                            />
-                          </React.Suspense>
-                      </div>
-                    ) : null}
-                    <CardHeader className="pb-4 border-b border-gray-50">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <MapPin className="h-5 w-5 text-gray-400" />
-                            Entrega
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6 space-y-4">
-                        <div>
-                            <p className="text-sm text-gray-500 mb-1">Dirección de envío</p>
-                            <p className="font-medium text-gray-900">{displayDeliverySummary}</p>
-                            {isPublicRedacted ? (
-                              <p className="mt-1 text-xs text-gray-500">
-                                Por seguridad, el detalle exacto queda disponible solo en el portal o por soporte autenticado.
-                              </p>
-                            ) : null}
-                        </div>
-                        <Separator className="bg-gray-100" />
-                        <div>
-                             <p className="text-sm text-gray-500 mb-1">Destinatario</p>
-                             <p className="font-medium text-gray-900">{displayCustomerName}</p>
-                             <p className="text-sm text-gray-600">
-                               {displayCustomerPhone || 'Contacto protegido'}
-                             </p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-md ring-1 ring-black/5 bg-gradient-to-br from-primary/5 to-primary/10 overflow-hidden relative">
-                    <div className="absolute -top-6 -right-6 h-24 w-24 bg-primary/10 rounded-full blur-2xl" />
-                    <CardContent className="p-6">
-                        <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                            <HelpCircle className="h-5 w-5 text-primary" />
-                            ¿Necesitás ayuda?
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                            Si tenés dudas sobre tu pedido o querés hacer un cambio, contactanos.
-                        </p>
-                        <Button className="w-full shadow-lg shadow-primary/20" onClick={() => setIsSupportOpen(true)}>
-                            Contactar Soporte
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-      </motion.div>
-
-      {/* Support Dialog */}
-      <Dialog open={isSupportOpen} onOpenChange={setIsSupportOpen}>
-        <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-                <DialogTitle>Soporte al Cliente</DialogTitle>
-                <DialogDescription>
-                    ¿Cómo podemos ayudarte con el pedido <b>#{order.nro_pedido}</b>?
-                </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-                <Button variant="outline" className="h-auto py-4 justify-start px-4 gap-4 hover:bg-slate-50 hover:border-primary/30 transition-all group" onClick={handleOpenChat}>
-                    <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
-                        <MessageCircle className="h-5 w-5" />
-                    </div>
-                    <div className="text-left">
-                        <div className="font-semibold text-gray-900">Chat en Vivo</div>
-                        <div className="text-xs text-gray-500">Habla con un representante ahora</div>
-                    </div>
-                    <ChevronRight className="ml-auto h-4 w-4 text-gray-400" />
-                </Button>
-
-                {/* Only show WhatsApp if configured (simulated check) */}
-                <Button variant="outline" className="h-auto py-4 justify-start px-4 gap-4 hover:bg-slate-50 hover:border-green-500/30 transition-all group" onClick={() => {
-                    // Fallback to chat if no phone, but simulating whatsapp intent
-                    window.open(`https://wa.me/?text=Consulta sobre pedido ${order.nro_pedido}`, '_blank');
-                }}>
-                     <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-100 transition-colors">
-                        <Phone className="h-5 w-5" />
-                    </div>
-                    <div className="text-left">
-                        <div className="font-semibold text-gray-900">WhatsApp</div>
-                        <div className="text-xs text-gray-500">Envíanos un mensaje directo</div>
-                    </div>
-                    <ChevronRight className="ml-auto h-4 w-4 text-gray-400" />
-                </Button>
-
-                <Separator className="my-2 label-separator" />
-
-                <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-700">Dejar un mensaje / Observación</label>
-                    <Textarea
-                        placeholder="Escribe tu consulta o aclaración aquí..."
-                        className="resize-none min-h-[100px]"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                    />
-                    <Button className="w-full" onClick={handleSendMessage} disabled={!message.trim()}>
-                        Enviar Mensaje
-                    </Button>
-                </div>
-            </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+  return <div className="order-workspace min-h-screen bg-background text-foreground" style={style}>
+    <header className="border-b bg-card"><div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 p-4">
+      <div className="flex min-w-0 items-center gap-3">{branding.logo && !logoFailed ? <img src={branding.logo} alt={`Logo de ${businessName}`} className="h-10 max-w-28 object-contain" onError={() => setLogoFailed(true)} /> : <Package aria-hidden="true" className="h-8 w-8 text-primary" />}<span className="font-semibold">{businessName}</span></div>
+      <Button variant="outline" onClick={() => setRevision((v) => v + 1)}><RefreshCw aria-hidden="true" className="mr-2 h-4 w-4" />Actualizar estado</Button>
+    </div></header>
+    <main className="mx-auto max-w-4xl space-y-6 p-4 py-6">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm text-muted-foreground">Seguimiento de compra</p><h1 className="text-2xl font-bold">Pedido #{code}</h1></div><Button variant="outline" onClick={() => void copy()}><Copy aria-hidden="true" className="mr-2 h-4 w-4" />Copiar referencia</Button></div>
+      <OrderLifecycleSummary order={order} />
+      <p className="text-xs text-muted-foreground">La vista muestra la última respuesta recibida. Usá Actualizar estado para consultar cambios; no es una señal de GPS en vivo.</p>
+      <div className="grid gap-6 md:grid-cols-3"><div className="space-y-6 md:col-span-2">
+        <Card><CardHeader><CardTitle>Tu compra</CardTitle></CardHeader><CardContent>
+          {order.detalles.length ? <ul className="divide-y">{order.detalles.map((item, index) => <li key={index} className="flex flex-wrap items-start justify-between gap-3 py-4">
+            <div className="min-w-0"><p className="font-medium">{text(item.nombre_producto) || 'Artículo sin nombre informado'}</p><p className="text-sm text-muted-foreground">{typeof item.cantidad === 'number' && Number.isFinite(item.cantidad) ? `${item.cantidad} unidades` : 'Cantidad no informada'} · {amount(item.precio_unitario_original, item.moneda)}</p>{item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}</div>
+            <strong>{amount(item.subtotal_con_descuento, item.moneda)}</strong>
+          </li>)}</ul> : <p className="text-sm text-muted-foreground">No hay artículos publicados en esta respuesta.</p>}
+          <div className="mt-4 flex flex-wrap justify-between gap-3 border-t pt-4"><span>Total informado</span><strong className="text-xl">{amount(order.monto_total)}</strong></div>
+        </CardContent></Card>
+      </div><div className="space-y-6">
+        <Card><CardHeader><CardTitle>Datos de entrega</CardTitle></CardHeader><CardContent className="space-y-4">
+          {(delivery || store || driver) && <div className="h-52 overflow-hidden rounded-lg"><React.Suspense fallback={<p>Cargando mapa…</p>}><TrackingMap status={order.estado} customerLocation={delivery} storeLocation={store} driverLocation={driver || undefined} showDriverMarker={Boolean(driver)} /></React.Suspense></div>}
+          <div><p className="text-xs text-muted-foreground">Dirección</p><p>{deliverySummary}</p></div>
+          <div><p className="text-xs text-muted-foreground">Destinatario</p><p>{privacy.name ? 'Nombre protegido' : text(order.nombre_cliente) || 'Nombre no informado'}</p><p className="text-sm text-muted-foreground">{privacy.phone ? 'Contacto protegido' : text(order.telefono_cliente) || 'Contacto protegido'}</p></div>
+          {privacy.redacted && <p className="text-xs leading-relaxed text-muted-foreground"><ShieldCheck aria-hidden="true" className="mb-1 h-4 w-4" />Por seguridad, el detalle exacto queda disponible solo en el portal o por soporte autenticado.</p>}
+        </CardContent></Card>
+        <Card><CardHeader><CardTitle>Soporte del comercio</CardTitle></CardHeader><CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">El chat se abre con la referencia de este pedido. No se envía un mensaje automáticamente.</p>
+          {order.tenant_slug ? <Button className="w-full" onClick={openSupport}><MessageCircle aria-hidden="true" className="mr-2 h-4 w-4" />Abrir chat de soporte</Button> : <p className="text-sm">Canal de soporte no informado.</p>}
+        </CardContent></Card>
+      </div></div>
+    </main>
+  </div>;
 }
