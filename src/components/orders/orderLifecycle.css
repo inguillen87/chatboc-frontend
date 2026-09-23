@@ -22,11 +22,11 @@
 [data-reduce-motion="true"] .order-lifecycle-signal { animation: none; }
 @keyframes order-lifecycle-enter { from { opacity: .6; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
-@media (prefers-reduced-motion: reduce) { .order-workspace button, .order-workspace-confirm button { transition: none; transform: none; } .order-workspace .animate-spin { animation: none; } }
-[data-reduce-motion="true"] .order-workspace button, [data-reduce-motion="true"] .order-workspace-confirm button { transition: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { .order-workspace button, .order-workspace-confirm button { transition: none !important; transform: none !important; } .order-workspace .animate-spin { animation: none; } }
+[data-reduce-motion="true"] .order-workspace button, [data-reduce-motion="true"] .order-workspace-confirm button { transition: none !important; transform: none !important; }
 [data-reduce-motion="true"] .order-workspace .animate-spin { animation: none; }
 
 /* The confirmation stays legible while honoring the user's reduced-motion setting. */
-.order-workspace-confirm-description { color: hsl(var(--foreground)); }
-@media (prefers-reduced-motion: reduce) { .order-workspace-confirm { animation: none; transition: none; } }
-[data-reduce-motion="true"] .order-workspace-confirm { animation: none; transition: none; }
+.order-workspace-confirm .order-workspace-confirm-description { color: hsl(var(--foreground)); }
+@media (prefers-reduced-motion: reduce) { .order-workspace-confirm[data-state] { animation: none !important; transition: none !important; } }
+[data-reduce-motion="true"] .order-workspace-confirm[data-state] { animation: none !important; transition: none !important; }
