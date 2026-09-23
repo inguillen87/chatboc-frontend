@@ -1,0 +1,10 @@
+# Deploy application sources; keep local verification and runtime material local.
+.git
+.vercel
+.qa-artifacts
+node_modules
+dist
+playwright-report
+test-results
+.env*
+*.log

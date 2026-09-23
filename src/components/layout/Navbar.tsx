@@ -3,6 +3,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
+  Activity,
   BarChart3,
   Building2,
   ClipboardList,
@@ -16,6 +17,7 @@ import {
   ScrollText,
   ShoppingCart,
   Settings,
+  ShieldCheck,
   Sun,
   Tag,
   Ticket as TicketIcon,
@@ -46,7 +48,7 @@ import { useUser } from "@/hooks/useUser";
 import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getValidStoredToken } from "@/utils/authTokens";
-import { buildTenantPath } from "@/utils/tenantPaths";
+import { buildTenantPath, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
@@ -120,6 +122,12 @@ const Navbar: React.FC = () => {
   const effectiveUser = user ?? storedUser;
 
   const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
+  const contextPath = location.pathname.toLowerCase();
+  const explicitTenantScope = TENANT_ROUTE_PREFIXES.some((prefix) => contextPath.startsWith(`/${prefix}/`)) ||
+    contextPath.startsWith('/portal/') || /^\/[^/]+\/(?:analytics|estadisticas)(?:\/|$)/.test(contextPath) ||
+    ['tenant', 'tenant_slug', 'endpoint'].some((key) => new URLSearchParams(location.search).has(key));
+  const isPlatformRoute = ['/superadmin', '/admin/tenants'].includes(contextPath.replace(/\/+$/, ''));
+  const isPlatformAdmin = isLoggedIn && hasRequiredRole(userRole, ['superadmin']) && (isPlatformRoute || !explicitTenantScope);
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
   const isMunicipal = effectiveUser?.tipo_chat === "municipio";
@@ -129,14 +137,14 @@ const Navbar: React.FC = () => {
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
   const organizationName =
-    String(
+    isPlatformAdmin ? 'ChatBoc · Plataforma' : String(
       effectiveUser?.nombre_empresa ||
         effectiveUser?.tenant?.nombre ||
         effectiveUser?.tenant?.name ||
         effectiveUser?.organization_name ||
         "",
     ).trim() || "Organización";
-  const organizationType = isMunicipal ? "Municipio" : "Empresa";
+  const organizationType = isPlatformAdmin ? 'Superadministrador' : isMunicipal ? "Municipio" : "Empresa";
   const normalizedPlan = String(effectiveUser?.plan || effectiveUser?.tenant?.plan || "").trim().toLowerCase();
   const readablePlanName = normalizedPlan
     .split("_")
@@ -156,6 +164,13 @@ const Navbar: React.FC = () => {
   const userAvatar = resolveConsentedAvatar(effectiveUser as Record<string, unknown> | null | undefined);
 
   const adminLinks = useMemo(() => {
+    if (isPlatformAdmin) return [
+      { to: '/superadmin', label: 'Super Admin', icon: ShieldCheck },
+      { to: '/superadmin?section=organizations', label: 'Organizaciones', icon: Building2 },
+      { to: '/superadmin?section=crm', label: 'CRM comercial', icon: Users },
+      { to: '/superadmin?section=channels', label: 'Canales y WhatsApp', icon: MessageCircle },
+      { to: '/superadmin?section=diagnostics', label: 'Diagnóstico operativo', icon: Activity },
+    ] as AdminNavLink[];
     if (!isAdminLike) {
       return [] as AdminNavLink[];
     }
@@ -233,7 +248,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
+  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole]);
 
   useEffect(() => {
     const currentTheme = safeLocalStorage.getItem("theme");
@@ -309,7 +324,9 @@ const Navbar: React.FC = () => {
   };
 
   const handleLogoClick = () => {
-    if (isLanding) {
+    if (isPlatformAdmin) {
+      window.location.href = '/superadmin';
+    } else if (isLanding) {
       window.scrollTo({ top: 0, behavior: getScrollBehavior() });
     } else {
       window.location.href = "/";
@@ -330,14 +347,14 @@ const Navbar: React.FC = () => {
 
   return (
     <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+      <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
         <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
           className="group flex min-h-11 items-center rounded-lg px-1.5 py-1 transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          aria-label="Ir al inicio de Chatboc"
-          title="Chatboc.ar · Inicio"
+          aria-label={isPlatformAdmin ? 'Ir al panel de ChatBoc' : 'Ir al inicio de Chatboc'}
+          title={isPlatformAdmin ? 'ChatBoc · Super Admin' : 'Chatboc.ar · Inicio'}
         >
           <ChatbocBrandLockup
             size="nav"
@@ -356,7 +373,7 @@ const Navbar: React.FC = () => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          {!isLanding ? (
+          {!isLanding && !isPlatformAdmin ? (
             <RouterLink
               to={cartPath}
               className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
@@ -385,7 +402,7 @@ const Navbar: React.FC = () => {
                     consented={userAvatar.consented}
                     size="sm"
                   />
-                  <span className="hidden font-medium text-foreground md:inline">Mi cuenta</span>
+                  <span className="hidden font-medium text-foreground md:inline">{isPlatformAdmin ? 'Super Admin' : 'Mi cuenta'}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80 p-2">
@@ -396,13 +413,15 @@ const Navbar: React.FC = () => {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        Organización
+                        {isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}
                       </span>
                       <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">{organizationName}</span>
                       <span className="block text-xs text-muted-foreground">{organizationType}</span>
+                      {isPlatformAdmin && effectiveUser?.email ? <span className="mt-1 block break-all text-xs text-muted-foreground">{effectiveUser.email}</span> : null}
                     </span>
                   </span>
                 </DropdownMenuLabel>
+                {!isPlatformAdmin && <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Plan y facturación
@@ -432,6 +451,7 @@ const Navbar: React.FC = () => {
                     Chat en vivo
                   </RouterLink>
                 </DropdownMenuItem>
+                </>}
                 {adminLinks.length > 0 ? (
                   <>
                     <DropdownMenuSeparator />
@@ -445,7 +465,7 @@ const Navbar: React.FC = () => {
                     ))}
                   </>
                 ) : null}
-                {FEATURE_ENCUESTAS ? (
+                {FEATURE_ENCUESTAS && !isPlatformAdmin ? (
                   <DropdownMenuItem asChild>
                     <RouterLink to="/admin/encuestas" className="flex items-center gap-2 text-sm">
                       <BarChart3 className="h-4 w-4" />
@@ -512,7 +532,7 @@ const Navbar: React.FC = () => {
                   </button>
                 ))
               : null}
-            {!isLanding ? (
+            {!isLanding && !isPlatformAdmin ? (
               <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                 <ShoppingCart className="h-4 w-4" />
                 Carrito
@@ -527,10 +547,12 @@ const Navbar: React.FC = () => {
             {isLoggedIn ? (
               <>
                 <div className="mt-1 rounded-lg border border-border/70 bg-muted/25 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Organización</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}</p>
                   <p className="mt-1 truncate text-sm font-semibold text-foreground">{organizationName}</p>
                   <p className="text-xs text-muted-foreground">{organizationType}</p>
+                  {isPlatformAdmin && effectiveUser?.email ? <p className="mt-1 break-all text-xs text-muted-foreground">{effectiveUser.email}</p> : null}
                 </div>
+                {!isPlatformAdmin && <>
                 <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
                   <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plan y facturación</p>
                   <RouterLink
@@ -556,9 +578,10 @@ const Navbar: React.FC = () => {
                     Chat
                   </RouterLink>
                 </div>
+                </>}
                 {adminLinks.length > 0 || FEATURE_ENCUESTAS ? (
                   <div className="mt-2 space-y-2 border-t border-border/60 pt-3">
-                    <p className="px-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground/80">Panel admin</p>
+                    <p className="px-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground/80">{isPlatformAdmin ? 'Gestión de ChatBoc' : 'Panel admin'}</p>
                     <div className="flex flex-col gap-1">
                       {adminLinks.map(({ to, label, icon: Icon }) => (
                         <RouterLink
@@ -571,7 +594,7 @@ const Navbar: React.FC = () => {
                           {label}
                         </RouterLink>
                       ))}
-                      {FEATURE_ENCUESTAS ? (
+                      {FEATURE_ENCUESTAS && !isPlatformAdmin ? (
                         <RouterLink
                           to="/admin/encuestas"
                           onClick={() => setMenuOpen(false)}

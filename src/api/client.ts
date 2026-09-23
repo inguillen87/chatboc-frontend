@@ -1063,7 +1063,7 @@ export const apiClient = {
   // --- Super Admin Methods ---
 
   superAdminListTenants: async (page = 1, perPage = 20): Promise<{ tenants: Tenant[], total: number }> => {
-    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`);
+    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`, { omitTenant: true });
   },
 
   superAdminCreateTenant: async (data: CreateTenantDTO): Promise<Tenant> => {
@@ -1151,7 +1151,7 @@ export const apiClient = {
     if (filters?.tenant_slug) params.append('tenant_slug', filters.tenant_slug);
     if (filters?.prefix) params.append('prefix', filters.prefix);
     const suffix = params.toString();
-    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`);
+    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`, { omitTenant: true });
   },
 
   superAdminCreateWhatsappNumber: async (payload: WhatsappNumberCreatePayload): Promise<any> => {

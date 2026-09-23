@@ -30,6 +30,7 @@ import {
   persistChatbocSession,
 } from '@/utils/clerkSession';
 import { getSafeAuthNextPath } from '@/utils/authRedirect';
+import { hasRequiredRole } from '@/utils/roles';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { resolveTenantSlug } from '@/utils/api';
 import {
@@ -297,7 +298,9 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
         const destination = authContext.returnTo || (
           authContext.intent === 'tenant_portal'
             ? buildTenantPath('/portal/dashboard', tenantSlug || undefined)
-            : '/perfil'
+            : hasRequiredRole(session.user?.rol || session.user?.role, ['superadmin'])
+              ? '/superadmin'
+              : '/perfil'
         );
         clearClerkAuthContext();
         if (isAuthEntryPath(pathnameRef.current) || authContext.returnTo) {

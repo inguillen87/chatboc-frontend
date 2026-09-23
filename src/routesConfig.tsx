@@ -15,7 +15,7 @@ const DisabilityAIAgentDemoPage = React.lazy(
   () => import('@/pages/public/DisabilityAIAgentDemoPage'),
 );
 const DemoCatalogDownloadPage = React.lazy(() => import('@/pages/DemoCatalogDownloadPage'));
-const Perfil = React.lazy(() => import('@/pages/Perfil'));
+const Perfil = React.lazy(() => import('@/components/access/ProfileEntry'));
 const UserAccount = React.lazy(() => import('@/pages/UserAccount'));
 const ChatPage = React.lazy(() => import('@/pages/ChatPage'));
 const Checkout = React.lazy(() => import('@/pages/Checkout'));
