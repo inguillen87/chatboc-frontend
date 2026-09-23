@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commercialKey, type CommercialLead } from './commercialFollowUp';
-import { buildCommercialInsights, commercialActivity, commercialActivityTimestamp, queryCommercialLeads } from './commercialInsights';
+import { buildCommercialInsights, commercialActivity, commercialActivityTimestamp, queryCommercialLeads } from './commercialInsightsModel';
 const now = Date.parse('2026-09-23T18:00:00Z');
 const lead = (id: string, stage: string, lastSeen: string | null, name = 'José'): CommercialLead => {
   const identity = { tenantSlug: 'org-a', ticketType: 'municipio' as const, ticketId: id };

@@ -8,7 +8,7 @@ import { COMMERCIAL_STAGES, STAGE_LABELS, downloadCommercialCsv, stageLabel,
 import { CommercialLeadEditor, commercialDateLabel, type EditorLock } from './CommercialLeadEditor';
 import { CommercialInsights } from './CommercialInsights';
 import { CommercialKanban } from './CommercialKanban';
-import { queryCommercialLeads, type CommercialAttention, type CommercialSort } from './commercialInsights';
+import { queryCommercialLeads, type CommercialAttention, type CommercialSort } from './commercialInsightsModel';
 import './commercialFollowUp.css';
 
 interface Props { tenant: { slug: string; nombre: string }; onClose: () => void; returnFocus?: HTMLElement | null }
