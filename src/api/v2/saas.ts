@@ -1,3 +1,4 @@
+import { assertInboxTenantEnvelope } from '@/components/tickets/inbox/inboxWorkspaceModel';
 import { panelApi } from '@/api/v2/client';
 import {
   parseWhatsappWorkflowStudioContract,
@@ -1299,9 +1300,10 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
     const record = asRecord(item);
     const actorRecord = asRecord(record.actor);
     const rawType = asString(getFirst(record, ['type', 'event_type', 'kind'])) ?? '';
-    const content = getFirst(record, ['content', 'text', 'message', 'mensaje', 'comentario', 'preview_text']);
+    const eventPayload = asRecord(record.payload);
+    const content = getFirst(record, ['content', 'text', 'message', 'mensaje', 'comentario', 'preview_text']) ?? getFirst(eventPayload, ['content', 'text', 'message']);
     const type: OmnichannelTimelineEvent['type'] =
-      rawType === 'assignment_changed'
+      rawType === 'message_created' ? 'message_created' : rawType === 'status_changed' ? 'status_changed' : rawType === 'assignment_changed'
         ? 'assignment_changed'
         : rawType === 'presence_changed'
           ? 'presence_changed'
@@ -1323,7 +1325,7 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
       id: asString(getFirst(record, ['id', 'event_id', 'message_id'])) ?? `${ticketId}:event:${index + 1}`,
       ticket_id: ticketId,
       type,
-      timestamp: asString(getFirst(record, ['timestamp', 'created_at', 'date', 'fecha'])) ?? new Date().toISOString(),
+      timestamp: asString(getFirst(record, ['timestamp', 'created_at', 'date', 'fecha'])) ?? '',
       actor: {
         id: asString(getFirst(actorRecord, ['id', 'user_id'])) ?? asString(record.actor_id) ?? 'system',
         type: actorType,
@@ -1331,9 +1333,10 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
       },
       payload: {
         ...record,
+        ...eventPayload,
         content,
-        new_status: getFirst(record, ['new_status', 'status', 'estado']),
-        new_assignee_name: getFirst(record, ['new_assignee_name', 'assignee_name']),
+        new_status: getFirst(record, ['new_status', 'status', 'estado']) ?? getFirst(eventPayload, ['new_status', 'status', 'estado']),
+        new_assignee_name: getFirst(record, ['new_assignee_name', 'assignee_name']) ?? getFirst(eventPayload, ['new_assignee_name', 'assignee_name']),
       },
     };
   });
@@ -1627,7 +1630,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     category: asString(getFirst(value, ['category', 'categoria'])),
     intent: asString(getFirst(value, ['intent', 'intencion', 'intent_id'])),
     sensitivity: asString(getFirst(value, ['sensitivity', 'priority', 'prioridad'])),
-    lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? new Date().toISOString(),
+    lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? '',
     unreadCount: asNumber(getFirst(value, ['unread_count', 'unreadCount'])) ?? 0,
     assignee: value.assignee ? asRecord(value.assignee) : undefined,
     contact: Object.keys(contact).length ? contact : undefined,
@@ -2335,6 +2338,7 @@ export const getNotificationDeliveryStatusV2 = async (tenantSlug?: string | null
 
 export const getOmnichannelInboxV2 = async (tenantSlug?: string | null) => {
   const response = await panelApi.get<unknown>('/api/v2/inbox/omnichannel', { tenantSlug });
+  assertInboxTenantEnvelope(response, tenantSlug);
   return normalizeOmnichannelInboxV2(response);
 };
 
@@ -2344,11 +2348,17 @@ export const getOmnichannelInboxDetailV2 = async (
   detailEndpoint?: string | null,
 ) => {
   const encodedTicketId = encodeURIComponent(String(ticketId));
-  const endpoint = detailEndpoint && detailEndpoint.startsWith('/')
-    ? detailEndpoint
-    : `/api/v2/inbox/omnichannel/${encodedTicketId}`;
+  if (detailEndpoint) {
+    let decoded: string;
+    try { decoded = decodeURIComponent(detailEndpoint); } catch { throw new ApiError('Ruta de detalle inválida.', 400); }
+    if (!decoded.startsWith('/api/') || /[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.split(/[/?#]/).includes('..')) throw new ApiError('Ruta de detalle inválida.', 400);
+  }
+  const endpoint = detailEndpoint || `/api/v2/inbox/omnichannel/${encodedTicketId}`;
   const response = await panelApi.get<unknown>(endpoint, { tenantSlug });
-  return normalizeOmnichannelInboxDetailV2(response);
+  assertInboxTenantEnvelope(response, tenantSlug);
+  const result = normalizeOmnichannelInboxDetailV2(response);
+  if (result.item.id !== String(ticketId)) throw new ApiError("El detalle no corresponde a esta conversación.", 502);
+  return result;
 };
 
 const IDEMPOTENT_OMNICHANNEL_ACTION_IDS = new Set([
@@ -2542,5 +2552,10 @@ export const postOmnichannelInboxActionV2 = async (
       );
     }
   }
+  assertInboxTenantEnvelope(response, tenantSlug);
+  const receipt = asRecord(getSource(response));
+  const candidate = asRecord(getFirst(receipt, ['ticket', 'item', 'conversation']) ?? receipt);
+  const receiptId = asString(getFirst(candidate, ['id', 'ticket_id', 'conversation_id']));
+  if (!receiptId || receiptId !== ticketId) throw new ApiError('El servidor no confirmó la acción para esta conversación.', 502);
   return normalizeOmnichannelInboxActionV2(response, ticketId);
 };

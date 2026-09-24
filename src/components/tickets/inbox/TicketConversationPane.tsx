@@ -1,3 +1,5 @@
+import { assertInboxTenantEnvelope, validInboxTenant } from './inboxWorkspaceModel';
+import './inboxWorkspace.css';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Image as ImageIcon, MapPin, MessageCircle, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
@@ -37,11 +39,13 @@ import { TimelineMergeView } from './TimelineMergeView';
 
 const LazyTicketMap = React.lazy(() => import('@/components/TicketMap'));
 
+export interface InboxWorkState { dirty: boolean; busy: boolean }
 interface TicketConversationPaneProps {
   ticketId?: string;
   ticket?: OmnichannelInboxItem;
   tenantSlug?: string | null;
   onActionComplete?: () => void;
+  onWorkStateChange?: (state: InboxWorkState) => void;
 }
 
 const asText = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
@@ -59,7 +63,7 @@ const readInboxLocationPoint = (location?: Record<string, unknown>) => {
   if (!location) return null;
   const lat = asFiniteNumber(location.latitud ?? location.lat ?? location.latitude);
   const lng = asFiniteNumber(location.longitud ?? location.lng ?? location.lon ?? location.longitude);
-  if (lat === null || lng === null) return null;
+  if (lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
 };
 
@@ -252,11 +256,13 @@ function SafeInboxImage({ src, alt }: { src?: string | null; alt: string }) {
   );
 }
 
-export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
+export const TicketConversationPane: React.FC<TicketConversationPaneProps> = props => <TicketConversationSession key={JSON.stringify([props.tenantSlug, props.ticketId, props.ticket?.detail_endpoint])} {...props} />;
+const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   ticketId,
   ticket,
   tenantSlug,
   onActionComplete,
+  onWorkStateChange,
 }) => {
   const queryClient = useQueryClient();
   const detailQueryKey = inboxDetailQueryKey(tenantSlug, ticketId, ticket?.detail_endpoint);
@@ -275,9 +281,16 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     delivery: OmnichannelActionDelivery;
   } | null>(null);
   const replyAttemptRef = useRef<ReplyAttempt | null>(null);
+  const actionLock = useRef(false);
+  const hydratedDraftKey = useRef<string | null>(null);
+  const [draftBaseline, setDraftBaseline] = useState('');
+  const [accessRevoked, setAccessRevoked] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
   const activeScopeRef = useRef(activeScopeKey);
   activeScopeRef.current = activeScopeKey;
   const draft = draftState?.scopeKey === activeScopeKey ? draftState.value : '';
+  const draftValueRef = useRef(draft); draftValueRef.current = draft;
+  useEffect(() => () => { activeScopeRef.current = 'disposed'; }, []);
   const draftSavedAt = draftState?.scopeKey === activeScopeKey ? draftState.savedAt : null;
   const setDraft = (value: string) => {
     setDraftState((current) => ({
@@ -298,12 +311,19 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     : null;
   const detailQuery = useQuery({
     queryKey: detailQueryKey,
-    queryFn: () => getOmnichannelInboxDetailV2(ticketId!, tenantSlug, ticket?.detail_endpoint),
-    enabled: Boolean(ticketId),
+    queryFn: async () => {
+      const response = await getOmnichannelInboxDetailV2(ticketId!, tenantSlug, ticket?.detail_endpoint);
+      assertInboxTenantEnvelope(response.raw, tenantSlug);
+      assertInboxTenantEnvelope(response.item, tenantSlug);
+      if (response.item.id !== ticketId) throw new ApiError('La respuesta no corresponde a esta conversación.', 502);
+      return response;
+    },
+    enabled: Boolean(ticketId) && validInboxTenant(tenantSlug),
     retry: 0,
     staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
-  const detailTicket = detailQuery.data?.item ?? ticket;
+  const detailTicket = !detailQuery.isError && !accessRevoked ? detailQuery.data?.item : undefined;
 
   const actionMutation = useMutation({
     mutationFn: ({ action, payload, scope }: InboxActionVariables) => {
@@ -313,6 +333,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
       const updatedTicket = result.ticket;
       const delivery = result.delivery ?? null;
       const isCurrentScope = activeScopeRef.current === variables.scope.key;
+      assertInboxTenantEnvelope(updatedTicket, variables.scope.tenantSlug);
       const responseMatchesTicket = updatedTicket.id === variables.scope.ticketId;
       if (responseMatchesTicket) {
         queryClient.setQueryData(variables.scope.detailQueryKey, (previous: unknown) => ({
@@ -326,10 +347,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           refetchType: 'active',
         });
       }
-      if (!isCurrentScope) {
-        onActionComplete?.();
-        return;
-      }
+      if (!isCurrentScope || activeScopeRef.current !== variables.scope.key) return;
       setLastDeliveryState(
         responseMatchesTicket && delivery
           ? { scopeKey: variables.scope.key, delivery }
@@ -341,7 +359,8 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
       ) {
         replyAttemptRef.current = null;
       }
-      if (variables.action === 'reply' && responseMatchesTicket) {
+      if (variables.action === 'reply' && responseMatchesTicket && draftValueRef.current.trim() === variables.payload?.message) {
+        setDraftBaseline('');
         setDraft('');
         setDraftSavedAt(null);
         if (variables.scope.draftStorageKey) {
@@ -369,6 +388,11 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     },
     onError: (error, variables) => {
       if (activeScopeRef.current !== variables.scope.key) return;
+      if ([401, 403, 404].includes(Number((error as {status?: number})?.status))) {
+        setAccessRevoked(true); setDraft(''); setDraftBaseline('');
+        if (variables.scope.draftStorageKey) { try { window.localStorage.removeItem(variables.scope.draftStorageKey); } catch {} }
+        queryClient.removeQueries({queryKey: variables.scope.detailQueryKey, exact: true});
+      }
       if (
         variables.action === 'reply' &&
         !isAmbiguousActionError(error) &&
@@ -382,6 +406,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         variant: 'destructive',
       });
     },
+    onSettled: () => { actionLock.current = false; },
   });
 
   const draftStorageKey = detailTicket?.id
@@ -394,20 +419,28 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   }, [activeScopeKey]);
 
   useEffect(() => {
-    if (!draftStorageKey) {
-      setDraft(detailTicket?.suggested_reply ?? '');
-      setDraftSavedAt(null);
-      return;
-    }
+    if (!draftStorageKey || hydratedDraftKey.current === draftStorageKey) return;
+    hydratedDraftKey.current = draftStorageKey;
     let storedDraft: string | null = null;
     try {
       storedDraft = window.localStorage.getItem(draftStorageKey);
     } catch {
       storedDraft = null;
     }
-    setDraft(storedDraft ?? detailTicket?.suggested_reply ?? '');
+    const initial = storedDraft ?? detailTicket?.suggested_reply ?? '';
+    setDraft(initial); setDraftBaseline(initial);
     setDraftSavedAt(storedDraft ? 'guardado local' : null);
   }, [detailTicket?.id, detailTicket?.suggested_reply, draftStorageKey]);
+
+  useEffect(() => {
+    onWorkStateChange?.({dirty: draft.trim() !== draftBaseline.trim(), busy: actionMutation.isPending});
+  }, [draft, draftBaseline, actionMutation.isPending, onWorkStateChange]);
+  useEffect(() => () => onWorkStateChange?.({dirty:false,busy:false}), [onWorkStateChange]);
+  useEffect(() => {
+    if (!detailQuery.isError || ![401,403,404].includes(Number((detailQuery.error as {status?:number})?.status))) return;
+    setDraft(''); setDraftBaseline('');
+    try { window.localStorage.removeItem(`chatboc:omnichannel-draft:${normalizeInboxTenantScope(tenantSlug)}:${ticketId}`); } catch {}
+  }, [detailQuery.isError, detailQuery.error]);
 
   const contactLabel = useMemo(() => {
     const contact = detailTicket?.contact ?? {};
@@ -415,12 +448,15 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   }, [detailTicket]);
 
   const handleAction = (action: SaasAction) => {
+    if (actionLock.current || detailQuery.isFetching || !detailTicket || action.disabled) return;
     if (action.href) {
       window.open(action.href, '_blank', 'noopener,noreferrer');
       return;
     }
     const actionName = action.type ?? action.id;
     if (!actionName || !ticketId) return;
+    actionLock.current = true;
+    onWorkStateChange?.({dirty:draft.trim()!==draftBaseline.trim(),busy:true});
     actionMutation.mutate({
       action: actionName,
       payload: {
@@ -442,8 +478,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
 
   const handleReply = () => {
     const message = draft.trim();
-    if (!message || !ticketId) return;
+    if (!message || !ticketId || actionLock.current || detailQuery.isFetching || !detailTicket) return;
     const replyAction = detailTicket?.allowed_actions?.find((action) => action.id === 'reply');
+    if (!replyAction || replyAction.disabled) return;
     const replyDefaults =
       replyAction?.payload && typeof replyAction.payload === 'object' && !Array.isArray(replyAction.payload)
         ? (replyAction.payload as Record<string, unknown>)
@@ -469,6 +506,8 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
       }
       replyAttemptRef.current = replyAttempt;
     }
+    actionLock.current = true;
+    onWorkStateChange?.({dirty:draft.trim()!==draftBaseline.trim(),busy:true});
     actionMutation.mutate({
       action: 'reply',
       payload: {
@@ -494,6 +533,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     if (!message || !draftStorageKey) return;
     try {
       window.localStorage.setItem(draftStorageKey, message);
+      setDraftBaseline(message);
       setDraftSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       toast({ title: 'Borrador guardado', description: 'Queda disponible en este dispositivo.' });
     } catch {
@@ -511,6 +551,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   const readSuggestionText = (item: ChatExperienceBlock) =>
     item.text?.trim() || item.label?.trim() || item.title?.trim() || '';
 
+  if (!validInboxTenant(tenantSlug)) return <ViewState status="partial" description="La organización todavía no está confirmada." />;
+  if (ticketId && (detailQuery.isError || accessRevoked)) return <ViewState status="error" title="Conversación no disponible" description="No se pudo verificar el detalle. Se retiraron los datos anteriores y no se habilitan acciones." action={<Button variant="outline" onClick={async()=>{const result=await detailQuery.refetch();if(!result.isError)setAccessRevoked(false);}}>Reintentar detalle</Button>} />;
+  if (ticketId && detailQuery.isPending) return <ViewState status="loading" description="Verificando conversación…" />;
   if (!ticketId || !detailTicket) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/10 text-muted-foreground">
@@ -520,8 +563,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   }
 
   const publishedActions = detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions;
+  const replyAllowed = Array.isArray(detailTicket.allowed_actions) && detailTicket.allowed_actions.some(action=>action.id==='reply'&&!action.disabled);
   const handoffActions = publishedActions.filter(isAiHandoffAction);
-  const visibleActions = publishedActions.filter((action) => !isAiHandoffAction(action)).filter((action) => {
+  const visibleActions = publishedActions.filter((action) => action.id !== 'reply' && !isAiHandoffAction(action)).filter((action) => {
     const required = action.requires ?? [];
     if (!required.length) return true;
     const payload = action.payload && typeof action.payload === 'object' && !Array.isArray(action.payload)
@@ -583,7 +627,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   ].filter((tile): tile is { icon: React.ElementType; label: string; value: string } => Boolean(tile));
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-background">
+    <div className="inbox-conversation-content relative flex h-full w-full flex-col bg-background">
       <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b bg-card/50 px-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -606,6 +650,9 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         <PresenceAvatars users={detailTicket.presence} />
       </div>
 
+      <div className="inbox-case-scroll min-h-0 flex-1 overflow-y-auto" role="region" aria-label="Historial y contexto del caso" tabIndex={0}>
+      <details className="inbox-case-context" open={contextOpen} onToggle={event=>setContextOpen(event.currentTarget.open)}>
+        <summary>Contexto, compromisos y acciones del caso</summary>
       {statusTiles.length ? (
         <div className="grid gap-3 border-b bg-muted/10 px-4 py-3 text-xs md:grid-cols-4">
           {statusTiles.map((tile) => (
@@ -690,7 +737,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
               size="sm"
               type="button"
               variant="outline"
-              disabled={action.disabled || actionMutation.isPending}
+              disabled={action.disabled || actionMutation.isPending || detailQuery.isFetching}
               onClick={() => handleAction(action)}
             >
               {action.label}
@@ -707,7 +754,8 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         </div>
       ) : null}
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+      </details>
+      <div className="space-y-4 p-4">
         {directPhotoUrl || attachments.length ? (
           <EvidencePanel photoUrl={directPhotoUrl} attachments={attachments} />
         ) : null}
@@ -744,6 +792,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         )}
       </div>
 
+      </div>
       <div className="flex shrink-0 flex-col gap-2 border-t bg-background p-3">
         {detailTicket.suggested_reply ? (
           <AgentSuggestionBox
@@ -802,11 +851,14 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         <div className="flex flex-col gap-2">
           <Textarea
             value={draft}
+            aria-label="Respuesta al contacto"
+            disabled={actionMutation.isPending}
             placeholder="Escribe una respuesta..."
             className="min-h-[80px] resize-none text-sm"
             onChange={(event) => setDraft(event.target.value)}
           />
-          <div className="flex items-center justify-end gap-2">
+          {!replyAllowed && <p className="text-xs text-muted-foreground">El servidor no habilitó el envío de respuestas para este caso.</p>}
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {draftSavedAt ? <span className="mr-auto text-xs text-muted-foreground">Borrador {draftSavedAt}</span> : null}
             <Button
               variant="outline"
@@ -822,7 +874,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
               size="sm"
               className="h-8 gap-1.5"
               type="button"
-              disabled={!draft.trim() || actionMutation.isPending}
+              disabled={!draft.trim() || actionMutation.isPending || detailQuery.isFetching || !replyAllowed}
               onClick={handleReply}
             >
               Enviar mensaje <Send className="h-3.5 w-3.5" />
