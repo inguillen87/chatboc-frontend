@@ -1,3 +1,4 @@
+import { inboxActivityTime } from './inboxWorkspaceModel';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
@@ -10,11 +11,14 @@ interface TicketListPaneProps {
   tickets: OmnichannelInboxItem[];
   selectedTicketId?: string;
   onSelect: (id: string) => void;
+  disabled?: boolean;
 }
 
 const formatRelativeTime = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  const time = inboxActivityTime(value);
+  if (time === null) return 'Fecha no informada';
+  if (time > Date.now()) return 'Fecha por verificar';
+  const date = new Date(time);
   return formatDistanceToNow(date, { addSuffix: true, locale: es });
 };
 
@@ -39,16 +43,16 @@ const liveChatClassName = (state?: string) => {
   return 'border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200';
 };
 
-export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect }) => {
+export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect, disabled = false }) => {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden border-r bg-background">
       <div className="shrink-0 border-b p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Inbox 360</h2>
-            <p className="text-xs text-muted-foreground">Lista desde inbox.omnichannel.v1</p>
+            <p className="text-xs text-muted-foreground">Conversaciones de los canales conectados</p>
           </div>
-          <Badge variant="secondary">{tickets.length} activos</Badge>
+          <Badge variant="secondary">{tickets.length} cargadas</Badge>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
@@ -65,17 +69,16 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
               return (
                 <li
                   key={ticket.id}
-                  onClick={() => onSelect(ticket.id)}
                   className={`flex cursor-pointer flex-col gap-2 border-l-4 p-4 transition-colors hover:bg-muted/50 ${
                     selectedTicketId === ticket.id ? 'border-l-primary bg-muted' : 'border-l-transparent'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <button id={`inbox-case-${ticket.id}`} type="button" disabled={disabled} onClick={() => onSelect(ticket.id)} aria-pressed={selectedTicketId === ticket.id} aria-label={`Abrir conversación: ${ticket.title}`} className="inbox-ticket-select flex w-full items-start justify-between gap-2 text-left">
                     <span className="min-w-0 truncate text-sm font-medium">{ticket.title}</span>
                     <span className="mt-0.5 shrink-0 text-[10px] text-muted-foreground">
                       {formatRelativeTime(ticket.lastMessageAt)}
                     </span>
-                  </div>
+                  </button>
                   {ticket.description ? (
                     <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{ticket.description}</p>
                   ) : null}
@@ -105,7 +108,7 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
                       </Badge>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
+                  <div className="inbox-ticket-metadata flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                     <TicketSlaClocks sla={ticket.sla} compact />
                     <span className="flex items-center gap-1 rounded-[8px] border bg-background px-2 py-1">
                       <MapPin className="h-3 w-3 text-primary" />

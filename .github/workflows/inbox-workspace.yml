@@ -1,0 +1,50 @@
+name: Omnichannel inbox workspace
+"on":
+  pull_request:
+    paths:
+      - src/components/tickets/inbox/**
+      - src/components/admin/TenantAdminOperatingSystem.tsx
+      - src/api/v2/saas.ts
+      - src/api/v2/saas.inbox*.test.ts
+      - tests/inbox-workspace.browser.mjs
+      - tests/e2e/fixtures/inbox-workspace.*
+      - .github/workflows/inbox-workspace.yml
+permissions:
+  contents: read
+concurrency:
+  group: inbox-workspace-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  inbox:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Full regression
+        run: |
+          mkdir -p .vercel/inbox-evidence
+          npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=.vercel/inbox-evidence/vitest.json
+      - name: Production compilation
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Responsive and guarded inbox flows
+        run: node tests/inbox-workspace.browser.mjs
+      - name: Test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: inbox-workspace-evidence
+          path: .vercel/inbox-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
