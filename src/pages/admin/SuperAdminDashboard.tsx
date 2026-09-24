@@ -18,6 +18,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { useSocket } from "@/context/SocketContext";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
+import SuperadminFollowUpQueue from "@/features/crm/followup/SuperadminFollowUpQueue";
 import ProductionSmokeReport from "@/components/admin/ProductionSmokeReport";
 import { enterpriseService } from "@/services/enterpriseService";
 import { OrganizationDirectory } from "@/components/admin/platform/OrganizationDirectory";
@@ -325,6 +326,7 @@ export default function SuperAdminDashboard() {
 
       </>}
       {section === 'crm' && <>
+        <SuperadminFollowUpQueue />
         <section className="platform-panel"><div className="platform-panel-heading"><div><h2>Contactos recientes</h2><p>Selección de hasta 8 contactos recibidos, ordenados por prioridad comercial. No es el total del CRM.</p></div><Button variant="outline" disabled={crmLeadsLoading} onClick={() => void fetchCrmLeads()}>Actualizar contactos</Button></div>
           <p className="platform-note">{isConnected ? 'Conexión de eventos activa.' : 'Actualización en vivo desconectada. Podés actualizar manualmente.'}{crmRealtimeAt ? ` Última señal recibida: ${dateLabel(crmRealtimeAt)}.` : ''}</p>
           {crmLeadsLoading ? <div className="platform-empty">Cargando contactos…</div> : crmError ? <div className="platform-empty" role="alert">{crmError}</div> : !crmLeads.length ? <div className="platform-empty">No hay contactos en esta selección.</div> : <div className="platform-panel-body platform-contact-grid">{crmLeads.map((lead, index) => <article className="platform-contact" key={lead.contact_id || index}><div className="flex items-start justify-between gap-3"><h3>{lead.name || lead.phone || lead.telefono || lead.email || 'Contacto sin nombre'}</h3><span className="platform-plan">{{ hot: 'Prioridad alta', warm: 'En seguimiento', cold: 'Contacto inicial' }[lead.lead_temperature] || 'Sin clasificación'}</span></div><p className="mt-1">{lead.phone || lead.telefono || lead.email || 'Sin canal informado'}</p><p className="mt-3">{leadSummary(lead)}</p><p className="mt-3">{lead.tenant?.nombre || lead.tenant?.slug || 'Organización no informada'} · {dateLabel(lead.last_seen)}</p>{lead.tenant?.slug && <Button variant="ghost" size="sm" className="mt-3" onClick={() => openProfile(lead.tenant.slug)}>Ver organización<ArrowUpRight className="ml-2 h-4 w-4" /></Button>}</article>)}</div>}
