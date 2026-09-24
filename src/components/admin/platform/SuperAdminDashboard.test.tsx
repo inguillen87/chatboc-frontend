@@ -40,13 +40,15 @@ describe('SuperAdminDashboard workspace', () => {
     expect(await screen.findByRole('button', { name: 'Municipio Río' })).toBeInTheDocument();
     expect(mocks.profile).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('link', { name: 'CRM' }));
-    expect(await screen.findByText('Contacto QA')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Contacto QA' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('section=crm');
     expect(screen.getByText('Conversación iniciada; sin motivo registrado.')).toBeInTheDocument();
     expect(screen.queryByText('__INIT__')).not.toBeInTheDocument();
     expect(screen.getByText('Pipeline existente')).toBeInTheDocument();
     expect(screen.getByText(/Actualización en vivo desconectada/)).toBeInTheDocument();
     expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=8', { omitTenant: true });
+    expect(screen.getByRole('region', { name: 'Agenda de próximos contactos' })).toBeVisible();
+    await waitFor(() => expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=100', { omitTenant: true, persistTenantSlug: false }));
     fireEvent.click(screen.getByRole('link', { name: 'Canales' }));
     expect(screen.getByText('Inventario existente')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Nueva organización' }));
@@ -105,7 +107,7 @@ describe('SuperAdminDashboard workspace', () => {
   });
   it('keeps the newest CRM refresh when event responses arrive out of order', async () => {
     mount('/superadmin?section=crm');
-    await screen.findByText('Contacto QA');
+    await screen.findByRole('heading', { name: 'Contacto QA' });
     const older = deferred<any>(); const newer = deferred<any>();
     mocks.crm.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
     act(() => { mocks.listeners.get('crm.contact.updated')?.(); mocks.listeners.get('crm.contact.updated')?.(); });
