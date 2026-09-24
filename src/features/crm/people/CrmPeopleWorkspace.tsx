@@ -75,6 +75,7 @@ import {
   type CrmContactCase,
 } from "./useCrmContactHistory";
 import CrmPersonRecordRibbon from "./CrmPersonRecordRibbon";
+import { ContactTasksEntry } from "@/features/crm/tasks/ContactTasks";
 import { ContactFollowUpButton } from "@/features/crm/followup/ContactFollowUpDialog";
 import {
   buildCrmOperationalSummary,
@@ -1189,6 +1190,7 @@ export default function CrmPeopleWorkspace({
                         {tenantSlug && selectedPerson.contactId && !selectedPerson.piiMasked && !selectedPerson.possibleDuplicate && (
                           <ContactFollowUpButton key={JSON.stringify([tenantSlug,selectedPerson.contactId])} identity={{tenantSlug,contactId:selectedPerson.contactId}} onSaved={() => void contactHistory.refetch()} />
                         )}
+                        {tenantSlug && selectedPerson.contactId && !selectedPerson.piiMasked && !selectedPerson.possibleDuplicate && <ContactTasksEntry key={JSON.stringify([tenantSlug,selectedPerson.contactId])} identity={{tenantSlug,contactId:selectedPerson.contactId}} />}
                         <RecordNavigator
                           currentIndex={selectedVisibleIndex}
                           total={visiblePeople.length}
