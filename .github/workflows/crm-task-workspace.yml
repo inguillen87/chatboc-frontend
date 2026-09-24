@@ -1,0 +1,44 @@
+name: CRM task workspace contracts
+"on":
+  pull_request:
+    paths:
+      - src/features/crm/tasks/**
+      - src/features/crm/people/CrmPeopleWorkspace*
+      - tests/crm-tasks-full.browser.mjs
+      - tests/e2e/fixtures/crm-tasks.*
+      - .github/workflows/crm-task-workspace.yml
+permissions:
+  contents: read
+concurrency:
+  group: crm-task-workspace-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Full application regression
+        run: |
+          mkdir -p .vercel/tasks-evidence
+          npm test -- --maxWorkers=2 --reporter=json --outputFile=.vercel/tasks-evidence/vitest.json
+      - name: Production build
+        run: npm run build
+      - name: Test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: crm-task-workspace-evidence
+          path: .vercel/tasks-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

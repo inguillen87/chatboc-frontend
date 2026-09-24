@@ -7,9 +7,11 @@ import CrmPeopleWorkspace, { type CrmPeopleRecord } from "./CrmPeopleWorkspace";
 import { CRM_CONTACT_CASES_CONTRACT_VERSION } from "./useCrmContactHistory";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
+const taskCapabilityMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/api", () => ({
-  apiFetch: apiFetchMock,
+  apiFetch: (path: string, ...args: unknown[]) => path.endsWith('/crm/tasks/capabilities')
+    ? taskCapabilityMock(path,...args) : apiFetchMock(path,...args),
   getErrorMessage: (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback,
 }));
 
@@ -122,6 +124,7 @@ const Harness = ({
 
 describe("CrmPeopleWorkspace", () => {
   beforeEach(() => {
+  taskCapabilityMock.mockReset().mockResolvedValue({contract_version:'crm.tasks.v1',tenant_slug:'junin',available:false});
     apiFetchMock.mockReset();
     apiFetchMock.mockResolvedValue({ interactions: [] });
   });
