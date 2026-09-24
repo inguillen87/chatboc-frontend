@@ -1,3 +1,5 @@
+import { resolveTerritorialTicketIdentity } from '@/utils/territorialTicketIdentity';
+import { assertHeatmapScope, assertHeatmapRecordScopes, isHeatmapRedacted, protectHeatmapPrivacy, mergeHeatmapHubPayload } from '@/features/analytics/heatmapBoundary';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
 import {
@@ -406,6 +408,10 @@ export interface AnalyticsHeatmapLocationQuality {
 }
 
 export interface AnalyticsHeatmapResponse {
+  tenant_slug?: string;
+  tenant_id?: number | string;
+  raw_points_redacted?: boolean;
+  privacy_mode?: string;
   contract_version?: string;
   request_id?: string;
   points: AnalyticsHeatmapPoint[];
@@ -796,9 +802,13 @@ const normalizeHeatPoint = (
   const distritoRaw = pickString(point.distrito, point.district, point.zone, point.zona, metadata.distrito, metadata.district, metadata.zone);
   const sourceRaw = pickString(point.source, point.fuente, point.origin, ticket.source, metadata.source, metadata.fuente);
   const actions = normalizeHeatmapActions(point.actions);
+  const identity = resolveTerritorialTicketIdentity(point);
 
   return {
     ...(typeof point.id === 'string' || typeof point.id === 'number' ? { id: point.id } : {}),
+    ...(identity.status === 'valid' ? { source_model: identity.identity.sourceModel, ticket_id: identity.identity.ticketId } : {}),
+    ...(point.tenant_slug !== undefined ? { tenant_slug: point.tenant_slug } : {}),
+    ...(point.tenantSlug !== undefined ? { tenantSlug: point.tenantSlug } : {}),
     lat: coordinates.lat,
     lng: coordinates.lng,
     ...(weight !== undefined ? { weight } : {}),
@@ -1012,7 +1022,7 @@ const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, 
 };
 
 export const analyticsService = {
-  getHub: async (filters: AnalyticsFilters): Promise<AnalyticsHubResponse | null> => {
+  getHub: async (filters: AnalyticsFilters, options: { strictAccess?: boolean } = {}): Promise<AnalyticsHubResponse | null> => {
     const geoQueryFilters: Record<string, unknown> = { ...filters };
     delete geoQueryFilters.tenantSlug;
     delete geoQueryFilters.tenant;
@@ -1039,6 +1049,10 @@ export const analyticsService = {
         if (error instanceof ApiError && error.status === 304 && cached?.data) {
           return cached.data;
         }
+        if (options.strictAccess && (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status))) {
+          hubCache.delete(cacheKey);
+          throw error;
+        }
         const shouldRetryAlias =
           error instanceof ApiError && [401, 403, 404, 405, 500, 502, 503, 504].includes(error.status);
         if (!shouldRetryAlias) {
@@ -1047,7 +1061,7 @@ export const analyticsService = {
       }
     }
 
-    return cached?.data ?? null;
+    return options.strictAccess ? null : cached?.data ?? null;
   },
 
   getSummary: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsSummary> => {
@@ -1078,7 +1092,9 @@ export const analyticsService = {
         return actions ? { ...candidate, actions } : candidate;
       });
 
-    const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
+    const buildResponse = (value: unknown): AnalyticsHeatmapResponse => {
+      assertHeatmapRecordScopes(value, filters);
+      const raw: any = protectHeatmapPrivacy(value);
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
       const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
       const requestId =
@@ -1089,7 +1105,7 @@ export const analyticsService = {
         typeof raw?.contract_version === 'string' && raw.contract_version.trim().length > 0
           ? raw.contract_version.trim()
           : undefined;
-      const points = collectHeatmapPoints(raw);
+      const points = isHeatmapRedacted(raw) ? [] : collectHeatmapPoints(raw);
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
         raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'
@@ -1110,6 +1126,11 @@ export const analyticsService = {
         ...(contractVersion ? { contract_version: contractVersion } : {}),
         ...(requestId ? { request_id: requestId } : {}),
         points: Array.isArray(points) ? points : [],
+        ...(isRecord(raw.metadata) ? { metadata: raw.metadata } : {}),
+        ...(typeof raw.tenant_slug === 'string' ? { tenant_slug: raw.tenant_slug } : {}),
+        ...(typeof raw.tenant_id === 'number' || typeof raw.tenant_id === 'string' ? { tenant_id: raw.tenant_id } : {}),
+        ...(typeof raw.privacy_mode === 'string' ? { privacy_mode: raw.privacy_mode } : {}),
+        ...(isHeatmapRedacted(raw) ? { raw_points_redacted: true } : {}),
         cells: normalizeCellList(raw?.cells),
         hotspots: normalizeCellList(raw?.hotspots),
         category_layers: normalizeCellList(raw?.category_layers),
@@ -1135,6 +1156,7 @@ export const analyticsService = {
         tenantSlug: filters.tenantSlug,
         headers: buildAnalyticsHeaders(),
       });
+      assertHeatmapScope(response, filters);
       if (response?.sections && typeof response.sections === 'object') {
         operationsEndpointHubCandidate = response as AnalyticsHubResponse;
       } else {
@@ -1146,7 +1168,11 @@ export const analyticsService = {
       }
     }
 
-    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters, { strictAccess: true }).catch((error): AnalyticsHubResponse | null => {
+      if (error instanceof ApiError && [404, 405, 501].includes(error.status)) return null;
+      throw error;
+    });
+    assertHeatmapScope(hub, filters);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
@@ -1163,15 +1189,10 @@ export const analyticsService = {
       Array.isArray(hubGeoLayerSource.features) &&
       hubGeoLayerSource.features.length > 0;
     const hasHubGeoLayerCategories = Array.isArray(hubGeoLayerCategories) && hubGeoLayerCategories.length > 0;
-    if (Array.isArray(hubPoints) || hasHubGeoLayerFeatures || hasHubGeoLayerCategories) {
-      return buildResponse({
-        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}),
-        geo_layers: hubGeoLayers,
-        map_layers: (hubGeo as any)?.map_layers,
-        segments: (hubGeo as any)?.segments,
-        segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
-        request_id: (hubGeo as any)?.request_id,
-      });
+    if (Array.isArray(hubPoints) || Array.isArray((hubGeo as any)?.cells) || hasHubGeoLayerFeatures || hasHubGeoLayerCategories) {
+      assertHeatmapScope(hubGeo, filters);
+      return buildResponse(mergeHeatmapHubPayload(hub, { ...hubGeo,
+        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}) }));
     }
 
     const response = await apiFetch<any>(`/admin/analytics/heatmap?${query}`, {

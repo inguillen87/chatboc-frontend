@@ -1,485 +1,124 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import React, { useMemo, useState } from 'react';
+import { Layers3, MapPinned, RefreshCw, ShieldCheck, Filter, BarChart3 } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
-import { analyticsService, type AnalyticsHeatmapPoint, type AnalyticsHeatmapResponse } from '@/services/analyticsService';
-import { Loader2 } from 'lucide-react';
-// Assuming MapLibreMap component exists as per prompt trace
-// If not, a placeholder or simple div will be used to avoid breaking
 import MapLibreMap from '@/components/LazyMapLibreMap';
-import { buildMapExperience } from '@/features/maps/mapExperienceAdapter';
-
-interface Props {
-  tenantId: number;
-  dateRange: { from: string; to: string };
-  filters?: {
-    canal?: string;
-    categoria?: string;
-    distrito?: string;
-    genero?: string;
-    rango_edad?: string;
-    source?: string;
-  };
+import { Button } from '@/components/ui/button';
+import { geoRecord, geoText, geoNumber } from '@/features/analytics/heatmapBoundary';
+import { GEO_DIMENSIONS, GEO_LABELS, geoFilters, geoOptions, geoCoverage, geoBreakdown, heatmapMapModel, type GeoFilters, type GeoDimension } from '@/features/analytics/heatmapWorkspaceModel';
+import { useHeatmapWorkspace } from '@/features/analytics/useHeatmapWorkspace';
+import type { AnalyticsHeatmapResponse } from '@/services/analyticsService';
+import './heatmapWorkspace.css';
+interface Props { tenantId: number; dateRange: { from: string; to: string }; filters?: Partial<GeoFilters> }
+const number = (value: number | null) => value === null ? 'No informado' : value.toLocaleString('es-AR');
+export default function HeatmapDashboard({tenantId,dateRange,filters}: Props) {
+  const {currentSlug} = useTenant();
+  const initial = geoFilters(filters);
+  const identity = JSON.stringify([tenantId,currentSlug,dateRange.from,dateRange.to,initial]);
+  return <HeatmapSession key={identity} tenantId={tenantId} tenantSlug={currentSlug || ''} from={dateRange.from} to={dateRange.to} initial={initial} />;
 }
-
-const buildOptions = (points: AnalyticsHeatmapPoint[], getter: (point: AnalyticsHeatmapPoint) => unknown) =>
-  Array.from(
-    new Set(
-      points
-        .map((point) => {
-          const value = getter(point);
-          return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
-        })
-        .filter(Boolean),
-    ),
-  );
-
-const buildSegmentOptions = (items: unknown) =>
-  Array.from(
-    new Set(
-      (Array.isArray(items) ? items : [])
-        .map((item) => {
-          if (!item || typeof item !== 'object') return '';
-          const record = item as Record<string, unknown>;
-          const value = record.key ?? record.value ?? record.label;
-          return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
-        })
-        .filter(Boolean),
-    ),
-  );
-
-const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => {
-  const { currentSlug } = useTenant();
-  const [heatmapResponse, setHeatmapResponse] = useState<AnalyticsHeatmapResponse>({ points: [] });
-  const [loading, setLoading] = useState(true);
-  const [layerMode, setLayerMode] = useState<string>('heatmap');
-  const [categoryFilter, setCategoryFilter] = useState<string>(filters?.categoria || 'all');
-  const [severityFilter, setSeverityFilter] = useState<string>('all');
-  const [stateFilter, setStateFilter] = useState<string>('all');
-  const [channelFilter, setChannelFilter] = useState<string>(filters?.canal || 'all');
-  const [genderFilter, setGenderFilter] = useState<string>(filters?.genero || 'all');
-  const [ageRangeFilter, setAgeRangeFilter] = useState<string>(filters?.rango_edad || 'all');
-  const [districtFilter, setDistrictFilter] = useState<string>(filters?.distrito || 'all');
-  const [sourceFilter, setSourceFilter] = useState<string>(filters?.source || 'all');
-
-  useEffect(() => {
-    setCategoryFilter(filters?.categoria || 'all');
-    setChannelFilter(filters?.canal || 'all');
-    setGenderFilter(filters?.genero || 'all');
-    setAgeRangeFilter(filters?.rango_edad || 'all');
-    setDistrictFilter(filters?.distrito || 'all');
-    setSourceFilter(filters?.source || 'all');
-  }, [filters?.canal, filters?.categoria, filters?.distrito, filters?.genero, filters?.rango_edad, filters?.source]);
-
-  useEffect(() => {
-    const loadHeatmap = async () => {
-      setLoading(true);
-      try {
-        const data = await analyticsService.getHeatmap({
-          tenant_id: tenantId,
-          tenantSlug: currentSlug || undefined,
-          from: dateRange.from,
-          to: dateRange.to,
-          canal: channelFilter === 'all' ? undefined : channelFilter,
-          categoria: categoryFilter === 'all' ? undefined : categoryFilter,
-          distrito: districtFilter === 'all' ? undefined : districtFilter,
-          genero: genderFilter === 'all' ? undefined : genderFilter,
-          rango_edad: ageRangeFilter === 'all' ? undefined : ageRangeFilter,
-          source: sourceFilter === 'all' ? undefined : sourceFilter,
-        });
-        setHeatmapResponse(data || { points: [] });
-      } catch (e) {
-        console.error("Failed to load heatmap", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (tenantId) loadHeatmap();
-  }, [tenantId, dateRange, currentSlug, channelFilter, categoryFilter, districtFilter, genderFilter, ageRangeFilter, sourceFilter]);
-
-
-  const points = useMemo(() => (Array.isArray(heatmapResponse?.points) ? heatmapResponse.points : []), [heatmapResponse]);
-  const mapExperience = useMemo(
-    () =>
-      buildMapExperience(heatmapResponse, {
-        sourceContract: heatmapResponse?.contract_version,
-        sourceKind: filters?.source || filters?.canal || 'analytics_heatmap',
-      }),
-    [filters?.canal, filters?.source, heatmapResponse],
-  );
-  const segments = useMemo(() => heatmapResponse?.segments || {}, [heatmapResponse]);
-  const availableLayers = useMemo(() => {
-    const layers = heatmapResponse?.geo_layers?.layers;
-    if (!layers || typeof layers !== 'object') return [] as string[];
-    return Object.entries(layers)
-      .filter(([, config]) => Boolean(config && typeof config === 'object'))
-      .map(([key]) => key);
-  }, [heatmapResponse]);
-  const categoryOptions = useMemo(() => Array.from(new Set([
-    ...buildSegmentOptions((segments as any).categoria || (segments as any).category || (segments as any).categories),
-    ...buildOptions(points, (point) => point.categoria),
-  ])), [points, segments]);
-  const severityOptions = useMemo(() => buildOptions(points, (point) => point.severidad), [points]);
-  const stateOptions = useMemo(() => buildOptions(points, (point) => point.estado), [points]);
-  const channelOptions = useMemo(() => Array.from(new Set([
-    ...buildSegmentOptions((segments as any).canal || (segments as any).channel),
-    ...buildOptions(points, (point) => point.canal),
-  ])), [points, segments]);
-  const genderOptions = useMemo(() => Array.from(new Set([
-    ...buildSegmentOptions((segments as any).genero || (segments as any).gender || (segments as any).sexo),
-    ...buildOptions(points, (point) => point.genero || point.sexo),
-  ])), [points, segments]);
-  const ageRangeOptions = useMemo(() => Array.from(new Set([
-    ...buildSegmentOptions((segments as any).rango_edad || (segments as any).age_range || (segments as any).age_ranges),
-    ...buildOptions(points, (point) => point.rango_edad),
-  ])), [points, segments]);
-  const districtOptions = useMemo(() => buildOptions(points, (point) => point.distrito), [points]);
-  const sourceFilterOptions = useMemo(() => Array.from(new Set([
-    ...buildSegmentOptions((segments as any).source || (segments as any).fuente),
-    ...buildOptions(points, (point) => point.source || point.fuente),
-  ])), [points, segments]);
-  const filteredPoints = useMemo(
-    () =>
-      points.filter((point) => {
-        const categoryMatch = categoryFilter === 'all' || point.categoria === categoryFilter;
-        const severityMatch = severityFilter === 'all' || point.severidad === severityFilter;
-        const stateMatch = stateFilter === 'all' || point.estado === stateFilter;
-        const channelMatch = channelFilter === 'all' || point.canal === channelFilter;
-        const pointGender = point.genero || point.sexo;
-        const genderMatch = genderFilter === 'all' || pointGender === genderFilter;
-        const ageMatch = ageRangeFilter === 'all' || point.rango_edad === ageRangeFilter;
-        const districtMatch = districtFilter === 'all' || point.distrito === districtFilter;
-        const pointSource = point.source || point.fuente;
-        const sourceMatch = sourceFilter === 'all' || pointSource === sourceFilter;
-        return categoryMatch && severityMatch && stateMatch && channelMatch && genderMatch && ageMatch && districtMatch && sourceMatch;
-      }),
-    [points, categoryFilter, severityFilter, stateFilter, channelFilter, genderFilter, ageRangeFilter, districtFilter, sourceFilter],
-  );
-  const geoCategories = useMemo(
-    () =>
-      Array.isArray(heatmapResponse?.category_layers)
-        ? heatmapResponse.category_layers
-        : Array.isArray(heatmapResponse?.geo_layers?.categories)
-          ? heatmapResponse.geo_layers.categories
-          : [],
-    [heatmapResponse],
-  );
-  const cells = useMemo(() => mapExperience.cells, [mapExperience.cells]);
-  const hotspots = useMemo(() => (Array.isArray(heatmapResponse?.hotspots) ? heatmapResponse.hotspots : []), [heatmapResponse]);
-  const locationQuality = useMemo(() => heatmapResponse?.location_quality, [heatmapResponse]);
-  const geocodingCandidates = useMemo(
-    () => (Array.isArray(heatmapResponse?.geocoding?.candidates) ? heatmapResponse.geocoding.candidates : []),
-    [heatmapResponse],
-  );
-  const tileUrl = mapExperience.mapTileUrl;
-  const tileAttribution = mapExperience.mapTileAttribution;
-  const mapStyleUrl = mapExperience.mapStyleUrl;
-  const geoLayerSource = mapExperience.geoLayerSource ?? null;
-  const sourceOptions = useMemo(() => {
-    const sourceOptionsCandidate = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.source_options;
-    return sourceOptionsCandidate && typeof sourceOptionsCandidate === 'object'
-      ? (sourceOptionsCandidate as Record<string, unknown>)
-      : undefined;
-  }, [heatmapResponse]);
-  const mapBounds = useMemo(
-    () =>
-      (filteredPoints.length ? filteredPoints : mapExperience.displayPoints)
-        .map((point) => [Number(point.lng), Number(point.lat)] as [number, number])
-        .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
-    [filteredPoints, mapExperience.displayPoints],
-  );
-  const mapCenter = useMemo(() => {
-    const targetPoints = filteredPoints.length ? filteredPoints : mapExperience.displayPoints;
-    if (!targetPoints.length) return mapExperience.center;
-    const totalWeight = targetPoints.reduce((sum, point) => sum + (Number(point.weight) || 1), 0);
-    const divisor = totalWeight > 0 ? totalWeight : targetPoints.length;
-    const avgLat = targetPoints.reduce((sum, point) => sum + (Number(point.lat) || 0) * (Number(point.weight) || 1), 0) / divisor;
-    const avgLng = targetPoints.reduce((sum, point) => sum + (Number(point.lng) || 0) * (Number(point.weight) || 1), 0) / divisor;
-    if (!Number.isFinite(avgLat) || !Number.isFinite(avgLng)) return undefined;
-    return [avgLng, avgLat] as [number, number];
-  }, [filteredPoints, mapExperience.center, mapExperience.displayPoints]);
-  const mapDisplayPoints = useMemo(
-    () => (filteredPoints.length ? filteredPoints : mapExperience.displayPoints),
-    [filteredPoints, mapExperience.displayPoints],
-  );
-  const legend = useMemo(() => heatmapResponse?.geo_layers?.legend, [heatmapResponse]);
-  const uiLabels = useMemo(() => heatmapResponse?.ui?.labels || {}, [heatmapResponse]);
-  const layerLabels = useMemo(() => heatmapResponse?.ui?.layer_labels || {}, [heatmapResponse]);
-  const normalizedLayerMode = String(layerMode || '').toLowerCase();
-  const showHeatLayer = normalizedLayerMode === 'heatmap' || normalizedLayerMode === 'heat';
-
-  useEffect(() => {
-    if (!availableLayers.length) return;
-    if (availableLayers.includes(layerMode)) return;
-    setLayerMode(availableLayers[0]);
-  }, [availableLayers, layerMode]);
-  const segmentGroups = useMemo(() => {
-    const order: Array<{ key: string; label: string }> = [
-      { key: 'categoria', label: 'Categorías' },
-      { key: 'category', label: 'Categorías' },
-      { key: 'sexo', label: 'Sexo' },
-      { key: 'genero', label: 'Género' },
-      { key: 'gender', label: 'Género' },
-      { key: 'rango_edad', label: 'Rango edad' },
-      { key: 'age_range', label: 'Rango edad' },
-      { key: 'barrio', label: 'Barrio' },
-      { key: 'distrito', label: 'Distrito' },
-      { key: 'canal', label: 'Canal' },
-      { key: 'source', label: 'Fuente' },
-    ];
-
-    return order
-      .map(({ key, label }) => ({
-        key,
-        label,
-        items: Array.isArray(segments?.[key]) ? segments[key] : [],
-      }))
-      .filter((group) => group.items.length > 0);
-  }, [segments]);
-  const appliedFilters = useMemo(() => {
-    const filters = heatmapResponse?.segments_filters_applied || heatmapResponse?.filters_applied || heatmapResponse?.applied_filters;
-    if (!filters || typeof filters !== 'object') return [];
-    return Object.entries(filters)
-      .filter(([, value]) => value !== null && value !== undefined && value !== '')
-      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`);
-  }, [heatmapResponse]);
-  const heatmapEvidence = useMemo(() => {
-    const geoLayers = heatmapResponse?.geo_layers as Record<string, unknown> | undefined;
-    const provider = typeof geoLayers?.provider === 'string' ? geoLayers.provider : 'analytics_heatmap';
-    const contractVersion =
-      typeof heatmapResponse?.contract_version === 'string'
-        ? heatmapResponse.contract_version
-        : typeof geoLayers?.contract_version === 'string'
-          ? geoLayers.contract_version
-          : undefined;
-    return {
-      metadata: heatmapResponse?.metadata,
-      locationQuality,
-      source: provider,
-      provider,
-      requestId: heatmapResponse?.request_id,
-      contractVersion,
-      pointCount: mapDisplayPoints.length,
-      cellCount: mapExperience.quality.cellCount,
-      featureCount: geoLayerSource?.features?.length ?? 0,
-      coveragePct: locationQuality?.coverage_pct ?? mapExperience.quality.coveragePct,
-      withCoordinates: locationQuality?.with_coordinates ?? mapExperience.quality.withCoordinates,
-      withoutCoordinates: locationQuality?.without_coordinates ?? mapExperience.quality.withoutCoordinates,
-      usingCellFallback: mapExperience.quality.usingCellFallback,
-      privacyMode: mapExperience.quality.privacyMode,
-      rawPointsRedacted: mapExperience.quality.rawPointsRedacted,
-    };
-  }, [
-    geoLayerSource?.features?.length,
-    heatmapResponse?.contract_version,
-    heatmapResponse?.geo_layers,
-    heatmapResponse?.metadata,
-    heatmapResponse?.request_id,
-    locationQuality,
-    mapDisplayPoints.length,
-    mapExperience.quality.cellCount,
-    mapExperience.quality.coveragePct,
-    mapExperience.quality.privacyMode,
-    mapExperience.quality.rawPointsRedacted,
-    mapExperience.quality.usingCellFallback,
-    mapExperience.quality.withCoordinates,
-    mapExperience.quality.withoutCoordinates,
-  ]);
-
-  if (loading) return <div className="h-[320px] sm:h-[420px] flex items-center justify-center rounded-2xl border border-border/50 bg-background/60"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-
-  return (
-    <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
-      <CardHeader>
-        <CardTitle>{uiLabels.title || 'Mapa de Calor'}</CardTitle>
-        <CardDescription>{uiLabels.description || 'Distribución geográfica de incidentes y pedidos.'}</CardDescription>
-      </CardHeader>
-      <CardContent className="p-3 sm:p-4 space-y-3">
-        {(geoCategories.length || segmentGroups.length || appliedFilters.length) ? (
-          <div className="space-y-2">
-            {(availableLayers.length || categoryOptions.length || severityOptions.length || stateOptions.length || channelOptions.length || genderOptions.length || ageRangeOptions.length || districtOptions.length || sourceFilterOptions.length) ? (
-              <div className="rounded-md border p-2 text-xs space-y-2">
-                {availableLayers.length ? (
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground">{uiLabels.layers || 'capas'}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {availableLayers.map((layer) => (
-                        <button
-                          key={layer}
-                          type="button"
-                          onClick={() => setLayerMode(layer)}
-                          className={`rounded px-2 py-1 border ${layerMode === layer ? 'bg-primary text-primary-foreground' : ''}`}
-                        >
-                          {layerLabels[layer] || layer}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {categoryOptions.length ? (
-                    <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_categoria || 'categoria'}</option>
-                      {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {severityOptions.length ? (
-                    <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_severidad || 'severidad'}</option>
-                      {severityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {stateOptions.length ? (
-                    <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_estado || 'estado'}</option>
-                      {stateOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {channelOptions.length ? (
-                    <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_canal || 'canal'}</option>
-                      {channelOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {genderOptions.length ? (
-                    <select value={genderFilter} onChange={(event) => setGenderFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_genero || 'genero'}</option>
-                      {genderOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {ageRangeOptions.length ? (
-                    <select value={ageRangeFilter} onChange={(event) => setAgeRangeFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_rango_edad || 'rango_edad'}</option>
-                      {ageRangeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {districtOptions.length ? (
-                    <select value={districtFilter} onChange={(event) => setDistrictFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_distrito || 'distrito'}</option>
-                      {districtOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                  {sourceFilterOptions.length ? (
-                    <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">{uiLabels.filter_all || uiLabels.filter_source || 'source'}</option>
-                      {sourceFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            {geoCategories.length ? (
-              <div className="flex flex-wrap gap-2 text-xs">
-                {geoCategories.slice(0, 10).map((item, idx) => (
-                  <span key={`${item.categoria || 'cat'}-${idx}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
-                    {item.color ? <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} /> : null}
-                    {item.categoria || '—'} · {item.event_count || item.total_weight || 0}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {segmentGroups.length ? (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
-                {segmentGroups.map((group) => (
-                  <div key={group.key} className="rounded-md border p-2">
-                    <p className="mb-1 text-muted-foreground">{group.label}</p>
-                    <p>{group.items.slice(0, 3).map((item: any) => `${item.label || '—'} (${item.count || 0})`).join(' · ') || '—'}</p>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {appliedFilters.length ? (
-              <div className="rounded-md border p-2 text-xs">
-                <p className="mb-1 text-muted-foreground">{uiLabels.applied_filters || 'Filtros aplicados'}</p>
-                <p>{appliedFilters.join(' · ')}</p>
-              </div>
-            ) : null}
-            {locationQuality ? (
-              <div className="grid gap-2 sm:grid-cols-3 text-xs">
-                {typeof locationQuality.with_coordinates !== 'undefined' ? (
-                  <div className="rounded-md border p-2">
-                    <p className="text-muted-foreground">Con coordenadas</p>
-                    <p className="font-medium">{String(locationQuality.with_coordinates)}</p>
-                  </div>
-                ) : null}
-                {typeof locationQuality.without_coordinates !== 'undefined' ? (
-                  <div className="rounded-md border p-2">
-                    <p className="text-muted-foreground">Sin coordenadas</p>
-                    <p className="font-medium">{String(locationQuality.without_coordinates)}</p>
-                  </div>
-                ) : null}
-                {typeof locationQuality.coverage_pct !== 'undefined' ? (
-                  <div className="rounded-md border p-2">
-                    <p className="text-muted-foreground">Cobertura</p>
-                    <p className="font-medium">{String(locationQuality.coverage_pct)}%</p>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {(cells.length || hotspots.length) ? (
-              <div className="grid gap-2 sm:grid-cols-2 text-xs">
-                {hotspots.length ? (
-                  <div className="rounded-md border p-2">
-                    <p className="mb-1 text-muted-foreground">Hotspots</p>
-                    <p>{hotspots.slice(0, 4).map((item: any) => `${item.label || item.key || item.id || '-'} (${item.count ?? item.weight ?? 0})`).join(' | ')}</p>
-                  </div>
-                ) : null}
-                {cells.length ? (
-                  <div className="rounded-md border p-2">
-                    <p className="mb-1 text-muted-foreground">Celdas</p>
-                    <p>{cells.slice(0, 4).map((item: any) => `${item.label || item.key || item.id || '-'} (${item.count ?? item.weight ?? 0})`).join(' | ')}</p>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {geocodingCandidates.length ? (
-              <div className="rounded-md border border-amber-300/60 bg-amber-50 p-2 text-xs text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-                <p className="mb-1 font-medium">{uiLabels.geocoding_queue || 'Pendiente geocodificar'}</p>
-                <div className="space-y-1">
-                  {geocodingCandidates.slice(0, 5).map((item, index) => (
-                    <p key={String(item.ticket_id || item.id || index)}>
-                      {item.ticket_id || item.id ? `#${item.ticket_id || item.id} ` : ''}
-                      {item.address || item.direccion || item.label || '-'}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {legend ? (
-              <div className="rounded-md border p-2 text-xs">
-                <p className="text-muted-foreground">
-                  {uiLabels.legend || legend.mode || 'Leyenda'} · {legend.min_weight ?? 0} - {legend.max_weight ?? 0}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="h-[300px] sm:h-[420px] lg:h-[520px] relative overflow-hidden rounded-xl border">
-          {(mapDisplayPoints.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
-              <MapLibreMap
-                  heatmapData={mapDisplayPoints as any}
-                  showHeatmap={showHeatLayer}
-                  center={mapCenter}
-                  fitToBounds={mapBounds.length ? mapBounds : undefined}
-                  initialZoom={mapBounds.length ? 11 : 4}
-                  mapStyleUrl={mapStyleUrl}
-                  mapTileUrl={tileUrl}
-                  mapTileAttribution={tileAttribution}
-                  geoLayerConfig={
-                    mapExperience.geoLayerConfig
-                      ? { ...mapExperience.geoLayerConfig, source_options: sourceOptions ?? mapExperience.geoLayerConfig.source_options }
-                      : undefined
-                  }
-                  evidence={heatmapEvidence}
-              />
-          ) : (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                  {uiLabels.empty || 'No hay datos geográficos para este periodo.'}
-              </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default HeatmapDashboard;
+function HeatmapSession({tenantId,tenantSlug,from,to,initial}: {tenantId:number;tenantSlug:string;from:string;to:string;initial:GeoFilters}) {
+  const [draft,setDraft] = useState(initial), [active,setActive] = useState(initial);
+  const [local,setLocal] = useState({estado:'',severidad:''}), [layer,setLayer] = useState('heatmap');
+  const {data,phase,refresh} = useHeatmapWorkspace({tenantId,tenantSlug,from,to,filters:active});
+  const model = useMemo(()=>data ? heatmapMapModel(data,local) : null,[data,local]);
+  const labels = geoRecord(data?.ui?.labels), layerLabels = geoRecord(data?.ui?.layer_labels);
+  const busy = phase === 'loading';
+  const changed = JSON.stringify(draft) !== JSON.stringify(active);
+  const apply = (filters:GeoFilters) => {setDraft(filters);setActive(filters);setLocal({estado:'',severidad:''});};
+  const layers = Object.entries(geoRecord(data?.geo_layers?.layers)).filter(([,v])=>Object.keys(geoRecord(v)).length>0).map(([key])=>key);
+  const effectiveLayer = layers.length && !layers.includes(layer) ? layers[0] : layer;
+  const coverage = geoCoverage(data);
+  const localOptions = (key:'estado'|'severidad'): string[] => Array.from(new Set<string>((model?.experience.displayPoints || []).map(row=>geoText(geoRecord(row)[key])).filter(Boolean)));
+  return <section className="geo-workspace" aria-label="Análisis geográfico">
+    <header className="geo-heading">
+      <div><div className="geo-eyebrow"><MapPinned size={16} aria-hidden="true" /> Inteligencia territorial</div>
+        <h2>{geoText(labels.title) || 'Mapa de calor y distribución'}</h2>
+        <p>{geoText(labels.description) || 'Explorá la distribución geográfica publicada por la organización.'}</p>
+        <p className="geo-meta">{tenantSlug || 'Organización no verificada'} · {from} — {to}</p>
+      </div>
+      <Button type="button" variant="outline" disabled={busy || phase==='invalid'} onClick={refresh}><RefreshCw size={16} aria-hidden="true" />Actualizar mapa</Button>
+    </header>
+    <form className="geo-filter-panel" onSubmit={event=>{event.preventDefault();if(!busy && changed)apply(draft);}}>
+      <div className="geo-section-title"><h3><Filter size={16} aria-hidden="true" />Filtros de consulta</h3><span>Se aplican al consultar el servidor</span></div>
+      <div className="geo-filter-grid">{GEO_DIMENSIONS.map(key=>{
+        const options = data ? geoOptions(data,key) : [];
+        if(draft[key] && !options.some(option=>option.key===draft[key]))options.unshift({key:draft[key],label:draft[key]});
+        return <label key={key}>{geoText(labels[`filter_${key}`]) || GEO_LABELS[key]}
+          <select aria-label={GEO_LABELS[key]} value={draft[key]} disabled={busy || phase==='invalid' || (!options.length && !draft[key])} onChange={event=>setDraft(current=>({...current,[key]:event.target.value}))}>
+            <option value="">Todos</option>{options.map(option=><option key={option.key} value={option.key}>{option.label}</option>)}
+          </select></label>;
+      })}</div>
+      <div className="geo-toolbar"><Button type="submit" disabled={busy || !changed || phase==='invalid'}>Aplicar filtros</Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={()=>apply(initial)}>Restablecer filtros</Button>
+        {changed && <span role="status">Cambios pendientes de aplicar.</span>}</div>
+      <p className="geo-note">Los filtros disponibles provienen de esta respuesta. Cambiar la capa o el filtro visual no realiza nuevas consultas.</p>
+    </form>
+    <div className="geo-active-filters" aria-label="Filtros solicitados">{GEO_DIMENSIONS.filter(key=>active[key]).map(key=><span key={key}>{GEO_LABELS[key]}: {active[key]}</span>)}</div>
+    {phase==='invalid' && <div className="geo-empty" role="alert">No se consultó el mapa. Verificá la organización y el período.</div>}
+    {phase==='error' && <div className="geo-empty" role="alert"><h3>No se pudo verificar el mapa</h3><p>Se retiraron los datos anteriores. La consulta pudo fallar o el acceso puede haber cambiado.</p><Button variant="outline" onClick={refresh}>Reintentar consulta</Button></div>}
+    {busy && <div className="geo-loading" role="status"><MapPinned aria-hidden="true" /><p>Consultando distribución geográfica…</p></div>}
+    {data && model && <>
+      {model.synthetic && <p className="geo-warning" role="status">Datos de demostración declarados por el servidor. No representan operaciones reales.</p>}
+      <div className="geo-metrics">
+        <GeoMetric label={model.experience.quality.usingCellFallback ? 'Celdas visibles' : 'Elementos visibles'} value={number(model.displayPoints.length)} detail="Elementos geográficos, no personas únicas" />
+        <GeoMetric label="Con coordenadas" value={number(coverage.withCoordinates)} detail="Cantidad informada por el servidor" />
+        <GeoMetric label="Sin coordenadas" value={number(coverage.withoutCoordinates)} detail="No se ubican en una posición inventada" />
+        <GeoMetric label="Cobertura geográfica" value={coverage.coverage===null?'No informada':`${number(coverage.coverage)}%`} detail="Del registro publicado, no de la población" />
+      </div>
+      {coverage.inconsistent && <p className="geo-warning">Los conteos de cobertura no coinciden con el total informado. No se calcula un porcentaje alternativo.</p>}
+      <div className="geo-layout"><section className="geo-map-panel" aria-label="Distribución en el mapa">
+        <div className="geo-section-title"><h3><Layers3 size={16} aria-hidden="true" />Distribución geográfica</h3><span>{model.redacted?'Ubicaciones agregadas':'Respuesta geográfica actual'}</span></div>
+        <div className="geo-toolbar" aria-label="Capas del mapa">{layers.map(value=><button type="button" key={value} aria-pressed={value===effectiveLayer} onClick={()=>setLayer(value)}>{geoText(layerLabels[value])||value}</button>)}</div>
+        <div className="geo-local-filters">{(['estado','severidad'] as const).map(key=>{
+          const options=localOptions(key); if(!options.length && !local[key])return null;
+          return <label key={key}>{key==='estado'?'Estado visible':'Severidad visible'}<select aria-label={key==='estado'?'Estado visible':'Severidad visible'} value={local[key]} onChange={event=>setLocal(current=>({...current,[key]:event.target.value}))}>
+            <option value="">Todos</option>{options.map(value=><option key={value} value={value}>{value}</option>)}</select></label>;
+        })}</div>
+        {model.localActive && <p className="geo-note">Filtro visual sobre elementos cargados; los indicadores y segmentos siguen describiendo la respuesta completa. Un elemento sin esta dimensión no se incluye.</p>}
+        <div className="geo-map-canvas">{model.displayPoints.length || (model.source?.features.length || 0) ? <MapLibreMap tenantSlug={tenantSlug} heatmapData={model.displayPoints} showHeatmap={['heatmap','heat'].includes(effectiveLayer)} center={model.center}
+          fitToBounds={model.bounds.length?model.bounds:undefined} initialZoom={11} mapStyleUrl={model.experience.mapStyleUrl} mapTileUrl={model.experience.mapTileUrl} mapTileAttribution={model.experience.mapTileAttribution}
+          geoLayerConfig={model.config} evidence={model.evidence} /> : <div className="geo-empty"><MapPinned aria-hidden="true" /><h3>{model.localActive?'Sin coincidencias geográficas':geoText(labels.empty)||'Sin datos geográficos para esta consulta'}</h3><p>No se muestran puntos de otra selección.</p></div>}</div>
+        <p className="geo-note"><ShieldCheck size={14} aria-hidden="true" />{model.redacted?'Las coordenadas individuales están suprimidas. Sólo se representan celdas agregadas publicadas por el servidor.':'La ubicación procede de la respuesta recibida. Un punto o peso no equivale necesariamente a una persona, un reclamo o una respuesta única.'}</p>
+      </section>
+      <aside className="geo-insights" aria-label="Segmentos de la consulta">
+        <div className="geo-section-title"><h3><BarChart3 size={16} aria-hidden="true" />Explorar segmentos</h3></div>
+        <p className="geo-note">Seleccioná una barra para consultar ese segmento. Los conteos son del servidor; no se calculan tasas poblacionales.</p>
+        {(['categoria','distrito','canal','source'] as const).map(dimension=><GeoBreakdownChart key={dimension} data={data} dimension={dimension} active={active[dimension]} onSelect={value=>apply({...active,[dimension]:value})} />)}
+        {!(['categoria','distrito','canal','source'] as const).some(key=>geoBreakdown(data,key).length) && <p className="geo-empty">No se informaron distribuciones segmentadas.</p>}
+      </aside></div>
+      <GeoDetails data={model.safe} />
+      <details className="geo-evidence"><summary>Base, filtros y trazabilidad</summary>
+        <p>Organización solicitada: {tenantSlug}. Período: {from} — {to}.</p>
+        <p>Contrato: {data.contract_version || 'No informado'}. Referencia de consulta: {data.request_id || 'No informada'}.</p>
+        <p>{Object.keys(geoRecord(data.segments_filters_applied ?? data.filters_applied ?? data.applied_filters)).length?'El servidor incluyó información de filtros aplicados.':'El servidor no incluyó confirmación de filtros. Los filtros de cabecera indican lo solicitado.'}</p>
+        <p>Los cambios de estado o asignación se realizan en la ficha del caso, no al explorar este mapa. Una celda agregada no autoriza reconstruir ubicaciones individuales.</p>
+      </details>
+    </>}
+  </section>;
+}
+function GeoMetric({label,value,detail}: {label:string;value:string;detail:string}) {
+  return <article className="geo-metric"><h3>{label}</h3><strong>{value}</strong><p>{detail}</p></article>;
+}
+function GeoBreakdownChart({data,dimension,active,onSelect}: {data:AnalyticsHeatmapResponse;dimension:GeoDimension;active:string;onSelect:(key:string)=>void}) {
+  const rows=geoBreakdown(data,dimension); if(!rows.length)return null;
+  const max=Math.max(...rows.map(row=>row.count),1);
+  return <section className="geo-breakdown" aria-label={`Distribución por ${GEO_LABELS[dimension]}`}><h4>{GEO_LABELS[dimension]}</h4>
+    {rows.slice(0,6).map(row=><button type="button" key={row.key} aria-pressed={active===row.key} aria-label={`${GEO_LABELS[dimension]}: ${row.label}, ${row.count} registros informados`} onClick={()=>onSelect(active===row.key?'':row.key)}>
+      <span className="geo-bar" style={{width:`${100*row.count/max}%`}} aria-hidden="true" /><span>{row.label}</span><strong>{number(row.count)}</strong></button>)}
+    {rows.length>6 && <p className="geo-note">Se muestran 6 de {rows.length} segmentos. Usá el selector para consultar los demás.</p>}
+  </section>;
+}
+function GeoDetails({data}: {data:AnalyticsHeatmapResponse}) {
+  const cells=Array.isArray(data.cells)?data.cells:[], hotspots=Array.isArray(data.hotspots)?data.hotspots:[];
+  const pending=Array.isArray(data.geocoding?.candidates)?data.geocoding.candidates:[];
+  if(!cells.length && !hotspots.length && !pending.length)return null;
+  return <details className="geo-evidence"><summary>Detalle territorial de la respuesta</summary>
+    <p>Estas filas corresponden a la consulta del servidor. Los filtros visuales de estado y severidad afectan sólo al mapa.</p>
+    {([{title:'Celdas agregadas',items:cells},{title:'Zonas destacadas',items:hotspots}]).filter(group=>group.items.length).map(group=><section key={group.title}>
+      <h3>{group.title}</h3><div className="geo-table-scroll" role="region" aria-label={group.title} tabIndex={0}><table><thead><tr><th>Zona publicada</th><th>Conteo informado</th></tr></thead><tbody>
+        {group.items.slice(0,20).map((item,index)=>{const row=geoRecord(item),count=geoNumber(row.count);return <tr key={index}><td>{geoText(row.label)||geoText(row.key)||geoText(row.cell_id)||'Sin etiqueta'}</td><td>{number(count!==null&&count>=0?count:null)}</td></tr>;})}
+      </tbody></table></div>{group.items.length>20 && <p>Se muestran 20 de {group.items.length} filas recibidas.</p>}
+    </section>)}
+    {pending.length>0 && <section><h3>Ubicación pendiente de verificar</h3><p>Se conservan fuera del mapa hasta contar con coordenadas verificadas.</p><ul>{pending.slice(0,5).map((item,index)=><li key={index}>{geoText(item.label)||geoText(item.address)||geoText(item.direccion)||'Registro sin ubicación informada'}</li>)}</ul></section>}
+  </details>;
+}
