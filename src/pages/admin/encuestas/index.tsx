@@ -1,3 +1,4 @@
+import '@/components/surveys/surveyWorkspace.css';
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -306,6 +307,7 @@ const AdminSurveysIndex = () => {
         description: String((error as Error)?.message ?? error),
         variant: 'destructive',
       });
+      throw error;
     } finally {
       setDeletingId(null);
     }
@@ -423,7 +425,7 @@ const AdminSurveysIndex = () => {
       description="Reintentá o volvé al inicio mientras recuperamos el panel de encuestas."
       onRetry={() => refetchList()}
     >
-      <div className="space-y-6">
+      <div className="survey-admin-workspace space-y-6">
       <a
         href="#survey-instrument-list"
         className="sr-only rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"

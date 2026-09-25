@@ -291,3 +291,45 @@ describe('SurveyCard lifecycle actions', () => {
     expect(screen.getByText('No disponible')).toBeTruthy();
   });
 });
+
+describe('SurveyCard concurrent operation controls',()=>{
+  it('keeps other controls disabled while synthetic response generation is pending',()=>{
+    const edit=vi.fn(),analytics=vi.fn(),close=vi.fn(),copy=vi.fn();
+    render(<SurveyCard survey={survey(lifecycle('collecting',{can_close:true,can_share:true}))} onEdit={edit} onAnalytics={analytics} onClose={close} onCopyLink={copy} seeding/>);
+    for(const name of ['Editar','Resultados','Cerrar participación','Copiar link']) expect(screen.getByRole('button',{name})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button',{name:'Editar'}));expect(edit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link',{name:'Ver participación'})).not.toBeInTheDocument();
+  });
+  it('keeps the delete confirmation mounted while waiting and calls its handler only once',async()=>{
+    let resolve!:()=>void;const pending=new Promise<void>(r=>{resolve=r;});const remove=vi.fn(()=>pending);
+    render(<SurveyCard {...baseProps} survey={survey(lifecycle('draft',{can_delete:true}))} onDelete={remove}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Borrar borrador'}));
+    const button=screen.getByRole('button',{name:'Eliminar'});fireEvent.click(button);fireEvent.click(button);
+    expect(remove).toHaveBeenCalledTimes(1);expect(screen.getByRole('alertdialog')).toHaveTextContent('Consulta de la organización · ID 41');
+    expect(screen.getByRole('button',{name:'Cancelar'})).toBeDisabled();
+    resolve();await waitFor(()=>expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  });
+  it('keeps a failed deletion visible instead of closing its confirmation',async()=>{
+    const remove=vi.fn().mockRejectedValue(new Error('Synthetic failure'));
+    render(<SurveyCard {...baseProps} survey={survey(lifecycle('draft',{can_delete:true}))} onDelete={remove}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Borrar borrador'}));fireEvent.click(screen.getByRole('button',{name:'Eliminar'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se confirmó');expect(screen.getByRole('alertdialog')).toBeVisible();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+  it('does not offer deletion while another operation is reported as pending',()=>{
+    const remove=vi.fn();render(<SurveyCard {...baseProps} survey={survey(lifecycle('draft',{can_delete:true,can_publish:true}))} onDelete={remove} onPublish={vi.fn()} seeding/>);
+    expect(screen.getByRole('button',{name:'Borrar borrador'})).toBeDisabled();expect(screen.getByRole('button',{name:'Publicar'})).toBeDisabled();
+  });
+  it('does not turn an impossible coverage base into an apparently valid percentage',()=>{
+    const data=survey(lifecycle('collecting',{}));data.metricas={total_respuestas:12,respuestas_con_coordenadas:20,respuestas_ultimas_24h:3,participantes_unicos:10};
+    render(<SurveyCard {...baseProps} survey={data}/>);
+    expect(screen.getByText('Datos no conciliados')).toBeVisible();expect(screen.queryByText(/100% · 20/)).not.toBeInTheDocument();
+  });
+  it('keeps the close confirmation pending and calls the handler only once',async()=>{
+    let resolve!:()=>void;const close=vi.fn(()=>new Promise<void>(r=>{resolve=r;}));
+    render(<SurveyCard {...baseProps} survey={survey(lifecycle('collecting',{can_close:true}))} onClose={close}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Cerrar participación'}));const button=screen.getByRole('button',{name:'Cerrar definitivamente'});
+    fireEvent.click(button);fireEvent.click(button);expect(close).toHaveBeenCalledTimes(1);expect(screen.getByRole('button',{name:'Volver'})).toBeDisabled();
+    resolve();await waitFor(()=>expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  });
+});

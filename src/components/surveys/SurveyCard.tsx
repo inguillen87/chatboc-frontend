@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { surveyCardMetrics, surveyCountLabel, surveyCoverageLabel, surveyDateLabel } from '@/utils/surveyCardPresentation';
+import './surveyCard.css';
+import { useRef, useState } from 'react';
 import { BarChart3, CalendarDays, ChevronDown, Edit, LinkIcon, Send, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -38,7 +40,7 @@ interface SurveyCardProps {
   seeding?: boolean;
 }
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString('es-AR') : 'Sin fecha');
+const formatDate = surveyDateLabel;
 
 const getResultAssurance = (survey: SurveyAdmin) => {
   if (survey.governance?.result_certified === true) {
@@ -129,6 +131,9 @@ export const SurveyCard = ({
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const operationLock = useRef(false);
+  const [pendingAction, setPendingAction] = useState<'close' | 'delete' | null>(null);
+  const [actionError, setActionError] = useState('');
   const lifecycle = survey.admin_lifecycle;
   const autoSeedCantidad = getAutoSeedCantidad(survey);
   const publicUrl = getPublicSurveyUrlFromRecord(survey, { tenantSlug });
@@ -143,14 +148,7 @@ export const SurveyCard = ({
   const canDelete = lifecycle?.capabilities.can_delete ?? survey.estado === 'borrador';
   const canViewResults = lifecycle?.capabilities.can_view_results ?? true;
   const participation = lifecycle?.participation;
-  const responses = participation?.responses ?? survey.metricas?.total_respuestas ?? 0;
-  const uniqueParticipants = participation?.unique_participants ?? survey.metricas?.participantes_unicos ?? 0;
-  const responsesLast24h = participation?.responses_last_24h ?? survey.metricas?.respuestas_ultimas_24h ?? 0;
-  const responsesWithCoordinates = survey.metricas?.respuestas_con_coordenadas;
-  const territorialCoverage =
-    typeof responsesWithCoordinates === 'number' && responses > 0
-      ? Math.min(100, Math.max(0, Math.round((responsesWithCoordinates / responses) * 100)))
-      : null;
+  const {responses, uniqueParticipants, responsesLast24h, coordinates: responsesWithCoordinates, territorialCoverage, contradictoryCoverage} = surveyCardMetrics(survey);
   const opensAt = lifecycle?.schedule.opens_at ?? survey.inicio_at;
   const closesAt = lifecycle?.schedule.closes_at ?? survey.fin_at;
   const assurance = getResultAssurance(survey);
@@ -162,7 +160,7 @@ export const SurveyCard = ({
         lifecycle.actions.publish.next_action,
       )
     : null;
-  const busy = Boolean(publishing || closing);
+  const busy = Boolean(publishing || closing || deleting || seeding || pendingAction);
   const primaryAction = governedDraft && onManageGovernance
     ? 'governance'
     : canPublish && onPublish
@@ -184,30 +182,22 @@ export const SurveyCard = ({
         }
       | undefined;
 
-  const handleConfirmDelete = async () => {
-    if (!onDelete || deleting) return;
+  const confirmOperation = async (kind: 'close' | 'delete') => {
+    const action = kind === 'close' ? onClose : onDelete;
+    if (!action || busy || operationLock.current || (kind === 'close' ? !canClose : !canDelete)) return;
+    operationLock.current = true; setPendingAction(kind); setActionError('');
     try {
-      await onDelete();
-      setDeleteDialogOpen(false);
-    } catch (error) {
-      console.error('No se pudo eliminar la encuesta', error);
-    }
-  };
-
-  const handleConfirmClose = async () => {
-    if (!onClose || closing) return;
-    try {
-      await onClose();
-      setCloseDialogOpen(false);
-    } catch (error) {
-      console.error('No se pudo cerrar la encuesta', error);
-    }
+      await action();
+      if (kind === 'close') setCloseDialogOpen(false); else setDeleteDialogOpen(false);
+    } catch {
+      setActionError('No se confirmó la operación. Revisá el estado antes de volver a intentar; no se reenvió automáticamente.');
+    } finally { operationLock.current = false; setPendingAction(null); }
   };
 
   return (
     <Card
       aria-labelledby={`survey-title-${survey.id}`}
-      className="overflow-hidden border border-border/70 shadow-sm transition-[border-color,box-shadow] motion-reduce:transition-none hover:border-border hover:shadow-md"
+      className="survey-card overflow-hidden border border-border/70 shadow-sm transition-[border-color,box-shadow] motion-reduce:transition-none hover:border-border hover:shadow-md"
     >
       <CardHeader className="space-y-0 px-5 pb-3 pt-5">
         <div className="flex items-start justify-between gap-4">
@@ -233,30 +223,31 @@ export const SurveyCard = ({
       </CardHeader>
 
       <CardContent className="space-y-3 px-5 pb-4 pt-0">
+        <div role="group" aria-label="Métricas de participación">
         <dl
-          role="group"
           aria-label="Métricas de participación"
           className="grid grid-cols-3 divide-x divide-border rounded-lg border bg-muted/25 py-3"
         >
           <div className="min-w-0 px-3">
             <dt className="truncate text-xs text-muted-foreground">Respuestas</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {responses.toLocaleString('es-AR')}
+              {surveyCountLabel(responses)}
             </dd>
           </div>
           <div className="min-w-0 px-3">
             <dt className="truncate text-xs text-muted-foreground">Participantes</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {uniqueParticipants.toLocaleString('es-AR')}
+              {surveyCountLabel(uniqueParticipants)}
             </dd>
           </div>
           <div className="min-w-0 px-3">
             <dt className="truncate text-xs text-muted-foreground">Últimas 24 h</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {responsesLast24h.toLocaleString('es-AR')}
+              {surveyCountLabel(responsesLast24h)}
             </dd>
           </div>
         </dl>
+        </div>
 
         <dl
           aria-label="Vigencia, territorio y certificación"
@@ -272,9 +263,9 @@ export const SurveyCard = ({
           <div className="min-w-0">
             <dt className="font-medium text-muted-foreground">Cobertura territorial</dt>
             <dd className="mt-1 font-medium text-foreground">
-              {territorialCoverage === null || typeof responsesWithCoordinates !== 'number'
+              {contradictoryCoverage ? 'Datos no conciliados' : territorialCoverage === null || responsesWithCoordinates === null
                 ? 'No informada'
-                : `${territorialCoverage}% · ${responsesWithCoordinates.toLocaleString('es-AR')} con coordenadas`}
+                : `${surveyCoverageLabel(territorialCoverage)}% · ${surveyCountLabel(responsesWithCoordinates)} con coordenadas`}
             </dd>
           </div>
           <div className="min-w-0">
@@ -344,7 +335,7 @@ export const SurveyCard = ({
 
       <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/10 px-5 py-3">
         {primaryAction === 'publish' && onPublish ? (
-          <Button size="sm" onClick={onPublish} disabled={publishing} className="inline-flex items-center gap-2">
+          <Button size="sm" onClick={onPublish} disabled={busy} className="inline-flex items-center gap-2">
             <Send className="h-4 w-4" /> {publishing ? 'Publicando…' : 'Publicar'}
           </Button>
         ) : null}
@@ -376,13 +367,13 @@ export const SurveyCard = ({
         ) : null}
 
         {canClose && onClose ? (
-          <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+          <AlertDialog open={closeDialogOpen} onOpenChange={(open) => { if (!busy && !operationLock.current) { setCloseDialogOpen(open); setActionError(''); } }}>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="inline-flex items-center gap-2" disabled={Boolean(closing)}>
-                <CalendarDays className="h-4 w-4" /> {closing ? 'Cerrando…' : 'Cerrar participación'}
+              <Button variant="outline" size="sm" className="inline-flex items-center gap-2" disabled={busy}>
+                <CalendarDays className="h-4 w-4" /> {closing || pendingAction === 'close' ? 'Cerrando…' : 'Cerrar participación'}
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="survey-card-dialog">
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Cerrar {instrumentLabel.toLowerCase()}?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -390,16 +381,18 @@ export const SurveyCard = ({
                   resultados ya registrados se conservarán.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <p className="survey-card-target">{survey.titulo} · ID {survey.id}</p>
+              {actionError && <p role="alert">{actionError}</p>}
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={Boolean(closing)}>Volver</AlertDialogCancel>
+                <AlertDialogCancel disabled={busy}>Volver</AlertDialogCancel>
                 <AlertDialogAction
-                  disabled={Boolean(closing)}
+                  disabled={busy}
                   onClick={(event) => {
                     event.preventDefault();
-                    void handleConfirmClose();
+                    void confirmOperation('close');
                   }}
                 >
-                  {closing ? 'Cerrando…' : 'Cerrar definitivamente'}
+                  {closing || pendingAction === 'close' ? 'Cerrando…' : 'Cerrar definitivamente'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -420,30 +413,32 @@ export const SurveyCard = ({
         ) : null}
         {onSeed && !busy ? <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} labels={seedLabels} /> : null}
 
-        {canDelete && onDelete && !busy ? (
-          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        {canDelete && onDelete ? (
+          <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => { if (!busy && !operationLock.current) { setDeleteDialogOpen(open); setActionError(''); } }}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="inline-flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={busy} className="survey-card-delete-trigger inline-flex items-center gap-2">
                 <Trash2 className="h-4 w-4" /> Borrar borrador
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="survey-card-dialog">
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar borrador?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Esta acción es permanente. Sólo se ofrece para borradores sin respuestas registradas.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <p className="survey-card-target">{survey.titulo} · ID {survey.id}</p>
+              {actionError && <p role="alert">{actionError}</p>}
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={Boolean(deleting)}>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
-                  disabled={Boolean(deleting)}
+                  disabled={busy}
                   onClick={(event) => {
                     event.preventDefault();
-                    void handleConfirmDelete();
+                    void confirmOperation('delete');
                   }}
                 >
-                  {deleting ? 'Borrando…' : 'Eliminar'}
+                  {deleting || pendingAction === 'delete' ? 'Borrando…' : 'Eliminar'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

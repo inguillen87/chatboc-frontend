@@ -1,0 +1,55 @@
+name: Survey cards production verification
+"on":
+  pull_request:
+    paths:
+      - src/components/surveys/SurveyCard*
+      - src/components/surveys/surveyCard.css
+      - src/components/surveys/surveyWorkspace.css
+      - src/utils/surveyCardPresentation*
+      - src/pages/admin/encuestas/index.tsx
+      - tests/survey-card-production.browser.mjs
+      - tests/e2e/fixtures/survey-card-workspace.*
+      - scripts/ignoreVercelGitPreview*
+      - vercel.json
+      - .github/workflows/survey-card-production.yml
+permissions:
+  contents: read
+concurrency:
+  group: survey-card-production-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Preview policy and existing build guards
+        run: npx vitest run scripts/ignoreVercelGitPreview.test.mjs scripts/guardVercelPreviewRewrites.test.mjs scripts/verifyVercelProductionBuild.test.mjs --maxWorkers=2
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Full regression
+        run: |
+          mkdir -p .vercel/survey-session-evidence
+          npm test -- --maxWorkers=2 --reporter=json --outputFile=.vercel/survey-session-evidence/vitest.json
+      - name: Application build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Survey cards on desktop and mobile
+        run: node tests/survey-card-production.browser.mjs
+      - name: Verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: survey-card-production-evidence
+          path: .vercel/survey-session-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
