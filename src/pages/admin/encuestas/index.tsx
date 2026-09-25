@@ -422,8 +422,10 @@ const AdminSurveysIndex = () => {
   return (
     <SectionErrorBoundary
       title="No pudimos cargar las encuestas"
-      description="Reintentá o volvé al inicio mientras recuperamos el panel de encuestas."
+      description="Volvé a cargar el listado o regresá al panel."
       onRetry={() => refetchList()}
+      resetKeys={[tenantSlug]}
+      fallbackAction={<a href="/perfil">Volver al panel</a>}
     >
       <div className="survey-admin-workspace space-y-6">
       <a

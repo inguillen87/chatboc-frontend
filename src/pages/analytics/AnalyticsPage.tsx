@@ -900,7 +900,7 @@ const AnalyticsPage = () => {
 
           <TabsContent value="operations">
             {activeTab === 'operations' ? (
-              <SectionErrorBoundary title="No pudimos cargar operaciones">
+              <SectionErrorBoundary title="No pudimos cargar operaciones" resetKeys={[currentSlug,tenantId]}>
                 <OperationsDashboardPanel />
               </SectionErrorBoundary>
             ) : null}
@@ -926,7 +926,7 @@ const AnalyticsPage = () => {
 
       {/* Insights Section always visible at bottom or side */}
       <div className="mt-8">
-        <SectionErrorBoundary title="No pudimos cargar insights">
+        <SectionErrorBoundary title="No pudimos cargar insights" resetKeys={[currentSlug,tenantId]}>
           <InsightsDashboard tenantId={tenantId} />
         </SectionErrorBoundary>
       </div>
@@ -1008,7 +1008,7 @@ const AnalyticsPage = () => {
       ) : null}
 
       <div className="mt-8">
-        <SectionErrorBoundary title="No pudimos cargar herramientas IA">
+        <SectionErrorBoundary title="No pudimos cargar herramientas IA" resetKeys={[currentSlug,tenantId,scope]}>
           <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
         </SectionErrorBoundary>
       </div>
