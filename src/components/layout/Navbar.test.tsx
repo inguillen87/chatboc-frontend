@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -106,6 +106,7 @@ describe('Navbar account menu routing', () => {
   });
 
   it('groups organization, plan, configuration and session inside the account menu', () => {
+    useUserMock.mockReturnValue({organizationProfileVerified:true,loading:false,user:{id:9,rol:'admin',tenant_slug:'junin',nombre_empresa:'Municipalidad de Junín',tipo_chat:'municipio',plan:'full'}});
     render(
       <MemoryRouter initialEntries={['/perfil?tab=tickets']}>
         <Navbar />
@@ -114,7 +115,7 @@ describe('Navbar account menu routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
-    expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation',{name:'Navegación principal móvil'})).getByText('Municipalidad de Junín')).toBeInTheDocument();
     expect(screen.getByText('Organización')).toBeInTheDocument();
     expect(screen.getByText('Plan y facturación')).toBeInTheDocument();
     expect(screen.getByText('Configuración')).toBeInTheDocument();

@@ -7,6 +7,14 @@ name: Unified organization login
       - src/types/tenant.ts
       - src/utils/publishedTenantIdentity*
       - src/components/layout/Navbar*
+      - src/components/layout/Footer*
+      - src/components/layout/PrivateWorkspaceShell*
+      - src/components/brand/PrivateWorkspaceBrand*
+      - src/components/brand/privateWorkspace.css
+      - src/hooks/usePrivateWorkspacePresentation*
+      - src/utils/privateWorkspaceIdentity*
+      - tests/private-navigation.browser.mjs
+      - tests/e2e/fixtures/private-navigation.*
       - src/components/auth/InstitutionalLoginLogo*
       - src/components/brand/InstitutionalAccessBrand*
       - src/api/panelLogin*
@@ -45,12 +53,18 @@ jobs:
           npm test -- --maxWorkers=2 --reporter=json --outputFile=.vercel/unified-login-evidence/vitest.json
       - name: Application build
         run: npm run build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Private navigation and organization identity
+        run: node tests/private-navigation.browser.mjs
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: unified-login-evidence
-          path: .vercel/unified-login-evidence/
+          path: |
+            .vercel/unified-login-evidence/
+            .vercel/private-navigation-evidence/
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
