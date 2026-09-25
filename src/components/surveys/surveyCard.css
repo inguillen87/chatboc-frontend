@@ -15,3 +15,5 @@
   .survey-card button, .survey-card summary svg, .survey-card-dialog[data-state], .survey-card-dialog button { animation: none !important; transition: none !important; }
 }
 [data-reduce-motion="true"] .survey-card :is(button, summary svg), [data-reduce-motion="true"] .survey-card-dialog { animation: none !important; transition: none !important; }
+
+.survey-card .survey-card-delete-trigger { border-color: hsl(var(--destructive)); }

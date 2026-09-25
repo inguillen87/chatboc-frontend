@@ -223,8 +223,8 @@ export const SurveyCard = ({
       </CardHeader>
 
       <CardContent className="space-y-3 px-5 pb-4 pt-0">
+        <div role="group" aria-label="Métricas de participación">
         <dl
-          role="group"
           aria-label="Métricas de participación"
           className="grid grid-cols-3 divide-x divide-border rounded-lg border bg-muted/25 py-3"
         >
@@ -247,6 +247,7 @@ export const SurveyCard = ({
             </dd>
           </div>
         </dl>
+        </div>
 
         <dl
           aria-label="Vigencia, territorio y certificación"
@@ -415,7 +416,7 @@ export const SurveyCard = ({
         {canDelete && onDelete ? (
           <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => { if (!busy && !operationLock.current) { setDeleteDialogOpen(open); setActionError(''); } }}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" disabled={busy} className="inline-flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={busy} className="survey-card-delete-trigger inline-flex items-center gap-2">
                 <Trash2 className="h-4 w-4" /> Borrar borrador
               </Button>
             </AlertDialogTrigger>
