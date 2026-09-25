@@ -1,6 +1,7 @@
+import '@/components/auth/panelLogin.css';
 
-import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +29,9 @@ import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { getSafeAuthNextPath } from "@/utils/authRedirect";
 import { persistPanelLoginSession } from "@/utils/panelLoginSession";
 import { hasRequiredRole } from "@/utils/roles";
+import { completePanelCredentialLogin, ObsoletePanelLogin } from "@/utils/completePanelCredentialLogin";
+import { PanelLoginBoundaryError } from "@/utils/panelLoginResponse";
+import { readPanelLoginScope } from "@/utils/panelLoginScope";
 
 
 const isDevEnvironment = () => {
@@ -49,26 +53,16 @@ const withRequestIdSuffix = (baseMessage: string, requestId?: string | null) => 
   return trimmed ? `${baseMessage} (ID: ${trimmed})` : baseMessage;
 };
 
-interface LoginResponse {
-  token: string;
-  user: {
-    id: number;
-    email: string;
-    name: string;
-    rol: string;
-    role?: string;
-    tenant_slug: string;
-  };
-  entityToken?: string;
-  tipo_chat?: 'pyme' | 'municipio';
-}
-
-const Login = () => {
+const LoginSession = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { refreshUser, setUser } = useUser();
   const { timezone, locale, updateSettings } = useDateSettings();
-  const { currentSlug } = useTenant();
+  const { currentSlug, tenant } = useTenant();
+  const accessScope = readPanelLoginScope(location.pathname);
+  const organizationName = accessScope.tenantSlug && tenant?.slug?.toLowerCase() === accessScope.tenantSlug ? tenant.nombre : null;
+  const credentialRequest = useRef({ active: true, busy: false });
+  useEffect(() => { credentialRequest.current.active = true; return () => { credentialRequest.current.active = false; }; }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -441,61 +435,25 @@ const Login = () => {
     };
   }, []);
 
-  const loginWithCredentials = async (nextEmail: string, nextPassword: string, tenantSlugOverride?: string) => {
-    setError("");
-    setIsLoading(true);
-
-    const pathSegments = location.pathname.split('/').filter(Boolean);
-    const slugFromPath = (pathSegments.length > 0 && pathSegments[0] !== 'login') ? pathSegments[0] : null;
-
-    const storedSlug = safeLocalStorage.getItem("tenantSlug");
-    const effectiveSlug = tenantSlugOverride || slugFromPath || currentSlug || storedSlug;
-
-    const payload: any = { email: nextEmail, password: nextPassword };
-    if (effectiveSlug) {
-      payload.tenant_slug = effectiveSlug;
-    }
-
+  const loginWithCredentials = async (nextEmail: string, nextPassword: string) => {
+    const attempt = credentialRequest.current;
+    if (attempt.busy || isPasskeyLoading || isDemoLoading) return;
+    attempt.busy = true; setError(""); setIsLoading(true);
     try {
-      const data = await apiFetch<LoginResponse>("/auth/admin/login", {
-        method: "POST",
-        body: payload,
-      });
-
-      const responseTenantSlug = data.user?.tenant_slug;
-      const responseRole = data.user?.rol || data.user?.role;
-      const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
-      persistPanelLoginSession({
-        token: data.token,
-        user: data.user,
-        entityToken: data.entityToken,
-        tipoChat: data.tipo_chat,
-        tenantSlugHint: resolvedTenantSlug,
-        setUser: setUser as any,
-      });
-
-      if (safeNextPath) {
-        navigate(safeNextPath);
-      } else if (hasRequiredRole(responseRole, ["superadmin"])) {
-        navigate("/superadmin");
-      } else if (hasRequiredRole(responseRole, ["tenant_admin", "employee", "catalog_manager", "analytics_viewer"])) {
-        navigate("/perfil");
-      } else {
-        navigate(buildTenantPath("/", resolvedTenantSlug));
-      }
-
-      refreshUser().catch(() => undefined);
+      const result = await completePanelCredentialLogin({ email: nextEmail.trim(), password: nextPassword,
+        pathname: location.pathname, search: location.search, isCurrent: () => attempt.active,
+        setUser: setUser as any });
+      if (!attempt.active) return;
+      setPassword(''); navigate(result.destination);
+      void refreshUser().catch(() => undefined);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.status >= 500
-          ? "Servicio temporalmente no disponible. Intentá nuevamente en unos minutos."
-          : (err.body?.error || "Credenciales inválidas o error en el servidor."));
-      } else {
-        setError("No se pudo conectar con el servidor.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
+      if (!attempt.active || err instanceof ObsoletePanelLogin) return;
+      if (err instanceof PanelLoginBoundaryError) setError(err.message);
+      else if (err instanceof ApiError) setError(err.status >= 500
+        ? "Servicio temporalmente no disponible. Intentá nuevamente en unos minutos."
+        : (err.body?.error || "Credenciales inválidas o error en el servidor."));
+      else setError("No se pudo conectar con el servidor.");
+    } finally { attempt.busy = false; if (attempt.active) setIsLoading(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -633,11 +591,13 @@ const Login = () => {
   ] as const;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
+    <div className="panel-login-workspace min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
         <h2 className="text-2xl font-bold mb-2 text-center text-foreground">
-          Iniciar Sesión
+          {organizationName ? `Ingresar a ${organizationName}` : "Iniciar Sesión"}
         </h2>
+        <p className="mb-4 text-sm text-center text-muted-foreground" aria-label="Alcance del acceso">{accessScope.tenantSlug ? `Acceso para la organización ${accessScope.tenantSlug}. Usá tu cuenta institucional.` : "Acceso central. Tu cuenta determina a qué organización podés ingresar."}</p>
+        {accessScope.tenantSlug && <p className="mb-4 text-center text-sm"><Link to="/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</Link></p>}
         {franchisePartner.partnerName ? (
           <p className="text-xs text-center text-muted-foreground mb-4">{franchisePartner.partnerName}</p>
         ) : null}
@@ -665,6 +625,7 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             type="email"
+            aria-label="Correo electrónico"
             placeholder="Correo electrónico"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -675,6 +636,7 @@ const Login = () => {
           />
           <Input
             type="password"
+            aria-label="Contraseña"
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -683,10 +645,10 @@ const Login = () => {
             autoComplete="current-password"
             className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50"
           />
-          {error && <p className="text-destructive text-sm text-center">{error}</p>}
+          {error && <p role="alert" className="text-destructive text-sm text-center">{error}</p>}
           <Button
             type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
+            className="panel-login-submit w-full py-2.5 text-base"
             disabled={isLoading || isPasskeyLoading}
           >
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
@@ -707,7 +669,7 @@ const Login = () => {
             <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
           </div>
         </form>
-        <div className="mt-6 border-t border-border pt-4 space-y-3">
+        {isGlobalLogin && <div className="mt-6 border-t border-border pt-4 space-y-3">
           {!demoLoginEnabled ? (
             <p className="text-xs text-muted-foreground">Demo no disponible actualmente.</p>
           ) : null}
@@ -837,9 +799,9 @@ const Login = () => {
               })}
             </div>
           ) : null}
-        </div>
+        </div>}
 
-        {franchisePartner.salesUrl ? (
+        {isGlobalLogin && franchisePartner.salesUrl ? (
           <Button
             type="button"
             variant="secondary"
@@ -877,4 +839,7 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default function Login() {
+  const location = useLocation();
+  return <LoginSession key={location.pathname + location.search} />;
+}

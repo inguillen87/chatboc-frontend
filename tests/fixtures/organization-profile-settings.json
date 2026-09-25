@@ -1,0 +1,25 @@
+{
+  "contract_version": "organization.profile_settings.v1",
+  "tenant": {
+    "id": 11,
+    "slug": "tenant-a"
+  },
+  "revision": "2ec99c1b44076ffebb6c45ff0f52921cc7afb7c665acbdccbefb360fd6a1ea1b",
+  "values": {
+    "nombre_empresa": "Organización de prueba",
+    "telefono": "",
+    "direccion": "",
+    "ciudad": "",
+    "provincia": "",
+    "pais": "",
+    "link_web": "",
+    "logo_url": "",
+    "latitud": null,
+    "longitud": null,
+    "horario_json": []
+  },
+  "can_edit": true,
+  "save_endpoint": "/api/admin/tenants/tenant-a/config",
+  "concurrency": "expected_revision",
+  "provider_calls_performed": false
+}

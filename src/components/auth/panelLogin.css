@@ -1,0 +1,8 @@
+.panel-login-workspace { min-width:0; }
+.panel-login-workspace input,.panel-login-workspace button { min-height:44px; }
+.panel-login-workspace .panel-login-submit { background:hsl(var(--foreground))!important; color:hsl(var(--background))!important; }
+.panel-login-workspace .panel-login-submit:hover { background:hsl(var(--foreground))!important; color:hsl(var(--background))!important; }
+.panel-login-workspace :where(button,input,a):focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+@media(prefers-reduced-motion:reduce){
+  .panel-login-workspace :where(button,input,a) { animation:none!important; transition:none!important; transform:none!important; }
+}
