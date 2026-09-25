@@ -7,6 +7,8 @@ import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser, UserProvider } from './useUser';
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
+import profileFixture from '../../tests/fixtures/organization-profile-settings.json';
+import workspaceFixtures from '../../tests/fixtures/organization-workspaces.json';
 
 const SessionVisibleUserProbe = () => {
   const { user } = useUser();
@@ -21,6 +23,13 @@ const VerifiedClerkBridgeProbe = () => {
   return <div>verified profile hydration</div>;
 };
 
+const InstitutionalVerificationProbe = () => {
+  const { user, organizationProfileVerified } = useUser();
+  return <output data-testid="institutional-verification">{`${user?.tenant_slug}|${organizationProfileVerified}`}</output>;
+};
+const verifiedAuthority = { clerkStatus: 'disabled' as const, hasBearerSession: true, hasVerifiedSession: true };
+const jwt = (id: number) => `header.${btoa(JSON.stringify({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600 }))}.signature`;
+
 describe('UserProvider Clerk cookie profile hydration', () => {
   beforeEach(() => {
     vi.mocked(apiFetch).mockReset().mockResolvedValue({
@@ -33,6 +42,47 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     });
     safeLocalStorage.clear();
     usePanelSessionStore.setState({ authToken: null, user: null });
+  });
+
+  it('preserves authenticated institutional contracts separately from the personal avatar', async () => {
+    safeLocalStorage.setItem('authProvider', 'clerk');
+    safeLocalStorage.setItem('clerkUserId', 'user_clerk_cookie');
+    const workspace = { ...workspaceFixtures.gobierno, tenant: profileFixture.tenant };
+    vi.mocked(apiFetch).mockResolvedValue({ id: 42, name: 'Operator', rol: 'tenant_admin', tipo_chat: 'municipio', rubro: 'gobierno',
+      tenant_slug: 'tenant-a', organization_profile: profileFixture, organization_workspace: workspace });
+    render(<UserProvider><VerifiedClerkBridgeProbe /></UserProvider>);
+    await waitFor(() => expect(usePanelSessionStore.getState().user).toMatchObject({
+      organization_profile: profileFixture, organization_workspace: workspace, tenant_slug: 'tenant-a',
+    }));
+  });
+
+  it('revalidates a complete persisted profile once after reload and hides institutional identity until the response', async () => {
+    const token = jwt(42);
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'operator@example.test', rol: 'tenant_admin', rubro: 'gobierno', tenant_slug: 'tenant-a' } });
+    let finish!: (value: unknown) => void;
+    vi.mocked(apiFetch).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-a|false');
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ id: 42, rol: 'tenant_admin', rubro: 'gobierno', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-a|true');
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not verify a late profile response after the credential session changes', async () => {
+    const token = jwt(42);
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'a@example.test', rol: 'tenant_admin', rubro: 'gobierno', tenant_slug: 'tenant-a' } });
+    let finishOld!: (value: unknown) => void;
+    vi.mocked(apiFetch).mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    vi.mocked(apiFetch).mockResolvedValue({ id: 43, rol: 'tenant_admin', tipo_chat: 'municipio', rubro: 'gobierno', tenant_slug: 'tenant-b' });
+    act(() => { usePanelSessionStore.getState().setAuthToken(jwt(43)); usePanelSessionStore.getState().setUser({ id: '43', email: 'b@example.test', rol: 'tenant_admin', tenant_slug: 'tenant-b' }); });
+    await waitFor(() => expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-b|true'));
+    await act(async () => finishOld({ id: 42, rol: 'tenant_admin', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-b|true');
+    expect(apiFetch).toHaveBeenCalledTimes(2);
   });
 
   it.each(['loading', 'signed_out'] as const)(
