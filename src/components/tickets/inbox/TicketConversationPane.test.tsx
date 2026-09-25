@@ -191,6 +191,10 @@ describe('TicketConversationPane reply delivery contract', () => {
     await typeAndSend('La cuadrilla ya recibio el aviso.');
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole('button', { name: /Enviar mensaje/i })).not.toBeDisabled());
+    expect(screen.getByTestId('omnichannel-reply-failure')).toHaveTextContent('Entrega por confirmar');
+    expect(screen.getByTestId('omnichannel-reply-failure')).toHaveTextContent('evitar duplicados');
+    expect(screen.getByLabelText('Respuesta al contacto')).toHaveValue('La cuadrilla ya recibio el aviso.');
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Enviar mensaje/i }));
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(2));

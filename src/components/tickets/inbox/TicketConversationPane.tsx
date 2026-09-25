@@ -22,6 +22,7 @@ import type { TicketTimelineEvent } from '@/schemas/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import { ApiError, getErrorMessage } from '@/utils/api';
+import { inboxReplyFailure, type InboxReplyFailure } from './inboxReplyFailure';
 import {
   getAttachmentDeliveryUrl,
   getAttachmentPreviewUrl,
@@ -286,6 +287,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   const [draftBaseline, setDraftBaseline] = useState('');
   const [accessRevoked, setAccessRevoked] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [replyFailureState, setReplyFailureState] = useState<{ scopeKey: string; failure: InboxReplyFailure } | null>(null);
   const activeScopeRef = useRef(activeScopeKey);
   activeScopeRef.current = activeScopeKey;
   const draft = draftState?.scopeKey === activeScopeKey ? draftState.value : '';
@@ -353,6 +355,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
           ? { scopeKey: variables.scope.key, delivery }
           : null,
       );
+      if (variables.action === 'reply') setReplyFailureState(null);
       if (
         variables.action === 'reply' &&
         replyAttemptRef.current?.clientMessageId === variables.scope.attemptClientMessageId
@@ -400,11 +403,13 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
       ) {
         replyAttemptRef.current = null;
       }
-      toast({
-        title: 'No se pudo aplicar la accion',
-        description: getErrorMessage(error, 'Reintenta en unos segundos.'),
-        variant: 'destructive',
-      });
+      if (variables.action === 'reply') {
+        const failure = inboxReplyFailure(error);
+        setReplyFailureState({ scopeKey: variables.scope.key, failure });
+        toast({ title: failure.title, description: failure.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'No se pudo aplicar la acción', description: 'La acción no quedó confirmada. Actualizá el caso antes de repetirla.', variant: 'destructive' });
+      }
     },
     onSettled: () => { actionLock.current = false; },
   });
@@ -416,6 +421,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   useEffect(() => {
     replyAttemptRef.current = null;
     setLastDeliveryState(null);
+    setReplyFailureState(null);
   }, [activeScopeKey]);
 
   useEffect(() => {
@@ -539,7 +545,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
     } catch {
       toast({
         title: 'No se pudo guardar el borrador',
-        description: 'El navegador no permitio guardar este texto localmente.',
+        description: 'El navegador no permitió guardar este texto localmente.',
         variant: 'destructive',
       });
     }
@@ -595,7 +601,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
     asText(sourceMetadata.widget_id) ? ['Widget', String(sourceMetadata.widget_id)] as [string, string] : null,
   ].filter((row): row is [string, string] => Boolean(row));
   const locationRows = [
-    locationAddress ? ['Direccion', locationAddress] as [string, string] : null,
+    locationAddress ? ['Dirección', locationAddress] as [string, string] : null,
     locationPoint ? ['Coordenadas', `${locationPoint.lat.toFixed(5)}, ${locationPoint.lng.toFixed(5)}`] as [string, string] : null,
   ].filter((row): row is [string, string] => Boolean(row));
   const attachmentRows = [
@@ -616,6 +622,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
     asText(liveChat?.offline_message?.message);
   const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
   const liveChatAction = (liveChat?.actions || []).find((action) => action.href || action.endpoint);
+  const replyFailure = replyFailureState?.scopeKey === activeScopeKey ? replyFailureState.failure : null;
   const lastDeliveryView = deliveryView(lastDelivery);
   const lastDeliveryEvidence = deliveryEvidence(lastDelivery);
   const statusTiles = [
@@ -822,6 +829,14 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
                 </Button>
               );
             })}
+          </div>
+        ) : null}
+
+        {replyFailure ? (
+          <div role="alert" data-testid="omnichannel-reply-failure" className="rounded-[8px] border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <p className="font-semibold">{replyFailure.title}</p>
+            <p className="mt-1">{replyFailure.message}</p>
+            <p className="mt-1 font-medium">{replyFailure.action}</p>
           </div>
         ) : null}
 
