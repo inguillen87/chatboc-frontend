@@ -1,3 +1,5 @@
+import {PrivateWorkspaceBrand} from '@/components/brand/PrivateWorkspaceBrand';
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
 import {InstitutionalAccessBrand} from '@/components/brand/InstitutionalAccessBrand';
 import {readPanelLoginScope} from '@/utils/panelLoginScope';
 import '@/components/auth/panelLogin.css';
@@ -98,6 +100,9 @@ const parseStoredUser = (raw: string | null) => {
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef=useRef<HTMLElement>(null);
+  const privateBrandRef=useRef<HTMLAnchorElement>(null);
+  const privateShell=usePrivateWorkspacePresentation();
   const [isDark, setIsDark] = useState(false);
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -144,7 +149,7 @@ const Navbar: React.FC = () => {
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
-  const organizationName =
+  const organizationName = privateShell.active ? privateShell.identity?.name || 'Organización' :
     isPlatformAdmin ? 'ChatBoc · Plataforma' : String(
       effectiveUser?.nombre_empresa ||
         effectiveUser?.tenant?.nombre ||
@@ -258,6 +263,14 @@ const Navbar: React.FC = () => {
     });
   }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole]);
 
+  const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
+  useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);
+  useEffect(()=>{
+    if(!menuOpen)return;
+    const outside=(event:PointerEvent)=>{if(event.target instanceof Node&&!headerRef.current?.contains(event.target))setMenuOpen(false);};
+    document.addEventListener('pointerdown',outside);
+    return()=>document.removeEventListener('pointerdown',outside);
+  },[menuOpen]);
   useEffect(() => {
     const currentTheme = safeLocalStorage.getItem("theme");
     if (currentTheme === "dark") {
@@ -294,7 +307,7 @@ const Navbar: React.FC = () => {
     const desktopNavigation = window.matchMedia(DESKTOP_NAVIGATION_QUERY);
     const closeForDesktop = () => {
       setMenuOpen(false);
-      (institutionBrandRef.current || brandHomeButtonRef.current)?.focus({ preventScroll: true });
+      (privateBrandRef.current || institutionBrandRef.current || brandHomeButtonRef.current)?.focus({ preventScroll: true });
     };
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) closeForDesktop();
@@ -354,9 +367,9 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
+    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
-        {accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
+        {privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
@@ -381,7 +394,7 @@ const Navbar: React.FC = () => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          {!isLanding && !isPlatformAdmin ? (
+          {!isLanding && !isPlatformAdmin && !privateShell.active ? (
             <RouterLink
               to={cartPath}
               className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
@@ -540,7 +553,7 @@ const Navbar: React.FC = () => {
                   </button>
                 ))
               : null}
-            {!isLanding && !isPlatformAdmin ? (
+            {!isLanding && !isPlatformAdmin && !privateShell.active ? (
               <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                 <ShoppingCart className="h-4 w-4" />
                 Carrito

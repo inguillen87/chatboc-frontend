@@ -1,3 +1,5 @@
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
+import {PrivateWorkspaceFooter} from '@/components/brand/PrivateWorkspaceBrand';
 // src/components/Footer.tsx
 
 import { useState } from "react";
@@ -22,7 +24,7 @@ const afipDataFiscalHref = "https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
 const afipDataFiscalImage = "https://www.afip.gob.ar/images/f960/DATAWEB.jpg";
 const mipymeCertificateHref = "/certificados/certificado-mipyme-intellitech.pdf";
 
-const Footer = () => {
+const MarketingFooter = () => {
   const scrollToSection = useScrollToSection();
   const [copied, setCopied] = useState(false);
   const email = "info@chatboc.ar";
@@ -242,4 +244,8 @@ const Footer = () => {
   );
 };
 
+const Footer=()=>{
+  const presentation=usePrivateWorkspacePresentation();
+  return presentation.active?<PrivateWorkspaceFooter identity={presentation.identity}/>:<MarketingFooter/>;
+};
 export default Footer;
