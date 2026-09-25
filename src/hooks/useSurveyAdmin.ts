@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import {activeSurveyListTenant,assertSurveyListPage,assertSurveyListCollection,isSurveyReadAuthorityFailure,reportedSurveyListTotal,type SurveyListReadState} from '@/utils/surveyListReadiness';
 
 import {
   adminCreateSurvey,
@@ -20,7 +21,6 @@ import type {
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
 import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { queryKeys } from '@/lib/queryKeys';
 import { withExpectedSurveyStructureRevision } from '@/utils/surveyStructureGuard';
 import { publishSurveyV2 } from '@/features/surveys/surveysApi';
@@ -40,6 +40,7 @@ interface UseSurveyAdminResult {
   surveys?: SurveyListResponse;
   isLoadingSurvey: boolean;
   isLoadingList: boolean;
+  listReadState: SurveyListReadState;
   isLoadingMoreSurveys: boolean;
   hasMoreSurveys: boolean;
   surveyError: string | null;
@@ -149,7 +150,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const queryClient = useQueryClient();
   const { currentSlug } = useTenant();
   const tenantSlug = useMemo(
-    () => (currentSlug ?? safeLocalStorage.getItem('tenantSlug') ?? '').trim() || null,
+    () => activeSurveyListTenant(currentSlug),
     [currentSlug],
   );
   const normalizedId = useMemo(() => (typeof options.id === 'number' ? options.id : null), [options.id]);
@@ -158,6 +159,18 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     limit: options.listParams?.limit ?? 50,
   };
   const listParamsKey = buildListKey(listParams);
+  const mounted=useRef(false);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  const readInstance=useId();
+  const readScopeKey=JSON.stringify([tenantSlug,listParamsKey]);
+  const readScope=useRef({key:readScopeKey,generation:0});
+  if(readScope.current.key!==readScopeKey)readScope.current={key:readScopeKey,generation:readScope.current.generation+1};
+  const generation=readScope.current.generation;
+  // Never reuse a former organization session (including A -> B -> A).
+  // The existing adminLists prefix still invalidates active instances after writes.
+  const listQueryKey=[...queryKeys.surveys.adminList(listParamsKey,tenantSlug),readInstance,generation] as const;
+  const operation=useRef<{generation:number}|null>(null);
+
   const tenantScopeError = tenantSlug
     ? null
     : 'Seleccioná una organización antes de administrar encuestas y votaciones.';
@@ -179,32 +192,37 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   });
 
   const listQuery = useInfiniteQuery({
-    queryKey: queryKeys.surveys.adminList(listParamsKey, tenantSlug),
+    queryKey: listQueryKey,
     enabled: Boolean(tenantSlug),
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      adminListSurveys(
-        pageParam
-          ? { ...listParams, cursor: pageParam, page: undefined }
-          : listParams,
-        requireAdminRequestOptions(),
-      ),
-    getNextPageParam: (lastPage) =>
-      lastPage.pagination?.has_more
-        ? lastPage.pagination.next_cursor ?? undefined
-        : undefined,
+    queryFn: async ({pageParam}) => {
+      const result=await adminListSurveys(pageParam ? {...listParams,cursor:pageParam,page:undefined} : listParams,requireAdminRequestOptions());
+      assertSurveyListPage(result,tenantSlug!,pageParam??listParams.cursor??null);
+      return result;
+    },
+    getNextPageParam: (lastPage,allPages) => {
+      const next=lastPage.pagination?.has_more?lastPage.pagination.next_cursor:undefined;
+      return next && !allPages.slice(0,-1).some(page=>page.pagination?.next_cursor===next) ? next : undefined;
+    },
     retry: false,
+    refetchOnWindowFocus: false,
+    gcTime: 0,
   });
-
-  const surveys = useMemo(
-    () => mergeSurveyListPages(listQuery.data?.pages),
-    [listQuery.data?.pages],
-  );
-  const surveyListProgress = useMemo<SurveyListProgress>(() => {
-    const loaded = surveys?.data.length ?? 0;
-    const total = surveys?.pagination?.total_items ?? surveys?.meta?.total ?? (surveys ? loaded : null);
-    return { loaded, total };
-  }, [surveys]);
+  const collection=useMemo(()=>{
+    if(!tenantSlug||!listQuery.data?.pages)return undefined;
+    try {assertSurveyListCollection(listQuery.data.pages,tenantSlug,listParams.cursor??null);
+      return {value:mergeSurveyListPages(listQuery.data.pages),error:null};
+    } catch(error) {return {value:undefined,error};}
+  },[tenantSlug,listQuery.data?.pages,listParams.cursor]);
+  const refreshing=Boolean(tenantSlug&&listQuery.isFetching&&!listQuery.isFetchingNextPage);
+  const fatalError=collection?.error || (listQuery.error&&(!listQuery.isFetchNextPageError||isSurveyReadAuthorityFailure(listQuery.error))?listQuery.error:null);
+  const surveys=tenantSlug&&!refreshing&&!fatalError?collection?.value:undefined;
+  const listReadState:SurveyListReadState={
+    phase:!tenantSlug?'missing_scope':refreshing?(listQuery.data?'refreshing':'loading'):fatalError?'error':surveys?(listQuery.isFetchNextPageError?'partial_error':'ready'):'loading',
+    pages:surveys?listQuery.data?.pages.length??0:0,
+    receivedAt:surveys&&listQuery.dataUpdatedAt?listQuery.dataUpdatedAt:null,
+  };
+  const surveyListProgress=useMemo<SurveyListProgress>(()=>({loaded:surveys?.data.length??0,total:reportedSurveyListTotal(surveys)}),[surveys]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
@@ -294,11 +312,12 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     survey: surveyQuery.data,
     surveys,
     isLoadingSurvey: Boolean(tenantSlug) && surveyQuery.isLoading,
-    isLoadingList: Boolean(tenantSlug) && listQuery.isLoading,
+    isLoadingList: listReadState.phase==='loading'||listReadState.phase==='refreshing',
+    listReadState,
     isLoadingMoreSurveys: listQuery.isFetchingNextPage,
-    hasMoreSurveys: Boolean(listQuery.hasNextPage),
+    hasMoreSurveys: Boolean(surveys && listQuery.hasNextPage),
     surveyError: tenantScopeError ?? (surveyQuery.error ? getErrorMessage(surveyQuery.error) : null),
-    listError: tenantScopeError ?? (!surveys && listQuery.error ? getErrorMessage(listQuery.error) : null),
+    listError: tenantScopeError ?? (!refreshing && fatalError ? getErrorMessage(fatalError) : null),
     loadMoreError:
       surveys && listQuery.isFetchNextPageError && listQuery.error
         ? getErrorMessage(listQuery.error)
@@ -324,13 +343,22 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       return result.data;
     },
     refetchList: async () => {
-      if (!tenantSlug) return undefined;
-      const result = await listQuery.refetch();
-      return mergeSurveyListPages(result.data?.pages);
+      if(!mounted.current||!tenantSlug||readScope.current.generation!==generation||operation.current?.generation===generation||queryClient.isFetching({queryKey:listQueryKey,exact:true}))return undefined;
+      const pending={generation};operation.current=pending;
+      try {
+        const result=await listQuery.refetch({cancelRefetch:false});
+        if(!mounted.current||result.isError||readScope.current.generation!==generation)return undefined;
+        const pages=result.data?.pages;
+        if(pages)assertSurveyListCollection(pages,tenantSlug,listParams.cursor??null);
+        return mergeSurveyListPages(pages);
+      } catch { return undefined; }
+      finally {if(operation.current===pending)operation.current=null;}
     },
     loadMoreSurveys: async () => {
-      if (!tenantSlug || !listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
-      await listQuery.fetchNextPage();
+      if(!mounted.current||!tenantSlug||!surveys||!listQuery.hasNextPage||readScope.current.generation!==generation||operation.current?.generation===generation||queryClient.isFetching({queryKey:listQueryKey,exact:true}))return;
+      const pending={generation};operation.current=pending;
+      try {await listQuery.fetchNextPage({cancelRefetch:false});}
+      finally {if(operation.current===pending)operation.current=null;}
     },
     tenantSlug,
     tenantScopeError,

@@ -1,5 +1,5 @@
 import '@/components/surveys/surveyWorkspace.css';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
@@ -207,6 +207,7 @@ const AdminSurveysIndex = () => {
   const {
     surveys,
     isLoadingList,
+    listReadState,
     isLoadingMoreSurveys,
     hasMoreSurveys,
     listError,
@@ -232,6 +233,7 @@ const AdminSurveysIndex = () => {
   const [workspaceQuery, setWorkspaceQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SurveyWorkspaceStatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<SurveyWorkspaceKindFilter>('all');
+  useEffect(()=>{setWorkspaceQuery('');setStatusFilter('all');setKindFilter('all');setPublishFailure(null);},[tenantSlug]);
 
   const handlePublish = async (survey: SurveyAdmin) => {
     if (isGovernedSurvey(survey)) {
@@ -439,12 +441,15 @@ const AdminSurveysIndex = () => {
           <h1 className="text-2xl font-semibold">Centro de participación ciudadana</h1>
           <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados en un solo lugar.</p>
         </div>
-        <Button onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" disabled={!tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>
+        <Button disabled={!tenantSlug} onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
           <Plus className="h-4 w-4" /> Nueva encuesta
         </Button>
+        </div>
       </div>
 
-      {focusMeta ? (
+      {focusMeta && !isLoadingList && !listError ? (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
@@ -481,7 +486,7 @@ const AdminSurveysIndex = () => {
         </div>
       ) : null}
 
-      {surveys?.overview && tenantSlug && !listError ? (
+      {surveys?.overview && tenantSlug && !isLoadingList && !listError ? (
         <SurveyOperationsOverview
           overview={operationalOverview}
           freshness={surveys.freshness}
@@ -512,9 +517,10 @@ const AdminSurveysIndex = () => {
       ) : null}
 
       {isLoadingList ? (
-        <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
+        <div className="flex min-h-[40vh] flex-col gap-3 items-center justify-center rounded-xl border border-border/60 bg-muted/10 px-4 text-center" role="status" aria-live="polite">
           <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-          <span className="sr-only">Cargando encuestas y votaciones</span>
+          <span className="text-sm font-medium">{listReadState?.phase === 'refreshing' ? 'Actualizando encuestas y votaciones' : 'Cargando encuestas y votaciones'}</span>
+          <p className="max-w-md text-sm text-muted-foreground">Se consulta el servidor antes de mostrar las tarjetas y sus acciones.</p>
         </div>
       ) : !listError ? (
         <section
@@ -847,7 +853,7 @@ const AdminSurveysIndex = () => {
                       Cargando más…
                     </>
                   ) : (
-                    'Cargar más encuestas'
+                    loadMoreError ? 'Reintentar página' : 'Cargar más encuestas'
                   )}
                 </Button>
               ) : null}

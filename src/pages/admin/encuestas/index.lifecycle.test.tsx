@@ -888,3 +888,22 @@ describe('AdminSurveysIndex states', () => {
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
   });
 });
+
+describe('survey list refresh controls',()=>{
+  it('provides a manual read without navigating away',()=>{
+    const refresh=vi.fn().mockResolvedValue(undefined);mocks.useSurveyAdmin.mockReturnValue(adminState({refetchList:refresh}));
+    renderPage();fireEvent.click(screen.getByRole('button',{name:'Actualizar listado'}));expect(refresh).toHaveBeenCalledOnce();
+  });
+  it.each(['isLoadingList','isLoadingMoreSurveys','isPublishing','isClosing','isDeleting','isSeeding'])('does not start a competing refresh during %s',flag=>{
+    const refresh=vi.fn();mocks.useSurveyAdmin.mockReturnValue(adminState({[flag]:true,refetchList:refresh}));renderPage();
+    expect(screen.getByRole('button',{name:'Actualizar listado'})).toBeDisabled();fireEvent.click(screen.getByRole('button',{name:'Actualizar listado'}));expect(refresh).not.toHaveBeenCalled();
+  });
+  it('shows a visible refreshing state rather than an empty successful list',()=>{
+    mocks.useSurveyAdmin.mockReturnValue(adminState({surveys:undefined,isLoadingList:true,listReadState:{phase:'refreshing',pages:0,receivedAt:null}}));renderPage();
+    expect(screen.getByText('Actualizando encuestas y votaciones')).toBeVisible();expect(screen.queryByText('Instrumentos operativos')).not.toBeInTheDocument();
+  });
+  it('labels recovery of a failed next page explicitly',()=>{
+    mocks.useSurveyAdmin.mockReturnValue(adminState({surveys:{data:[workspaceInstrument(90,'Consulta recibida','collecting')]},hasMoreSurveys:true,loadMoreError:'Página no disponible',surveyListProgress:{loaded:1,total:2}}));renderPage();
+    expect(screen.getByRole('button',{name:'Reintentar página'})).toBeVisible();expect(screen.getByText('Consulta recibida')).toBeVisible();
+  });
+});
