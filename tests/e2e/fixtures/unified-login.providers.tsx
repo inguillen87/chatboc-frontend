@@ -1,9 +1,11 @@
+import {readPublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
 import {useLocation} from 'react-router-dom';
 import {usePanelSessionStore} from '@/stores';
 export function useUser(){return {user:usePanelSessionStore(state=>state.user),setUser:usePanelSessionStore.getState().setUser,refreshUser:async()=>{},loading:false};}
 export function useTenant(){
   const {pathname}=useLocation();const slug=/^\/t\/([^/]+)\/login/.exec(pathname)?.[1]||'previous-public-space';
-  return {currentSlug:slug,tenant:{id:1,slug,nombre:`Organización ${slug}`},isLoadingTenant:false,tenantError:null};
+  const publicRecord={id:1,slug,nombre:`Organización ${slug}`};
+  return {currentSlug:slug,tenant:{...publicRecord,publishedIdentity:readPublishedTenantIdentity(publicRecord,slug)},isLoadingTenant:false,tenantError:null};
 }
 export const useDateSettings=()=>({locale:'es-AR',timezone:'America/Argentina/Buenos_Aires',updateSettings:()=>{}});
 export default function OptionalIdentityButtons(){return null;}

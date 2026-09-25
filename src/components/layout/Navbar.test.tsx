@@ -5,9 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Navbar from './Navbar';
 
+// Preserve real Link refs, accessible names and DOM attributes in navigation tests.
+vi.mock('react-router-dom', async()=>await vi.importActual('react-router-dom'));
+
 const useUserMock = vi.fn();
 const useCapabilitiesMock = vi.fn();
 const useSessionAuthorityMock = vi.fn();
+const useTenantMock = vi.fn();
 
 vi.mock('@/components/brand/ChatbocBrandLockup', () => ({
   default: () => <span>Chatboc.ar</span>,
@@ -26,7 +30,7 @@ vi.mock('@/hooks/useLandingExperience', () => ({
 }));
 
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({ currentSlug: 'junin' }),
+  useTenant: () => useTenantMock(),
 }));
 
 vi.mock('@/context/CapabilitiesContext', () => ({
@@ -42,6 +46,7 @@ describe('Navbar account menu routing', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useTenantMock.mockReturnValue({currentSlug:'junin'});
     window.localStorage.clear();
     document.body.classList.remove('chatboc-mobile-menu-open');
     useUserMock.mockReturnValue({
@@ -422,5 +427,31 @@ describe('Navbar account menu routing', () => {
     expect(menuButton).toHaveAttribute('aria-expanded', 'false');
     expect(document.body).not.toHaveClass('chatboc-mobile-menu-open');
     expect(mediaQuery.removeEventListener).toHaveBeenCalled();
+  });
+});
+
+describe('verified institutional entry branding',()=>{
+  const tenant=()=>({slug:'org-a',nombre:'Organización de prueba',publishedIdentity:{tenantId:7,tenantSlug:'org-a',name:'Organización de prueba',logoUrl:'/qa-logo.svg'}});
+  beforeEach(()=>{vi.clearAllMocks();window.localStorage.clear();useUserMock.mockReturnValue({user:null});useSessionAuthorityMock.mockReturnValue({hasVerifiedSession:false});useCapabilitiesMock.mockReturnValue({capabilities:[],hasAnyCapability:()=>false});useTenantMock.mockReturnValue({currentSlug:'org-a',tenant:tenant(),isLoadingTenant:false,tenantError:null});});
+  it('uses the verified name and public home on the institutional login',()=>{
+    render(<MemoryRouter initialEntries={['/t/org-a/login']}><Navbar/></MemoryRouter>);
+    expect(screen.getByTestId('institutional-access-brand')).toHaveAttribute('href','/t/org-a');
+    expect(screen.getByRole('link',{name:'Organización de prueba'})).toBeVisible();
+    expect(screen.queryByRole('button',{name:'Ir al inicio de Chatboc'})).not.toBeInTheDocument();
+  });
+  it.each(['/login','/','/superadmin','/perfil'])('keeps the platform brand on %s despite ambient tenant data',path=>{
+    render(<MemoryRouter initialEntries={[path]}><Navbar/></MemoryRouter>);
+    expect(screen.queryByTestId('institutional-access-brand')).not.toBeInTheDocument();
+    expect(screen.getByText('Chatboc.ar')).toBeVisible();
+  });
+  it('does not show a name that only came from a normalized request',()=>{
+    useTenantMock.mockReturnValue({currentSlug:'org-a',tenant:{slug:'org-a',nombre:'Not verified'}});
+    render(<MemoryRouter initialEntries={['/t/org-a/login']}><Navbar/></MemoryRouter>);
+    expect(screen.queryByText('Not verified')).not.toBeInTheDocument();expect(screen.queryByTestId('institutional-access-brand')).not.toBeInTheDocument();
+  });
+  it.each([{isLoadingTenant:true},{tenantError:'unavailable'},{currentSlug:'org-b'}])('does not retain a stale identity %s',overrides=>{
+    useTenantMock.mockReturnValue({currentSlug:'org-a',tenant:tenant(),isLoadingTenant:false,...overrides});
+    render(<MemoryRouter initialEntries={['/t/org-a/login']}><Navbar/></MemoryRouter>);
+    expect(screen.queryByTestId('institutional-access-brand')).not.toBeInTheDocument();
   });
 });
