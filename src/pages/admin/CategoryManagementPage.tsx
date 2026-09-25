@@ -304,9 +304,11 @@ const CategoryManagementPage: React.FC = () => {
 
   return (
     <SectionErrorBoundary
-      title="No pudimos cargar categorias"
-      description="Reintenta la carga o vuelve al panel mientras revisamos esta seccion."
+      title="No pudimos cargar categorías"
+      description="Reintentá la carga o volvé al panel."
       onRetry={() => fetchCategories()}
+      resetKeys={[tenantSlug]}
+      fallbackAction={<a href="/perfil">Volver al panel</a>}
     >
       <div className="mx-auto w-full max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8">
         <section className="flex flex-col gap-5 border-b border-border/70 pb-6 lg:flex-row lg:items-end lg:justify-between">
