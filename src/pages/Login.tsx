@@ -1,3 +1,4 @@
+import {InstitutionalLoginLogo} from '@/components/auth/InstitutionalLoginLogo';
 import '@/components/auth/panelLogin.css';
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -58,9 +59,12 @@ const LoginSession = () => {
   const location = useLocation();
   const { refreshUser, setUser } = useUser();
   const { timezone, locale, updateSettings } = useDateSettings();
-  const { currentSlug, tenant } = useTenant();
+  const { currentSlug, tenant, isLoadingTenant, tenantError } = useTenant();
   const accessScope = readPanelLoginScope(location.pathname);
-  const organizationName = accessScope.tenantSlug && tenant?.slug?.toLowerCase() === accessScope.tenantSlug ? tenant.nombre : null;
+  const institutionalIdentity = !isLoadingTenant && !tenantError && accessScope.tenantSlug &&
+    tenant?.slug?.toLowerCase() === accessScope.tenantSlug && tenant.publishedIdentity?.tenantSlug === accessScope.tenantSlug
+      ? tenant.publishedIdentity : null;
+  const organizationName = institutionalIdentity?.name || null;
   const credentialRequest = useRef({ active: true, busy: false });
   useEffect(() => { credentialRequest.current.active = true; return () => { credentialRequest.current.active = false; }; }, []);
   const [email, setEmail] = useState("");
@@ -593,6 +597,7 @@ const LoginSession = () => {
   return (
     <div className="panel-login-workspace min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
+        {institutionalIdentity && <InstitutionalLoginLogo identity={institutionalIdentity}/>}
         <h2 className="text-2xl font-bold mb-2 text-center text-foreground">
           {organizationName ? `Ingresar a ${organizationName}` : "Iniciar Sesión"}
         </h2>

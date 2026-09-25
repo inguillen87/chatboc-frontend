@@ -1,3 +1,6 @@
+import {InstitutionalAccessBrand} from '@/components/brand/InstitutionalAccessBrand';
+import {readPanelLoginScope} from '@/utils/panelLoginScope';
+import '@/components/auth/panelLogin.css';
 // src/components/layout/Navbar.tsx
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -102,7 +105,12 @@ const Navbar: React.FC = () => {
   const { user } = useUser();
   const cartCount = useCartCount();
   const clerkRuntime = useClerkRuntime();
-  const { currentSlug } = useTenant();
+  const { currentSlug,tenant,isLoadingTenant,tenantError } = useTenant();
+  const institutionBrandRef=useRef<HTMLAnchorElement>(null);
+  const loginScope=readPanelLoginScope(location.pathname);
+  const accessIdentity=loginScope.valid&&loginScope.tenantSlug&&!isLoadingTenant&&!tenantError
+    &&currentSlug?.toLowerCase()===loginScope.tenantSlug&&tenant?.slug?.toLowerCase()===loginScope.tenantSlug
+    &&tenant.publishedIdentity?.tenantSlug===loginScope.tenantSlug?tenant.publishedIdentity:null;
   const { capabilities, hasAnyCapability } = useCapabilities();
   const { hasVerifiedSession } = useSessionAuthority();
 
@@ -286,7 +294,7 @@ const Navbar: React.FC = () => {
     const desktopNavigation = window.matchMedia(DESKTOP_NAVIGATION_QUERY);
     const closeForDesktop = () => {
       setMenuOpen(false);
-      brandHomeButtonRef.current?.focus({ preventScroll: true });
+      (institutionBrandRef.current || brandHomeButtonRef.current)?.focus({ preventScroll: true });
     };
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) closeForDesktop();
@@ -348,7 +356,7 @@ const Navbar: React.FC = () => {
   return (
     <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
-        <button
+        {accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
@@ -360,7 +368,7 @@ const Navbar: React.FC = () => {
             size="nav"
             tone="auto"
           />
-        </button>
+        </button>}
 
         {isLanding ? (
           <nav aria-label="Navegación principal" className="hidden flex-1 items-center justify-center gap-1 md:flex">

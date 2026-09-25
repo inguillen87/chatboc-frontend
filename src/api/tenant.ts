@@ -1,3 +1,4 @@
+import {readPublishedTenantIdentity,TenantProfileScopeError} from '@/utils/publishedTenantIdentity';
 import { apiFetch, ApiError } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { normalizeEntityToken } from '@/utils/entityToken';
@@ -102,10 +103,13 @@ const normalizeTenantInfo = (
   }
 
   const nombre = coerceString(source.nombre) ?? coerceString(payload.nombre) ?? slug;
+  const publishedIdentity = readPublishedTenantIdentity(payload, forceSlug);
+
 
   return {
     slug,
     nombre,
+    publishedIdentity,
     logo_url:
       coerceString(source.logo_url) ??
       coerceString(source.logoUrl) ??
@@ -213,7 +217,7 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
     omitChatSessionId: true,
   });
 
-  return normalizeTenantInfo(response, slug);
+  return normalizeTenantInfo(response, slug, slug);
 }
 
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
@@ -378,7 +382,7 @@ export async function getTenantPublicInfoFlexible(
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
     } catch (slugError) {
-      if (!safeWidgetToken || isPwaTenantResolutionFailure(slugError)) {
+      if (!safeWidgetToken || slugError instanceof TenantProfileScopeError || isPwaTenantResolutionFailure(slugError)) {
         throw slugError;
       }
 

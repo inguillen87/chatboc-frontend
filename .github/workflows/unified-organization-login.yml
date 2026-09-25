@@ -3,6 +3,12 @@ name: Unified organization login
   pull_request:
     paths:
       - src/pages/Login.tsx
+      - src/api/tenant*
+      - src/types/tenant.ts
+      - src/utils/publishedTenantIdentity*
+      - src/components/layout/Navbar*
+      - src/components/auth/InstitutionalLoginLogo*
+      - src/components/brand/InstitutionalAccessBrand*
       - src/api/panelLogin*
       - src/utils/panelLogin*
       - src/utils/completePanelCredentialLogin*
