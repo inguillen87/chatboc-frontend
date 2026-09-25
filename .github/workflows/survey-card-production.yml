@@ -6,6 +6,9 @@ name: Survey cards production verification
       - src/components/surveys/surveyCard.css
       - src/components/surveys/surveyWorkspace.css
       - src/utils/surveyCardPresentation*
+      - src/hooks/useSurveyAdmin*
+      - src/utils/surveyListReadiness*
+      - src/pages/admin/encuestas/index.lifecycle.test.tsx
       - src/pages/admin/encuestas/index.tsx
       - tests/survey-card-production.browser.mjs
       - tests/e2e/fixtures/survey-card-workspace.*
