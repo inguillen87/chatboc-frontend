@@ -1,0 +1,37 @@
+.organization-presence-dialog { width:calc(100vw - 2rem)!important; max-width:58rem!important; max-height:calc(100dvh - 2rem); overflow-y:auto; color:hsl(var(--foreground)); }
+.organization-presence-dialog :is(button,a) { min-height:44px; height:auto; white-space:normal; }
+.organization-presence-dialog :is(button,a,summary):focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+.presence-note { color:hsl(var(--muted-foreground)); font-size:.8rem; line-height:1.6; }
+.presence-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:.65rem; }
+.presence-toolbar>p { flex:1 1 16rem; }
+.presence-brands { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.presence-brand { min-width:0; border:1px solid hsl(var(--border)); padding:1rem; border-radius:.85rem; background:hsl(var(--muted) / .18); }
+.presence-brand h3,.presence-links>h3,.presence-next>h3 { font-size:.95rem; font-weight:650; margin-bottom:.7rem; }
+.presence-brand-preview { display:flex; align-items:center; gap:.8rem; min-height:88px; border:1px solid hsl(var(--border)); padding:.9rem; border-radius:.7rem; margin-bottom:.65rem; background:hsl(var(--background)); }
+.presence-brand-preview>img { width:48px; height:48px; object-fit:contain; flex-shrink:0; }
+.presence-brand-preview>svg { flex-shrink:0; }
+.presence-brand-preview>strong { overflow-wrap:anywhere; font-size:1.1rem; }
+.presence-color { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; font-size:.8rem; margin-top:.5rem; }
+.presence-color>span { width:18px; height:18px; border-radius:4px; border:1px solid hsl(var(--border)); }
+.presence-warning,.presence-observation { padding:.9rem 1rem; border:1px solid hsl(var(--border)); border-radius:.7rem; line-height:1.6; font-size:.85rem; }
+.presence-warning { border-color:hsl(var(--destructive)); }
+.presence-warning>button { margin-top:.8rem; }
+.presence-loading { display:grid; justify-items:center; gap:.8rem; padding:3rem 1rem; line-height:1.6; text-align:center; border:1px dashed hsl(var(--border)); border-radius:.8rem; }
+.presence-links { display:grid; gap:.8rem; }
+.presence-link,.presence-link-empty { min-width:0; border:1px solid hsl(var(--border)); border-radius:.75rem; padding:1rem; }
+.presence-link h4,.presence-link-empty h4 { font-size:.9rem; font-weight:600; margin-bottom:.55rem; }
+.presence-link>code { display:block; white-space:normal; overflow-wrap:anywhere; font-size:.9rem; background:hsl(var(--muted) / .4); padding:.7rem; border-radius:.5rem; user-select:all; }
+.presence-link>p,.presence-link-empty>p,.presence-next>p { font-size:.82rem; line-height:1.6; margin:.6rem 0; color:hsl(var(--muted-foreground)); }
+.presence-link .presence-toolbar>a { display:inline-flex; align-items:center; gap:.5rem; padding:.5rem .8rem; border:1px solid hsl(var(--border)); border-radius:.5rem; font-size:.85rem; }
+.presence-link .presence-toolbar>span { font-size:.8rem; line-height:1.5; }
+.presence-next { border-top:1px solid hsl(var(--border)); padding-top:1rem; }
+.presence-evidence { font-size:.8rem; line-height:1.6; }
+.presence-evidence summary { min-height:44px; padding:.7rem 0; cursor:pointer; font-weight:600; }
+.presence-evidence p { margin:.5rem 0; }
+@media(max-width:650px) { .presence-brands { grid-template-columns:minmax(0,1fr); } .organization-presence-dialog { padding:1rem; } }
+@media(prefers-reduced-motion:no-preference) { .presence-brand { animation:presence-enter .16s ease-out both; } }
+@keyframes presence-enter { from { opacity:.7; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@media(prefers-reduced-motion:reduce) { .organization-presence-dialog[data-state],.organization-presence-dialog :is(button,a) { animation:none!important; transition:none!important; } }
+[data-reduce-motion=true] .organization-presence-dialog,[data-reduce-motion=true] .presence-brand { animation:none!important; transition:none!important; }
+.organization-presence-dialog h2 { padding-right:2.5rem; text-align:left; line-height:1.4; }
+.organization-presence-dialog>button { width:44px; top:.5rem; right:.5rem; }

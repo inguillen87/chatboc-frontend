@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, MoreHorizontal, ArrowUpRight, Settings2, Users, MessageSquare, Power, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import type { Tenant } from '@/types/superAdmin';
 import { exportOrganizationsCsv } from './exportOrganizations';
 import { OrganizationCommercialWorkspace } from './OrganizationCommercialWorkspace';
+import { OrganizationPresenceDialog } from './OrganizationPresenceDialog';
 
 export const organizationTypeLabel = (type: string) => ({ pyme: 'Empresa', municipio: 'Municipio', colegio: 'Colegio' }[type] || type);
 const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
@@ -31,6 +32,10 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
   const [plan, setPlan] = useState('all');
   const [commercialTenant, setCommercialTenant] = useState<Tenant | null>(null);
   const commercialTrigger = useRef<HTMLElement | null>(null);
+  const [presence, setPresence] = useState<{id:number;slug:string}|null>(null);
+  const presenceTrigger = useRef<HTMLElement|null>(null);
+  const presenceTenant = !loading && !error && presence ? tenants.find(item=>item.id===presence.id && item.slug===presence.slug) : null;
+  useEffect(()=>{if(presence && !presenceTenant)setPresence(null);},[presence,presenceTenant]);
   const types = [...new Set(tenants.map((tenant) => tenant.tipo).filter(Boolean))].sort();
   const plans = [...new Set(tenants.map((tenant) => tenant.plan).filter(Boolean))].sort();
   const filtered = useMemo(() => tenants.filter((tenant) => {
@@ -63,7 +68,10 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
           <tbody>{filtered.map((tenant) => <tr key={tenant.id}>
             <td><button type="button" className="platform-organization-name" onClick={() => onProfile(tenant.slug)}>{tenant.nombre || tenant.slug}<ArrowUpRight size={14} aria-hidden="true" /></button><span className="platform-row-detail">{organizationTypeLabel(tenant.tipo)} · {tenant.slug}</span>
               <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug} aria-label={`Abrir CRM de ${tenant.nombre || tenant.slug}`}
-                onClick={(event) => { commercialTrigger.current = event.currentTarget; setCommercialTenant(tenant); }}>Seguimiento comercial</Button></td>
+                onClick={(event) => { commercialTrigger.current = event.currentTarget; setCommercialTenant(tenant); }}>Seguimiento comercial</Button>
+              <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug}
+                aria-label={`Marca y URLs de ${tenant.nombre || tenant.slug}`}
+                onClick={(event)=>{presenceTrigger.current=event.currentTarget;setPresence({id:tenant.id,slug:tenant.slug});}}>Marca y URLs</Button></td>
             <td data-label="Plan"><span className="platform-plan">{tenant.plan || 'Sin dato'}</span></td>
             <td data-label="Estado"><span className={`platform-status ${tenant.is_active === true ? 'is-active' : tenant.is_active === false ? 'is-inactive' : ''}`}>{tenant.is_active === true ? 'Activa' : tenant.is_active === false ? 'Inactiva' : 'Sin dato'}</span></td>
             <td data-label="Responsable" className="platform-owner-email">{tenant.owner_email || 'Sin correo disponible'}</td>
@@ -81,6 +89,8 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
           </tr>)}</tbody>
         </table></div>}
     {total !== null && tenants.length < total && !error && <div className="platform-load-more"><Button variant="outline" disabled={loading} onClick={onLoadMore}>Cargar más organizaciones</Button></div>}
+    {presenceTenant && <OrganizationPresenceDialog identity={{id:presenceTenant.id,slug:presenceTenant.slug}} returnFocus={presenceTrigger.current}
+      onClose={()=>setPresence(null)} onEdit={()=>onEdit(presenceTenant,'general')} onAccess={()=>onEdit(presenceTenant,'users')}/>}
     {commercialTenant && <OrganizationCommercialWorkspace tenant={commercialTenant} returnFocus={commercialTrigger.current} onClose={() => setCommercialTenant(null)} />}
   </section>;
 }

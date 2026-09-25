@@ -1,0 +1,49 @@
+name: Organization brand and URLs
+"on":
+  pull_request:
+    paths:
+      - src/components/admin/platform/OrganizationDirectory.tsx
+      - src/components/admin/platform/OrganizationPresenceDialog.tsx
+      - src/components/admin/platform/organizationPresence*
+      - tests/organization-presence.browser.mjs
+      - tests/e2e/fixtures/organization-presence.*
+      - .github/workflows/organization-presence.yml
+permissions:
+  contents: read
+concurrency:
+  group: organization-presence-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Complete frontend regression
+        run: |
+          mkdir -p .vercel/presence-evidence
+          npm test -- --maxWorkers=2 --reporter=json --outputFile=.vercel/presence-evidence/vitest.json
+      - name: Application build
+        run: npm run build
+      - name: Browser setup
+        run: npx playwright install --with-deps chromium
+      - name: Brand and URL workspace
+        run: node tests/organization-presence.browser.mjs
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: organization-presence-evidence
+          path: .vercel/presence-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
