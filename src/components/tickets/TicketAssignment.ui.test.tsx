@@ -171,6 +171,16 @@ describe('TicketAssignment enterprise authority UI', () => {
     });
   });
 
+  it('uses an explicit inbox ticket without mutating the global ticket context', async () => {
+    const inboxTicket={...mocks.ticket,id:403,tenant_slug:'junin'} as Ticket;
+    const confirmed=vi.fn();
+    render(<TicketAssignment ticket={inboxTicket} variant="compact" onAssignmentConfirmed={confirmed}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Tomar ticket'}));
+    await waitFor(()=>expect(mocks.postAction).toHaveBeenCalledTimes(1));
+    expect(mocks.updateTicket).not.toHaveBeenCalled();
+    await waitFor(()=>expect(confirmed).toHaveBeenCalledOnce());
+  });
+
   it('reserva el selector y la recomendación a supervisión o tickets.assign', async () => {
     mocks.user = { id: 99, name: 'Supervisora', rol: 'supervisor' };
     render(<TicketAssignment />);

@@ -56,3 +56,10 @@
 .case-operational-sla { min-width:0; }
 @media(max-width:720px) { .case-operational-bar { grid-template-columns:repeat(2,minmax(0,1fr)); padding:.6rem; } .case-operational-item:last-child { grid-column:1 / -1; } }
 @media(max-width:380px) { .case-operational-bar { grid-template-columns:minmax(0,1fr); } .case-operational-item:last-child { grid-column:auto; } }
+
+.inbox-assignment-control { flex-shrink:0; border-bottom:1px solid hsl(var(--border)); background:hsl(var(--background)); }
+.inbox-assignment-control>summary { min-height:44px; display:flex; align-items:center; padding:.55rem 1rem; cursor:pointer; font-size:.78rem; font-weight:700; color:hsl(var(--foreground)); }
+.inbox-assignment-control>summary:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:-2px; }
+.inbox-assignment-control[open]>summary { border-bottom:1px solid hsl(var(--border)); }
+.inbox-assignment-control>div { margin:.65rem; }
+@media(max-width:720px) { .inbox-assignment-control>summary { padding:.45rem .65rem; } .inbox-assignment-control>div { margin:.5rem; } }
