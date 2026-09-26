@@ -35,6 +35,7 @@ import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
 import TicketAiHandoffControl, { isAiHandoffAction } from '../TicketAiHandoffControl';
 import { TicketSlaClocks } from '../TicketSlaClocks';
+import { CaseOperationalBar } from './CaseOperationalBar';
 import { PresenceAvatars } from './PresenceAvatars';
 import { TimelineMergeView } from './TimelineMergeView';
 
@@ -656,6 +657,8 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
         </div>
         <PresenceAvatars users={detailTicket.presence} />
       </div>
+
+      <CaseOperationalBar assigneeLabel={assigneeLabel} sla={detailTicket.sla} nextSteps={detailTicket.next_steps} />
 
       <div className="inbox-case-scroll min-h-0 flex-1 overflow-y-auto" role="region" aria-label="Historial y contexto del caso" tabIndex={0}>
       <details className="inbox-case-context" open={contextOpen} onToggle={event=>setContextOpen(event.currentTarget.open)}>
