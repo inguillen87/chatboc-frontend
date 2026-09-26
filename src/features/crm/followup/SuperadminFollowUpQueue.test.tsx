@@ -12,6 +12,25 @@ describe('platform follow-up queue',()=>{
     fireEvent.click(screen.getByRole('button',{name:/Vencidos/}));expect(screen.queryByRole('button',{name:/Seguimiento de Beatriz/})).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('searchbox'),{target:{value:'jose'}});expect(screen.getByRole('button',{name:/Seguimiento de José/})).toBeVisible();expect(mock.list).toHaveBeenCalledOnce();
   });
+  it('surfaces urgent work and lets the operator jump directly to overdue contacts',async()=>{
+    render(<SuperadminFollowUpQueue/>);await screen.findByRole('button',{name:'Seguimiento de José en Organización A'});
+    const attention=screen.getByRole('status',{name:'Atención requerida'});
+    expect(attention).toHaveTextContent('1 vencido');expect(attention).toHaveTextContent('0 para hoy');
+    fireEvent.click(screen.getByRole('button',{name:'Ver vencidos'}));
+    expect(screen.getByRole('button',{name:/Seguimiento de José/})).toBeVisible();
+    expect(screen.queryByRole('button',{name:/Seguimiento de Beatriz/})).not.toBeInTheDocument();
+    expect(mock.list).toHaveBeenCalledOnce();
+  });
+  it('offers a one-click reset when filters leave the agenda empty',async()=>{
+    render(<SuperadminFollowUpQueue/>);await screen.findByRole('button',{name:/Seguimiento de José/});
+    fireEvent.change(screen.getByRole('searchbox'),{target:{value:'persona inexistente'}});
+    expect(screen.getByText('No hay contactos que coincidan con estos filtros.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'Limpiar búsqueda y prioridad'}));
+    expect(screen.getByRole('searchbox')).toHaveValue('');
+    expect(screen.getByRole('button',{name:/Seguimiento de José/})).toBeVisible();
+    expect(screen.getByRole('button',{name:/Seguimiento de Beatriz/})).toBeVisible();
+    expect(mock.list).toHaveBeenCalledOnce();
+  });
   it('reads the exact contact when opening its follow-up editor',async()=>{
     render(<SuperadminFollowUpQueue/>);fireEvent.click(await screen.findByRole('button',{name:'Seguimiento de José en Organización A'}));
     expect(await screen.findByRole('dialog',{name:'Seguimiento del contacto'})).toBeVisible();expect(mock.read).toHaveBeenCalledWith(expect.objectContaining({tenantSlug:'org-a',contactId:'c1'}));
