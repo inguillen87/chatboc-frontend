@@ -11,6 +11,10 @@
 .followup-queue button,.followup-dialog button,.followup-confirm button { min-height:44px; height:auto; white-space:normal; }
 .followup-queue :where(button,input),.followup-dialog :where(button,input,textarea),.followup-confirm button { min-width:0; }
 .followup-queue :where(button,input):focus-visible,.followup-dialog :where(button,input,textarea,summary):focus-visible,.followup-confirm button:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+.followup-attention { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.8rem; padding:1rem; border:1px solid hsl(var(--destructive) / .35); border-radius:.8rem; background:hsl(var(--destructive) / .06); }
+.followup-attention strong { font-size:.9rem; }
+.followup-attention p { margin-top:.25rem; color:hsl(var(--muted-foreground)); font-size:.8rem; line-height:1.5; }
+.followup-attention-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
 .followup-queue-filters { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.6rem; }
 .followup-queue-filters button { display:grid; gap:.35rem; padding:.8rem; text-align:left; border:1px solid hsl(var(--border)); border-radius:.7rem; font-size:.8rem; }
 .followup-queue-filters button strong { font-size:1.35rem; font-weight:650; }
@@ -40,7 +44,8 @@
 .followup-details summary { min-height:44px; padding:.65rem 0; cursor:pointer; font-size:.85rem; font-weight:650; }
 .followup-details p { font-size:.8rem; line-height:1.6; margin:.5rem 0; }
 .followup-preview { white-space:pre-wrap; max-height:15rem; overflow-y:auto; overflow-wrap:anywhere; }
-.followup-empty { padding:1.25rem; text-align:center; font-size:.9rem; }
+.followup-empty { display:grid; justify-items:center; gap:.8rem; padding:1.25rem; text-align:center; font-size:.9rem; }
+.followup-empty button { max-width:100%; }
 @media(max-width:900px) { .followup-queue-filters { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:500px) { .followup-queue { padding:1rem; } .followup-queue-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } .followup-rows button { align-items:flex-start; flex-direction:column; } .followup-rows button>span:last-child { text-align:left; justify-items:start; } .followup-dialog { padding:1rem; } }
 @media(prefers-reduced-motion:no-preference) { .followup-rows li { animation:followup-enter .15s ease-out both; } }
