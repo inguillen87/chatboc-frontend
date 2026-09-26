@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/utils/api';
@@ -125,6 +125,24 @@ describe('TicketConversationPane reply delivery contract', () => {
       .mockReturnValueOnce('crm-reply:attempt-0001')
       .mockReturnValueOnce('crm-reply:attempt-0002')
       .mockReturnValueOnce('crm-reply:attempt-0003');
+  });
+
+  it('keeps owner, SLA and next step visible while detailed context stays collapsed', async () => {
+    getInboxDetailMock.mockResolvedValue({
+      item: {
+        ...ticket,
+        assignee: { name: 'Ana Operadora' },
+        next_steps: ['Coordinar visita técnica'],
+        sla: { status: 'active' },
+      },
+      raw: null,
+    });
+    renderPane();
+    const operational = await screen.findByRole('region', { name: 'Control operativo del caso' });
+    expect(within(operational).getByText('Ana Operadora')).toBeVisible();
+    expect(within(operational).getByText('Coordinar visita técnica')).toBeVisible();
+    expect(within(operational).getByRole('group', { name: /SLA:/ })).toBeVisible();
+    expect(screen.getByText('Contexto, compromisos y acciones del caso').closest('details')).not.toHaveAttribute('open');
   });
 
   it('renders the three SLA clocks from the hydrated omnichannel detail', async () => {
