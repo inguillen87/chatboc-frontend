@@ -23,6 +23,7 @@ import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { inboxReplyFailure, type InboxReplyFailure } from './inboxReplyFailure';
+import { inboxAssignmentTicket } from './inboxAssignmentTicket';
 import {
   getAttachmentDeliveryUrl,
   getAttachmentPreviewUrl,
@@ -34,6 +35,7 @@ import { formatTicketStatusLabel } from '@/utils/ticketStatus';
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
 import TicketAiHandoffControl, { isAiHandoffAction } from '../TicketAiHandoffControl';
+import TicketAssignment from '../TicketAssignment';
 import { TicketSlaClocks } from '../TicketSlaClocks';
 import { CaseOperationalBar } from './CaseOperationalBar';
 import { PresenceAvatars } from './PresenceAvatars';
@@ -624,6 +626,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
   const liveChatAction = (liveChat?.actions || []).find((action) => action.href || action.endpoint);
   const replyFailure = replyFailureState?.scopeKey === activeScopeKey ? replyFailureState.failure : null;
+  const assignmentTicket = inboxAssignmentTicket(detailTicket);
   const lastDeliveryView = deliveryView(lastDelivery);
   const lastDeliveryEvidence = deliveryEvidence(lastDelivery);
   const statusTiles = [
@@ -661,6 +664,16 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
       <CaseOperationalBar assigneeLabel={assigneeLabel} sla={detailTicket.sla} nextSteps={detailTicket.next_steps} />
 
       <div className="inbox-case-scroll min-h-0 flex-1 overflow-y-auto" role="region" aria-label="Historial y contexto del caso" tabIndex={0}>
+      {assignmentTicket ? (
+        <details className="inbox-assignment-control">
+          <summary>Gestionar responsable</summary>
+          <TicketAssignment
+            ticket={assignmentTicket}
+            variant="compact"
+            onAssignmentConfirmed={async()=>{await detailQuery.refetch();onActionComplete?.();}}
+          />
+        </details>
+      ) : null}
       <details className="inbox-case-context" open={contextOpen} onToggle={event=>setContextOpen(event.currentTarget.open)}>
         <summary>Contexto, compromisos y acciones del caso</summary>
       {statusTiles.length ? (

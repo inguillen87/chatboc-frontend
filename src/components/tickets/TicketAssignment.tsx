@@ -31,7 +31,7 @@ import { useTickets } from '@/context/TicketContext';
 import useTicketRoutingAuthority from '@/hooks/useTicketRoutingAuthority';
 import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
-import type { User } from '@/types/tickets';
+import type { Ticket, User } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
 import {
   canSuperviseTicketAssignments,
@@ -43,6 +43,8 @@ import {
 interface TicketAssignmentProps {
   className?: string;
   variant?: 'default' | 'compact';
+  ticket?: Ticket | null;
+  onAssignmentConfirmed?: () => void | Promise<void>;
 }
 
 export interface TicketAssignmentSelection {
@@ -108,8 +110,12 @@ export const buildSupervisedAssignmentPayload = (
 const TicketAssignment: React.FC<TicketAssignmentProps> = ({
   className,
   variant = 'default',
+  ticket,
+  onAssignmentConfirmed,
 }) => {
-  const { selectedTicket, updateTicket } = useTickets();
+  const { selectedTicket: contextTicket, updateTicket } = useTickets();
+  const selectedTicket = ticket === undefined ? contextTicket : ticket;
+  const usesContextTicket = ticket === undefined;
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const { hasCapability } = useCapabilities();
@@ -184,12 +190,14 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
 
   const updateLocalAssignment = (employee: EmployeeRoutingEmployee) => {
     const assignedAgent = employeeAsTicketUser(employee);
-    updateTicket(selectedTicket.id, {
-      assignedAgent,
-      assignedAgentId: employee.id,
-      assigned_agent_id: employee.id,
-      assigned_user_id: employee.id,
-    }, authority?.sourceModel ?? selectedTicket.source_model);
+    if (usesContextTicket) {
+      updateTicket(selectedTicket.id, {
+        assignedAgent,
+        assignedAgentId: employee.id,
+        assigned_agent_id: employee.id,
+        assigned_user_id: employee.id,
+      }, authority?.sourceModel ?? selectedTicket.source_model);
+    }
   };
 
   const refreshConfirmedAssignment = async () => {
@@ -200,6 +208,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
     if (results.some((result) => result.status === 'rejected')) {
       console.warn('La asignación quedó confirmada, pero una vista dependiente no pudo refrescarse.');
     }
+    await onAssignmentConfirmed?.();
   };
 
   const postAssignment = async (employee: EmployeeRoutingEmployee) => {
