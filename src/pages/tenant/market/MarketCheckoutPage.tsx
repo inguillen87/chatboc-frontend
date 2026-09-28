@@ -176,7 +176,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
         </Alert>
       ) : null}
 
-      {items.length === 0 && !isLoading ? (
+      {items.length === 0 && !isLoading && !error ? (
         <Alert>
           <AlertTitle>Carrito vacío</AlertTitle>
           <AlertDescription>Agregá productos para continuar con la compra.</AlertDescription>
