@@ -1,17 +1,11 @@
-// Browser fixture transport only. No credentials, customer data or production requests.
+// Synthetic HTTP/session boundary only. Actual apiClient, market API and normalizers stay real.
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public body?: Record<string, unknown>) { super(message); }
+  constructor(message:string, public status:number, public body?:Record<string,unknown>) {super(message);}
 }
-async function request(path: string, body?: unknown) {
-  const response = await fetch(path, body ? { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
-  const value = await response.json();
-  if (!response.ok) throw new ApiError('Synthetic request failed', response.status, value);
+export async function apiFetch<T>(path:string, options:{method?:string;body?:unknown;tenantSlug?:string;skipAuth?:boolean}={}):Promise<T> {
+  const response=await fetch(path,{method:options.method??'GET',headers:{'Content-Type':'application/json','x-qa-tenant':options.tenantSlug??''},...(options.body===undefined?{}:{body:JSON.stringify(options.body)})});
+  const value=await response.json();
+  if(!response.ok)throw new ApiError('Synthetic request failed',response.status,value);
   return value;
 }
-export const fetchPublicOrder = (code: string) => request(`/api/fixture/public/${encodeURIComponent(code)}`);
-export const apiClient = {
-  adminGetOrder: (tenant: string, id: string) => request(`/api/fixture/${tenant}/orders/${encodeURIComponent(id)}`),
-  adminUpdateOrder: (tenant: string, id: string, body: unknown) => request(`/api/fixture/${tenant}/orders/${encodeURIComponent(id)}`, body),
-  getFulfillmentConfig: (tenant: string) => request(`/api/fixture/${tenant}/fulfillment`),
-};
-export const useTenant = () => ({ currentSlug: 'qa-order' });
+export const useTenant=()=>({currentSlug:'qa-order'});

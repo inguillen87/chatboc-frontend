@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRightLeft, Loader2, Package, Truck, CheckCircle, XCircle, Mail, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/utils/currency';
+import { OrderAmountBreakdown } from '@/components/orders/OrderAmountBreakdown';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
 import { OrderLifecycleSummary } from '@/components/orders/OrderLifecycleSummary';
@@ -190,21 +190,7 @@ function AdminOrderDetailSession({ tenantSlug, id }: { tenantSlug: string; id: s
                       <CardTitle>Detalle de Productos</CardTitle>
                   </CardHeader>
                   <CardContent>
-                      <div className="space-y-4">
-                          {order.items.map((item, idx) => (
-                              <div key={idx} className="flex justify-between items-center py-2 border-b last:border-0">
-                                  <div>
-                                      <p className="font-medium">{item.name}</p>
-                                      <p className="text-sm text-muted-foreground">{item.quantity} x {formatCurrency(item.price)}</p>
-                                  </div>
-                                  <p className="font-bold">{formatCurrency(item.price * item.quantity)}</p>
-                              </div>
-                          ))}
-                          <div className="flex justify-between pt-4 text-lg font-bold">
-                              <span>Total</span>
-                              <span>{formatCurrency(order.total)}</span>
-                          </div>
-                      </div>
+                      <OrderAmountBreakdown order={order} />
                   </CardContent>
               </Card>
 
