@@ -82,7 +82,8 @@ try {
       await page.screenshot({path:`${folder}/admin-missing-${width}.png`,fullPage:true});
       adminMode='conflict';await page.getByRole('button',{name:'Actualizar pedido'}).click();
       await expect(page.getByTestId('order-published-total')).toHaveText('Importe a revisar');
-      await expect(page.getByRole('status')).toContainText('requieren revisión');
+      await expect(page.locator('.order-amounts-notice')).toHaveCount(0);
+      await expect(page.getByTestId('order-published-total')).toHaveAttribute('data-amount-state','conflicting');
       adminMode='zero';await page.getByRole('button',{name:'Actualizar pedido'}).click();
       await expect(page.getByTestId('order-published-total')).toContainText(/USD.*0,00/);
       await expect(page.getByTestId('order-published-total')).toHaveAttribute('data-amount-state','reported');

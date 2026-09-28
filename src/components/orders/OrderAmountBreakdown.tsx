@@ -8,12 +8,9 @@ export interface PublishedOrderAmountRow { name: string; sku?: string; evidence:
 export function PublishedOrderAmounts({evidence, rows, showTotal=true}: {
   evidence: OrderAmountEvidence; rows: PublishedOrderAmountRow[]; showTotal?: boolean;
 }) {
-  const values = [...(showTotal ? [evidence.total,evidence.currency] : []), ...rows.flatMap(row=>Object.values(row.evidence))];
-  const review = values.some(value=>value.state==='invalid'||value.state==='conflicting');
-  const incomplete = values.some(value=>value.state==='missing');
+  // This view projects published values. Do not manufacture business notices
+  // from a client-side completeness check when the response provides none.
   return <section className="order-amounts" aria-label="Importes publicados del pedido">
-    {review ? <p className="order-amounts-notice" role="status">Hay importes o monedas que requieren revisión. No se eligió un valor entre datos contradictorios.</p>
-      : incomplete ? <p className="order-amounts-notice">Los datos no informados no equivalen a cero. No se calculan importes faltantes.</p> : null}
     {rows.length ? <ul className="order-amounts-lines">{rows.map((row,index)=><li key={index}>
       <p className="order-amounts-name">{row.name}</p>
       {row.sku ? <p className="order-amounts-sku">SKU: {row.sku}</p> : null}

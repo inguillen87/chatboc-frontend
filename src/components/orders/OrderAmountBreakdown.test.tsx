@@ -26,10 +26,20 @@ describe('published amount breakdown',()=>{
   it('does not display a contradictory total as authoritative',()=>{
     render(<OrderAmountBreakdown order={order({total:100,totals:{monetary:200,currency:'ARS'}})} />);
     expect(screen.getByTestId('order-published-total')).toHaveTextContent('Importe a revisar');
-    expect(screen.getByRole('status')).toHaveTextContent('requieren revisión');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(/datos contradictorios/)).not.toBeInTheDocument();
   });
   it('does not imply pesos when the amount is known but currency is missing',()=>{
     render(<OrderAmountBreakdown order={order({total:100})} />);
     expect(screen.getByTestId('order-published-total')).toHaveTextContent('100 · Moneda no informada');
+  });
+});
+
+describe('no frontend-authored business notices',()=>{
+  it.each([{total:null},{total:100,totals:{monetary:200,currency:'ARS'}}])('keeps the data state without generating advisory copy %j',patch=>{
+    const view=render(<OrderAmountBreakdown order={order(patch)} />);
+    expect(view.container.querySelector('.order-amounts-notice')).toBeNull();
+    expect(screen.queryByText(/no equivalen a cero|requieren revisión|No se calculan importes/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('order-published-total')).toHaveAttribute('data-amount-state',patch.total===null?'missing':'conflicting');
   });
 });

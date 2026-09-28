@@ -1,5 +1,4 @@
 .order-amounts { min-width:0; overflow-wrap:anywhere; color:hsl(var(--foreground)); }
-.order-amounts-notice { padding:.75rem; border:1px solid hsl(var(--border)); border-radius:.6rem; background:hsl(var(--muted) / .35); font-size:.8rem; line-height:1.6; margin-bottom:.75rem; }
 .order-amounts-lines { list-style:none; padding:0; margin:0; }
 .order-amounts-lines>li { padding:1rem 0; border-bottom:1px solid hsl(var(--border)); }
 .order-amounts-name { font-weight:600; }

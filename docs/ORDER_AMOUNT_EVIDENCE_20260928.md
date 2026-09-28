@@ -25,7 +25,7 @@ No se cambian endpoints, payloads de mutación, estados operativos, autorizació
 
 Catorce regresiones de importes fallaron sobre el normalizador original. Las pruebas nuevas cubren datos ausentes, ceros explícitos, subtotales descontados, alias contradictorios, monedas, precisión decimal, sumas separadas, contexto de tenant y conservación del payload de cambio de estado.
 
-La validación local final aprobó TypeScript, **3701 pruebas en 440 archivos**, compilación de producción y Chromium. Son 72 pruebas adicionales respecto de la base publicada, sin fallidas ni pendientes. La primera suite encontró una expectativa exacta del normalizador de portal que no incluía el nuevo objeto de evidencia; se amplió con sus campos y estados esperados sin quitar las aserciones anteriores, y se repitió la suite completa.
+La primera validación local completa aprobó TypeScript, **3701 pruebas en 440 archivos**, compilación de producción y Chromium. Son 72 pruebas adicionales respecto de la base publicada, sin fallidas ni pendientes. La primera suite encontró una expectativa exacta del normalizador de portal que no incluía el nuevo objeto de evidencia; se amplió con sus campos y estados esperados sin quitar las aserciones anteriores, y se repitió la suite completa.
 
 El navegador ejecutó las páginas reales de detalle administrativo y seguimiento público a 1440×1000 claro, 390×844 oscuro y 320×740 claro. Se conservaron las pruebas de privacidad, movimiento reducido, ausencia de desbordamiento, revisión/cancelación/confirmación de estado y accesibilidad. Se añadieron precio 100 × cantidad 2 con subtotal publicado 170, total 175, valores ausentes, total contradictorio y cero explícito. Los tres recorridos aprobaron sin errores JavaScript; no hubo incidencias serias/críticas en las superficies de accesibilidad evaluadas.
 
@@ -40,3 +40,10 @@ Se conserva el workflow existente `Order lifecycle and scoped operations`, ampli
 Los tres aliases productivos se actualizan de forma selectiva. `preview.chatboc.ar` debe permanecer en `dpl_ChY8GL3PJjnmCYH3qkWVsWg5HHeX`; la base `dpl_7w8wGzhKjibS7qyzHNffV1vSRery` se conserva para rollback. El resultado efectivo, revisión y deployment se registran en el PR y `.vercel/order-evidence/publication.json`; este documento no declara una publicación antes de comprobarla.
 
 Evidencia local: `.vercel/order-evidence` y `.vercel/order-lifecycle-evidence`. La rama sigue la cadena publicada del Inbox; no mezcla otras ramas en main ni declara completados CRM, dominios propios, Analía/Conversa o la migración a Vercel + Neon.
+
+
+## Revisión P1 antes de promover
+
+La revisión de #1790 detectó dos avisos explicativos generados por el frontend sin texto suministrado por el backend. El primer candidato no se promovió. Se eliminaron esos avisos y su CSS; no se inventó un nuevo contrato ni una configuración por tenant para justificar el texto. Los valores y sus estados tipados siguen visibles, sin incorporar recomendaciones de negocio a partir de una comprobación local. Dos regresiones adicionales verifican ausencia de esos mensajes y conservación del estado missing/conflicting. La prueba de navegador conserva el rechazo del importe contradictorio y comprueba que no aparezca el aviso eliminado.
+
+La revisión definitiva, cifras de CI y deployment publicado se registran en el PR. Los resultados de 3701 pruebas corresponden al primer candidato; no se atribuyen automáticamente a esta corrección posterior.
