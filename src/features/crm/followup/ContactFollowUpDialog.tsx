@@ -7,11 +7,11 @@ import { followUpApi, FollowUpConflict, FollowUpUnconfirmed, validateFollowUpDra
 import { browserTimeZone, followUpDateLabel, followUpKey, fromLocalDateTime, toLocalDateTime, validScheduledInstant,
   type FollowUpIdentity, type FollowUpSnapshot } from './followUpModel';
 import './followUp.css';
-interface Props { identity: FollowUpIdentity; onClose: ()=>void; onSaved?: ()=>void; returnFocus?: HTMLElement|null }
+interface Props { identity: FollowUpIdentity; onClose: ()=>void; onSaved?: ()=>void; returnFocus?: HTMLElement|null; onReturnFocus?: ()=>void }
 export function ContactFollowUpDialog(props: Props) {
   return <FollowUpSession key={followUpKey(props.identity)} {...props}/>;
 }
-function FollowUpSession({identity,onClose,onSaved,returnFocus}:Props) {
+function FollowUpSession({identity,onClose,onSaved,returnFocus,onReturnFocus}:Props) {
   const [snapshot,setSnapshot]=useState<FollowUpSnapshot|null>(null);
   const [notes,setNotes]=useState(''),[dateInput,setDateInput]=useState(''),[clearDate,setClearDate]=useState(false);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[blocked,setBlocked]=useState(false);
@@ -56,7 +56,7 @@ function FollowUpSession({identity,onClose,onSaved,returnFocus}:Props) {
   };
   const phaseLabel={checking:'Comprobando versión…',saving:'Guardando…',verifying:'Verificando persistencia…'}[phase];
   return <><Dialog open onOpenChange={open=>{if(!open)navigate(onClose);}}>
-    <DialogContent className="followup-dialog" onCloseAutoFocus={event=>{event.preventDefault();returnFocus?.focus();}}
+    <DialogContent className="followup-dialog" onCloseAutoFocus={event=>{event.preventDefault();if(onReturnFocus)onReturnFocus();else returnFocus?.focus();}}
       onEscapeKeyDown={event=>{if(lock.current||dirtyRef.current){event.preventDefault();navigate(onClose);}}}
       onPointerDownOutside={event=>{if(lock.current||dirtyRef.current){event.preventDefault();navigate(onClose);}}}>
       <DialogHeader><DialogTitle>Seguimiento del contacto</DialogTitle><DialogDescription>Organización {identity.tenantSlug} · Contacto {identity.contactId}</DialogDescription></DialogHeader>

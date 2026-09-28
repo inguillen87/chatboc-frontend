@@ -87,3 +87,21 @@ function validCalendarDate(value: string): boolean {
   if(year<1000||year>9999||month<1||month>12||day<1)return false;
   return day<=new Date(Date.UTC(year,month,0)).getUTCDate();
 }
+
+
+/** Filtering uses the verified loaded population, without extra requests or storage. */
+export function filterFollowUpRows(rows: readonly FollowUpRow[], view: FollowUpQueueView, query: string, now: Date): FollowUpRow[] {
+  const normalize=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es');
+  const needle=normalize(query.trim());
+  const verifiedTime=(row:FollowUpRow)=>validScheduledInstant(row.nextActionAt)?Date.parse(row.nextActionAt):null;
+  return rows.filter(row=>(view==='all'||followUpState(row.nextActionAt,now)===view)&&
+    normalize(`${row.name} ${row.organization} ${row.tenantSlug}`).includes(needle))
+    .sort((a,b)=>{
+      const first=verifiedTime(a),second=verifiedTime(b);
+      // Invalid or ambiguous dates remain reviewable, never assigned an invented instant.
+      if(first!==null&&second!==null&&first!==second)return first-second;
+      if(first!==null&&second===null)return -1;
+      if(first===null&&second!==null)return 1;
+      return a.name.localeCompare(b.name,'es')||a.organization.localeCompare(b.organization,'es')||a.key.localeCompare(b.key);
+    });
+}
