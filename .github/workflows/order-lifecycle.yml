@@ -3,6 +3,10 @@ name: Order lifecycle and scoped operations
   pull_request:
     paths:
       - src/features/orders/**
+      - src/context/MarketCartContext*
+      - src/pages/tenant/market/MarketProductPage*
+      - tests/cart-session.browser.mjs
+      - tests/e2e/fixtures/cart-session.*
       - src/pages/tenant/market/MarketCheckoutPage*
       - src/pages/tenant/market/checkoutMachine*
       - src/components/market/SecureCheckoutNotice.tsx
@@ -60,6 +64,8 @@ jobs:
         run: node tests/order-lifecycle.browser.mjs
       - name: Checkout session and payment-link boundary
         run: node tests/checkout-session.browser.mjs
+      - name: Cart consistency and retired responses
+        run: node tests/cart-session.browser.mjs
       - name: Browser evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -70,6 +76,9 @@ jobs:
             .vercel/checkout-evidence/browser-results.json
             .vercel/checkout-evidence/*.png
             .vercel/checkout-evidence/*-axe.json
+            .vercel/cart-evidence/browser-results.json
+            .vercel/cart-evidence/*.png
+            .vercel/cart-evidence/*-axe.json
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7

@@ -64,6 +64,7 @@ try{
    await expect(page.getByTestId('checkout-outcome')).toBeFocused();await expect(page.getByTestId('checkout-outcome')).toBeInViewport();
    await expect.poll(()=>requests.filter(request=>request.path==='/api/qa-a/carrito').length).toBe(2);
    await expect(pay).toBeVisible();await expect(start).toBeDisabled();assert.equal(starts().length,1);
+   await expect(page.locator('body')).not.toContainText('Carrito vacío');
    assert.deepEqual(starts()[0].body,{items:[{id:'product-1',product_id:1,catalogo_item_id:1,catalog_item_id:1,quantity:2,cantidad:2}],customer:{name:'Cliente qa-a',phone:'12345'}});
    assert.equal(starts()[0].tenant,'qa-a');assert.equal(await page.evaluate(()=>localStorage.getItem('chatboc_market_checkout_state_qa-a')),null);
    const axe=await new AxeBuilder({page}).include('form').include('[data-testid="checkout-outcome"]').withTags(['wcag2a','wcag2aa']).analyze();
