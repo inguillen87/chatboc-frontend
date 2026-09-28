@@ -2460,6 +2460,10 @@ export const postOmnichannelInboxActionV2 = async (
       );
     }
   }
+  const isOwnershipAction = normalizedAction === 'claim' || normalizedAction === 'assign';
+  const ownershipIdentity = isOwnershipAction
+    ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
+    : null;
   const isReply = normalizedAction === 'reply';
   const requiresStableIdentity = IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction);
   const actionClientMessageId = requiresStableIdentity
@@ -2556,6 +2560,24 @@ export const postOmnichannelInboxActionV2 = async (
   const receipt = asRecord(getSource(response));
   const candidate = asRecord(getFirst(receipt, ['ticket', 'item', 'conversation']) ?? receipt);
   const receiptId = asString(getFirst(candidate, ['id', 'ticket_id', 'conversation_id']));
-  if (!receiptId || receiptId !== ticketId) throw new ApiError('El servidor no confirmó la acción para esta conversación.', 502);
+  if (ownershipIdentity) {
+    // The backend accepts a numeric route, but publishes municipio:<id> in
+    // legacy receipts. Compare the full model + backing id, not strings alone.
+    const receiptIds = ['id', 'ticket_id', 'legacy_id']
+      .filter(key => Object.prototype.hasOwnProperty.call(candidate, key))
+      .map(key => asString(candidate[key]));
+    const idsMatch = receiptIds.length > 0 && receiptIds.every(id => Boolean(id) &&
+      normalizeActionTicketIdentity(id) === ownershipIdentity.ticketId &&
+      (!routeSourceModel(id!) || routeSourceModel(id!) === ownershipIdentity.sourceModel));
+    const sourceMatches = asString(candidate.source_model) === ownershipIdentity.sourceModel &&
+      (receipt.source_model === undefined || asString(receipt.source_model) === ownershipIdentity.sourceModel);
+    if (!idsMatch || !sourceMatches || receipt.ok === false || asString(receipt.action) !== normalizedAction) {
+      throw new ApiError('El servidor no confirmó la asignación para este caso.', 502, {
+        code: 'assignment_response_identity_mismatch',
+      });
+    }
+  } else if (!receiptId || receiptId !== ticketId) {
+    throw new ApiError('El servidor no confirmó la acción para esta conversación.', 502);
+  }
   return normalizeOmnichannelInboxActionV2(response, ticketId);
 };

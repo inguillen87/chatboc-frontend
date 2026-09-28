@@ -12,10 +12,10 @@ const clean=(value:unknown)=>typeof value==='string'&&value.trim()?value.trim():
 export function CaseOperationalBar({assigneeLabel,sla,nextSteps}:Props){
   const assignee=clean(assigneeLabel);
   const nextStep=(nextSteps||[]).map(clean).find((value):value is string=>Boolean(value))||null;
-  return <section className="case-operational-bar" aria-label="Control operativo del caso">
+  return <section className="case-operational-bar" aria-label="Control operativo del caso" tabIndex={0}>
     <div className={`case-operational-item ${assignee?'':'needs-attention'}`}>
       <span className="case-operational-label"><UserRound size={15} aria-hidden="true"/>Responsable</span>
-      <strong>{assignee||'Sin asignar'}</strong>
+      <strong title={assignee||'Sin asignar'}>{assignee||'Sin asignar'}</strong>
     </div>
     <div className="case-operational-item">
       <span className="case-operational-label"><CheckCircle2 size={15} aria-hidden="true"/>SLA</span>
@@ -23,7 +23,7 @@ export function CaseOperationalBar({assigneeLabel,sla,nextSteps}:Props){
     </div>
     <div className={`case-operational-item ${nextStep?'':'needs-attention'}`}>
       <span className="case-operational-label"><ListChecks size={15} aria-hidden="true"/>Próximo paso</span>
-      <strong>{nextStep||'Sin próximo paso publicado'}</strong>
+      <strong title={nextStep||'Sin próximo paso publicado'}>{nextStep||'Sin próximo paso publicado'}</strong>
       {!nextStep?<span className="sr-only"><AlertTriangle size={13} aria-hidden="true"/>Revisá el contexto antes de responder.</span>:null}
     </div>
   </section>;

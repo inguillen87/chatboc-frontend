@@ -36,6 +36,7 @@ import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
 import TicketAiHandoffControl, { isAiHandoffAction } from '../TicketAiHandoffControl';
 import TicketAssignment from '../TicketAssignment';
+import { isTicketAssignmentAction, ticketAssignmentActions } from '../ticketAssignmentActions';
 import { TicketSlaClocks } from '../TicketSlaClocks';
 import { CaseOperationalBar } from './CaseOperationalBar';
 import { PresenceAvatars } from './PresenceAvatars';
@@ -571,10 +572,15 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
     );
   }
 
-  const publishedActions = detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions;
+  // An explicitly empty allow-list revokes actions; never fall back to stale actions.
+  const publishedActions = detailTicket.allowed_actions !== undefined
+    ? (Array.isArray(detailTicket.allowed_actions) ? detailTicket.allowed_actions : [])
+    : (Array.isArray(detailTicket.actions) ? detailTicket.actions : []);
+  const assignmentContract = ticketAssignmentActions(publishedActions);
+  const assignmentLabel = assignmentContract.assign?.label ?? assignmentContract.claim?.label;
   const replyAllowed = Array.isArray(detailTicket.allowed_actions) && detailTicket.allowed_actions.some(action=>action.id==='reply'&&!action.disabled);
   const handoffActions = publishedActions.filter(isAiHandoffAction);
-  const visibleActions = publishedActions.filter((action) => action.id !== 'reply' && !isAiHandoffAction(action)).filter((action) => {
+  const visibleActions = publishedActions.filter((action) => action.id !== 'reply' && !isAiHandoffAction(action) && !isTicketAssignmentAction(action)).filter((action) => {
     const required = action.requires ?? [];
     if (!required.length) return true;
     const payload = action.payload && typeof action.payload === 'object' && !Array.isArray(action.payload)
@@ -626,7 +632,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
   const liveChatAction = (liveChat?.actions || []).find((action) => action.href || action.endpoint);
   const replyFailure = replyFailureState?.scopeKey === activeScopeKey ? replyFailureState.failure : null;
-  const assignmentTicket = inboxAssignmentTicket(detailTicket);
+  const assignmentTicket = inboxAssignmentTicket(detailTicket, { tenantSlug, response: detailQuery.data?.raw });
   const lastDeliveryView = deliveryView(lastDelivery);
   const lastDeliveryEvidence = deliveryEvidence(lastDelivery);
   const statusTiles = [
@@ -664,11 +670,12 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
       <CaseOperationalBar assigneeLabel={assigneeLabel} sla={detailTicket.sla} nextSteps={detailTicket.next_steps} />
 
       <div className="inbox-case-scroll min-h-0 flex-1 overflow-y-auto" role="region" aria-label="Historial y contexto del caso" tabIndex={0}>
-      {assignmentTicket ? (
+      {assignmentTicket && assignmentLabel ? (
         <details className="inbox-assignment-control">
-          <summary>Gestionar responsable</summary>
+          <summary>{assignmentLabel}</summary>
           <TicketAssignment
             ticket={assignmentTicket}
+            assignmentActions={publishedActions}
             variant="compact"
             onAssignmentConfirmed={async()=>{await detailQuery.refetch();onActionComplete?.();}}
           />

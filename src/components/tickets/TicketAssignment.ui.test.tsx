@@ -7,6 +7,8 @@ import type { Ticket } from '@/types/tickets';
 const mocks = vi.hoisted(() => ({
   user: { id: 10, name: 'Operadora Junín', rol: 'empleado' } as Record<string, unknown>,
   hasAssignCapability: false,
+  contextAvailable: true,
+  readContext: vi.fn(),
   ticket: {
     id: 403,
     tipo: 'municipio',
@@ -28,10 +30,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/context/TicketContext', () => ({
-  useTickets: () => ({
-    selectedTicket: mocks.ticket,
-    updateTicket: mocks.updateTicket,
-  }),
+  useTickets: () => {
+    mocks.readContext();
+    if (!mocks.contextAvailable) throw new Error('useTickets must be used within a TicketProvider');
+    return { selectedTicket: mocks.ticket, updateTicket: mocks.updateTicket };
+  },
 }));
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'junin' }),
@@ -122,6 +125,8 @@ describe('TicketAssignment enterprise authority UI', () => {
     } as Ticket;
     mocks.user = { id: 10, name: 'Operadora Junín', rol: 'empleado' };
     mocks.hasAssignCapability = false;
+    mocks.contextAvailable = true;
+    mocks.readContext.mockClear();
     mocks.loading = false;
     mocks.error = null;
     mocks.resolutionOk = true;
@@ -174,11 +179,51 @@ describe('TicketAssignment enterprise authority UI', () => {
   it('uses an explicit inbox ticket without mutating the global ticket context', async () => {
     const inboxTicket={...mocks.ticket,id:403,tenant_slug:'junin'} as Ticket;
     const confirmed=vi.fn();
-    render(<TicketAssignment ticket={inboxTicket} variant="compact" onAssignmentConfirmed={confirmed}/>);
+    render(<TicketAssignment ticket={inboxTicket} assignmentActions={[{id: 'claim', label: 'Tomar ticket'}]} variant="compact" onAssignmentConfirmed={confirmed}/>);
     fireEvent.click(screen.getByRole('button',{name:'Tomar ticket'}));
     await waitFor(()=>expect(mocks.postAction).toHaveBeenCalledTimes(1));
     expect(mocks.updateTicket).not.toHaveBeenCalled();
     await waitFor(()=>expect(confirmed).toHaveBeenCalledOnce());
+  });
+
+  it('renders an explicit inbox ticket without consulting the absent TicketProvider', () => {
+    mocks.contextAvailable = false;
+    render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{id:'claim',label:'Atender este caso'}]} />);
+    expect(screen.getByRole('button', {name:'Atender este caso'})).toBeEnabled();
+    expect(mocks.readContext).not.toHaveBeenCalled();
+    expect(mocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it('accepts an explicit null ticket without consulting TicketContext', () => {
+    mocks.contextAvailable = false;
+    const view = render(<TicketAssignment ticket={null} />);
+    expect(view.container).toBeEmptyDOMElement();
+    expect(mocks.readContext).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for an explicit ticket without published assignment actions', () => {
+    const view = render(<TicketAssignment ticket={mocks.ticket} />);
+    expect(view.container).toBeEmptyDOMElement();
+    expect(mocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it('does not grant supervisor assignment when only claim was published', async () => {
+    mocks.user = {id:10, rol:'supervisor'};
+    render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{id:'claim',label:'Atender este caso'}]} variant="compact" />);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Atender este caso'}));
+    await waitFor(()=>expect(mocks.postAction).toHaveBeenCalledOnce());
+    expect(mocks.postAction.mock.calls[0][1].action).toBe('claim');
+    expect(mocks.updateTicket).not.toHaveBeenCalled();
+  });
+
+  it('does not grant claim when only assignment was published', async () => {
+    mocks.user = {id:10, rol:'supervisor'};
+    render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{id:'assign',label:'Elegir responsable oficial'}]} variant="compact" />);
+    expect(screen.queryByRole('button',{name:'Tomar ticket'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Elegir responsable oficial'}));
+    await waitFor(()=>expect(mocks.postAction).toHaveBeenCalledOnce());
+    expect(mocks.postAction.mock.calls[0][1].action).toBe('assign');
   });
 
   it('reserva el selector y la recomendación a supervisión o tickets.assign', async () => {
