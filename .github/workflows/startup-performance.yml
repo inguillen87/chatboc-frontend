@@ -8,9 +8,8 @@ name: Application startup performance
       - index.html
       - iframe.html
       - portal/index.html
-      - src/lib/utils.ts
+      - src/**
       - scripts/startupGraph.mjs
-      - src/startupGraph.test.ts
       - tests/startup-performance.browser.mjs
       - tests/e2e/pwa-lifecycle.spec.ts
       - playwright.pwa.config.ts

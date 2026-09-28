@@ -54,3 +54,9 @@ No se modifica código de CRM, Inbox, pedidos, encuestas, cuentas, autorizacione
 TypeScript y la suite completa aprobaron 3739 pruebas en 442 archivos, sin fallidas ni pendientes (19 pruebas de arquitectura adicionales). El archivo nuevo se ubicó en `src/startupGraph.test.ts`, fuera del directorio build ignorado, y sus 19 casos se repitieron después del traslado para comprobar que formen parte del commit y del CI. La certificación final por SHA se registra en el PR.
 
 Los cinco arranques compilados aprobaron: tres tamaños de ingreso, portal e iframe. No solicitaron el paquete de gráficos al iniciar; la prueba explícita posterior dibujó las tres barras. Las dos pruebas PWA existentes aprobaron después de la corrección puntual. La estrategia general descartada queda únicamente en evidencia local; ni ella ni archivos generados por Playwright forman parte del commit.
+
+## Revisión de cobertura antes de publicar
+
+La revisión de #1792 señaló que un import pesado podía volver a introducirse desde App, rutas u otro componente sin activar el workflow. Se amplió el filtro a `src/**` y se agregó una regresión que falla con el filtro original y aprueba con la cobertura ampliada. Los 20 casos de arquitectura aprobaron. No se cambió el código de producto ni el presupuesto para resolver esta observación.
+
+El primer SHA aprobó CI completo, cinco recorridos compilados y dos tests PWA, pero su candidato no fue promovido. La publicación queda condicionada a otra certificación del SHA que incluye la corrección del workflow; las cifras de 3739 pruebas del primer corte no se atribuyen automáticamente a la revisión final.

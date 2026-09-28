@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {describe,expect,it} from 'vitest';
 import {staticChunkClosure,assertStartupReport,STARTUP_ENTRIES,HEAVY_STARTUP_CHUNK} from '../scripts/startupGraph.mjs';
 const manifest={
@@ -42,4 +43,10 @@ describe('startup chunk boundaries',()=>{
   const value=report();value.precache.count=80;
   expect(()=>assertStartupReport(value)).toThrow(/Offline/);
  });
+});
+
+
+it('runs the startup gates when any application source changes',()=>{
+ const workflow=readFileSync('.github/workflows/startup-performance.yml','utf8');
+ expect(workflow.split('\n').map(line=>line.trim())).toContain('- src/**');
 });
