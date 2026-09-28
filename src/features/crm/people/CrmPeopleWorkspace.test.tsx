@@ -123,7 +123,7 @@ const Harness = ({
 describe("CrmPeopleWorkspace", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
-    apiFetchMock.mockResolvedValue({ interactions: [] });
+    apiFetchMock.mockResolvedValue({ contact:{id:"42"}, interactions: [] });
   });
 
   it("keeps the document main landmark owned by the application layout", () => {
@@ -178,6 +178,7 @@ describe("CrmPeopleWorkspace", () => {
   it("opens the only exact case without falling back to personal-data search", async () => {
     const onOpenTicketDesk = vi.fn();
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 1,
       cases_total_is_exact: true,
@@ -214,6 +215,7 @@ describe("CrmPeopleWorkspace", () => {
   it("routes multiple exact cases to a compact chooser and opens each exact identity", async () => {
     const onOpenTicketDesk = vi.fn();
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 2,
       cases_total_is_exact: true,
@@ -264,6 +266,7 @@ describe("CrmPeopleWorkspace", () => {
   it("does not open a single visible case when the backend reports a partial result", async () => {
     const onOpenTicketDesk = vi.fn();
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 2,
       cases_total_is_exact: false,
@@ -294,6 +297,7 @@ describe("CrmPeopleWorkspace", () => {
   it("shows an honest zero-case state and never invents a fuzzy conversation", async () => {
     const onOpenTicketDesk = vi.fn();
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 0,
       cases_total_is_exact: true,
@@ -316,6 +320,7 @@ describe("CrmPeopleWorkspace", () => {
     apiFetchMock.mockImplementation((url: string) => {
       if (url.includes("/contacts/42/")) return firstCases;
       return Promise.resolve({
+        contact:{id:"84"},
         cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
         cases_total: 0,
         cases_total_is_exact: true,
@@ -352,6 +357,7 @@ describe("CrmPeopleWorkspace", () => {
 
     await act(async () => {
       resolveFirstCases?.({
+        contact:{id:"42"},
         cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
         cases_total: 1,
         cases_total_is_exact: true,
@@ -427,6 +433,7 @@ describe("CrmPeopleWorkspace", () => {
 
   it("keeps an authoritative Persona 360 ribbon and discloses full detail on demand", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 1,
       cases_total_is_exact: true,
@@ -498,6 +505,7 @@ describe("CrmPeopleWorkspace", () => {
 
   it("loads real tenant-scoped history immediately for the selected Persona 360 summary", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       interactions: [
         {
           channel: "whatsapp",
@@ -514,7 +522,7 @@ describe("CrmPeopleWorkspace", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).toHaveBeenCalledWith(
       "/api/admin/tenants/junin/contacts/42/history",
-      { tenantSlug: "junin" },
+      {tenantSlug:"junin"},
     );
   });
 
@@ -526,6 +534,7 @@ describe("CrmPeopleWorkspace", () => {
     apiFetchMock.mockImplementation((url: string) => {
       if (url.includes("/contacts/42/")) return firstHistory;
       return Promise.resolve({
+        contact:{id:"84"},
         interactions: [{
           channel: "web",
           direction: "outbound",
@@ -561,6 +570,7 @@ describe("CrmPeopleWorkspace", () => {
 
     await act(async () => {
       resolveFirstHistory?.({
+        contact:{id:"42"},
         interactions: [{
           channel: "whatsapp",
           direction: "inbound",
@@ -641,7 +651,7 @@ describe("CrmPeopleWorkspace", () => {
   it("offers a retry without replacing the error with invented activity", async () => {
     apiFetchMock
       .mockRejectedValueOnce(new Error("Servicio temporalmente no disponible"))
-      .mockResolvedValueOnce({ interactions: [] });
+      .mockResolvedValueOnce({ contact:{id:"42"}, interactions: [] });
 
     render(<Harness initialSelectedContactId="42" />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Interacciones" }), {
@@ -649,7 +659,7 @@ describe("CrmPeopleWorkspace", () => {
       ctrlKey: false,
     });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Servicio temporalmente no disponible");
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo cargar el historial multicanal");
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
 
     expect(await screen.findByText("Sin eventos publicados")).toBeInTheDocument();

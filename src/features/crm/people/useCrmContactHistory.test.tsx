@@ -31,7 +31,7 @@ describe("useCrmContactHistory", () => {
   });
 
   it("stays idle until explicitly enabled and requests the scoped endpoint", async () => {
-    apiFetchMock.mockResolvedValue({ interactions: [] });
+    apiFetchMock.mockResolvedValue({ contact:{id:"contact/42"}, interactions: [] });
     const { result, rerender } = renderHook(
       ({ enabled }) => useCrmContactHistory({
         tenantSlug: "Junin",
@@ -49,12 +49,13 @@ describe("useCrmContactHistory", () => {
 
     expect(apiFetchMock).toHaveBeenCalledWith(
       "/api/admin/tenants/junin/contacts/contact%2F42/history",
-      { tenantSlug: "junin" },
+      {tenantSlug:"junin"},
     );
   });
 
   it("defensively redacts sensitive interaction content", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       interactions: [{
         channel: "whatsapp",
         direction: "inbound",
@@ -74,6 +75,7 @@ describe("useCrmContactHistory", () => {
 
   it("accepts only exact tenant-scoped case identities and rebuilds their href", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 9,
       cases_total_is_exact: true,
@@ -143,6 +145,7 @@ describe("useCrmContactHistory", () => {
 
   it("fails closed when the backend does not publish crm.contact_cases.v1", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: "crm.contact_cases.v0",
       cases: [{ source_model: "TenantTicket", ticket_id: "7", tenant_slug: "junin" }],
       interactions: [],
@@ -159,6 +162,7 @@ describe("useCrmContactHistory", () => {
 
   it("fails closed when crm.contact_cases.v1 omits the required cases array", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 1,
       interactions: [],
@@ -176,6 +180,7 @@ describe("useCrmContactHistory", () => {
 
   it("fails closed when crm.contact_cases.v1 omits exactness metadata", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 1,
       cases: [{ source_model: "TenantTicket", ticket_id: "7", tenant_slug: "junin" }],
@@ -194,6 +199,7 @@ describe("useCrmContactHistory", () => {
 
   it("fails closed when an exact non-truncated envelope contradicts its visible rows", async () => {
     apiFetchMock.mockResolvedValue({
+      contact:{id:"42"},
       cases_contract_version: CRM_CONTACT_CASES_CONTRACT_VERSION,
       cases_total: 5,
       cases_total_is_exact: true,
