@@ -46,3 +46,11 @@ El resultado efectivo se registra por SHA en el PR y `.vercel/history-evidence/p
 TypeScript, **3766 pruebas en 443 archivos**, compilación, tres recorridos nuevos de historial, tres recorridos existentes de seguimiento y auditoría de presupuesto de arranque aprobaron. Son **26 pruebas adicionales** respecto de la base, sin pruebas fallidas ni pendientes. La revisión final debe reproducir esos resultados en CI; este corte no reutiliza cifras de otro SHA.
 
 El grupo focalizado aprobó 79 pruebas. Los tres tamaños de navegador (1440×1000 claro, 390×844 oscuro y 320×740 claro) confirmaron los rechazos y recuperación sin escrituras, errores JavaScript ni desbordamiento horizontal. La sección de casos evaluada por axe no presentó incidencias serias/críticas; se revisó visualmente la captura móvil oscura. No se afirma una auditoría de accesibilidad completa de la aplicación.
+
+## Revisión antes de promover
+
+La revisión P2 detectó que desactivar la recarga al recuperar el foco eliminaba una vía de actualización que ya existía. Se restauró la política de 30 segundos y la revalidación al volver a la pestaña. Dos pruebas nuevas comprueban que una ficha obsoleta vuelve a consultar y retira datos si es rechazada, mientras una ficha deshabilitada no se reactiva al recuperar el foco.
+
+El recorrido de navegador ahora provoca un cambio de visibilidad y adelanta su reloj controlado 31 segundos, sin invalidación manual en ese paso. El primer intento enviaba un evento no propagado al documento; se contrastó la implementación instalada de FocusManager y se corrigió el disparo al objeto window donde escucha. Los tres tamaños aprobaron manteniendo las mismas comprobaciones de ausencia de datos/enlaces anteriores. El grupo focalizado final aprobó 81 pruebas; tipos también aprobaron.
+
+El candidato inicial no se promovió. La revisión que incluye esta corrección debe completar de nuevo ambos workflows y la verificación del deployment. El verificador local de artifact se ajustó para leer el campo existente `verifiedWrites` del reporte de seguimiento; no se cambió ni omitió la comprobación de una escritura sintética por recorrido.

@@ -264,8 +264,8 @@ export const useCrmContactHistory = ({tenantSlug,contactId,enabled}: UseCrmConta
   },[client,queryKey,canLoad]);
 
   const query = useQuery<CrmContactHistory|null>({
-    queryKey, enabled:canLoad, retry:false, gcTime:0, staleTime:0,
-    refetchOnMount:"always",refetchOnWindowFocus:false,
+    queryKey, enabled:canLoad, retry:false, gcTime:0, staleTime:30_000,
+    refetchOnMount:"always",refetchOnWindowFocus:true,
     queryFn:async ({signal})=>{
       if(!canLoad || !normalizedTenantSlug || !normalizedContactId || active.current.scope!==scope || !active.current.canLoad) throw new Error(HISTORY_ERROR);
       // TanStack otherwise retains successful data after a failed refresh.

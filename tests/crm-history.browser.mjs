@@ -28,6 +28,7 @@ try{
    return route.fulfill({json:mode==='foreign'?data('qa-foreign','999'):mode==='malformed'?{contact:{id},interactions:{}}:data(tenant,id)});
   });
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
+  await page.clock.setFixedTime(new Date('2026-09-28T12:00:00Z'));
   const opened=()=>page.evaluate(()=>window.__historyOpened);
   try{
    await page.goto(`${origin}/tests/e2e/fixtures/crm-history.html`);
@@ -36,7 +37,11 @@ try{
    await expect(page.getByRole('button',{name:'Abrir caso',exact:true})).toBeEnabled();
    await page.getByRole('button',{name:'Abrir caso',exact:true}).click();
    assert.equal((await opened()).length,1);assert.ok((await opened())[0].includes('ticket_id=419'));
-   mode='denied';await page.evaluate(()=>window.__refreshHistory());
+   const beforeFocus=reads.length;mode='denied';
+   await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});window.dispatchEvent(new Event('visibilitychange'));});
+   await page.clock.setFixedTime(new Date('2026-09-28T12:00:31Z'));
+   await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'visible'});window.dispatchEvent(new Event('visibilitychange'));});
+   await expect.poll(()=>reads.length).toBeGreaterThan(beforeFocus);
    await expect(page.getByText('Owner qa-a 42',{exact:true})).toHaveCount(0);
    await expect(page.getByRole('button',{name:'Abrir caso',exact:true})).toHaveCount(0);
    await page.getByRole('button',{name:'Ver casos',exact:true}).click();
@@ -77,7 +82,7 @@ try{
    await page.screenshot({path:`${folder}/verified-${width}.png`,fullPage:true});
    assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
    assert.ok(reads.every(read=>read.header===read.tenant));
-   results.push({width,height,dark,passed:true,readRequests:reads.length,writeRequests:writes.length,denialWithdrawsHistory:true,rejectsForeignContactAndTenant:true,rejectsMalformedHistory:true,recoveryVerified:true,lateResponseDiscarded:true,seriousAccessibilityViolations:serious.length});
+   results.push({width,height,dark,passed:true,readRequests:reads.length,writeRequests:writes.length,focusRevalidation:true,denialWithdrawsHistory:true,rejectsForeignContactAndTenant:true,rejectsMalformedHistory:true,recoveryVerified:true,lateResponseDiscarded:true,seriousAccessibilityViolations:serious.length});
   }catch(error){
    await page.screenshot({path:`${folder}/failure-${width}.png`,fullPage:true}).catch(()=>{});
    results.push({width,height,dark,passed:false,reason:error.message,errors});

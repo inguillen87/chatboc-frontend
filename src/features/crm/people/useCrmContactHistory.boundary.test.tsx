@@ -1,5 +1,5 @@
 import React from 'react';
-import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
+import {QueryClient,QueryClientProvider,focusManager} from '@tanstack/react-query';
 import {act,renderHook,waitFor} from '@testing-library/react';
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 const fetchMock=vi.hoisted(()=>vi.fn());
@@ -103,5 +103,27 @@ describe('retired requests',()=>{
   await waitFor(()=>expect(result.current.data).not.toBeNull());const oldRefetch=result.current.refetch;
   rerender({enabled:false});await act(async()=>{expect(await oldRefetch()).toEqual({data:null});});
   expect(fetchMock).toHaveBeenCalledTimes(1);
+ });
+});
+
+describe('focus-driven revalidation',()=>{
+ it('revalidates a stale open detail on return and withdraws it after rejection',async()=>{
+  fetchMock.mockResolvedValueOnce(payload()).mockRejectedValueOnce(Object.assign(new Error('Unavailable'),{status:403}));
+  const {result,unmount}=renderHook(()=>useCrmContactHistory({tenantSlug:'junin',contactId:'42',enabled:true}),setup());
+  await waitFor(()=>expect(result.current.data).not.toBeNull());
+  const start=Date.now();const clock=vi.spyOn(Date,'now');
+  try{
+   act(()=>{focusManager.setFocused(false);});clock.mockReturnValue(start+31_000);
+   act(()=>{focusManager.setFocused(true);});
+   await waitFor(()=>expect(fetchMock).toHaveBeenCalledTimes(2));
+   await waitFor(()=>expect(result.current.error).not.toBeNull());expect(result.current.data).toBeNull();
+  }finally{unmount();clock.mockRestore();focusManager.setFocused(undefined);}
+ });
+ it('does not revalidate a disabled detail when focus returns',async()=>{
+  fetchMock.mockResolvedValue(payload());
+  const {result,rerender,unmount}=renderHook(({enabled})=>useCrmContactHistory({tenantSlug:'junin',contactId:'42',enabled}),{...setup(),initialProps:{enabled:true}});
+  await waitFor(()=>expect(result.current.data).not.toBeNull());rerender({enabled:false});
+  try{await act(async()=>{focusManager.setFocused(false);focusManager.setFocused(true);});expect(fetchMock).toHaveBeenCalledTimes(1);expect(result.current.data).toBeNull();}
+  finally{unmount();focusManager.setFocused(undefined);}
  });
 });
