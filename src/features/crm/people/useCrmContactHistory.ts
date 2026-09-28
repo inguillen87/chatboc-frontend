@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import {useCallback,useEffect,useId,useMemo,useRef} from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { redactSensitiveCrmText } from "./sensitiveContent";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { apiFetch } from "@/utils/api";
 import {
   buildTerritorialTicketHref,
   resolveTerritorialTicketIdentity,
@@ -39,6 +40,7 @@ export type CrmContactCasesContractStatus = "verified" | "unavailable" | "unsupp
 
 export interface CrmContactHistory {
   contactId: string;
+  tenantSlug?: string;
   interactions: CrmContactHistoryInteraction[];
   cases: CrmContactCase[];
   casesContractStatus: CrmContactCasesContractStatus;
@@ -58,6 +60,33 @@ const normalizeIdentity = (value?: string | null): string | null => {
   const normalized = value?.trim();
   return normalized || null;
 };
+
+const HISTORY_ERROR = "No se pudo cargar el historial multicanal";
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const identifier = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() && value === value.trim() ? value
+    : typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+
+function assertPublishedScope(record: Record<string, unknown>, contactId: string, tenantSlug: string) {
+  const ids = [record.contact_id, record.contactId];
+  if (ids.some(value => value !== undefined && identifier(value) !== contactId)) throw new Error(HISTORY_ERROR);
+  const tenants = [record.tenant_slug, record.tenantSlug];
+  if (record.tenant !== undefined && record.tenant !== null) {
+    if (!isRecord(record.tenant)) throw new Error(HISTORY_ERROR);
+    tenants.push(record.tenant.slug);
+  }
+  if (tenants.some(value => value !== undefined &&
+    (typeof value !== "string" || value !== value.trim() || value.toLowerCase() !== tenantSlug))) throw new Error(HISTORY_ERROR);
+}
+
+function assertHistoryEnvelope(payload: unknown, contactId: string, tenantSlug: string): asserts payload is Record<string, unknown> {
+  if (!isRecord(payload) || !isRecord(payload.contact) || identifier(payload.contact.id) !== contactId ||
+    !Array.isArray(payload.interactions) || payload.interactions.some(row=>!isRecord(row))) throw new Error(HISTORY_ERROR);
+  assertPublishedScope(payload, contactId, tenantSlug);
+  assertPublishedScope(payload.contact, contactId, tenantSlug);
+  payload.interactions.forEach(row=>assertPublishedScope(row as Record<string, unknown>, contactId, tenantSlug));
+}
 
 const normalizeString = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
@@ -139,7 +168,8 @@ const normalizeHistory = (
   contactId: string,
   tenantSlug: string,
 ): CrmContactHistory => {
-  const record = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  assertHistoryEnvelope(payload, contactId, tenantSlug);
+  const record = payload;
   const rawInteractions = Array.isArray(record.interactions) ? record.interactions : [];
   const contractVersion = normalizeString(record.cases_contract_version);
   const casesEnvelopeRows = Array.isArray(record.cases) ? record.cases : null;
@@ -181,12 +211,13 @@ const normalizeHistory = (
 
   return {
     contactId,
+    tenantSlug,
     interactions: rawInteractions.map((raw): CrmContactHistoryInteraction => {
       const interaction = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
       const rawContent = normalizeString(interaction.content);
       return {
-        channel: normalizeString(interaction.channel),
-        direction: normalizeString(interaction.direction),
+        channel: redactSensitiveCrmText(normalizeString(interaction.channel)),
+        direction: redactSensitiveCrmText(normalizeString(interaction.direction)),
         content: rawContent
           ? redactSensitiveCrmText(rawContent) || "Contenido no disponible."
           : "Evento sin contenido textual.",
@@ -205,48 +236,69 @@ const normalizeHistory = (
   };
 };
 
-export const useCrmContactHistory = ({
-  tenantSlug,
-  contactId,
-  enabled,
-}: UseCrmContactHistoryOptions) => {
+export const useCrmContactHistory = ({tenantSlug,contactId,enabled}: UseCrmContactHistoryOptions) => {
   const normalizedTenantSlug = normalizeIdentity(tenantSlug)?.toLowerCase() || null;
   const normalizedContactId = normalizeIdentity(contactId);
-  const canLoad = Boolean(enabled && normalizedTenantSlug && normalizedContactId);
+  const canLoad = Boolean(enabled && normalizedTenantSlug && /^[a-z0-9][a-z0-9_-]{0,127}$/.test(normalizedTenantSlug) && normalizedContactId);
+  const client = useQueryClient();
+  const viewId = useId();
+  // Private detail is scoped to this mounted view as well as tenant/contact.
+  // A new operator/view cannot inherit a previous mount's fresh cached response.
+  const queryKey = useMemo(()=>["crm","contact-history",normalizedTenantSlug||"missing-tenant",normalizedContactId||"missing-contact",viewId], [normalizedTenantSlug,normalizedContactId,viewId]);
+  const scope = JSON.stringify(queryKey);
+  const active = useRef({scope,canLoad});
+  active.current={scope,canLoad};
+  useEffect(()=>{
+    active.current={scope,canLoad};
+    return ()=>{if(active.current.scope===scope)active.current={scope:"unmounted",canLoad:false};};
+  },[scope,canLoad]);
+  useEffect(()=>{
+    if (!canLoad) {
+      void client.cancelQueries({queryKey,exact:true});
+      client.removeQueries({queryKey,exact:true});
+    }
+    return ()=>{
+      void client.cancelQueries({queryKey,exact:true});
+      client.removeQueries({queryKey,exact:true});
+    };
+  },[client,queryKey,canLoad]);
 
-  const query = useQuery({
-    queryKey: [
-      "crm",
-      "contact-history",
-      normalizedTenantSlug || "missing-tenant",
-      normalizedContactId || "missing-contact",
-    ],
-    enabled: canLoad,
-    retry: false,
-    staleTime: 30_000,
-    queryFn: async () => {
-      if (!normalizedTenantSlug || !normalizedContactId) {
-        throw new Error("Falta el contexto tenant/contacto para cargar el historial CRM.");
+  const query = useQuery<CrmContactHistory|null>({
+    queryKey, enabled:canLoad, retry:false, gcTime:0, staleTime:30_000,
+    refetchOnMount:"always",refetchOnWindowFocus:true,
+    queryFn:async ({signal})=>{
+      if(!canLoad || !normalizedTenantSlug || !normalizedContactId || active.current.scope!==scope || !active.current.canLoad) throw new Error(HISTORY_ERROR);
+      // TanStack otherwise retains successful data after a failed refresh.
+      // Clear it before network I/O, including the imperative refetch result.
+      client.setQueryData(queryKey,null);
+      try {
+        const payload = await apiFetch<unknown>(
+          `/api/admin/tenants/${encodeURIComponent(normalizedTenantSlug)}/contacts/${encodeURIComponent(normalizedContactId)}/history`,
+          {tenantSlug:normalizedTenantSlug},
+        );
+        // The shared transport has no AbortSignal option. Cancellation retires
+        // this query/result; it does not imply the HTTP request stopped.
+        if(signal.aborted || active.current.scope!==scope || !active.current.canLoad) throw new Error(HISTORY_ERROR);
+        return normalizeHistory(payload,normalizedContactId,normalizedTenantSlug);
+      } catch(error) {
+        // Never keep transport error bodies (which may contain PII) in UI/cache.
+        const status = Number((error as {status?:unknown})?.status);
+        throw Object.assign(new Error(HISTORY_ERROR),Number.isInteger(status)?{status}:{});
       }
-      const payload = await apiFetch<unknown>(
-        `/api/admin/tenants/${encodeURIComponent(normalizedTenantSlug)}/contacts/${encodeURIComponent(normalizedContactId)}/history`,
-        { tenantSlug: normalizedTenantSlug },
-      );
-      return normalizeHistory(payload, normalizedContactId, normalizedTenantSlug);
     },
   });
-
-  const dataMatchesSelection = Boolean(
-    normalizedContactId && query.data?.contactId === normalizedContactId,
-  );
-
+  const matches=(data:CrmContactHistory|null|undefined)=>Boolean(data && data.contactId===normalizedContactId && data.tenantSlug===normalizedTenantSlug);
+  const data=canLoad && query.isSuccess && !query.isFetching && matches(query.data)?query.data:null;
+  const refetch=useCallback(async()=>{
+    if(!canLoad || active.current.scope!==scope || !active.current.canLoad) return {data:null};
+    const result=await query.refetch();
+    return {data:active.current.scope===scope && active.current.canLoad && result.isSuccess && matches(result.data)?result.data:null};
+  },[canLoad,scope,query.refetch,normalizedTenantSlug,normalizedContactId]);
   return {
-    data: dataMatchesSelection ? query.data : null,
-    isLoading: canLoad && query.isPending,
-    isFetching: canLoad && query.isFetching,
-    error: canLoad && query.error
-      ? getErrorMessage(query.error, "No se pudo cargar el historial multicanal")
-      : null,
-    refetch: query.refetch,
+    data,
+    isLoading:canLoad && (query.isPending || query.isFetching),
+    isFetching:canLoad && query.isFetching,
+    error:canLoad && query.error?HISTORY_ERROR:null,
+    refetch,
   };
 };

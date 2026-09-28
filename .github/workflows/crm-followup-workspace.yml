@@ -3,10 +3,12 @@ name: CRM persistent follow-up
   pull_request:
     paths:
       - src/features/crm/followup/**
-      - src/features/crm/people/CrmPeopleWorkspace*
+      - src/features/crm/people/**
       - src/pages/admin/SuperAdminDashboard.tsx
       - src/components/admin/platform/SuperAdminDashboard.test.tsx
       - tests/followup-workspace.browser.mjs
+      - tests/crm-history.browser.mjs
+      - tests/e2e/fixtures/crm-history.*
       - tests/followup-full.browser.mjs
       - tests/followup-backend-http.py
       - tests/e2e/fixtures/followup-workspace.*
@@ -41,12 +43,16 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Follow-up UI and verification protocol
         run: node tests/followup-workspace.browser.mjs
+      - name: History identity and recovery
+        run: node tests/crm-history.browser.mjs
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: crm-followup-evidence
-          path: .vercel/followup-evidence/
+          path: |
+            .vercel/followup-evidence/
+            .vercel/history-evidence/
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
