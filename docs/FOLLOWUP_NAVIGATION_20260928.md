@@ -37,3 +37,5 @@ Las pruebas de guardado emplean datos sintéticos y las comprobaciones productiv
 ## Resultado local del corte
 
 TypeScript, 3720 pruebas en 441 archivos, compilación y Chromium aprobaron; no hubo pruebas fallidas o pendientes. Son 17 pruebas adicionales respecto de la base publicada. Los tres recorridos (1440×1000 claro, 390×844 oscuro y 320×740 claro) confirmaron una sola escritura sintética, persistencia tras recarga, conflicto bloqueado, conservación de filtros, resultados enfocados y visibles, retorno de foco y ausencia de robo de foco tras una lectura demorada. Axe no registró incidencias serias/críticas en las superficies evaluadas de agenda y editor.
+
+Antes de cerrar se fijó también el reloj del navegador de pruebas al escenario de referencia. Así, el vencimiento de octubre no cambia de categoría cuando esta misma regresión se ejecute más adelante. Se utilizó la API de reloj disponible en Playwright instalado, sin cambiar relojes de producción ni la lógica de fechas del producto; los tres recorridos volvieron a aprobar. La certificación de GitHub y el deployment deben corresponder al SHA que incluye este ajuste, no al candidato anterior.

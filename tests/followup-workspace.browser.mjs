@@ -36,6 +36,8 @@ try{
    return route.fulfill({status:404,json:{error:'Unexpected request'}});
   });
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
+  // A fixed browser clock keeps deadline categories deterministic across dates.
+  await page.clock.setFixedTime(new Date('2026-09-28T12:00:00Z'));
   try{
    await page.goto(`${origin}/tests/e2e/fixtures/followup-workspace.html`);
    if(dark)await page.evaluate(()=>document.documentElement.classList.add('dark'));
