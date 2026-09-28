@@ -48,8 +48,6 @@ export type CheckoutAction =
   | { type: 'TRANSITION'; to: CheckoutStatus; payload?: Partial<CheckoutState> }
   | { type: 'RESET' };
 
-const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
-
 const lowerString = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : null;
 
@@ -75,30 +73,9 @@ const isPlanLockResponse = (response: CheckoutStartResponse): boolean => {
   return candidates.some((code) => Boolean(code && ['plan_required', 'plan_full_required', 'upgrade_full_plan', 'upgrade_to_full', 'payment_integration_locked', 'integration_locked'].includes(code)));
 };
 
-export const hydrateCheckoutState = (raw: unknown): CheckoutState => {
-  const base = createInitialCheckoutState();
-  if (!raw || typeof raw !== 'object') return base;
-  const payload = raw as PersistedCheckoutState;
-  const validStatus: CheckoutStatus[] = ['idle', 'validating', 'creating_order', 'awaiting_payment', 'success', 'error'];
-  const persistedStatus = payload.status && validStatus.includes(payload.status) ? payload.status : base.status;
-  const status: CheckoutStatus =
-    persistedStatus === 'validating' || persistedStatus === 'creating_order'
-      ? 'idle'
-      : persistedStatus;
-
-  return {
-    status,
-    error: payload.error ?? null,
-    message: payload.message ?? null,
-    paymentUrl: payload.paymentUrl ?? null,
-    orderId: payload.orderId ? String(payload.orderId) : null,
-    updatedAt: payload.updatedAt ?? null,
-    contact: {
-      name: asString(payload.contact?.name),
-      phone: asString(payload.contact?.phone),
-    },
-  };
-};
+// Browser storage is not an authenticated receipt or a source for contact PII.
+// Kept as compatibility helpers for callers still holding the old state shape.
+export const hydrateCheckoutState = (_raw: unknown): CheckoutState => createInitialCheckoutState();
 
 export const checkoutReducer = (state: CheckoutState, action: CheckoutAction): CheckoutState => {
   switch (action.type) {
@@ -126,21 +103,38 @@ export const checkoutReducer = (state: CheckoutState, action: CheckoutAction): C
   }
 };
 
-export const serializeCheckoutState = (state: CheckoutState): PersistedCheckoutState => ({
-  status: state.status,
-  error: state.error,
-  message: state.message,
-  paymentUrl: state.paymentUrl,
-  orderId: state.orderId,
-  updatedAt: state.updatedAt,
-  contact: state.contact,
+export const serializeCheckoutState = (_state: CheckoutState): PersistedCheckoutState => ({});
+
+const receiptId = (value: unknown): string | null => {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  return typeof value === 'string' && value.trim() && value.length <= 256 && !/[\u0000-\u0020\u007f]/.test(value) ? value : null;
+};
+const safePaymentUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !value || value.length > 4096 || value !== value.trim() || /[\u0000-\u0020\u007f\\]/.test(value)) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? url.href : null;
+  } catch { return null; }
+};
+const failedOutcome = (message: unknown = null) => ({
+  status: 'error' as const, paymentUrl: null, orderId: null,
+  message: typeof message === 'string' && message.trim() ? message.trim() : null,
 });
 
 export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
-  const validation = getMarketCommercialValidation(response, response?.order, response?.inventory_policy);
-  const paymentUrl = response?.checkoutUrl ?? response?.init_point ?? null;
-  const normalizedStatus = String(response?.status ?? response?.estado ?? '').toLowerCase();
-  const orderId = response?.market_order_id ?? response?.orderId ?? response?.order_id;
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return failedOutcome();
+  const validation = getMarketCommercialValidation(response, response.order, response.inventory_policy);
+  const normalizedStatus = String(response.status ?? response.estado ?? '').toLowerCase();
+  const orderId = receiptId(response.market_order_id ?? response.orderId ?? response.order_id);
+  const preferenceId = receiptId(response.preferenceId ?? response.preference_id);
+  const publishedUrls = [response.checkoutUrl, response.init_point, response.checkout_url, response.paymentUrl, response.payment_url]
+    .filter(value => value !== undefined && value !== null);
+  const urls = publishedUrls.map(safePaymentUrl);
+  const paymentUrl = urls.length && urls.every(url => url !== null && url === urls[0]) ? urls[0] : null;
+  const statusKnown = ['pending','awaiting_payment','pendiente','pending_payment','pendiente_pago','confirmed','confirmado','created','success'].includes(normalizedStatus);
+  if (response.ok === false || response.error || ['failed','error','rejected','cancelled','canceled','demo'].includes(normalizedStatus)) return failedOutcome(response.message);
+  if (!(orderId && (statusKnown || response.ok === true)) && !(preferenceId && paymentUrl)) return failedOutcome();
+  if (publishedUrls.length && !paymentUrl) return failedOutcome();
 
   if (isPlanLockResponse(response)) {
     return {
@@ -160,7 +154,7 @@ export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
     };
   }
 
-  if (normalizedStatus === 'pending' || normalizedStatus === 'awaiting_payment') {
+  if (['pending','awaiting_payment','pendiente','pending_payment','pendiente_pago'].includes(normalizedStatus)) {
     return {
       status: 'awaiting_payment' as const,
       paymentUrl: null,
