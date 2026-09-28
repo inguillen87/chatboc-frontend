@@ -1,6 +1,8 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
+import { assessOrderAmounts, assessOrderItemAmounts } from '@/features/orders/orderAmounts';
+import type { PublishedValue } from '@/types/orderAmounts';
 import {
   AdminOrdersResponse,
   Order,
@@ -59,10 +61,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
-const normalizeAdminOrderItem = (value: unknown, index: number) => {
+const normalizeAdminOrderItem = (value: unknown, index: number, orderCurrency: PublishedValue<string>) => {
   const record = isRecord(value) ? value : {};
-  const quantity = asNumberOrUndefined(record.quantity ?? record.cantidad) ?? 1;
-  const price = asNumberOrUndefined(record.price ?? record.unit_price ?? record.precio_float ?? record.precio) ?? 0;
+  const evidence = assessOrderItemAmounts(record, orderCurrency);
+  const quantity = evidence.quantity.value;
+  const price = evidence.price.value;
   const name =
     asStringOrUndefined(record.name) ||
     asStringOrUndefined(record.title) ||
@@ -78,27 +81,26 @@ const normalizeAdminOrderItem = (value: unknown, index: number) => {
     title: asStringOrUndefined(record.title) || name,
     quantity,
     price,
-    unit_price: asNumberOrUndefined(record.unit_price) ?? price,
-    subtotal: asNumberOrUndefined(record.subtotal) ?? price * quantity,
+    unit_price: price,
+    subtotal: evidence.subtotal.value,
+    amount_evidence: evidence,
     sku: asStringOrUndefined(record.sku),
-    currency: asStringOrUndefined(record.currency ?? record.currency_id) || 'ARS',
+    currency: evidence.currency.value,
   };
 };
 
 const normalizeAdminOrder = (value: unknown): Order => {
   const record = isRecord(value) ? value : {};
-  const totals = isRecord(record.totals) ? record.totals : {};
-  const items = asArray(record.items).map((item, index) => normalizeAdminOrderItem(item, index));
-  const total =
-    asNumberOrUndefined(record.total) ??
-    asNumberOrUndefined(totals.monetary) ??
-    asNumberOrUndefined(totals.total) ??
-    items.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
+  const evidence = assessOrderAmounts(record);
+  const items = asArray(record.items).map((item, index) => normalizeAdminOrderItem(item, index, evidence.currency));
+  const total = evidence.total.value;
 
   return {
     ...(record as Record<string, unknown>),
     id: (record.id as string | number | undefined) ?? (record.source_id as string | number | undefined) ?? 'order',
     total,
+    currency: evidence.currency.value,
+    amount_evidence: evidence,
     status: asStringOrUndefined(record.status) || '',
     items,
     created_at: asStringOrUndefined(record.created_at) || '',
@@ -614,7 +616,8 @@ export const apiClient = {
   },
 
   listOrders: async (tenantSlug: string): Promise<Order[]> => {
-    return apiFetch<Order[]>(`/api/v1/portal/${tenantSlug}/orders`, { tenantSlug });
+    const response = await apiFetch<unknown>(`/api/v1/portal/${tenantSlug}/orders`, { tenantSlug });
+    return normalizeAdminOrdersResponse(response);
   },
 
   getOrderDetail: async (tenantSlug: string, orderId: string | number): Promise<Order> => {

@@ -6,12 +6,12 @@ import { Package, Copy, MessageCircle, RefreshCw, ShieldCheck } from 'lucide-rea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { OrderLifecycleSummary } from '@/components/orders/OrderLifecycleSummary';
-import { formatCurrency } from '@/utils/currency';
+import { PublishedOrderAmounts } from '@/components/orders/OrderAmountBreakdown';
+import { assessPublicOrderAmounts, assessPublicOrderItemAmounts } from '@/features/orders/orderAmounts';
 import { toast } from 'sonner';
 import { hexToHsl, getContrastColorHsl } from '@/utils/color';
 import { parsePublicOrder, publicOrderPoint, publicOrderBranding, publicOrderPrivacy, publicOrderText as text } from '@/features/orders/publicOrderView';
 const TrackingMap = React.lazy(() => import('@/components/ui/TrackingMap'));
-const amount = (value: unknown, currency?: string) => typeof value === 'number' && Number.isFinite(value) ? formatCurrency(value, currency || 'ARS') : 'Importe no informado';
 
 export default function OrderTrackingPage() {
   const { nro_pedido } = useParams<{ nro_pedido: string }>();
@@ -38,6 +38,7 @@ function PublicOrderSession({ code }: { code: string }) {
   if (loading) return <div role="status" className="flex min-h-64 items-center justify-center gap-3"><Package aria-hidden="true" />Consultando pedido…</div>;
   if (!order) return <div className="mx-auto max-w-xl space-y-4 p-6"><p role="alert">{error}</p><Button onClick={() => setRevision((v) => v + 1)}>Reintentar consulta</Button></div>;
   const branding = publicOrderBranding(order), privacy = publicOrderPrivacy(order);
+  const amounts = assessPublicOrderAmounts(order);
   const businessName = text(order.pyme_nombre) || 'Comercio';
   // The explicit redaction policy wins over accidental contact/address/coordinate values.
   const deliverySummary = privacy.address ? text(order.delivery_summary) || 'Dirección protegida' : text(order.delivery_summary) || text(order.direccion) || 'Dirección no informada';
@@ -71,11 +72,10 @@ function PublicOrderSession({ code }: { code: string }) {
       <p className="text-xs text-muted-foreground">La vista muestra la última respuesta recibida. Usá Actualizar estado para consultar cambios; no es una señal de GPS en vivo.</p>
       <div className="grid gap-6 md:grid-cols-3"><div className="space-y-6 md:col-span-2">
         <Card><CardHeader><CardTitle>Tu compra</CardTitle></CardHeader><CardContent>
-          {order.detalles.length ? <ul className="divide-y">{order.detalles.map((item, index) => <li key={index} className="flex flex-wrap items-start justify-between gap-3 py-4">
-            <div className="min-w-0"><p className="font-medium">{text(item.nombre_producto) || 'Artículo sin nombre informado'}</p><p className="text-sm text-muted-foreground">{typeof item.cantidad === 'number' && Number.isFinite(item.cantidad) ? `${item.cantidad} unidades` : 'Cantidad no informada'} · {amount(item.precio_unitario_original, item.moneda)}</p>{item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}</div>
-            <strong>{amount(item.subtotal_con_descuento, item.moneda)}</strong>
-          </li>)}</ul> : <p className="text-sm text-muted-foreground">No hay artículos publicados en esta respuesta.</p>}
-          <div className="mt-4 flex flex-wrap justify-between gap-3 border-t pt-4"><span>Total informado</span><strong className="text-xl">{amount(order.monto_total)}</strong></div>
+          <PublishedOrderAmounts evidence={amounts} rows={order.detalles.map(item=>({
+            name:text(item.nombre_producto)||'Artículo sin nombre informado',sku:item.sku,
+            evidence:assessPublicOrderItemAmounts(item,amounts.currency),
+          }))} />
         </CardContent></Card>
       </div><div className="space-y-6">
         <Card><CardHeader><CardTitle>Datos de entrega</CardTitle></CardHeader><CardContent className="space-y-4">

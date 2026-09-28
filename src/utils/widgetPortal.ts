@@ -1,3 +1,5 @@
+import type { OrderAmountEvidence, OrderItemAmountEvidence } from '@/types/orderAmounts';
+import { assessWidgetOrderAmounts, assessWidgetOrderItemAmounts } from '@/features/orders/orderAmounts';
 import type {
   PortalActivity,
   PortalCatalogItem,
@@ -71,6 +73,7 @@ export interface WidgetPortalOrder {
   customerName?: string;
   customerPhone?: string;
   amountTotal?: number;
+  amount_evidence?: OrderAmountEvidence;
   trackingUrl?: string;
   detailEndpoint?: string;
   items: Array<{
@@ -78,6 +81,7 @@ export interface WidgetPortalOrder {
     name?: string;
     quantity?: number;
     price?: number;
+    amount_evidence?: OrderItemAmountEvidence;
   }>;
 }
 
@@ -383,6 +387,7 @@ export const normalizeWidgetOrders = (history?: WidgetCommerceHistory | null): W
       const id = readString(entry.id, entry.order_id, entry.nro_pedido, detailEndpoint, `order-${index}`);
       if (!id) return null;
       const details = getSectionItems(entry.detalles).length > 0 ? getSectionItems(entry.detalles) : getSectionItems(entry.items);
+      const amounts=assessWidgetOrderAmounts(entry);
       return {
         id,
         nroPedido,
@@ -390,17 +395,20 @@ export const normalizeWidgetOrders = (history?: WidgetCommerceHistory | null): W
         status: readString(entry.status, entry.estado),
         customerName: readString(entry.nombre_cliente, entry.customer_name, entry.name),
         customerPhone: readString(entry.telefono_cliente, entry.customer_phone, entry.phone),
-        amountTotal: readNumber(entry.monto_total, entry.total, getNestedRecord(entry, "totals")?.total),
+        amountTotal: amounts.total.value ?? undefined,
+        amount_evidence: amounts,
         trackingUrl,
         detailEndpoint,
         items: details
           .map<WidgetPortalOrder["items"][number] | null>((detail, detailIndex) => {
             if (!isRecord(detail)) return null;
+            const amountsForItem=assessWidgetOrderItemAmounts(detail,amounts.currency);
             return {
               id: readString(detail.id, detail.product_id, detail.sku, `item-${detailIndex}`) ?? `item-${detailIndex}`,
               name: readString(detail.name, detail.nombre, detail.product_name, detail.sku),
-              quantity: readNumber(detail.quantity, detail.cantidad, detail.qty),
-              price: readNumber(detail.price, detail.precio, detail.unit_price),
+              quantity: amountsForItem.quantity.value ?? undefined,
+              price: amountsForItem.price.value ?? undefined,
+              amount_evidence: amountsForItem,
             };
           })
           .filter((detail): detail is WidgetPortalOrder["items"][number] => Boolean(detail)),

@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
+import { OrderAmountBreakdown } from '@/components/orders/OrderAmountBreakdown';
+import { formatOrderTotal } from '@/features/orders/orderAmounts';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { cn } from '@/lib/utils';
@@ -1386,7 +1388,7 @@ const PedidosPage = () => {
                             </div>
                         </div>
                         <div className="font-bold text-lg">
-                            ${order.total.toLocaleString()}
+                            {formatOrderTotal(order)}
                         </div>
                     </div>
                   </CardContent>
@@ -1548,35 +1550,7 @@ const PedidosPage = () => {
 
                   {/* Items Table */}
                   <div className="border rounded-md overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted text-muted-foreground">
-                        <tr>
-                          <th className="p-3 text-left font-medium">Producto</th>
-                          <th className="p-3 text-right font-medium">Cant.</th>
-                          <th className="p-3 text-right font-medium">Precio</th>
-                          <th className="p-3 text-right font-medium">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(selectedOrder.items || []).map((item, idx) => (
-                          <tr key={idx} className="border-t last:border-0">
-                            <td className="p-3">
-                                <div className="font-medium">{item.name}</div>
-                                <div className="text-xs text-muted-foreground">SKU: {item.sku || 'N/A'}</div>
-                            </td>
-                            <td className="p-3 text-right">{item.quantity}</td>
-                            <td className="p-3 text-right">${item.price.toLocaleString()}</td>
-                            <td className="p-3 text-right font-medium">${(item.price * item.quantity).toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-muted/30 font-medium">
-                        <tr>
-                          <td colSpan={3} className="p-3 text-right">Total</td>
-                          <td className="p-3 text-right text-lg">${selectedOrder.total.toLocaleString()}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                    <OrderAmountBreakdown order={selectedOrder} />
                   </div>
 
                   {/* Dispatch Info */}

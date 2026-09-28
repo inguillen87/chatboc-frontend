@@ -1,3 +1,6 @@
+import { OrderAmountBreakdown } from '@/components/orders/OrderAmountBreakdown';
+import { OrderAmountCoverage } from '@/components/orders/OrderAmountCoverage';
+import { summarizeOrderAmounts } from '@/features/orders/orderAmounts';
 import React, { useEffect, useState, useCallback, FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getErrorMessage } from '@/utils/api';
@@ -121,21 +124,7 @@ const PedidoDetail: FC<{ pedido: Order; onClose: () => void; onStatusChange: (ne
           </SelectContent>
         </Select>
       </div>
-      {pedido.items && pedido.items.length > 0 && (
-        <div className="mb-4">
-          <h4 className="font-semibold mb-1">Items</h4>
-          <ul className="list-disc list-inside space-y-1 text-sm">
-            {(pedido.items || []).map((item, idx) => (
-              <li key={idx}>
-                {item.quantity} x {item.name}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {pedido.total !== null && (
-        <p className="font-bold text-right">Total: ${pedido.total.toFixed(2)}</p>
-      )}
+      <OrderAmountBreakdown order={pedido} />
     </div>
   );
 };
@@ -384,10 +373,7 @@ export default function PedidosPage() {
 
   const activePedidosCount = allPedidos.filter((pedido) => !isFinalOrderStatus(pedido.status)).length;
   const finalPedidosCount = allPedidos.length - activePedidosCount;
-  const totalRevenue = allPedidos.reduce((sum, pedido) => {
-    const total = Number(pedido.total);
-    return Number.isFinite(total) ? sum + total : sum;
-  }, 0);
+  const amountCoverage = summarizeOrderAmounts(allPedidos);
 
   const toggleCategory = (estado: string) => {
     setOpenCategories((prev) => {
@@ -455,8 +441,9 @@ export default function PedidosPage() {
             <PedidoMetricCard label="Pedidos" value={allPedidos.length.toLocaleString('es-AR')} helper="Total recibido" icon={ShoppingCart} />
             <PedidoMetricCard label="Activos" value={activePedidosCount.toLocaleString('es-AR')} helper="Requieren seguimiento" icon={Clock} />
             <PedidoMetricCard label="Finalizados" value={finalPedidosCount.toLocaleString('es-AR')} helper="Entregados o cerrados" icon={CheckCircle2} />
-            <PedidoMetricCard label="Total visible" value={`$${totalRevenue.toLocaleString('es-AR')}`} helper="Suma de pedidos con total" icon={Inbox} />
+            <PedidoMetricCard label="Importes completos" value={amountCoverage.includedCount.toLocaleString('es-AR')} helper="Con total y moneda informados" icon={Inbox} />
           </div>
+          <OrderAmountCoverage orders={allPedidos} />
         </section>
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
