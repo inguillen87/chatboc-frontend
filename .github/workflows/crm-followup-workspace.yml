@@ -8,6 +8,8 @@ name: CRM persistent follow-up
       - src/components/admin/platform/SuperAdminDashboard.test.tsx
       - tests/followup-workspace.browser.mjs
       - tests/crm-history.browser.mjs
+      - tests/crm-directory.browser.mjs
+      - tests/e2e/fixtures/crm-directory.*
       - tests/e2e/fixtures/crm-history.*
       - tests/followup-full.browser.mjs
       - tests/followup-backend-http.py
@@ -45,6 +47,8 @@ jobs:
         run: node tests/followup-workspace.browser.mjs
       - name: History identity and recovery
         run: node tests/crm-history.browser.mjs
+      - name: Directory pagination identity and recovery
+        run: node tests/crm-directory.browser.mjs
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -53,6 +57,9 @@ jobs:
           path: |
             .vercel/followup-evidence/
             .vercel/history-evidence/
+            .vercel/directory-evidence/browser-results.json
+            .vercel/directory-evidence/*.png
+            .vercel/directory-evidence/*-axe.json
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7

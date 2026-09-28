@@ -1,4 +1,5 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useId, useMemo, useRef } from "react";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
 import { ApiError, apiFetch } from "@/utils/api";
 
@@ -140,21 +141,24 @@ export const parseCrmPeopleDirectoryPage = (value: unknown): CrmPeopleDirectoryP
   if (payload.contract_version !== CRM_PEOPLE_DIRECTORY_CONTRACT_VERSION) {
     throw new CrmPeopleDirectoryContractError("El backend no publicó crm.people.directory.v2.");
   }
-  if (!Array.isArray(payload.items) || !payload.page || typeof payload.page !== "object") {
+  if (!Array.isArray(payload.items) || !payload.page || typeof payload.page !== "object" || Array.isArray(payload.page)) {
     throw new CrmPeopleDirectoryContractError("El directorio no publicó items y paginación verificables.");
   }
   const rawPage = payload.page as Record<string, unknown>;
-  const limit = Number(rawPage.limit);
-  const total = Number(rawPage.total);
+  const limit = rawPage.limit as number;
+  const total = rawPage.total as number;
   const hasMore = rawPage.has_more;
-  const nextCursor = cleanString(rawPage.next_cursor) || null;
-  if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(total) || total < 0 || typeof hasMore !== "boolean") {
+  const nextCursor = typeof rawPage.next_cursor === "string" && rawPage.next_cursor.trim() && rawPage.next_cursor === rawPage.next_cursor.trim() ? rawPage.next_cursor : null;
+  if (!Number.isSafeInteger(limit) || limit < 1 || !Number.isSafeInteger(total) || total < 0 || typeof hasMore !== "boolean") {
     throw new CrmPeopleDirectoryContractError("El directorio publicó metadatos de paginación inválidos.");
   }
-  if (hasMore && !nextCursor) {
+  if ((!hasMore && rawPage.next_cursor != null) || payload.items.length > limit || payload.items.length > total) {
+    throw new CrmPeopleDirectoryContractError("El directorio publicó metadatos de paginación inválidos.");
+  }
+  if (hasMore && (!nextCursor || payload.items.length === 0 || payload.items.length >= total)) {
     throw new CrmPeopleDirectoryContractError("El directorio informó más personas sin publicar un cursor.");
   }
-  if (!payload.pii || typeof payload.pii !== "object") {
+  if (!payload.pii || typeof payload.pii !== "object" || Array.isArray(payload.pii)) {
     throw new CrmPeopleDirectoryContractError("El directorio omitió la política de datos personales.");
   }
   const rawPii = payload.pii as Record<string, unknown>;
@@ -167,6 +171,9 @@ export const parseCrmPeopleDirectoryPage = (value: unknown): CrmPeopleDirectoryP
   }
 
   const parsedItems = payload.items.map(parseDirectoryItem);
+  if (new Set(parsedItems.map(item=>item.id)).size !== parsedItems.length) {
+    throw new CrmPeopleDirectoryContractError("Persona 360 recibió una persona sin identidad estable.");
+  }
   const piiRequested = rawPii.requested;
   const pageMasked = rawPii.masked;
   const pageGranted = rawPii.granted;
@@ -223,6 +230,43 @@ export const buildLegacyCrmPeoplePath = ({
   return `/api/crm/clientes?${params.toString()}`;
 };
 
+const DIRECTORY_ERROR = "No se pudieron cargar las personas";
+const isRecord = (value:unknown):value is Record<string,unknown> => Boolean(value) && typeof value==='object' && !Array.isArray(value);
+const validTenant = (value:string)=>/^[a-z0-9][a-z0-9_-]{0,127}$/.test(value);
+
+function assertDirectoryScope(payload:unknown, expected:FetchDirectoryPageOptions) {
+  if(!isRecord(payload)) throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+  const check=(row:Record<string,unknown>)=>{
+    const slugs=[row.tenant_slug,row.tenantSlug];
+    if(row.tenant!==undefined && row.tenant!==null){
+      if(!isRecord(row.tenant))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+      slugs.push(row.tenant.slug);
+    }
+    if(slugs.some(value=>value!==undefined && (typeof value!=='string'||value!==value.trim()||value.toLowerCase()!==expected.tenantSlug)))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+  };
+  check(payload);
+  if(Array.isArray(payload.items))payload.items.forEach(row=>{if(isRecord(row))check(row);});
+  // Optional echoes are checked, never fabricated or required from legacy servers.
+  if(payload.filters!==undefined){
+    if(!isRecord(payload.filters))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    for(const [key,value] of Object.entries({q:expected.q,marketing:expected.marketing,channel:expected.channel,sort:'recent_desc'})){
+      if(payload.filters[key]!==undefined && payload.filters[key]!==value)throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    }
+  }
+}
+
+export function assertDirectoryContinuation(previous:readonly CrmPeopleDirectoryPage[], next:CrmPeopleDirectoryPage, cursor:string|null) {
+  if(!cursor)return;
+  const last=previous[previous.length-1];
+  if(!last || !last.page.has_more || last.page.next_cursor!==cursor ||
+    next.contractVersion!==last.contractVersion || next.page.limit!==last.page.limit ||
+    JSON.stringify(next.pii)!==JSON.stringify(last.pii))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+  const ids=new Set(previous.flatMap(page=>page.items.map(item=>item.id)));
+  const cursors=new Set(previous.map(page=>page.page.next_cursor).filter(Boolean));
+  if(next.items.some(item=>ids.has(item.id)) || (next.page.next_cursor&&cursors.has(next.page.next_cursor)) ||
+    next.page.total<ids.size+next.items.length)throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+}
+
 export const fetchCrmPeopleDirectoryPage = async ({
   tenantSlug,
   q,
@@ -231,6 +275,7 @@ export const fetchCrmPeopleDirectoryPage = async ({
   cursor = null,
   limit = CRM_PEOPLE_DIRECTORY_LIMIT,
 }: FetchDirectoryPageOptions): Promise<CrmPeopleDirectoryPage> => {
+  if(!validTenant(tenantSlug)||!Number.isSafeInteger(limit)||limit<1||(cursor!==null && (typeof cursor!=='string'||!cursor||cursor!==cursor.trim())))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
   const params = new URLSearchParams({
     limit: String(limit),
     marketing,
@@ -242,7 +287,10 @@ export const fetchCrmPeopleDirectoryPage = async ({
 
   try {
     const response = await apiFetch<unknown>(`/api/v2/crm/people?${params.toString()}`, { tenantSlug });
-    return parseCrmPeopleDirectoryPage(response);
+    assertDirectoryScope(response,{tenantSlug,q,marketing,channel,cursor,limit});
+    const parsed=parseCrmPeopleDirectoryPage(response);
+    if(parsed.page.limit!==limit || (cursor && parsed.page.next_cursor===cursor))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    return parsed;
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 404 || cursor) throw error;
     const legacyItems = await apiFetch<Array<Record<string, unknown>>>(
@@ -273,38 +321,62 @@ export const fetchCrmPeopleDirectoryPage = async ({
   }
 };
 
-export const useCrmPeopleDirectory = ({
-  tenantSlug,
-  q,
-  marketing,
-  channel,
-}: CrmPeopleDirectoryFilters & { tenantSlug?: string | null }) => {
-  const normalizedTenant = cleanString(tenantSlug).toLowerCase();
-  const normalizedQuery = q.trim();
-  return useInfiniteQuery({
-    queryKey: [
-      "crm-people-directory-v2",
-      normalizedTenant || "missing-tenant",
-      normalizedQuery,
-      marketing,
-      channel,
-      CRM_PEOPLE_DIRECTORY_LIMIT,
-    ],
-    queryFn: ({ pageParam }) => fetchCrmPeopleDirectoryPage({
-      tenantSlug: normalizedTenant,
-      q: normalizedQuery,
-      marketing,
-      channel,
-      cursor: pageParam,
-      limit: CRM_PEOPLE_DIRECTORY_LIMIT,
-    }),
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.page.has_more
-      ? lastPage.page.next_cursor ?? undefined
-      : undefined,
-    enabled: Boolean(normalizedTenant),
-    retry: 0,
-    staleTime: 30_000,
-    refetchInterval: false,
+export const useCrmPeopleDirectory = ({tenantSlug,q,marketing,channel}:CrmPeopleDirectoryFilters & {tenantSlug?:string|null}) => {
+  const tenant=cleanString(tenantSlug).toLowerCase(),search=q.trim();
+  const canLoad=validTenant(tenant);
+  const client=useQueryClient(),viewId=useId();
+  const queryKey=useMemo(()=>['crm-people-directory-v2',tenant||'missing-tenant',search,marketing,channel,CRM_PEOPLE_DIRECTORY_LIMIT,viewId],[tenant,search,marketing,channel,viewId]);
+  const scope=JSON.stringify(queryKey),active=useRef({scope,canLoad});
+  active.current={scope,canLoad};
+  const current=()=>active.current.scope===scope&&active.current.canLoad;
+  // Each infinite fetch has its own signal and sequential page proof. A new
+  // load-more chain starts from the currently accepted pages, not another view.
+  const sequences=useRef(new WeakMap<AbortSignal,CrmPeopleDirectoryPage[]>());
+  const empty=():InfiniteData<CrmPeopleDirectoryPage,string|null>=>({pages:[],pageParams:[]});
+  useEffect(()=>{
+    active.current={scope,canLoad};
+    return ()=>{if(active.current.scope===scope)active.current={scope:'unmounted',canLoad:false};};
+  },[scope,canLoad]);
+  useEffect(()=>{
+    if(!canLoad){void client.cancelQueries({queryKey,exact:true});client.removeQueries({queryKey,exact:true});}
+    return ()=>{void client.cancelQueries({queryKey,exact:true});client.removeQueries({queryKey,exact:true});};
+  },[client,queryKey,canLoad]);
+  const query=useInfiniteQuery({
+    queryKey,initialPageParam:null as string|null,enabled:canLoad,retry:0,gcTime:0,staleTime:30_000,
+    refetchOnMount:'always',refetchOnWindowFocus:true,refetchInterval:false,
+    queryFn:async({pageParam,signal})=>{
+      if(!current())throw new Error(DIRECTORY_ERROR);
+      let preceding=sequences.current.get(signal);
+      if(pageParam===null){
+        preceding=[];client.setQueryData(queryKey,empty());
+      }else if(!preceding){
+        preceding=client.getQueryData<InfiniteData<CrmPeopleDirectoryPage>>(queryKey)?.pages??[];
+      }
+      try{
+        const page=await fetchCrmPeopleDirectoryPage({tenantSlug:tenant,q:search,marketing,channel,cursor:pageParam,limit:CRM_PEOPLE_DIRECTORY_LIMIT});
+        if(signal.aborted||!current())throw new Error(DIRECTORY_ERROR);
+        assertDirectoryContinuation(preceding??[],page,pageParam);
+        sequences.current.set(signal,[...(preceding??[]),page]);
+        return page;
+      }catch(error){
+        if(!signal.aborted&&current())client.setQueryData(queryKey,empty());
+        const status=Number((error as {status?:unknown})?.status);
+        throw Object.assign(new Error(DIRECTORY_ERROR),Number.isInteger(status)?{status}:{});
+      }
+    },
+    getNextPageParam:(last)=>last.page.has_more?last.page.next_cursor??undefined:undefined,
   });
+  const data=canLoad&&!query.isError?query.data:undefined;
+  const sanitize=(result:Awaited<ReturnType<typeof query.refetch>>)=>({...result,data:current()&&result.isSuccess?result.data:undefined,hasNextPage:current()&&result.isSuccess&&Boolean(result.data?.pages.at(-1)?.page.has_more && result.data.pages.at(-1)?.page.next_cursor)});
+  const refetch=useCallback(async()=>{
+    if(!current())return {data:undefined,hasNextPage:false};
+    return sanitize(await query.refetch({cancelRefetch:false}));
+  },[scope,canLoad,query.refetch]);
+  const fetchNextPage=useCallback(async()=>{
+    if(!current()||!query.hasNextPage||query.isError)return {data:undefined,hasNextPage:false};
+    return sanitize(await query.fetchNextPage({cancelRefetch:false}));
+  },[scope,canLoad,query.fetchNextPage,query.hasNextPage,query.isError]);
+  return {...query,data,refetch,fetchNextPage,isSuccess:canLoad&&!query.isError&&Boolean(data?.pages.length),hasNextPage:canLoad&&!query.isError&&Boolean(query.hasNextPage),
+    isPending:canLoad&&(query.isPending||(query.isFetching&&!data?.pages.length)),
+    error:canLoad?query.error:null};
 };
