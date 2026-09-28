@@ -47,3 +47,11 @@ Evidencia local: `.vercel/order-evidence` y `.vercel/order-lifecycle-evidence`. 
 La revisión de #1790 detectó dos avisos explicativos generados por el frontend sin texto suministrado por el backend. El primer candidato no se promovió. Se eliminaron esos avisos y su CSS; no se inventó un nuevo contrato ni una configuración por tenant para justificar el texto. Los valores y sus estados tipados siguen visibles, sin incorporar recomendaciones de negocio a partir de una comprobación local. Dos regresiones adicionales verifican ausencia de esos mensajes y conservación del estado missing/conflicting. La prueba de navegador conserva el rechazo del importe contradictorio y comprueba que no aparezca el aviso eliminado.
 
 La revisión definitiva, cifras de CI y deployment publicado se registran en el PR. Los resultados de 3701 pruebas corresponden al primer candidato; no se atribuyen automáticamente a esta corrección posterior.
+
+## Sincronización de una prueba existente detectada por CI
+
+La primera corrida completa del SHA corregido por P1 aprobó 3702 de 3703 pruebas y falló en una prueba preexistente de `SurveyGovernancePanel`. El test exigía que la API ya hubiera sido invocada tras vaciar una microtarea, aunque `createRelease` espera una preparación criptográfica asíncrona antes de llamar a la API. Los archivos del módulo de producto no habían cambiado en este sprint.
+
+Se corrigió únicamente la prueba: la preparación se retiene mediante una promesa controlada, se disparan los dos clics nativos consecutivos antes de confirmar estado de React, se exige exactamente una preparación y ninguna llamada prematura, se libera la preparación y se verifica una única escritura también después de la confirmación. No se aumentaron timeouts ni se eliminó la expectativa de bloqueo del doble envío.
+
+Las 12 pruebas del archivo aprobaron. Además, una mutación temporal que retiró el guard síncrono hizo fallar exactamente esta prueba con dos preparaciones en lugar de una; el archivo de producto fue restaurado byte por byte y su diff quedó vacío. Esa mutación nunca se incorporó al commit ni al candidato. La corrida fallida de CI se conserva como evidencia, no como certificación; el SHA final debe volver a aprobar toda la suite y el navegador antes de publicar.
