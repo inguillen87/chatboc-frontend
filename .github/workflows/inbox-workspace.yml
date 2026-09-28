@@ -3,6 +3,8 @@ name: Omnichannel inbox workspace
   pull_request:
     paths:
       - src/components/tickets/inbox/**
+      - src/components/tickets/TicketAssignment*
+      - src/components/tickets/ticketAssignmentActions*
       - src/components/admin/TenantAdminOperatingSystem.tsx
       - src/api/v2/saas.ts
       - src/api/v2/saas.inbox*.test.ts

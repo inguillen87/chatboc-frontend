@@ -16,6 +16,5 @@ export function useTenant() {
   React.useEffect(()=>{ (window as any).__qaSetInboxTenant=setCurrentSlug; return()=>{delete (window as any).__qaSetInboxTenant;}; },[]);
   return {currentSlug};
 }
-export function useTickets(){return {selectedTicket:null,updateTicket:()=>{throw new Error('Synthetic inbox must not mutate global TicketContext');}};}
 export function useCapabilities(){return {hasCapability:()=>false};}
 export function useUser(){return {user:{id:999,rol:'empleado'}};}

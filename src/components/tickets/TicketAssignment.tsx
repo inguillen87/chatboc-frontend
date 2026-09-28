@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import {
   postOmnichannelInboxActionV2,
   type EmployeeRoutingEmployee,
+  type SaasAction,
 } from '@/api/v2/saas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import type { Ticket, User } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
+import { ticketAssignmentActions } from './ticketAssignmentActions';
 import {
   canSuperviseTicketAssignments,
   describeRoutingReason,
@@ -44,6 +46,7 @@ interface TicketAssignmentProps {
   className?: string;
   variant?: 'default' | 'compact';
   ticket?: Ticket | null;
+  assignmentActions?: SaasAction[];
   onAssignmentConfirmed?: () => void | Promise<void>;
 }
 
@@ -107,15 +110,18 @@ export const buildSupervisedAssignmentPayload = (
     : null,
 });
 
-const TicketAssignment: React.FC<TicketAssignmentProps> = ({
+interface TicketAssignmentContentProps extends TicketAssignmentProps {
+  updateTicket?: ReturnType<typeof useTickets>['updateTicket'];
+}
+
+const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
   className,
   variant = 'default',
-  ticket,
+  ticket: selectedTicket = null,
+  assignmentActions,
+  updateTicket,
   onAssignmentConfirmed,
 }) => {
-  const { selectedTicket: contextTicket, updateTicket } = useTickets();
-  const selectedTicket = ticket === undefined ? contextTicket : ticket;
-  const usesContextTicket = ticket === undefined;
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const { hasCapability } = useCapabilities();
@@ -135,6 +141,9 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
     user?.rol ?? user?.role,
     hasCapability('tickets.assign'),
   );
+  const published = ticketAssignmentActions(assignmentActions);
+  const canAssign = canSupervise && (assignmentActions === undefined || Boolean(published.assign));
+  const canClaim = assignmentActions === undefined || Boolean(published.claim);
   const suggested = authority?.suggestedEmployee ?? null;
   const candidates = authority?.eligibleEmployees ?? [];
   const authorityKey = authority?.identity ?? '';
@@ -187,10 +196,11 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
     (authority?.currentAssigneeId ? `Responsable #${authority.currentAssigneeId}` : 'Sin asignar');
 
   if (!selectedTicket) return null;
+  if (assignmentActions !== undefined && !published.assign && !published.claim) return null;
 
   const updateLocalAssignment = (employee: EmployeeRoutingEmployee) => {
     const assignedAgent = employeeAsTicketUser(employee);
-    if (usesContextTicket) {
+    if (updateTicket) {
       updateTicket(selectedTicket.id, {
         assignedAgent,
         assignedAgentId: employee.id,
@@ -224,7 +234,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
   };
 
   const handleAssignment = async (employee: EmployeeRoutingEmployee | null) => {
-    if (!canSupervise || !authority || !employee || assigning) return;
+    if (!canAssign || !authority || !employee || assigning) return;
     if (!candidates.some((candidate) => String(candidate.id) === String(employee.id))) {
       toast.error('La persona ya no figura como compatible en la matriz operativa.');
       return;
@@ -250,7 +260,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
   };
 
   const handleClaim = async () => {
-    if (!authority || !currentUserEligible || !user?.id || assigning) return;
+    if (!canClaim || !authority || authority.currentAssigneeId || !currentUserEligible || !user?.id || assigning) return;
     const currentEmployee = candidates.find(
       (candidate) => String(candidate.id) === String(user.id),
     );
@@ -314,7 +324,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
     );
   }
 
-  if (!canSupervise) {
+  if (!canAssign) {
     return (
       <div
         className={cn(
@@ -341,7 +351,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
             <CheckCircle2 className="mr-2 h-4 w-4" />
             Asignado a mí
           </Button>
-        ) : currentUserEligible && !authority.currentAssigneeId ? (
+        ) : canClaim && currentUserEligible && !authority.currentAssigneeId ? (
           <Button
             type="button"
             size="sm"
@@ -350,7 +360,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
             className="w-full sm:w-auto"
           >
             {assigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
-            {assigning ? 'Tomando caso…' : 'Tomar ticket'}
+            {assigning ? 'Tomando caso…' : published.claim?.label ?? 'Tomar ticket'}
           </Button>
         ) : (
           <p className="rounded-lg border border-dashed p-2 text-xs text-muted-foreground">
@@ -437,7 +447,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
               ) : (
                 <Users className="mr-2 h-4 w-4" />
               )}
-              {authority.currentAssigneeId ? 'Reasignar' : 'Asignar'}
+              {published.assign?.label ?? (authority.currentAssigneeId ? 'Reasignar' : 'Asignar')}
             </Button>
           </div>
         ) : (
@@ -458,7 +468,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
           ) : (
             <span className="min-w-0 flex-1">Sin recomendación compatible.</span>
           )}
-          {!authority.currentAssigneeId && currentUserEligible ? (
+          {canClaim && !authority.currentAssigneeId && currentUserEligible ? (
             <Button
               type="button"
               size="sm"
@@ -468,7 +478,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
               className="h-8 shrink-0"
             >
               <UserCheck className="mr-1.5 h-3.5 w-3.5" />
-              Tomar ticket
+              {published.claim?.label ?? 'Tomar ticket'}
             </Button>
           ) : null}
           <Button
@@ -582,7 +592,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
           disabled={!selectedEmployee || assigning || String(selectedEmployee.id) === authority.currentAssigneeId}
         >
           {assigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
-          {authority.currentAssigneeId ? 'Reasignar' : 'Asignar'}
+          {published.assign?.label ?? (authority.currentAssigneeId ? 'Reasignar' : 'Asignar')}
         </Button>
         <Button
           type="button"
@@ -609,5 +619,17 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({
     </div>
   );
 };
+
+// The required context hook is isolated in its own component: explicit Inbox
+// tickets do not need a TicketProvider and never mutate its selected ticket.
+const ContextTicketAssignment: React.FC<TicketAssignmentProps> = (props) => {
+  const { selectedTicket, updateTicket } = useTickets();
+  return <TicketAssignmentContent {...props} ticket={selectedTicket} updateTicket={updateTicket} />;
+};
+
+const TicketAssignment: React.FC<TicketAssignmentProps> = (props) =>
+  props.ticket === undefined
+    ? <ContextTicketAssignment {...props} />
+    : <TicketAssignmentContent {...props} assignmentActions={props.assignmentActions ?? []} />;
 
 export default TicketAssignment;
