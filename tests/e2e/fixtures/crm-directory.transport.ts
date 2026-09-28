@@ -8,7 +8,7 @@ export async function apiFetch<T>(path:string,options:{tenantSlug?:string;method
   if(!response.ok)throw new ApiError('PRIVATE TRANSPORT BODY',response.status,data);
   return data;
 }
-export const getErrorMessage=(_error:unknown,fallback:string)=>fallback;
+export const getErrorMessage=(error:unknown,fallback:string)=>typeof (error as {message?:unknown})?.message==='string'?(error as Error).message:fallback;
 export const useUser=()=>({user:{id:1,rol:'superadmin',tenantSlug:'qa-a'}});
 export const useSocket=()=>({socket:null,isConnected:false});
 export default function UnusedSessionOrCampaignFixture(){return null;}

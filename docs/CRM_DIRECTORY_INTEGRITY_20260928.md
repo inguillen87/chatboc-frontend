@@ -43,3 +43,13 @@ Los resultados efectivos de CI y publicación se registran por revisión en el P
 Aprobaron TypeScript, 3806 pruebas en 444 archivos (38 adicionales respecto de la base, sin fallidas ni pendientes), build de producción y el nuevo navegador. Los tres escenarios, 1440×1000 claro, 390×844 oscuro y 320×740 claro, realizaron 19 lecturas y cero escrituras cada uno. Se verificaron el retiro de datos, paginación secuencial, recuperación y cambio de ámbito; no hubo errores JavaScript ni desbordamiento. Axe no encontró incidencias serias/críticas en la barra de búsqueda/paginación evaluada; se revisó visualmente la captura móvil oscura.
 
 La primera ejecución del fixture identificó un export faltante del límite de sesión (`resolveTenantSlug`) y no pudo montar la página; se completó sólo ese adaptador de prueba, manteniendo UsuariosPage y el directorio reales. No se alteraron producto, timeouts o controles de privacidad para obtener ese resultado.
+
+## Revisión P1 antes de promover
+
+La revisión del PR #1794 detectó que el hook duplicaba un mensaje de error humano que no había publicado el backend. Se retiró ese texto: los errores de consulta conservan únicamente el estado HTTP cuando existe, sin cuerpo ni mensaje libre. La página conserva su título y botón de recuperación preexistentes y reconoce el fallo mediante isError, incluso cuando no hay texto seguro para un párrafo adicional. No se inventó un contrato de mensajes del servidor ni se volvió a exponer el cuerpo de error.
+
+Tres regresiones adicionales verifican 401, 403 y 500 sin texto inventado ni cuerpo privado. El fixture refleja el comportamiento real de getErrorMessage ante mensajes vacíos; el navegador exige la tarjeta de fallo y ausencia del texto retirado. Tipos, 138 pruebas focalizadas y los tres recorridos aprobaron después de la corrección.
+
+Esas pruebas identificaron además un problema de su preparación: el beforeEach recuperado devolvía accidentalmente la función mockFetch. La versión instalada de Vitest interpreta una función devuelta por beforeEach como limpieza posterior; por eso la invocaba otra vez al finalizar el test y recibía su rechazo programado. Se cambió el hook de prueba a retorno void explícito, sin alterar las aserciones ni el producto para ocultar un rechazo. Se contrastó con getBeforeHookCleanupCallback del runner instalado.
+
+El resultado de 3806 pruebas corresponde al primer corte. El SHA corregido debe aprobar nuevamente ambos workflows y su propio candidato antes de publicar; no se promovió el candidato inicial.

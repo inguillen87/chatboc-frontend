@@ -52,6 +52,7 @@ try{
    await expect(page.getByRole('button',{name:'Cargar más'})).toHaveCount(0);
    await expect(page.getByTestId('crm-person-header')).toHaveCount(0);
    await expect(page.locator('body')).not.toContainText('PRIVATE');
+   await expect(page.getByRole('alert')).not.toContainText('No se pudieron cargar las personas');
    assert.ok(!JSON.stringify(await cache()).includes('A*** Prueba'),'Rejected pages must not remain cached');
   };
   try{

@@ -4,6 +4,7 @@ name: CRM persistent follow-up
     paths:
       - src/features/crm/followup/**
       - src/features/crm/people/**
+      - src/pages/UsuariosPage.tsx
       - src/pages/admin/SuperAdminDashboard.tsx
       - src/components/admin/platform/SuperAdminDashboard.test.tsx
       - tests/followup-workspace.browser.mjs

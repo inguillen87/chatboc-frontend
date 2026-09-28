@@ -1029,14 +1029,14 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       </div>
     );
   }
-  if (error) {
+  if (error || directoryQuery.isError) {
     return (
       <div className={cn("mx-auto flex w-full max-w-[1680px] items-center justify-center p-4", embedded ? "h-full min-h-0" : "min-h-[60dvh]")}>
         <Card className="w-full max-w-lg border-destructive/30 shadow-sm" role="alert">
           <CardContent className="flex flex-col items-center p-8 text-center">
             <div className="rounded-2xl bg-destructive/10 p-3 text-destructive"><AlertTriangle className="h-6 w-6" /></div>
             <h1 className="mt-4 text-xl font-bold">No pudimos cargar Personas</h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p>
+            {error ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p> : null}
             <Button className="mt-5 gap-2" onClick={() => void directoryQuery.refetch()}>
               <RefreshCw className="h-4 w-4" />
               Reintentar

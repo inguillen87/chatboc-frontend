@@ -230,27 +230,26 @@ export const buildLegacyCrmPeoplePath = ({
   return `/api/crm/clientes?${params.toString()}`;
 };
 
-const DIRECTORY_ERROR = "No se pudieron cargar las personas";
 const isRecord = (value:unknown):value is Record<string,unknown> => Boolean(value) && typeof value==='object' && !Array.isArray(value);
 const validTenant = (value:string)=>/^[a-z0-9][a-z0-9_-]{0,127}$/.test(value);
 
 function assertDirectoryScope(payload:unknown, expected:FetchDirectoryPageOptions) {
-  if(!isRecord(payload)) throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+  if(!isRecord(payload)) throw new CrmPeopleDirectoryContractError("");
   const check=(row:Record<string,unknown>)=>{
     const slugs=[row.tenant_slug,row.tenantSlug];
     if(row.tenant!==undefined && row.tenant!==null){
-      if(!isRecord(row.tenant))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+      if(!isRecord(row.tenant))throw new CrmPeopleDirectoryContractError("");
       slugs.push(row.tenant.slug);
     }
-    if(slugs.some(value=>value!==undefined && (typeof value!=='string'||value!==value.trim()||value.toLowerCase()!==expected.tenantSlug)))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    if(slugs.some(value=>value!==undefined && (typeof value!=='string'||value!==value.trim()||value.toLowerCase()!==expected.tenantSlug)))throw new CrmPeopleDirectoryContractError("");
   };
   check(payload);
   if(Array.isArray(payload.items))payload.items.forEach(row=>{if(isRecord(row))check(row);});
   // Optional echoes are checked, never fabricated or required from legacy servers.
   if(payload.filters!==undefined){
-    if(!isRecord(payload.filters))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    if(!isRecord(payload.filters))throw new CrmPeopleDirectoryContractError("");
     for(const [key,value] of Object.entries({q:expected.q,marketing:expected.marketing,channel:expected.channel,sort:'recent_desc'})){
-      if(payload.filters[key]!==undefined && payload.filters[key]!==value)throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+      if(payload.filters[key]!==undefined && payload.filters[key]!==value)throw new CrmPeopleDirectoryContractError("");
     }
   }
 }
@@ -260,11 +259,11 @@ export function assertDirectoryContinuation(previous:readonly CrmPeopleDirectory
   const last=previous[previous.length-1];
   if(!last || !last.page.has_more || last.page.next_cursor!==cursor ||
     next.contractVersion!==last.contractVersion || next.page.limit!==last.page.limit ||
-    JSON.stringify(next.pii)!==JSON.stringify(last.pii))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    JSON.stringify(next.pii)!==JSON.stringify(last.pii))throw new CrmPeopleDirectoryContractError("");
   const ids=new Set(previous.flatMap(page=>page.items.map(item=>item.id)));
   const cursors=new Set(previous.map(page=>page.page.next_cursor).filter(Boolean));
   if(next.items.some(item=>ids.has(item.id)) || (next.page.next_cursor&&cursors.has(next.page.next_cursor)) ||
-    next.page.total<ids.size+next.items.length)throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    next.page.total<ids.size+next.items.length)throw new CrmPeopleDirectoryContractError("");
 }
 
 export const fetchCrmPeopleDirectoryPage = async ({
@@ -275,7 +274,7 @@ export const fetchCrmPeopleDirectoryPage = async ({
   cursor = null,
   limit = CRM_PEOPLE_DIRECTORY_LIMIT,
 }: FetchDirectoryPageOptions): Promise<CrmPeopleDirectoryPage> => {
-  if(!validTenant(tenantSlug)||!Number.isSafeInteger(limit)||limit<1||(cursor!==null && (typeof cursor!=='string'||!cursor||cursor!==cursor.trim())))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+  if(!validTenant(tenantSlug)||!Number.isSafeInteger(limit)||limit<1||(cursor!==null && (typeof cursor!=='string'||!cursor||cursor!==cursor.trim())))throw new CrmPeopleDirectoryContractError("");
   const params = new URLSearchParams({
     limit: String(limit),
     marketing,
@@ -289,7 +288,7 @@ export const fetchCrmPeopleDirectoryPage = async ({
     const response = await apiFetch<unknown>(`/api/v2/crm/people?${params.toString()}`, { tenantSlug });
     assertDirectoryScope(response,{tenantSlug,q,marketing,channel,cursor,limit});
     const parsed=parseCrmPeopleDirectoryPage(response);
-    if(parsed.page.limit!==limit || (cursor && parsed.page.next_cursor===cursor))throw new CrmPeopleDirectoryContractError(DIRECTORY_ERROR);
+    if(parsed.page.limit!==limit || (cursor && parsed.page.next_cursor===cursor))throw new CrmPeopleDirectoryContractError("");
     return parsed;
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 404 || cursor) throw error;
@@ -345,7 +344,7 @@ export const useCrmPeopleDirectory = ({tenantSlug,q,marketing,channel}:CrmPeople
     queryKey,initialPageParam:null as string|null,enabled:canLoad,retry:0,gcTime:0,staleTime:30_000,
     refetchOnMount:'always',refetchOnWindowFocus:true,refetchInterval:false,
     queryFn:async({pageParam,signal})=>{
-      if(!current())throw new Error(DIRECTORY_ERROR);
+      if(!current())throw new Error();
       let preceding=sequences.current.get(signal);
       if(pageParam===null){
         preceding=[];client.setQueryData(queryKey,empty());
@@ -354,14 +353,14 @@ export const useCrmPeopleDirectory = ({tenantSlug,q,marketing,channel}:CrmPeople
       }
       try{
         const page=await fetchCrmPeopleDirectoryPage({tenantSlug:tenant,q:search,marketing,channel,cursor:pageParam,limit:CRM_PEOPLE_DIRECTORY_LIMIT});
-        if(signal.aborted||!current())throw new Error(DIRECTORY_ERROR);
+        if(signal.aborted||!current())throw new Error();
         assertDirectoryContinuation(preceding??[],page,pageParam);
         sequences.current.set(signal,[...(preceding??[]),page]);
         return page;
       }catch(error){
         if(!signal.aborted&&current())client.setQueryData(queryKey,empty());
         const status=Number((error as {status?:unknown})?.status);
-        throw Object.assign(new Error(DIRECTORY_ERROR),Number.isInteger(status)?{status}:{});
+        throw Object.assign(new Error(),Number.isInteger(status)?{status}:{});
       }
     },
     getNextPageParam:(last)=>last.page.has_more?last.page.next_cursor??undefined:undefined,

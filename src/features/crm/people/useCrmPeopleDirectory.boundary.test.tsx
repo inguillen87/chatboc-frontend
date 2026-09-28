@@ -12,7 +12,7 @@ const page=(patch:Record<string,unknown>={})=>({contract_version:'crm.people.dir
 const last=(patch:Record<string,unknown>={})=>page({items:[item('person-2')],page:{limit:50,total:2,has_more:false,next_cursor:null},...patch});
 function setup(){const client=new QueryClient({defaultOptions:{queries:{retry:false}}});return {client,wrapper:({children}:{children:React.ReactNode})=><QueryClientProvider client={client}>{children}</QueryClientProvider>};}
 const deferred=<T,>()=>{let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r;});return {promise,resolve};};
-beforeEach(()=>mocks.fetch.mockReset());
+beforeEach(()=>{mocks.fetch.mockReset();});
 afterEach(()=>{cleanup();vi.useRealTimers();focusManager.setFocused(undefined);});
 describe('directory page validity',()=>{
  it.each([null,true,'',[],{},9007199254740992])('rejects non-verifiable totals %j',total=>{
@@ -54,7 +54,9 @@ describe('directory cursor boundary',()=>{
   let receipt:any;await act(async()=>{receipt=await result.current.fetchNextPage();});
   expect(receipt.data?.pages.flatMap((p:any)=>p.items)??[]).toEqual([]);
   await waitFor(()=>expect(result.current.error).toBeTruthy());
-  expect(result.current.error?.message).toBe('No se pudieron cargar las personas');
+  expect(result.current.error?.message).toBe('');
+  expect(result.current.error).toMatchObject({status:403});
+  expect(result.current.error).not.toHaveProperty('body');
   expect(result.current.hasNextPage).toBe(false);
  });
  it('restarts explicitly from the first page after rejection',async()=>{
@@ -200,5 +202,15 @@ describe('privacy and empty-population edge cases',()=>{
  it('accepts omitted optional filter and tenant echoes without inventing them',async()=>{
   const value=last();delete value.tenant;delete value.filters;mocks.fetch.mockResolvedValue(value);
   await expect(fetchCrmPeopleDirectoryPage(options)).resolves.toMatchObject({page:{has_more:false}});
+ });
+});
+
+describe('machine-readable directory failures',()=>{
+ it.each([401,403,500])('retains only the HTTP status without fabricating display copy: %s',async status=>{
+  mocks.fetch.mockRejectedValue(new ApiError('PRIVATE MESSAGE',status,{message:'PRIVATE BODY'}));
+  const {wrapper}=setup();const {result}=renderHook(()=>useCrmPeopleDirectory(options),{wrapper});
+  await waitFor(()=>expect(result.current.isError).toBe(true));
+  expect(result.current.error).toMatchObject({status,message:''});
+  expect(result.current.error).not.toHaveProperty('body');expect(result.current.data).toBeUndefined();
  });
 });
