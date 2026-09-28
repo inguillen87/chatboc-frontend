@@ -44,3 +44,13 @@ El conector Vercel devolvió nuevamente 403 Forbidden al consultar el deployment
 Una lectura pública de `/login` confirmó HTTP 200 y revisión `aabfa1a6ff575014674801abf3d9a4627330dfaf`. Por tanto, al iniciar la entrega siguen pendientes de producción tanto #1795 como este incremento. El registro `.vercel/cart-evidence/publication-blocked.json` conserva la comprobación; no hay un deployment ni una promoción de este sprint.
 
 Después de restablecer acceso autorizado, la publicación debe crear el candidato del SHA aprobado, validar revisión/recursos/canaries y cotejar aliases antes de promover con rollback disponible. No se fusiona otra rama para forzar el despliegue. MuniControl no fue leído ni modificado.
+
+## Revisión P2: compatibilidad con identificadores Unicode
+
+La revisión de #1796 detectó que la validación ASCII añadida al proveedor bloqueaba identificadores válidos admitidos por la navegación pública, por ejemplo `peñalolén`. Se reprodujo con cuatro casos de compatibilidad que fallaron frente al primer corte; los ocho casos de estructura insegura permanecieron rechazados.
+
+Se reemplazó la restricción local por `sanitizePublicInternalNavigationPath`, ya utilizado por la navegación del producto, con el tenant codificado como un único segmento. Se conserva intacta su identidad para API y almacenamiento. Las rutas con separadores, traversal, controles o texto no codificable siguen bloqueadas; no se agregó una excepción por municipio.
+
+La regresión focalizada aprobó 100 pruebas de contexto, checkout y rutas. El navegador agregó navegación codificada, lectura e incorporación para el identificador Unicode y verificó que el almacenamiento y la API conservaran la identidad. El metadato de tenant del transporte sintético se codifica ahora al escribir su cabecera de QA y se decodifica en el servidor simulado: la cabecera anterior no conservaba los caracteres del escenario. No se modificó el transporte de producción para compensar un fallo del fixture.
+
+Los tres escenarios volvieron a aprobar, ahora con cinco incorporaciones sintéticas por caso. El primer corte aprobado de 3884 pruebas no se considera certificación automática de este cambio: el SHA corregido requiere nueva suite completa y ambos workflows antes de una eventual publicación autorizada.

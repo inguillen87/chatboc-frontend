@@ -21,6 +21,7 @@ import type {
 } from '@/types/market';
 import { addMarketItem, fetchMarketCart } from '@/api/market';
 import { persistStoredCart, readStoredCart } from '@/utils/marketStorage';
+import { sanitizePublicInternalNavigationPath } from '@/utils/tenantPaths';
 
 interface MarketCartContextValue {
   items: MarketCartItem[];
@@ -95,9 +96,20 @@ const snapshotFromResponse = (response: MarketCartResponse): CartSnapshot => ({
   mercadopagoReady: response.mercadopago_ready ?? null,
 });
 
+const hasSafeTenantPath = (tenantSlug: string | null): boolean => {
+  if (!tenantSlug) return false;
+  try {
+    // Apply the existing Unicode-aware public-navigation contract without
+    // changing the tenant identity forwarded to the API or browser storage.
+    return Boolean(sanitizePublicInternalNavigationPath(`/t/${encodeURIComponent(tenantSlug)}/market`));
+  } catch {
+    return false;
+  }
+};
+
 export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   const { pathname } = useLocation();
-  const disabled = !tenantSlug || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(tenantSlug) ||
+  const disabled = !hasSafeTenantPath(tenantSlug) ||
     /^\/(?:t\/[^/]+\/|[^/]+\/)?(?:admin|analytics|municipal)(?:\/|$)/.test(pathname);
   // Enforce isolation here: catalog/product consumers need no separate key.
   return <MarketCartSession key={JSON.stringify([tenantSlug, disabled])} tenantSlug={tenantSlug} disabled={disabled}>

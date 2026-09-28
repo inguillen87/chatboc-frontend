@@ -145,3 +145,19 @@ describe('retired queued operations',()=>{
   expect(mocks.stored).not.toHaveBeenCalled();expect(mocks.read).not.toHaveBeenCalled();
  });
 });
+
+describe('backend tenant slug compatibility',()=>{
+ it.each(['pe\u00f1alol\u00e9n','s\u00e3o-paulo','tenant.name','tenant~name'])('preserves safe tenant segments accepted by public routing: %s',async tenant=>{
+  mocks.read.mockResolvedValueOnce(cart());mocks.add.mockResolvedValueOnce(cart(2));
+  render(tree(tenant,'/t/'+encodeURIComponent(tenant)+'/market'));
+  await waitFor(()=>expect(mocks.read).toHaveBeenCalledWith(tenant));
+  await waitFor(()=>expect(current.isLoading).toBe(false));
+  await act(async()=>{expect(await current.addItem('p1')).toBe(true);});
+  expect(mocks.add).toHaveBeenCalledWith(tenant,{productId:'p1',quantity:1});
+  expect(mocks.persist.mock.calls.at(-1)[0]).toBe(tenant);
+ });
+ it.each(['.','..','qa%2Fother','qa%252Fother','qa\\other','qa#other','qa\u0000other','\ud800'])('rejects unsafe or unencodable tenant structure %j without network or storage',tenant=>{
+  render(tree(tenant));expect(current.items).toEqual([]);expect(current.isLoading).toBe(false);
+  expect(mocks.read).not.toHaveBeenCalled();expect(mocks.stored).not.toHaveBeenCalled();
+ });
+});

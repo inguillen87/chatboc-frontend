@@ -6,7 +6,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 const folder='.vercel/cart-evidence';
-const replacement=path.resolve('tests/e2e/fixtures/checkout-session.transport.ts');
+const replacement=path.resolve('tests/e2e/fixtures/cart-session.transport.ts');
 const server=await createServer({configFile:false,plugins:[react()],cacheDir:'.vercel/cart-cache',optimizeDeps:{entries:['tests/e2e/fixtures/cart-session.html']},resolve:{alias:[{find:/^@\/utils\/(api|frontendTelemetry)$/,replacement},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
 const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;});return {promise,resolve};};
 let browser;const results=[];
@@ -21,7 +21,7 @@ try{
   await context.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.origin!==origin)return route.abort();if(!url.pathname.startsWith('/api/'))return route.continue();
-   const tenant=request.headers()['x-qa-tenant'];requests.push({path:url.pathname,method:request.method(),tenant,body:request.postDataJSON()});
+   const tenant=decodeURIComponent(request.headers()['x-qa-tenant-uri']??'');requests.push({path:url.pathname,method:request.method(),tenant,body:request.postDataJSON()});
    if(url.pathname.includes('/productos/'))return route.fulfill({json:{id:'product-1',name:'Producto '+tenant,price:10,currency:'ARS',amount_validated:true,available_to_sell:true,stock_status:'validated',stock_quantity:20}});
    if(url.pathname.endsWith('/carrito')){
     if(request.method()==='POST'){
@@ -79,7 +79,16 @@ try{
    assert.equal(writes().length,4);assert.deepEqual(errors,[]);
    assert.ok(writes().every(request=>request.path.endsWith('/carrito')),'No checkout or payment writes are part of this test');
    assert.deepEqual(writes().map(request=>request.tenant),['qa-a','qa-a','qa-a','qa-b']);
-   results.push({width,height,dark,passed:true,cartAdds:writes().length,initialReadBlocksActions:true,duplicateAddBlocked:true,quantityLocked:true,retiredAddDoesNotPersist:true,retiredReadDoesNotPersist:true,currentFailureRevokesSnapshot:true,recoveryFromBackend:true,seriousAccessibilityViolations:serious.length});
+   const unicodeTenant='peñalolén';quantities[unicodeTenant]=1;
+   await page.evaluate(tenant=>window.__gotoCartProduct(tenant),unicodeTenant);
+   await expect(add).toBeEnabled();await expect(commerce).toContainText('1 en carrito');
+   await add.click();await expect(commerce).toContainText('2 en carrito');
+   assert.equal(writes().length,5);assert.equal(writes().at(-1).tenant,unicodeTenant);
+   assert.equal(writes().at(-1).path,'/api/'+encodeURIComponent(unicodeTenant)+'/carrito');
+   assert.equal((await stored(unicodeTenant)).items[0].quantity,2);
+   assert.deepEqual(errors,[]);
+   await page.screenshot({path:`${folder}/unicode-${width}.png`,fullPage:true});
+   results.push({width,height,dark,passed:true,cartAdds:writes().length,initialReadBlocksActions:true,duplicateAddBlocked:true,quantityLocked:true,retiredAddDoesNotPersist:true,retiredReadDoesNotPersist:true,currentFailureRevokesSnapshot:true,recoveryFromBackend:true,unicodeTenantPreserved:true,seriousAccessibilityViolations:serious.length});
   }catch(error){await page.screenshot({path:`${folder}/failure-${width}.png`,fullPage:true}).catch(()=>{});results.push({width,height,dark,passed:false,reason:error.message,errors,requests});}
   finally{readGate?.resolve();writeGate?.resolve();await context.close();}
  }
