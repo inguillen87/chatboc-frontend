@@ -13,7 +13,7 @@
 .followup-queue :where(button,input):focus-visible,.followup-dialog :where(button,input,textarea,summary):focus-visible,.followup-confirm button:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
 .followup-attention { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.8rem; padding:1rem; border:1px solid hsl(var(--destructive) / .35); border-radius:.8rem; background:hsl(var(--destructive) / .06); }
 .followup-attention strong { font-size:.9rem; }
-.followup-attention p { margin-top:.25rem; color:hsl(var(--muted-foreground)); font-size:.8rem; line-height:1.5; }
+.followup-attention p { margin-top:.25rem; color:hsl(var(--foreground)); font-size:.8rem; line-height:1.5; }
 .followup-attention-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
 .followup-queue-filters { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.6rem; }
 .followup-queue-filters button { display:grid; gap:.35rem; padding:.8rem; text-align:left; border:1px solid hsl(var(--border)); border-radius:.7rem; font-size:.8rem; }
@@ -52,3 +52,12 @@
 @keyframes followup-enter { from { opacity:.7; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
 @media(prefers-reduced-motion:reduce) { .followup-dialog[data-state],.followup-confirm[data-state] { animation:none!important; transition:none!important; } .followup-dialog button,.followup-confirm button,.followup-queue button { transition:none!important; transform:none!important; } }
 [data-reduce-motion=true] :is(.followup-dialog,.followup-confirm,.followup-rows li) { animation:none!important; transition:none!important; }
+
+.followup-heading h2:focus-visible,
+.followup-results-summary:focus-visible {
+  outline:2px solid hsl(var(--ring));
+  outline-offset:4px;
+  border-radius:.25rem;
+}
+
+.followup-results-summary { scroll-margin-block:6rem 1rem; }
