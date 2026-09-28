@@ -133,7 +133,8 @@ export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
   const paymentUrl = urls.length && urls.every(url => url !== null && url === urls[0]) ? urls[0] : null;
   const statusKnown = ['pending','awaiting_payment','pendiente','pending_payment','pendiente_pago','confirmed','confirmado','created','success'].includes(normalizedStatus);
   if (response.ok === false || response.error || ['failed','error','rejected','cancelled','canceled','demo'].includes(normalizedStatus)) return failedOutcome(response.message);
-  if (!(orderId && (statusKnown || response.ok === true)) && !(preferenceId && paymentUrl)) return failedOutcome();
+  // The published checkout-session contract requires preference_id OR init_point.
+  if (!(orderId && (statusKnown || response.ok === true)) && !preferenceId && !paymentUrl) return failedOutcome();
   if (publishedUrls.length && !paymentUrl) return failedOutcome();
 
   if (isPlanLockResponse(response)) {
@@ -154,7 +155,7 @@ export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
     };
   }
 
-  if (['pending','awaiting_payment','pendiente','pending_payment','pendiente_pago'].includes(normalizedStatus)) {
+  if (!orderId || ['pending','awaiting_payment','pendiente','pending_payment','pendiente_pago'].includes(normalizedStatus)) {
     return {
       status: 'awaiting_payment' as const,
       paymentUrl: null,

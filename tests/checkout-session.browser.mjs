@@ -34,6 +34,8 @@ try{
    if(url.pathname==='/api/v2/payments/checkout-session'){
     const mode=startMode,gate=startGate;if(gate)await gate.promise;
     const response={contract_version:'payments.checkout_session.v1',preference_id:'pref-'+tenant,order_id:'81',status:'pending',init_point:mode==='unsafe'?'javascript:alert(1)':'https://checkout.example.test/'+tenant,message:'Continuar con el proveedor'};
+    if(mode==='url-only'){delete response.order_id;delete response.preference_id;delete response.status;}
+    if(mode==='preference-only'){delete response.order_id;delete response.init_point;delete response.status;}
     if(mode==='valid')refreshFails=true;
     return route.fulfill({json:response});
    }
@@ -83,8 +85,16 @@ try{
    await changeTenant('qa-e');startGate.resolve();startGate=null;
    await expect(pay).toHaveCount(0);await expect(start).toBeEnabled();
    assert.equal(requests.filter(request=>request.path==='/api/qa-d/carrito').length,readsBefore);
+   startMode='url-only';await changeTenant('qa-f');await start.click();
+   await expect(pay).toHaveAttribute('href','https://checkout.example.test/qa-f');
+   await expect(page.getByTestId('checkout-outcome')).not.toContainText('Orden:');
+   await expect(start).toBeDisabled();
+   startMode='preference-only';await changeTenant('qa-g');await start.click();
+   await expect(page.getByTestId('checkout-outcome')).toContainText('Pago pendiente');
+   await expect(pay).toHaveCount(0);await expect(start).toBeDisabled();
+   await expect(page.getByTestId('checkout-outcome')).not.toContainText('Orden:');
    assert.deepEqual(errors,[]);
-   results.push({width,height,dark,passed:true,syntheticCheckoutStarts:starts().length,previews:previews().length,duplicateSubmissionBlocked:true,localReceiptIgnored:true,keyboardSubmission:true,refreshFailurePreservesReceipt:true,unsafeUrlBlocked:true,obsoletePreviewCannotSubmit:true,lateReceiptDiscarded:true,seriousAccessibilityViolations:serious.length});
+   results.push({width,height,dark,passed:true,syntheticCheckoutStarts:starts().length,previews:previews().length,duplicateSubmissionBlocked:true,localReceiptIgnored:true,keyboardSubmission:true,refreshFailurePreservesReceipt:true,unsafeUrlBlocked:true,obsoletePreviewCannotSubmit:true,lateReceiptDiscarded:true,alternativeSessionReceipts:true,seriousAccessibilityViolations:serious.length});
   }catch(error){await page.screenshot({path:`${folder}/failure-${width}.png`,fullPage:true}).catch(()=>{});results.push({width,height,dark,passed:false,reason:error.message,errors,requests});}
   finally{previewGate?.resolve();startGate?.resolve();await context.close();}
  }

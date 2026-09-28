@@ -31,3 +31,18 @@ describe('backend pending-payment vocabulary',()=>{
   expect(result.status).toBe('awaiting_payment');expect(result.orderId).toBe('91');expect(result.paymentUrl).toBeNull();
  });
 });
+
+describe('documented alternative session receipts',()=>{
+ it('accepts an init_point-only checkout-session without fabricating order or preference ids',()=>{
+  const result=resolveCheckoutOutcome({contract_version:'payments.checkout_session.v1',init_point:'https://checkout.example.test/session'});
+  expect(result.status).toBe('awaiting_payment');expect(result.paymentUrl).toBe('https://checkout.example.test/session');expect(result.orderId).toBeNull();
+ });
+ it('accepts a preference-only checkout-session without inventing a payable link or order',()=>{
+  const result=resolveCheckoutOutcome({contract_version:'payments.checkout_session.v1',preference_id:'pref-only'});
+  expect(result.status).toBe('awaiting_payment');expect(result.paymentUrl).toBeNull();expect(result.orderId).toBeNull();
+ });
+ it('keeps an init_point-only session non-payable when commercial validation blocks payment',()=>{
+  const result=resolveCheckoutOutcome({init_point:'https://checkout.example.test/session',amount_validated:false});
+  expect(result.status).toBe('awaiting_payment');expect(result.paymentUrl).toBeNull();
+ });
+});

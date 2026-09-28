@@ -47,3 +47,13 @@ Se preserva Preview `dpl_ChY8GL3PJjnmCYH3qkWVsWg5HHeX` y el rollback `dpl_6s6j7A
 Aprobaron TypeScript, **3846 pruebas en 446 archivos** (37 adicionales respecto de la base, sin fallidas ni pendientes), compilación de producción y Chromium. Los tres recorridos de 1440×1000 claro, 390×844 oscuro y 320×740 claro verificaron tres inicios de checkout y cinco preflights sintéticos por escenario, sin transacciones reales. No hubo errores JavaScript ni desbordamiento; axe no registró incidencias serias/críticas en el formulario y resultado evaluados. Se revisó visualmente la captura móvil oscura.
 
 El aviso de fallo del carrito pertenece a su contexto compartido y puede seguir visible junto al resultado recibido. Esta entrega no lo oculta: mantiene la distinción entre una lectura posterior fallida y un checkout ya iniciado. Los resultados definitivos de CI corresponden al SHA publicado, no se infieren desde esta ejecución local.
+
+## Revisión de compatibilidad del recibo
+
+La revisión P1 de #1795 señaló que `docs/FRONTEND_TO_BACKEND_SYNC_2026-05-01.md` define `preference_id` o `init_point` como alternativas. El primer corte exigía ambos sin una orden y podía rechazar una sesión válida. Tres regresiones reprodujeron el problema antes de corregirlo. Ahora basta cualquiera de los dos campos documentados; la URL, cuando existe, conserva todas sus validaciones. Una preferencia sin URL se mantiene pendiente sin inventar enlace ni ID de orden.
+
+Tipos, 75 pruebas focalizadas y los tres recorridos Chromium aprobaron tras la corrección. Cada recorrido verifica ahora cinco inicios de checkout y siete preflights sintéticos al incorporar sesiones con URL sola y preferencia sola. El resultado anterior de 3846 pruebas corresponde al primer corte; la certificación completa debe volver a comprobarse sobre el SHA revisado.
+
+## Estado de publicación de esta sesión
+
+El intento de despliegue por la herramienta de terminal fue bloqueado antes de ejecutarse. La consulta directa posterior al conector Vercel devolvió 403 indicando falta de autorización sobre el equipo. No se ejecutó una promoción alternativa ni se modificaron aliases para eludir ese bloqueo. La versión queda en GitHub para completar la certificación; el estado efectivo de publicación debe consultarse en el PR, sin atribuir esta implementación a producción hasta comprobar un despliegue autorizado.
