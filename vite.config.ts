@@ -371,6 +371,12 @@ export default defineConfig(({ mode }) => {
             if (id === '\0vite/preload-helper.js') return 'vendor-preload';
             if (!id.includes('node_modules')) return;
 
+            // clsx is used by both the app shell and Recharts. Do not let the
+            // chart chunk own it: a class-name helper must not load all charts.
+            if (id.replaceAll('\\', '/').includes('/node_modules/clsx/')) {
+              return 'vendor-classnames';
+            }
+
             // Keep React Flow outside the React runtime chunk. Matching the
             // generic `react/` substring first also catches `@xyflow/react/`
             // and creates a vendor-react <-> d3 charts cycle at runtime.

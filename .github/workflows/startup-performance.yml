@@ -1,0 +1,61 @@
+name: Application startup performance
+"on":
+  pull_request:
+    paths:
+      - vite.config.ts
+      - package.json
+      - package-lock.json
+      - index.html
+      - iframe.html
+      - portal/index.html
+      - src/**
+      - scripts/startupGraph.mjs
+      - tests/startup-performance.browser.mjs
+      - tests/e2e/pwa-lifecycle.spec.ts
+      - playwright.pwa.config.ts
+      - .github/workflows/startup-performance.yml
+permissions:
+  contents: read
+concurrency:
+  group: startup-performance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  startup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Full regression
+        run: |
+          mkdir -p .vercel/startup-evidence
+          npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=.vercel/startup-evidence/vitest.json
+      - name: Production build
+        run: npm run build
+      - name: Static startup and offline budgets
+        run: node scripts/startupGraph.mjs
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Compiled entry and lazy-chart regression
+        run: node tests/startup-performance.browser.mjs
+      - name: Existing offline lifecycle and privacy upgrade
+        run: npx playwright test --config=playwright.pwa.config.ts --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: .vercel/startup-evidence/pwa-results.json
+      - name: Startup evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: startup-performance-evidence
+          path: .vercel/startup-evidence/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
