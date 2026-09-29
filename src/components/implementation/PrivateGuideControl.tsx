@@ -17,7 +17,7 @@ function Controller({access:initial,onSaved}:{access:ControlAccess;onSaved:()=>v
  const current=(id:number)=>alive.current&&generation.current===id;
  const request=async(body?:unknown)=>{
   let timer:ReturnType<typeof setTimeout>|undefined;
-  try{return await Promise.race([apiFetch<unknown>(access.endpoint,{tenantSlug:access.tenant.slug,persistTenantSlug:false,cache:'no-store',...(body===undefined?{}:{method:'PUT',headers:{'X-Chatboc-Guide-Control':'1'},body})}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('guide_control_timeout')),15000);})]);}
+  try{return await Promise.race([apiFetch<unknown>(access.endpoint,{tenantSlug:access.tenant.slug,persistTenantSlug:false,cache:'no-store',singleAttempt:true,...(body===undefined?{}:{method:'PUT',headers:{'X-Chatboc-Guide-Control':'1'},body})}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('guide_control_timeout')),15000);})]);}
   finally{clearTimeout(timer);}
  };
  const refresh=async()=>{

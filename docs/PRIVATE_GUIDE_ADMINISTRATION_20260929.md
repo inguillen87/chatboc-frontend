@@ -31,3 +31,11 @@ El backend publica el descriptor sólo a su SuperAdmin autorizado. El panel no p
 La organización Tierra del Fuego ID 46 y su alta nominal existen según las verificaciones anteriores. Este cambio no vuelve a crearlas y no usa la credencial protegida cuyo ensayo fue bloqueado. La entrega segura y autenticación real de Analía continúan pendientes. La guía sigue siendo evaluación con fuentes sujetas a aceptación, no RAG operativo ni trámite real.
 
 Para utilizar el panel hacen falta backend y frontend compatibles desplegados, acceso autorizado a infraestructura, configuración explícita por el SuperAdmin y verificación del espacio real. No se ejecuta un despliegue mediante merge como sustituto del acceso denegado a Vercel. MuniControl permanece fuera de alcance.
+
+## Revisión P1: transporte sin repetición
+
+La revisión detectó que apiFetch podía repetir un PUT rechazado por la red contra otro candidato de API o ruta. El bloqueo del componente no evita una repetición interna del transporte. Se agregó la opción explícita singleAttempt, deshabilitada por defecto para no alterar otros consumidores. El control la exige en GET/PUT: usa un solo destino elegido, sin candidatos/rutas alternativos ni seguimiento de redirecciones. Se mantienen las cabeceras de autenticación, ámbito, caché y comprobación de preparación previas al envío.
+
+Siete pruebas del transporte real reproducen pérdida de respuesta, códigos HTTP, HTML de proxy y conservación de las cabeceras; cinco fallaban sobre la implementación anterior. Las pruebas de fallback preexistentes permanecen vigentes para quienes no solicitan singleAttempt. El navegador usa transporte sintético; la ausencia de repetición dentro de apiFetch se acredita específicamente con esa regresión real, no con un mock que omita el fallback.
+
+La revisión anterior y sus CI no certifican esta corrección posterior. Debe repetirse la suite completa para el SHA final antes de cerrar la validación; ningún candidato se publicó entre ambas revisiones.

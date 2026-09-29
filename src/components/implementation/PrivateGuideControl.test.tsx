@@ -35,6 +35,7 @@ describe('private guide control flow',()=>{
   const writes=mocks.fetch.mock.calls.filter(call=>call[1].method==='PUT');expect(writes).toHaveLength(1);
   expect(writes[0][1].body).toMatchObject({tenant,enabled:true,expected_revision:control().revision,acknowledge_evaluation_only:true});
   expect(mocks.fetch).toHaveBeenCalledTimes(4);
+  expect(mocks.fetch.mock.calls.every(call=>call[1].singleAttempt===true)).toBe(true);
  });
  it('does not send a mutation after a preflight revision change',async()=>{
   mocks.fetch.mockResolvedValueOnce(control()).mockResolvedValueOnce(control(false,2));show();await load();review();fireEvent.click(screen.getByRole('button',{name:'Confirmar QA'}));

@@ -34,6 +34,8 @@ name: Unified organization login
       - src/api/v2/channelActivation*
       - tests/private-guide.browser.mjs
       - src/utils/privateGuideControl*
+      - src/utils/api.ts
+      - src/utils/api.singleAttempt.test.ts
       - src/components/implementation/PrivateGuideControl*
       - tests/fixtures/guide-control.synthetic.ts
       - tests/guide-control.browser.mjs
