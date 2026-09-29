@@ -1,3 +1,5 @@
+import PrivateConversationGuide from '@/components/implementation/PrivateConversationGuide';
+import {readActivationGuide} from '@/utils/privateConversationGuide';
 import React from 'react';
 import {
   Accessibility,
@@ -190,6 +192,7 @@ export interface ChannelActivationChecklistProps {
   initialData?: ChannelActivationContract | null;
   highlighted?: boolean;
   presentation?: 'overview' | 'launch-journey';
+  privateGuideSessionKey?: string;
   returnTo?: string;
 }
 
@@ -199,10 +202,16 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   highlighted = false,
   presentation = 'overview',
   returnTo,
+  privateGuideSessionKey,
 }) => {
   const [data, setData] = React.useState<ChannelActivationContract | null>(initialData || null);
   const [loading, setLoading] = React.useState(Boolean(tenantSlug || initialData));
   const [error, setError] = React.useState<string | null>(null);
+  const guideScope=JSON.stringify([tenantSlug,privateGuideSessionKey]);
+  const activeScope=React.useRef(guideScope);activeScope.current=guideScope;
+  const requestRevision=React.useRef(0);
+  const [verifiedGuideScope,setVerifiedGuideScope]=React.useState<string|null>(null);
+  React.useEffect(()=>()=>{++requestRevision.current;},[guideScope]);
 
   React.useEffect(() => {
     // `/me` may finish after the workspace mounts. Keep the visible contract
@@ -213,17 +222,21 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
 
   const load = React.useCallback(async () => {
     if (!tenantSlug && !initialData) return;
+    const revision=++requestRevision.current;
+    setVerifiedGuideScope(null);
     setLoading(true);
     setError(null);
     try {
       const response = await fetchTenantChannelActivation(tenantSlug);
+      if(revision!==requestRevision.current||activeScope.current!==guideScope)return;
       setData(response);
+      setVerifiedGuideScope(guideScope);
     } catch (err) {
-      setError(syncErrorMessage);
+      if(revision===requestRevision.current&&activeScope.current===guideScope)setError(syncErrorMessage);
     } finally {
-      setLoading(false);
+      if(revision===requestRevision.current&&activeScope.current===guideScope)setLoading(false);
     }
-  }, [initialData, tenantSlug]);
+  }, [initialData, tenantSlug, guideScope]);
 
   React.useEffect(() => {
     void load();
@@ -260,6 +273,9 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             />
           )}
         />
+        <PrivateConversationGuide sessionKey={privateGuideSessionKey||''}
+          access={!loading&&!error&&verifiedGuideScope===guideScope&&privateGuideSessionKey&&tenantSlug
+            ?readActivationGuide(data,tenantSlug):null}/>
       </div>
     );
   }

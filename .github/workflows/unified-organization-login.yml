@@ -26,6 +26,15 @@ name: Unified organization login
       - tests/unified_login_http.py
       - tests/unified-login.browser.mjs
       - tests/e2e/fixtures/unified-login.*
+      - src/utils/privateConversationGuide*
+      - src/components/implementation/PrivateConversationGuide*
+      - src/components/implementation/privateConversationGuide.css
+      - src/components/profile/ChannelActivationChecklist*
+      - src/pages/TenantImplementationCenterPage*
+      - src/api/v2/channelActivation*
+      - tests/private-guide.browser.mjs
+      - tests/e2e/fixtures/private-guide.*
+      - tests/fixtures/private-guide.synthetic.ts
       - .github/workflows/unified-organization-login.yml
 permissions:
   contents: read
@@ -57,6 +66,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Private navigation and organization identity
         run: node tests/private-navigation.browser.mjs
+      - name: Private guide contract and lifecycle
+        run: node tests/private-guide.browser.mjs
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -65,6 +76,8 @@ jobs:
           path: |
             .vercel/unified-login-evidence/
             .vercel/private-navigation-evidence/
+            .vercel/private-guide-evidence/browser-results.json
+            .vercel/private-guide-evidence/*.png
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7

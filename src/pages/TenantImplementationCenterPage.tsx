@@ -21,7 +21,7 @@ import {
 const TenantImplementationCenterPage = () => {
   const [searchParams] = useSearchParams();
   const { currentSlug, tenant } = useTenant();
-  const { user, loading } = useUser();
+  const { user, loading, hasVerifiedSession } = useUser();
   const [activationRevision, setActivationRevision] = React.useState(0);
   const [blueprintRefreshRevision, setBlueprintRefreshRevision] = React.useState(0);
   const [blueprintApplied, setBlueprintApplied] = React.useState(false);
@@ -161,6 +161,7 @@ const TenantImplementationCenterPage = () => {
         <ChannelActivationChecklist
           key={`${tenantSlug}:${activationRevision}`}
           tenantSlug={tenantSlug}
+          privateGuideSessionKey={!loading&&hasVerifiedSession&&user?.id?String(user.id):undefined}
           initialData={initialActivation}
           highlighted
           presentation="launch-journey"
