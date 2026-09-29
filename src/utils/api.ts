@@ -659,6 +659,8 @@ const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number
 };
 
 interface ApiFetchOptions {
+  /** One chosen destination and request only: no path/base fallback or redirects. */
+  singleAttempt?: boolean;
   schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
@@ -1268,7 +1270,10 @@ export async function apiFetch<T>(
   let lastError: unknown = null;
   const attemptedUrls = new Set<string>();
 
-  if (isAbsolutePath) {
+  const singleAttempt = options.singleAttempt === true;
+  if (singleAttempt) {
+    response = await fetch(url, { ...requestInit, redirect: 'error' });
+  } else if (isAbsolutePath) {
     try {
       response = await fetch(url, requestInit);
     } catch (err) {
@@ -1276,7 +1281,7 @@ export async function apiFetch<T>(
     }
   }
 
-  for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
+  for (let baseIndex = 0; !singleAttempt && baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];
     const cleanBase = (base || "").replace(/\/$/, "");
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
@@ -1381,7 +1386,7 @@ export async function apiFetch<T>(
     }
   }
 
-  if (!response && fallbackUrl) {
+  if (!singleAttempt && !response && fallbackUrl) {
     try {
       url = fallbackUrl;
       response = await fetch(fallbackUrl, requestInit);

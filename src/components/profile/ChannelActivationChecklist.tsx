@@ -1,3 +1,5 @@
+import PrivateGuideControl from '@/components/implementation/PrivateGuideControl';
+import {readActivationControl} from '@/utils/privateGuideControl';
 import PrivateConversationGuide from '@/components/implementation/PrivateConversationGuide';
 import {readActivationGuide} from '@/utils/privateConversationGuide';
 import React from 'react';
@@ -273,6 +275,9 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             />
           )}
         />
+        <PrivateGuideControl sessionKey={privateGuideSessionKey||''} onSaved={()=>void load()}
+          access={!loading&&!error&&verifiedGuideScope===guideScope&&privateGuideSessionKey&&tenantSlug
+            ?readActivationControl(data,tenantSlug):null}/>
         <PrivateConversationGuide sessionKey={privateGuideSessionKey||''}
           access={!loading&&!error&&verifiedGuideScope===guideScope&&privateGuideSessionKey&&tenantSlug
             ?readActivationGuide(data,tenantSlug):null}/>
