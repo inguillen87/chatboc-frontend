@@ -105,6 +105,7 @@ export interface ChannelActivationContract {
   channels?: ChannelActivationChannel[];
   implementation_journey?: TenantImplementationJourneyContract | null;
   organization_setup?: unknown;
+  conversation_guide_control?: unknown;
   blockers?: Array<{ id?: string; label?: string; reason_code?: string | null; required_plan?: string | null }>;
   integration_access?: {
     enabled?: boolean;

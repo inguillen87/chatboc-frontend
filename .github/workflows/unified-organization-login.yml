@@ -33,6 +33,11 @@ name: Unified organization login
       - src/pages/TenantImplementationCenterPage*
       - src/api/v2/channelActivation*
       - tests/private-guide.browser.mjs
+      - src/utils/privateGuideControl*
+      - src/components/implementation/PrivateGuideControl*
+      - tests/fixtures/guide-control.synthetic.ts
+      - tests/guide-control.browser.mjs
+      - tests/e2e/fixtures/guide-control.*
       - tests/e2e/fixtures/private-guide.*
       - tests/fixtures/private-guide.synthetic.ts
       - .github/workflows/unified-organization-login.yml
@@ -68,6 +73,8 @@ jobs:
         run: node tests/private-navigation.browser.mjs
       - name: Private guide contract and lifecycle
         run: node tests/private-guide.browser.mjs
+      - name: Private guide administration and confirmation
+        run: node tests/guide-control.browser.mjs
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -78,6 +85,9 @@ jobs:
             .vercel/private-navigation-evidence/
             .vercel/private-guide-evidence/browser-results.json
             .vercel/private-guide-evidence/*.png
+            .vercel/guide-control-evidence/browser-results.json
+            .vercel/guide-control-evidence/*.png
+            .vercel/guide-control-evidence/*-axe.json
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
