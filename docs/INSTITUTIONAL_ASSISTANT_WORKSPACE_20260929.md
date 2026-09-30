@@ -31,3 +31,11 @@ Este cambio todavía no se sirve en producción. Vercel devolvió 403 para el eq
 Resultado local previo al commit: TypeScript, 28 pruebas focalizadas y los tres recorridos de la p?gina real aprobaron. Por escenario se ejecutaron tres intentos sint?ticos de escritura: importaci?n y publicaci?n confirmadas, retiro denegado; no hubo cambios en producci?n. Se revis? visualmente la captura de escritorio. La validaci?n del SHA final corresponde a los workflows.
 
 La consola existente Fuentes de Conocimiento también utiliza este espacio persistido. Se retiraron sus tarjetas de ejemplo, fechas fijas e indicaciones de 145 fragmentos que no correspondían a una consulta real. Se añadieron pruebas de esa página y de la vista pública sin credenciales administrativas; el corpus privado no se presenta como publicado.
+
+## Ruta real de la consola
+
+La revisión encontró que la antigua página de fuentes no estaba registrada en routesConfig: cambiar sólo sus tarjetas no la volvía accesible. Se añadió `/admin/knowledge` con carga diferida, roles tenant_admin/superadmin y capacidad settings.tenant.write, igual que el Centro de Implementación. Una prueba comprueba esa entrada en el registro real.
+
+El navegador ahora renderiza ambos elementos desde el routesConfig de la aplicación y navega entre ellos, no los importa como si la ruta existiera. También usa apiFetch real, con el destino de hosting aislado en loopback y respuestas HTTP sintéticas. La identidad externa y los paneles ajenos al ensayo siguen sustituidos; la protección por rol/capacidad se comprueba en el registro, no se afirma un login real. Los exports originales de contexto de las rutas no montadas se conservan para el escaneo de dependencias.
+
+Después de esa corrección aprobaron tipos, el grupo focal con capacidades y los tres recorridos, incluida la navegación a la consola registrada. La ejecución previa de 4044 pruebas no se atribuye a este último SHA; sus workflows deben certificarlo por separado.

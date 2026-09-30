@@ -34,6 +34,8 @@ name: Unified organization login
       - src/pages/tenant/TenantHomePage.tsx
       - src/components/knowledge/**
       - src/pages/admin/knowledge/KnowledgeSourcesPage*
+      - src/routesConfig.tsx
+      - src/routesConfig.capabilities.test.tsx
       - tests/institutional-assistant.browser.mjs
       - tests/e2e/fixtures/institutional-assistant.*
       - tests/fixtures/institutional-assistant.synthetic.ts

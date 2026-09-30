@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 const folder='.vercel/institutional-assistant-evidence';
 const boundary=path.resolve('tests/e2e/fixtures/institutional-assistant.transport.tsx');
 const server=await createServer({configFile:false,plugins:[react()],cacheDir:'.vercel/institutional-qa-cache',optimizeDeps:{entries:['tests/e2e/fixtures/institutional-assistant.html']},
- resolve:{alias:[{find:/^@\/(utils\/api|context\/TenantContext|hooks\/useUser|components\/implementation\/(TenantProvisioningReadinessPanel|TenantBlueprintProvisioningPanel|GovernmentMesaUnicaLaunchPanel|GovernmentJurisdictionReadinessPanel)|components\/profile\/ChannelActivationChecklist)$/,replacement:boundary},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
+ resolve:{alias:[{find:/^@\/(context\/TenantContext|hooks\/useUser|components\/implementation\/(TenantProvisioningReadinessPanel|TenantBlueprintProvisioningPanel|GovernmentMesaUnicaLaunchPanel|GovernmentJurisdictionReadinessPanel)|components\/profile\/ChannelActivationChecklist)$/,replacement:boundary},{find:/^@\/config$/,replacement:path.resolve('tests/e2e/fixtures/institutional-assistant.config.ts')},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
 let browser;const results=[];
 try{
  await server.listen();const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
@@ -60,7 +60,12 @@ try{
    await expect(page.getByRole('alert')).toBeVisible();await expect(page.getByRole('heading',{name:'Requisitos de la consulta'})).toHaveCount(0);
    assert.equal(writes.length,3);denied=false;await page.getByRole('button',{name:state.ui.retry,exact:true}).click();
    await expect(page.getByRole('heading',{name:state.ui.heading})).toBeVisible();assert.deepEqual(errors,[]);
-   results.push({width,height,dark,passed:true,realImplementationPage:true,canonicalNavigation:true,questionUsesSameSources:true,importRequiresConfirmation:true,publicationReadback:true,denialDoesNotRetry:true,syntheticWriteAttempts:writes.length,syntheticChanges:2,seriousAccessibilityViolations:severe.length});
+   await page.evaluate(()=>window.__openKnowledgeConsole());
+   await expect(page.getByRole('heading',{name:state.ui.heading})).toBeVisible();
+   await expect(page.getByRole('heading',{name:'Preparar la organización para operar'})).toHaveCount(0);
+   await expect(page.getByText('Normativa Municipal V2.pdf')).toHaveCount(0);
+   assert.deepEqual(errors,[]);
+   results.push({width,height,dark,passed:true,registeredKnowledgeRoute:true,realApiFetch:true,realImplementationPage:true,canonicalNavigation:true,questionUsesSameSources:true,importRequiresConfirmation:true,publicationReadback:true,denialDoesNotRetry:true,syntheticWriteAttempts:writes.length,syntheticChanges:2,seriousAccessibilityViolations:severe.length});
   }catch(error){results.push({width,height,dark,passed:false,error:error.message,errors,writeAttempts:writes.length});await page.screenshot({path:`${folder}/failure-${width}.png`,fullPage:true}).catch(()=>{});}
   finally{await context.close();}
  }

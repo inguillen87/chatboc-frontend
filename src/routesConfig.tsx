@@ -100,6 +100,7 @@ const AdminOrderDetailPage = React.lazy(() => import('@/pages/admin/AdminOrderDe
 const ClientsPage = React.lazy(() => import('@/pages/pyme/crm/ClientsPage'));
 const ClientDetailPage = React.lazy(() => import('@/pages/pyme/crm/ClientDetailPage'));
 const EnterpriseOpsPage = React.lazy(() => import('@/pages/EnterpriseOpsPage'));
+const KnowledgeSourcesPage = React.lazy(() => import('@/pages/admin/knowledge/KnowledgeSourcesPage').then(module => ({ default: module.KnowledgeSourcesPage })));
 const TenantImplementationCenterPage = React.lazy(
   () => import('@/pages/TenantImplementationCenterPage'),
 );
@@ -557,6 +558,12 @@ const routes: RouteConfig[] = [
   { path: '/soluciones/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
   { path: '/perfil', element: <Perfil />, requiresSession: true },
   { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  {
+    path: '/admin/knowledge',
+    element: <KnowledgeSourcesPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  },
   {
     path: '/implementacion',
     element: <TenantImplementationCenterPage />,
