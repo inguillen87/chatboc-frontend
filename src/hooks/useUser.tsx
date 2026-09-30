@@ -414,6 +414,7 @@ export function useUser() {
 
   return {
     ...context,
+    hasVerifiedSession,
     user: hasVerifiedSession ? context.user : null,
     organizationProfileVerified: hasVerifiedSession && context.organizationProfileVerified,
   };

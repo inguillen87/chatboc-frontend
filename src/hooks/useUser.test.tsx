@@ -201,3 +201,18 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     });
   });
 });
+
+
+describe('institutional consumers receive the actual session authority', () => {
+  const AuthorityProbe=()=>{const session=useUser();return <output data-testid="authority">{String(session.hasVerifiedSession)}</output>;};
+  it.each([true,false])('exposes the verified-session flag %s without synthesizing it from a profile',verified=>{
+    render(<SessionAuthorityProvider value={{clerkStatus:verified?'ready':'signed_out',hasBearerSession:false,hasVerifiedSession:verified}}><AuthorityProbe/></SessionAuthorityProvider>);
+    expect(screen.getByTestId('authority')).toHaveTextContent(String(verified));
+  });
+  it('immediately revokes the same consumer when session authority changes',()=>{
+    const view=render(<SessionAuthorityProvider value={{clerkStatus:'ready',hasBearerSession:false,hasVerifiedSession:true}}><AuthorityProbe/></SessionAuthorityProvider>);
+    expect(screen.getByTestId('authority')).toHaveTextContent('true');
+    view.rerender(<SessionAuthorityProvider value={{clerkStatus:'signed_out',hasBearerSession:false,hasVerifiedSession:false}}><AuthorityProbe/></SessionAuthorityProvider>);
+    expect(screen.getByTestId('authority')).toHaveTextContent('false');
+  });
+});
