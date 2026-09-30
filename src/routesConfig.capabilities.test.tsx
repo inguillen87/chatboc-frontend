@@ -191,3 +191,17 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain('Usá el onboarding oficial de arriba');
   });
 });
+
+
+describe('institutional knowledge entry',()=>{
+  it('registers the actual knowledge console lazily with the tenant administration guard',()=>{
+    const content=fs.readFileSync(path.resolve(__dirname,'routesConfig.tsx'),'utf8');
+    const route=content.match(/\{\s*path:\s*'\/admin\/knowledge',[\s\S]*?\n\s*\},/)?.[0]??'';
+    expect(content).toContain("import('@/pages/admin/knowledge/KnowledgeSourcesPage')");
+    expect(content).toContain('default: module.KnowledgeSourcesPage');
+    expect(route).toContain('element: <KnowledgeSourcesPage />');
+    expect(route).toContain("roles: ['tenant_admin', 'superadmin']");
+    expect(route).toContain("requiredAllCapabilities: ['settings.tenant.write']");
+    expect(route).not.toContain('allowGuest');
+  });
+});

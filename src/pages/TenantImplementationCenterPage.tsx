@@ -1,3 +1,4 @@
+import InstitutionalAssistant from '@/components/knowledge/InstitutionalAssistant';
 import React from 'react';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -123,6 +124,8 @@ const TenantImplementationCenterPage = () => {
           </Button>
         )}
       />
+
+      <InstitutionalAssistant tenantSlug={tenantSlug} sessionKey={!loading&&hasVerifiedSession&&user?.id?String(user.id):undefined} />
 
       <TenantProvisioningReadinessPanel tenantSlug={tenantSlug} />
 
