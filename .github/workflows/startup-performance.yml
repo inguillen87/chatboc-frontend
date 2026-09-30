@@ -10,6 +10,7 @@ name: Application startup performance
       - portal/index.html
       - src/**
       - scripts/startupGraph.mjs
+      - scripts/startupScriptReadiness.mjs
       - tests/startup-performance.browser.mjs
       - tests/e2e/pwa-lifecycle.spec.ts
       - playwright.pwa.config.ts

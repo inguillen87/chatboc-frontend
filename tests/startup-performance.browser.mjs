@@ -5,6 +5,7 @@ import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {HEAVY_STARTUP_CHUNK} from '../scripts/startupGraph.mjs';
+import {createStartupScriptTracker} from '../scripts/startupScriptReadiness.mjs';
 
 const [directory='dist',folder='.vercel/startup-evidence/browser',mode='check']=process.argv.slice(2);
 const manifest=JSON.parse(await readFile(path.join(directory,'.vite/manifest.json'),'utf8'));
@@ -28,10 +29,13 @@ try{
    return route.continue();
   });
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
+  const scripts=createStartupScriptTracker(origin);
+  page.on('request',scripts.started);page.on('requestfinished',scripts.finished);
+  page.on('requestfailed',scripts.failed);page.on('response',scripts.responded);
   const session=await context.newCDPSession(page);await session.send('Network.enable');await session.send('Network.setCacheDisabled',{cacheDisabled:true});
   const id=route==='/login'?`login-${width}`:route.startsWith('/portal')?'portal':'iframe';
   try{
-   const response=await page.goto(origin+route,{waitUntil:'networkidle'});assert.equal(response.status(),200);
+   const response=await page.goto(origin+route,{waitUntil:'domcontentloaded'});assert.equal(response.status(),200);
    if(dark)await page.evaluate(()=>document.documentElement.classList.add('dark'));
    if(route==='/login'){
     await expect(page.getByRole('textbox',{name:'Correo electrónico'})).toBeVisible();
@@ -40,6 +44,13 @@ try{
     await writeFile(`${folder}/${id}-axe.json`,JSON.stringify(violations,null,2));
     assert.deepEqual(violations.filter(item=>['critical','serious'].includes(item.impact)).map(item=>item.id),[]);
    }else await expect.poll(()=>page.locator('#root').evaluate(root=>root.childElementCount)).toBeGreaterThan(0);
+   // Background API polling does not determine whether the page's code loaded.
+   // Preserve the original maximum wait and settle every local script request.
+   await expect.poll(()=>scripts.isSettled(),{timeout:30000}).toBe(true);
+   const scriptReadiness=scripts.snapshot();
+   assert.equal(scriptReadiness.pendingScripts,0);assert.deepEqual(scriptReadiness.failures,[]);
+   const requestedHeavy=scriptReadiness.observedPaths.filter(file=>HEAVY_STARTUP_CHUNK.test(file.slice(1)));
+   if(mode==='check')assert.deepEqual(requestedHeavy,[],'No heavy feature may even begin loading during startup');
    const size=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
    assert.ok(size.scroll<=size.width+1,'Horizontal overflow');
    const resources=await page.evaluate(()=>performance.getEntriesByType('resource').filter(entry=>new URL(entry.name).origin===location.origin&&new URL(entry.name).pathname.endsWith('.js')).map(entry=>({path:new URL(entry.name).pathname,decodedBytes:entry.decodedBodySize,transferBytes:entry.transferSize})));
@@ -65,10 +76,10 @@ try{
     },chartFile);
     assert.deepEqual(chartProof,{bars:3,finiteGeometry:true,painted:true});assert.deepEqual(errors,[]);
    }
-   results.push({route,width,height,dark,passed:true,scriptRequests:resources.length,decodedScriptBytes:resources.reduce((sum,item)=>sum+item.decodedBytes,0),heavy,chartProof,resources});
+   results.push({route,width,height,dark,passed:true,scriptRequests:resources.length,decodedScriptBytes:resources.reduce((sum,item)=>sum+item.decodedBytes,0),heavy,chartProof,resources,scriptReadiness});
   }catch(error){
    await page.screenshot({path:`${folder}/${id}-failure.png`,fullPage:true}).catch(()=>{});
-   results.push({route,width,height,dark,passed:false,error:error.message,errors,writes});
+   results.push({route,width,height,dark,passed:false,error:error.message,errors,writes,scriptReadiness:scripts.snapshot()});
   }finally{await context.close();}
  }
 }finally{await browser.close();await new Promise(resolve=>server.httpServer.close(resolve));}

@@ -27,3 +27,11 @@ La lectura pública de este turno confirmó frontend `aabfa1a6ff575014674801abf3
 La organización y el alta nominal de Analía constan en el seguimiento anterior, pero no se realizó ni se certificó su primer ingreso. No se recreó su cuenta, se cambió contraseña, se extrajo una sesión ni se repitió la operación de credencial bloqueada. La falta de publicación impide que esta experiencia nueva aparezca en la instalación productiva actual.
 
 Los workflows existentes de ingreso institucional y arranque certifican el SHA final, sin cambiar permisos, límites o presupuestos. Los resultados completos y la revisión se registran en el PR una vez comprobados los artifacts. No hay un despliegue, importación de corpus ni activación de WhatsApp asociados a este incremento. Tampoco se cambió el backend ni el contenido institucional: los textos y links siguen proviniendo del contrato recibido. MuniControl fuera de alcance.
+
+## Condición de espera detectada por CI
+
+La primera revisión aprobó la suite de 4055 casos y el workflow de interfaz, pero el workflow de arranque falló al esperar networkidle durante 30 segundos en el ingreso móvil oscuro. Los otros cuatro arranques y los presupuestos estáticos aprobaron; PWA no llegó a ejecutarse en ese intento. No se aceptó ni se ocultó ese resultado.
+
+El guion de medición usaba silencio de toda la red como condición de disponibilidad. Se cambió por DOMContentLoaded, las aserciones de interfaz existentes y un registro explícito de los scripts locales: todos terminados, sin fallos y con 500 ms sin actividad de scripts. No se aumentó el máximo de 30 segundos ni se modificaron los presupuestos. Ahora también se rechaza un paquete pesado que haya comenzado a descargarse antes de terminar. El tráfico de consulta API no se usa para decidir si cargó el código.
+
+Siete pruebas verifican el intervalo completo, espera de scripts pendientes, recarga dinámica, independencia de consultas API, errores HTTP/red, rechazo de paquetes pesados y modulepreload. Build local, presupuestos y cinco arranques compilados aprobaron. La corrección es exclusivamente del ensayo: no cambia el ingreso, la red ni los tiempos productivos. La corrida final debe certificar nuevamente ambos workflows y PWA sobre su propio SHA.
