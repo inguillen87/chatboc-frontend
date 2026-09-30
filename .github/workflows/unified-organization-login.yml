@@ -31,6 +31,11 @@ name: Unified organization login
       - src/components/implementation/privateConversationGuide.css
       - src/components/profile/ChannelActivationChecklist*
       - src/pages/TenantImplementationCenterPage*
+      - src/pages/tenant/TenantHomePage.tsx
+      - src/components/knowledge/**
+      - tests/institutional-assistant.browser.mjs
+      - tests/e2e/fixtures/institutional-assistant.*
+      - tests/fixtures/institutional-assistant.synthetic.ts
       - src/api/v2/channelActivation*
       - tests/private-guide.browser.mjs
       - src/utils/privateGuideControl*
@@ -77,6 +82,8 @@ jobs:
         run: node tests/private-guide.browser.mjs
       - name: Private guide administration and confirmation
         run: node tests/guide-control.browser.mjs
+      - name: Native institutional knowledge workspace
+        run: node tests/institutional-assistant.browser.mjs
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -87,6 +94,9 @@ jobs:
             .vercel/private-navigation-evidence/
             .vercel/private-guide-evidence/browser-results.json
             .vercel/private-guide-evidence/*.png
+            .vercel/institutional-assistant-evidence/browser-results.json
+            .vercel/institutional-assistant-evidence/*.png
+            .vercel/institutional-assistant-evidence/*-axe.json
             .vercel/guide-control-evidence/browser-results.json
             .vercel/guide-control-evidence/*.png
             .vercel/guide-control-evidence/*-axe.json

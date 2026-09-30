@@ -1,3 +1,4 @@
+import InstitutionalAssistant from '@/components/knowledge/InstitutionalAssistant';
 import { useMemo, type ElementType, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -249,10 +250,8 @@ const TenantPublicLanding = () => {
         <motion.div className="grid gap-10" variants={container} initial="hidden" animate="show">
           <motion.section
             variants={itemAnim}
-            className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-8 shadow-sm"
+            className="relative overflow-hidden rounded-[32px] border border-border/60 bg-card p-8 shadow-sm"
           >
-            <div className="absolute -right-10 top-0 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-            <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-sky-500/10 blur-3xl" />
             <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
               <div className="space-y-5">
                 <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
@@ -260,7 +259,7 @@ const TenantPublicLanding = () => {
                   Espacio publico
                 </Badge>
                 <div className="space-y-3">
-                  <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
+                  <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
                     {tenantName}
                   </h1>
                   <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
@@ -293,6 +292,8 @@ const TenantPublicLanding = () => {
               ) : null}
             </div>
           </motion.section>
+
+          <InstitutionalAssistant tenantSlug={slug} mode="public" />
 
           {!navigationLoaded ? (
             <div className="flex min-h-[160px] items-center justify-center rounded-3xl border bg-muted/30">
