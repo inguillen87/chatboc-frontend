@@ -33,6 +33,7 @@ name: Unified organization login
       - src/pages/TenantImplementationCenterPage*
       - src/pages/tenant/TenantHomePage.tsx
       - src/components/knowledge/**
+      - src/pages/admin/knowledge/KnowledgeSourcesPage*
       - tests/institutional-assistant.browser.mjs
       - tests/e2e/fixtures/institutional-assistant.*
       - tests/fixtures/institutional-assistant.synthetic.ts

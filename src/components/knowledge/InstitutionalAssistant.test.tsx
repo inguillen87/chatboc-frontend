@@ -62,3 +62,20 @@ describe('source evidence and inclusive navigation',()=>{
   expect(mounted.container.querySelectorAll('script')).toHaveLength(0);expect(screen.getByText('<script>source</script> Texto de la fuente.')).toBeInTheDocument();
  });
 });
+describe('published institution view',()=>{
+ it('serves the same published content without management controls or panel credentials',async()=>{
+  mocks.fetch.mockResolvedValue(workspace({visibility:'public',can_edit:false}));
+  render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
+  await screen.findByText(node().text);
+  expect(screen.queryByRole('button',{name:'Incorporar conocimiento'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Habilitar en el agente'})).not.toBeInTheDocument();
+  expect(mocks.fetch.mock.calls[0][0]).toBe('/api/public/tenants/qa-knowledge/institutional-assistant');
+  expect(mocks.fetch.mock.calls[0][1]).toMatchObject({skipAuth:true,omitEntityToken:true,omitCredentials:true,persistTenantSlug:false});
+ });
+ it('does not show a private response on the public institution page',async()=>{
+  mocks.fetch.mockResolvedValue(workspace());
+  const mounted=render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
+  await act(async()=>{await Promise.resolve();});
+  expect(mounted.container).toBeEmptyDOMElement();
+ });
+});
