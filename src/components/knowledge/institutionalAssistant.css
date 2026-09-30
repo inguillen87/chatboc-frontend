@@ -2,7 +2,7 @@
 .institutional-assistant button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; border-radius:9px; font:inherit; font-size:.875rem; line-height:1.35; color:inherit; padding:10px 13px; cursor:pointer; transition:background-color .15s; }
 .institutional-assistant button:hover { background:hsl(var(--muted)); }
 .institutional-assistant button:disabled { opacity:.5; cursor:default; }
-.institutional-assistant button:focus-visible,.institutional-assistant input:focus-visible,.institutional-assistant a:focus-visible,.institutional-assistant summary:focus-visible,.institutional-assistant h3:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+.institutional-assistant button:focus-visible,.institutional-assistant input:focus-visible,.institutional-assistant textarea:focus-visible,.institutional-assistant a:focus-visible,.institutional-assistant summary:focus-visible,.institutional-assistant h3:focus-visible,.institutional-assistant h2:focus-visible,.institutional-assistant [tabindex]:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
 .institutional-assistant__header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:23px 28px; border-bottom:1px solid hsl(var(--border)); }
 .institutional-assistant__identity { display:flex; align-items:center; gap:13px; min-width:0; }
 .institutional-assistant__mark { width:42px; height:42px; flex-shrink:0; display:grid; place-items:center; border:1px solid hsl(var(--border)); border-radius:10px; background:hsl(var(--muted)); font-size:21px; font-weight:650; }
@@ -40,12 +40,11 @@
 .institutional-assistant__composer { padding:19px 25px 23px; border-top:1px solid hsl(var(--border)); background:hsl(var(--card)); }
 .institutional-assistant__composer label { font-size:.76rem; color:hsl(var(--muted-foreground)); display:block; margin-bottom:9px; }
 .institutional-assistant__composer>div { display:flex; align-items:center; gap:12px; border:1px solid hsl(var(--border)); border-radius:12px; padding:6px 7px 6px 14px; background:hsl(var(--background)); }
-.institutional-assistant__composer svg { flex-shrink:0; }.institutional-assistant__composer input{min-width:0;flex:1;background:transparent;border:0;font-size:.9rem;padding:11px 0;}
+.institutional-assistant__composer svg { flex-shrink:0; }.institutional-assistant__composer textarea{min-width:0;flex:1;background:transparent;border:0;font-size:.9rem;padding:11px 0;}
 .institutional-assistant button.institutional-assistant__primary { background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); }.institutional-assistant button.institutional-assistant__primary:hover{background:hsl(var(--primary)/.9);}
 .institutional-assistant__loading { display:flex; align-items:center; gap:12px; min-height:180px; justify-content:center; font-size:.9rem;color:hsl(var(--muted-foreground)); }
 .institutional-assistant__empty { min-height:220px; display:flex; flex-direction:column; justify-content:center; gap:15px; max-width:460px; }.institutional-assistant__empty h3{font-size:1.3rem;font-weight:600;}.institutional-assistant__empty p{font-size:.9rem;line-height:1.7;color:hsl(var(--muted-foreground));}
-.institutional-assistant__notice,.institutional-assistant__confirmation { border:1px solid hsl(var(--border)); border-radius:12px; padding:22px; margin-bottom:18px; background:hsl(var(--muted)/.3); }.institutional-assistant__confirmation h3{font-size:1.1rem;font-weight:600;margin-bottom:12px;}.institutional-assistant__confirmation p{font-size:.92rem;line-height:1.7;}.institutional-assistant__confirmation>div{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
-.institutional-assistant__sources { border-top:1px solid hsl(var(--border)); padding:22px 28px; }.institutional-assistant__sources>div{display:flex;align-items:center;justify-content:space-between;}.institutional-assistant__sources h3{font-size:1rem;font-weight:600;}.institutional-assistant__sources article{display:flex;gap:13px;align-items:flex-start;padding:16px 0;font-size:.9rem;border-bottom:1px solid hsl(var(--border));}.institutional-assistant__sources article svg{flex-shrink:0;}.institutional-assistant__sources a{overflow-wrap:anywhere;text-decoration:underline;}
+.institutional-assistant__notice { border:1px solid hsl(var(--border)); border-radius:12px; padding:22px; margin-bottom:18px; background:hsl(var(--muted)/.3); }
 .institutional-assistant__links{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0;}.institutional-assistant__links a{display:flex;align-items:center;gap:6px;text-decoration:underline;text-underline-offset:3px;min-height:44px;font-size:.875rem;}
 @media(max-width:760px){
  .institutional-assistant__header{padding:19px 18px;gap:12px;}.institutional-assistant__utilities button span{display:none;}.institutional-assistant__identity h2{font-size:1.08rem;}
@@ -55,7 +54,40 @@
  .institutional-assistant__reading{padding:24px 20px;max-height:64vh;}.institutional-assistant__topline{padding:7px 20px;}.institutional-assistant__topline>span{display:none;}
  .institutional-assistant__composer{padding:16px;}.institutional-assistant__answer h3{font-size:1.25rem;}
 }
-@media(max-width:420px){.institutional-assistant__mark{display:none;}.institutional-assistant__header{padding:16px 14px;}.institutional-assistant__choices{grid-template-columns:minmax(0,1fr);}.institutional-assistant__reading{padding:21px 16px;}.institutional-assistant__composer>div>svg{display:none;}.institutional-assistant__sources{padding:18px 16px;}}
+@media(max-width:420px){.institutional-assistant__mark{display:none;}.institutional-assistant__header{padding:16px 14px;}.institutional-assistant__choices{grid-template-columns:minmax(0,1fr);}.institutional-assistant__reading{padding:21px 16px;}.institutional-assistant__composer>div>svg{display:none;}}
 @media(prefers-reduced-motion:reduce){.institutional-assistant *{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}
 
 .institutional-assistant__citations blockquote{margin:12px 0;padding:6px 15px;border-left:2px solid hsl(var(--border));}.institutional-assistant__citations cite{font-size:.72rem;font-style:normal;color:hsl(var(--muted-foreground));}
+
+.institutional-assistant__reading { scroll-margin-block:6rem 2rem; }
+.institutional-assistant__composer textarea { resize:vertical; min-height:3rem; max-height:10rem; line-height:1.6; }
+.institutional-assistant__composer>div:focus-within { border-color:hsl(var(--ring)); box-shadow:0 0 0 1px hsl(var(--ring)); }
+.institutional-assistant__composer textarea:focus-visible { outline:none; }
+.institutional-assistant__uncovered { padding:1rem; border-left:3px solid hsl(var(--border)); line-height:1.8; overflow-wrap:anywhere; }
+.institutional-assistant__citations summary { min-height:44px; }
+.institutional-assistant-dialog { display:grid; grid-template-rows:auto minmax(0,1fr) auto; gap:0; width:calc(100% - 2rem); max-width:42rem; max-height:calc(100dvh - 2rem); padding:0; overflow:hidden; border-radius:16px; color:hsl(var(--foreground)); background:hsl(var(--card)); }
+.institutional-assistant-dialog button { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-width:44px; min-height:44px; border:1px solid hsl(var(--border)); border-radius:9px; padding:.65rem 1rem; font:inherit; font-size:.9rem; background:hsl(var(--background)); }
+.institutional-assistant-dialog button:hover { background:hsl(var(--muted)); }
+.institutional-assistant-dialog :focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+.institutional-assistant-dialog .institutional-assistant__primary { background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); }
+.institutional-assistant-dialog__header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.4rem 1.5rem; border-bottom:1px solid hsl(var(--border)); }
+.institutional-assistant-dialog__header>div { min-width:0; overflow-wrap:anywhere; }
+.institutional-assistant-dialog__header p { font-size:.8rem; color:hsl(var(--muted-foreground)); margin-bottom:.5rem; }
+.institutional-assistant-dialog__header h2 { line-height:1.4; font-size:1.2rem; font-weight:650; }
+.institutional-assistant-dialog__header>button { flex-shrink:0; padding:.6rem; }
+.institutional-assistant-dialog__documents { padding:0 1.5rem; overflow:auto; overscroll-behavior:contain; }
+.institutional-assistant-dialog__documents article { display:flex; gap:1rem; padding:1.3rem 0; border-bottom:1px solid hsl(var(--border)); }
+.institutional-assistant-dialog__documents article:last-child { border:0; }
+.institutional-assistant-dialog__documents svg { flex-shrink:0; margin-top:.2rem; color:hsl(var(--muted-foreground)); }
+.institutional-assistant-dialog__documents article>div { min-width:0; }
+.institutional-assistant-dialog__documents h3 { font-size:1rem; line-height:1.6; overflow-wrap:anywhere; }
+.institutional-assistant-dialog__documents a { display:block; min-height:44px; padding-top:.5rem; text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; line-height:1.6; font-size:.85rem; }
+.institutional-assistant-dialog__review { padding:1.5rem; overflow:auto; }
+.institutional-assistant-dialog__review p { line-height:1.8; }
+.institutional-assistant-dialog__filename { padding:.8rem; margin-top:1rem; border:1px solid hsl(var(--border)); border-radius:8px; overflow-wrap:anywhere; font-size:.85rem; }
+.institutional-assistant-dialog__version { font-size:.8rem; color:hsl(var(--muted-foreground)); margin-top:.9rem; }
+.institutional-assistant-dialog__footer { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:.75rem; padding:1rem 1.5rem; border-top:1px solid hsl(var(--border)); }
+.institutional-assistant-dialog__footer>span { display:flex; align-items:center; gap:.5rem; font-size:.75rem; color:hsl(var(--muted-foreground)); }
+.institutional-assistant-dialog__footer svg { flex-shrink:0; }
+@media(max-width:420px){.institutional-assistant-dialog{width:calc(100% - 1.25rem);max-height:calc(100dvh - 1.25rem);}.institutional-assistant-dialog__header,.institutional-assistant-dialog__review,.institutional-assistant-dialog__footer{padding:1rem;}.institutional-assistant-dialog__documents{padding:0 1rem;}.institutional-assistant-dialog--review .institutional-assistant-dialog__footer>button{flex:1;}}
+@media(prefers-reduced-motion:reduce){.institutional-assistant-dialog,.institutional-assistant-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
