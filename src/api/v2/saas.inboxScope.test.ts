@@ -24,6 +24,51 @@ describe('omnichannel API identity boundary', () => {
     mocks.get.mockResolvedValue({ item }); await getOmnichannelInboxDetailV2(item.id, 'org-a', '/api/v2/inbox/omnichannel/municipio:12');
     expect(mocks.get).toHaveBeenCalledExactlyOnceWith('/api/v2/inbox/omnichannel/municipio:12', { tenantSlug: 'org-a' });
   });
+  const municipalEndpoint = '/api/v2/inbox/omnichannel/407?source_model=MunicipioTicket';
+  const municipalDetail = {
+    contract_version: 'inbox.omnichannel.detail.v1', tenant: { slug: 'org-a', id: 22 },
+    item: { id: 'municipio:407', legacy_id: 407, ticket_id: 407,
+      source_model: 'MunicipioTicket', legacy_kind: 'claim',
+      detail_endpoint: municipalEndpoint, reply_contract: { contract_version: 'inbox.reply_contract.v1' } },
+  };
+  it('accepts the exact namespaced municipal claim returned for its numeric legacy detail route', async () => {
+    mocks.get.mockResolvedValue(municipalDetail);
+    const result = await getOmnichannelInboxDetailV2(407, 'org-a', municipalEndpoint);
+    expect(result.item.id).toBe('municipio:407');
+    expect(result.item.ticket_id).toBe('407');
+    expect(result.item.reply_contract?.contract_version).toBe('inbox.reply_contract.v1');
+    expect(mocks.get).toHaveBeenCalledExactlyOnceWith(municipalEndpoint, { tenantSlug: 'org-a' });
+  });
+  it.each([
+    ['canonical id', { id: 'municipio:408' }], ['legacy id', { legacy_id: 408 }],
+    ['ticket id', { ticket_id: 408 }], ['source', { source_model: 'TenantTicket' }],
+    ['kind', { legacy_kind: 'order' }], ['tenant', { tenant_slug: 'org-b' }],
+    ['missing legacy id', { legacy_id: undefined }],
+    ['detail route', { detail_endpoint: '/api/v2/inbox/omnichannel/408?source_model=MunicipioTicket' }],
+  ])('rejects a municipal alias whose %s differs', async (_field, change) => {
+    mocks.get.mockResolvedValue({ ...municipalDetail, item: { ...municipalDetail.item, ...change } });
+    await expect(getOmnichannelInboxDetailV2(407, 'org-a', municipalEndpoint)).rejects.toThrow();
+  });
+  it.each([
+    ['/api/v2/inbox/omnichannel/407', 'org-a'],
+    ['/api/v2/inbox/omnichannel/407?source_model=TenantTicket', 'org-a'],
+    [municipalEndpoint, undefined],
+  ])('does not infer a municipal alias without the exact route and organization', async (endpoint, scope) => {
+    mocks.get.mockResolvedValue(municipalDetail);
+    await expect(getOmnichannelInboxDetailV2(407, scope, endpoint)).rejects.toThrow();
+  });
+  it('rejects a foreign envelope even if the municipal item matches the selected organization', async () => {
+    mocks.get.mockResolvedValue({ ...municipalDetail, tenant: { slug: 'org-b', id: 23 } });
+    await expect(getOmnichannelInboxDetailV2(407, 'org-a', municipalEndpoint)).rejects.toThrow();
+  });
+  it('rejects a municipal alias without the authoritative organization envelope', async () => {
+    mocks.get.mockResolvedValue({ ...municipalDetail, tenant: undefined });
+    await expect(getOmnichannelInboxDetailV2(407, 'org-a', municipalEndpoint)).rejects.toThrow();
+  });
+  it('does not accept the municipal alias from an unknown contract version', async () => {
+    mocks.get.mockResolvedValue({ ...municipalDetail, contract_version: 'future.detail.v2' });
+    await expect(getOmnichannelInboxDetailV2(407, 'org-a', municipalEndpoint)).rejects.toThrow();
+  });
   it.each([{ ok: true }, { ticket: {} }, { ticket: { ...item, tenant_slug: 'org-b' } }, { ticket: { ...item, id: 'municipio:13' } }])('does not confirm a missing or foreign action receipt', async raw => {
     mocks.post.mockResolvedValue(raw);
     await expect(postOmnichannelInboxActionV2(item.id, { action: 'reply', payload: { source_model: 'MunicipioTicket', legacy_id: 12, message: 'Prueba', client_message_id: 'crm-reply:test-123456789012345' } }, 'org-a')).rejects.toThrow();

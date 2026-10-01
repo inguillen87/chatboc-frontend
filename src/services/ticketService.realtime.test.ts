@@ -765,7 +765,10 @@ describe('ticketService realtime normalization', () => {
       tenantSlug: 'junin',
       omitTenant: false,
       suppressPanel401Redirect: true,
-      omitCredentials: true,
+      omitCredentials: false,
+      omitEntityToken: true,
+      isWidgetRequest: false,
+      persistTenantSlug: false,
       omitChatSessionId: true,
     });
   });

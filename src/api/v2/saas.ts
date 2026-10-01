@@ -2342,6 +2342,26 @@ export const getOmnichannelInboxV2 = async (tenantSlug?: string | null) => {
   return normalizeOmnichannelInboxV2(response);
 };
 
+const isExactMunicipalLegacyDetail = (
+  detail: OmnichannelInboxDetailV2,
+  ticketId: string,
+  tenantSlug: string | null | undefined,
+  endpoint: string,
+) => {
+  // A municipal claim has a numeric legacy route and a namespaced inbox identity.
+  // Accept this one server contract only when every identity and scope agrees.
+  const expectedEndpoint = `/api/v2/inbox/omnichannel/${ticketId}?source_model=MunicipioTicket`;
+  const item = detail.item;
+  const envelopeTenant = asRecord(asRecord(detail.raw).tenant);
+  return /^[1-9]\d*$/.test(ticketId) && Boolean(tenantSlug) &&
+    detail.contract_version === 'inbox.omnichannel.detail.v1' &&
+    envelopeTenant.slug === tenantSlug && /^[1-9]\d*$/.test(String(envelopeTenant.id)) &&
+    endpoint === expectedEndpoint && item.detail_endpoint === expectedEndpoint &&
+    item.id === `municipio:${ticketId}` && item.ticket_id === ticketId && item.legacy_id === ticketId &&
+    item.source_model === 'MunicipioTicket' && item.legacy_kind === 'claim' &&
+    (item.tenant_slug === undefined || item.tenant_slug === tenantSlug);
+};
+
 export const getOmnichannelInboxDetailV2 = async (
   ticketId: string | number,
   tenantSlug?: string | null,
@@ -2357,7 +2377,9 @@ export const getOmnichannelInboxDetailV2 = async (
   const response = await panelApi.get<unknown>(endpoint, { tenantSlug });
   assertInboxTenantEnvelope(response, tenantSlug);
   const result = normalizeOmnichannelInboxDetailV2(response);
-  if (result.item.id !== String(ticketId)) throw new ApiError("El detalle no corresponde a esta conversación.", 502);
+  if (result.item.id !== String(ticketId) && !isExactMunicipalLegacyDetail(result, String(ticketId), tenantSlug, endpoint)) {
+    throw new ApiError("El detalle no corresponde a esta conversación.", 502);
+  }
   return result;
 };
 

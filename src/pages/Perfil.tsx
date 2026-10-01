@@ -106,6 +106,7 @@ import { hasAuthenticatedChatbocSession } from "@/utils/sessionLogout";
 import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { buildLoginPathWithNext } from "@/utils/authRedirect";
 import { toLocalISOString } from "@/utils/fecha";
 import { fmtAR } from "@/utils/date";
@@ -1376,7 +1377,7 @@ export default function Perfil() {
           rubro: bundle.tenant?.tipo || '',
         };
       } else {
-        data = await apiFetch<any>("/api/me", { tenantSlug });
+        data = await apiFetch<any>("/api/me", { ...panelReadOptions(tenantSlug), isCurrent });
       }
       if (!isCurrent()) {
         return null;

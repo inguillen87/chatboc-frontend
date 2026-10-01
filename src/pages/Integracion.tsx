@@ -1,10 +1,12 @@
 // src/pages/Integracion.tsx
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch, resolveTenantSlug } from "@/utils/api";
+import { apiFetch } from "@/utils/api";
+import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
+import { ViewState } from '@/components/app-shell/ViewState';
 import { useUser } from "@/hooks/useUser";
 import {
   Card,
@@ -53,7 +55,8 @@ import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTe
 const Integracion = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
+  const { tenant: routeTenant } = useParams();
   const channelParam = searchParams.get("channel");
   const focusAction = searchParams.get("action");
   const requestedTab = ["general", "marketplace", "whatsapp", "widget", "menus", "contacts"].includes(String(channelParam || ""))
@@ -79,7 +82,14 @@ const Integracion = () => {
   });
   const [activatingDemo, setActivatingDemo] = useState(false);
 
-  const tenantSlug = useMemo(() => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug), [user]);
+  const selectedQueryTenant = searchParams.get('tenant_slug') || searchParams.get('tenant');
+  const hasConflictingScope = Boolean(routeTenant && selectedQueryTenant && routeTenant !== selectedQueryTenant);
+  const requestedTenant = routeTenant || selectedQueryTenant || user?.tenant_slug || user?.tenantSlug;
+  const tenantSlug = !hasConflictingScope && typeof requestedTenant === 'string' && /^[a-z0-9][a-z0-9_-]{0,127}$/i.test(requestedTenant.trim())
+    ? requestedTenant.trim().toLowerCase() : null;
+  const scopeKey = organizationProfileVerified ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user }) : null;
+  const activeScopeRef = useRef(scopeKey);
+  activeScopeRef.current = scopeKey;
   const canManageLegacyWhatsappInventory = useMemo(() => {
     const currentUser = user as any;
     const roles = [
@@ -96,42 +106,52 @@ const Integracion = () => {
   }, [user]);
 
   const loadConfig = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !scopeKey) return;
+    const initiatingScope = scopeKey;
     try {
       setLoading(true);
+      setConfig(null);
       const data = await tenantService.getTenantConfig(tenantSlug);
+      if (activeScopeRef.current !== initiatingScope) return;
+      if (data?.tenant?.slug !== tenantSlug) throw new Error('tenant_config_scope_mismatch');
       setConfig(data);
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("Failed to load tenant config", error);
       toast.error("Error cargando configuración del tenant");
     } finally {
-      setLoading(false);
+      if (activeScopeRef.current === initiatingScope) setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeKey]);
 
   const loadWhatsappNumbers = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !scopeKey) return;
+    const initiatingScope = scopeKey;
     setWhatsappNumbersLoading(true);
     setWhatsappNumbersError(null);
     try {
       const data = await tenantService.listWhatsappNumbers(tenantSlug);
+      if (activeScopeRef.current !== initiatingScope) return;
       setWhatsappNumbers(data.numbers || []);
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("Failed to load WhatsApp numbers", error);
       setWhatsappNumbersError("No se pudieron cargar los números disponibles.");
       setWhatsappNumbers([]);
     } finally {
-      setWhatsappNumbersLoading(false);
+      if (activeScopeRef.current === initiatingScope) setWhatsappNumbersLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeKey]);
 
   const loadEmbedSnippet = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !scopeKey) return;
+    const initiatingScope = scopeKey;
     try {
       const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
       const integrationWidget = integrationData?.widget || {};
       const integrationSnippet = integrationWidget?.embed_snippet || "";
       const widgetData = await tenantService.getPublicWidgetConfig(tenantSlug);
+      if (activeScopeRef.current !== initiatingScope) return;
       const experienceSources = extractDemoExperienceSources(integrationData, widgetData);
       setDemoExperienceSources(experienceSources);
       if (integrationSnippet) {
@@ -143,11 +163,12 @@ const Integracion = () => {
       const snippet = builderConfig?.embed_snippet || widgetData?.embed_snippet || "";
       setEmbedSnippet(snippet);
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("No se pudo cargar el snippet de embed", error);
       setEmbedSnippet("");
       setDemoExperienceSources({ quickMenu: [], onboardingQuickMenu: [] });
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeKey]);
 
   const handleReload = () => {
     loadConfig();
@@ -172,7 +193,8 @@ const Integracion = () => {
   }, [activeTab, canManageLegacyWhatsappInventory, loadWhatsappNumbers]);
 
   const handleSave = async (section: keyof TenantConfigBundle | "configs", data: any) => {
-    if (!tenantSlug || !config) return;
+    if (!tenantSlug || !config || !scopeKey || config.tenant.slug !== tenantSlug) return;
+    const initiatingScope = scopeKey;
 
     setSaving(true);
     try {
@@ -188,13 +210,15 @@ const Integracion = () => {
       }
 
       const updated = await tenantService.updateTenantConfig(tenantSlug, payload);
+      if (activeScopeRef.current !== initiatingScope) return;
       setConfig(updated);
       toast.success("Cambios guardados correctamente");
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("Failed to save config", error);
       toast.error("Error al guardar cambios");
     } finally {
-      setSaving(false);
+      if (activeScopeRef.current === initiatingScope) setSaving(false);
     }
   };
 
@@ -324,12 +348,17 @@ const Integracion = () => {
       }
   };
 
-  if (userLoading || loading) {
+  if (!userLoading && !scopeKey) {
+    return <ViewState status="error" title="No pudimos validar la organización"
+      action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
+  if (userLoading || loading || (config && config.tenant.slug !== tenantSlug)) {
     return <div className="p-8 text-center">Cargando configuración...</div>;
   }
 
   if (!config) {
-    return <div className="p-8 text-center text-destructive">No se pudo cargar la configuración del tenant.</div>;
+    return <ViewState status="error" title="No se pudo cargar la configuración de la organización"
+      action={<Button onClick={handleReload}>Reintentar</Button>} />;
   }
 
   // Helpers to safely access nested config
@@ -456,7 +485,7 @@ const Integracion = () => {
               <CardContent className="space-y-6">
                 <MetaAppReviewApproval />
 
-                <WhatsappTechProviderOnboarding tenantSlug={tenantSlug} focusAction={focusAction} />
+                <WhatsappTechProviderOnboarding key={scopeKey} tenantSlug={tenantSlug} focusAction={focusAction} />
 
                 <Separator />
 

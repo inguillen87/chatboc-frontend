@@ -50,12 +50,14 @@ describe('tenantService config updates', () => {
 
     expect(updated).toBe(tenantConfigBundle);
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/junin/config', {
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/junin/config', expect.objectContaining({
       method: 'PUT',
+      tenantSlug: 'junin', persistTenantSlug: false, isWidgetRequest: false,
+      omitEntityToken: true, omitChatSessionId: true, singleAttempt: true, allowStartupRecovery: false,
       body: JSON.stringify({
         tenant: { ...tenantConfigBundle.tenant, color_primario: '#0f8f4f' },
       }),
-    });
+    }));
   });
 
   it('refetches the config when backend responds with an acknowledgement only', async () => {
@@ -71,7 +73,24 @@ describe('tenantService config updates', () => {
       '/api/admin/tenants/junin/config',
       expect.objectContaining({ method: 'PUT' }),
     );
-    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/admin/tenants/junin/config');
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/admin/tenants/junin/config', expect.objectContaining({
+      tenantSlug: 'junin', persistTenantSlug: false, isWidgetRequest: false, omitEntityToken: true,
+      omitChatSessionId: true, omitCredentials: false, singleAttempt: true, allowStartupRecovery: true,
+    }));
+  });
+  it('rejects another organization in the configuration receipt before displaying or saving it', async () => {
+    const foreign = { ...tenantConfigBundle, tenant: { ...tenantConfigBundle.tenant, slug: 'foreign-organization' } };
+    apiFetchMock.mockResolvedValue(foreign);
+    await expect(tenantService.getTenantConfig('junin')).rejects.toMatchObject({ status: 502 });
+    await expect(tenantService.updateTenantConfig('junin', {})).rejects.toMatchObject({ status: 502 });
+  });
+  it('pins the private WhatsApp contract read to the requested organization and panel session', async () => {
+    apiFetchMock.mockResolvedValue({ contract_version: 'twilio.tech_provider.v1' });
+    await tenantService.getWhatsappTechProvider('selected-organization');
+    expect(apiFetchMock).toHaveBeenCalledExactlyOnceWith('/api/v2/tenants/selected-organization/whatsapp/tech-provider', expect.objectContaining({
+      tenantSlug: 'selected-organization', persistTenantSlug: false, isWidgetRequest: false,
+      omitEntityToken: true, omitChatSessionId: true, omitCredentials: false, singleAttempt: true, allowStartupRecovery: true,
+    }));
   });
 
   it('reads and writes the WidgetSettings runtime source with an explicit tenant context', async () => {

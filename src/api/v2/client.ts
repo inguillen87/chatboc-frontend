@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -56,8 +57,8 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     omitTenant: !tenantSlug,
     baseUrlOverride,
     allowSafeBaseFallback,
-    ...(!skipAuth && !isWidgetRequest && !tenantSlug && method === 'GET' && /^\/api\/v2\/superadmin\//.test(path)
-      ? { isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, singleAttempt: true, allowStartupRecovery: true }
+    ...(!skipAuth && !isWidgetRequest && method === 'GET'
+      ? panelReadOptions(tenantSlug)
       : {}),
   };
 

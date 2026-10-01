@@ -442,7 +442,9 @@ describe('Perfil request lifecycle', () => {
         'full',
       );
     });
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(localStorage.getItem('tenantSlug')).toBe('junin');
 
     await act(async () => {
@@ -496,7 +498,9 @@ describe('Perfil request lifecycle', () => {
       '/api/v2/tenants/mendoza/activation/channels',
       { tenantSlug: 'mendoza', persistTenantSlug: false, cache: 'no-store' },
     );
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=mendoza')).toBe(0);
     expect(localStorage.getItem('tenantSlug')).not.toBe('mendoza');
     expect(
@@ -531,7 +535,9 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
     expect(screen.queryByTestId('mock-users')).not.toBeInTheDocument();
     expect(localStorage.getItem('tenantSlug')).toBe('junin');
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
   });
 
@@ -702,7 +708,9 @@ describe('Perfil request lifecycle', () => {
     expect(navigateLog).toHaveBeenCalledWith('Mocked navigate to: /perfil');
     await act(async () => { updateBrowserLocation('/perfil'); });
     await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(window.location.search).not.toContain('tenant_slug');
     expect(runtime.setUser).not.toHaveBeenCalled();
     expect(runtime.user?.tenant_slug).toBe('junin');

@@ -3,6 +3,7 @@ import { resetBackendBootstrapGateForTests } from './backendBootstrapGate';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import { safeLocalStorage } from './safeLocalStorage';
 import { clearLocalChatbocSession } from './sessionLogout';
+import { panelReadOptions } from './panelReadOptions';
 vi.mock('@/config', async original => ({ ...await original<typeof import('@/config')>(),
   API_BASE_CANDIDATES: ['/api','https://retired.example.invalid'], BASE_API_URL:'/api', SAME_ORIGIN_PROXY_BASE:'/api',
 }));
@@ -10,13 +11,17 @@ vi.mock('@/utils/api', async () => await vi.importActual<typeof import('./api')>
 let apiFetch: typeof import('./api').apiFetch;
 let apiClient: typeof import('@/api/client').apiClient;
 let panelApi: typeof import('@/api/v2/client').panelApi;
+let widgetApi: typeof import('@/api/v2/client').widgetApi;
 let followUpApi: typeof import('@/features/crm/followup/followUpApi').followUpApi;
+let getTickets: typeof import('@/services/ticketService').getTickets;
 const originalFetch = global.fetch;
 beforeAll(async () => {
   apiFetch = (await vi.importActual<typeof import('./api')>('./api')).apiFetch;
   apiClient = (await vi.importActual<typeof import('@/api/client')>('@/api/client')).apiClient;
   panelApi = (await vi.importActual<typeof import('@/api/v2/client')>('@/api/v2/client')).panelApi;
+  widgetApi = (await vi.importActual<typeof import('@/api/v2/client')>('@/api/v2/client')).widgetApi;
   followUpApi = (await vi.importActual<typeof import('@/features/crm/followup/followUpApi')>('@/features/crm/followup/followUpApi')).followUpApi;
+  getTickets = (await vi.importActual<typeof import('@/services/ticketService')>('@/services/ticketService')).getTickets;
 });
 beforeEach(() => {
   safeLocalStorage.clear();
@@ -92,6 +97,104 @@ const changePublicPresentationContext = () => {
 };
 const globalPanelOptions = { omitTenant: true, omitEntityToken: true, omitChatSessionId: true,
   isWidgetRequest: false, singleAttempt: true, allowStartupRecovery: true };
+it.each(['profile', 'orders', 'tickets', 'composer'] as const)
+  ('keeps the actual private %s read on the panel session through cold startup and public context changes', async caller => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+    safeLocalStorage.setItem('tenantSlug', 'panel-tenant');
+    safeLocalStorage.setItem('entityToken', 'synthetic-public-entity');
+    safeLocalStorage.setItem('chatAuthToken', 'synthetic-widget-token');
+    useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-widget-token' });
+    usePanelSessionStore.getState().setAuthToken('synthetic-panel-session');
+    usePanelSessionStore.getState().setUser({ id: 'synthetic-panel-actor', email: 'actor@example.invalid', rol: 'admin' });
+    let privateCalls = 0;
+    global.fetch = vi.fn().mockImplementation(async url => {
+      if (url === '/api/version') {
+        changePublicPresentationContext();
+        return new Response('{"backend":"sha","frontend":"web"}');
+      }
+      privateCalls += 1;
+      return privateCalls === 1 ? cold() : new Response('{"id":"synthetic-panel-actor","tickets":[],"orders":[]}', {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    if (caller === 'profile') await apiFetch('/api/me', panelReadOptions());
+    else if (caller === 'orders') await apiClient.adminListOrders('panel-tenant');
+    else if (caller === 'tickets') await getTickets('panel-tenant', { quiet: true });
+    else await panelApi.get('/api/v2/inbox/omnichannel/41', { tenantSlug: 'panel-tenant' });
+    const calls = vi.mocked(global.fetch).mock.calls;
+    expect(calls).toHaveLength(3);
+    expect(calls[1][0]).toBe('/api/version');
+    expect(calls[2][0]).toBe(calls[0][0]);
+    expect(calls[2][1]).toEqual(calls[0][1]);
+    const headers = new Headers(calls[0][1]?.headers);
+    expect(headers.get('Authorization')).toBe('Bearer synthetic-panel-session');
+    expect(headers.has('X-Entity-Token')).toBe(false);
+    expect(headers.has('X-Token')).toBe(false);
+    expect(headers.has('X-Chat-Session')).toBe(false);
+    expect(calls[0][1]?.credentials).toBe('include');
+    expect(headers.get('X-Tenant')).toBe(caller === 'profile' ? null : 'panel-tenant');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('unrelated-public-tenant');
+    expect(usePanelSessionStore.getState().authToken).toBe('synthetic-panel-session');
+  });
+it('uses the private panel cookie without falling back to a residual widget bearer in Reclamos', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+  panelCookieIdentity();
+  safeLocalStorage.setItem('chatAuthToken', 'synthetic-public-widget-bearer');
+  safeLocalStorage.setItem('entityToken', 'synthetic-public-entity');
+  useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-public-widget-bearer' });
+  global.fetch = vi.fn().mockResolvedValue(new Response('{"tickets":[]}', { headers: { 'Content-Type': 'application/json' } }));
+  await getTickets('panel-tenant', { quiet: true });
+  const headers = new Headers(vi.mocked(global.fetch).mock.calls[0][1]?.headers);
+  expect(headers.has('Authorization')).toBe(false);
+  expect(headers.has('X-Entity-Token')).toBe(false);
+  expect(vi.mocked(global.fetch).mock.calls[0][1]?.credentials).toBe('include');
+});
+it('keeps a terminal private profile 401 visible for the profile owner to retire the session', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+  usePanelSessionStore.getState().setAuthToken('synthetic-panel-session');
+  global.fetch = vi.fn().mockResolvedValue(new Response('{"error":"session_expired"}', {
+    status: 401, headers: { 'Content-Type': 'application/json' },
+  }));
+  await expect(apiFetch('/api/me', { ...panelReadOptions(), preserveAuthOn401: true, suppressPanel401Redirect: true }))
+    .rejects.toMatchObject({ status: 401 });
+  expect(global.fetch).toHaveBeenCalledOnce();
+  expect(usePanelSessionStore.getState().authToken).toBe('synthetic-panel-session');
+});
+it('preserves the separate public widget credential transport', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+  usePanelSessionStore.getState().setAuthToken('synthetic-panel-session');
+  safeLocalStorage.setItem('entityToken', 'synthetic-widget-entity');
+  global.fetch = vi.fn().mockResolvedValue(new Response('{"public":true}', { headers: { 'Content-Type': 'application/json' } }));
+  await widgetApi.get('/api/v2/chat/widget-contract', { tenantSlug: 'widget-tenant' });
+  const init = vi.mocked(global.fetch).mock.calls[0][1];
+  const headers = new Headers(init?.headers);
+  expect(headers.has('Authorization')).toBe(false);
+  expect(headers.get('X-Entity-Token')).toBe('synthetic-widget-entity');
+  expect(init?.credentials).toBe('omit');
+});
+it('does not replay a panel action after an undispatched cold receipt', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+  usePanelSessionStore.getState().setAuthToken('synthetic-panel-session');
+  global.fetch = vi.fn().mockImplementation(async () => cold());
+  await expect(panelApi.post('/api/v2/inbox/omnichannel/41/actions', { action: 'read_state' }, { tenantSlug: 'panel-tenant' }))
+    .rejects.toMatchObject({ status: 503 });
+  expect(global.fetch).toHaveBeenCalledOnce();
+});
+it.each(['profile', 'orders', 'tickets', 'composer'] as const)
+  ('retires the actual private %s request after logout during readiness', async caller => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+    panelCookieIdentity();
+    global.fetch = vi.fn().mockImplementation(async () => {
+      clearLocalChatbocSession();
+      return new Response('{"backend":"sha","frontend":"web"}');
+    });
+    const request = caller === 'profile' ? apiFetch('/api/me', panelReadOptions())
+      : caller === 'orders' ? apiClient.adminListOrders('panel-tenant')
+        : caller === 'tickets' ? getTickets('panel-tenant', { quiet: true })
+          : panelApi.get('/api/v2/inbox/omnichannel/41', { tenantSlug: 'panel-tenant' });
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(global.fetch).toHaveBeenCalledOnce();
+  });
 it('dispatches an isolated global directory read while public tenant and widget state change', async () => {
   vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
   panelCookieIdentity();

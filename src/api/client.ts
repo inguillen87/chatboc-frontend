@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
 import { assessOrderAmounts, assessOrderItemAmounts } from '@/features/orders/orderAmounts';
@@ -601,10 +602,8 @@ export const apiClient = {
 
   getTicketWorkflowMetadata: async (tenantSlug?: string) => {
     const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', {
-      tenantSlug,
+      ...panelReadOptions(tenantSlug),
       suppressPanel401Redirect: true,
-      omitCredentials: true,
-      omitChatSessionId: true,
     });
     return normalizeTicketWorkflowMetadata(response);
   },
@@ -702,13 +701,13 @@ export const apiClient = {
     }
     const params = new URLSearchParams(normalizedFilters);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, panelReadOptions(tenantSlug));
     return normalizeAdminOrdersEnvelope(raw);
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
     const encodedId = encodeURIComponent(String(orderId));
-    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, panelReadOptions(tenantSlug));
     // Validate the transport receipt before display defaults can disguise a missing identity or state.
     assertOrderReceipt(raw, String(orderId), undefined, tenantSlug);
     return normalizeAdminOrder(raw);

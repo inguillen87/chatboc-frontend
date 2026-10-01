@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { usePanelSessionStore } from '@/stores';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser, UserProvider } from './useUser';
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
@@ -83,6 +83,18 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     await act(async () => finishOld({ id: 42, rol: 'tenant_admin', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
     expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-b|true');
     expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+  it('retires a native panel session when its isolated profile is actually denied with 401', async () => {
+    const token = 'synthetic-native-panel-session';
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'operator@example.test', rol: 'admin', tenant_slug: 'tenant-a' } });
+    vi.mocked(apiFetch).mockRejectedValue(new ApiError('Session expired', 401));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    await waitFor(() => expect(usePanelSessionStore.getState().authToken).toBeNull());
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
+    expect(safeLocalStorage.getItem('user')).toBeNull();
+    expect(apiFetch).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('false');
   });
 
   it.each(['loading', 'signed_out'] as const)(
@@ -194,6 +206,13 @@ describe('UserProvider Clerk cookie profile hydration', () => {
         expect.objectContaining({
           omitEntityToken: true,
           omitTenant: true,
+          isWidgetRequest: false,
+          omitChatSessionId: true,
+          omitCredentials: false,
+          persistTenantSlug: false,
+          singleAttempt: true,
+          allowStartupRecovery: true,
+          isCurrent: expect.any(Function),
           preserveAuthOn401: true,
           suppressPanel401Redirect: true,
         }),

@@ -1,6 +1,7 @@
 import { usePanelSessionStore } from '@/stores';
 import React, { useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
@@ -197,10 +198,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const data = await apiFetch<any>('/api/me', {
+        ...panelReadOptions(),
         preserveAuthOn401: true,
         suppressPanel401Redirect: true,
-        omitEntityToken: true,
-        omitTenant: true,
+        isCurrent: isCurrentRequest,
       });
       if (!isCurrentRequest()) return;
       const rubroNorm = parseRubro(data.rubro) || '';

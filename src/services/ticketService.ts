@@ -1,4 +1,5 @@
 import { apiFetch, ApiError, isLikelyHtmlErrorBody } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import {
   Ticket,
   Message,
@@ -744,11 +745,8 @@ export const getTickets = async (
         summary?: Record<string, unknown>;
         facets?: TicketInboxFacets | null;
       }>(ticketApiPath(`/tickets?${params.toString()}`), {
-      tenantSlug,
-      omitTenant: false,
+      ...panelReadOptions(tenantSlug),
       suppressPanel401Redirect: true,
-      omitCredentials: true,
-      omitChatSessionId: true,
       // Algunos despliegues requieren el tenant para filtrar los tickets
       // correctamente y evitar errores 500 en el backend.
     });

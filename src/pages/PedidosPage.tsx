@@ -1,12 +1,15 @@
 import { OrderAmountBreakdown } from '@/components/orders/OrderAmountBreakdown';
 import { OrderAmountCoverage } from '@/components/orders/OrderAmountCoverage';
 import { summarizeOrderAmounts } from '@/features/orders/orderAmounts';
-import React, { useEffect, useState, useCallback, FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef, FC } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { getErrorMessage } from '@/utils/api';
 import { apiClient } from '@/api/client';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
+import { useUser } from '@/hooks/useUser';
+import { buildVerifiedSessionScopeKey, useSessionAuthority } from '@/components/access/SessionAuthorityContext';
+import { hasRequiredRole } from '@/utils/roles';
+import { ViewState } from '@/components/app-shell/ViewState';
 import { Order } from '@/types/unified';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -284,6 +287,20 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
 // ---------- Página Principal ----------
 export default function PedidosPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { tenant: routeTenant } = useParams();
+  const { user, loading: profileLoading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
+  const { clerkStatus } = useSessionAuthority();
+  const sessionPending = profileLoading || clerkStatus === 'loading' || clerkStatus === 'syncing';
+  const canReadOrders = hasVerifiedSession && organizationProfileVerified &&
+    hasRequiredRole(user?.rol, ['tenant_admin', 'employee', 'superadmin']);
+  const candidateTenant = routeTenant || new URLSearchParams(location.search).get('tenant_slug') ||
+    user?.tenant_slug || user?.tenantSlug;
+  const tenantSlug = typeof candidateTenant === 'string' && /^[a-z0-9][a-z0-9_-]{0,127}$/i.test(candidateTenant.trim())
+    ? candidateTenant.trim().toLowerCase() : null;
+  const requestScopeKey = canReadOrders ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user }) : null;
+  const currentScopeRef = useRef(requestScopeKey);
+  currentScopeRef.current = requestScopeKey;
   const { timezone, locale, updateSettings } = useDateSettings();
   const [categorizedPedidos, setCategorizedPedidos] = useState<CategorizedPedidos>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -298,16 +315,18 @@ export default function PedidosPage() {
   }, [navigate]);
 
   const fetchPedidos = useCallback(async () => {
-    const tenantSlug = safeLocalStorage.getItem('tenantSlug');
+    if (!canReadOrders || !requestScopeKey) return;
     if (!tenantSlug) {
       setError('No se pudo identificar al tenant para cargar los pedidos.');
       setIsLoading(false);
       return;
     }
 
+    setError(null);
     try {
       // Pass { status: 'all' } to get everything, similar to Pyme page
       const data = await apiClient.adminListOrders(tenantSlug, { status: 'all' });
+      if (currentScopeRef.current !== requestScopeKey) return;
       if (Array.isArray(data)) {
         const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
           acc[p.status] = acc[p.status] ? [...acc[p.status], p] : [p];
@@ -321,21 +340,26 @@ export default function PedidosPage() {
         setOpenCategories(new Set());
       }
     } catch (err) {
+      if (currentScopeRef.current !== requestScopeKey) return;
       console.error('Error fetching pedidos:', err);
       setError(getErrorMessage(err, 'Error al cargar los pedidos.'));
     } finally {
-      setIsLoading(false);
+      if (currentScopeRef.current === requestScopeKey) setIsLoading(false);
     }
-  }, []);
+  }, [canReadOrders, requestScopeKey, tenantSlug]);
 
   useEffect(() => {
-    const token = safeLocalStorage.getItem('authToken');
-    if (!token) {
-      navigate('/login');
+    setCategorizedPedidos({});
+    setSelectedPedidoId(null);
+    setError(null);
+    setIsLoading(true);
+    if (sessionPending) return;
+    if (!hasVerifiedSession) {
+      navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
       return;
     }
-    fetchPedidos();
-  }, [fetchPedidos, navigate]);
+    if (canReadOrders) void fetchPedidos();
+  }, [canReadOrders, fetchPedidos, hasVerifiedSession, location.pathname, location.search, navigate, requestScopeKey, sessionPending]);
 
   const sortedCategories = (Object.entries(categorizedPedidos) as [string, Order[]][]).sort(([a], [b]) => {
     const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a);
@@ -388,20 +412,36 @@ export default function PedidosPage() {
   };
 
   const handleStatusChange = async (pedidoId: number | string, newStatus: string) => {
-    const tenantSlug = safeLocalStorage.getItem('tenantSlug');
-    if (!tenantSlug) {
+    if (!canReadOrders || !tenantSlug || !requestScopeKey) {
       setError('No se pudo identificar al tenant.');
       return;
     }
 
     try {
       await apiClient.adminUpdateOrder(tenantSlug, pedidoId, { status: newStatus });
+      if (currentScopeRef.current !== requestScopeKey) return;
       fetchPedidos(); // Re-fetch all pedidos to reflect the change
     } catch (err) {
+      if (currentScopeRef.current !== requestScopeKey) return;
       setError(getErrorMessage(err, 'Error al actualizar el estado del pedido.'));
     }
   };
 
+  if (sessionPending || !hasVerifiedSession) {
+    return <ViewState status="loading" title="Validando acceso" />;
+  }
+  if (!organizationProfileVerified || !user) {
+    return <ViewState status="error" title="No pudimos validar el acceso"
+      action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
+  if (!canReadOrders) {
+    return <ViewState status="error" title="No tenés acceso a los pedidos"
+      action={<Button onClick={() => navigate('/perfil')}>Volver a mi perfil</Button>} />;
+  }
+  if (!tenantSlug) {
+    return <ViewState status="error" title="No pudimos identificar la organización"
+      action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
