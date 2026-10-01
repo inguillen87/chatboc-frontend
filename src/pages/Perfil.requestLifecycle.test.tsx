@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { panelReadOptions } from '@/utils/panelReadOptions';
 
@@ -22,6 +22,7 @@ vi.mock('@/hooks/useUser', () => ({
     setUser: runtime.setUser,
     refreshUser: runtime.refreshUser,
     loading: false,
+    organizationProfileVerified: true,
   }),
 }));
 
@@ -141,6 +142,7 @@ const verifiedUser = (tenantSlug = 'junin') => ({
   tenantSlug,
   tenant_slug: tenantSlug,
   tenant: { slug: tenantSlug, tenant_slug: tenantSlug },
+  capabilities: ['orders.read'],
 });
 
 const profileResponse = (tenantSlug: string) => ({
@@ -281,6 +283,34 @@ describe('Perfil request lifecycle', () => {
       if (path === '/municipal/categorias') return { categorias: [] };
       return {};
     });
+  });
+
+  it('resolves the legacy orders link into the guarded orders route with filters and verified organization', async () => {
+    window.history.replaceState({}, '', '/perfil?tab=orders&focus=assisted&channel=marketplace&q=consulta');
+    render(<BrowserRouter><Routes>
+      <Route path="/perfil" element={<ProfileHarness />} />
+      <Route path="/pedidos" element={<div>Pedidos verificados</div>} />
+      <Route path="/403" element={<div>Acceso denegado</div>} />
+    </Routes></BrowserRouter>);
+    await screen.findByText('Pedidos verificados');
+    expect(window.location.pathname).toBe('/pedidos');
+    expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    expect(new URLSearchParams(window.location.search).get('focus')).toBe('assisted');
+    expect(new URLSearchParams(window.location.search).get('channel')).toBe('marketplace');
+    expect(new URLSearchParams(window.location.search).get('q')).toBe('consulta');
+    expect(new URLSearchParams(window.location.search).has('tab')).toBe(false);
+  });
+
+  it('denies the legacy orders link when a verified actor lacks an orders read grant', async () => {
+    runtime.user = { ...verifiedUser(), capabilities: ['tickets.read'] };
+    window.history.replaceState({}, '', '/perfil?tab=orders&focus=assisted');
+    render(<BrowserRouter><Routes>
+      <Route path="/perfil" element={<ProfileHarness />} />
+      <Route path="/pedidos" element={<div>Pedidos verificados</div>} />
+      <Route path="/403" element={<div>Acceso denegado</div>} />
+    </Routes></BrowserRouter>);
+    await screen.findByText('Acceso denegado');
+    expect(screen.queryByText('Pedidos verificados')).not.toBeInTheDocument();
   });
 
   it('does not reload identity or request territorial datasets from the institutional profile', async () => {

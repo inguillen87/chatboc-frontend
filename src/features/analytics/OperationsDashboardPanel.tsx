@@ -30,12 +30,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSocket } from '@/context/SocketContext';
 import { useTenant } from '@/context/TenantContext';
+import { useCapabilities } from '@/context/CapabilitiesContext';
+import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 import { BASE_API_URL } from '@/config';
 import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
-import { operationsTenantSlug, assertOperationsResponseScope, visibleOperationsQuery } from './operationsReadState';
+import { operationsTenantSlug, operationsEventMatchesTenant, assertOperationsResponseScope, visibleOperationsQuery } from './operationsReadState';
 import { useOperationsRefresh } from './useOperationsRefresh';
 import { OperationsWorkspaceStatus } from './OperationsWorkspaceStatus';
 
@@ -895,6 +897,7 @@ function ScopedOperationsDashboard({ tenantSlug, sessionRevision, className }: O
 
       <div id="operations-overview">
       <OperationsCommandCockpit
+        tenantSlug={tenantSlug}
         data={data}
         heatmap={heatmapQuery.data}
         freshness={freshness}
@@ -1181,6 +1184,7 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
 }
 
 function OperationsCommandCockpit({
+  tenantSlug,
   data,
   heatmap,
   freshness,
@@ -1189,6 +1193,7 @@ function OperationsCommandCockpit({
   actionsCount,
   alertsCount,
 }: {
+  tenantSlug: string;
   data: OperationsDashboardV1;
   heatmap?: OperationsHeatmapV1;
   freshness?: OperationsFreshnessV1;
@@ -1197,6 +1202,11 @@ function OperationsCommandCockpit({
   actionsCount: number;
   alertsCount: number;
 }) {
+  const { user, organizationProfileVerified } = useUser();
+  const { hasCapability } = useCapabilities();
+  const ordersHref = organizationProfileVerified && user?.id && hasCapability('market.orders.read') && operationsEventMatchesTenant(data, tenantSlug)
+    ? `/pedidos?focus=assisted&tenant_slug=${encodeURIComponent(tenantSlug)}`
+    : null;
   const ticketsSummary = data.tickets?.summary ?? {};
   const queueSnapshot = data.queue_truth?.queue_snapshot;
   const queueSummary = queueSnapshot?.summary ?? {};
@@ -1271,7 +1281,7 @@ function OperationsCommandCockpit({
         : 'Notas, fotos y PDFs listos para operar',
       icon: ShoppingCart,
       tone: ordersNeedingReview ? 'warning' : 'success',
-      href: '/perfil?tab=orders&focus=assisted',
+      href: ordersHref,
       action: 'Abrir pedidos asistidos',
     },
     {
@@ -1347,7 +1357,9 @@ function OperationsCommandCockpit({
                 <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
                   <Icon className="h-5 w-5" />
                 </span>
-                {card.href.startsWith('#') ? (
+                {!card.href ? (
+                  <span className="text-xs text-muted-foreground">Acceso no habilitado</span>
+                ) : card.href.startsWith('#') ? (
                   <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
                     {card.action}
                   </a>

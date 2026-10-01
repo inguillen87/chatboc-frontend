@@ -53,6 +53,13 @@ const socketMocks = vi.hoisted(() => {
 });
 
 const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
+const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true }));
+vi.mock('@/hooks/useUser', () => ({
+  useUser: () => ({ user: { id: 4 }, organizationProfileVerified: panelAuthority.verified }),
+}));
+vi.mock('@/context/CapabilitiesContext', () => ({
+  useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'market.orders.read' && panelAuthority.ordersRead }),
+}));
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: tenantContext.slug }),
 }));
@@ -104,6 +111,7 @@ vi.mock('./analyticsApi', () => ({
 
 const dashboardFixture = (): OperationsDashboardV1 => ({
   contract_version: 'operations.dashboard.v1',
+  tenant: { slug: 'junin', id: 22 },
   summary: {
     open_tickets: 12,
     survey_responses: 44,
@@ -584,6 +592,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     vi.clearAllMocks();
     socketMocks.reset();
     tenantContext.slug = 'junin';
+    panelAuthority.verified = true;
+    panelAuthority.ordersRead = true;
     mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
@@ -648,7 +658,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Cabina de mando')).toBeTruthy();
     expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets');
-    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/perfil?tab=orders&focus=assisted');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
     expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/perfil?tab=analytics&focus=surveys');
@@ -709,6 +719,15 @@ describe('OperationsDashboardPanel territory UX', () => {
       );
     });
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
+  });
+
+  it.each(['permission', 'profile', 'tenant'] as const)('does not offer the orders link without verified %s authority', async (missing) => {
+    if (missing === 'permission') panelAuthority.ordersRead = false;
+    else if (missing === 'profile') panelAuthority.verified = false;
+    else mocks.getOperationsDashboardV2.mockResolvedValue({ ...dashboardFixture(), tenant: undefined });
+    renderPanel();
+    await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeInTheDocument();
   });
 
   it('exposes backend segments.zone as a declared-zone filter', async () => {

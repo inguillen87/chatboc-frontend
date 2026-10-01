@@ -94,7 +94,8 @@ import InstitutionProfileWorkspace, {
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { ORDER_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
@@ -497,7 +498,7 @@ const ControlCenterCardButton = ({
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, setUser } = useUser();
+  const { user, setUser, organizationProfileVerified } = useUser();
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
@@ -2735,6 +2736,25 @@ export default function Perfil() {
         </section>
       </div>
     );
+  }
+
+  // Older operations links used an unsupported workspace tab. Enter the real
+  // orders route so its permission guard and operational filters remain active.
+  if (searchParams.get('tab') === 'orders') {
+    if (!organizationProfileVerified || tenantSelectionPending) {
+      return <ViewState status="loading" title="Validando acceso a pedidos" />;
+    }
+    const orderCapabilities = [user?.capabilities, user?.permissions, user?.scopes]
+      .flatMap(values => Array.isArray(values) ? values : []);
+    const canReadOrders = orderCapabilities.some(value => ORDER_READ_CAPABILITIES.includes(String(value).trim().toLowerCase()));
+    if (!profileTenantScope || !canReadOrders || matchingRequestedAuthority?.status === 'denied') {
+      return <Navigate to="/403" replace state={{ reason: 'capability', from: '/perfil' }} />;
+    }
+    const ordersParams = new URLSearchParams(searchParams);
+    ordersParams.delete('tab');
+    ordersParams.delete('tenant');
+    ordersParams.set('tenant_slug', profileTenantScope);
+    return <Navigate to={`/pedidos?${ordersParams.toString()}`} replace />;
   }
 
   return (
