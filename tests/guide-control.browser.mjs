@@ -5,10 +5,11 @@ import react from '@vitejs/plugin-react-swc';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import {privateGuideApiBoundary} from './e2e/fixtures/private-guide.api-boundary.mjs';
 const compiled=await transformWithEsbuild(await readFile('tests/fixtures/guide-control.synthetic.ts','utf8'),'guide-control.synthetic.ts');
 const {tenant,endpoint,descriptor,control,receipt,controlUi}=await import('data:text/javascript;base64,'+Buffer.from(compiled.code).toString('base64'));
 const folder='.vercel/guide-control-evidence';await mkdir(folder,{recursive:true});
-const server=await createServer({configFile:false,plugins:[react()],cacheDir:'.vercel/guide-control-cache',optimizeDeps:{entries:['tests/e2e/fixtures/guide-control.html']},resolve:{alias:[{find:'@/utils/api',replacement:path.resolve('tests/e2e/fixtures/guide-control.transport.ts')},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
+const server=await createServer({configFile:false,plugins:[privateGuideApiBoundary(path.resolve('tests/e2e/fixtures/guide-control.transport.ts')),react()],cacheDir:'.vercel/guide-control-cache',optimizeDeps:{entries:['tests/e2e/fixtures/guide-control.html']},resolve:{alias:[{find:'@/utils/api',replacement:path.resolve('tests/e2e/fixtures/guide-control.transport.ts')},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
 let browser;const results=[];
 try{await server.listen();const origin=`http://127.0.0.1:${server.httpServer.address().port}`;browser=await chromium.launch({headless:true});
  for(const [width,height,dark] of [[1440,1000,false],[390,844,true],[320,740,false]]){

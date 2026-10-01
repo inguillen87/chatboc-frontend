@@ -5,10 +5,12 @@ import react from '@vitejs/plugin-react-swc';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import {privateGuideApiBoundary} from './e2e/fixtures/private-guide.api-boundary.mjs';
 const compiled=await transformWithEsbuild(await readFile('tests/fixtures/private-guide.synthetic.ts','utf8'),'private-guide.synthetic.ts');
 const {guideActivation,guideNode,guideCopy}=await import('data:text/javascript;base64,'+Buffer.from(compiled.code).toString('base64'));
 const folder='.vercel/private-guide-evidence';await mkdir(folder,{recursive:true});
-const server=await createServer({configFile:false,plugins:[react()],cacheDir:'.vercel/private-guide-cache',
+const transport=path.resolve('tests/e2e/fixtures/private-guide.transport.ts');
+const server=await createServer({configFile:false,plugins:[privateGuideApiBoundary(transport),react()],cacheDir:'.vercel/private-guide-cache',optimizeDeps:{entries:['tests/e2e/fixtures/private-guide.html']},
  resolve:{alias:[{find:'@/utils/api',replacement:path.resolve('tests/e2e/fixtures/private-guide.transport.ts')},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
 let browser;const results=[];
 try{await server.listen();const origin=`http://127.0.0.1:${server.httpServer.address().port}`;browser=await chromium.launch({headless:true});
