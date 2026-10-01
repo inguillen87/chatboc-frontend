@@ -1,6 +1,11 @@
 {
   "ignoreCommand": "node scripts/ignoreVercelGitPreview.mjs",
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "release/neon-paired-acceptance-20261001": false
+    }
+  },
   "headers": [
     { "source": "/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }] },
     {
