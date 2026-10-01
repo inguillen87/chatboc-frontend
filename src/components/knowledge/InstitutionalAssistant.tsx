@@ -2,13 +2,15 @@ import React,{useEffect,useId,useRef,useState} from 'react';
 import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Search,Type} from 'lucide-react';
 import {askWorkspace,changeWorkspace,loadWorkspace,publicKnowledgeUrl,type KnowledgeWorkspace,type KnowledgeNode} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
+import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
+import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
 import './institutionalAssistant.css';
 interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public'}
 export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
-  return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}`} {...props}/>;
+  return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
 }
 function AssistantSession({tenantSlug,mode='admin'}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
@@ -17,11 +19,13 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   const [errorStatus,setErrorStatus]=useState<number|null>(null);
   const [failedAnswer,setFailedAnswer]=useState<{id:string;text?:string;revision:string|null;tenantId:number}|null>(null);
   const [showSources,setShowSources]=useState(false),[large,setLarge]=useState(false),[uncovered,setUncovered]=useState(false);
+  const [highlightedSourceId,setHighlightedSourceId]=useState<string|null>(null);
   const [pending,setPending]=useState<KnowledgeReview|null>(null);
   const active=useRef(true),locked=useRef(false),heading=useRef<HTMLElement|null>(null),upload=useRef<HTMLInputElement>(null),serial=useRef(0);
   const questionId=useId();
   const pageHeading=useRef<HTMLHeadingElement>(null),reading=useRef<HTMLDivElement>(null);
   const sourcesTrigger=useRef<HTMLButtonElement>(null),reviewTrigger=useRef<HTMLElement|null>(null);
+  const sourcesReturnFocus=useRef<HTMLElement|null>(null);
   const dialog=useRef<'sources'|'review'|null>(null),review=useRef<KnowledgeReview|null>(null);
   const returnToHeading=useRef(false),frame=useRef<number|null>(null);
   const focusResult=(seq:number)=>{
@@ -110,7 +114,7 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
       <div className="institutional-assistant__identity"><div className="institutional-assistant__mark" aria-hidden="true">{workspace.tenant.name.slice(0,1)}</div>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
       <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>setLarge(v=>!v)}><Type size={19}/></button>
-        <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={()=>changeSources(true)} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17}/><span>{ui.sources}</span></button></div>
+        <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17}/><span>{ui.sources}</span></button></div>
     </header>
     <div className="institutional-assistant__body">
       <aside className="institutional-assistant__sidebar"><p className="institutional-assistant__eyebrow">{ui.topics}</p>
@@ -132,7 +136,10 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose">{node.text.split(/\n\n+/).map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div>
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15}/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15}/>{ui.source_details}</summary>
-              {node.sources.map(source=><div key={source.id}><p>{source.title} <span>· {source.pages?.join(', ')}</span>{publicKnowledgeUrl(source.url)?<a href={publicKnowledgeUrl(source.url)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>{source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title} · {quote.page??source.pages?.join(', ')}</cite></blockquote>)}</div>)}</details>
+              {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{publicKnowledgeUrl(source.url)?<a href={publicKnowledgeUrl(source.url)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
+               <KnowledgeSourceMetadata source={source} compact/>
+               <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
+               {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
           </article>)}
           {!busy&&!error&&actions.length>0?<div className="institutional-assistant__choices">{actions.map(action=><button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={()=>navigate(action.target)}><span>{action.label}</span><ChevronRight size={16}/></button>)}</div>:null}
         </div>
@@ -148,8 +155,8 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
           <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21}/></button></div></form>:null}
       </div>
     </div>
-    <KnowledgeSourceDialog workspace={workspace} open={showSources} onOpenChange={changeSources}
-      restoreFocus={()=>{if(active.current&&sourcesTrigger.current?.isConnected)sourcesTrigger.current.focus({preventScroll:true});}}/>
+    <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId}
+      restoreFocus={()=>{const target=sourcesReturnFocus.current?.isConnected?sourcesReturnFocus.current:sourcesTrigger.current;if(active.current&&target?.isConnected)target.focus({preventScroll:true});}}/>
     <KnowledgeReviewDialog workspace={workspace} pending={pending} onCancel={cancelReview} onConfirm={()=>void confirm()} restoreFocus={restoreReviewFocus}/>
   </section>;
 }

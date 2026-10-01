@@ -2,7 +2,7 @@ import {describe,expect,it,vi,beforeEach} from 'vitest';
 import {workspace,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
-import {parseWorkspace,parseAnswer,knowledgeEndpoint,publicKnowledgeUrl,askWorkspace,changeWorkspace,loadWorkspace} from './institutionalAssistantContract';
+import {parseWorkspace,parseAnswer,knowledgeEndpoint,publicKnowledgeUrl,askWorkspace,changeWorkspace,loadWorkspace,type KnowledgeSource} from './institutionalAssistantContract';
 beforeEach(()=>{mocks.fetch.mockReset();});
 describe('native institutional workspace contract',()=>{
  it('accepts canonical sources and exact organization',()=>expect(parseWorkspace(workspace(),'qa-knowledge','admin')).toEqual(workspace()));
@@ -18,6 +18,14 @@ describe('native institutional workspace contract',()=>{
   const data=reply();expect(parseAnswer(data,workspace()).nodes).toHaveLength(1);
   expect(()=>parseAnswer({...data,revision:'c'.repeat(64)},workspace())).toThrow();
   data.nodes[0].sources[0].sha256='c'.repeat(64);expect(()=>parseAnswer(data,workspace())).toThrow();
+ });
+ it.each([
+  {source_authority:'official_norm'}, {current_validity:'official_text_observed'}, {review_status:'reviewed'},
+  {provenance:'Otra procedencia'}, {origin_url:'https://example.org/otra'}, {native_revision:'otra-revision'},
+  {modified_at:'2026-09-30T00:00:00Z'}, {printed_year:2025},
+ ] satisfies Partial<KnowledgeSource>[])('refuses answer evidence that changes the registered source provenance %j',patch=>{
+  const model=workspace(),data=reply();data.nodes[0].sources[0]={...data.nodes[0].sources[0],...patch};
+  expect(()=>parseAnswer(data,model)).toThrow('knowledge_source_changed');
  });
  it.each(['javascript:alert(1)','http://example.org','https://user:secret@example.org','https://example.org/#secret'])('refuses unsafe resource %s',url=>expect(publicKnowledgeUrl(url)).toBeNull());
  it('uses the real API boundary with one-attempt writes and exact revision',async()=>{

@@ -661,6 +661,8 @@ const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number
 };
 
 interface ApiFetchOptions {
+  /** Preserve document bytes; errors keep HTTP/auth handling without decoding bodies. */
+  responseType?: 'json' | 'response';
   signal?: AbortSignal;
   /** One chosen destination: no path/base fallback or redirects; no replay by default. */
   singleAttempt?: boolean;
@@ -904,6 +906,8 @@ export const resolveOmnichannelConversationId = (
  * Soporta autenticación JWT y modo anónimo vía header "X-Anon-Id".
  * Elimina el uso de anon_id como query param (profesional).
  */
+export function apiFetch(path: string, options: ApiFetchOptions & { responseType: 'response'; schema?: never }): Promise<Response>;
+export function apiFetch<T = unknown>(path: string, options?: ApiFetchOptions & { responseType?: 'json' }): Promise<T>;
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
@@ -1451,6 +1455,16 @@ export async function apiFetch<T>(
     }
   }
 
+  // Document consumers validate MIME, size and digest without converting private
+  // bytes to text or including them in API diagnostics. Authentication and the
+  // dispatch retirement checks above are shared with ordinary requests.
+  if (options.responseType === 'response' && response.ok) {
+    if (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
+    return response as T;
+  }
+
   try {
     const responseTenantSlug = sanitizeTenantSlug(
       response.headers.get("X-Tenant-Slug") ||
@@ -1487,12 +1501,19 @@ export async function apiFetch<T>(
     }
 
     // Puede devolver vacío (204 No Content)
-    const text = await response.text().catch(() => "");
+    const responseContentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
+    // A denied document may carry private bytes under any Content-Type. Keep
+    // ordinary status/auth handling, without reading its body into diagnostics.
+    const text = options.responseType === 'response'
+      ? '' : await response.text().catch(() => "");
+    if (options.responseType === 'response' &&
+      (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false)) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
     const trimmedText = text.trim();
     let data: any = null;
     let parsedAsJson = false;
-    const responseContentType =
-      response.headers.get("content-type")?.toLowerCase() ?? "";
 
     if (trimmedText) {
       try {

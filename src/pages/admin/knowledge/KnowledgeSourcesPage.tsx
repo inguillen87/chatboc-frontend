@@ -6,6 +6,7 @@ import InstitutionalAssistant from '@/components/knowledge/InstitutionalAssistan
 import {normalizeProfileTenantSlug,readExplicitTenantRequest} from '@/utils/profileTenantAuthority';
 import {hasRequiredRole} from '@/utils/roles';
 import {ViewState} from '@/components/app-shell/ViewState';
+import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 
 /** The knowledge console shows persisted server state, never example documents. */
 export const KnowledgeSourcesPage:React.FC=()=>{
@@ -27,6 +28,6 @@ export const KnowledgeSourcesPage:React.FC=()=>{
   if(invalidExplicit||!requested.valid||(!isSuperadmin&&tenantSlug!==sessionTenant))return <Navigate to="/403" replace state={{reason:'tenant',from:'/admin/knowledge'}}/>;
   if(!tenantSlug)return <ViewState status="empty" title="Elegí una organización desde el directorio"/>;
   return <section className="mx-auto w-full max-w-6xl py-6">
-    <InstitutionalAssistant tenantSlug={tenantSlug} sessionKey={String(user.id)}/>
+    <InstitutionalAssistant tenantSlug={tenantSlug} sessionKey={`${user.id}:${captureChatbocSessionRevision()}`}/>
   </section>;
 };
