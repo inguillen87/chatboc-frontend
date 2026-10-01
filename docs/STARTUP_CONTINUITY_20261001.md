@@ -17,3 +17,9 @@ La revisión de rutas de administración esperaba el backend canónico antiguo a
 El backend añade el campo de no-despacho sin alterar sus límites. Este frontend no infiere esa propiedad de un 503 genérico. RFC 9110 sección 9.2.2 es la referencia sobre repetición de solicitudes no idempotentes no aplicadas.
 
 La ejecución efectiva, las cifras y la publicación se registran en el PR por revisión. Este archivo no acredita una conmutación productiva, acceso nominal de clientes, WhatsApp real o cierre de la ventana posterior al respaldo. El contenido y las fuentes de TDF permanecen sin cambios; MuniControl queda fuera de alcance.
+
+## Ajuste del escenario oscuro de arranque
+
+El primer CI aprobó 4109 pruebas y los presupuestos, pero el escenario oscuro intentaba modificar el documento durante una navegación y perdió su contexto. El artifact se descargó y su digest se comprobó; los otros cuatro recorridos habían aprobado. Una inyección temprana de la clase se sobrescribía al montar la aplicación y el control de tema estaba dentro del menú móvil, por lo que esos intentos no se aceptaron como cobertura oscura.
+
+El fixture ahora establece antes de navegar únicamente la preferencia `theme=dark`, que index.html ya utiliza, y exige la clase renderizada antes de capturar. No se alteran el producto, los límites de espera, el aislamiento de HTTP ni las aserciones de arranque. La ejecución final de este ajuste queda sujeta a CI; el último comando de comprobación local fue bloqueado antes de ejecutarse y no se declara aprobado.
