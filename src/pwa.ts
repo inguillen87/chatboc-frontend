@@ -109,7 +109,11 @@ const isLocalPwaLifecycleVerification = () => {
 
 export const shouldDisablePwaForHost = (hostname?: string | null) => {
   const normalized = String(hostname || '').trim().toLowerCase();
-  return LOCAL_PREVIEW_HOSTS.has(normalized) || normalized.endsWith('.vercel.app');
+  return (
+    LOCAL_PREVIEW_HOSTS.has(normalized) ||
+    normalized === 'preview.chatboc.ar' ||
+    normalized.endsWith('.vercel.app')
+  );
 };
 
 const cleanupEphemeralPwaRuntime = async () => {
