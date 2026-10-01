@@ -47,8 +47,32 @@ describe('TenantProvider global route bootstrap', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     delete (window as any).CHATBOC_CONFIG;
     document.querySelectorAll('[data-tenant-bootstrap-test]').forEach((node) => node.remove());
+  });
+
+  it.each([null,'preview'])('keeps a fresh Preview login unscoped with ambient value %s', async stored => {
+    if(stored)safeLocalStorage.setItem('tenantSlug',stored);
+    const originalWindow=window;
+    vi.stubGlobal('window',new Proxy(originalWindow,{get(target,key){
+      return key==='location'?{hostname:'preview.chatboc.ar',origin:'https://preview.chatboc.ar',pathname:'/login',search:'',hash:''}:Reflect.get(target,key);
+    }}));
+    render(<MemoryRouter initialEntries={['/login']} future={{v7_startTransition:true,v7_relativeSplatPath:true}}><TenantProvider><TenantProbe/></TenantProvider></MemoryRouter>);
+    await waitFor(()=>expect(screen.getByText('ready:none')).toBeInTheDocument());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
+  });
+
+  it('preserves the explicitly selected tenant named preview on the Preview platform alias',async()=>{
+    const originalWindow=window;
+    vi.stubGlobal('window',new Proxy(originalWindow,{get(target,key){
+      return key==='location'?{hostname:'preview.chatboc.ar',origin:'https://preview.chatboc.ar',pathname:'/t/preview',search:'',hash:''}:Reflect.get(target,key);
+    }}));
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({slug:'preview',nombre:'Explicit organization',tipo:'municipio'});
+    render(<MemoryRouter initialEntries={['/t/preview']} future={{v7_startTransition:true,v7_relativeSplatPath:true}}><TenantProvider><TenantProbe/></TenantProvider></MemoryRouter>);
+    await waitFor(()=>expect(screen.getByText('ready:preview')).toBeInTheDocument());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('preview',null);
   });
 
   it('does not interpret /superadmin as a tenant or request tenant-info', async () => {

@@ -70,11 +70,41 @@ describe('same-destination recovery', () => {
     await fetchWithStartupContinuity('/api/auth/clerk/session', { method }, { fetcher, singleAttempt: true });
     expect(fetcher).toHaveBeenCalledOnce();
   });
-  it('stops after two bounded recoveries instead of retrying indefinitely', async () => {
+  it('stops after six attempts instead of retrying indefinitely', async () => {
     const fetcher = vi.fn().mockImplementation(async () => cold());
     const wait = vi.fn().mockResolvedValue(undefined), probe = vi.fn().mockResolvedValue(undefined);
     expect((await fetchWithStartupContinuity('/api/read', {}, { fetcher, wait, ready: probe })).status).toBe(503);
-    expect(fetcher).toHaveBeenCalledTimes(3); expect(wait).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(6); expect(wait).toHaveBeenCalledTimes(5);
+  });
+  it('allows only the opt-in exact password exchange and preserves its body and URL', async () => {
+    const fetcher=vi.fn().mockResolvedValueOnce(cold()).mockResolvedValueOnce(ready());
+    const init={method:'POST',body:JSON.stringify({email:'qa@example.invalid',password:'fixture-only'})};
+    const response=await fetchWithStartupContinuity('/api/auth/admin/login',init,{
+      fetcher,wait:async()=>undefined,ready:async()=>undefined,allowCredentialLoginRecovery:true,
+    });
+    expect(response.status).toBe(200);expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[0]).toEqual(fetcher.mock.calls[1]);
+    expect(fetcher.mock.calls[0][1]).toMatchObject({...init,redirect:'error'});
+  });
+  it.each(['/api/auth/admin/login/other','/api/auth/admin/reset-password','/api/orders'])
+    ('cannot opt a different POST %s into password exchange recovery',async url=>{
+      const fetcher=vi.fn().mockResolvedValue(cold());
+      await fetchWithStartupContinuity(url,{method:'POST'},{fetcher,allowCredentialLoginRecovery:true});
+      expect(fetcher).toHaveBeenCalledOnce();
+    });
+  it('keeps password login single attempt without explicit opt-in',async()=>{
+    const fetcher=vi.fn().mockResolvedValue(cold());
+    await fetchWithStartupContinuity('/api/auth/admin/login',{method:'POST'},{fetcher});
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it('stops within the deadline even with attempts remaining',async()=>{
+    let now=0;vi.spyOn(Date,'now').mockImplementation(()=>now);
+    const fetcher=vi.fn().mockImplementation(async()=>{now+=8000;return cold();});
+    const wait=vi.fn().mockImplementation(async ms=>{now+=ms;});
+    await fetchWithStartupContinuity('/api/auth/admin/login',{method:'POST'},{
+      fetcher,wait,ready:async()=>undefined,allowCredentialLoginRecovery:true,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(3);expect(now).toBe(28000);
   });
   it('does not shorten a long server Retry-After', async () => {
     const fetcher = vi.fn().mockResolvedValue(cold({},503,{'Retry-After':'60'})), wait = vi.fn();
@@ -86,6 +116,14 @@ describe('same-destination recovery', () => {
     const fetcher = vi.fn().mockResolvedValue(cold());
     const wait = vi.fn().mockImplementation(async () => { current = false; });
     await expect(fetchWithStartupContinuity('/api/read', {}, { fetcher, wait, isCurrent: () => current })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it('discards a late response whose request identity retired while it was in flight',async()=>{
+    let current=true;
+    const fetcher=vi.fn().mockImplementation(async()=>{current=false;return ready();});
+    await expect(fetchWithStartupContinuity('/api/auth/admin/login',{method:'POST'},{
+      fetcher,isCurrent:()=>current,allowCredentialLoginRecovery:true,
+    })).rejects.toMatchObject({name:'AbortError'});
     expect(fetcher).toHaveBeenCalledOnce();
   });
   it('does not dispatch an already cancelled request', async () => {

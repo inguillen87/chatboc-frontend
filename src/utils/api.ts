@@ -15,7 +15,7 @@ import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
-import { fetchWithStartupContinuity, isClerkSessionRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
+import { fetchWithStartupContinuity, isClerkSessionRequest, isPanelCredentialLoginRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
 import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 export class NetworkError extends Error {
@@ -664,8 +664,10 @@ interface ApiFetchOptions {
   signal?: AbortSignal;
   /** One chosen destination: no path/base fallback or redirects; no replay by default. */
   singleAttempt?: boolean;
-  /** Allow only GET recovery on a verified pre-dispatch startup receipt, at the same destination. */
+  /** Allow GET or the explicitly guarded password session exchange on pre-dispatch startup evidence. */
   allowStartupRecovery?: boolean;
+  /** Retire a request when its initiating screen or credential attempt is no longer current. */
+  isCurrent?: () => boolean;
   schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
@@ -985,6 +987,12 @@ export async function apiFetch<T>(
   const isIsolatedPanelRequest = !skipAuth && !treatAsWidget && isWidgetRequest === false &&
     (omitTenant === true || (typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug) && persistTenantSlug === false)) &&
     omitEntityToken === true && omitChatSessionId === true;
+  const isStartupRecoveryCredentialLogin = options.allowStartupRecovery === true &&
+    isPanelCredentialLoginRequest(path, method) && skipAuth === true && omitCredentials === true &&
+    isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
+    persistTenantSlug === false && typeof options.isCurrent === 'function' &&
+    typeof body?.email === 'string' && Boolean(body.email) && typeof body?.password === 'string' && Boolean(body.password);
+  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin;
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -1273,18 +1281,19 @@ export async function apiFetch<T>(
   };
 
   const readRequestIdentity = () => JSON.stringify([
-    usePanelSessionStore.getState().authToken, isIsolatedPanelRequest ? null : useWidgetSessionStore.getState().chatAuthToken,
-    safeLocalStorage.getItem('authToken'), isIsolatedPanelRequest ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
+    usePanelSessionStore.getState().authToken, hasIndependentRequestIdentity ? null : useWidgetSessionStore.getState().chatAuthToken,
+    safeLocalStorage.getItem('authToken'), hasIndependentRequestIdentity ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
     safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),
-    ...(isIsolatedPanelRequest ? [
+    ...(hasIndependentRequestIdentity ? [
       safeLocalStorage.getItem('clerkSessionTransport'), usePanelSessionStore.getState().user?.id,
       parseStoredJsonRecord('user')?.id, captureChatbocSessionRevision(),
     ] : []),
   ]);
   const requestIdentity = readRequestIdentity();
   const dispatch = (destination: string, init: RequestInit) => fetchWithStartupContinuity(destination, init, {
-    singleAttempt: options.singleAttempt === true && !(options.allowStartupRecovery === true && method === 'GET'),
-    isCurrent: () => readRequestIdentity() === requestIdentity,
+    singleAttempt: options.singleAttempt === true && !(options.allowStartupRecovery === true && (method === 'GET' || isStartupRecoveryCredentialLogin)),
+    allowCredentialLoginRecovery: isStartupRecoveryCredentialLogin,
+    isCurrent: () => readRequestIdentity() === requestIdentity && options.isCurrent?.() !== false,
   });
 
   // Vercel Preview containers can scale from zero. Every request, including
@@ -1297,7 +1306,7 @@ export async function apiFetch<T>(
   const attemptedUrls = new Set<string>();
 
   const singleAttempt = options.singleAttempt === true;
-  const exclusiveRequest = singleAttempt || isClerkSessionRequest(url, method);
+  const exclusiveRequest = singleAttempt || isClerkSessionRequest(url, method) || isPanelCredentialLoginRequest(url, method);
   if (exclusiveRequest) {
     response = await dispatch(url, { ...requestInit, redirect: 'error' });
   } else if (isAbsolutePath) {

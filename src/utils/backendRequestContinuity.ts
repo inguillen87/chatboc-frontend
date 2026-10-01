@@ -1,6 +1,7 @@
 import { ensureBackendRuntimeReady, invalidateBackendRuntimeReady } from './backendBootstrapGate';
 
 export const STARTUP_CONTINUITY_BUDGET_MS = 30_000;
+const MAX_STARTUP_CONTINUITY_ATTEMPTS = 6;
 
 export const isStartupResponse = (response: Response): boolean =>
   response.status === 503 && response.headers.get('X-Chatboc-Bootstrap') === 'initializing';
@@ -48,6 +49,15 @@ export const isClerkSessionRequest = (url: string, method: string): boolean => {
   } catch { return false; }
 };
 
+export const isPanelCredentialLoginRequest = (url: string, method: string): boolean => {
+  if (method !== 'POST') return false;
+  try {
+    return ['/api/auth/admin/login', '/auth/admin/login'].includes(
+      new URL(url, 'https://request.invalid').pathname,
+    );
+  } catch { return false; }
+};
+
 export const abortablePause = (milliseconds: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal?.aborted) { reject(signal.reason); return; }
@@ -58,6 +68,7 @@ export const abortablePause = (milliseconds: number, signal?: AbortSignal): Prom
 
 type ContinuityOptions = {
   singleAttempt?: boolean;
+  allowCredentialLoginRecovery?: boolean;
   isCurrent?: () => boolean;
   fetcher?: typeof fetch;
   wait?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
@@ -73,7 +84,9 @@ export const fetchWithStartupContinuity = async (
   const ready = options.ready ?? ensureBackendRuntimeReady;
   const method = (init.method ?? 'GET').toUpperCase();
   const clerkExchange = isClerkSessionRequest(url, method);
-  const canRecover = !options.singleAttempt && (method === 'GET' || method === 'HEAD' || clerkExchange);
+  const credentialExchange = isPanelCredentialLoginRequest(url, method);
+  const canRecover = !options.singleAttempt && (method === 'GET' || method === 'HEAD' || clerkExchange ||
+    (credentialExchange && options.allowCredentialLoginRecovery === true));
   const signal = init.signal ?? undefined;
   const assertCurrent = () => {
     signal?.throwIfAborted();
@@ -82,11 +95,12 @@ export const fetchWithStartupContinuity = async (
   const deadline = Date.now() + STARTUP_CONTINUITY_BUDGET_MS;
   for (let attempt = 0; ; attempt += 1) {
     assertCurrent();
-    // Never redirect an exchange carrying a Clerk credential.
-    const response = await fetcher(url, clerkExchange ? { ...init, redirect: 'error' } : init);
+    // Never redirect an exchange carrying a session credential.
+    const response = await fetcher(url, clerkExchange || credentialExchange ? { ...init, redirect: 'error' } : init);
+    assertCurrent();
     if (!isStartupResponse(response)) return response;
     invalidateBackendRuntimeReady(url);
-    if (!canRecover || attempt >= 2 || !(await hasUndispatchedStartupReceipt(response))) return response;
+    if (!canRecover || attempt >= MAX_STARTUP_CONTINUITY_ATTEMPTS - 1 || !(await hasUndispatchedStartupReceipt(response))) return response;
     assertCurrent();
     const seconds = Number(response.headers.get('Retry-After') ?? '2');
     const delay = Number.isFinite(seconds) && seconds >= 0 ? Math.max(250, seconds * 1000) : 2000;

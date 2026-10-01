@@ -66,11 +66,16 @@ const LoginSession = () => {
       ? tenant.publishedIdentity : null;
   const organizationName = institutionalIdentity?.name || null;
   const credentialRequest = useRef({ active: true, busy: false });
-  useEffect(() => { credentialRequest.current.active = true; return () => { credentialRequest.current.active = false; }; }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    const attempt = { active: true, busy: false };
+    credentialRequest.current = attempt;
+    setIsLoading(false);
+    return () => { attempt.active = false; };
+  }, [location.pathname, location.search]);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
