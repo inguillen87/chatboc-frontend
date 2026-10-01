@@ -10,6 +10,7 @@ import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
   Activity,
   BarChart3,
+  BookOpen,
   Building2,
   ClipboardList,
   CreditCard,
@@ -58,6 +59,8 @@ import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
 import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionLogout";
+import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
+import { readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 
 interface AdminNavLink {
   to: string;
@@ -107,7 +110,7 @@ const Navbar: React.FC = () => {
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
-  const { user } = useUser();
+  const { user, organizationProfileVerified } = useUser();
   const cartCount = useCartCount();
   const clerkRuntime = useClerkRuntime();
   const { currentSlug,tenant,isLoadingTenant,tenantError } = useTenant();
@@ -143,6 +146,14 @@ const Navbar: React.FC = () => {
   const isPlatformAdmin = isLoggedIn && hasRequiredRole(userRole, ['superadmin']) && (isPlatformRoute || !explicitTenantScope);
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
+  const canOpenKnowledge = Boolean(isLoggedIn && organizationProfileVerified && hasAnyCapability(['knowledge.read']));
+  const requestedKnowledgeTenant = readExplicitTenantRequest(new URLSearchParams(location.search));
+  const selectedKnowledgeTenant = requestedKnowledgeTenant.present
+    ? requestedKnowledgeTenant.valid ? requestedKnowledgeTenant.slug : null
+    : normalizeProfileTenantSlug(readCanonicalTenantSlugFromPath(location.pathname));
+  const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
+    ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
+    : '/admin/knowledge';
   const isMunicipal = effectiveUser?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
@@ -183,6 +194,7 @@ const Navbar: React.FC = () => {
       { to: '/superadmin?section=crm', label: 'CRM comercial', icon: Users },
       { to: '/superadmin?section=channels', label: 'Canales y WhatsApp', icon: MessageCircle },
       { to: '/superadmin?section=diagnostics', label: 'Diagnóstico operativo', icon: Activity },
+      ...(canOpenKnowledge ? [{ to: knowledgeHref, label: 'Fuentes de conocimiento', icon: BookOpen }] : []),
     ] as AdminNavLink[];
     if (!isAdminLike) {
       return [] as AdminNavLink[];
@@ -215,6 +227,7 @@ const Navbar: React.FC = () => {
         requiredAnyCapabilities: ["employees.read", "tenant.employees.read"],
       },
     ];
+    if (canOpenKnowledge) links.push({ to: knowledgeHref, label: 'Fuentes de conocimiento', icon: BookOpen });
 
     if (isMunicipal) {
       links.push({
@@ -261,7 +274,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole]);
+  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref]);
 
   const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
   useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);

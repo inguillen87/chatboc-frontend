@@ -105,6 +105,31 @@ describe('Navbar account menu routing', () => {
     );
   });
 
+  it('opens knowledge from the normal account menu for a verified scoped delegate without inheriting a public tenant', () => {
+    useUserMock.mockReturnValue({ organizationProfileVerified: true, user: { id: 8, rol: 'empleado', tenant_slug: 'authorized-organization' } });
+    useTenantMock.mockReturnValue({ currentSlug: 'previous-public-space' });
+    useCapabilitiesMock.mockReturnValue({ capabilities: ['knowledge.read'], hasAnyCapability: (required: string[]) => required.includes('knowledge.read') });
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByRole('link', { name: 'Fuentes de conocimiento' })).toHaveAttribute('href', '/admin/knowledge');
+  });
+
+  it.each([{ verified: false, grant: true }, { verified: true, grant: false }])('hides knowledge when the backend profile or grant is unavailable: %j', ({ verified, grant }) => {
+    useUserMock.mockReturnValue({ organizationProfileVerified: verified, user: { id: 8, rol: 'tenant_admin', tenant_slug: 'authorized-organization' } });
+    useCapabilitiesMock.mockReturnValue({ capabilities: grant ? ['knowledge.read'] : [], hasAnyCapability: () => grant });
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.queryByRole('link', { name: 'Fuentes de conocimiento' })).not.toBeInTheDocument();
+  });
+
+  it('preserves an explicit SuperAdmin organization in the knowledge shortcut', () => {
+    useUserMock.mockReturnValue({ organizationProfileVerified: true, user: { id: 8, rol: 'super_admin', tenant_slug: 'platform-account-home' } });
+    useCapabilitiesMock.mockReturnValue({ capabilities: ['knowledge.read'], hasAnyCapability: (required: string[]) => required.includes('knowledge.read') });
+    render(<MemoryRouter initialEntries={['/perfil?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByRole('link', { name: 'Fuentes de conocimiento' })).toHaveAttribute('href', '/admin/knowledge?tenant_slug=selected-organization');
+  });
+
   it('groups organization, plan, configuration and session inside the account menu', () => {
     useUserMock.mockReturnValue({organizationProfileVerified:true,loading:false,user:{id:9,rol:'admin',tenant_slug:'junin',nombre_empresa:'Municipalidad de Junín',tipo_chat:'municipio',plan:'full'}});
     render(

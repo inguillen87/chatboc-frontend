@@ -16,11 +16,14 @@ describe('Vercel routing contract', () => {
       rewrites?: RewriteRule[];
     };
     const rewrites = config.rewrites ?? [];
+    const apiDestination = rewrites.find(rule => rule.source === '/api/(.*)')?.destination;
+    expect(apiDestination).toMatch(/^https:\/\/chatboc-backend-[a-z0-9]+-marcelos-projects-c26aa499\.vercel\.app\/api\/\$1$/);
+    const backendOrigin = new URL(apiDestination!).origin;
 
     const analyticsCsvExportIndex = rewrites.findIndex(
       (rule) =>
         rule.source === '/admin/analytics/export.csv' &&
-        rule.destination === 'https://chatboc-backend-z72ckwg3o-marcelos-projects-c26aa499.vercel.app/admin/analytics/export.csv' &&
+        rule.destination === `${backendOrigin}/admin/analytics/export.csv` &&
         !rule.has,
     );
 
@@ -38,7 +41,7 @@ describe('Vercel routing contract', () => {
     const adminApiIndex = rewrites.findIndex(
       (rule) =>
         rule.source === '/admin/(.*)' &&
-        rule.destination === 'https://chatboc-backend-z72ckwg3o-marcelos-projects-c26aa499.vercel.app/admin/$1' &&
+        rule.destination === `${backendOrigin}/admin/$1` &&
         !rule.has,
     );
 

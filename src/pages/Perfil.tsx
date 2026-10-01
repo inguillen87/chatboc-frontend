@@ -130,6 +130,7 @@ import {
   readExplicitTenantRequest,
 } from '@/utils/profileTenantAuthority';
 import { withAsyncTimeout } from '@/utils/asyncTimeout';
+import { ViewState } from '@/components/app-shell/ViewState';
 
 const TENANT_AUTHORIZATION_TIMEOUT_MS = 8_000;
 const BACKOFFICE_NAVIGATION_TIMEOUT_MS = 8_000;
@@ -403,6 +404,40 @@ type RequestedTenantAuthorityState = {
   activation: ChannelActivationContract | null;
 };
 
+type OrganizationProfileSettings = {
+  contract_version: 'organization.profile_settings.v1';
+  tenant: { id: number; slug: string };
+  revision: string;
+  can_edit: boolean;
+  editability: { mode: string; message?: string };
+  values: Record<string, any>;
+};
+
+const readOrganizationProfile = (value: unknown, expectedSlug: string): OrganizationProfileSettings | null => {
+  if (!value || typeof value !== 'object') return null;
+  const profile = value as OrganizationProfileSettings;
+  if (
+    profile.contract_version !== 'organization.profile_settings.v1' ||
+    !Number.isInteger(profile.tenant?.id) || profile.tenant.id < 1 ||
+    normalizeProfileTenantSlug(profile.tenant.slug) !== expectedSlug ||
+    !/^[0-9a-f]{64}$/.test(profile.revision) ||
+    typeof profile.can_edit !== 'boolean' ||
+    !['editable', 'read_only'].includes(profile.editability?.mode) ||
+    !profile.values || typeof profile.values !== 'object' || Array.isArray(profile.values)
+  ) return null;
+  const values = profile.values;
+  if (['nombre_empresa', 'telefono', 'direccion', 'ciudad', 'provincia', 'pais', 'link_web', 'logo_url']
+    .some((field) => typeof values[field] !== 'string')) return null;
+  if (['latitud', 'longitud'].some((field) => values[field] !== null &&
+    (typeof values[field] !== 'number' || !Number.isFinite(values[field]) ||
+      Math.abs(values[field]) > (field === 'latitud' ? 90 : 180)))) return null;
+  if ((values.latitud === null) !== (values.longitud === null)) return null;
+  if (!Array.isArray(values.horario_json) || ![0, 7].includes(values.horario_json.length)) return null;
+  if (values.horario_json.some((day: any, index: number) => !day || day.dia !== DIAS[index] ||
+    typeof day.cerrado !== 'boolean' || typeof day.abre !== 'string' || typeof day.cierra !== 'string')) return null;
+  return profile;
+};
+
 const WorkspacePanel = ({
   active,
   label,
@@ -491,6 +526,10 @@ export default function Perfil() {
   >(undefined);
   const [requestedTenantAuthority, setRequestedTenantAuthority] =
     useState<RequestedTenantAuthorityState | null>(null);
+  const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfileSettings | null>(null);
+  const [organizationProfileStatus, setOrganizationProfileStatus] =
+    useState<'idle' | 'loading' | 'ready' | 'error' | 'denied'>('idle');
+  const [organizationHoursEdited, setOrganizationHoursEdited] = useState(false);
   const isAdminUser = useMemo(
     () => ['superadmin', 'tenant_admin'].includes(String(normalizeRole(user?.rol))),
     [user?.rol],
@@ -534,6 +573,10 @@ export default function Perfil() {
       (user as any)?.tenant?.slug ||
       (user as any)?.tenant?.tenant_slug,
   );
+  const isPlatformAdministrator = normalizeRole(user?.rol) === 'superadmin';
+  const usesScopedOrganizationProfile = Boolean(
+    isPlatformAdministrator && hasRequestedTenant && requestedTenantSlug && requestedTenantSlug !== userTenantSlug,
+  );
   const verifiedProfileTenantSlug = normalizeProfileTenantSlug(
     (perfil as any)?.tenant_slug || (perfil as any)?.slug,
   );
@@ -553,8 +596,7 @@ export default function Perfil() {
   const safeSessionTenantSlug =
     sessionActivationTenantSlug ||
     userTenantSlug ||
-    verifiedActivationTenantSlug ||
-    verifiedProfileTenantSlug;
+    (!isPlatformAdministrator ? verifiedActivationTenantSlug || verifiedProfileTenantSlug : null);
   const profileTenantScope = hasRequestedTenant
     ? matchingRequestedAuthority?.status === 'authorized'
       ? matchingRequestedAuthority.slug
@@ -570,6 +612,15 @@ export default function Perfil() {
   const profileIdentityScope = user && !tenantSelectionPending
     ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
     : null;
+  const currentProfileScopeRef = useRef(profileIdentityScope);
+  currentProfileScopeRef.current = profileIdentityScope;
+  const matchingOrganizationProfile = usesScopedOrganizationProfile && profileTenantScope &&
+    organizationProfile?.tenant.slug === profileTenantScope &&
+    matchingRequestedAuthority?.status === 'authorized'
+      ? organizationProfile : null;
+  const institutionDisplayName = usesScopedOrganizationProfile
+    ? matchingOrganizationProfile?.values.nombre_empresa || requestedTenantSlug || 'Organización seleccionada'
+    : perfil.nombre_empresa || 'Panel de Empresa';
   const authoritativeChannelActivation =
     matchingRequestedAuthority?.status === 'authorized'
       ? matchingRequestedAuthority.activation
@@ -649,6 +700,7 @@ export default function Perfil() {
     // Never carry a verified channel contract across tenant identities while
     // the next scoped profile is loading.
     setProfileChannelActivation(undefined);
+    setOrganizationProfile(null);
   }, [profileIdentityScope]);
   const buildMappingPath = useCallback(
     (path: string) =>
@@ -707,7 +759,7 @@ export default function Perfil() {
   const canViewCatalog = isTenantAdministrator || isCatalogManager;
   const canManageTeam = isTenantAdministrator;
   const canAccessSurveys = FEATURE_ENCUESTAS && isStaff;
-  const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
+  const esMunicipio = (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
   const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
   const [backofficeNavigationStatus, setBackofficeNavigationStatus] = useState<
     'idle' | 'loading' | 'ready' | 'denied' | 'error'
@@ -786,6 +838,10 @@ export default function Perfil() {
     if (!hasAuthenticatedChatbocSession()) {
       return;
     }
+    if (usesScopedOrganizationProfile) {
+      setProfileReady(true);
+      return;
+    }
 
     const persistedTenantSlug = normalizeProfileTenantSlug(
       (user as any)?.tenantSlug ||
@@ -828,7 +884,7 @@ export default function Perfil() {
     }));
 
     setProfileReady(true);
-  }, [profileReady, user]);
+  }, [profileReady, user, usesScopedOrganizationProfile]);
 
   const {
     posts: municipalPosts,
@@ -1286,11 +1342,42 @@ export default function Perfil() {
     setLoadingGuardar(true);
     setError(null);
     setMensaje(null);
+    if (usesScopedOrganizationProfile) {
+      setOrganizationProfile(null);
+      setOrganizationProfileStatus('loading');
+    }
     try {
       // Keep the contract explicit. Preview/static hosts only proxy `/api/*`;
       // a bare `/me` can otherwise be swallowed by the SPA fallback and return
       // index.html, which in turn degrades the workspace to a generic tenant.
-      const data = await apiFetch<any>("/api/me", { tenantSlug });
+      const normalizedRequestedTenant = normalizeProfileTenantSlug(tenantSlug);
+      let data: any;
+      if (usesScopedOrganizationProfile) {
+        if (!normalizedRequestedTenant || normalizedRequestedTenant !== requestedTenantSlug) {
+          throw new ApiError('No tenés acceso al perfil de esta organización.', 403);
+        }
+        const bundle = await apiFetch<any>(`/api/admin/tenants/${encodeURIComponent(normalizedRequestedTenant)}/config`, {
+          tenantSlug: normalizedRequestedTenant, cache: 'no-store', persistTenantSlug: false,
+          omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+        });
+        if (!isCurrent()) return null;
+        const profile = readOrganizationProfile(bundle.organization_profile, normalizedRequestedTenant);
+        const activationTenantId = authoritativeActivationRef.current?.tenant?.id;
+        if (!profile || (activationTenantId != null && String(profile.tenant.id) !== String(activationTenantId))) {
+          throw new Error('organization_profile_unverified');
+        }
+        setOrganizationProfile(profile);
+        setOrganizationProfileStatus('ready');
+        setOrganizationHoursEdited(false);
+        setModoHorario('personalizado');
+        data = {
+          ...profile.values, tenant_slug: profile.tenant.slug, slug: profile.tenant.slug,
+          plan: bundle.tenant?.plan || getActivationPlan(authoritativeActivationRef.current) || 'gratis',
+          rubro: bundle.tenant?.tipo || '',
+        };
+      } else {
+        data = await apiFetch<any>("/api/me", { tenantSlug });
+      }
       if (!isCurrent()) {
         return null;
       }
@@ -1300,7 +1387,6 @@ export default function Perfil() {
         channelActivation?.contract_version === 'tenant.channel_activation.v1'
           ? (channelActivation as ChannelActivationContract)
           : null;
-      const normalizedRequestedTenant = normalizeProfileTenantSlug(tenantSlug);
       const embeddedActivationMatchesScope = normalizedRequestedTenant
         ? activationAuthorizesTenant(embeddedChannelActivation, normalizedRequestedTenant)
         : Boolean(embeddedChannelActivation);
@@ -1313,9 +1399,9 @@ export default function Perfil() {
       const direccion = data.direccion || "";
 
       let horariosUi = DIAS.map((_, idx) => ({
-        abre: "09:00",
-        cierra: "20:00",
-        cerrado: idx === 5 || idx === 6,
+        abre: usesScopedOrganizationProfile ? '' : "09:00",
+        cierra: usesScopedOrganizationProfile ? '' : "20:00",
+        cerrado: usesScopedOrganizationProfile || idx === 5 || idx === 6,
       }));
       if (
         data.horario_json &&
@@ -1397,7 +1483,7 @@ export default function Perfil() {
       const hasCoordinates = latitud !== null && longitud !== null;
       setLastGeocodedAddress(trimmedAddress ? trimmedAddress : null);
       setIsManualLocation(hasCoordinates);
-      setPendingGeocode(!hasCoordinates && trimmedAddress ? trimmedAddress : null);
+      setPendingGeocode(!usesScopedOrganizationProfile && !hasCoordinates && trimmedAddress ? trimmedAddress : null);
       setGeocodingError(null);
       if (geocodeAbortRef.current) {
         geocodeAbortRef.current.abort();
@@ -1417,7 +1503,12 @@ export default function Perfil() {
       };
     } catch (err) {
       if (isCurrent()) {
-        setError(getErrorMessage(err, "Error al cargar el perfil."));
+        if (usesScopedOrganizationProfile) {
+          setOrganizationProfileStatus(err instanceof ApiError && [401, 403].includes(err.status) ? 'denied' : 'error');
+          setError('No pudimos verificar el perfil de esta organización. Reintentá o elegí otra organización desde el directorio.');
+        } else {
+          setError(getErrorMessage(err, "Error al cargar el perfil."));
+        }
       }
       return null;
     } finally {
@@ -1426,7 +1517,7 @@ export default function Perfil() {
         setProfileReady(true);
       }
     }
-  }, []);
+  }, [usesScopedOrganizationProfile, requestedTenantSlug]);
 
   const fetchMapData = useCallback(async (tenantSlug?: string | null) => {
     setIsMapLoading(true);
@@ -1784,12 +1875,14 @@ export default function Perfil() {
 
 
   const handleHorarioChange = (index: number, field: string, value: string | boolean) => { // Tipado
+    setOrganizationHoursEdited(true);
     const nuevosHorarios = perfil.horarios_ui.map((h, idx) =>
       idx === index ? { ...h, [field]: value } : h,
     );
     setPerfil((prev) => ({ ...prev, horarios_ui: nuevosHorarios }));
   };
   const setHorarioComercial = () => {
+    setOrganizationHoursEdited(true);
     setModoHorario("comercial");
     setPerfil((prev) => ({
       ...prev,
@@ -1802,6 +1895,7 @@ export default function Perfil() {
     setHorariosOpen(false);
   };
   const setHorarioPersonalizado = () => {
+    setOrganizationHoursEdited(true);
     setModoHorario("personalizado");
     setHorariosOpen(true);
   };
@@ -1851,6 +1945,66 @@ export default function Perfil() {
 
     if (!isTenantAdministrator) {
       setError("No tenés permisos para modificar el perfil institucional.");
+      return;
+    }
+
+    if (usesScopedOrganizationProfile) {
+      const target = matchingOrganizationProfile;
+      if (loadingGuardar || !target || target.can_edit !== true || target.editability.mode !== 'editable') {
+        setError('No tenés permiso para modificar el perfil de esta organización. Actualizá su estado o volvé al directorio.');
+        return;
+      }
+      const savedScope = profileIdentityScope;
+      const currentValues = {
+        nombre_empresa: perfil.nombre_empresa, telefono: perfil.telefono,
+        direccion: perfil.direccion, ciudad: perfil.ciudad, provincia: perfil.provincia, pais: perfil.pais,
+        latitud: perfil.latitud, longitud: perfil.longitud, link_web: perfil.link_web, logo_url: perfil.logo_url,
+        ...(organizationHoursEdited ? {
+          horario_json: perfil.horarios_ui.map((day, index) => ({
+            dia: DIAS[index], abre: day.cerrado ? '' : day.abre,
+            cierra: day.cerrado ? '' : day.cierra, cerrado: day.cerrado,
+          })),
+        } : {}),
+      };
+      const changes = Object.fromEntries(Object.entries(currentValues)
+        .filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(target.values[field])));
+      if (Object.keys(changes).length === 0) {
+        setMensaje('El perfil de la organización no tiene cambios para guardar.');
+        return;
+      }
+      setLoadingGuardar(true);
+      try {
+        const receipt = await apiFetch<any>(`/api/admin/tenants/${encodeURIComponent(target.tenant.slug)}/config`, {
+          method: 'PUT', tenantSlug: target.tenant.slug,
+          omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false, persistTenantSlug: false,
+          body: {
+            expected_revision: target.revision,
+            organization_profile: changes,
+          },
+        });
+        if (currentProfileScopeRef.current !== savedScope) return;
+        const savedProfile = readOrganizationProfile(receipt.profile, target.tenant.slug);
+        if (receipt.contract_version !== 'organization.profile_save.v1' || receipt.ok !== true ||
+          receipt.tenant?.id !== target.tenant.id || receipt.tenant?.slug !== target.tenant.slug ||
+          savedProfile?.tenant.id !== target.tenant.id) {
+          throw new Error('organization_profile_save_unconfirmed');
+        }
+        const refreshedProfile = await fetchPerfil({
+          tenantSlug: target.tenant.slug,
+          isCurrent: () => currentProfileScopeRef.current === savedScope,
+        });
+        if (refreshedProfile && currentProfileScopeRef.current === savedScope) {
+          setMensaje('Cambios de la organización guardados correctamente.');
+        }
+      } catch (err) {
+        if (currentProfileScopeRef.current === savedScope) {
+          setError(err instanceof ApiError && err.status === 412
+            ? 'Otra persona actualizó este perfil. Conservamos tus cambios: usá Actualizar perfil para revisar la versión actual antes de volver a guardar.'
+            : getErrorMessage(err, 'No pudimos confirmar el guardado de la organización. Actualizá el perfil antes de reintentar.'));
+        }
+      } finally {
+        if (currentProfileScopeRef.current === savedScope) setLoadingGuardar(false);
+      }
       return;
     }
 
@@ -2599,7 +2753,7 @@ export default function Perfil() {
                 </p>
                 <span className="hidden h-3 w-px bg-border sm:block" />
                 <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
-                  {perfil.nombre_empresa || "Panel de Empresa"}
+                  {institutionDisplayName}
                 </h1>
               </div>
             </div>
@@ -2614,7 +2768,7 @@ export default function Perfil() {
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Espacio de trabajo</p>
                 <h1 className="mt-1 text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
-                  {perfil.nombre_empresa || "Panel de Empresa"}
+                  {institutionDisplayName}
                 </h1>
                 <p className="mt-1.5 max-w-3xl text-sm leading-5 text-muted-foreground">
                   Atención, relaciones, inteligencia y administración organizadas según el trabajo de cada equipo.
@@ -2760,11 +2914,46 @@ export default function Perfil() {
           data-testid="profile-institution-workspace"
           className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=institution-profile-workspace]]:!h-full [&_[data-testid=institution-profile-workspace]]:!min-h-0"
         >
+          {usesScopedOrganizationProfile ? (
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate('/perfil')}>
+                Mi perfil
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate('/superadmin?section=organizations')}>
+                Directorio de organizaciones
+              </Button>
+              {matchingOrganizationProfile ? (
+                <Button type="button" variant="outline" size="sm" disabled={loadingGuardar} onClick={handleCancelProfileChanges}>
+                  Actualizar perfil
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+          {matchingOrganizationProfile && matchingOrganizationProfile.editability.mode === 'read_only' ? (
+            <Alert className="mb-2">
+              <AlertTitle>Perfil en modo consulta</AlertTitle>
+              <AlertDescription>Usá Actualizar perfil para volver a verificar los permisos de esta organización.</AlertDescription>
+            </Alert>
+          ) : null}
+          {usesScopedOrganizationProfile && !matchingOrganizationProfile ? (
+            <ViewState
+              status={organizationProfileStatus === 'denied' ? 'denied' : organizationProfileStatus === 'error' ? 'error' : 'loading'}
+              title={organizationProfileStatus === 'denied' ? 'Perfil institucional no habilitado' : organizationProfileStatus === 'error' ? 'No pudimos verificar el perfil institucional' : 'Verificando la organización'}
+              description={organizationProfileStatus === 'denied' || organizationProfileStatus === 'error'
+                ? 'Reintentá o elegí otra organización desde el directorio.'
+                : 'Cargando los datos y permisos de la organización seleccionada.'}
+              action={organizationProfileStatus === 'denied' || organizationProfileStatus === 'error'
+                ? <Button type="button" variant="outline" onClick={handleCancelProfileChanges}>Reintentar perfil</Button>
+                : undefined}
+            />
+          ) : (
           <InstitutionProfileWorkspace
             activeSection={activeInstitutionSection}
             institutionName={perfil.nombre_empresa}
             isMunicipal={esMunicipio}
-            isAdministrator={isTenantAdministrator}
+            isAdministrator={usesScopedOrganizationProfile
+              ? matchingOrganizationProfile?.can_edit === true && matchingOrganizationProfile.editability.mode === 'editable'
+              : isTenantAdministrator}
             loading={loadingGuardar}
             plan={perfil.plan}
             onCancel={handleCancelProfileChanges}
@@ -2808,7 +2997,7 @@ export default function Perfil() {
                     placeholder="+54 9 261 000 0000"
                     value={perfil.telefono}
                     onChange={handleInputChange}
-                    required
+                    required={!usesScopedOrganizationProfile}
                     autoComplete="tel"
                   />
                   <p className="text-xs leading-5 text-muted-foreground">
@@ -2823,7 +3012,7 @@ export default function Perfil() {
                     placeholder="https://municipio.gob.ar"
                     value={perfil.link_web}
                     onChange={handleInputChange}
-                    required
+                    required={!usesScopedOrganizationProfile}
                     autoComplete="url"
                   />
                   <p className="text-xs leading-5 text-muted-foreground">
@@ -2850,6 +3039,7 @@ export default function Perfil() {
                       Identidad visual de la organización. La personalización de dominio y marca se gobierna por tenant.
                     </p>
                   </div>
+                  {!usesScopedOrganizationProfile ? <>
                   <div className="space-y-2">
                     <Label htmlFor="avatar_url">Imagen personal autorizada</Label>
                     <Input
@@ -2897,7 +3087,9 @@ export default function Perfil() {
                       </span>
                     </span>
                   </label>
+                  </> : null}
                 </div>
+                {!usesScopedOrganizationProfile ? (
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Vista previa</p>
                   <div className="mt-5 flex flex-col items-center gap-3 text-center">
@@ -2914,6 +3106,7 @@ export default function Perfil() {
                     </div>
                   </div>
                 </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -2995,7 +3188,12 @@ export default function Perfil() {
                     Personalizar por día
                   </Button>
                 </div>
-                {modoHorario === "comercial" ? (
+                {usesScopedOrganizationProfile && !organizationHoursEdited && matchingOrganizationProfile?.values.horario_json.length === 0 ? (
+                  <Alert>
+                    <AlertTitle>Horarios sin configurar</AlertTitle>
+                    <AlertDescription>Elegí un horario o personalizá los días antes de guardar esta sección.</AlertDescription>
+                  </Alert>
+                ) : modoHorario === "comercial" ? (
                   <Alert>
                     <Clock3 className="h-4 w-4" />
                     <AlertTitle>Lunes a viernes, 09:00 a 20:00</AlertTitle>
@@ -3115,6 +3313,7 @@ export default function Perfil() {
               </div>
             ) : null}
           </InstitutionProfileWorkspace>
+          )}
 
           {false && (
           <details

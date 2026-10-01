@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { apiClient } from "@/api/client";
 import { apiFetch } from "@/utils/api";
@@ -24,6 +24,9 @@ import { enterpriseService } from "@/services/enterpriseService";
 import { OrganizationDirectory } from "@/components/admin/platform/OrganizationDirectory";
 import { PlatformOverview } from "@/components/admin/platform/PlatformOverview";
 import { buildPlatformOverview } from "@/components/admin/platform/data";
+import { useUser } from '@/hooks/useUser';
+import { useCapabilities } from '@/context/CapabilitiesContext';
+import { normalizeProfileTenantSlug } from '@/utils/profileTenantAuthority';
 import "@/components/admin/platform/platform.css";
 
 const sections = [
@@ -45,6 +48,14 @@ const leadSummary = (lead: any) => {
 
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
+  const navigate = useNavigate();
+  const { organizationProfileVerified, hasVerifiedSession } = useUser();
+  const { hasCapability } = useCapabilities();
+  const canOpenKnowledge = organizationProfileVerified && hasVerifiedSession && hasCapability('knowledge.read');
+  const openKnowledge = (tenant: Tenant) => {
+    const slug = normalizeProfileTenantSlug(tenant.slug);
+    if (canOpenKnowledge && tenant.is_active === true && slug) navigate(`/admin/knowledge?tenant_slug=${encodeURIComponent(slug)}`);
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const section: Section = sections.some((item) => item.id === searchParams.get('section')) ? searchParams.get('section') as Section : 'overview';
   const reducedMotion = useReducedMotion();
@@ -321,7 +332,7 @@ export default function SuperAdminDashboard() {
         {selectedProfileSlug && <section className="platform-panel order-first" aria-labelledby="platform-profile-title" data-testid="platform-organization-profile"><div className="platform-panel-heading"><div><h2 id="platform-profile-title" tabIndex={-1}>{profile?.nombre || selectedTenant?.nombre || selectedProfileSlug}</h2><p>Ficha de la organización · actividad de los últimos 30 días</p></div><Button variant="ghost" onClick={() => openSection('organizations')}>Cerrar ficha</Button></div>
           {profileLoading ? <div className="platform-empty" role="status">Cargando ficha…</div> : profileError ? <div className="platform-empty" role="alert">{profileError}</div> : profile && <div className="platform-panel-body"><dl className="platform-profile-facts"><div><dt>Responsable</dt><dd>{owner?.name || owner?.nombre || owner?.email || 'No disponible'}</dd></div><div><dt>Correo de contacto</dt><dd>{owner?.email || 'No disponible'}</dd></div><div><dt>Plan</dt><dd>{profile.plan || 'No disponible'}</dd></div><div><dt>Estado</dt><dd>{profile.is_active === true ? 'Activa' : profile.is_active === false ? 'Inactiva' : 'No disponible'}</dd></div><div><dt>Última actualización informada</dt><dd>{dateLabel(updatedAt)}</dd></div></dl>{selectedTenant && <div className="mt-6 flex flex-wrap gap-2"><Button variant="outline" onClick={() => handleEdit(selectedTenant)}>Editar organización</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'users')}>Administrar acceso</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'integrations')}>Configurar canales</Button></div>}</div>}
         </section>}
-        <OrganizationDirectory tenants={tenants} total={total} loading={loading} error={error} onRefresh={() => void fetchTenants()} onLoadMore={() => void fetchTenants(page + 1)} onProfile={openProfile} onEdit={handleEdit} onImpersonate={handleImpersonate} onToggleStatus={handleToggleStatus} onPurge={handlePurge} />
+        <OrganizationDirectory tenants={tenants} total={total} loading={loading} error={error} onRefresh={() => void fetchTenants()} onLoadMore={() => void fetchTenants(page + 1)} onProfile={openProfile} onEdit={handleEdit} onImpersonate={handleImpersonate} onToggleStatus={handleToggleStatus} onPurge={handlePurge} onKnowledge={canOpenKnowledge ? openKnowledge : undefined} />
         {directoryUpdatedAt && !error && <p className="text-xs text-muted-foreground">Directorio consultado: {dateLabel(directoryUpdatedAt)}.</p>}
 
       </>}

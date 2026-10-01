@@ -460,7 +460,7 @@ function AppRoutes() {
       <React.Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
         <Route element={<Layout />}>
-          {layoutRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities }) => (
+          {layoutRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities, enforceCapabilities }) => (
             <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
@@ -470,6 +470,7 @@ function AppRoutes() {
                     roles={roles}
                     requiredCapabilities={requiredCapabilities}
                     requiredAllCapabilities={requiredAllCapabilities}
+                    enforceCapabilities={enforceCapabilities}
                   >
                     {element}
                   </AccessRoute>
@@ -493,7 +494,7 @@ function AppRoutes() {
             ))}
           </Route>
         )}
-        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities }) => (
+        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities, enforceCapabilities }) => (
           <Route
             key={path}
             path={path}
@@ -503,6 +504,7 @@ function AppRoutes() {
                   roles={roles}
                   requiredCapabilities={requiredCapabilities}
                   requiredAllCapabilities={requiredAllCapabilities}
+                  enforceCapabilities={enforceCapabilities}
                 >
                   {element}
                 </AccessRoute>

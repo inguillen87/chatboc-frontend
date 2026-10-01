@@ -1,5 +1,7 @@
 import { ensureBackendRuntimeReady, invalidateBackendRuntimeReady } from './backendBootstrapGate';
 
+export const STARTUP_CONTINUITY_BUDGET_MS = 30_000;
+
 export const isStartupResponse = (response: Response): boolean =>
   response.status === 503 && response.headers.get('X-Chatboc-Bootstrap') === 'initializing';
 
@@ -77,7 +79,7 @@ export const fetchWithStartupContinuity = async (
     signal?.throwIfAborted();
     if (options.isCurrent?.() === false) throw new DOMException('Request context retired', 'AbortError');
   };
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + STARTUP_CONTINUITY_BUDGET_MS;
   for (let attempt = 0; ; attempt += 1) {
     assertCurrent();
     // Never redirect an exchange carrying a Clerk credential.

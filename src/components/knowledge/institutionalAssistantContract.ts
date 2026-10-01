@@ -54,13 +54,13 @@ export function knowledgeEndpoint(slug:string,mode:'admin'|'public') {
   return `/api/${mode}/tenants/${encodeURIComponent(slug)}/institutional-assistant`;
 }
 export async function loadWorkspace(slug:string,mode:'admin'|'public') {
-  return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,...(mode==='public'?{skipAuth:true,omitEntityToken:true,omitCredentials:true,persistTenantSlug:false}: {})}),slug,mode);
+  return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),slug,mode);
 }
 export async function askWorkspace(workspace:KnowledgeWorkspace,mode:'admin'|'public',input:{node_id:string;question?:string}) {
   return parseAnswer(await apiFetch(knowledgeEndpoint(workspace.tenant.slug,mode)+'/answer',{method:'POST',tenantSlug:workspace.tenant.slug,
-    cache:'no-store',singleAttempt:true,body:{revision:workspace.revision,...input},...(mode==='public'?{skipAuth:true,omitEntityToken:true,omitCredentials:true,persistTenantSlug:false}: {})}),workspace);
+    cache:'no-store',singleAttempt:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,body:{revision:workspace.revision,...input},...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),workspace);
 }
 export async function changeWorkspace(workspace:KnowledgeWorkspace,operation:'import'|'publish'|'retire',bundle?:unknown) {
-  return parseWorkspace(await apiFetch(knowledgeEndpoint(workspace.tenant.slug,'admin'),{method:'PUT',tenantSlug:workspace.tenant.slug,singleAttempt:true,
+  return parseWorkspace(await apiFetch(knowledgeEndpoint(workspace.tenant.slug,'admin'),{method:'PUT',tenantSlug:workspace.tenant.slug,singleAttempt:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,
     headers:{'X-Chatboc-Knowledge':'1'},body:{operation,expected_revision:workspace.revision,...(bundle===undefined?{}:{bundle})}}),workspace.tenant.slug,'admin');
 }

@@ -5,7 +5,7 @@ const BOOTSTRAP_REASON_CODE = 'application_initializing';
 const DEFAULT_RETRY_DELAY_MS = 2_000;
 const MAX_RETRY_DELAY_MS = 5_000;
 const DEFAULT_MAX_ATTEMPTS = 5;
-const DEFAULT_TIMEOUT_MS = 20_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 type BootstrapPayload = {
   contract_version?: unknown;

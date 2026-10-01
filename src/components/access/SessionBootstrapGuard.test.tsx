@@ -87,6 +87,13 @@ describe('SessionBootstrapGuard', () => {
     expectNoPrivateBootstrap();
   });
 
+  it('returns a sessionless knowledge deep-link to central login with its organization intact', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'previous-public-space');
+    renderGuard('/admin/knowledge?tenant_slug=qa-knowledge');
+    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/login?next=%2Fadmin%2Fknowledge%3Ftenant_slug%3Dqa-knowledge'));
+    expectNoPrivateBootstrap();
+  });
+
   it('keeps public tenant marketplace routes bootstrappable without a session', () => {
     renderGuard('/t/junin/market');
 

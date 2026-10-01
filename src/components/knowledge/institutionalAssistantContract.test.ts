@@ -2,7 +2,7 @@ import {describe,expect,it,vi,beforeEach} from 'vitest';
 import {workspace,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
-import {parseWorkspace,parseAnswer,knowledgeEndpoint,publicKnowledgeUrl,askWorkspace,changeWorkspace} from './institutionalAssistantContract';
+import {parseWorkspace,parseAnswer,knowledgeEndpoint,publicKnowledgeUrl,askWorkspace,changeWorkspace,loadWorkspace} from './institutionalAssistantContract';
 beforeEach(()=>{mocks.fetch.mockReset();});
 describe('native institutional workspace contract',()=>{
  it('accepts canonical sources and exact organization',()=>expect(parseWorkspace(workspace(),'qa-knowledge','admin')).toEqual(workspace()));
@@ -25,4 +25,13 @@ describe('native institutional workspace contract',()=>{
   await changeWorkspace(workspace(),'publish');expect(mocks.fetch).toHaveBeenCalledWith('/api/admin/tenants/qa-knowledge/institutional-assistant',expect.objectContaining({method:'PUT',singleAttempt:true,body:{operation:'publish',expected_revision:'b'.repeat(64)}}));
  });
  it('sends a question to the same tenant and current node',async()=>{mocks.fetch.mockResolvedValue(reply());await askWorkspace(workspace(),'admin',{node_id:'requirements',question:'Consulta'});expect(mocks.fetch.mock.calls[0][1].body).toEqual({revision:'b'.repeat(64),node_id:'requirements',question:'Consulta'});});
+ it('keeps every private knowledge operation on session authority without inheriting a public widget token',async()=>{
+  mocks.fetch.mockResolvedValueOnce(workspace()).mockResolvedValueOnce(reply()).mockResolvedValueOnce(workspace());
+  await loadWorkspace('qa-knowledge','admin');await askWorkspace(workspace(),'admin',{node_id:'requirements'});await changeWorkspace(workspace(),'publish');
+  for(const [path,options] of mocks.fetch.mock.calls){
+   expect(path).toMatch(/^\/api\/admin\/tenants\/qa-knowledge\/institutional-assistant/);
+   expect(options).toMatchObject({tenantSlug:'qa-knowledge',omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false});
+   expect(options.skipAuth).not.toBe(true);
+  }
+ });
 });

@@ -6,12 +6,15 @@ import { useUser } from '@/hooks/useUser';
 import { hasRequiredRole, normalizeRole } from '@/utils/roles';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { Button } from '@/components/ui/button';
 
 interface AccessRouteProps {
   children: React.ReactElement;
   roles?: string[];
   requiredCapabilities?: string[];
   requiredAllCapabilities?: string[];
+  /** Use a fresh /api/me grant, including for administrator roles. */
+  enforceCapabilities?: boolean;
 }
 
 const readStoredUser = () => {
@@ -30,13 +33,15 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   roles,
   requiredCapabilities,
   requiredAllCapabilities,
+  enforceCapabilities = false,
 }) => {
-  const { user, loading } = useUser();
+  const { user, loading, organizationProfileVerified, refreshUser } = useUser();
   const { capabilities = [], hasAllCapabilities, hasAnyCapability } = useCapabilities();
   const location = useLocation();
   const [profileSyncGrace, setProfileSyncGrace] = useState(true);
+  const [verificationGrace, setVerificationGrace] = useState(true);
   const storedUser = readStoredUser();
-  const effectiveUser = user ?? storedUser;
+  const effectiveUser = user ?? (enforceCapabilities ? null : storedUser);
   const hasSession = Boolean(
     safeLocalStorage.getItem('authToken') ||
     safeLocalStorage.getItem('chatAuthToken') ||
@@ -51,6 +56,21 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     const timer = window.setTimeout(() => setProfileSyncGrace(false), 8000);
     return () => window.clearTimeout(timer);
   }, [effectiveUser, hasSession]);
+
+  useEffect(() => {
+    if (!enforceCapabilities || organizationProfileVerified) {
+      setVerificationGrace(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setVerificationGrace(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [enforceCapabilities, organizationProfileVerified]);
+
+  if (enforceCapabilities && !organizationProfileVerified) {
+    if (loading || verificationGrace) return <ViewState status="loading" title="Validando acceso" />;
+    return <ViewState status="error" title="No pudimos validar el acceso"
+      action={<Button variant="outline" onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
 
   if ((loading && !effectiveUser) || (hasSession && !effectiveUser && profileSyncGrace)) {
     return <ViewState status="loading" title="Validando acceso" />;
@@ -84,7 +104,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     }
   }
 
-  if (isSuperadmin) {
+  if (isSuperadmin && !enforceCapabilities) {
     return children;
   }
 
@@ -93,7 +113,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   if (
     requiredAllCapabilities &&
     requiredAllCapabilities.length > 0 &&
-    !isTenantAdmin &&
+    (enforceCapabilities || !isTenantAdmin) &&
     !hasAllCapabilities(requiredAllCapabilities)
   ) {
     return (
@@ -112,8 +132,8 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   if (
     requiredCapabilities &&
     requiredCapabilities.length > 0 &&
-    hasDeclaredCapabilities &&
-    !isTenantAdmin &&
+    (enforceCapabilities || hasDeclaredCapabilities) &&
+    (enforceCapabilities || !isTenantAdmin) &&
     !hasAnyCapability(requiredCapabilities)
   ) {
     return (

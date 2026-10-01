@@ -138,6 +138,7 @@ export interface RouteConfig {
   roles?: string[]; // Roles para admin/empleado de Chatboc
   requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
   requiredAllCapabilities?: string[]; // Capacidades obligatorias para integraciones/configuración sensible
+  enforceCapabilities?: boolean; // Exige permisos de /api/me verificado sin atajos por rol
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
@@ -561,8 +562,10 @@ const routes: RouteConfig[] = [
   {
     path: '/admin/knowledge',
     element: <KnowledgeSourcesPage />,
+    requiresSession: true,
     roles: ['tenant_admin', 'superadmin'],
-    requiredAllCapabilities: ['settings.tenant.write'],
+    requiredAllCapabilities: ['knowledge.read'],
+    enforceCapabilities: true,
   },
   {
     path: '/implementacion',

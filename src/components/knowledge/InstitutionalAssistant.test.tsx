@@ -49,6 +49,18 @@ describe('institutional workspace inside the application',()=>{
  });
  it('offers larger type without changing the answer or making requests',async()=>{render(view());await screen.findByText(node().text);fireEvent.click(screen.getByRole('button',{name:'Texto ampliado'}));expect(screen.getByTestId('institutional-assistant')).toHaveClass('institutional-assistant--large');expect(mocks.fetch).toHaveBeenCalledOnce();});
  it('does not create a workspace without a verified session',()=>{render(<InstitutionalAssistant tenantSlug="qa-knowledge"/>);expect(mocks.fetch).not.toHaveBeenCalled();});
+ it('shows the first access denial without exposing a private response body and retries a fresh read',async()=>{
+  mocks.fetch.mockRejectedValueOnce({status:403,body:{detail:'PRIVATE BODY'}});render(view());
+  expect(await screen.findByRole('alert')).toHaveTextContent('No tenés acceso al conocimiento de esta organización');
+  expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();expect(screen.queryByText(node().text)).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Reintentar'}));
+  expect(await screen.findByText(node().text)).toBeVisible();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it('shows an observable initial read failure instead of leaving the console blank',async()=>{
+  mocks.fetch.mockRejectedValueOnce(new Error('PRIVATE BODY'));render(view());
+  expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos cargar el conocimiento');
+  expect(screen.getByRole('button',{name:'Reintentar'})).toBeEnabled();expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();
+ });
 });
 describe('source evidence and inclusive navigation',()=>{
  it('keeps distinct options even when they lead to the same next menu',async()=>{
@@ -76,6 +88,7 @@ describe('published institution view',()=>{
   mocks.fetch.mockResolvedValue(workspace());
   const mounted=render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
   await act(async()=>{await Promise.resolve();});
-  expect(mounted.container).toBeEmptyDOMElement();
+  expect(mounted.container).not.toHaveTextContent(node().text);
+  expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar el conocimiento');
  });
 });

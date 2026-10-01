@@ -2,6 +2,8 @@ import React,{useEffect,useId,useRef,useState} from 'react';
 import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Search,Type} from 'lucide-react';
 import {askWorkspace,changeWorkspace,loadWorkspace,publicKnowledgeUrl,type KnowledgeWorkspace,type KnowledgeNode} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
+import {ViewState} from '@/components/app-shell/ViewState';
+import {Button} from '@/components/ui/button';
 import './institutionalAssistant.css';
 interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public'}
 export default function InstitutionalAssistant(props:Props) {
@@ -12,6 +14,7 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
+  const [errorStatus,setErrorStatus]=useState<number|null>(null);
   const [showSources,setShowSources]=useState(false),[large,setLarge]=useState(false),[uncovered,setUncovered]=useState(false);
   const [pending,setPending]=useState<KnowledgeReview|null>(null);
   const active=useRef(true),locked=useRef(false),heading=useRef<HTMLElement|null>(null),upload=useRef<HTMLInputElement>(null),serial=useRef(0);
@@ -45,9 +48,9 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   };
   const current=nodes.at(-1)?.id??workspace?.knowledge?.start??'';
   const load=async()=>{
-    const seq=++serial.current;locked.current=true;setBusy(true);setError(false);setNodes([]);setPending(null);review.current=null;dialog.current=null;setShowSources(false);
+    const seq=++serial.current;locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setNodes([]);setPending(null);review.current=null;dialog.current=null;setShowSources(false);
     try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);setAsked('');setUncovered(false);}}
-    catch{if(active.current&&serial.current===seq){setError(true);setWorkspace(null);}}
+    catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;setErrorStatus(status===401||status===403?status:null);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
   useEffect(()=>{active.current=true;void load();return()=>{active.current=false;serial.current++;if(frame.current!==null)cancelAnimationFrame(frame.current);};},[]);
@@ -83,8 +86,12 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
     catch{if(active.current&&serial.current===seq){setError(true);setWorkspace(null);focusResult(seq);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
-  // Older installations without this API remain unchanged. Never supply fictitious content.
-  if(!workspace)return error&&lastUi?<section className="institutional-assistant"><div className="institutional-assistant__notice" ref={element=>{heading.current=element;}} role="alert" tabIndex={-1}><p>{lastUi.error}</p><button type="button" disabled={busy} onClick={()=>void load()}>{lastUi.retry}</button></div></section>:null;
+  if(!workspace){
+    if(error&&lastUi)return <section className="institutional-assistant"><div className="institutional-assistant__notice" ref={element=>{heading.current=element;}} role="alert" tabIndex={-1}><p>{lastUi.error}</p><button type="button" disabled={busy} onClick={()=>void load()}>{lastUi.retry}</button></div></section>;
+    if(error)return <div role="alert"><ViewState status={errorStatus?'denied':'error'} title={errorStatus?'No tenés acceso al conocimiento de esta organización':'No pudimos cargar el conocimiento'}
+      action={<Button variant="outline" disabled={busy} onClick={()=>void load()}>Reintentar</Button>}/></div>;
+    return <div role="status"><ViewState status="loading" title="Cargando conocimiento"/></div>;
+  }
   const ui=workspace.ui,knowledge=workspace.knowledge;
   const actions=nodes.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
   return <section className={`institutional-assistant${large?' institutional-assistant--large':''}`} data-testid="institutional-assistant" aria-label={ui.heading}>

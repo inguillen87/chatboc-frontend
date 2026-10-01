@@ -165,6 +165,42 @@ const profileResponse = (tenantSlug: string) => ({
   horario_json: [],
 });
 
+const organizationProfileResponse = (tenantSlug = 'selected-organization', canEdit = true) => ({
+  contract_version: 'organization.profile_settings.v1',
+  tenant: { id: 909, slug: tenantSlug },
+  revision: 'a'.repeat(64),
+  can_edit: canEdit,
+  editability: { mode: canEdit ? 'editable' : 'read_only' },
+  values: {
+    nombre_empresa: 'Organización seleccionada', telefono: '+542900123456',
+    direccion: 'Domicilio de la organización', ciudad: 'Ciudad seleccionada',
+    provincia: 'Tierra del Fuego', pais: 'Argentina', latitud: null, longitud: null,
+    link_web: 'https://organization.example.test', logo_url: '', horario_json: [],
+  },
+});
+
+const wireSelectedOrganization = (loadProfile: () => any, saveProfile?: (body: any) => any) => {
+  runtime.user = { ...verifiedUser('junin'), rol: 'superadmin', nombre_empresa: 'Mi cuenta personal' };
+  runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+    if (path === '/api/v2/tenants/selected-organization/activation/channels') {
+      return {
+        contract_version: 'tenant.channel_activation.v1',
+        tenant: { id: 909, slug: 'selected-organization', plan: 'full' },
+        integration_access: { enabled: true, status: 'enabled', current_plan: 'full' }, channels: [],
+      };
+    }
+    if (path === '/api/admin/tenants/selected-organization/config') {
+      if (options?.method === 'PUT') return saveProfile?.(options.body);
+      return { tenant: { slug: 'selected-organization', tipo: 'municipio', plan: 'full' }, organization_profile: await loadProfile() };
+    }
+    if (path === '/api/me') return { ...profileResponse('junin'), nombre_empresa: 'Mi cuenta personal' };
+    if (path.startsWith('/api/app/backoffice/navigation')) {
+      return { contract_version: 'backoffice.navigation.v1', modules: [] };
+    }
+    return {};
+  });
+};
+
 const countApiCalls = (path: string) =>
   runtime.apiFetch.mock.calls.filter(([calledPath]) => calledPath === path).length;
 
@@ -563,6 +599,114 @@ describe('Perfil request lifecycle', () => {
 
     await waitFor(() => expect(screen.getByText('Administración habilitada')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+  });
+
+  it('loads and saves the selected organization through its revisioned contract without changing the actor', async () => {
+    let latestProfile = organizationProfileResponse();
+    wireSelectedOrganization(() => latestProfile, (body) => {
+      latestProfile = { ...latestProfile, revision: 'b'.repeat(64), values: { ...latestProfile.values, ...body.organization_profile } };
+      return { contract_version: 'organization.profile_save.v1', ok: true, tenant: latestProfile.tenant, profile: latestProfile };
+    });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    expect(name).toHaveValue('Organización seleccionada');
+    expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveValue('+542900123456');
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/admin/tenants/selected-organization/config', expect.objectContaining({
+      tenantSlug: 'selected-organization', persistTenantSlug: false,
+      omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+    }));
+
+    fireEvent.change(name, { target: { value: 'Nombre actualizado de la organización' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+
+    const saves = runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+    expect(saves).toHaveLength(1);
+    expect(saves[0]).toEqual(['/api/admin/tenants/selected-organization/config', expect.objectContaining({
+      tenantSlug: 'selected-organization', omitEntityToken: true, omitChatSessionId: true,
+      isWidgetRequest: false, persistTenantSlug: false,
+      body: { expected_revision: 'a'.repeat(64), organization_profile: { nombre_empresa: 'Nombre actualizado de la organización' } },
+    })]);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(runtime.user?.tenant_slug).toBe('junin');
+    expect(runtime.user?.nombre_empresa).toBe('Mi cuenta personal');
+    expect(countApiCalls('/perfil')).toBe(0);
+
+    fireEvent.click(screen.getByTestId('institution-profile-section-hours'));
+    await screen.findByText('Horarios sin configurar');
+    fireEvent.click(screen.getByTestId('institution-profile-section-identity'));
+    await screen.findByRole('textbox', { name: 'Logo institucional' });
+    expect(screen.queryByRole('textbox', { name: 'Imagen personal autorizada' })).not.toBeInTheDocument();
+  });
+
+  it('keeps an authorized selected organization read only when the server disables edits', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse('selected-organization', false));
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    await screen.findByText('Perfil en modo consulta');
+    expect(screen.getByRole('textbox', { name: 'Nombre legal o institucional' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Actualizar perfil' })).toBeEnabled();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it.each(['slug', 'id', 'revision'])('hides institutional fields when the selected profile has an invalid %s', async (invalidField) => {
+    const profile = organizationProfileResponse();
+    if (invalidField === 'slug') profile.tenant.slug = 'junin';
+    if (invalidField === 'id') profile.tenant.id = 910;
+    if (invalidField === 'revision') profile.revision = '';
+    wireSelectedOrganization(() => profile);
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    await screen.findByText('No pudimos verificar el perfil institucional');
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar perfil' })).toBeInTheDocument();
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('shows a safe denial and never falls back to actor fields after a selected profile 403', async () => {
+    wireSelectedOrganization(() => { throw new ApiError('Private response body must stay hidden', 403); });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(screen.queryByText('Private response body must stay hidden')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(countApiCalls('/api/me')).toBe(0);
+  });
+
+  it('preserves a selected organization draft on revision conflict without replaying the write', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse(), () => { throw new ApiError('Conflict', 412); });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    fireEvent.change(name, { target: { value: 'Edición pendiente' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    await screen.findByText(/Otra persona actualizó este perfil. Conservamos tus cambios:/);
+    expect(name).toHaveValue('Edición pendiente');
+    expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1);
+    expect(runtime.apiFetch.mock.calls.filter(([path, options]) => path.endsWith('/config') && options?.method !== 'PUT')).toHaveLength(1);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('returns to the personal profile without carrying the selected organization into the actor', async () => {
+    const navigateLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    wireSelectedOrganization(() => organizationProfileResponse());
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mi perfil' }));
+    expect(navigateLog).toHaveBeenCalledWith('Mocked navigate to: /perfil');
+    await act(async () => { updateBrowserLocation('/perfil'); });
+    await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(window.location.search).not.toContain('tenant_slug');
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(runtime.user?.tenant_slug).toBe('junin');
+    navigateLog.mockRestore();
   });
 
   it('validates the complete institutional record before saving from another section', async () => {
