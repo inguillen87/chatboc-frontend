@@ -130,7 +130,8 @@ import {
   normalizeProfileTenantSlug,
   readExplicitTenantRequest,
 } from '@/utils/profileTenantAuthority';
-import { withAsyncTimeout } from '@/utils/asyncTimeout';
+import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { ViewState } from '@/components/app-shell/ViewState';
 
 const TENANT_AUTHORIZATION_TIMEOUT_MS = 8_000;
@@ -646,6 +647,8 @@ export default function Perfil() {
     }
 
     let cancelled = false;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => !cancelled && isChatbocSessionRevisionCurrent(sessionRevision);
     setRequestedTenantAuthority({
       key: requestAuthorityKey,
       status: 'loading',
@@ -653,13 +656,15 @@ export default function Perfil() {
       activation: null,
     });
 
-    void withAsyncTimeout(
-      fetchTenantChannelActivation(requestedTenantSlug),
+    void withBackendReadTimeout(
+      () => fetchTenantChannelActivation(requestedTenantSlug),
       TENANT_AUTHORIZATION_TIMEOUT_MS,
       'Tenant authorization',
+      `/api/v2/tenants/${encodeURIComponent(requestedTenantSlug)}/activation/channels`,
+      isCurrent,
     )
       .then((activation) => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         if (!activationAuthorizesTenant(activation, requestedTenantSlug)) {
           setRequestedTenantAuthority({
             key: requestAuthorityKey,
@@ -678,7 +683,7 @@ export default function Perfil() {
         });
       })
       .catch(() => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         setRequestedTenantAuthority({
           key: requestAuthorityKey,
           status: 'denied',
@@ -1105,19 +1110,28 @@ export default function Perfil() {
     }
 
     backofficeNavigationScopeRef.current = requestedScope;
+    let cancelled = false;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => !cancelled && backofficeNavigationScopeRef.current === requestedScope &&
+      isChatbocSessionRevisionCurrent(sessionRevision);
     setBackofficeNavigation(null);
     setBackofficeNavigationStatus('loading');
     const loadBackofficeNavigation = async () => {
       try {
-        const data = await withAsyncTimeout(
-          apiFetch<BackofficeNavigationResponse>(
+        const data = await withBackendReadTimeout(
+          () => apiFetch<BackofficeNavigationResponse>(
             `/api/app/backoffice/navigation?tenant_slug=${encodeURIComponent(derivedTenantSlug)}`,
-            { tenantSlug: derivedTenantSlug },
+            {
+              ...panelReadOptions(derivedTenantSlug),
+              isCurrent,
+            },
           ),
           BACKOFFICE_NAVIGATION_TIMEOUT_MS,
           'Backoffice navigation',
+          '/api/app/backoffice/navigation',
+          isCurrent,
         );
-        if (backofficeNavigationScopeRef.current !== requestedScope) {
+        if (!isCurrent()) {
           return;
         }
         if (data?.contract_version === 'backoffice.navigation.v1' && Array.isArray(data.modules)) {
@@ -1128,7 +1142,7 @@ export default function Perfil() {
         setBackofficeNavigation(null);
         setBackofficeNavigationStatus('error');
       } catch (error) {
-        if (backofficeNavigationScopeRef.current !== requestedScope) {
+        if (!isCurrent()) {
           return;
         }
         backofficeNavigationScopeRef.current = null;
@@ -1142,6 +1156,12 @@ export default function Perfil() {
     };
 
     void loadBackofficeNavigation();
+    return () => {
+      cancelled = true;
+      if (backofficeNavigationScopeRef.current === requestedScope) {
+        backofficeNavigationScopeRef.current = null;
+      }
+    };
   }, [
     backofficeNavigationRevision,
     derivedTenantSlug,

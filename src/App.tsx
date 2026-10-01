@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, matchPath, useLocation, useNavigate } from "react-router-dom";
 
 // Páginas principales
 import Layout from "./components/layout/Layout";
@@ -443,10 +443,15 @@ function AppRoutes() {
     .toLowerCase()
     .split("/")
     .includes("integracion");
+  const isGuardedPrivateRoute = routes.some(
+    ({ path, roles, requiredCapabilities, requiredAllCapabilities }) =>
+      Boolean(roles?.length || requiredCapabilities?.length || requiredAllCapabilities?.length) &&
+      Boolean(matchPath({ path, end: true }, location.pathname)),
+  );
   const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
     (ruta) =>
       location.pathname === ruta || location.pathname.startsWith(ruta + "/")
-  ) || isIntegrationRoute;
+  ) || isIntegrationRoute || isGuardedPrivateRoute;
 
   // Evita que el widget global quede montado en rutas de integración
   React.useEffect(() => {

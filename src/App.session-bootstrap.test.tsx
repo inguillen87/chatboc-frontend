@@ -715,6 +715,7 @@ describe('App session bootstrap ordering', () => {
 
     await waitFor(() => expect(bootstrapMocks.tenantInfo).toHaveBeenCalledWith('junin', null));
     await waitFor(() => expect(bootstrapMocks.cart).toHaveBeenCalled());
+    await waitFor(() => expect(bootstrapMocks.widgetMounts).toHaveBeenCalled());
     expect(window.location.pathname).toBe('/t/junin/market');
   });
 
@@ -755,6 +756,7 @@ describe('App session bootstrap ordering', () => {
 
     await waitFor(() => expect(bootstrapMocks.clerkConfig).toHaveBeenCalled());
     expect(window.location.pathname).toBe('/t/junin/inbox');
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
     expectNoPrivateBootstrapCalls();
 
     await act(async () => {
@@ -766,6 +768,7 @@ describe('App session bootstrap ordering', () => {
     });
 
     expect(window.location.pathname).toBe('/t/junin/inbox');
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
     expectNoPrivateBootstrapCalls();
 
     await act(async () => {
@@ -783,6 +786,7 @@ describe('App session bootstrap ordering', () => {
 
     await waitFor(() => expect(bootstrapMocks.tenantInfo).toHaveBeenCalledWith('junin', null));
     expect(window.location.pathname).toBe('/t/junin/inbox');
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
   });
 
   it('does not trust a stale Clerk marker after Clerk confirms signed-out', async () => {

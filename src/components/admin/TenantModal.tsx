@@ -30,6 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Tenant } from '@/types/superAdmin';
+import { NativeAdminLegacyMembershipCard } from '@/components/admin/platform/NativeAdminLegacyMembershipCard';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import { Building2, GraduationCap, Loader2, MessageCircle, ShieldCheck, Store } from 'lucide-react';
@@ -268,6 +269,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
 
                 {/* TAB 2: USUARIOS */}
                 <TabsContent value="users" className="space-y-6 py-4">
+                    {isOpen && activeTab === 'users' && tenantToEdit?.tipo === 'municipio' && <NativeAdminLegacyMembershipCard key={tenantToEdit.slug} tenant={tenantToEdit} />}
                     <div className="space-y-4 border p-4 rounded-md">
                         <h3 className="font-medium text-sm">Crear Nuevo Admin</h3>
                         <Form {...userForm}>

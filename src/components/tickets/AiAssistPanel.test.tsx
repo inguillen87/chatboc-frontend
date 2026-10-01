@@ -197,7 +197,7 @@ describe('AiAssistPanel', () => {
           source: 'operator_brief',
         },
       ]);
-      expect(screen.getByText('Borrador cargado')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
     } finally {
       window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
     }
