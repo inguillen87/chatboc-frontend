@@ -32,6 +32,9 @@ import { useSocket } from '@/context/SocketContext';
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
+import { BASE_API_URL } from '@/config';
+import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { operationsTenantSlug, assertOperationsResponseScope, visibleOperationsQuery } from './operationsReadState';
 import { useOperationsRefresh } from './useOperationsRefresh';
 import { OperationsWorkspaceStatus } from './OperationsWorkspaceStatus';
@@ -73,20 +76,16 @@ const OPERATIONS_QUERY_TIMEOUT_MS = 9_000;
 const OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS = 7_000;
 
 const withOperationsTimeout = async <T,>(
-  promise: Promise<T>,
+  read: (isCurrent: () => boolean) => Promise<T>,
   label: string,
   timeoutMs = OPERATIONS_QUERY_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
+  const sessionRevision = captureChatbocSessionRevision();
+  const isCurrent = () => !signal?.aborted && isChatbocSessionRevisionCurrent(sessionRevision);
+  const payload = await withBackendReadTimeout(() => read(isCurrent), timeoutMs, label, BASE_API_URL, isCurrent);
+  if (!isCurrent()) throw new DOMException('Private operations scope expired', 'AbortError');
+  return payload;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -601,10 +600,11 @@ interface OperationsDashboardPanelProps {
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { currentSlug } = useTenant();
   const tenantSlug = operationsTenantSlug(currentSlug);
+  const sessionRevision = captureChatbocSessionRevision();
   if (!tenantSlug) return <ViewState status="empty" title="Seleccioná una organización" description="El centro de decisiones necesita un contexto de organización confirmado." className={className} />;
-  return <ScopedOperationsDashboard key={tenantSlug} tenantSlug={tenantSlug} className={className} />;
+  return <ScopedOperationsDashboard key={`${tenantSlug}:${sessionRevision}`} tenantSlug={tenantSlug} sessionRevision={sessionRevision} className={className} />;
 }
-function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboardPanelProps & { tenantSlug: string }) {
+function ScopedOperationsDashboard({ tenantSlug, sessionRevision, className }: OperationsDashboardPanelProps & { tenantSlug: string; sessionRevision: number }) {
   const { socket, isConnected: socketConnected } = useSocket();
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
   const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
@@ -614,10 +614,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   );
 
   const dashboardQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-dashboard', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-dashboard', tenantSlug, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_dashboard_timeout',
+      OPERATIONS_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -625,11 +627,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }));
 
   const heatmapQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-heatmap', tenantSlug, activeHeatmapFilters],
-    queryFn: () => withOperationsTimeout(
-      getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-heatmap', tenantSlug, sessionRevision, activeHeatmapFilters],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_heatmap_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -637,11 +640,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }));
 
   const mapConfigQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['public-map-config-v1', tenantSlug],
-    queryFn: () => withOperationsTimeout(
-      getPublicMapConfigV1({ tenantSlug }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['public-map-config-v1', tenantSlug, sessionRevision],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getPublicMapConfigV1({ tenantSlug, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'public_map_config_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -649,55 +653,60 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }));
 
   const actionCenterQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-action-center', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-action-center', tenantSlug, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_action_center_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   }));
   const aiBriefQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-ai-brief', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-ai-brief', tenantSlug, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_brief_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   }));
   const aiOpsQueueQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-ai-ops-queue', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-ai-ops-queue', tenantSlug, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_ops_queue_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   }));
   const aiProviderStatusQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-ai-provider-status', tenantSlug],
-    queryFn: () => withOperationsTimeout(
-      getOperationsAIProviderStatusV2({ tenantSlug }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-ai-provider-status', tenantSlug, sessionRevision],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsAIProviderStatusV2({ tenantSlug, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_provider_status_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   }));
   const freshnessQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-freshness', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-freshness', tenantSlug, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_freshness_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,

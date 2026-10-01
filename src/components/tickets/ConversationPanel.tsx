@@ -40,6 +40,7 @@ import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { cn } from '@/lib/utils';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import {
@@ -1522,6 +1523,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     : null;
   const activeConversationScopeRef = useRef<string | null>(activeConversationScopeKey);
   activeConversationScopeRef.current = activeConversationScopeKey;
+  const readStateSessionRevision = captureChatbocSessionRevision();
   const draftStorageKeyRef = useRef<string | null>(conversationDraftStorageKey);
   const previousConversationScopeRef = useRef<string | null>(null);
   const attachmentPreviewRef = useRef<{ file: File; previewUrl: string } | null>(null);
@@ -2354,7 +2356,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   useEffect(() => {
     pollingFailureCountRef.current = 0;
     pollingPausedUntilRef.current = 0;
-    lastReadStateSyncRef.current = null;
     composerSelectionRef.current = null;
     composerActionAttemptRef.current = null;
     replyActionAttemptRef.current = null;
@@ -2369,6 +2370,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [composerActionScopeKey]);
 
   useEffect(() => {
+    lastReadStateSyncRef.current = null;
+  }, [activeConversationScopeKey, readStateSessionRevision]);
+
+  useEffect(() => {
     if (
       selectedTicketId === null ||
       !selectedTicketType ||
@@ -2376,8 +2381,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       loadedConversationKeyRef.current !== selectedConversationKey ||
       latestReadableMessageId === undefined
     ) return;
+    const sourceModel = selectedTicket?.source_model;
+    if (
+      (selectedTicketType === 'municipio' && sourceModel !== 'MunicipioTicket')
+      || (selectedTicketType === 'pyme' && sourceModel !== 'PymeTicket')
+    ) return;
 
-    const syncKey = `${selectedConversationKey}:${latestReadableMessageId}`;
+    const readScope = activeConversationScopeKey;
+    if (!readScope) return;
+    let active = true;
+    const isCurrent = () => active
+      && activeConversationScopeRef.current === readScope
+      && isChatbocSessionRevisionCurrent(readStateSessionRevision);
+    const syncKey = `${readScope}:${readStateSessionRevision}:${latestReadableMessageId}`;
     if (lastReadStateSyncRef.current === syncKey) return;
 
     // Opening a conversation may produce one read acknowledgement. Afterwards
@@ -2386,8 +2402,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     if (lastReadStateSyncRef.current !== null && !selectedTicketHasUnread) return;
     lastReadStateSyncRef.current = syncKey;
 
-    updateTicketReadState(selectedTicketId, selectedTicketType, latestReadableMessageId)
+    const readTenantSlug = selectedTicket?.tenant_slug?.trim().toLowerCase()
+      || user?.tenant_slug?.trim().toLowerCase()
+      || user?.tenantSlug?.trim().toLowerCase()
+      || null;
+    updateTicketReadState(selectedTicketId, selectedTicketType, latestReadableMessageId, {
+      tenantSlug: readTenantSlug,
+      sourceModel,
+      isCurrent,
+    })
       .then((state) => {
+        if (!isCurrent()) return;
         const activeTicket = selectedTicketRef.current;
         if (!activeTicket || selectedConversationKey !== `${
           activeTicket.tenant_slug?.trim().toLowerCase() ||
@@ -2405,12 +2430,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             unread_count: 0,
             unread_viewer_count: 0,
           },
-        } as Partial<Ticket>);
+        } as Partial<Ticket>, sourceModel);
       })
       .catch((error) => {
-        if (lastReadStateSyncRef.current === syncKey) {
-          lastReadStateSyncRef.current = null;
-        }
+        if (!isCurrent()) return;
+        // A failed or uncertain mutation still consumed this attempt. Ordinary
+        // refreshes cannot resubmit the same actor/ticket/message acknowledgement.
         if (!isLegacyHtmlGatewayError(error)) {
           console.warn('No se pudo sincronizar lectura del ticket.', {
             ticketId: selectedTicketId,
@@ -2418,7 +2443,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           });
         }
       });
+    return () => { active = false; };
   }, [
+    activeConversationScopeKey,
+    readStateSessionRevision,
     latestReadableMessageId,
     selectedConversationKey,
     selectedTicketHasUnread,

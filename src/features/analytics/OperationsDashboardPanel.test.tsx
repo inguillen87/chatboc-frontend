@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,8 +13,10 @@ import type {
   PublicMapConfigV1,
 } from './analyticsTypes';
 import { OperationsDashboardPanel } from './OperationsDashboardPanel';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 const mocks = vi.hoisted(() => ({
+  ensureReady: vi.fn(),
   getOperationsDashboardV2: vi.fn(),
   getOperationsHeatmapV2: vi.fn(),
   getOperationsActionCenterV2: vi.fn(),
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   getOperationsFreshnessV2: vi.fn(),
   getPublicMapConfigV1: vi.fn(),
 }));
+vi.mock('@/utils/backendBootstrapGate', () => ({ ensureBackendRuntimeReady: mocks.ensureReady }));
 
 const socketMocks = vi.hoisted(() => {
   const handlers = new Map<string, Set<(payload?: unknown) => void>>();
@@ -581,6 +584,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     vi.clearAllMocks();
     socketMocks.reset();
     tenantContext.slug = 'junin';
+    mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
@@ -589,6 +593,52 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsAIProviderStatusV2.mockResolvedValue(aiProviderStatusFixture());
     mocks.getOperationsFreshnessV2.mockResolvedValue(freshnessFixture());
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
+  });
+
+  it('waits through ten seconds of startup before dispatching and accepting the eight private reads', async () => {
+    vi.useFakeTimers();
+    try {
+      let finishStartup!: () => void;
+      const startup = new Promise<void>(resolve => { finishStartup = resolve; });
+      mocks.ensureReady.mockReturnValue(startup);
+      renderPanel();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+      expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+      expect(screen.queryByText('operations_heatmap_timeout')).not.toBeInTheDocument();
+      await act(async () => { finishStartup(); await vi.advanceTimersByTimeAsync(10); });
+      expect(mocks.getOperationsDashboardV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsActionCenterV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIBriefV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIOpsQueueV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIProviderStatusV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsFreshnessV2).toHaveBeenCalledOnce();
+      expect(mocks.getPublicMapConfigV1).toHaveBeenCalledOnce();
+      expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 2 puntos');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not dispatch pending private reads after the dashboard unmounts during startup', async () => {
+    let finishStartup!: () => void;
+    mocks.ensureReady.mockReturnValue(new Promise<void>(resolve => { finishStartup = resolve; }));
+    const view = renderPanel();
+    view.unmount();
+    await act(async () => { finishStartup(); });
+    expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsActionCenterV2).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch pending private reads after the authentication generation changes', async () => {
+    let finishStartup!: () => void;
+    mocks.ensureReady.mockReturnValue(new Promise<void>(resolve => { finishStartup = resolve; }));
+    renderPanel();
+    advanceChatbocSessionRevision();
+    await act(async () => { finishStartup(); });
+    expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(mocks.getPublicMapConfigV1).not.toHaveBeenCalled();
   });
 
   it('surfaces territorial quality, layers, filters and geocoding queue around the premium map', async () => {

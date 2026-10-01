@@ -1916,6 +1916,7 @@ export const getAnalyticsOverviewV2 = async (tenantSlug?: string | null) => {
 };
 
 export const getOperationsDashboardV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -1927,12 +1928,14 @@ export const getOperationsDashboardV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/dashboard${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeDashboard(response);
 };
 
 export const getOperationsHeatmapV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -1971,21 +1974,24 @@ export const getOperationsHeatmapV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/heatmap${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeHeatmap(response);
 };
 
-export const getPublicMapConfigV1 = async (params?: { tenantSlug?: string | null }) => {
+export const getPublicMapConfigV1 = async (params?: { tenantSlug?: string | null; isCurrent?: () => boolean }) => {
   const query = buildTenantQuery(params?.tenantSlug);
   const response = await panelApi.get<unknown>(`/api/map/config${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeMapConfig(response);
 };
 
 export const getOperationsActionCenterV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -1997,12 +2003,14 @@ export const getOperationsActionCenterV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/action-center${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeActionCenter(response);
 };
 
 export const getOperationsAIBriefV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -2014,12 +2022,14 @@ export const getOperationsAIBriefV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-brief${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeAIBrief(response);
 };
 
 export const getOperationsAIOpsQueueV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -2032,12 +2042,14 @@ export const getOperationsAIOpsQueueV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-ops-queue${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeAIOpsQueue(response);
 };
 
 export const getOperationsAIProviderStatusV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -2048,12 +2060,14 @@ export const getOperationsAIProviderStatusV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-provider-status${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeAIProviderStatus(response);
 };
 
 export const getOperationsFreshnessV2 = async (params?: {
+  isCurrent?: () => boolean;
   tenantSlug?: string | null;
   tenant_id?: number | string | null;
   from?: string | null;
@@ -2065,6 +2079,7 @@ export const getOperationsFreshnessV2 = async (params?: {
   const query = buildQuery(params);
   const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/freshness${query}`, {
     tenantSlug: params?.tenantSlug,
+    ...(params?.isCurrent ? { isCurrent: params.isCurrent } : {}),
   });
   if (params?.tenantSlug) assertOperationsResponseScope(response, params.tenantSlug);
   return normalizeFreshness(response);

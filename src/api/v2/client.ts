@@ -15,6 +15,7 @@ export interface V2RequestOptions {
   legacyFallbackPath?: string;
   baseUrlOverride?: string | null;
   allowSafeBaseFallback?: boolean;
+  isCurrent?: () => boolean;
 }
 
 const withTenantHeader = (headers: Record<string, string> | undefined, tenantSlug?: string | null) => {
@@ -43,6 +44,7 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     legacyFallbackPath,
     baseUrlOverride,
     allowSafeBaseFallback,
+    isCurrent,
   } = options;
 
   const sharedOptions = {
@@ -59,6 +61,9 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     allowSafeBaseFallback,
     ...(!skipAuth && !isWidgetRequest && method === 'GET'
       ? panelReadOptions(tenantSlug)
+      : {}),
+    ...(!skipAuth && !isWidgetRequest && method === 'GET' && isCurrent
+      ? { isCurrent }
       : {}),
   };
 
