@@ -37,6 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 const channelIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   crm: TicketCheck,
@@ -225,18 +226,22 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   const load = React.useCallback(async () => {
     if (!tenantSlug && !initialData) return;
     const revision=++requestRevision.current;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => revision === requestRevision.current
+      && activeScope.current === guideScope
+      && isChatbocSessionRevisionCurrent(sessionRevision);
     setVerifiedGuideScope(null);
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchTenantChannelActivation(tenantSlug);
-      if(revision!==requestRevision.current||activeScope.current!==guideScope)return;
+      const response = await fetchTenantChannelActivation(tenantSlug, { isCurrent });
+      if (!isCurrent()) return;
       setData(response);
       setVerifiedGuideScope(guideScope);
     } catch (err) {
-      if(revision===requestRevision.current&&activeScope.current===guideScope)setError(syncErrorMessage);
+      if (isCurrent()) setError(syncErrorMessage);
     } finally {
-      if(revision===requestRevision.current&&activeScope.current===guideScope)setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [initialData, tenantSlug, guideScope]);
 

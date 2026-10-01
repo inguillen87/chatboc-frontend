@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 const runtime = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -369,6 +370,17 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByText('Espacio de trabajo')).not.toBeInTheDocument();
   });
 
+  it.each([['mapas', 'mock-map'], ['tickets', 'mock-tickets'], ['usuarios', 'mock-users']])(
+    'returns from %s to Inicio without restoring the previous tab', async (tab, probe) => {
+      renderProfile(`/perfil?tab=${tab}`);
+      await waitFor(() => expect(screen.getByTestId(probe)).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: 'Abrir Inicio' }));
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Trabajo de hoy' })).toBeInTheDocument());
+      expect(screen.queryByTestId(probe)).not.toBeInTheDocument();
+      expect(window.location.search).not.toContain('tab=');
+    },
+  );
+
   it('restores an institutional section from the URL and keeps contact phone separate from WhatsApp', async () => {
     renderProfile('/perfil?tab=perfil&section=channels');
 
@@ -496,7 +508,7 @@ describe('Perfil request lifecycle', () => {
     );
     expect(runtime.apiFetch).toHaveBeenCalledWith(
       '/api/v2/tenants/mendoza/activation/channels',
-      { tenantSlug: 'mendoza', persistTenantSlug: false, cache: 'no-store' },
+      expect.objectContaining({ ...panelReadOptions('mendoza'), cache: 'no-store', isCurrent: expect.any(Function) }),
     );
     expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
       isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,

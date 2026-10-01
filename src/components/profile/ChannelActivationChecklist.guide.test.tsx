@@ -43,7 +43,7 @@ describe('guide integration in the activation checklist',()=>{
  });
  it('does not restore another actor descriptor after a delayed activation response',async()=>{
   const first=deferred();mocks.fetch.mockReturnValueOnce(first.promise).mockResolvedValueOnce({...guideActivation(),organization_setup:null});
-  const rendered=render(view());rendered.rerender(view('actor-b'));
+  const rendered=render(view());await waitFor(()=>expect(mocks.fetch).toHaveBeenCalledOnce());rendered.rerender(view('actor-b'));
   await waitFor(()=>expect(mocks.fetch).toHaveBeenCalledTimes(2));
   await act(async()=>{first.resolve(guideActivation());await first.promise;});
   expect(screen.queryByText(guideCopy.open)).not.toBeInTheDocument();

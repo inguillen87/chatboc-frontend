@@ -1,4 +1,5 @@
 import { apiFetch } from '@/utils/api';
+import { privateBackendRead, type PrivateBackendReadLifecycle } from '@/utils/privateBackendRead';
 
 export const GOVERNMENT_JURISDICTION_READINESS_VERSION = 'government.jurisdiction.readiness.v1' as const;
 export const GOVERNMENT_JURISDICTION_SUBMISSION_VERSION = 'government.jurisdiction.evidence_submission.v1' as const;
@@ -405,15 +406,12 @@ const parseEvidenceResult = (
   };
 };
 
-export const getGovernmentJurisdictionReadiness = async (tenantSlug: string) => {
+export const getGovernmentJurisdictionReadiness = async (tenantSlug: string, lifecycle?: PrivateBackendReadLifecycle) => {
   const requestedTenantSlug = assertTenantSlug(tenantSlug);
-  const payload = await apiFetch<unknown>(
+  const payload = await privateBackendRead(
     `/api/v2/tenants/${encodeURIComponent(requestedTenantSlug)}/government-readiness/jurisdiction`,
-    {
-      cache: 'no-store',
-      omitTenant: true,
-      persistTenantSlug: false,
-    },
+    requestedTenantSlug,
+    lifecycle,
   );
   return parseGovernmentJurisdictionReadiness(payload, requestedTenantSlug);
 };

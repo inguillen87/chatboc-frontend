@@ -657,7 +657,7 @@ export default function Perfil() {
     });
 
     void withBackendReadTimeout(
-      () => fetchTenantChannelActivation(requestedTenantSlug),
+      () => fetchTenantChannelActivation(requestedTenantSlug, { isCurrent }),
       TENANT_AUTHORIZATION_TIMEOUT_MS,
       'Tenant authorization',
       `/api/v2/tenants/${encodeURIComponent(requestedTenantSlug)}/activation/channels`,
@@ -1022,10 +1022,10 @@ export default function Perfil() {
   }, [derivedTenantSlug, navigate]);
 
   useEffect(() => {
-    if (requestedWorkspaceTab && requestedWorkspaceTab !== activeProfileTab) {
-      setActiveProfileTab(requestedWorkspaceTab);
-    }
-  }, [activeProfileTab, requestedWorkspaceTab]);
+    // URL changes own the restored workspace. A local tab click must not be
+    // overwritten by the previous query before React Router commits it.
+    setActiveProfileTab(requestedWorkspaceTab || "perfil");
+  }, [requestedWorkspaceTab]);
 
   useEffect(() => {
     if (!hasInstitutionalDeepLink || requestedProfileTab === "perfil") return;

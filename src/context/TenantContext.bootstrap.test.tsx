@@ -94,6 +94,14 @@ describe('TenantProvider global route bootstrap', () => {
     expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
   });
 
+  it('reads the selected organization from implementation query instead of the route name', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({ slug: 'junin', nombre: 'Municipalidad de Junín', tipo: 'municipio' });
+    render(<MemoryRouter initialEntries={['/implementacion?tenant_slug=junin']}><TenantProvider><TenantProbe /></TenantProvider></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('ready:junin')).toBeInTheDocument());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('junin', null);
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalledWith('implementacion', expect.anything());
+  });
+
   it('ignores every ambient tenant source on /superadmin and preserves the stored preference', async () => {
     safeLocalStorage.setItem('tenantSlug', 'junin');
     (window as any).CHATBOC_CONFIG = {

@@ -111,7 +111,7 @@ const Navbar: React.FC = () => {
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
   const { user, organizationProfileVerified } = useUser();
-  const cartCount = useCartCount();
+  const cartCount = useCartCount(!privateShell.active);
   const clerkRuntime = useClerkRuntime();
   const { currentSlug,tenant,isLoadingTenant,tenantError } = useTenant();
   const institutionBrandRef=useRef<HTMLAnchorElement>(null);

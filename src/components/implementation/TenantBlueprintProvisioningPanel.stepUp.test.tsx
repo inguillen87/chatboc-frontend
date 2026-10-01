@@ -1,10 +1,11 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ClerkRuntimeProvider } from '@/components/auth/ClerkRuntimeContext';
 import TenantBlueprintProvisioningPanel from '@/components/implementation/TenantBlueprintProvisioningPanel';
 import { ApiError } from '@/utils/api';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 const clerkState = vi.hoisted(() => ({
   mode: 'complete' as 'complete' | 'cancel' | 'error',
@@ -408,5 +409,19 @@ describe('TenantBlueprintProvisioningPanel Clerk step-up', () => {
     expect(blueprintApi.applyTenantBlueprint).toHaveBeenCalledTimes(2);
     expect(clerkState.promptCount).toBe(1);
     await waitFor(() => expect(clerkApi.syncClerkSession).toHaveBeenCalledTimes(1));
+  });
+
+  it('never requests a tenant detail from a catalog loaded by a retired session', async () => {
+    let finishCatalog!: (value: typeof blueprintCatalog) => void;
+    blueprintApi.listTenantBlueprints.mockReturnValueOnce(new Promise(resolve => { finishCatalog = resolve; }));
+    renderPanel();
+    const lifecycle = blueprintApi.listTenantBlueprints.mock.calls[0][0];
+    expect(lifecycle.isCurrent()).toBe(true);
+    advanceChatbocSessionRevision();
+    await act(async () => finishCatalog(blueprintCatalog));
+    expect(lifecycle.isCurrent()).toBe(false);
+    expect(blueprintApi.getTenantBlueprint).not.toHaveBeenCalled();
+    expect(blueprintApi.previewTenantBlueprint).not.toHaveBeenCalled();
+    expect(blueprintApi.applyTenantBlueprint).not.toHaveBeenCalled();
   });
 });

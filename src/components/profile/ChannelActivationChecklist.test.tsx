@@ -144,7 +144,7 @@ describe('ChannelActivationChecklist', () => {
     fireEvent.click(screen.getByRole('button', { name: /actualizar/i }));
 
     await waitFor(() => expect(fetchTenantChannelActivation).toHaveBeenCalledTimes(2));
-    expect(fetchTenantChannelActivation).toHaveBeenLastCalledWith('junin');
+    expect(fetchTenantChannelActivation).toHaveBeenLastCalledWith('junin', { isCurrent: expect.any(Function) });
   });
 
   it('shows a product fallback when the activation endpoint is temporarily unavailable', async () => {

@@ -521,7 +521,7 @@ describe('TenantImplementationCenterPage', () => {
         <TenantImplementationCenterPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(blueprintApi.getTenantBlueprint).toHaveBeenCalledWith('organizacion-b', 'government-core'));
+    await waitFor(() => expect(blueprintApi.getTenantBlueprint).toHaveBeenCalledWith('organizacion-b', 'government-core', { isCurrent: expect.any(Function) }));
 
     await act(async () => { delayedPreview.resolve(blueprintPreview); });
     expect(screen.queryByText(/previsualización verificada/i)).not.toBeInTheDocument();
