@@ -109,27 +109,27 @@
   "rewrites": [
     {
       "source": "/ask/(.*)",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/ask/$1"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/ask/$1"
     },
     {
       "source": "/archivos/(.*)",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/archivos/$1"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/archivos/$1"
     },
     {
       "source": "/public/(.*)",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/public/$1"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/public/$1"
     },
     {
       "source": "/api/(.*)",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/api/$1"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/api/$1"
     },
     {
       "source": "/admin/login",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/admin/login"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/admin/login"
     },
     {
       "source": "/admin/analytics/export.csv",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/admin/analytics/export.csv"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/admin/analytics/export.csv"
     },
     {
       "source": "/admin/(.*)",
@@ -140,11 +140,11 @@
     },
     {
       "source": "/admin/(.*)",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/admin/$1"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/admin/$1"
     },
     {
       "source": "/socket.io/(.*)",
-      "destination": "https://chatboc-backend-l3flqaoqw-marcelos-projects-c26aa499.vercel.app/socket.io/$1"
+      "destination": "https://chatboc-backend-r7o1nnkxu-marcelos-projects-c26aa499.vercel.app/socket.io/$1"
     },
     { "source": "/iframe", "destination": "/iframe.html" },
     { "source": "/iframe/(.*)", "destination": "/iframe.html" },
