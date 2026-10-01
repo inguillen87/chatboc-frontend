@@ -61,9 +61,15 @@ describe('SuperAdminDashboard workspace', () => {
     expect(screen.queryByText('__INIT__')).not.toBeInTheDocument();
     expect(screen.getByText('Pipeline existente')).toBeInTheDocument();
     expect(screen.getByText(/Actualización en vivo desconectada/)).toBeInTheDocument();
-    expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=8', { omitTenant: true });
+    expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=8', {
+      omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    });
     await waitFor(() => expect(screen.getByRole('region', { name: 'Agenda de próximos contactos' })).toBeVisible());
-    await waitFor(() => expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=100', { omitTenant: true, persistTenantSlug: false }));
+    await waitFor(() => expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=100', {
+      omitTenant: true, persistTenantSlug: false, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    }));
     fireEvent.click(screen.getByRole('link', { name: 'Canales' }));
     expect(screen.getByText('Inventario existente')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Nueva organización' }));

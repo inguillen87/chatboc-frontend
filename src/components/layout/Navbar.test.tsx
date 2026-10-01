@@ -83,11 +83,34 @@ describe('Navbar account menu routing', () => {
   });
 
   it.each(['/t/junin/perfil', '/T/junin/perfil', '/junin/analytics', '/junin/estadisticas', '/junin/analytics/operations'])('retains organization identity at %s', (path) => {
-    useUserMock.mockReturnValue({ user: { rol: 'super_admin', nombre_empresa: 'Municipalidad de Junín' } });
+    useUserMock.mockReturnValue({ organizationProfileVerified: true, user: { rol: 'super_admin', name: 'Marcelo', nombre_empresa: 'MyB Store' } });
+    useTenantMock.mockReturnValue({ currentSlug: 'junin', tenant: { slug: 'junin', tipo: 'municipio', publishedIdentity: { tenantId: 2, tenantSlug: 'junin', name: 'Municipalidad de Junín' } } });
     render(<MemoryRouter initialEntries={[path]}><Navbar /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
     expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
     expect(screen.queryByText('ChatBoc · Plataforma')).not.toBeInTheDocument();
+  });
+  it('uses the selected knowledge organization identity and scoped profile without relabeling the actor home', () => {
+    useUserMock.mockReturnValue({ organizationProfileVerified: true, user: { id: 8, rol: 'superadmin', name: 'Marcelo', nombre_empresa: 'MyB Store', tenant_slug: 'actor-home', tipo_chat: 'pyme', plan: 'free' } });
+    useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', tenant: { slug: 'selected-organization', tipo: 'municipio', publishedIdentity: { tenantId: 7, tenantSlug: 'selected-organization', name: 'Organización elegida' } } });
+    render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByText('Organización elegida')).toBeVisible();
+    expect(screen.getByText('Municipio')).toBeVisible();
+    expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
+    expect(screen.queryByText('Plan Inicial')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Perfil y organización' })).toHaveAttribute('href', '/perfil?tab=perfil&tenant_slug=selected-organization');
+    expect(screen.getByRole('link', { name: 'Ver sitio publico' })).toHaveAttribute('href', '/t/selected-organization');
+  });
+  it.each(['pending','foreign','unverified','missing'])('uses a neutral selected organization label while identity is %s', state => {
+    useUserMock.mockReturnValue({ organizationProfileVerified: state !== 'unverified', user: { rol: 'superadmin', name: 'Marcelo', nombre_empresa: 'MyB Store' } });
+    useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', isLoadingTenant: state === 'pending', tenant: { slug: 'selected-organization', tipo: 'pyme', publishedIdentity: state === 'missing' ? null : { tenantId: 7, tenantSlug: state === 'foreign' ? 'other-organization' : 'selected-organization', name: 'Untrusted organization label' } } });
+    render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByText('Organización seleccionada')).toBeVisible();
+    expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
+    expect(screen.queryByText('Untrusted organization label')).not.toBeInTheDocument();
+    expect(screen.queryByText('Empresa')).not.toBeInTheDocument();
   });
 
   it('opens municipal claims from the tenant profile tab instead of the protected root route on mobile', () => {

@@ -15,6 +15,7 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
   const [errorStatus,setErrorStatus]=useState<number|null>(null);
+  const [failedAnswer,setFailedAnswer]=useState<{id:string;text?:string;revision:string|null;tenantId:number}|null>(null);
   const [showSources,setShowSources]=useState(false),[large,setLarge]=useState(false),[uncovered,setUncovered]=useState(false);
   const [pending,setPending]=useState<KnowledgeReview|null>(null);
   const active=useRef(true),locked=useRef(false),heading=useRef<HTMLElement|null>(null),upload=useRef<HTMLInputElement>(null),serial=useRef(0);
@@ -48,7 +49,7 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   };
   const current=nodes.at(-1)?.id??workspace?.knowledge?.start??'';
   const load=async()=>{
-    const seq=++serial.current;locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setNodes([]);setPending(null);review.current=null;dialog.current=null;setShowSources(false);
+    const seq=++serial.current;locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setPending(null);review.current=null;dialog.current=null;setShowSources(false);
     try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);setAsked('');setUncovered(false);}}
     catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;setErrorStatus(status===401||status===403?status:null);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
@@ -56,18 +57,28 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   useEffect(()=>{active.current=true;void load();return()=>{active.current=false;serial.current++;if(frame.current!==null)cancelAnimationFrame(frame.current);};},[]);
   const navigate=async(id:string,text?:string)=>{
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
-    locked.current=true;setBusy(true);setError(false);setNodes([]);setUncovered(false);setShowSources(false);const seq=++serial.current;
-    if(text){setAsked(text);setQuestion('');}else setAsked('');
+    locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setShowSources(false);const seq=++serial.current;
     try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text}:{})});
-      if(active.current&&serial.current===seq){setNodes(response.nodes);setUncovered(!response.nodes.length);focusResult(seq);}}
-    catch{if(active.current&&serial.current===seq){setError(true);setWorkspace(null);focusResult(seq);}}
+      if(active.current&&serial.current===seq){setNodes(response.nodes);setAsked(text??'');if(text)setQuestion('');setUncovered(!response.nodes.length);focusResult(seq);}}
+    catch(cause){if(active.current&&serial.current===seq){
+      setError(true);
+      const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;
+      if(status===503)setFailedAnswer({id,text,revision:currentWorkspace.revision,tenantId:currentWorkspace.tenant.id});
+      else {setWorkspace(null);setNodes([]);setFailedAnswer(null);}
+      focusResult(seq);
+    }}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
+  };
+  const retryAnswer=()=>{
+    if(failedAnswer&&workspace&&failedAnswer.revision===workspace.revision&&failedAnswer.tenantId===workspace.tenant.id)
+      void navigate(failedAnswer.id,failedAnswer.text);
+    else void load();
   };
   const importFile=async(event:React.ChangeEvent<HTMLInputElement>)=>{
     const file=event.target.files?.[0];event.target.value='';
     if(!file||!workspace?.can_edit||mode!=='admin'||locked.current||dialog.current)return;
-    if(file.size>1_000_000){setError(true);return;}
-    const seq=++serial.current;locked.current=true;setBusy(true);setError(false);
+    if(file.size>1_000_000){setFailedAnswer(null);setError(true);return;}
+    const seq=++serial.current;locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);
     try{
       const bundle=JSON.parse(await file.text());
       if(active.current&&serial.current===seq){
@@ -79,7 +90,7 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   };
   const confirm=async()=>{
     if(!workspace?.can_edit||mode!=='admin'||!review.current||locked.current)return;
-    const previous=workspace;locked.current=true;setBusy(true);setError(false);const op=review.current;returnToHeading.current=true;review.current=null;dialog.current=null;setPending(null);setNodes([]);const seq=++serial.current;
+    const previous=workspace;locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);const op=review.current;returnToHeading.current=true;review.current=null;dialog.current=null;setPending(null);setNodes([]);const seq=++serial.current;
     try{const receipt=await changeWorkspace(previous,op.operation,op.bundle);if(!active.current||serial.current!==seq)return;const fresh=await loadWorkspace(tenantSlug,mode);
       if(receipt.revision!==fresh.revision||receipt.visibility!==fresh.visibility)throw new Error('knowledge_write_unconfirmed');
       if(active.current&&serial.current===seq){setWorkspace(fresh);setLastUi(fresh.ui);setNodes(fresh.knowledge?[fresh.knowledge.initial]:[]);setAsked('');setUncovered(false);}}
@@ -114,11 +125,11 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
           {asked?<div className="institutional-assistant__question"><MessageSquare size={16}/><p>{asked}</p></div>:null}
           {busy?<div className="institutional-assistant__loading" role="status"><Loader2 size={22} className="animate-spin"/><p>{ui.loading}</p></div>:null}
-          {error?<div ref={element=>{heading.current=element;}} tabIndex={-1} role="alert" className="institutional-assistant__notice"><p>{ui.error}</p><button type="button" disabled={busy} onClick={()=>void load()}>{ui.retry}</button></div>:null}
+          {error?<div ref={element=>{heading.current=element;}} tabIndex={-1} role="alert" className="institutional-assistant__notice"><p>{ui.error}</p><button type="button" disabled={busy} onClick={retryAnswer}>{ui.retry}</button></div>:null}
           {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32}/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
           {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{ui.unknown}</p>:null}
-          {!error&&nodes.map((node,index)=><article key={node.id} className="institutional-assistant__answer">
-            <h3 ref={index===0?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose">{node.text.split(/\n\n+/).map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div>
+          {(!error||failedAnswer)&&nodes.map((node,index)=><article key={node.id} className="institutional-assistant__answer">
+            <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose">{node.text.split(/\n\n+/).map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div>
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15}/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15}/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} <span>· {source.pages?.join(', ')}</span>{publicKnowledgeUrl(source.url)?<a href={publicKnowledgeUrl(source.url)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>{source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title} · {quote.page??source.pages?.join(', ')}</cite></blockquote>)}</div>)}</details>
@@ -127,7 +138,7 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
         </div>
         {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{event.preventDefault();if(question.trim())void navigate(current,question.trim());}}>
           <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19}/><textarea id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
-            onChange={event=>setQuestion(event.target.value)} placeholder={ui.placeholder} disabled={busy||Boolean(pending)}
+            onChange={event=>{setQuestion(event.target.value);if(failedAnswer){setFailedAnswer(null);setError(false);}}} placeholder={ui.placeholder} disabled={busy||Boolean(pending)}
             onKeyDown={event=>{
               if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){
                 event.preventDefault();if(question.trim())void navigate(current,question.trim());

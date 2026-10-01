@@ -24,11 +24,22 @@ describe('native institutional workspace contract',()=>{
   mocks.fetch.mockResolvedValue(workspace({revision:'c'.repeat(64),visibility:'public'}));
   await changeWorkspace(workspace(),'publish');expect(mocks.fetch).toHaveBeenCalledWith('/api/admin/tenants/qa-knowledge/institutional-assistant',expect.objectContaining({method:'PUT',singleAttempt:true,body:{operation:'publish',expected_revision:'b'.repeat(64)}}));
  });
- it('allows receipt-backed recovery only for the pinned knowledge read',async()=>{
-  mocks.fetch.mockResolvedValueOnce(workspace()).mockResolvedValueOnce(reply()).mockResolvedValueOnce(workspace());
-  await loadWorkspace('qa-knowledge','admin');await askWorkspace(workspace(),'admin',{node_id:'requirements'});await changeWorkspace(workspace(),'publish');
-  expect(mocks.fetch.mock.calls[0][1]).toMatchObject({method:'GET',singleAttempt:true,allowStartupRecovery:true});
-  for(const [,options]of mocks.fetch.mock.calls.slice(1)){expect(options.singleAttempt).toBe(true);expect(options.allowStartupRecovery).not.toBe(true);}
+ it('allows receipt-backed recovery for canonical reads while questions and writes stay single-attempt',async()=>{
+  mocks.fetch.mockResolvedValueOnce(workspace()).mockResolvedValueOnce(reply()).mockResolvedValueOnce(reply()).mockResolvedValueOnce(workspace());
+  await loadWorkspace('qa-knowledge','admin');await askWorkspace(workspace(),'admin',{node_id:'requirements'});await askWorkspace(workspace(),'admin',{node_id:'requirements',question:'Consulta'});await changeWorkspace(workspace(),'publish');
+  for(const [,options]of mocks.fetch.mock.calls.slice(0,2))expect(options).toMatchObject({method:'GET',singleAttempt:true,allowStartupRecovery:true});
+  for(const [,options]of mocks.fetch.mock.calls.slice(2)){expect(options.singleAttempt).toBe(true);expect(options.allowStartupRecovery).not.toBe(true);}
+ });
+ it.each(['admin','public'] as const)('reads a canonical %s node with exact revision and without an answer POST',async mode=>{
+  mocks.fetch.mockResolvedValue(reply());await askWorkspace(workspace(),mode,{node_id:'requirements'});
+  expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`/api/${mode}/tenants/qa-knowledge/institutional-assistant/nodes/requirements?revision=${'b'.repeat(64)}`,
+    expect.objectContaining({method:'GET',allowStartupRecovery:true}));
+  expect(mocks.fetch.mock.calls[0][1].body).toBeUndefined();
+  if(mode==='public')expect(mocks.fetch.mock.calls[0][1]).toMatchObject({skipAuth:true,omitCredentials:true});
+ });
+ it.each(['selection','node','count'])('rejects a canonical GET response with incompatible %s',async field=>{
+  const data=reply();if(field==='selection')data.selection_performed=true;if(field==='node')data.nodes[0].id='other';if(field==='count')data.nodes=[];
+  mocks.fetch.mockResolvedValue(data);await expect(askWorkspace(workspace(),'admin',{node_id:'requirements'})).rejects.toThrow('knowledge_canonical_response_invalid');
  });
  it('sends a question to the same tenant and current node',async()=>{mocks.fetch.mockResolvedValue(reply());await askWorkspace(workspace(),'admin',{node_id:'requirements',question:'Consulta'});expect(mocks.fetch.mock.calls[0][1].body).toEqual({revision:'b'.repeat(64),node_id:'requirements',question:'Consulta'});});
  it('keeps every private knowledge operation on session authority without inheriting a public widget token',async()=>{

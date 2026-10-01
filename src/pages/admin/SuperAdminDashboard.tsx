@@ -144,7 +144,10 @@ export default function SuperAdminDashboard() {
     const revision = ++crmRevision.current;
     setCrmLeadsLoading(true); setCrmError(null);
     try {
-      const response = await apiFetch<{ items?: any[]; summary?: Record<string, number> }>('/api/admin/crm/leads?limit=8', { omitTenant: true });
+      const response = await apiFetch<{ items?: any[]; summary?: Record<string, number> }>('/api/admin/crm/leads?limit=8', {
+        omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+        singleAttempt: true, allowStartupRecovery: true,
+      });
       if (revision !== crmRevision.current) return;
       if (!Array.isArray(response?.items)) throw new Error('Invalid CRM selection');
       setCrmLeads(response.items); setCrmLeadsSummary(response.summary || {});

@@ -150,17 +150,25 @@ const Navbar: React.FC = () => {
   const requestedKnowledgeTenant = readExplicitTenantRequest(new URLSearchParams(location.search));
   const selectedKnowledgeTenant = requestedKnowledgeTenant.present
     ? requestedKnowledgeTenant.valid ? requestedKnowledgeTenant.slug : null
-    : normalizeProfileTenantSlug(readCanonicalTenantSlugFromPath(location.pathname));
+    : normalizeProfileTenantSlug(readCanonicalTenantSlugFromPath(location.pathname) || /^\/([^/]+)\/(?:analytics|estadisticas)(?:\/|$)/i.exec(location.pathname)?.[1]);
+  const isSelectedPlatformTenant = Boolean(isLoggedIn && hasRequiredRole(userRole, ['superadmin']) && !isPlatformAdmin && explicitTenantScope);
+  const selectedTenantIdentity = isSelectedPlatformTenant && organizationProfileVerified && !isLoadingTenant && !tenantError && selectedKnowledgeTenant &&
+    normalizeProfileTenantSlug(currentSlug) === selectedKnowledgeTenant && normalizeProfileTenantSlug(tenant?.slug) === selectedKnowledgeTenant &&
+    tenant?.publishedIdentity?.tenantSlug === selectedKnowledgeTenant ? tenant.publishedIdentity : null;
+  const selectedTenantType = selectedTenantIdentity ? String(tenant?.tipo || '').trim().toLowerCase() : '';
+  const organizationProfileHref = isSelectedPlatformTenant && selectedKnowledgeTenant
+    ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/perfil?tab=perfil';
+  const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant : currentSlug;
   const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
     ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
     : '/admin/knowledge';
-  const isMunicipal = effectiveUser?.tipo_chat === "municipio";
+  const isMunicipal = isSelectedPlatformTenant ? selectedTenantType === 'municipio' : effectiveUser?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
-  const organizationName = privateShell.active ? privateShell.identity?.name || 'Organización' :
+  const organizationName = isSelectedPlatformTenant ? selectedTenantIdentity?.name || 'Organización seleccionada' : privateShell.active ? privateShell.identity?.name || 'Organización' :
     isPlatformAdmin ? 'ChatBoc · Plataforma' : String(
       effectiveUser?.nombre_empresa ||
         effectiveUser?.tenant?.nombre ||
@@ -168,7 +176,9 @@ const Navbar: React.FC = () => {
         effectiveUser?.organization_name ||
         "",
     ).trim() || "Organización";
-  const organizationType = isPlatformAdmin ? 'Superadministrador' : isMunicipal ? "Municipio" : "Empresa";
+  const organizationType = isPlatformAdmin ? 'Superadministrador' : isSelectedPlatformTenant
+    ? selectedTenantType === 'municipio' ? 'Municipio' : ['pyme','empresa'].includes(selectedTenantType) ? 'Empresa' : 'Organización'
+    : isMunicipal ? "Municipio" : "Empresa";
   const normalizedPlan = String(effectiveUser?.plan || effectiveUser?.tenant?.plan || "").trim().toLowerCase();
   const readablePlanName = normalizedPlan
     .split("_")
@@ -259,7 +269,7 @@ const Navbar: React.FC = () => {
       roles: ["super_admin", "superadmin"],
     });
 
-    links.push({ to: buildTenantPath("/", currentSlug), label: "Ver sitio publico", icon: Layout });
+    if(publicSiteSlug)links.push({ to: buildTenantPath("/", publicSiteSlug), label: "Ver sitio publico", icon: Layout });
 
     const hasBackendCapabilities = capabilities.length > 0;
 
@@ -274,7 +284,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref]);
+  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref]);
 
   const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
   useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);
@@ -456,6 +466,7 @@ const Navbar: React.FC = () => {
                   </span>
                 </DropdownMenuLabel>
                 {!isPlatformAdmin && <>
+                {!isSelectedPlatformTenant && <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Plan y facturación
@@ -469,12 +480,13 @@ const Navbar: React.FC = () => {
                     </span>
                   </RouterLink>
                 </DropdownMenuItem>
+                </>}
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Configuración
                 </DropdownMenuLabel>
                 <DropdownMenuItem asChild>
-                  <RouterLink to="/perfil?tab=perfil" className="flex items-center gap-2 text-sm">
+                  <RouterLink to={organizationProfileHref} className="flex items-center gap-2 text-sm">
                     <Settings className="h-4 w-4" />
                     Perfil y organización
                   </RouterLink>
@@ -587,6 +599,7 @@ const Navbar: React.FC = () => {
                   {isPlatformAdmin && effectiveUser?.email ? <p className="mt-1 break-all text-xs text-muted-foreground">{effectiveUser.email}</p> : null}
                 </div>
                 {!isPlatformAdmin && <>
+                {!isSelectedPlatformTenant &&
                 <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
                   <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plan y facturación</p>
                   <RouterLink
@@ -600,10 +613,10 @@ const Navbar: React.FC = () => {
                       <span className="block text-xs font-normal text-muted-foreground">Uso, límites y facturación</span>
                     </span>
                   </RouterLink>
-                </div>
+                </div>}
                 <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
                   <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Configuración</p>
-                  <RouterLink to="/perfil?tab=perfil" onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                  <RouterLink to={organizationProfileHref} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                     <Settings className="h-4 w-4" />
                     Perfil y organización
                   </RouterLink>

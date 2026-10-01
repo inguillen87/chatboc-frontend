@@ -57,6 +57,18 @@ export async function loadWorkspace(slug:string,mode:'admin'|'public') {
   return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,allowStartupRecovery:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),slug,mode);
 }
 export async function askWorkspace(workspace:KnowledgeWorkspace,mode:'admin'|'public',input:{node_id:string;question?:string}) {
+  if(input.question===undefined){
+    if(!hash(workspace.revision)||!string(input.node_id,120))throw new Error('knowledge_answer_scope_invalid');
+    const raw=await apiFetch(knowledgeEndpoint(workspace.tenant.slug,mode)+`/nodes/${encodeURIComponent(input.node_id)}?revision=${workspace.revision}`,{
+      method:'GET',tenantSlug:workspace.tenant.slug,cache:'no-store',singleAttempt:true,allowStartupRecovery:true,
+      omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,
+      ...(mode==='public'?{skipAuth:true,omitCredentials:true}: {}),
+    });
+    const response=parseAnswer(raw,workspace);
+    if(!record(raw)||raw.selection_performed!==false||response.nodes.length!==1||response.nodes[0].id!==input.node_id)
+      throw new Error('knowledge_canonical_response_invalid');
+    return response;
+  }
   return parseAnswer(await apiFetch(knowledgeEndpoint(workspace.tenant.slug,mode)+'/answer',{method:'POST',tenantSlug:workspace.tenant.slug,
     cache:'no-store',singleAttempt:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,body:{revision:workspace.revision,...input},...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),workspace);
 }

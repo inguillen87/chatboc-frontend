@@ -6,9 +6,18 @@ import { clearLocalChatbocSession } from './sessionLogout';
 vi.mock('@/config', async original => ({ ...await original<typeof import('@/config')>(),
   API_BASE_CANDIDATES: ['/api','https://retired.example.invalid'], BASE_API_URL:'/api', SAME_ORIGIN_PROXY_BASE:'/api',
 }));
+vi.mock('@/utils/api', async () => await vi.importActual<typeof import('./api')>('./api'));
 let apiFetch: typeof import('./api').apiFetch;
+let apiClient: typeof import('@/api/client').apiClient;
+let panelApi: typeof import('@/api/v2/client').panelApi;
+let followUpApi: typeof import('@/features/crm/followup/followUpApi').followUpApi;
 const originalFetch = global.fetch;
-beforeAll(async () => { apiFetch = (await vi.importActual<typeof import('./api')>('./api')).apiFetch; });
+beforeAll(async () => {
+  apiFetch = (await vi.importActual<typeof import('./api')>('./api')).apiFetch;
+  apiClient = (await vi.importActual<typeof import('@/api/client')>('@/api/client')).apiClient;
+  panelApi = (await vi.importActual<typeof import('@/api/v2/client')>('@/api/v2/client')).panelApi;
+  followUpApi = (await vi.importActual<typeof import('@/features/crm/followup/followUpApi')>('@/features/crm/followup/followUpApi')).followUpApi;
+});
 beforeEach(() => {
   safeLocalStorage.clear();
   usePanelSessionStore.setState({ authToken: null, user: null });
@@ -81,6 +90,78 @@ const changePublicPresentationContext = () => {
   safeLocalStorage.setItem('tenantSlug', 'unrelated-public-tenant');
   useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-public-chat-token' });
 };
+const globalPanelOptions = { omitTenant: true, omitEntityToken: true, omitChatSessionId: true,
+  isWidgetRequest: false, singleAttempt: true, allowStartupRecovery: true };
+it('dispatches an isolated global directory read while public tenant and widget state change', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+  panelCookieIdentity();
+  safeLocalStorage.setItem('chatAuthToken', 'synthetic-public-widget-bearer');
+  useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-public-widget-bearer' });
+  global.fetch = vi.fn().mockImplementation(async url => {
+    if (url === '/api/version') { changePublicPresentationContext(); return new Response('{"backend":"sha","frontend":"web"}'); }
+    return new Response('{"tenants":[],"total":0}', { headers: { 'Content-Type': 'application/json' } });
+  });
+  await expect(apiFetch('/api/admin/tenants', globalPanelOptions)).resolves.toEqual({ tenants: [], total: 0 });
+  const [url, init] = vi.mocked(global.fetch).mock.calls[1];
+  expect(url).toBe('/api/admin/tenants');
+  const headers = new Headers(init?.headers);
+  expect(headers.has('X-Tenant')).toBe(false);
+  expect(headers.has('Authorization')).toBe(false);
+  expect(headers.has('X-Entity-Token')).toBe(false);
+  expect(init?.credentials).toBe('include');
+});
+it.each(['token', 'same-actor-relogin'])('retires an isolated global read when authenticated %s changes', async identity => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+  panelCookieIdentity();
+  global.fetch = vi.fn().mockImplementation(async () => {
+    if (identity === 'token') usePanelSessionStore.setState({ authToken: 'synthetic-other-token' });
+    else { clearLocalChatbocSession(); panelCookieIdentity(); }
+    return new Response('{"backend":"sha","frontend":"web"}');
+  });
+  await expect(apiFetch('/api/admin/tenants', globalPanelOptions)).rejects.toMatchObject({ name: 'AbortError' });
+  expect(global.fetch).toHaveBeenCalledOnce();
+});
+it.each(['directory','inventory','executive'] as const)('actual %s caller keeps global panel authority while public context initializes', async caller => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+  panelCookieIdentity();
+  useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-public-widget-bearer' });
+  global.fetch = vi.fn().mockImplementation(async url => {
+    if (url === '/api/version') { changePublicPresentationContext(); return new Response('{"backend":"sha","frontend":"web"}'); }
+    return new Response('{"verified":true}', { headers: { 'Content-Type': 'application/json' } });
+  });
+  const result = caller === 'directory' ? apiClient.superAdminListTenants(1,100)
+    : caller === 'inventory' ? apiClient.superAdminListWhatsappNumbers()
+    : panelApi.get('/api/v2/superadmin/executive-summary');
+  await expect(result).resolves.toEqual({ verified: true });
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+  const [url, init] = vi.mocked(global.fetch).mock.calls[1];
+  expect(String(url)).not.toMatch(/[?&](?:tenant|tenant_slug)=/);
+  expect(new Headers(init?.headers).has('X-Tenant')).toBe(false);
+  expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+});
+it('recovers a global directory cold read without acquiring public context or changing destination', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+  panelCookieIdentity();let reads=0;
+  global.fetch = vi.fn().mockImplementation(async url => {
+    if(url === '/api/version') { changePublicPresentationContext(); return new Response('{"backend":"sha","frontend":"web"}'); }
+    return ++reads===1?cold():new Response('{"verified":true}', { headers: { 'Content-Type': 'application/json' } });
+  });
+  await expect(apiClient.superAdminListTenants()).resolves.toEqual({verified:true});
+  const calls=vi.mocked(global.fetch).mock.calls;expect(calls).toHaveLength(3);
+  expect(calls[0]).toEqual(calls[2]);expect(calls[1][0]).toBe('/api/version');
+});
+it('actual global follow-up agenda reads without inheriting parallel public context', async () => {
+  vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED','true');panelCookieIdentity();
+  useWidgetSessionStore.setState({chatAuthToken:'synthetic-public-widget-bearer'});
+  global.fetch=vi.fn().mockImplementation(async url=>{
+    if(url==='/api/version'){changePublicPresentationContext();return new Response('{"backend":"sha","frontend":"web"}');}
+    return new Response('{"items":[]}',{headers:{'Content-Type':'application/json'}});
+  });
+  await expect(followUpApi.list()).resolves.toEqual({items:[],received:0,excluded:0});
+  expect(global.fetch).toHaveBeenCalledTimes(2);const [url,init]=vi.mocked(global.fetch).mock.calls[1];
+  expect(url).toBe('/api/admin/crm/leads?limit=100');expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+  expect(new Headers(init?.headers).has('X-Tenant')).toBe(false);
+});
 
 it('dispatches a pinned panel tenant after readiness even if public presentation context changes', async () => {
   vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');

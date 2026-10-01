@@ -30,6 +30,50 @@ describe('institutional workspace inside the application',()=>{
   expect(screen.queryByText(node().text)).not.toBeInTheDocument();expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();
   mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
  });
+ it('preserves canonical content after a cold node read and retries that same revision only on a click',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503,body:{detail:'PRIVATE BODY'}});
+  fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));await screen.findByRole('alert');
+  expect(screen.getByText(node().text)).toBeVisible();expect(screen.getByText('Institución de prueba')).toBeVisible();
+  expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  const failed=mocks.fetch.mock.calls[1];mocks.fetch.mockResolvedValueOnce(reply());
+  fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));
+  expect(await screen.findByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
+  expect(mocks.fetch.mock.calls[2]).toEqual(failed);expect(failed[1].method).toBe('GET');
+ });
+ it('keeps a failed typed question and retries the same POST only after an explicit click',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503});
+  const input=screen.getByLabelText('Escribí tu consulta');fireEvent.change(input,{target:{value:'¿Qué documentos necesito?'}});
+  fireEvent.submit(input.closest('form')!);await screen.findByRole('alert');
+  expect(input).toHaveValue('¿Qué documentos necesito?');expect(screen.getByText(node().text)).toBeVisible();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);const failed=mocks.fetch.mock.calls[1];
+  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));
+  await screen.findByRole('heading',{name:'Requisitos de la consulta'});expect(mocks.fetch.mock.calls[2]).toEqual(failed);
+  expect(failed[1].method).toBe('POST');expect(input).toHaveValue('');
+ });
+ it('lets an edited failed question become a new request instead of sending the old input',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503});
+  const input=screen.getByLabelText('Escribí tu consulta');fireEvent.change(input,{target:{value:'Pregunta anterior'}});
+  fireEvent.submit(input.closest('form')!);await screen.findByRole('alert');
+  fireEvent.change(input,{target:{value:'Pregunta corregida'}});expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.submit(input.closest('form')!);await screen.findByRole('heading',{name:'Requisitos de la consulta'});
+  expect(mocks.fetch.mock.calls[2][1].body.question).toBe('Pregunta corregida');
+ });
+ it.each([401,403,412])('requires a fresh read after answer HTTP %s instead of retrying its revision',async status=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status});
+  fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));await screen.findByRole('alert');
+  expect(screen.queryByText(node().text)).not.toBeInTheDocument();mocks.fetch.mockResolvedValueOnce(workspace());
+  fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
+  expect(mocks.fetch.mock.calls[2][0]).toBe('/api/admin/tenants/qa-knowledge/institutional-assistant');
+ });
+ it('removes failed input and retained private answers when the actor changes',async()=>{
+  const mounted=render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503});
+  const input=screen.getByLabelText('Escribí tu consulta');fireEvent.change(input,{target:{value:'Consulta privada anterior'}});
+  fireEvent.submit(input.closest('form')!);await screen.findByRole('alert');
+  mocks.fetch.mockResolvedValueOnce(workspace({tenant:{id:701,slug:'qa-knowledge',name:'Nueva sesión'}}));
+  mounted.rerender(view('qa-knowledge','actor-b'));await screen.findByText('Nueva sesión');
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();expect(screen.getByLabelText('Escribí tu consulta')).toHaveValue('');
+  expect(screen.queryByText('Consulta privada anterior')).not.toBeInTheDocument();
+ });
  it('does not restore a response after switching the verified actor',async()=>{
   const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);const mounted=render(view());
   mocks.fetch.mockResolvedValueOnce(workspace({tenant:{id:701,slug:'qa-knowledge',name:'Nueva sesión'}}));mounted.rerender(view('qa-knowledge','actor-b'));
@@ -46,6 +90,8 @@ describe('institutional workspace inside the application',()=>{
   render(view());await screen.findByRole('button',{name:'Habilitar en el agente'});fireEvent.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
   mocks.fetch.mockRejectedValueOnce(new Error('network'));fireEvent.click(screen.getByRole('button',{name:'Confirmar cambio'}));await screen.findByRole('alert');
   expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(screen.queryByRole('button',{name:'Confirmar cambio'})).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
+  expect(mocks.fetch.mock.calls[2][1].method).toBe('GET');
  });
  it('offers larger type without changing the answer or making requests',async()=>{render(view());await screen.findByText(node().text);fireEvent.click(screen.getByRole('button',{name:'Texto ampliado'}));expect(screen.getByTestId('institutional-assistant')).toHaveClass('institutional-assistant--large');expect(mocks.fetch).toHaveBeenCalledOnce();});
  it('does not create a workspace without a verified session',()=>{render(<InstitutionalAssistant tenantSlug="qa-knowledge"/>);expect(mocks.fetch).not.toHaveBeenCalled();});

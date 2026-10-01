@@ -56,6 +56,9 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     omitTenant: !tenantSlug,
     baseUrlOverride,
     allowSafeBaseFallback,
+    ...(!skipAuth && !isWidgetRequest && !tenantSlug && method === 'GET' && /^\/api\/v2\/superadmin\//.test(path)
+      ? { isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, singleAttempt: true, allowStartupRecovery: true }
+      : {}),
   };
 
   try {

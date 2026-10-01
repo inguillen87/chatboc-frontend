@@ -15,7 +15,10 @@ describe('follow-up preflight, persistence and verification',()=>{
   });
   it('does not inherit a tenant for the global agenda',async()=>{
     mock.fetch.mockResolvedValue({items:[]});await followUpApi.list();
-    expect(mock.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/crm/leads?limit=100',{omitTenant:true,persistTenantSlug:false});
+    expect(mock.fetch).toHaveBeenCalledExactlyOnceWith('/api/admin/crm/leads?limit=100',{
+      omitTenant:true,persistTenantSlug:false,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,
+      singleAttempt:true,allowStartupRecovery:true,
+    });
   });
   it('sends only notes and next action after preflight, then verifies persisted values',async()=>{
     mock.fetch.mockResolvedValueOnce(history()).mockResolvedValueOnce({ok:true,contact:{contact_id:'contact-42'}}).mockResolvedValueOnce(history(desired.notes,desired.nextActionAt));

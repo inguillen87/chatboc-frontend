@@ -980,10 +980,10 @@ export async function apiFetch<T>(
     : treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path, { persist: persistTenantSlug !== false });
-  // An explicit private panel scope has its own tenant authority. Public page,
+  // Explicit tenant and global panel scopes have their own authority. Public page,
   // cart and widget initialization may update presentation storage in parallel.
-  const isPinnedPanelRequest = !skipAuth && !treatAsWidget && isWidgetRequest === false &&
-    typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug) && persistTenantSlug === false &&
+  const isIsolatedPanelRequest = !skipAuth && !treatAsWidget && isWidgetRequest === false &&
+    (omitTenant === true || (typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug) && persistTenantSlug === false)) &&
     omitEntityToken === true && omitChatSessionId === true;
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
@@ -1022,7 +1022,7 @@ export async function apiFetch<T>(
       if (panelToken) {
         token = panelToken;
         tokenSource = "authToken";
-      } else if (chatToken && !isPinnedPanelRequest) {
+      } else if (chatToken && !isIsolatedPanelRequest) {
         token = chatToken;
         tokenSource = "chatAuthToken";
       }
@@ -1273,10 +1273,10 @@ export async function apiFetch<T>(
   };
 
   const readRequestIdentity = () => JSON.stringify([
-    usePanelSessionStore.getState().authToken, isPinnedPanelRequest ? null : useWidgetSessionStore.getState().chatAuthToken,
-    safeLocalStorage.getItem('authToken'), isPinnedPanelRequest ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
+    usePanelSessionStore.getState().authToken, isIsolatedPanelRequest ? null : useWidgetSessionStore.getState().chatAuthToken,
+    safeLocalStorage.getItem('authToken'), isIsolatedPanelRequest ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
     safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),
-    ...(isPinnedPanelRequest ? [
+    ...(isIsolatedPanelRequest ? [
       safeLocalStorage.getItem('clerkSessionTransport'), usePanelSessionStore.getState().user?.id,
       parseStoredJsonRecord('user')?.id, captureChatbocSessionRevision(),
     ] : []),
