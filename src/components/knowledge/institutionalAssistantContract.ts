@@ -54,7 +54,7 @@ export function knowledgeEndpoint(slug:string,mode:'admin'|'public') {
   return `/api/${mode}/tenants/${encodeURIComponent(slug)}/institutional-assistant`;
 }
 export async function loadWorkspace(slug:string,mode:'admin'|'public') {
-  return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),slug,mode);
+  return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,allowStartupRecovery:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),slug,mode);
 }
 export async function askWorkspace(workspace:KnowledgeWorkspace,mode:'admin'|'public',input:{node_id:string;question?:string}) {
   return parseAnswer(await apiFetch(knowledgeEndpoint(workspace.tenant.slug,mode)+'/answer',{method:'POST',tenantSlug:workspace.tenant.slug,

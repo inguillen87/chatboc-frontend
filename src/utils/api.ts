@@ -16,6 +16,7 @@ import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 import { fetchWithStartupContinuity, isClerkSessionRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
+import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -661,8 +662,10 @@ const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number
 
 interface ApiFetchOptions {
   signal?: AbortSignal;
-  /** One chosen destination and request only: no path/base fallback or redirects. */
+  /** One chosen destination: no path/base fallback or redirects; no replay by default. */
   singleAttempt?: boolean;
+  /** Allow only GET recovery on a verified pre-dispatch startup receipt, at the same destination. */
+  allowStartupRecovery?: boolean;
   schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
@@ -977,6 +980,11 @@ export async function apiFetch<T>(
     : treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path, { persist: persistTenantSlug !== false });
+  // An explicit private panel scope has its own tenant authority. Public page,
+  // cart and widget initialization may update presentation storage in parallel.
+  const isPinnedPanelRequest = !skipAuth && !treatAsWidget && isWidgetRequest === false &&
+    typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug) && persistTenantSlug === false &&
+    omitEntityToken === true && omitChatSessionId === true;
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -1014,7 +1022,7 @@ export async function apiFetch<T>(
       if (panelToken) {
         token = panelToken;
         tokenSource = "authToken";
-      } else if (chatToken) {
+      } else if (chatToken && !isPinnedPanelRequest) {
         token = chatToken;
         tokenSource = "chatAuthToken";
       }
@@ -1265,13 +1273,17 @@ export async function apiFetch<T>(
   };
 
   const readRequestIdentity = () => JSON.stringify([
-    usePanelSessionStore.getState().authToken, useWidgetSessionStore.getState().chatAuthToken,
-    safeLocalStorage.getItem('authToken'), safeLocalStorage.getItem('tenantSlug'),
+    usePanelSessionStore.getState().authToken, isPinnedPanelRequest ? null : useWidgetSessionStore.getState().chatAuthToken,
+    safeLocalStorage.getItem('authToken'), isPinnedPanelRequest ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
     safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),
+    ...(isPinnedPanelRequest ? [
+      safeLocalStorage.getItem('clerkSessionTransport'), usePanelSessionStore.getState().user?.id,
+      parseStoredJsonRecord('user')?.id, captureChatbocSessionRevision(),
+    ] : []),
   ]);
   const requestIdentity = readRequestIdentity();
   const dispatch = (destination: string, init: RequestInit) => fetchWithStartupContinuity(destination, init, {
-    singleAttempt: options.singleAttempt === true,
+    singleAttempt: options.singleAttempt === true && !(options.allowStartupRecovery === true && method === 'GET'),
     isCurrent: () => readRequestIdentity() === requestIdentity,
   });
 

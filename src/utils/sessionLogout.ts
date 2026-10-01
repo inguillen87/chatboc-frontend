@@ -3,12 +3,17 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { clearCachedWidgetToken } from '@/utils/widgetTokenScope';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
 import { clearClerkAuthContext } from '@/utils/clerkAuthContext';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+export {
+  captureChatbocSessionRevision,
+  isChatbocSessionRevisionCurrent,
+  advanceChatbocSessionRevision,
+} from '@/utils/chatbocSessionRevision';
 
 type ClerkSignOut = () => Promise<unknown> | unknown;
 type JwtClaims = Record<string, unknown>;
 
 let activeClerkSignOut: ClerkSignOut | null = null;
-let sessionRevision = 0;
 
 const decodeJwtClaims = (token?: string | null): JwtClaims | null => {
   if (!token) return null;
@@ -62,18 +67,8 @@ export const registerClerkSignOut = (signOut: ClerkSignOut) => {
   };
 };
 
-export const captureChatbocSessionRevision = () => sessionRevision;
-
-export const isChatbocSessionRevisionCurrent = (revision: number) =>
-  revision === sessionRevision;
-
-export const advanceChatbocSessionRevision = () => {
-  sessionRevision += 1;
-  return sessionRevision;
-};
-
 export const clearLocalChatbocSession = () => {
-  advanceChatbocSessionRevision();
+  const sessionRevision = advanceChatbocSessionRevision();
   usePanelSessionStore.getState().clearSession();
   useWidgetSessionStore.getState().clearSession();
   useTenantStore.getState().clearTenant();
