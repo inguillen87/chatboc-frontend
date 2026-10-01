@@ -36,6 +36,8 @@ export class BackendBootstrapError extends Error {
 }
 
 const readinessByUrl = new Map<string, Promise<void>>();
+const readyUntilByUrl = new Map<string, number>();
+const READY_LEASE_MS = 30_000;
 
 const parseBooleanFlag = (value: unknown): boolean | null => {
   if (typeof value === 'boolean') return value;
@@ -55,7 +57,8 @@ export const isBackendBootstrapGateEnabled = (): boolean => {
   }
   const explicit = parseBooleanFlag(import.meta.env.VITE_BACKEND_BOOTSTRAP_GATE_ENABLED);
   if (explicit !== null) return explicit;
-  return window.location.hostname.toLowerCase().endsWith('.vercel.app');
+  const host = window.location.hostname.toLowerCase();
+  return host.endsWith('.vercel.app') || host === 'chatboc.ar' || host.endsWith('.chatboc.ar');
 };
 
 const normalizeHttpBase = (value?: string | null): string => {
@@ -180,7 +183,9 @@ export const ensureBackendRuntimeReady = (
 
   const readinessUrl = resolveBackendReadinessUrl(options.baseUrl);
   const existing = readinessByUrl.get(readinessUrl);
-  if (existing) return existing;
+  if (existing && (!readyUntilByUrl.has(readinessUrl) || Date.now() < readyUntilByUrl.get(readinessUrl)!)) return existing;
+  readinessByUrl.delete(readinessUrl);
+  readyUntilByUrl.delete(readinessUrl);
 
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS, 8));
@@ -198,9 +203,12 @@ export const ensureBackendRuntimeReady = (
   const readiness = Promise.race([
     probeBackend(readinessUrl, { fetcher, maxAttempts, wait }, controller.signal),
     deadline,
-  ]).finally(() => clearTimeout(timer)).catch((error) => {
+  ]).then(() => {
+    if (readinessByUrl.get(readinessUrl) === readiness) readyUntilByUrl.set(readinessUrl, Date.now() + READY_LEASE_MS);
+  }).finally(() => clearTimeout(timer)).catch((error) => {
     if (readinessByUrl.get(readinessUrl) === readiness) {
       readinessByUrl.delete(readinessUrl);
+      readyUntilByUrl.delete(readinessUrl);
     }
     throw error;
   });
@@ -208,6 +216,13 @@ export const ensureBackendRuntimeReady = (
   return readiness;
 };
 
+export const invalidateBackendRuntimeReady = (baseUrl: string): void => {
+  const key = resolveBackendReadinessUrl(baseUrl);
+  // Keep an in-flight shared probe; retire only a previous success.
+  if (readyUntilByUrl.has(key)) { readinessByUrl.delete(key); readyUntilByUrl.delete(key); }
+};
+
 export const resetBackendBootstrapGateForTests = () => {
+  readyUntilByUrl.clear();
   readinessByUrl.clear();
 };

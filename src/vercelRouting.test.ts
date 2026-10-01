@@ -20,7 +20,7 @@ describe('Vercel routing contract', () => {
     const analyticsCsvExportIndex = rewrites.findIndex(
       (rule) =>
         rule.source === '/admin/analytics/export.csv' &&
-        rule.destination === 'https://api.chatboc.ar/admin/analytics/export.csv' &&
+        rule.destination === 'https://chatboc-backend-z72ckwg3o-marcelos-projects-c26aa499.vercel.app/admin/analytics/export.csv' &&
         !rule.has,
     );
 
@@ -38,7 +38,7 @@ describe('Vercel routing contract', () => {
     const adminApiIndex = rewrites.findIndex(
       (rule) =>
         rule.source === '/admin/(.*)' &&
-        rule.destination === 'https://api.chatboc.ar/admin/$1' &&
+        rule.destination === 'https://chatboc-backend-z72ckwg3o-marcelos-projects-c26aa499.vercel.app/admin/$1' &&
         !rule.has,
     );
 

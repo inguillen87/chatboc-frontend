@@ -216,6 +216,7 @@ export const syncClerkSession = (
   token: string,
   user: ClerkUserProfilePayload,
   context: { intent?: ClerkAuthIntent; tenant_slug?: string | null } = {},
+  signal?: AbortSignal,
 ) =>
   apiFetch<ClerkSessionResponse>('/api/auth/clerk/session', {
     method: 'POST',
@@ -224,6 +225,7 @@ export const syncClerkSession = (
     omitCredentials: false,
     headers: clerkHeaders(token),
     body: { user, ...context },
+    ...(signal ? { signal } : {}),
   });
 
 export const completeClerkOnboarding = (token: string, payload: ClerkOnboardingPayload) =>

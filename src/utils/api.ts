@@ -14,7 +14,8 @@ import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new 
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import { ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
+import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
+import { fetchWithStartupContinuity, isClerkSessionRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -659,6 +660,7 @@ const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number
 };
 
 interface ApiFetchOptions {
+  signal?: AbortSignal;
   /** One chosen destination and request only: no path/base fallback or redirects. */
   singleAttempt?: boolean;
   schema?: ZodType<any, any, any>;
@@ -1258,8 +1260,20 @@ export async function apiFetch<T>(
     headers,
     body: isForm ? body : (typeof body === "string" ? body : (body ? JSON.stringify(body) : undefined)),
     credentials: shouldOmitCredentials ? 'omit' : 'include',
+    signal: options.signal,
     cache,
   };
+
+  const readRequestIdentity = () => JSON.stringify([
+    usePanelSessionStore.getState().authToken, useWidgetSessionStore.getState().chatAuthToken,
+    safeLocalStorage.getItem('authToken'), safeLocalStorage.getItem('tenantSlug'),
+    safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),
+  ]);
+  const requestIdentity = readRequestIdentity();
+  const dispatch = (destination: string, init: RequestInit) => fetchWithStartupContinuity(destination, init, {
+    singleAttempt: options.singleAttempt === true,
+    isCurrent: () => readRequestIdentity() === requestIdentity,
+  });
 
   // Vercel Preview containers can scale from zero. Every request, including
   // mutations, waits on the same contract-aware readiness promise so the first
@@ -1271,17 +1285,19 @@ export async function apiFetch<T>(
   const attemptedUrls = new Set<string>();
 
   const singleAttempt = options.singleAttempt === true;
-  if (singleAttempt) {
-    response = await fetch(url, { ...requestInit, redirect: 'error' });
+  const exclusiveRequest = singleAttempt || isClerkSessionRequest(url, method);
+  if (exclusiveRequest) {
+    response = await dispatch(url, { ...requestInit, redirect: 'error' });
   } else if (isAbsolutePath) {
     try {
-      response = await fetch(url, requestInit);
+      response = await dispatch(url, requestInit);
     } catch (err) {
+      if (err instanceof BackendBootstrapError || (err as Error)?.name === 'AbortError') throw err;
       lastError = err;
     }
   }
 
-  for (let baseIndex = 0; !singleAttempt && baseIndex < candidateBases.length; baseIndex++) {
+  for (let baseIndex = 0; !exclusiveRequest && baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];
     const cleanBase = (base || "").replace(/\/$/, "");
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
@@ -1305,7 +1321,7 @@ export async function apiFetch<T>(
       url = candidateUrl;
 
       try {
-        const candidateResponse = await fetch(candidateUrl, requestInit);
+        const candidateResponse = await dispatch(candidateUrl, requestInit);
 
         const shouldRetryForStatus = (status: number) => {
           if (status === 404) {
@@ -1333,7 +1349,7 @@ export async function apiFetch<T>(
         const hasMoreBases = baseIndex < candidateBases.length - 1;
         const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
         const isRetryableGatewayFailure =
-          isSafeReadRequest && [502, 503, 504].includes(candidateResponse.status);
+          isSafeReadRequest && !isStartupResponse(candidateResponse) && [502, 503, 504].includes(candidateResponse.status);
         const candidateContentType =
           candidateResponse.headers.get("content-type")?.toLowerCase() ?? "";
         const looksLikeFrontendHtmlShell =
@@ -1376,7 +1392,8 @@ export async function apiFetch<T>(
         response = candidateResponse;
         break;
       } catch (err) {
-        lastError = err;
+        if (err instanceof BackendBootstrapError || (err as Error)?.name === 'AbortError') throw err;
+      lastError = err;
         continue;
       }
     }
@@ -1386,10 +1403,10 @@ export async function apiFetch<T>(
     }
   }
 
-  if (!singleAttempt && !response && fallbackUrl) {
+  if (!exclusiveRequest && !response && fallbackUrl) {
     try {
       url = fallbackUrl;
-      response = await fetch(fallbackUrl, requestInit);
+      response = await dispatch(fallbackUrl, requestInit);
     } catch (fallbackErr) {
       lastError = fallbackErr;
     }

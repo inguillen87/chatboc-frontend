@@ -230,6 +230,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     onSessionPending?.(currentSessionIdentity);
 
     let cancelled = false;
+    const syncController = new AbortController();
     let sessionRevision: number | null = null;
     const hasCurrentIdentity = () =>
       !cancelled && activeClerkUserIdRef.current === currentClerkUserId;
@@ -257,7 +258,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
         const session = await syncClerkSession(token, nextProfile, {
           intent: authContext.intent,
           tenant_slug: authContext.tenantSlug,
-        });
+        }, syncController.signal);
         if (!isCurrentSync()) return;
 
         if (session.onboarding?.required) {
@@ -317,6 +318,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     run();
     return () => {
       cancelled = true;
+      syncController.abort();
     };
   }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, onSessionPending, onSessionReady, refreshUser, resetBridgeState, sessionId, syncRetryNonce]);
 

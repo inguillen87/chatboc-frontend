@@ -129,3 +129,26 @@ describe('backend bootstrap gate', () => {
     expect(isBackendBootstrapGateEnabled()).toBe(false);
   });
 });
+
+describe('readiness is not a permanent container guarantee', () => {
+  it('reprobes an expired success but reuses a recent one', async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{"backend":"sha","frontend":"web"}'));
+    await ensureBackendRuntimeReady({ enabled:true, fetcher });
+    await ensureBackendRuntimeReady({ enabled:true, fetcher });
+    expect(fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(30_001);
+    await ensureBackendRuntimeReady({ enabled:true, fetcher });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('retires an explicit restarted container success without merging other origins', async () => {
+    const { invalidateBackendRuntimeReady } = await import('./backendBootstrapGate');
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{"backend":"sha","frontend":"web"}'));
+    await ensureBackendRuntimeReady({ baseUrl:'/api', enabled:true, fetcher });
+    await ensureBackendRuntimeReady({ baseUrl:'https://other.example.invalid', enabled:true, fetcher });
+    invalidateBackendRuntimeReady('/api/organizations');
+    await ensureBackendRuntimeReady({ baseUrl:'/api', enabled:true, fetcher });
+    await ensureBackendRuntimeReady({ baseUrl:'https://other.example.invalid', enabled:true, fetcher });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+});

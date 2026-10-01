@@ -348,6 +348,7 @@ describe('ClerkAuthBridge session lifecycle', () => {
       'clerk-jwt',
       expect.any(Object),
       { intent: 'tenant_portal', tenant_slug: 'junin' },
+      expect.any(AbortSignal),
     );
     expect(safeLocalStorage.getItem('clerkAuthIntent')).toBe('tenant_portal');
   });
