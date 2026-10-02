@@ -12,6 +12,7 @@ import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { useSessionAuthority } from '@/components/access/SessionAuthorityContext';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
+import {registerSessionRetirement,validateSessionRetirementProof,readActiveClerkSessionId,type SessionRetirementBinding} from '@/utils/sessionRetirement';
 import {
   captureChatbocSessionRevision,
   clearLocalChatbocSession,
@@ -204,6 +205,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isCurrent: isCurrentRequest,
       });
       if (!isCurrentRequest()) return;
+      const provider=hasPersistedClerkSession()?'clerk':'native';
+      const retirementBinding:SessionRetirementBinding={actorId:data.id,provider,clerkSessionId:provider==='clerk'?readActiveClerkSessionId():undefined};
+      if(data.session_retirement!==undefined&&!validateSessionRetirementProof(data.session_retirement,retirementBinding))throw new Error('El servicio no devolvió una sesión verificable.');
       const rubroNorm = parseRubro(data.rubro) || '';
       const resolvedRole = typeof data.rol === 'string' ? data.rol : typeof data.role === 'string' ? data.role : undefined;
       if (!data.tipo_chat) {
@@ -365,6 +369,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rejectedAuthTokenRef.current = null;
       setVerifiedProfileKey(profileIdentityKey(sessionIdentity, requestRevision, updated));
       setUser(updated as any);
+      if(data.session_retirement)registerSessionRetirement(data.session_retirement,retirementBinding,requestRevision);
     } catch (e) {
       if (!isCurrentRequest()) return;
       const status = e instanceof ApiError ? e.status : (e as any)?.status;

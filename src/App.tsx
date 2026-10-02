@@ -6,6 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
+import {isClerkSessionRetired} from '@/utils/sessionRetirement';
+import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
+import {subscribeChatbocSessionRevision,captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import { BrowserRouter, Routes, Route, matchPath, useLocation, useNavigate } from "react-router-dom";
 
 // Páginas principales
@@ -569,8 +572,9 @@ const BearerSessionBootstrapBoundary = () => (
 );
 
 const ClerkSessionBootstrapBoundary = () => {
+  React.useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
   const { isLoaded, isSignedIn, userId, sessionId } = useAuth();
-  const identity = isLoaded && isSignedIn && userId
+  const identity = !hasSelectedNativePanelImpersonation()&&isLoaded && isSignedIn && userId&&!isClerkSessionRetired(userId,sessionId)
     ? `${userId}:${sessionId || ''}`
     : null;
   const identityRef = React.useRef(identity);

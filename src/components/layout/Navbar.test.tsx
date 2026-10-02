@@ -1,9 +1,11 @@
 import React from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter,useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Navbar from './Navbar';
+const logout=vi.hoisted(()=>vi.fn());
+vi.mock('@/utils/sessionLogout',async original=>({...await original<typeof import('@/utils/sessionLogout')>(),logoutChatbocSession:logout}));
 
 // Preserve real Link refs, accessible names and DOM attributes in navigation tests.
 vi.mock('react-router-dom', async()=>await vi.importActual('react-router-dom'));
@@ -67,6 +69,13 @@ describe('Navbar account menu routing', () => {
       hasBearerSession: true,
       hasVerifiedSession: true,
     });
+  });
+  it('replaces the organization route with central login before remote retirement completes',()=>{
+    logout.mockReturnValue(new Promise(()=>{}));
+    const RouteProbe=()=>{const location=useLocation();return <output data-testid="logout-route">{location.pathname+location.search}</output>;};
+    render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=junin']}><Navbar/><RouteProbe/></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button',{name:/abrir men/i}));fireEvent.click(screen.getByRole('button',{name:'Cerrar sesión'}));
+    expect(screen.getByTestId('logout-route')).toHaveTextContent('/login');expect(screen.getByTestId('logout-route')).not.toHaveTextContent('tenant_slug');expect(logout).toHaveBeenCalledOnce();
   });
 
   it.each(['/superadmin', '/superadmin?section=crm&tenant_slug=junin'])('shows platform identity at %s instead of the linked trial business', (path) => {

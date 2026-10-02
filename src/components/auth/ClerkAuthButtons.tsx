@@ -15,6 +15,8 @@ import { useClerkRuntime, type ClerkRuntimeValue } from '@/components/auth/Clerk
 import GoogleIcon from '@/components/auth/GoogleIcon';
 import { cn } from '@/lib/utils';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
+import {captureChatbocSessionRevision,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {isActiveClerkSessionRetired} from '@/utils/sessionRetirement';
 import {
   persistClerkAuthContext,
   sanitizeClerkReturnPath,
@@ -88,6 +90,9 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
 }) => {
   const signInApi = useSignIn();
   const signUpApi = useSignUp();
+  React.useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
+  const retiredClerkSession=isActiveClerkSessionRetired();
+  const SignedOutBoundary=retiredClerkSession?React.Fragment:SignedOut;
   const navigate = useNavigate();
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [loggingOut, setLoggingOut] = React.useState(false);
@@ -136,20 +141,16 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await logoutChatbocSession();
-      navigate('/login', { replace: true });
-    } finally {
-      setLoggingOut(false);
-    }
+    void logoutChatbocSession();
+    navigate('/login', { replace: true });
   };
 
   return (
     <div className={cn('space-y-3', className)}>
-      <SignedOut>
+      <SignedOutBoundary>
         <div className="grid gap-2">
           {socialProviders.length ? (
             <div className="grid gap-2" aria-label={`Acceso social: ${providerLabel}`}>
@@ -212,8 +213,8 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
             </p>
           ) : null}
         </div>
-      </SignedOut>
-      <SignedIn>
+      </SignedOutBoundary>
+      {!retiredClerkSession&&<SignedIn>
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
           <span className="text-sm font-medium text-foreground">Cuenta conectada</span>
           <Button
@@ -234,7 +235,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
             {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
           </Button>
         </div>
-      </SignedIn>
+      </SignedIn>}
     </div>
   );
 };

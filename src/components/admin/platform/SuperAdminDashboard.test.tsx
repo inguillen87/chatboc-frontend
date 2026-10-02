@@ -4,7 +4,8 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), inventory: vi.fn(), executive: vi.fn(), command: vi.fn(), crm: vi.fn(), profile: vi.fn(), purge: vi.fn(), listeners: new Map<string, () => void>(), profileVerified: true, knowledgeGranted: true }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), inventory: vi.fn(), executive: vi.fn(), command: vi.fn(), crm: vi.fn(), profile: vi.fn(), purge: vi.fn(), impersonate:vi.fn(), listeners: new Map<string, () => void>(), profileVerified: true, knowledgeGranted: true }));
+vi.mock('@/utils/completeNativeImpersonation',()=>({completeNativeImpersonation:mocks.impersonate,impersonationErrorMessage:()=> 'Acceso no verificable'}));
 vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 vi.mock('@/hooks/useRequireRole', () => ({ default: vi.fn() }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: { id: 99, rol: 'super_admin' }, organizationProfileVerified: mocks.profileVerified, hasVerifiedSession: true }) }));
@@ -30,6 +31,7 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 beforeEach(() => {
   vi.clearAllMocks(); mocks.listeners.clear();
   mocks.profileVerified = true;mocks.knowledgeGranted = true;
+  mocks.impersonate.mockReset();
   mocks.list.mockResolvedValue({ tenants, total: 102 });
   mocks.inventory.mockResolvedValue({ numbers: [] });
   mocks.executive.mockResolvedValue({}); mocks.command.mockResolvedValue({});
@@ -38,6 +40,16 @@ beforeEach(() => {
 });
 
 describe('SuperAdminDashboard workspace', () => {
+  it('replaces the current tab only after the impersonation handoff verifies',async()=>{
+    const pending=deferred<{destination:string}>();mocks.impersonate.mockReturnValue(pending.promise);
+    const open=vi.spyOn(window,'open');mount('/superadmin?section=organizations');
+    const row=(await screen.findByRole('button',{name:'Municipio Río'})).closest('tr')!;
+    fireEvent.keyDown(within(row).getByRole('button',{name:'Acciones de Municipio Río'}),{key:'Enter'});
+    fireEvent.click(await screen.findByRole('menuitem',{name:'Acceder como administrador'}));
+    expect(mocks.impersonate).toHaveBeenCalledWith('rio',expect.any(Function));expect(screen.getByTestId('location')).toHaveTextContent('/superadmin');expect(open).not.toHaveBeenCalled();
+    await act(async()=>{pending.resolve({destination:'/t/rio/perfil'});await pending.promise;});
+    expect(screen.getByTestId('location')).toHaveTextContent('/t/rio/perfil');expect(open).not.toHaveBeenCalled();open.mockRestore();
+  });
   it('opens the selected directory organization knowledge using the existing SuperAdmin session', async () => {
     mount('/superadmin?section=organizations');
     fireEvent.click(await screen.findByRole('button', { name: 'Fuentes de conocimiento de Municipio Río' }));

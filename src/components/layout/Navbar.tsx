@@ -6,7 +6,7 @@ import '@/components/auth/panelLogin.css';
 // src/components/layout/Navbar.tsx
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link as RouterLink, useLocation } from "react-router-dom";
+import { Link as RouterLink, useLocation,useNavigate } from "react-router-dom";
 import {
   Activity,
   BarChart3,
@@ -110,6 +110,7 @@ const Navbar: React.FC = () => {
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
+  const navigate=useNavigate();
   const { user, organizationProfileVerified } = useUser();
   const cartCount = useCartCount(!privateShell.active);
   const clerkRuntime = useClerkRuntime();
@@ -378,10 +379,10 @@ const Navbar: React.FC = () => {
     setMenuOpen(false);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setMenuOpen(false);
-    await logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
-    window.location.href = "/";
+    void logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
+    navigate('/login',{replace:true});
   };
 
   const navButtonClass =

@@ -14,8 +14,7 @@ import type { Tenant } from "@/types/superAdmin";
 import type { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import { TenantModal } from "@/components/admin/TenantModal";
 import { WhatsappInventoryPanel } from "@/components/admin/WhatsappInventoryPanel";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { buildTenantPath } from "@/utils/tenantPaths";
+import {completeNativeImpersonation,impersonationErrorMessage} from '@/utils/completeNativeImpersonation';
 import { useSocket } from "@/context/SocketContext";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
 import SuperadminFollowUpQueue from "@/features/crm/followup/SuperadminFollowUpQueue";
@@ -92,6 +91,8 @@ export default function SuperAdminDashboard() {
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [purgeConfirmed, setPurgeConfirmed] = useState(false);
   const [purgeUsers, setPurgeUsers] = useState(true);
+  const impersonationAttempt=useRef(0),impersonationPending=useRef(false);
+  useEffect(()=>()=>{impersonationAttempt.current+=1;},[]);
 
   const sectionUrl = (id: Section, slug?: string) => {
     const next = new URLSearchParams(searchParams);
@@ -261,25 +262,15 @@ export default function SuperAdminDashboard() {
   };
 
   const handleImpersonate = async (tenant: Tenant) => {
+    if(impersonationPending.current)return;
+    impersonationPending.current=true;const attempt=++impersonationAttempt.current;
     try {
-      const { token, redirect_url } = await apiClient.superAdminImpersonate(
-        tenant.slug,
-      );
-
-      safeLocalStorage.setItem("authToken", token);
-
-      const target = redirect_url || buildTenantPath("/", tenant.slug);
-
+      const {destination}=await completeNativeImpersonation(tenant.slug,()=>attempt===impersonationAttempt.current);
       toast.success(`Accediendo a ${tenant.nombre}...`);
-
-      const newTab = window.open(target, "_blank", "noopener,noreferrer");
-      if (!newTab) {
-        window.location.href = target;
-      }
+      navigate(destination,{replace:true});
     } catch (error) {
-      console.error(error);
-      toast.error("Falló el acceso como admin.");
-    }
+      if(attempt===impersonationAttempt.current)toast.error(impersonationErrorMessage(error));
+    }finally{if(attempt===impersonationAttempt.current)impersonationPending.current=false;}
   };
 
   const handleToggleStatus = async (tenant: Tenant) => {

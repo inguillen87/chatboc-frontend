@@ -21,7 +21,7 @@ export async function completePanelCredentialLogin(input:Input) {
   ensureCurrent();
   const slug=data.user.tenant_slug||null;
   const destination=panelLoginDestination(search,slug,data.user.rol||data.user.role||'');
-  const user=persistPanelLoginSession({token:data.token,user:data.user,entityToken:data.entityToken,
+  const user=persistPanelLoginSession({token:data.token,sessionRetirement:data.session_retirement,user:data.user,entityToken:data.entityToken,
     tipoChat:data.tipo_chat,tenantSlugHint:slug,replaceIdentity:true,setUser});
   return {user,destination};
 }

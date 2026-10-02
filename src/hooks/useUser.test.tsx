@@ -9,6 +9,8 @@ import { useUser, UserProvider } from './useUser';
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
 import profileFixture from '../../tests/fixtures/organization-profile-settings.json';
 import workspaceFixtures from '../../tests/fixtures/organization-workspaces.json';
+import {retirementProof} from '../../tests/fixtures/session-retirement.synthetic';
+import {captureSessionRetirement} from '@/utils/sessionRetirement';
 
 const SessionVisibleUserProbe = () => {
   const { user } = useUser();
@@ -54,6 +56,13 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     await waitFor(() => expect(usePanelSessionStore.getState().user).toMatchObject({
       organization_profile: profileFixture, organization_workspace: workspace, tenant_slug: 'tenant-a',
     }));
+  });
+  it('registers verified cookie-only /me authority without persisting its proof in the profile',async()=>{
+    safeLocalStorage.setItem('authProvider','clerk');safeLocalStorage.setItem('clerkUserId','synthetic-clerk-user');
+    vi.mocked(apiFetch).mockResolvedValue({id:42,rol:'tenant_admin',tipo_chat:'municipio',rubro:'gobierno',session_retirement:retirementProof({actor_id:'42',provider:'clerk',clerk_session_id:'synthetic-sid-a'})});
+    render(<UserProvider><VerifiedClerkBridgeProbe/></UserProvider>);
+    await waitFor(()=>expect(captureSessionRetirement('42')?.clerk_session_id).toBe('synthetic-sid-a'));
+    expect(safeLocalStorage.getItem('user')).not.toContain('synthetic-proof-a');
   });
 
   it('revalidates a complete persisted profile once after reload and hides institutional identity until the response', async () => {

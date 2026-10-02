@@ -455,6 +455,7 @@ const shouldLogVerboseApi = (): boolean => {
 export const REDACTED_API_LOG_VALUE = "[REDACTED]" as const;
 
 const SENSITIVE_API_DIAGNOSTIC_KEY_FRAGMENTS = [
+  "proof",
   "authorization",
   "token",
   "credential",

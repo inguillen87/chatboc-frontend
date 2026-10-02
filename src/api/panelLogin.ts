@@ -2,9 +2,11 @@ import {validatePanelLoginResponse,PanelLoginBoundaryError} from '@/utils/panelL
 import { apiFetch } from '@/utils/api';
 import { readPanelLoginScope } from '@/utils/panelLoginScope';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 
 export interface PanelLoginResponse {
   token: string;
+  session_retirement?:SessionRetirementProof;
   user: { id: number; email: string; name: string; rol: string; role?: string; tenant_slug: string };
   entityToken?: string;
   tipo_chat?: 'pyme' | 'municipio';

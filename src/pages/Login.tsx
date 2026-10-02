@@ -33,6 +33,8 @@ import { hasRequiredRole } from "@/utils/roles";
 import { completePanelCredentialLogin, ObsoletePanelLogin } from "@/utils/completePanelCredentialLogin";
 import { PanelLoginBoundaryError } from "@/utils/panelLoginResponse";
 import { readPanelLoginScope } from "@/utils/panelLoginScope";
+import {SessionRetirementNotice} from '@/components/auth/SessionRetirementNotice';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
 
 
 const isDevEnvironment = () => {
@@ -471,14 +473,17 @@ const LoginSession = () => {
   };
 
   const handlePasskeyLogin = async () => {
+    const passkeyRevision=captureChatbocSessionRevision();const attempt=credentialRequest.current;
     setError("");
     setIsPasskeyLoading(true);
     try {
       const result = await loginPasskey();
+      if(!attempt.active||!isChatbocSessionRevisionCurrent(passkeyRevision))return;
       const responseTenantSlug = (result as any)?.tenantSlug || (result as any)?.tenant_slug;
       const resultRole = (result as any)?.user?.rol || (result as any)?.user?.role;
       persistPanelLoginSession({
         token: result?.token,
+        sessionRetirement:result?.session_retirement,
         user: (result as any)?.user,
         entityToken: result?.entityToken,
         tipoChat: (result as any)?.tipo_chat,
@@ -606,6 +611,7 @@ const LoginSession = () => {
         <h2 className="text-2xl font-bold mb-2 text-center text-foreground">
           {organizationName ? `Ingresar a ${organizationName}` : "Iniciar Sesión"}
         </h2>
+        <SessionRetirementNotice/>
         <p className="mb-4 text-sm text-center text-muted-foreground" aria-label="Alcance del acceso">{accessScope.tenantSlug ? `Acceso para la organización ${accessScope.tenantSlug}. Usá tu cuenta institucional.` : "Acceso central. Tu cuenta determina a qué organización podés ingresar."}</p>
         {accessScope.tenantSlug && <p className="mb-4 text-center text-sm"><Link to="/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</Link></p>}
         {franchisePartner.partnerName ? (

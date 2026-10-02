@@ -1,5 +1,6 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import { panelReadOptions } from '@/utils/panelReadOptions';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
 import { assessOrderAmounts, assessOrderItemAmounts } from '@/features/orders/orderAmounts';
@@ -1126,9 +1127,10 @@ export const apiClient = {
     });
   },
 
-  superAdminImpersonate: async (slug: string): Promise<{ token: string; redirect_url: string }> => {
-    return apiFetch<{ token: string; redirect_url: string }>(`/api/admin/tenants/${slug}/impersonate`, {
+  superAdminImpersonate: async (slug: string,isCurrent?:()=>boolean): Promise<{ token: string; redirect_url: string;session_retirement:SessionRetirementProof }> => {
+    return apiFetch<{ token: string; redirect_url: string;session_retirement:SessionRetirementProof }>(`/api/admin/tenants/${slug}/impersonate`, {
       method: 'POST',
+      ...panelReadOptions(),allowStartupRecovery:false,preserveAuthOn401:true,suppressPanel401Redirect:true,isCurrent,
     });
   },
 

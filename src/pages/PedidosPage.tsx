@@ -309,8 +309,8 @@ export default function PedidosPage() {
   const [selectedPedidoId, setSelectedPedidoId] = useState<number | string | null>(null);
   const [search, setSearch] = useState('');
 
-  const handleLogout = useCallback(async () => {
-    await logoutChatbocSession();
+  const handleLogout = useCallback(() => {
+    void logoutChatbocSession();
     navigate('/login', { replace: true });
   }, [navigate]);
 
