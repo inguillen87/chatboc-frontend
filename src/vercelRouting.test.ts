@@ -17,7 +17,7 @@ describe('Vercel routing contract', () => {
     };
     const rewrites = config.rewrites ?? [];
     const apiDestination = rewrites.find(rule => rule.source === '/api/(.*)')?.destination;
-    expect(apiDestination).toMatch(/^https:\/\/chatboc-backend-[a-z0-9]+-marcelos-projects-c26aa499\.vercel\.app\/api\/\$1$/);
+    expect(apiDestination).toBe('https://api.chatboc.ar/api/$1');
     const backendOrigin = new URL(apiDestination!).origin;
 
     const analyticsCsvExportIndex = rewrites.findIndex(
