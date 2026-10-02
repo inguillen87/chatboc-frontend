@@ -1002,7 +1002,7 @@ export async function apiFetch<T>(
   // concurrent /me refresh must not retire it or select that private tenant.
   // Its caller's signal/isCurrent still retires the public route itself.
   const isIsolatedPublicTenantRead = method === 'GET' &&
-    skipAuth === true && omitCredentials === true && treatAsWidget === true &&
+    skipAuth === true && omitCredentials === true &&
     omitEntityToken === true && omitChatSessionId === true && persistTenantSlug === false &&
     typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug);
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
