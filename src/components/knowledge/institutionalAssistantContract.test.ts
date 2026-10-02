@@ -2,7 +2,7 @@ import {describe,expect,it,vi,beforeEach} from 'vitest';
 import {workspace,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
-import {parseWorkspace,parseAnswer,knowledgeEndpoint,publicKnowledgeUrl,askWorkspace,changeWorkspace,loadWorkspace,type KnowledgeSource} from './institutionalAssistantContract';
+import {parseWorkspace,parseAnswer,knowledgeEndpoint,publicKnowledgeUrl,knowledgeSourceOriginalAllowed,askWorkspace,changeWorkspace,loadWorkspace,type KnowledgeSource} from './institutionalAssistantContract';
 beforeEach(()=>{mocks.fetch.mockReset();});
 describe('native institutional workspace contract',()=>{
  it('accepts canonical sources and exact organization',()=>expect(parseWorkspace(workspace(),'qa-knowledge','admin')).toEqual(workspace()));
@@ -23,9 +23,32 @@ describe('native institutional workspace contract',()=>{
   {source_authority:'official_norm'}, {current_validity:'official_text_observed'}, {review_status:'reviewed'},
   {provenance:'Otra procedencia'}, {origin_url:'https://example.org/otra'}, {native_revision:'otra-revision'},
   {modified_at:'2026-09-30T00:00:00Z'}, {printed_year:2025},
+  {document_visibility:'private'},
  ] satisfies Partial<KnowledgeSource>[])('refuses answer evidence that changes the registered source provenance %j',patch=>{
   const model=workspace(),data=reply();data.nodes[0].sources[0]={...data.nodes[0].sources[0],...patch};
   expect(()=>parseAnswer(data,model)).toThrow('knowledge_source_changed');
+ });
+ it('accepts informational public answers with explicitly reserved originals',()=>{
+  const data=structuredClone(workspace({visibility:'public',can_edit:false}));
+  const source=data.knowledge!.sources[0];source.document_visibility='private';delete source.url;
+  data.knowledge!.initial.sources=[source];
+  expect(parseWorkspace(data,'qa-knowledge','public')).toBe(data);
+  expect(knowledgeSourceOriginalAllowed(source,'public')).toBe(false);
+  expect(knowledgeSourceOriginalAllowed(source,'admin')).toBe(true);
+ });
+ it('keeps an omitted URL invalid for legacy or explicitly public sources',()=>{
+  for(const visibility of [undefined,'public'] as const){const data=structuredClone(workspace());const source=data.knowledge!.sources[0];delete source.url;source.document_visibility=visibility;
+   expect(()=>parseWorkspace(data,'qa-knowledge','admin')).toThrow();}
+ });
+ it.each(['restricted',null,7])('refuses an unknown original visibility %j',visibility=>{
+  const data=structuredClone(workspace());(data.knowledge!.sources[0] as any).document_visibility=visibility;
+  expect(()=>parseWorkspace(data,'qa-knowledge','admin')).toThrow();
+ });
+ it.each(['document_visibility','publicly_accessible'] as const)('binds the answer to registered delivery %s',key=>{
+  const data=structuredClone(workspace()),answer=reply();const delivery={contract_version:'chatboc.knowledge_source_delivery.v1' as const,format:'pdf' as const,mime_type:'application/pdf',sha256:data.knowledge!.sources[0].sha256,filename:'document.pdf'};
+  data.knowledge!.sources[0].delivery=delivery;data.knowledge!.initial.sources=[data.knowledge!.sources[0]];
+  answer.nodes[0].sources[0].delivery={...delivery,...(key==='document_visibility'?{document_visibility:'private' as const}:{publicly_accessible:false})};
+  expect(()=>parseAnswer(answer,data)).toThrow('knowledge_source_changed');
  });
  it.each(['javascript:alert(1)','http://example.org','https://user:secret@example.org','https://example.org/#secret'])('refuses unsafe resource %s',url=>expect(publicKnowledgeUrl(url)).toBeNull());
  it('uses the real API boundary with one-attempt writes and exact revision',async()=>{

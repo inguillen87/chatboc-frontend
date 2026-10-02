@@ -57,6 +57,7 @@ import {
 } from "@/utils/legacyDemoSelector";
 import { sendChatBootstrapMessage } from "@/features/chat/chatApi";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage} from '@/features/chat/institutionalChatMessage';
 
 const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
@@ -801,6 +802,13 @@ export function useChatLogic({
       return false;
     }
 
+    const scopeInstitutionalPayload=(value:any)=>isInstitutionalChatPayload(value)&&!parseInstitutionalChatMessage(value,tenantSlug)
+      ? {message_body:'No pudimos verificar la información de esta organización. Volvé a consultar el menú.',fuente:'institutional_knowledge_unavailable'}
+      : value;
+    // Retire an incoherent envelope before it can update operational context,
+    // room identity or other presentation state as well as message content.
+    rawPayload=Array.isArray(rawPayload)?rawPayload.map(scopeInstitutionalPayload):scopeInstitutionalPayload(rawPayload);
+
     setContexto((prevContext) =>
       updateMunicipioContext(prevContext, { llmResponse: rawPayload }),
     );
@@ -1346,7 +1354,9 @@ export function useChatLogic({
 
     const asArray = Array.isArray(rawPayload)
       ? rawPayload
-      : Array.isArray(rawPayload?.messages)
+      : isInstitutionalChatPayload(rawPayload)
+        ? [rawPayload]
+        : Array.isArray(rawPayload?.messages)
         ? rawPayload.messages
         : Array.isArray(rawPayload?.chat_messages)
           ? rawPayload.chat_messages
@@ -1457,7 +1467,9 @@ export function useChatLogic({
       setLiveChatStatus(envelopeStatus);
     }
 
-    asArray.forEach((data: any) => {
+    asArray.forEach((candidate: any) => {
+      const institutional=parseInstitutionalChatMessage(candidate,tenantSlug);
+      const data=scopeInstitutionalPayload(candidate);
       if (!data || typeof data !== "object") {
         return;
       }
@@ -1943,6 +1955,7 @@ export function useChatLogic({
         ...(messageType ? { messageType } : {}),
         ...(action ? { action } : {}),
         ...(dataPayload ? { data: dataPayload } : {}),
+        ...(institutional ? {institutional} : {}),
         ...(botones.length ? { botones } : {}),
         ...(categorias.length ? { categorias } : {}),
         ...(mediaUrl ? { mediaUrl } : {}),

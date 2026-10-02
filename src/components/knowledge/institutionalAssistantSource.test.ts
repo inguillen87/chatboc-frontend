@@ -39,6 +39,20 @@ describe('tenant/revision-bound source delivery',()=>{
   await readKnowledgeSource(model,source,'public',{isCurrent:()=>true});expect(mocks.fetch.mock.calls[0][1]).toMatchObject({skipAuth:true,omitCredentials:true});
   model.visibility='private';await expect(readKnowledgeSource(model,source,'public',{isCurrent:()=>true})).rejects.toMatchObject({reason:'unavailable'});expect(mocks.fetch).toHaveBeenCalledOnce();
  });
+ it.each(['source','delivery','unavailable'] as const)('refuses a public original marked %s before requesting bytes',async marker=>{
+  const {model,source}=await fixture();model.visibility='public';model.can_edit=false;
+  if(marker==='source')source.document_visibility='private';
+  else if(marker==='delivery')source.delivery!.document_visibility='private';
+  else source.delivery!.publicly_accessible=false;
+  await expect(readKnowledgeSource(model,source,'public',{isCurrent:()=>true})).rejects.toMatchObject({reason:'unavailable'});
+  expect(mocks.fetch).not.toHaveBeenCalled();
+ });
+ it('keeps authenticated verified reading available for an explicitly private original',async()=>{
+  const {model,source,data}=await fixture();source.document_visibility='private';source.delivery!.document_visibility='private';source.delivery!.publicly_accessible=false;
+  mocks.fetch.mockResolvedValue(response(data,'application/pdf'));
+  expect((await readKnowledgeSource(model,source,'admin',{isCurrent:()=>true})).blob.size).toBe(data.length);
+  expect(mocks.fetch.mock.calls[0][1].skipAuth).not.toBe(true);
+ });
  it.each(['session','actor','token','scope','unmount'] as const)('discards bytes when %s retires while its body is pending',async cause=>{
   const {model,source,data}=await fixture();let current=true;let release!:()=>void;let cancel=false;
   const stream=new ReadableStream<Uint8Array>({start(controller){release=()=>{controller.enqueue(data);controller.close();};},cancel(){cancel=true;}});

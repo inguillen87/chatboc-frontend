@@ -1,6 +1,6 @@
 import {apiFetch} from '@/utils/api';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
-import {isKnowledgeSource,sameKnowledgeSourceIdentity,knowledgeEndpoint,type KnowledgeSource,type KnowledgeWorkspace} from './institutionalAssistantContract';
+import {isKnowledgeSource,sameKnowledgeSourceIdentity,knowledgeEndpoint,knowledgeSourceOriginalAllowed,type KnowledgeSource,type KnowledgeWorkspace} from './institutionalAssistantContract';
 import {usePanelSessionStore} from '@/stores';
 import {safeLocalStorage} from '@/utils/safeLocalStorage';
 
@@ -25,6 +25,7 @@ export async function readKnowledgeSource(workspace:KnowledgeWorkspace,source:Kn
   const registered=workspace.knowledge?.sources.find(item=>item.id===source.id);
   if(!workspace.revision||!/^[a-f0-9]{64}$/.test(workspace.revision)||!isKnowledgeSource(source)||!source.delivery||
     !registered||!sameKnowledgeSourceIdentity(registered,source)||
+    !knowledgeSourceOriginalAllowed(source,mode)||
     (mode==='public'&&(workspace.visibility!=='public'||workspace.can_edit)))throw new KnowledgeSourceReadError('unavailable');
   const revision=captureChatbocSessionRevision();
   // apiFetch retires an obsolete HTTP response. Continue that same panel fence

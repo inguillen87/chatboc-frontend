@@ -79,7 +79,7 @@ const arePrefsEqual = (a: Prefs, b: Prefs) =>
 const options = [
   {
     key: "dyslexia",
-    label: "Modo dislexia",
+    label: "Lectura espaciada",
     description: "Mas aire, lectura izquierda y guia visual.",
     icon: BookOpen,
   },

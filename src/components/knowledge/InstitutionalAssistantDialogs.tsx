@@ -1,7 +1,7 @@
 import React,{useLayoutEffect,useRef,useState} from 'react';
 import {BookOpen,FileText,X} from 'lucide-react';
 import {Dialog,DialogClose,DialogContent,DialogDescription,DialogTitle} from '@/components/ui/dialog';
-import {publicKnowledgeUrl,type KnowledgeWorkspace} from './institutionalAssistantContract';
+import {knowledgeSourceExternalUrl,knowledgeSourceOriginalAllowed,type KnowledgeWorkspace} from './institutionalAssistantContract';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {readKnowledgeSource,knowledgeSourceReadMessage,captureKnowledgeSourceAuthority,type KnowledgeSourceDocument} from './institutionalAssistantSource';
 import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
@@ -63,9 +63,9 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
     {workspace.knowledge?.sources.map(source=><article key={source.id} className={source.id===highlightedSourceId?'rounded-lg ring-1 ring-border':''}>
      <FileText size={21} aria-hidden="true"/>
      <div><h3>{source.title}</h3>
-      <KnowledgeSourceMetadata source={source}/>
-      {publicKnowledgeUrl(source.url)?<a href={publicKnowledgeUrl(source.url)!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
-      {source.delivery?<button type="button" className="mt-3 w-full sm:w-auto" disabled={pending!==null} onClick={()=>void consult(source.id)}>
+      <KnowledgeSourceMetadata source={source} mode={mode}/>
+      {knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
+      {source.delivery&&knowledgeSourceOriginalAllowed(source,mode)?<button type="button" className="mt-3 w-full sm:w-auto" disabled={pending!==null} onClick={()=>void consult(source.id)}>
        {pending===source.id?'Consultando documento…':'Leer documento'}<span className="sr-only">: {source.title}</span>
       </button>:null}
       {pending===source.id?<p role="status" className="mt-2 text-sm">Estamos verificando el documento.</p>:null}

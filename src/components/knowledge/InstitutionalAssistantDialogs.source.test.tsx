@@ -37,6 +37,24 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.unstubAllGlobals();safeLocalStorage.clear();usePanelSessionStore.setState({authToken:null,user:null});});
 
 describe('mounted verified document reading',()=>{
+ it('shows source evidence without opening or leaking a reserved public original',async()=>{
+  const {model,source}=await fixture();model.visibility='public';model.can_edit=false;
+  source.document_visibility='private';source.delivery!.document_visibility='private';source.delivery!.publicly_accessible=false;
+  source.url='https://example.test/reserved-original';source.origin_url='https://example.test/reserved-origin';
+  render(<KnowledgeSourceDialog workspace={model} open mode="public" onOpenChange={()=>{}} restoreFocus={()=>{}}/>);
+  expect(screen.getByText(source.title)).toBeVisible();expect(screen.getByText(/El documento original está reservado/)).toBeVisible();
+  expect(screen.queryByRole('button',{name:/Leer documento/})).not.toBeInTheDocument();
+  expect(screen.queryByRole('link')).not.toBeInTheDocument();expect(document.body.textContent).not.toContain('reserved-');
+  expect(mocks.fetch).not.toHaveBeenCalled();expect(mocks.create).not.toHaveBeenCalled();
+ });
+ it('opens the same reserved original only through the authenticated admin reader',async()=>{
+  const {model,source,bytes}=await fixture();source.document_visibility='private';source.delivery!.document_visibility='private';source.delivery!.publicly_accessible=false;
+  mocks.fetch.mockResolvedValue(new Response(bytes,{headers:{'Content-Type':'application/pdf','Content-Length':String(bytes.length)}}));
+  render(<KnowledgeSourceDialog workspace={model} open mode="admin" onOpenChange={()=>{}} restoreFocus={()=>{}}/>);
+  fireEvent.click(screen.getByRole('button',{name:/Leer documento/}));expect(await screen.findByRole('link',{name:/Descargar/})).toHaveAttribute('href','blob:synthetic-private-document');
+  expect(mocks.fetch.mock.calls[0][1]).toMatchObject({omitEntityToken:true,isWidgetRequest:false,tenantSlug:'qa-knowledge'});
+  expect(mocks.fetch.mock.calls[0][1].skipAuth).not.toBe(true);
+ });
  it.each(['pdf','jpeg','text'] as const)('displays a verified %s using a private Blob and renders text literally',async format=>{
   const {source,download}=await openDocument(format);
   expect(download).toHaveAttribute('href','blob:synthetic-private-document');expect(download).toHaveAttribute('download',source.delivery!.filename);

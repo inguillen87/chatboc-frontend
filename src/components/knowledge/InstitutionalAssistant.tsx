@@ -1,6 +1,6 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
 import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Search,Type} from 'lucide-react';
-import {askWorkspace,changeWorkspace,loadWorkspace,publicKnowledgeUrl,type KnowledgeWorkspace,type KnowledgeNode} from './institutionalAssistantContract';
+import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,type KnowledgeWorkspace,type KnowledgeNode} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
@@ -136,8 +136,8 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose">{node.text.split(/\n\n+/).map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div>
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15}/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15}/>{ui.source_details}</summary>
-              {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{publicKnowledgeUrl(source.url)?<a href={publicKnowledgeUrl(source.url)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
-               <KnowledgeSourceMetadata source={source} compact/>
+              {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
+               <KnowledgeSourceMetadata source={source} compact mode={mode}/>
                <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
           </article>)}

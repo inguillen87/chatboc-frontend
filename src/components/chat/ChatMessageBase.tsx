@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Boton, Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
+import InstitutionalChatMessage from './InstitutionalChatMessage';
 import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
 import { motion } from "framer-motion";
@@ -729,6 +730,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   })();
 
   const botBadgeClass = logoBadgeStyle === 'rounded-square' ? 'rounded-2xl' : 'rounded-full';
+
+  if(isBot&&message.institutional)return <InstitutionalChatMessage ref={ref} answer={message.institutional} onButtonClick={onButtonClick}/>;
 
   return (
     <motion.div
