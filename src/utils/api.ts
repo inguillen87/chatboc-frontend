@@ -1445,6 +1445,12 @@ export async function apiFetch<T>(
     throw new NetworkError("No fue posible establecer la conexión con el servidor.");
   }
 
+  const assertCurrentResponse = () => {
+    if (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
+  };
+  assertCurrentResponse();
   if (typeof onResponse === "function") {
     try {
       onResponse(response.clone());
@@ -1460,13 +1466,12 @@ export async function apiFetch<T>(
   // bytes to text or including them in API diagnostics. Authentication and the
   // dispatch retirement checks above are shared with ordinary requests.
   if (options.responseType === 'response' && response.ok) {
-    if (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false) {
-      throw new DOMException('Request retired', 'AbortError');
-    }
+    assertCurrentResponse();
     return response as T;
   }
 
   try {
+    assertCurrentResponse();
     const responseTenantSlug = sanitizeTenantSlug(
       response.headers.get("X-Tenant-Slug") ||
       response.headers.get("x-tenant-slug") ||
@@ -1508,10 +1513,7 @@ export async function apiFetch<T>(
     // ordinary status/auth handling, without reading its body into diagnostics.
     const text = options.responseType === 'response'
       ? '' : await response.text().catch(() => "");
-    if (options.responseType === 'response' &&
-      (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false)) {
-      throw new DOMException('Request retired', 'AbortError');
-    }
+    assertCurrentResponse();
     const trimmedText = text.trim();
     let data: any = null;
     let parsedAsJson = false;
@@ -1680,6 +1682,7 @@ export async function apiFetch<T>(
 
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    if ((error as Error)?.name === 'AbortError') throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
         `Network/API connection issue while reaching ${BASE_API_URL}.`,

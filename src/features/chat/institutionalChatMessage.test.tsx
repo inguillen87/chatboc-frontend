@@ -3,8 +3,8 @@ import {act,cleanup,fireEvent,render,renderHook,screen} from '@testing-library/r
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node} from '../../../tests/fixtures/institutional-assistant.synthetic';
 import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel} from './institutionalChatMessage';
-const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
-vi.mock('@/utils/api',async importOriginal=>({...await importOriginal<typeof import('@/utils/api')>(),apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
+const mocks=vi.hoisted(()=>({fetch:vi.fn(),workspace:vi.fn()}));
+vi.mock('@/utils/api',async importOriginal=>({...await importOriginal<typeof import('@/utils/api')>(),apiFetch:(...args:unknown[])=>String(args[0]).includes('/institutional-assistant')?mocks.workspace(...args):mocks.fetch(...args)}));
 vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:null})}));
 vi.mock('@/context/TenantContext',()=>({useTenant:()=>({currentSlug:'qa-knowledge'})}));
 vi.mock('@/utils/widgetTelemetry',()=>({trackWidgetEvent:vi.fn()}));
@@ -12,6 +12,7 @@ import {useChatLogic} from '@/hooks/useChatLogic';
 import ChatMessage from '@/components/chat/ChatMessage';
 import InstitutionalChatMessage from '@/components/chat/InstitutionalChatMessage';
 import AccessibilityToggle,{readAccessibilityPrefs} from '@/components/chat/AccessibilityToggle';
+import {ApiError} from '@/utils/api';
 
 function payload(){
  const w=structuredClone(workspace({visibility:'public',can_edit:false})),initial=node();
@@ -22,7 +23,7 @@ function payload(){
   message_body:'LEGACY_FORMATTED_BODY',messages:[{role:'assistant',content:'LEGACY_FORMATTED_BODY'}],
   botones:initial.actions.map(action=>({texto:action.label,action_id:`knowledge:${w.revision!.slice(0,16)}:${action.target}`}))};
 }
-beforeEach(()=>{mocks.fetch.mockReset();window.localStorage.clear();window.sessionStorage.clear();});
+beforeEach(()=>{mocks.fetch.mockReset();mocks.workspace.mockReset();mocks.workspace.mockRejectedValue(new ApiError('Not available',404,{reason_code:'knowledge_not_available'}));window.localStorage.clear();window.sessionStorage.clear();});
 afterEach(cleanup);
 
 describe('institutional responder boundary',()=>{

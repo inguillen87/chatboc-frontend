@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import type {SendPayload} from '@/types/chat';
-import {institutionalChoiceLabel,type InstitutionalChatMessage as InstitutionalMessage} from '@/features/chat/institutionalChatMessage';
+import {institutionalChoiceLabel,institutionalChatActions,type InstitutionalChatMessage as InstitutionalMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
 import {knowledgeSourceExternalUrl} from '@/components/knowledge/institutionalAssistantContract';
 import './institutionalChatMessage.css';
@@ -14,7 +14,7 @@ const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:Instituti
    // away from someone who is typing or reading elsewhere on the host page.
    if(document.activeElement?.hasAttribute('data-institutional-choice'))heading.current?.focus({preventScroll:true});
   },[answer.revision,answer.nodes.map(node=>node.id).join(':')]);
-  const actions=answer.nodes.flatMap(node=>node.actions).filter((action,index,list)=>list.findIndex(other=>other.target===action.target&&other.label===action.label)===index);
+  const actions=institutionalChatActions(answer.nodes);
   return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}`} data-testid="institutional-chat-message">
    <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>setLarge(value=>!value)}>Texto más grande</button>
    {answer.nodes.map((node,index)=><article key={node.id}>

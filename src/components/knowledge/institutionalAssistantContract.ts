@@ -113,8 +113,10 @@ export function knowledgeEndpoint(slug:string,mode:'admin'|'public') {
   if(!slug||sanitizePublicInternalNavigationPath(`/t/${encodeURIComponent(slug)}/knowledge`)!==`/t/${encodeURIComponent(slug)}/knowledge`)throw new Error('knowledge_scope_invalid');
   return `/api/${mode}/tenants/${encodeURIComponent(slug)}/institutional-assistant`;
 }
-export async function loadWorkspace(slug:string,mode:'admin'|'public') {
-  return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,allowStartupRecovery:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),slug,mode);
+export async function loadWorkspace(slug:string,mode:'admin'|'public',options:{signal?:AbortSignal;isCurrent?:()=>boolean}={}) {
+  return parseWorkspace(await apiFetch(knowledgeEndpoint(slug,mode),{tenantSlug:slug,method:'GET',cache:'no-store',singleAttempt:true,allowStartupRecovery:true,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,persistTenantSlug:false,
+    ...(options.signal?{signal:options.signal}:{}),...(options.isCurrent?{isCurrent:options.isCurrent}:{}),
+    ...(mode==='public'?{skipAuth:true,omitCredentials:true}: {})}),slug,mode);
 }
 export async function askWorkspace(workspace:KnowledgeWorkspace,mode:'admin'|'public',input:{node_id:string;question?:string}) {
   if(input.question===undefined){

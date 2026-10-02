@@ -1,10 +1,37 @@
-import {isKnowledgeNode,isKnowledgeSource,sameKnowledgeSourceIdentity,type KnowledgeNode,type KnowledgeSource} from '@/components/knowledge/institutionalAssistantContract';
+import {isKnowledgeNode,isKnowledgeSource,sameKnowledgeSourceIdentity,parseWorkspace,parseAnswer,type KnowledgeNode,type KnowledgeSource} from '@/components/knowledge/institutionalAssistantContract';
+import {ApiError} from '@/utils/api';
 
 export interface InstitutionalChatMessage {
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
 }
 const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 export const isInstitutionalChatPayload=(value:unknown):boolean=>record(value)&&typeof value.fuente==='string'&&value.fuente.startsWith('institutional_knowledge');
+
+export const institutionalChatActions=(nodes:KnowledgeNode[])=>nodes.flatMap(node=>node.actions)
+  .filter((action,index,list)=>list.findIndex(other=>other.target===action.target&&other.label===action.label)===index);
+
+/** The public workspace uses the same tenant/source parsers and responder envelope. */
+export function institutionalChatBootstrapPayload(value:unknown,tenantSlug:string) {
+  const workspace=parseWorkspace(value,tenantSlug,'public');
+  if(!workspace.knowledge||!workspace.revision)throw new Error('knowledge_initial_response_invalid');
+  const answer=parseAnswer({contract_version:workspace.contract_version,
+    tenant:{id:workspace.tenant.id,slug:workspace.tenant.slug},revision:workspace.revision,
+    nodes:[workspace.knowledge.initial],text:workspace.knowledge.initial.text,
+    selection_performed:false,business_writes_performed:false},workspace);
+  const payload={fuente:'institutional_knowledge',context_revision:answer.revision,
+    knowledge_tenant:answer.tenant,knowledge_nodes:answer.nodes,
+    knowledge_sources:answer.nodes.flatMap(node=>node.sources),message_body:answer.text,
+    botones:institutionalChatActions(answer.nodes).map(action=>({texto:action.label,
+      action_id:`knowledge:${answer.revision.slice(0,16)}:${action.target}`}))};
+  if(!parseInstitutionalChatMessage(payload,tenantSlug))throw new Error('knowledge_initial_response_invalid');
+  return payload;
+}
+
+/** An unavailable published corpus is the only authority for a legacy greeting. */
+export function isInstitutionalWorkspaceUnavailable(error:unknown):boolean {
+  return error instanceof ApiError&&error.status===404&&record(error.body)&&
+    Object.keys(error.body).length===1&&error.body.reason_code==='knowledge_not_available';
+}
 
 /** Validate the existing responder envelope against this chat's explicit tenant. */
 export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|null|undefined):InstitutionalChatMessage|null {
@@ -22,8 +49,7 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
   for(const node of value.knowledge_nodes)for(const source of node.sources){
     const registered=sources.get(source.id);if(!registered||!sameKnowledgeSourceIdentity(source,registered))return null;
   }
-  const actions=value.knowledge_nodes.flatMap(node=>node.actions);
-  const expected=actions.filter((action,index)=>actions.findIndex(other=>other.target===action.target&&other.label===action.label)===index);
+  const expected=institutionalChatActions(value.knowledge_nodes);
   if(value.botones.length!==expected.length||value.botones.some((button,index)=>!record(button)||
     button.texto!==expected[index].label||button.action_id!==`knowledge:${revision.slice(0,16)}:${expected[index].target}`))return null;
   return {tenant:{id:Number(value.knowledge_tenant.id),slug:tenantSlug},revision,nodes:value.knowledge_nodes,sources:[...sources.values()]};

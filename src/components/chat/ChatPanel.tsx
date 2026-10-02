@@ -1243,6 +1243,8 @@ const ChatPanel = (props: ChatPanelProps) => {
   const {
     messages,
     isTyping,
+    institutionalBootstrapPending,
+    suppressLegacyInitialMenu,
     handleSend,
     activeTicketId,
     liveChatTicketId,
@@ -3470,8 +3472,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     quickMenu,
   ]);
   const visibleDefaultMenuButtons = useMemo(
-    () => defaultMenuButtons.slice(0, defaultMenuMaxVisible),
-    [defaultMenuButtons, defaultMenuMaxVisible],
+    () => suppressLegacyInitialMenu?[]:defaultMenuButtons.slice(0, defaultMenuMaxVisible),
+    [defaultMenuButtons, defaultMenuMaxVisible,suppressLegacyInitialMenu],
   );
   const sendDefaultMenuButton = useCallback(
     (item: (typeof defaultMenuButtons)[number], placement: "empty" | "persistent") => {
@@ -4278,7 +4280,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       >
         <div className="hidden sm:block sm:flex-1" />
 
-        {visibleMessages.length === 0 ? (
+        {institutionalBootstrapPending&&visibleMessages.length===0?(
+          <div className="flex flex-1 items-center justify-center" role="status" aria-label="Cargando conversación">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          </div>
+        ):visibleMessages.length === 0 ? (
              <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
                    <MessageSquare className="w-8 h-8" />

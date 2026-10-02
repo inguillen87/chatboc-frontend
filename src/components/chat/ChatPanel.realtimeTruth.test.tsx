@@ -4,10 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "@/utils/api";
 import ChatPanel, { scrollIntoViewIfSupported } from "./ChatPanel";
+import type {Message} from '@/types/chat';
 
 const chatLogic = {
-  messages: [],
+  messages: [] as Message[],
   isTyping: false,
+  institutionalBootstrapPending:false,
+  suppressLegacyInitialMenu:false,
   handleSend: vi.fn(),
   activeTicketId: null,
   liveChatTicketId: null,
@@ -52,7 +55,10 @@ vi.mock("@/hooks/useBusinessHours", () => ({
 
 vi.mock("./ChatHeader", () => ({ default: () => <div data-testid="chat-header" /> }));
 vi.mock("./ChatInput", () => ({
-  default: React.forwardRef(() => <div data-testid="chat-input" />),
+  default: React.forwardRef(function TestChatInput(){
+    const [draft,setDraft]=React.useState('');
+    return <input data-testid="chat-input" aria-label="Borrador de consulta" value={draft} onChange={event=>setDraft(event.target.value)}/>;
+  }),
 }));
 vi.mock("@/components/ui/ScrollToBottomButton", () => ({ default: () => null }));
 vi.mock("./RealtimeAvatarStage", () => ({
@@ -64,9 +70,49 @@ vi.mock("./RealtimeAvatarStage", () => ({
 describe("ChatPanel realtime transport truth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    chatLogic.institutionalBootstrapPending=false;
+    chatLogic.suppressLegacyInitialMenu=false;
+    chatLogic.messages=[];
     vi.mocked(apiFetch).mockImplementation(async (path) =>
       path === "/api/public/realtime/session" ? provisionedSession : {},
     );
+  });
+
+  it('shows only pending conversation status while resolving the public institutional menu',()=>{
+    chatLogic.institutionalBootstrapPending=true;chatLogic.suppressLegacyInitialMenu=true;
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-knowledge"
+      defaultMenu={[{texto:'Legacy municipal operation',action_id:'crear_reclamo'}]}
+      experienceBlueprint={{first_visit:{title:'Legacy welcome shell'}}}/>);
+    expect(screen.getByRole('status',{name:'Cargando conversación'})).toBeVisible();
+    expect(screen.queryByText('Legacy welcome shell')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Legacy municipal operation'})).not.toBeInTheDocument();
+  });
+
+  it('suppresses a duplicate configured municipal menu without concealing a real response error',async()=>{
+    chatLogic.suppressLegacyInitialMenu=true;
+    chatLogic.messages=[{id:'qa-error',text:'Real quota denial remains visible',isBot:true,isError:true,timestamp:new Date()}];
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-knowledge"
+      defaultMenu={[{texto:'Legacy municipal operation',action_id:'crear_reclamo'}]}/>);
+    await waitFor(()=>expect(screen.getByText(/Real quota denial remains visible/)).toBeVisible());
+    expect(screen.queryByRole('button',{name:'Legacy municipal operation'})).not.toBeInTheDocument();
+  });
+
+  it('retains a typed draft while the institutional bootstrap changes from pending to a response',()=>{
+    chatLogic.institutionalBootstrapPending=true;chatLogic.suppressLegacyInitialMenu=true;
+    const panel=render(<ChatPanel tipoChat="municipio" tenantSlug="qa-knowledge"/>);
+    fireEvent.change(screen.getByRole('textbox',{name:'Borrador de consulta'}),{target:{value:'Consulta todavía sin enviar'}});
+    chatLogic.institutionalBootstrapPending=false;
+    chatLogic.messages=[{id:'loaded-menu',text:'Menú recibido del backend',isBot:true,timestamp:new Date()}];
+    panel.rerender(<ChatPanel tipoChat="municipio" tenantSlug="qa-knowledge"/>);
+    expect(screen.getByRole('textbox',{name:'Borrador de consulta'})).toHaveValue('Consulta todavía sin enviar');
+  });
+
+  it('retains the backend configured welcome and actions when no institutional corpus is published',()=>{
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-legacy"
+      defaultMenu={[{texto:'Legacy municipal operation',action_id:'crear_reclamo'}]}
+      experienceBlueprint={{first_visit:{title:'Legacy welcome shell'}}}/>);
+    expect(screen.getByText('Legacy welcome shell')).toBeVisible();
+    expect(screen.getByRole('button',{name:'Legacy municipal operation'})).toBeVisible();
   });
 
   it("degrades auto-scroll safely when the rendered element has no scrollIntoView implementation", () => {

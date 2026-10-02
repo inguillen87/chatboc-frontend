@@ -68,6 +68,12 @@ const dismissRefreshToast = () => {
   refreshToastId = undefined;
 };
 
+const clearRefreshToastHandle = (closedToast: { id: string | number }) => {
+  if (refreshToastId === closedToast.id) {
+    refreshToastId = undefined;
+  }
+};
+
 export const shouldAutoApplyPublicRefresh = () => {
   if (typeof window === 'undefined') return false;
 
@@ -263,6 +269,9 @@ const registerPwaWorker = () => {
 
             refreshToastId = toast('Nueva version disponible', {
               description: 'Actualiza para recibir las ultimas mejoras.',
+              duration: Infinity,
+              onDismiss: clearRefreshToastHandle,
+              onAutoClose: clearRefreshToastHandle,
               action: {
                 label: 'Actualizar',
                 onClick: () => {
