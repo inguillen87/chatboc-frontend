@@ -143,6 +143,12 @@ const resolveWidgetParams = (
   const borderRadiusRaw = readFirstString(urlParams.get("borderRadius"), fetchedConfig.border_radius, fetchedConfig.borderRadius);
   const parsedBorderRadius = Number.parseInt(borderRadiusRaw, 10);
 
+  // The persisted public contract stores the greeting in welcome_title and
+  // the assistant name in welcome_subtitle; ChatWidget uses display roles.
+  const publicAppearance = fetchedConfig.contract_version === 'public.widget_config.v1';
+  const fetchedHeaderTitle = publicAppearance ? fetchedConfig.welcome_subtitle : fetchedConfig.welcome_title;
+  const fetchedHeaderSubtitle = publicAppearance ? fetchedConfig.welcome_title : fetchedConfig.welcome_subtitle;
+
   return {
     defaultOpen,
     widgetId: readFirstString(urlParams.get("widgetId"), fetchedConfig.widget_id, fetchedConfig.widgetId) || "chatboc-iframe-unknown",
@@ -161,8 +167,8 @@ const resolveWidgetParams = (
     logoUrl: readFirstString(urlParams.get("logoUrl"), fetchedConfig.logo_url, fetchedConfig.logoUrl, cfg.logoUrl),
     headerLogoUrl: readFirstString(urlParams.get("headerLogoUrl"), fetchedConfig.header_logo_url, fetchedConfig.headerLogoUrl, cfg.headerLogoUrl),
     logoAnimation: readFirstString(urlParams.get("logoAnimation"), fetchedConfig.logo_animation, fetchedConfig.logoAnimation, cfg.logoAnimation),
-    welcomeTitle: readFirstString(urlParams.get("welcomeTitle"), fetchedConfig.welcome_title, fetchedConfig.welcomeTitle, cfg.welcomeTitle),
-    welcomeSubtitle: readFirstString(urlParams.get("welcomeSubtitle"), fetchedConfig.welcome_subtitle, fetchedConfig.welcomeSubtitle, cfg.welcomeSubtitle),
+    welcomeTitle: readFirstString(urlParams.get("welcomeTitle"), fetchedHeaderTitle, fetchedConfig.welcomeTitle, cfg.welcomeTitle),
+    welcomeSubtitle: readFirstString(urlParams.get("welcomeSubtitle"), fetchedHeaderSubtitle, fetchedConfig.welcomeSubtitle, cfg.welcomeSubtitle),
     userMsgColor: readFirstString(urlParams.get("userMsgColor"), fetchedConfig.user_msg_color, fetchedConfig.userMsgColor, cfg.userMsgColor),
     chatBackground: readFirstString(urlParams.get("chatBackground"), fetchedConfig.chat_background, fetchedConfig.chatBackground, cfg.chatBackground),
     borderRadius: Number.isFinite(parsedBorderRadius) ? parsedBorderRadius : undefined,
@@ -185,14 +191,14 @@ const getIframeDimensions = (params: IframeWidgetParams) => (
 
 const getIframeShellStyle = (params: IframeWidgetParams): React.CSSProperties => {
   const dimensions = getIframeDimensions(params);
-  const width = params.defaultOpen ? `min(100dvw, ${dimensions.width})` : dimensions.width;
+  const width = params.defaultOpen ? `min(100%, 100dvw, ${dimensions.width})` : dimensions.width;
   const height = params.defaultOpen ? `min(100dvh, ${dimensions.height})` : dimensions.height;
   return {
     width,
     height,
-    minWidth: width,
+    minWidth: 0,
     minHeight: height,
-    maxWidth: "100dvw",
+    maxWidth: "min(100%, 100dvw)",
     maxHeight: "100dvh",
     overflow: "hidden",
     display: "flex",

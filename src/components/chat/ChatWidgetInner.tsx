@@ -177,6 +177,13 @@ const readCssPixelValue = (value: string) => {
   return match ? Number(match[1]) : null;
 };
 
+export const resolveIframeOpenWidth = (requestedWidth: string, viewportWidth: number) => {
+  const desired = readCssPixelValue(requestedWidth);
+  return desired !== null && Number.isFinite(viewportWidth) && viewportWidth > 0
+    ? `${Math.min(desired, viewportWidth)}px`
+    : requestedWidth;
+};
+
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -2391,11 +2398,7 @@ function ChatWidgetInner({
   const finalOpenWidth = useMemo(() => {
     const desired = readCssPixelValue(openWidth);
     if (mode === "iframe") {
-      if (desired === null) return openWidth;
-      if (viewport.width >= 320) {
-        return `${Math.min(desired, viewport.width)}px`;
-      }
-      return `${desired}px`;
+      return resolveIframeOpenWidth(openWidth, viewport.width);
     }
     if (isMobileView) {
       return "100dvw";
@@ -3209,15 +3212,15 @@ function ChatWidgetInner({
       };
     }
     if (mode === "iframe") {
-      const width = isOpen ? finalOpenWidth : launcherSize;
+      const width = isOpen ? `min(100%, ${finalOpenWidth})` : launcherSize;
       const height = isOpen ? finalOpenHeight : launcherHeight;
       return {
         position: "relative",
         width,
         height,
-        minWidth: width,
+        minWidth: 0,
         minHeight: height,
-        maxWidth: "100dvw",
+        maxWidth: "min(100%, 100dvw)",
         maxHeight: "100dvh",
         overflow: "hidden",
         transition: "width 0.24s ease, height 0.24s ease, opacity 0.18s ease",
