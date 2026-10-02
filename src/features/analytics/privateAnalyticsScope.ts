@@ -38,7 +38,8 @@ export function resolvePrivateAnalyticsScope(input: { user: unknown; verified: b
   const tenantId = ids[0] ?? (matchingMetadata ? positiveId(tenant.id) : null);
   if (query.getAll('tenant_id').some(value => positiveId(value) === null || positiveId(value) !== tenantId)) return null;
   const rawKind = platform ? tenant.tipo : user.tipo_chat;
-  const kind = rawKind === 'municipio' || rawKind === 'municipal' ? 'municipio' : rawKind === 'pyme' ? 'pyme' : null;
+  // The backend provisions schools under the nonmunicipal analytics contract.
+  const kind = rawKind === 'municipio' || rawKind === 'municipal' ? 'municipio' : rawKind === 'pyme' || rawKind === 'colegio' ? 'pyme' : null;
   const scopeKey = buildVerifiedSessionScopeKey({ hasVerifiedSession: true, tenantSlug, user });
   return scopeKey ? { tenantSlug, tenantId, kind, scopeKey } : null;
 }

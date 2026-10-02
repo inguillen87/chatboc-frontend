@@ -4,6 +4,19 @@ const base = () => ({ verified: true, profileVerified: true, pathname: '/perfil'
   user: { id: 4, rol: 'admin_municipio', tipo_chat: 'municipio', tenant_slug: 'junin', tenantSlug: 'junin', organization_profile: { tenant: { id: 22, slug: 'junin' } } },
   tenant: { id: 46, slug: 'tierra-del-fuego', tipo: 'pyme' } });
 describe('verified private analytics scope', () => {
+  it('uses the nonmunicipal contract for a verified backend school profile', () => {
+    const input = base(); input.user.rol = 'admin_colegio'; input.user.tipo_chat = 'colegio';
+    expect(resolvePrivateAnalyticsScope(input)).toMatchObject({ tenantSlug: 'junin', tenantId: 22, kind: 'pyme' });
+    expect(resolvePrivateAnalyticsScope({ ...input, verified: false })).toBeNull();
+    expect(resolvePrivateAnalyticsScope({ ...input, search: '?tenant_slug=tierra-del-fuego' })).toBeNull();
+  });
+
+  it('uses school analytics only after an explicit matching SuperAdmin selection', () => {
+    const input = { ...base(), user: { id: 5, rol: 'super_admin' }, search: '?tenant_slug=colegio-demo',
+      tenant: { id: 71, slug: 'colegio-demo', tipo: 'colegio' } };
+    expect(resolvePrivateAnalyticsScope(input)).toMatchObject({ tenantSlug: 'colegio-demo', tenantId: 71, kind: 'pyme' });
+    expect(resolvePrivateAnalyticsScope({ ...input, search: '' })).toBeNull();
+  });
   it('uses private profile after a public tenant visit, including its numeric id and type', () => {
     expect(resolvePrivateAnalyticsScope(base())).toMatchObject({ tenantSlug: 'junin', tenantId: 22, kind: 'municipio' });
   });
