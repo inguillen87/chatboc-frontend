@@ -33,8 +33,44 @@ const removeLegacyPwaFixture = () => {
   rmSync(legacyWorkerPath, { force: true });
 };
 
-test('installs a compact shell, controls the client and reloads offline', async ({ context, page }, testInfo) => {
+test('installs a compact shell, controls the client and reloads offline', async ({ context, page, baseURL }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-pwa', 'requires the production build preview');
+
+  expect(baseURL).toBeTruthy();
+  const appOrigin = new URL(baseURL!).origin;
+  const unexpectedWrites: string[] = [];
+  let clerkConfigRequests = 0;
+  let offline = false;
+  // This checks the installed shell, not a live identity provider or API.
+  // Keep the API unavailable offline so fixtures cannot hide cached API data.
+  await context.route('**/*', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
+      unexpectedWrites.push(`${request.method()} ${url.pathname}`);
+      return route.abort();
+    }
+    if (/^\/(?:api|auth|me|admin|municipal|estadisticas|socket\.io)(?:\/|$)/.test(url.pathname)) {
+      if (offline) return route.abort();
+      if (url.pathname === '/api/auth/clerk/config') {
+        clerkConfigRequests += 1;
+        return route.fulfill({
+          status: 200,
+          json: {
+            contract_version: 'auth.clerk.v1',
+            enabled: false,
+            environment: 'unconfigured',
+            production_ready: false,
+            publishable_key: null,
+            ready_for_session_sync: false,
+          },
+        });
+      }
+      return route.fulfill({ status: 401, json: { error: 'Synthetic unauthenticated shell' } });
+    }
+    if (url.origin !== appOrigin) return route.abort();
+    return route.continue();
+  });
 
   const indexHtml = readFileSync(distPath('index.html'), 'utf8');
   const portalHtml = readFileSync(distPath('portal', 'index.html'), 'utf8');
@@ -134,6 +170,12 @@ test('installs a compact shell, controls the client and reloads offline', async 
     waitUntil: 'domcontentloaded',
   });
   expect(response?.status()).toBe(200);
+  const shellHeading = page.getByRole('heading', {
+    level: 1,
+    name: /^Convert[ií] conversaciones en operaciones reales$/i,
+  });
+  await expect(shellHeading).toBeVisible();
+  expect(clerkConfigRequests).toBeGreaterThan(0);
 
   const readyState = await page.evaluate(async () =>
     Promise.race([
@@ -184,6 +226,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
   });
   expect(lifecycle.cacheEntryCount).toBe(precacheUrls.length);
 
+  offline = true;
   await context.setOffline(true);
   const offlineResponse = await page.reload({ waitUntil: 'domcontentloaded' });
 
@@ -192,7 +235,16 @@ test('installs a compact shell, controls the client and reloads offline', async 
   await expect
     .poll(() => page.locator('#root').evaluate((root) => root.childElementCount))
     .toBeGreaterThan(0);
-  await expect(page.getByText(/Convert[ií] conversaciones en operaciones reales/i).first()).toBeVisible();
+  await expect(shellHeading).toBeVisible();
+  const offlineApiProbe = await page.evaluate(async () => {
+    try {
+      await fetch('/api/pwa-shell-probe');
+      return { rejected: false };
+    } catch {
+      return { rejected: true };
+    }
+  });
+  expect(offlineApiProbe).toEqual({ rejected: true });
 
   const offlineSurveysPage = await context.newPage();
   const offlineSurveysResponse = await offlineSurveysPage.goto('/encuestas?pwa-offline=1', {
@@ -237,6 +289,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
     });
     await deniedPage.close();
   }
+  expect(unexpectedWrites).toEqual([]);
 });
 
 test('forces the one-time privacy upgrade from a legacy API-caching worker', async ({ context, page }, testInfo) => {
