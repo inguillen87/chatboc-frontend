@@ -24,6 +24,34 @@ describe('analyticsService.getSummary', () => {
     apiFetchMock.mockReset();
   });
 
+  it.each([401, 403])('does not continue to legacy metrics after hub access denial %s', async (status) => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('denied', status));
+    await expect(analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' })).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not continue to legacy metrics after an aborted hub read', async () => {
+    apiFetchMock.mockRejectedValueOnce(new DOMException('session changed', 'AbortError'));
+    await expect(analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an explicit unavailable hub without starting another hub request', async () => {
+    apiFetchMock.mockResolvedValueOnce({ totals: { total_interactions: 12 } });
+    expect((await analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' }, null)).kpis.total_interactions).toBe(12);
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock.mock.calls[0][0]).toContain('/admin/analytics/overview?');
+  });
+
+  it('rejects a late legacy summary after the session revision changes', async () => {
+    let resolve!: (data: unknown) => void;
+    apiFetchMock.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' }, null);
+    advanceChatbocSessionRevision();
+    resolve({ totals: { total_interactions: 99 } });
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('normalizes totals.total_interactions when kpis are missing', async () => {
     apiFetchMock.mockResolvedValue({
       totals: { total_interactions: 12, active_users: 7 },

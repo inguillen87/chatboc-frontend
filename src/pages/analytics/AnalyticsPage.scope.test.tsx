@@ -70,6 +70,13 @@ describe('AnalyticsPage scope routing', () => {
     useUserMock.mockReturnValue({ user: { id: 7, rol: 'admin_municipio', tipo_chat: 'municipio', tenant_slug: 'junin', organization_profile: { tenant: { id: 22, slug: 'junin' } } } });
   });
 
+  it.each([new ApiError('denied', 401), new ApiError('denied', 403), new DOMException('session changed', 'AbortError')])('does not request summary after hub rejection $name/$status', async (error) => {
+    vi.mocked(analyticsService.getHub).mockRejectedValueOnce(error);
+    render(<MemoryRouter initialEntries={['/analytics?tenant_id=22&range=7d']}><AnalyticsPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument());
+    expect(analyticsService.getSummary).not.toHaveBeenCalled();
+  });
+
   it('keeps the explicit municipio scope from the URL even when the stored tenant type is pyme', async () => {
     render(
       <MemoryRouter initialEntries={['/analytics?tenant_id=22&scope=municipio&range=7d']}>

@@ -8,4 +8,4 @@ export async function apiFetch<T>(path:string,options:any={}):Promise<T>{
   if(!response.ok)throw new ApiError('Synthetic response failure',response.status,value);
   return value;
 }
-export const useTenant=()=>({currentSlug:'geo-qa'});
+export const useTenant=()=>({currentSlug:'geo-qa',tenant:{id:7,slug:'geo-qa',tipo:'municipio'},isLoadingTenant:false,tenantError:null});

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -141,6 +141,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const summaryRequest = useRef(0);
 
   const [timeRange, setTimeRange] = useState(searchParams.get('range') || '7d');
   const [channelFilter, setChannelFilter] = useState(searchParams.get('canal') || '');
@@ -261,6 +262,8 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
   }, [timeRange]);
 
   const fetchData = async () => {
+    const request = ++summaryRequest.current;
+    const isCurrent = () => summaryRequest.current === request;
     setLoading(true);
     setError(null);
     try {
@@ -284,10 +287,8 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
         analyticsService.getHub(requestPayload, { strictAccess: true }),
         ANALYTICS_HUB_TIMEOUT_MS,
         'analytics_hub_timeout',
-      ).catch((error) => {
-        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
-        return null;
-      });
+      );
+      if (!isCurrent()) return;
       const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
       setHubNavigation(primaryNavigation);
       setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
@@ -298,6 +299,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
           'analytics_summary_timeout',
         );
 
+      if (!isCurrent()) return;
       setData(result);
       if (tenantId) {
         fireAndForgetTrackEvent({
@@ -309,12 +311,15 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
         });
       }
     } catch (err: any) {
+      if (!isCurrent()) return;
       console.error(err);
       setData(null);
+      setHubNavigation([]);
+      setHubSections({});
       const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err.status, 'load_analytics') : 'No se pudo cargar el dashboard.';
       setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
@@ -322,6 +327,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
     if (tenantId || currentSlug) {
         fetchData();
     }
+    return () => { summaryRequest.current += 1; };
   }, [tenantId, currentSlug, dateRange, activeTab, scope, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter]);
 
   const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {

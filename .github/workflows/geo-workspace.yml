@@ -10,6 +10,7 @@ name: Geographic analytics workspace
       - src/services/analyticsService*
       - tests/geo-workspace.browser.mjs
       - tests/e2e/fixtures/geo-workspace.*
+      - tests/e2e/fixtures/analytics-workspace.session.tsx
       - .github/workflows/geo-workspace.yml
 permissions:
   contents: read

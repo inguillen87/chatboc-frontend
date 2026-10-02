@@ -701,11 +701,20 @@ export default function SurveyAnalyticsPage() {
     readRecordText(publicationLinks, 'public_url') ||
     readRecordText(publicationLinks, 'copy_url');
   const publicationState = readRecordText(surveyPublication, 'public_state') || effectiveSurvey?.estado || '';
-  const isPublicationReady = effectiveSurvey?.admin_lifecycle
-    ? effectiveSurvey.admin_lifecycle.capabilities.can_share === true &&
-      effectiveSurvey.public_access?.allowed !== false
-    : surveyPublication?.is_published === true &&
-      effectiveSurvey?.public_access?.allowed !== false;
+  // Older detail responses omit these contracts; only the same survey in the
+  // tenant-scoped admin list may supply them. Stored publication is not authority.
+  const publicationLifecycle = survey?.admin_lifecycle ?? surveyFromList?.admin_lifecycle;
+  const publicationAccess = survey?.public_access ?? surveyFromList?.public_access;
+  const publicationVeto =
+    survey?.admin_lifecycle?.capabilities.can_share === false ||
+    surveyFromList?.admin_lifecycle?.capabilities.can_share === false ||
+    survey?.public_access?.allowed === false ||
+    surveyFromList?.public_access?.allowed === false;
+  const isPublicationReady =
+    (!survey || survey.id === surveyId) &&
+    publicationLifecycle?.capabilities.can_share === true &&
+    publicationAccess?.allowed !== false &&
+    !publicationVeto;
   const publicHref = isPublicationReady
     ? backendPublicHref
       ? withPublicSurveyTenantScope(backendPublicHref, effectiveTenantSlug)
@@ -828,9 +837,11 @@ export default function SurveyAnalyticsPage() {
   );
   const shareQrViaWhatsapp =
     qrAdminActionId === 'share_whatsapp_qr' && Boolean(resolvedWhatsappShareUrl);
-  const adminQrHref = shareQrViaWhatsapp
-    ? resolvedWhatsappShareUrl
-    : qrUrl || scopedQrActionHref || '';
+  const adminQrHref = isPublicationReady
+    ? shareQrViaWhatsapp
+      ? resolvedWhatsappShareUrl
+      : qrUrl || scopedQrActionHref || ''
+    : '';
   const operationsActionCards = useMemo(
     () => [
       {
@@ -884,7 +895,9 @@ export default function SurveyAnalyticsPage() {
   );
   const publicationActionIds = publicationActions.map((action) => readRecordText(action, 'id')).filter(Boolean);
   const publicationActionLabel =
-    publicationActionIds.includes('publish_survey')
+    !isPublicationReady
+      ? 'Participación pública pendiente de validación'
+      : publicationActionIds.includes('publish_survey')
       ? 'Publicar encuesta'
       : publicationActionIds.includes('enable_live_results')
         ? 'Activar resultados en vivo'
@@ -1503,7 +1516,7 @@ export default function SurveyAnalyticsPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                {publicationActionLabel}. Compartí el enlace en WhatsApp, canales institucionales, redes sociales o insertalo en tu sitio para maximizar la participación.
+                {publicationActionLabel}.{isPublicationReady ? ' Compartí el enlace en WhatsApp, canales institucionales, redes sociales o insertalo en tu sitio para maximizar la participación.' : ''}
               </p>
             </div>
             {qrUrl ? (

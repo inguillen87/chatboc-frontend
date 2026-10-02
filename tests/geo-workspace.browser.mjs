@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 const folder='.vercel/geo-evidence';
 const transport=path.resolve('tests/e2e/fixtures/geo-workspace.transport.ts');
 const map=path.resolve('tests/e2e/fixtures/geo-workspace.map.tsx');
-const server=await createServer({configFile:false,plugins:[react()],cacheDir:'.vercel/geo-browser-cache',optimizeDeps:{entries:['tests/e2e/fixtures/geo-workspace.html']},resolve:{alias:[{find:/^@\/(utils\/api|context\/TenantContext)$/,replacement:transport},{find:'@/components/LazyMapLibreMap',replacement:map},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
+const session=path.resolve('tests/e2e/fixtures/analytics-workspace.session.tsx');
+const server=await createServer({configFile:false,plugins:[react()],cacheDir:'.vercel/geo-browser-cache',optimizeDeps:{entries:['tests/e2e/fixtures/geo-workspace.html']},resolve:{alias:[{find:'@/hooks/useUser',replacement:session},{find:/^@\/(utils\/api|context\/TenantContext)$/,replacement:transport},{find:'@/components/LazyMapLibreMap',replacement:map},{find:'@',replacement:path.resolve('src')}]},server:{host:'127.0.0.1',port:0},logLevel:'error'});
 let browser;const results=[];
 const points=[{id:1,lat:-33.086,lng:-68.471,categoria:'agua',estado:'abierto',severidad:'alta',canal:'whatsapp',distrito:'centro',weight:2},{id:2,lat:-33.087,lng:-68.473,categoria:'luz',estado:'cerrado',severidad:'baja',canal:'web',distrito:'sur',weight:1}];
 try{
@@ -75,11 +76,18 @@ try{
    await expect(page.getByTestId('geography-observed')).toHaveCount(0);
    await expect(page.getByRole('button',{name:'Categoría: Luminarias, 2 registros informados'})).toHaveCount(0);
    assert.equal(requests.length,5);assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
-   results.push({width,height,dark,passed:true,requests:requests.length,mutations:writes.length,seriousViolations:serious.length});
+   for(const gate of ['qa-unverified','qa-profile-unverified']){
+    const before=requests.length;
+    await page.goto(`${origin}/tests/e2e/fixtures/geo-workspace.html?${gate}=1`);
+    await expect(page.getByText('Organización del mapa no verificada',{exact:true})).toBeVisible();
+    await expect(page.getByTestId('geography-observed')).toHaveCount(0);
+    await page.waitForTimeout(250);assert.equal(requests.length,before);assert.deepEqual(errors,[]);
+   }
+   results.push({width,height,dark,passed:true,requests:requests.length,mutations:writes.length,seriousViolations:serious.length,unverifiedSessionReads:0,unverifiedProfileReads:0});
   }catch(error){await page.screenshot({path:`${folder}/geo-${width}-failure.png`,fullPage:true}).catch(()=>{});results.push({width,height,dark,passed:false,reason:error.message,errors,requests});}
   finally{await context.close();}
  }
- const report={syntheticData:true,syntheticBasemap:true,productionBackend:false,realAuthentication:false,realAnalyticsService:true,realMapLibreRenderer:true,results};
+ const report={syntheticData:true,syntheticBasemap:true,syntheticVerifiedSession:true,productionBackend:false,realAuthentication:false,realPrivateScopeHook:true,realSessionAuthorityProvider:true,realAnalyticsService:true,realMapLibreRenderer:true,results};
  await writeFile(`${folder}/browser-results.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
  assert.ok(results.every(result=>result.passed),'Geographic browser validation failed');
 }finally{await browser?.close();await server.close();}

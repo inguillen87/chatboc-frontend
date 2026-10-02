@@ -1094,7 +1094,12 @@ export const analyticsService = {
   },
 
   getSummary: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsSummary> => {
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const authority = getHubAuthorityScope();
+    const isCurrent = () => getHubAuthorityScope() === authority;
+    const hub = hubOverride === undefined
+      ? await analyticsService.getHub(filters, { strictAccess: true })
+      : hubOverride;
+    if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
     const contextKey = (filters.context === 'pyme' ? 'ventas' : filters.context === 'overview' ? 'general' : filters.context) as 'general' | 'municipio' | 'ventas' | undefined;
     const hubSummary = contextKey ? extractHubSectionSummary(hub, contextKey) : null;
     if (hubSummary) return hubSummary;
@@ -1103,7 +1108,11 @@ export const analyticsService = {
     const response = await apiFetch<any>(`/admin/analytics/overview?${query}`, {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
+      singleAttempt: true,
+      allowStartupRecovery: true,
+      isCurrent,
     });
+    if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
     return normalizeAnalyticsSummary(response);
   },
 
