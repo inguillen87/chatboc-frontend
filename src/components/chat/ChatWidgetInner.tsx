@@ -1076,8 +1076,25 @@ function ChatWidgetInner({
     (typeof entityInfo?.slogan === "string" && entityInfo.slogan.trim()) ||
     "";
 
-  const headerTitle = isEmbedded ? (welcomeTitle || derivedEntityTitle) : welcomeTitle;
-  const headerSubtitle = isEmbedded ? (welcomeSubtitle || derivedEntitySubtitle) : welcomeSubtitle;
+  // The public appearance contract stores the assistant name below the greeting.
+  const hasPublicAppearance = entityInfo?.contract_version === 'public.widget_config.v1';
+  const publicHeaderTitle = hasPublicAppearance && typeof entityInfo?.welcome_subtitle === 'string'
+    ? entityInfo.welcome_subtitle.trim()
+    : '';
+  const publicHeaderSubtitle = hasPublicAppearance && typeof entityInfo?.welcome_title === 'string'
+    ? entityInfo.welcome_title.trim()
+    : '';
+  const useScopedStandaloneAppearance = !isEmbedded && !isPublicPlatformSurface && hasPublicAppearance;
+  const headerTitle = isEmbedded
+    ? (welcomeTitle || publicHeaderTitle || derivedEntityTitle)
+    : useScopedStandaloneAppearance
+      ? (publicHeaderTitle || derivedEntityTitle || welcomeTitle)
+      : welcomeTitle;
+  const headerSubtitle = isEmbedded
+    ? (welcomeSubtitle || publicHeaderSubtitle || derivedEntitySubtitle)
+    : useScopedStandaloneAppearance
+      ? (publicHeaderSubtitle || derivedEntitySubtitle || welcomeSubtitle)
+      : welcomeSubtitle;
 
   const tenantSlugFromEntity = useMemo(() => {
     if (entityInfo?.onboarding?.mode === "demo_session") return null;
