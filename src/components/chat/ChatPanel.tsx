@@ -1164,6 +1164,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";
+  const isPublicWidget = mode !== undefined || Boolean(chatBootstrap);
   const liveChatMarkedAvailable = Boolean(
     supportChannels?.live_chat?.available ??
     supportChannels?.live_chat?.realtime,
@@ -1224,6 +1225,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [storedVisitorName, setStoredVisitorName] = useState(() => getVisitorName());
   const {
     messages,
+    visitorName: scopedVisitorName,
     isTyping,
     institutionalBootstrapPending,
     suppressLegacyInitialMenu,
@@ -3316,7 +3318,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const emptyStateDescription =
     readExperienceDescription(resolvedEmptyBlock) ||
     "Escribí tu consulta abajo o usá las opciones del menú.";
-  const visitorDisplayName = readFirstString(
+  const visitorDisplayName = isPublicWidget ? scopedVisitorName : readFirstString(
     user?.nombre,
     user?.name,
     user?.displayName,
@@ -4358,6 +4360,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
             message={msg}
+            publicVisitorName={isPublicWidget ? scopedVisitorName || null : undefined}
             isTyping={isTyping}
             onButtonClick={handleSend}
             onInternalAction={handleInternalAction}

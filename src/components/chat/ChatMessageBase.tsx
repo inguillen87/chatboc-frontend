@@ -363,11 +363,12 @@ const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?:
   </motion.div>
 );
 
-const UserChatAvatar: React.FC = () => {
+const UserChatAvatar: React.FC<{ publicVisitorName?: string | null }> = ({ publicVisitorName }) => {
   const { user } = useUser();
+  const isPublicVisitor = publicVisitorName !== undefined;
   const resolvedAvatar = useMemo(
-    () => resolveConsentedAvatar(user as Record<string, unknown> | null | undefined),
-    [user],
+    () => resolveConsentedAvatar(isPublicVisitor ? null : user as Record<string, unknown> | null | undefined),
+    [isPublicVisitor, user],
   );
 
   return (
@@ -378,7 +379,7 @@ const UserChatAvatar: React.FC = () => {
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
       <IdentityAvatar
-        name={user?.name || user?.email || "Usuario"}
+        name={isPublicVisitor ? publicVisitorName || "Usuario" : user?.name || user?.email || "Usuario"}
         avatarUrl={resolvedAvatar.avatarUrl}
         source={resolvedAvatar.source}
         consented={resolvedAvatar.consented}
@@ -449,6 +450,8 @@ const StructuredContentDisplay: React.FC<{ items: StructuredContentItem[] }> = (
 
 export interface ChatMessageBaseProps {
   message: Message;
+  // Undefined keeps the private profile; null identifies an unnamed public visitor.
+  publicVisitorName?: string | null;
   isTyping: boolean;
   onButtonClick: (valueToSend: SendPayload) => void;
   onInternalAction?: (action: string) => void;
@@ -465,6 +468,7 @@ export interface ChatMessageBaseProps {
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
   {
     message,
+    publicVisitorName,
     isTyping,
     onButtonClick,
     onInternalAction,
@@ -975,7 +979,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           ) : null}
         </MessageBubble>
 
-        {!isBot && <UserChatAvatar />}
+        {!isBot && <UserChatAvatar publicVisitorName={publicVisitorName} />}
       </div>
     </motion.div>
   );

@@ -1869,7 +1869,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
           </div>
 
           <div className="rounded-2xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
-            <p className="font-medium text-foreground">Rutas conectadas</p>
+            <p className="font-medium text-foreground">Rutas de configuración</p>
+            <p>Estas rutas no confirman la activación del canal ni el envío de mensajes.</p>
             <p>Inbound: <span className="font-mono">/webhook/whatsapp</span></p>
             <p>Status: <span className="font-mono">/twilio/whatsapp/status</span></p>
             <p>Voz: <span className="font-mono">{voice?.voice_url || "/twilio/voice?tenant=..."}</span></p>

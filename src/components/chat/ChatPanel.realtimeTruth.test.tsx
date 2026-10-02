@@ -8,6 +8,7 @@ import type {Message} from '@/types/chat';
 
 const chatLogic = {
   messages: [] as Message[],
+  visitorName: null as string | null,
   isTyping: false,
   institutionalBootstrapPending:false,
   suppressLegacyInitialMenu:false,
@@ -25,6 +26,11 @@ const chatLogic = {
   addSystemMessage: vi.fn(),
   initializeConversation: vi.fn(),
 };
+
+const profile = vi.hoisted(() => ({ user: null as {
+  name: string; email: string; avatar_url: string; avatar_source: string; avatar_consent: boolean;
+} | null }));
+vi.mock('@/hooks/useUser', () => ({ useUser: () => profile }));
 
 const provisionedSession = {
   ok: true,
@@ -73,11 +79,48 @@ describe("ChatPanel realtime transport truth", () => {
     chatLogic.institutionalBootstrapPending=false;
     chatLogic.suppressLegacyInitialMenu=false;
     chatLogic.messages=[];
+    chatLogic.visitorName=null;
     chatLogic.contexto={};
+    profile.user=null;
     window.localStorage.clear();window.sessionStorage.clear();
     vi.mocked(apiFetch).mockImplementation(async (path) =>
       path === "/api/public/realtime/session" ? provisionedSession : {},
     );
+  });
+
+  it.each(['iframe','script','standalone'] as const)('keeps the %s visitor bubble generic despite an administrative profile and an unscoped stored name', async (mode) => {
+    profile.user={name:'Synthetic panel operator',email:'panel@example.invalid',avatar_url:'https://images.example.invalid/panel.jpg',avatar_source:'google',avatar_consent:true};
+    window.localStorage.setItem('user',JSON.stringify(profile.user));
+    window.localStorage.setItem('visitor_name','Unscoped prior visitor');
+    chatLogic.messages=[{id:'public-question',text:'Consulta del visitante',isBot:false,timestamp:new Date()}];
+    const panel=render(<ChatPanel tipoChat="municipio" tenantSlug="qa-visitor" mode={mode}/>);
+    await waitFor(()=>expect(screen.getByTitle('Usuario - Avatar generativo por identidad')).toBeVisible());
+    expect(screen.queryByTitle(/Synthetic panel operator/)).not.toBeInTheDocument();
+    expect(panel.container.querySelector('img[src="https://images.example.invalid/panel.jpg"]')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('user')).toBe(JSON.stringify(profile.user));
+    expect(window.localStorage.getItem('visitor_name')).toBe('Unscoped prior visitor');
+    expect(chatLogic.handleSend).not.toHaveBeenCalled();
+  });
+
+  it('shows only the explicit current visitor name and retires it when switching the widget tenant', async () => {
+    profile.user={name:'Synthetic panel operator',email:'panel@example.invalid',avatar_url:'https://images.example.invalid/panel.jpg',avatar_source:'google',avatar_consent:true};
+    chatLogic.visitorName='Synthetic visitor';
+    chatLogic.messages=[{id:'visitor-question',text:'Consulta del visitante',isBot:false,timestamp:new Date()}];
+    const panel=render(<ChatPanel tipoChat="municipio" tenantSlug="qa-visitor" mode="iframe"/>);
+    await waitFor(()=>expect(screen.getByTitle('Synthetic visitor - Avatar generativo por identidad')).toBeVisible());
+    expect(screen.queryByTitle(/Synthetic panel operator/)).not.toBeInTheDocument();
+    chatLogic.visitorName=null;
+    panel.rerender(<ChatPanel tipoChat="municipio" tenantSlug="qa-other" mode="iframe"/>);
+    expect(screen.getByTitle('Usuario - Avatar generativo por identidad')).toBeVisible();
+    expect(screen.queryByTitle(/Synthetic visitor/)).not.toBeInTheDocument();
+  });
+
+  it('preserves the private conversation profile and its consented avatar', async () => {
+    profile.user={name:'Synthetic panel operator',email:'panel@example.invalid',avatar_url:'https://images.example.invalid/panel.jpg',avatar_source:'google',avatar_consent:true};
+    chatLogic.messages=[{id:'private-question',text:'Consulta privada',isBot:false,timestamp:new Date()}];
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-private"/>);
+    await waitFor(()=>expect(screen.getByTitle('Synthetic panel operator - Avatar con imagen consentida (google)')).toBeVisible());
+    expect(screen.queryByTitle('Usuario - Avatar generativo por identidad')).not.toBeInTheDocument();
   });
 
   it('requests visitor details for an explicit public lead CTA instead of taking the administrative profile',()=>{

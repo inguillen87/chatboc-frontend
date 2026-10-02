@@ -3366,6 +3366,7 @@ export function useChatLogic({
 
   return {
     messages,
+    visitorName:visitorNameRef.current?.scope===initializationScope ? visitorNameRef.current.name : null,
     institutionalBootstrapPending:canDiscoverInstitutionalWorkspace&&(institutionalBootstrapStatus==='idle'||institutionalBootstrapStatus==='loading'),
     suppressLegacyInitialMenu:canDiscoverInstitutionalWorkspace&&institutionalBootstrapStatus!=='legacy',
     isTyping,

@@ -38,6 +38,7 @@ describe('public visitor contact isolation',()=>{
   global.fetch=vi.fn().mockImplementation(async(_url,request)=>request?.method==='GET'
    ?new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}}):reply());
   const hook=renderHook(()=>useChatLogic(options()));
+  expect(hook.result.current.visitorName).toBeNull();
   await act(async()=>{await hook.result.current.initializeConversation();});
   render(<ChatMessage message={hook.result.current.messages[0]} isTyping={false} onButtonClick={hook.result.current.handleSend}/>);
   fireEvent.click(screen.getByRole('button',{name:'Contactos por ciudad'}));
@@ -80,6 +81,7 @@ describe('public visitor contact isolation',()=>{
   const hook=renderHook(({slug})=>useChatLogic(options(slug)),{initialProps:{slug:'qa-visitor'}});
   const visitor={nombre:'Synthetic visitor',email:'visitor@example.invalid',telefono:'111111111',dni:'12345678'};
   await act(async()=>{await hook.result.current.handleSend({action:'submit_personal_data',payload:visitor});});
+  expect(hook.result.current.visitorName).toBe(visitor.nombre);
   expect(global.fetch).not.toHaveBeenCalled();
   expect(hook.result.current.contexto.datos_reclamo).toMatchObject({nombre_ciudadano:visitor.nombre,email_ciudadano:visitor.email,telefono_ciudadano:visitor.telefono,dni_ciudadano:visitor.dni});
   await act(async()=>{await hook.result.current.handleSend({action:'iniciar_creacion_reclamo'});});
@@ -88,11 +90,13 @@ describe('public visitor contact isolation',()=>{
   expect(requestBodies()[0].body.nombre_usuario).toBe(visitor.nombre);
   expect(requestBodies()).toHaveLength(1);
   hook.rerender({slug:'qa-other'});
+  expect(hook.result.current.visitorName).toBeNull();
   await act(async()=>{await hook.result.current.handleSend('Contacto en esta organización');});
   expect(requestBodies()).toHaveLength(2);
   expect(requestBodies()[1].body).not.toHaveProperty('nombre_usuario');
   expect(requestBodies()[1].body.contexto_previo.datos_reclamo.nombre_ciudadano).toBeNull();
   hook.rerender({slug:'qa-visitor'});
+  expect(hook.result.current.visitorName).toBeNull();
   await act(async()=>{await hook.result.current.handleSend('Volver a esta organización');});
   expect(requestBodies()[2].body).not.toHaveProperty('nombre_usuario');
  });
