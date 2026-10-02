@@ -11,7 +11,7 @@ const formatLabels={pdf:'PDF',jpeg:'Imagen',text:'Texto extraído'};
 export function KnowledgeSourceMetadata({source,compact=false,mode='admin'}:{source:KnowledgeSource;compact?:boolean;mode?:'admin'|'public'}){
  const format=source.format??source.delivery?.format;
  const originalAllowed=knowledgeSourceOriginalAllowed(source,mode);
- return <div className="mt-2 min-w-0 space-y-2 text-sm leading-relaxed">
+ return <div className="institutional-assistant-source-metadata mt-2 min-w-0 space-y-2 text-sm leading-relaxed">
   <p className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
    <span>{authorityLabels[source.source_authority??'unknown']}</span>
    <span>{format?formatLabels[format]:'Formato sin confirmar'}</span>

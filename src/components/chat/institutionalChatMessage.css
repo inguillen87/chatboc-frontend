@@ -2,7 +2,7 @@
 .institutional-chat-message h3 { margin:.5rem 0 1rem; font-size:1.15em; font-weight:650; line-height:1.5; }
 .institutional-chat-message p { white-space:pre-line; margin-block:0 1rem; }
 .institutional-chat-message button,.institutional-chat-message a,.institutional-chat-message summary { min-height:48px; font:inherit; line-height:1.5; }
-.institutional-chat-message button { display:inline-flex; align-items:center; gap:.65rem; border:1px solid hsl(var(--border)); border-radius:.75rem; padding:.65rem .85rem; text-align:left; white-space:normal; color:inherit; background:hsl(var(--background)); }
+.institutional-chat-message button { display:inline-flex; align-items:center; gap:.65rem; min-width:48px; max-width:100%; border:1px solid hsl(var(--border)); border-radius:.75rem; padding:.65rem .85rem; text-align:left; white-space:normal; color:inherit; background:hsl(var(--background)); }
 .institutional-chat-message button:hover { background:hsl(var(--muted)); }
 .institutional-chat-message :focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }
 .institutional-chat-message__text-size { margin-bottom:.5rem; }
@@ -16,6 +16,7 @@
 .institutional-chat-message__sources summary { display:flex; align-items:center; padding-block:.65rem; cursor:pointer; text-decoration:underline; text-underline-offset:.2em; }
 .institutional-chat-message__sources section { padding-block:.75rem; }
 .institutional-chat-message__sources h4 { font-weight:650; }
+.institutional-chat-message .institutional-assistant-source-metadata,.institutional-chat-message .institutional-assistant-source-metadata :is(p,summary,dl) { font-size:inherit; }
 .institutional-chat-message--large { font-size:1.25rem; }
 @media(max-width:360px) { .institutional-chat-message { padding:.75rem; } }
 @media(prefers-reduced-motion:reduce) { .institutional-chat-message,.institutional-chat-message * { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }

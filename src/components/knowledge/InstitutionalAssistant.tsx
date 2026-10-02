@@ -7,12 +7,13 @@ import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
 import './institutionalAssistant.css';
-interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public'}
+export interface PublicKnowledgeAvailability {tenantSlug:string;tenantId:number;revision:string}
+interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void}
 export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
   return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
 }
-function AssistantSession({tenantSlug,mode='admin'}:Props){
+function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
@@ -28,6 +29,12 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
   const sourcesReturnFocus=useRef<HTMLElement|null>(null);
   const dialog=useRef<'sources'|'review'|null>(null),review=useRef<KnowledgeReview|null>(null);
   const returnToHeading=useRef(false),frame=useRef<number|null>(null);
+  const published=mode==='public'&&workspace?.visibility==='public'&&workspace.can_edit===false&&workspace.tenant.slug===tenantSlug&&workspace.knowledge?workspace:null;
+  const publishedTenantId=published?.tenant.id??null,publishedRevision=published?.revision??null;
+  useEffect(()=>{
+    if(mode!=='public')return;
+    onPublicKnowledgeAvailability?.(publishedTenantId&&publishedRevision?{tenantSlug,tenantId:publishedTenantId,revision:publishedRevision}:null);
+  },[mode,tenantSlug,publishedTenantId,publishedRevision,onPublicKnowledgeAvailability]);
   const focusResult=(seq:number)=>{
     if(frame.current!==null)cancelAnimationFrame(frame.current);
     frame.current=requestAnimationFrame(()=>{
@@ -155,8 +162,8 @@ function AssistantSession({tenantSlug,mode='admin'}:Props){
           <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21}/></button></div></form>:null}
       </div>
     </div>
-    <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId}
+    <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId} largeText={large}
       restoreFocus={()=>{const target=sourcesReturnFocus.current?.isConnected?sourcesReturnFocus.current:sourcesTrigger.current;if(active.current&&target?.isConnected)target.focus({preventScroll:true});}}/>
-    <KnowledgeReviewDialog workspace={workspace} pending={pending} onCancel={cancelReview} onConfirm={()=>void confirm()} restoreFocus={restoreReviewFocus}/>
+    <KnowledgeReviewDialog workspace={workspace} pending={pending} onCancel={cancelReview} onConfirm={()=>void confirm()} restoreFocus={restoreReviewFocus} largeText={large}/>
   </section>;
 }

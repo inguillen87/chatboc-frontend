@@ -7,8 +7,8 @@ import {readKnowledgeSource,knowledgeSourceReadMessage,captureKnowledgeSourceAut
 import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {usePanelSessionStore} from '@/stores';
 export interface KnowledgeReview {operation:'import'|'publish'|'retire';bundle?:unknown;filename?:string}
-interface BaseProps {workspace:KnowledgeWorkspace;restoreFocus:()=>void}
-export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,mode='admin',highlightedSourceId}:{open:boolean;onOpenChange:(open:boolean)=>void;mode?:'admin'|'public';highlightedSourceId?:string|null}&BaseProps){
+interface BaseProps {workspace:KnowledgeWorkspace;restoreFocus:()=>void;largeText?:boolean}
+export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,mode='admin',highlightedSourceId,largeText=false}:{open:boolean;onOpenChange:(open:boolean)=>void;mode?:'admin'|'public';highlightedSourceId?:string|null}&BaseProps){
  const title=useRef<HTMLHeadingElement>(null),ui=workspace.ui;
  const mounted=useRef(false),visible=useRef(open),sequence=useRef(0),controller=useRef<AbortController|null>(null),url=useRef<string|null>(null),locked=useRef(false);
  const [pending,setPending]=useState<string|null>(null),[failure,setFailure]=useState<{id:string;message:string}|null>(null);
@@ -51,7 +51,7 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
   finally{if(isCurrent()){locked.current=false;setPending(null);}}
  };
  return <Dialog open={open} onOpenChange={value=>{if(!value)retire();onOpenChange(value);}}>
-  <DialogContent showCloseButton={false} className="institutional-assistant-dialog institutional-assistant-dialog--sources"
+  <DialogContent showCloseButton={false} className={`institutional-assistant-dialog institutional-assistant-dialog--sources${largeText?' institutional-assistant-dialog--large':''}`}
    aria-describedby={undefined}
    onOpenAutoFocus={event=>{event.preventDefault();title.current?.focus();}}
    onCloseAutoFocus={event=>{event.preventDefault();restoreFocus();}}>
@@ -85,12 +85,12 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
   </DialogContent>
  </Dialog>;
 }
-export function KnowledgeReviewDialog({workspace,pending,onCancel,onConfirm,restoreFocus}:{pending:KnowledgeReview|null;onCancel:()=>void;onConfirm:()=>void}&BaseProps){
+export function KnowledgeReviewDialog({workspace,pending,onCancel,onConfirm,restoreFocus,largeText=false}:{pending:KnowledgeReview|null;onCancel:()=>void;onConfirm:()=>void}&BaseProps){
  const cancel=useRef<HTMLButtonElement>(null),ui=workspace.ui;
  const heading=pending?.operation==='import'?ui.import:pending?.operation==='publish'?ui.publish:ui.retire;
  const description=pending?.operation==='import'?ui.import_help:pending?.operation==='publish'?ui.confirm_publish:ui.confirm_retire;
  return <Dialog open={pending!==null} onOpenChange={open=>{if(!open)onCancel();}}>
-  <DialogContent showCloseButton={false} className="institutional-assistant-dialog institutional-assistant-dialog--review"
+  <DialogContent showCloseButton={false} className={`institutional-assistant-dialog institutional-assistant-dialog--review${largeText?' institutional-assistant-dialog--large':''}`}
    onOpenAutoFocus={event=>{event.preventDefault();cancel.current?.focus();}}
    onCloseAutoFocus={event=>{event.preventDefault();restoreFocus();}}>
    <header className="institutional-assistant-dialog__header"><div>

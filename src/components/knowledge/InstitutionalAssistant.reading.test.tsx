@@ -1,5 +1,5 @@
 import React from 'react';
-import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
@@ -9,6 +9,46 @@ const view=(sessionKey='actor-a')=><InstitutionalAssistant tenantSlug="qa-knowle
 const deferred=()=>{let resolve!:(value:any)=>void;const promise=new Promise<any>(r=>{resolve=r;});return{promise,resolve};};
 beforeEach(()=>{mocks.fetch.mockReset();mocks.fetch.mockResolvedValue(workspace());});afterEach(cleanup);
 describe('institutional reading and review',()=>{
+ it('keeps enlarged source reading local to its assistant and preserves the draft and focus',async()=>{
+  render(<>{view('large-reader')}{view('regular-reader')}</>);
+  await screen.findAllByLabelText('Escribí tu consulta');
+  const [largeReader,regularReader]=screen.getAllByTestId('institutional-assistant');
+  const first=within(largeReader),second=within(regularReader);
+  const input=first.getByLabelText('Escribí tu consulta');
+  fireEvent.change(input,{target:{value:'Consulta en borrador'}});
+  fireEvent.click(first.getByRole('button',{name:'Texto ampliado'}));
+  const sourceTrigger=first.getByRole('button',{name:'Documentos y fuentes'});
+  fireEvent.click(sourceTrigger);
+  const enlarged=await screen.findByRole('dialog',{name:'Documentos y fuentes'});
+  expect(enlarged).toHaveClass('institutional-assistant-dialog--large');
+  fireEvent.keyDown(enlarged,{key:'Escape'});
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(()=>expect(sourceTrigger).toHaveFocus());
+  expect(input).toHaveValue('Consulta en borrador');
+  fireEvent.click(second.getByRole('button',{name:'Documentos y fuentes'}));
+  const regular=await screen.findByRole('dialog',{name:'Documentos y fuentes'});
+  expect(regular).not.toHaveClass('institutional-assistant-dialog--large');
+  fireEvent.keyDown(regular,{key:'Escape'});
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(first.getByRole('button',{name:'Texto ampliado'})).toHaveAttribute('aria-pressed','true');
+  expect(second.getByRole('button',{name:'Texto ampliado'})).toHaveAttribute('aria-pressed','false');
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it('carries enlarged reading into the review without changing confirmation or draft behavior',async()=>{
+  render(view());const input=await screen.findByLabelText('Escribí tu consulta');
+  fireEvent.change(input,{target:{value:'Borrador conservado'}});
+  fireEvent.click(screen.getByRole('button',{name:'Texto ampliado'}));
+  const trigger=screen.getByRole('button',{name:'Habilitar en el agente'});
+  fireEvent.click(trigger);
+  expect(await screen.findByRole('dialog',{name:'Habilitar en el agente'})).toHaveClass('institutional-assistant-dialog--large');
+  expect(screen.getByRole('button',{name:'Cancelar'})).toHaveFocus();
+  fireEvent.submit(input.closest('form')!);
+  expect(mocks.fetch).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole('button',{name:'Cancelar'}));
+  await waitFor(()=>expect(trigger).toHaveFocus());
+  expect(input).toHaveValue('Borrador conservado');
+  expect(screen.getByRole('button',{name:'Texto ampliado'})).toHaveAttribute('aria-pressed','true');
+ });
  it('opens sources as a labelled dialog, preserving draft and returning focus',async()=>{
   render(view());const input=await screen.findByLabelText('Escribí tu consulta');
   fireEvent.change(input,{target:{value:'Consulta que todavía estoy escribiendo'}});
