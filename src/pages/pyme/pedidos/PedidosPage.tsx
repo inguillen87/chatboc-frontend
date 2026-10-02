@@ -1,6 +1,5 @@
 import AbandonedCartRecoveryPanel from '@/components/cart/AbandonedCartRecoveryPanel';
-import React, { useState, useEffect } from 'react';
-import { useTenant } from '@/context/TenantContext';
+import React, { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/api/client';
 import { AdminOrdersResponse, CrmOperatorAction, CrmReviewCard, Order, OrderOperationalSummary } from '@/types/unified';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -694,8 +693,15 @@ const CrmOperatorActionsPanel = ({
   );
 };
 
-const PedidosPage = () => {
-  const { currentSlug } = useTenant();
+const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
+  const active = useRef(true);
+  const scope = useRef({ slug: currentSlug, generation: 0 });
+  if (scope.current.slug !== currentSlug) scope.current = { slug: currentSlug, generation: scope.current.generation + 1 };
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  const captureCurrentScope = () => {
+    const generation = scope.current.generation;
+    return () => active.current && scope.current.slug === currentSlug && scope.current.generation === generation;
+  };
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryString = searchParams.toString();
@@ -748,43 +754,36 @@ const PedidosPage = () => {
   }, [queryString, searchParams]);
 
   const loadOrders = async () => {
+    const isCurrent = captureCurrentScope();
     setLoading(true);
     try {
       if (!currentSlug) return;
 
       const data = await listOrdersWithOptionalSummary(currentSlug, { status: 'all', limit: 100 });
+      if (!isCurrent()) return;
       const normalized = normalizeOrders(data.orders);
       setOrders(normalized);
       setOrdersSummary(data.summary ?? null);
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Error loading orders:', error);
 
-      try {
-          // Fallback retry without filters
-          const fallbackData = await listOrdersWithOptionalSummary(currentSlug);
-          const fallbackNormalized = normalizeOrders(fallbackData.orders);
-          if (fallbackNormalized.length > 0) {
-              setOrders(fallbackNormalized);
-              setOrdersSummary(fallbackData.summary ?? null);
-              return;
-          }
-      } catch (e) {
-          // Ignore fallback error
-      }
       setOrders([]);
       setOrdersSummary(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
     if (!currentSlug) return;
+    const isCurrent = captureCurrentScope();
     const currentOrders = Array.isArray(orders) ? orders : [];
     if (newStatus === 'cancelled' && !window.confirm('Confirmas cancelar este pedido?')) return;
 
     try {
       const response = await apiClient.adminUpdateOrder(currentSlug, orderId, { status: newStatus });
+      if (!isCurrent()) return;
       const updatedOrders = currentOrders.map((order) =>
         order.id === orderId ? resolveUpdatedOrder(order, response, newStatus) : order,
       );
@@ -793,6 +792,7 @@ const PedidosPage = () => {
         setSelectedOrder(resolveUpdatedOrder(selectedOrder, response, newStatus));
       }
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Failed to update status', error);
       toast.error("No se pudo actualizar el estado. El pedido no fue modificado.");
     }
@@ -808,6 +808,7 @@ const PedidosPage = () => {
     },
   ) => {
     if (!currentSlug) return;
+    const isCurrent = captureCurrentScope();
     const resolutionKey = `${payload.lineId || payload.sourceName}:${payload.catalogItemId}`;
     setResolvingCatalogCandidateKey(resolutionKey);
     try {
@@ -820,6 +821,7 @@ const PedidosPage = () => {
           },
         ],
       });
+      if (!isCurrent()) return;
       const updated = resolveUpdatedOrder(order, response, order.status);
       setOrders((currentOrders) => currentOrders.map((item) => (item.id === order.id ? resolveUpdatedOrder(item, response, item.status) : item)));
       if (selectedOrder && selectedOrder.id === order.id) {
@@ -827,15 +829,17 @@ const PedidosPage = () => {
       }
       toast.success(`Catalogo vinculado: ${payload.sourceName} -> ${payload.candidateName}`);
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Failed to resolve catalog candidate', error);
       toast.error('No se pudo vincular el producto del catalogo.');
     } finally {
-      setResolvingCatalogCandidateKey(null);
+      if (isCurrent()) setResolvingCatalogCandidateKey(null);
     }
   };
 
   const handleCreateOrder = async () => {
     if (!currentSlug) return;
+    const isCurrent = captureCurrentScope();
     if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
       toast.error("Complete los campos obligatorios");
       return;
@@ -853,15 +857,17 @@ const PedidosPage = () => {
       };
 
       await apiClient.adminCreateOrder(currentSlug, payload);
+      if (!isCurrent()) return;
       toast.success("Pedido creado correctamente");
       setIsCreateOpen(false);
       setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });
       loadOrders(); // Refresh list
     } catch (error) {
+      if (!isCurrent()) return;
       console.error("Create order failed", error);
       toast.error("Error al crear el pedido");
     } finally {
-      setCreateLoading(false);
+      if (isCurrent()) setCreateLoading(false);
     }
   };
 

@@ -285,7 +285,7 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
 };
 
 // ---------- Página Principal ----------
-export default function PedidosPage() {
+export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?: string } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenant: routeTenant } = useParams();
@@ -294,7 +294,7 @@ export default function PedidosPage() {
   const sessionPending = profileLoading || clerkStatus === 'loading' || clerkStatus === 'syncing';
   const canReadOrders = hasVerifiedSession && organizationProfileVerified &&
     hasRequiredRole(user?.rol, ['tenant_admin', 'employee', 'superadmin']);
-  const candidateTenant = routeTenant || new URLSearchParams(location.search).get('tenant_slug') ||
+  const candidateTenant = scopedTenant || routeTenant || new URLSearchParams(location.search).get('tenant_slug') ||
     user?.tenant_slug || user?.tenantSlug;
   const tenantSlug = typeof candidateTenant === 'string' && /^[a-z0-9][a-z0-9_-]{0,127}$/i.test(candidateTenant.trim())
     ? candidateTenant.trim().toLowerCase() : null;
