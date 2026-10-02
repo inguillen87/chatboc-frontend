@@ -1591,29 +1591,81 @@ const ChatPanel = (props: ChatPanelProps) => {
     : [];
 
 
-  // Check for pending widget action from CTA bubble
+  const pendingActionScope = JSON.stringify([
+    tipoChat, tenantSlug ?? null, propEntityToken ?? null,
+    resolvedSelectedRubro, mode ?? null, chatBootstrap?.endpoint ?? null,
+    chatBootstrap?.session?.chat_session_id ?? null,
+    chatBootstrap?.session?.demo_session_id ?? null,
+  ]);
+  const pendingActionScopeRef = useRef(pendingActionScope);
+  pendingActionScopeRef.current = pendingActionScope;
+  const pendingActionRef = useRef<{
+    scope: string;
+    payload: Parameters<typeof handleSend>[0];
+  } | null>(null);
+  const pendingActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingActionSenderRef = useRef(handleSend);
+  useEffect(() => { pendingActionSenderRef.current = handleSend; }, [handleSend]);
+  useEffect(() => {
+    if (pendingActionRef.current?.scope !== pendingActionScope) {
+      pendingActionRef.current = null;
+    }
+    return () => {
+      if (pendingActionTimerRef.current !== null) {
+        clearTimeout(pendingActionTimerRef.current);
+        pendingActionTimerRef.current = null;
+      }
+    };
+  }, [pendingActionScope]);
+
+  // A queued CTA belongs to this mounted conversation. Tracking uses its own
+  // ticket/PIN dialog and must never enter the generic chat action dispatcher.
   useEffect(() => {
     const pendingAction = safeLocalStorage.getItem(PENDING_WIDGET_ACTION);
     if (pendingAction) {
       safeLocalStorage.removeItem(PENDING_WIDGET_ACTION);
       try {
         const actionData = JSON.parse(pendingAction);
+        const trackingActions = ["ticket_public_tracking", "ticket_live_or_offline_message"];
+        if ([actionData?.action, actionData?.action_id, actionData?.type,
+          actionData?.payload?.action, actionData?.payload?.action_id, actionData?.payload?.type]
+          .some((value) => trackingActions.includes(value))) {
+          addSystemMessage(
+            "Para escribir sobre tu reclamo, abrí su página de seguimiento con el número y el PIN.",
+            "info",
+          );
+          return;
+        }
         if (actionData && actionData.action) {
-          // Allow slight delay for component initialization
-          setTimeout(() => {
-            handleSend({
+          if (pendingActionTimerRef.current !== null) {
+            clearTimeout(pendingActionTimerRef.current);
+            pendingActionTimerRef.current = null;
+          }
+          pendingActionRef.current = {
+            scope: pendingActionScope,
+            payload: {
               text: actionData.text || actionData.action, // Fallback text if just action
               action: actionData.action,
               action_id: actionData.action_id,
               payload: actionData.payload,
-            });
-          }, 500);
+            },
+          };
         }
-      } catch (e) {
-        console.error("Error parsing pending widget action", e);
+      } catch {
+        // Parsing errors can contain pieces of the stored ticket/PIN payload.
+        console.warn("No se pudo leer la acción pendiente del chat.");
       }
     }
-  }, [handleSend]);
+    const pending = pendingActionRef.current;
+    if (pending?.scope === pendingActionScope && pendingActionTimerRef.current === null) {
+      pendingActionTimerRef.current = setTimeout(() => {
+        pendingActionTimerRef.current = null;
+        if (pendingActionScopeRef.current !== pending.scope || pendingActionRef.current !== pending) return;
+        pendingActionRef.current = null;
+        pendingActionSenderRef.current(pending.payload);
+      }, 500);
+    }
+  }, [handleSend, addSystemMessage, pendingActionScope]);
 
   const rubrosEnabled = tipoChat === "pyme" && !isPlatformOnboarding;
   const [rubros, setRubros] = useState<Rubro[]>([]);

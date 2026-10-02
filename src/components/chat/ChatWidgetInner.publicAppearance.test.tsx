@@ -1,10 +1,15 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ChatWidgetInner from './ChatWidgetInner';
 import { tenantService } from '@/services/tenantService';
-import { useWidgetSessionStore } from '@/stores';
+import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
+
+vi.mock('@/utils/api', async () => await vi.importActual('@/utils/api'));
+vi.mock('@/utils/backendBootstrapGate', () => ({ ensureBackendRuntimeReady: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/utils/anonId', () => ({ ensureRemoteAnonId: vi.fn().mockResolvedValue('synthetic-visitor') }));
+vi.mock('@/config', async original => ({ ...await original<typeof import('@/config')>(), API_BASE_CANDIDATES: ['/api'], BASE_API_URL: '/api', SAME_ORIGIN_PROXY_BASE: '/api' }));
 
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ tenant: { slug: 'private-account' }, currentSlug: 'private-account' }),
@@ -44,6 +49,8 @@ const publicConfig = (slug: string, assistant: string) => ({
 
 beforeEach(() => {
   localStorage.clear();
+  usePanelSessionStore.setState({ authToken: null, user: null });
+  useTenantStore.getState().clearTenant();
   useWidgetSessionStore.setState({ status: 'ready', entityToken: null, chatAuthToken: null });
   global.fetch = vi.fn().mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
   vi.spyOn(tenantService, 'getPlatformWidgetConfig').mockResolvedValue(null);
@@ -54,10 +61,56 @@ afterEach(() => {
   global.fetch = originalFetch;
   vi.restoreAllMocks();
   localStorage.clear();
+  usePanelSessionStore.setState({ authToken: null, user: null });
+  useTenantStore.getState().clearTenant();
+  useWidgetSessionStore.setState({ chatAuthToken: null, entityToken: null });
   window.history.replaceState({}, '', '/');
 });
 
 describe('shared widget public assistant appearance', () => {
+  it('renders the public launcher and header after the unrelated private panel refreshes during the real API read', async () => {
+    window.history.replaceState({}, '', '/t/tierra-del-fuego');
+    usePanelSessionStore.setState({ authToken: 'synthetic-private-session', user: { id: 4, rol: 'admin_municipio', tenant_slug: 'junin' } as any });
+    useTenantStore.getState().setTenant('junin');
+    localStorage.setItem('authToken', 'synthetic-private-session');
+    const privateUser = JSON.stringify({ id: 4, rol: 'admin_municipio', tenant_slug: 'junin', permissions: ['settings.tenant.write'] });
+    localStorage.setItem('user', privateUser);
+    const publicAppearance = publicConfig('tierra-del-fuego', 'Conversa TDF');
+    let resolve!: (value: Response) => void;
+    const pending = new Promise<Response>(r => { resolve = r; });
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = new URL(String(input), window.location.origin);
+      return url.pathname.endsWith('/widget-config') ? pending : Promise.resolve(new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
+    }) as typeof fetch;
+    renderWidget(<MemoryRouter initialEntries={['/t/tierra-del-fuego']}><ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} /></MemoryRouter>);
+    await waitFor(() => expect(vi.mocked(global.fetch).mock.calls.some(([input]) => String(input).includes('/widget-config'))).toBe(true));
+    act(() => {
+      usePanelSessionStore.setState({ authToken: 'synthetic-refreshed-private-session' });
+      localStorage.setItem('authToken', 'synthetic-refreshed-private-session');
+      localStorage.setItem('tenantSlug', 'junin');
+    });
+    await act(async () => { resolve(new Response(JSON.stringify(publicAppearance), { headers: { 'Content-Type': 'application/json' } })); });
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir el asistente Conversa TDF' }));
+    expect(await screen.findByTitle('Conversa TDF')).toHaveTextContent('Conversa TDF');
+    await waitFor(() => expect(screen.getByText(publicAppearance.welcome_title)).toBeVisible());
+    expect(screen.queryByTitle(appDefaults.welcomeTitle)).not.toBeInTheDocument();
+    expect(localStorage.getItem('tenantSlug')).toBe('junin');
+    expect(useTenantStore.getState().slug).toBe('junin');
+    expect(localStorage.getItem('user')).toBe(privateUser);
+    expect(usePanelSessionStore.getState().authToken).toBe('synthetic-refreshed-private-session');
+    const reads = vi.mocked(global.fetch).mock.calls.filter(([input]) => String(input).includes('/widget-config'));
+    expect(reads).toHaveLength(1);
+    const [input, init] = reads[0];
+    const url = new URL(String(input), window.location.origin);
+    expect(url.origin).toBe(window.location.origin);
+    expect(url.searchParams.get('tenant')).toBe('tierra-del-fuego');
+    const headers = new Headers(init?.headers);
+    expect(headers.has('Authorization')).toBe(false);
+    expect(headers.has('X-Entity-Token')).toBe(false);
+    expect(headers.has('X-Chat-Session-Id')).toBe(false);
+    expect(init?.credentials).toBe('omit');
+  });
+
   it.each([
     ['tierra-del-fuego', 'Conversa TDF'],
     ['another-city', 'Asistente de otra organización'],

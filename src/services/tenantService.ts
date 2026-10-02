@@ -179,6 +179,9 @@ export const tenantService = {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        persistTenantSlug: false,
         tenantSlug: slug,
       });
     } catch (error) {
@@ -189,6 +192,9 @@ export const tenantService = {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        persistTenantSlug: false,
         tenantSlug: slug,
       });
     }
