@@ -38,6 +38,25 @@ describe('exact session retirement',()=>{
   expect(usePanelSessionStore.getState()).toMatchObject({authToken:'synthetic-b',user:{id:actorId}});expect(captureSessionRetirement(actorId)?.lineage_id).toBe('synthetic-lineage-b');
   expect(vi.mocked(fetch).mock.calls[0][1]!.body).toBe(sent);expect(fetch).toHaveBeenCalledOnce();expect(readLogoutNotice()).toBeNull();
  });
+ it.each(['7','8'])('an undispatched A retirement retry cannot affect the new B session for actor %s',async actorId=>{
+  establish();const pending=deferred();const signOut=vi.fn();(window as any).Clerk={signOut};
+  vi.mocked(fetch).mockReturnValueOnce(pending.promise).mockResolvedValueOnce(new Response(JSON.stringify(retirementReceipt())));
+  const completion=logoutChatbocSession();const first=vi.mocked(fetch).mock.calls[0];
+  establish(actorId,'synthetic-b','synthetic-lineage-b');
+  pending.resolve(new Response(JSON.stringify({contract_version:'chatboc.bootstrap.v1',status_code:503,ok:false,
+   reason_code:'application_initializing',retryable:true,request_dispatched:false,action_hint:'retry_after'}),{status:503,
+   headers:{'Content-Type':'application/json','X-Chatboc-Bootstrap':'initializing','Retry-After':'0'}}));
+  await expect(completion).resolves.toEqual({status:'retired',providerStatus:'not_applicable'});
+  expect(fetch).toHaveBeenCalledTimes(2);expect(vi.mocked(fetch).mock.calls[1]).toEqual(first);
+  expect(JSON.parse(first[1]!.body as string).proof).toBe('synthetic-proof-synthetic-lineage-a');
+  expect(first[1]).toMatchObject({credentials:'omit',redirect:'error'});
+  expect(new Headers(first[1]!.headers).has('Authorization')).toBe(false);
+  expect(new Headers(first[1]!.headers).has('X-Tenant')).toBe(false);
+  expect(usePanelSessionStore.getState()).toMatchObject({authToken:'synthetic-b',user:{id:actorId}});
+  expect(captureSessionRetirement(actorId)?.lineage_id).toBe('synthetic-lineage-b');
+  expect(readLogoutNotice()).toBeNull();expect(mocks.api).not.toHaveBeenCalled();expect(signOut).not.toHaveBeenCalled();
+  delete (window as any).Clerk;
+ });
  it('never invokes global Clerk signOut for native or Clerk retirement and blocks only captured Clerk SID A',async()=>{
   const signOut=vi.fn();(window as any).Clerk={signOut};establish();await logoutChatbocSession({clerkEnabled:true});expect(signOut).not.toHaveBeenCalled();
   safeLocalStorage.setItem('authProvider','clerk');safeLocalStorage.setItem('clerkUserId','synthetic-clerk-user');

@@ -1,5 +1,6 @@
 import {safeSessionStorage} from './safeLocalStorage';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from './chatbocSessionRevision';
+import {abortablePause,hasUndispatchedStartupReceipt} from './backendRequestContinuity';
 
 export interface SessionRetirementProof {
  contract_version:'chatboc.session_retirement.v1'; actor_id:string; provider:'native'|'clerk';
@@ -62,19 +63,43 @@ export const readLogoutNotice=()=>logoutNotice;
 export const subscribeLogoutNotice=(listener:()=>void)=>{noticeListeners.add(listener);return()=>{noticeListeners.delete(listener);};};
 export const setLogoutNotice=(notice:LogoutNotice)=>{logoutNotice=notice;noticeListeners.forEach(listener=>{try{listener();}catch{}});};
 
-/** A single frozen A-only operation, independent of apiFetch and ambient B. */
+/** A frozen A-only operation, with one retry only when the WSGI boundary proves no dispatch. */
 export async function dispatchSessionRetirement(authority:SessionRetirementProof|null):Promise<SessionRetirementResult>{
  if(!authority)return {status:'unavailable',providerStatus:'unknown'};
- const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10_000);
- try{
-  const body=JSON.stringify({proof:authority.proof,request_id:crypto.randomUUID()});
-  const response=await fetch('/api/v2/auth/sessions/retire',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
-   body,credentials:'omit',cache:'no-store',redirect:'error',keepalive:true,signal:controller.signal});
-  if(!response.ok)return {status:'uncertain',providerStatus:'unknown'};
-  const receipt=await response.json();
-  if(!receipt||receipt.contract_version!=='chatboc.session_retirement_receipt.v1'||receipt.lineage_id!==authority.lineage_id||
-   !['retired','already_retired'].includes(receipt.status)||receipt.local_revoked!==true||
-   !['not_applicable','pending','confirmed','failed'].includes(receipt.provider_revocation?.status))return {status:'uncertain',providerStatus:'unknown'};
-  return {status:receipt.status,providerStatus:receipt.provider_revocation.status};
- }catch{return {status:'uncertain',providerStatus:'unknown'};}finally{clearTimeout(timer);}
+ const frozen={...authority};const uncertain=():SessionRetirementResult=>({status:'uncertain',providerStatus:'unknown'});
+ const controller=new AbortController();const expiresAt=Date.now()+10_000;
+ let timer:ReturnType<typeof setTimeout>;
+ const deadline=new Promise<SessionRetirementResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(uncertain());},10_000);});
+ const operation=async():Promise<SessionRetirementResult>=>{
+  try{
+   const body=JSON.stringify({proof:frozen.proof,request_id:crypto.randomUUID()});
+   const init:RequestInit={method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body,credentials:'omit',cache:'no-store',redirect:'error',keepalive:true,signal:controller.signal};
+   for(let attempt=0;attempt<2;attempt+=1){
+    controller.signal.throwIfAborted();
+    const response=await fetch('/api/v2/auth/sessions/retire',init);
+    controller.signal.throwIfAborted();
+    if(!response.ok){
+     if(attempt===0&&await hasUndispatchedStartupReceipt(response)){
+      controller.signal.throwIfAborted();
+      const seconds=Number(response.headers.get('Retry-After')??'2');
+      const delay=Number.isFinite(seconds)&&seconds>=0?Math.max(250,seconds*1000):2000;
+      // Preserve the server's wait and the original total budget; never replay an ambiguous POST.
+      if(delay>5000||Date.now()+delay>=expiresAt)return uncertain();
+      await abortablePause(delay,controller.signal);
+      continue;
+     }
+     return uncertain();
+    }
+    const receipt=await response.json();
+    controller.signal.throwIfAborted();
+    if(!receipt||receipt.contract_version!=='chatboc.session_retirement_receipt.v1'||receipt.lineage_id!==frozen.lineage_id||
+     !['retired','already_retired'].includes(receipt.status)||receipt.local_revoked!==true||
+     !['not_applicable','pending','confirmed','failed'].includes(receipt.provider_revocation?.status))return uncertain();
+    return {status:receipt.status,providerStatus:receipt.provider_revocation.status};
+   }
+   return uncertain();
+  }catch{return uncertain();}
+ };
+ try{return await Promise.race([operation(),deadline]);}finally{clearTimeout(timer);}
 }
