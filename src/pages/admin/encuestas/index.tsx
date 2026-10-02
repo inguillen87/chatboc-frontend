@@ -40,6 +40,7 @@ import { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationE
 import {
   getSurveyGovernanceWorkspacePath,
   isGovernedSurvey,
+  surveyIsReceiving,
 } from '@/utils/surveyPublicationLifecycle';
 export { resolveSurveyPublicationEvidenceGate } from '@/utils/surveyPublicationEvidenceGate';
 
@@ -111,18 +112,14 @@ export const buildOperationalSurveyOverview = (
   return {
     total: authoritative?.instruments.included ?? items.length,
     por_estado: porEstado,
-    activas: authoritative?.instruments.active ?? items.filter(
-      (survey) => survey.admin_lifecycle?.accepts_responses ?? survey.estado === 'publicada',
-    ).length,
+    activas: items.filter(surveyIsReceiving).length,
     con_respuestas: authoritative?.instruments.with_responses ?? items.filter(
       (survey) => responseCount(survey) > 0,
     ).length,
     total_respuestas: authoritative?.participation.real_responses ?? totalResponses,
     respuestas_con_coordenadas: authoritative?.territorial.responses_with_coordinates ?? responsesWithCoordinates,
     respuestas_ultimas_24h: authoritative?.participation.responses_last_24h ?? responsesLast24h,
-    accepting_responses: authoritative?.instruments.accepting_responses ?? items.filter(
-      (survey) => survey.admin_lifecycle?.accepts_responses ?? survey.estado === 'publicada',
-    ).length,
+    accepting_responses: items.filter(surveyIsReceiving).length,
     por_tipo_instrumento: {
       survey: authoritative?.instruments.surveys ?? items.filter(
         (survey) => (survey.admin_lifecycle?.instrument_kind ?? (survey.tipo === 'votacion' ? 'voting' : 'survey')) === 'survey',
@@ -146,7 +143,7 @@ const getWorkspaceStatus = (survey: SurveyAdmin): SurveyWorkspaceStatus => {
       return 'scheduled';
     case 'collecting':
     case 'live_voting':
-      return 'collecting';
+      return surveyIsReceiving(survey) ? 'collecting' : 'unverified';
     case 'window_ended':
     case 'closed':
     case 'archived':

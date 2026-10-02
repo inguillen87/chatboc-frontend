@@ -157,6 +157,23 @@ function renderPage(path: string) {
 }
 
 describe('SurveyAnalyticsPage operational focus', () => {
+  it('vetoes public links and live queries despite stored published state and stale publication links', () => {
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: { ...surveyFixture,
+        public_access: { contract_version: 'surveys.public_access.v1', allowed: false, reason_code: 'scope_unverified', next_action: 'review_scope' },
+        admin_lifecycle: { capabilities: { can_share: false }, persisted_state: 'publicada' },
+      },
+      surveys: { data: [] }, isLoadingSurvey: false, isLoadingList: false,
+      surveyError: null, listError: null,
+    });
+    renderPage('/admin/encuestas/3/analytics?focus=live_results&tenant_slug=junin');
+    expect(screen.queryByTestId('mock-survey-live-results')).toBeNull();
+    expect(screen.queryByRole('link', { name: /abrir.*pública/i })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copiar link' })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: 'Resultados en vivo' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'WhatsApp' })).toBeNull();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();

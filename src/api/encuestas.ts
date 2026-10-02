@@ -358,6 +358,10 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}`, tenantSlug),
   ), {
     skipAuth: true,
+    // A public 404/403 from the configured backend is authoritative; generic
+    // base fallback would replay it before reading the resolution contract.
+    singleAttempt: true,
+    allowStartupRecovery: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -402,6 +406,7 @@ const shouldRetryPublicSurveyRequest = (
   method: ApiFetchOptions['method'],
 ) => {
   if (error instanceof ApiError) {
+    if (error.body && typeof error.body === 'object' && error.body.retryable === false) return false;
     const reasonCode =
       error.body && typeof error.body === 'object' && typeof error.body.reason_code === 'string'
         ? error.body.reason_code.trim()
@@ -770,6 +775,8 @@ export const getPublicSurveyLiveResults = (
     `/api/public/encuestas/v1/${slug}/live-results${buildQueryString({ ...(params ?? {}), tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
+    singleAttempt: true,
+    allowStartupRecovery: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -1227,6 +1234,8 @@ export const getSurveyComments = (
     `/api/public/encuestas/v1/${slug}/comentarios${buildQueryString({ limit, offset, tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
+    singleAttempt: true,
+    allowStartupRecovery: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -1250,14 +1259,23 @@ export const postSurveyComment = (
     auth_email?: string;
     auth_first_name?: string;
     auth_last_name?: string;
+    mode?: 'anon' | 'social';
+    social_token?: string;
   },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
-  callPublicSurveyEndpoint<SurveyComment>(buildPublicSurveyPaths(
+  callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/comentarios`, tenantSlug),
   ), {
     method: 'POST',
-    body: payload,
+    body: (() => {
+      const rawMode = payload.mode ?? payload.modo ?? 'anon';
+      const mode = rawMode === 'anon' || rawMode === 'anonimo' ? 'anon' : 'social';
+      return mode === 'anon'
+        ? { texto: payload.texto, mode }
+        : { ...payload, mode, modo: undefined };
+    })(),
+    skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -1265,6 +1283,14 @@ export const postSurveyComment = (
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
     omitTenant: true,
+  }).then((response) => {
+    const comment = isRecord(response) && isRecord(response.comentario)
+      ? response.comentario
+      : response;
+    if (!isRecord(comment) || !Number.isInteger(comment.id) || typeof comment.texto !== 'string' || typeof comment.fecha !== 'string') {
+      throw new ApiError('No pudimos confirmar el comentario publicado.', 502, { reason_code: 'invalid_comment_ack' });
+    }
+    return comment as unknown as SurveyComment;
   });
 
 export type AdminSurveyComment = SurveyComment & {

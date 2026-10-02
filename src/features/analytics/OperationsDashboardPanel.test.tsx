@@ -14,6 +14,7 @@ import type {
 } from './analyticsTypes';
 import { OperationsDashboardPanel } from './OperationsDashboardPanel';
 import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { MemoryRouter } from 'react-router-dom';
 
 const mocks = vi.hoisted(() => ({
   ensureReady: vi.fn(),
@@ -53,9 +54,9 @@ const socketMocks = vi.hoisted(() => {
 });
 
 const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
-const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true }));
+const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true }));
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => ({ user: { id: 4 }, organizationProfileVerified: panelAuthority.verified }),
+  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: 'admin_municipio', tenant_slug: panelAuthority.privateSlug, tipo_chat: 'municipio' } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
 }));
 vi.mock('@/context/CapabilitiesContext', () => ({
   useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'market.orders.read' && panelAuthority.ordersRead }),
@@ -581,9 +582,9 @@ const renderPanel = () => {
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>
+    <MemoryRouter><QueryClientProvider client={queryClient}>
       <OperationsDashboardPanel />
-    </QueryClientProvider>,
+    </QueryClientProvider></MemoryRouter>,
   );
 };
 
@@ -593,6 +594,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     socketMocks.reset();
     tenantContext.slug = 'junin';
     panelAuthority.verified = true;
+    panelAuthority.privateSlug = 'junin';
+    panelAuthority.session = true;
     panelAuthority.ordersRead = true;
     mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
@@ -726,7 +729,10 @@ describe('OperationsDashboardPanel territory UX', () => {
     else if (missing === 'profile') panelAuthority.verified = false;
     else mocks.getOperationsDashboardV2.mockResolvedValue({ ...dashboardFixture(), tenant: undefined });
     renderPanel();
-    await screen.findByTestId('operations-command-cockpit');
+    if (missing === 'profile') {
+      expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+      Object.values(mocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
+    } else await screen.findByTestId('operations-command-cockpit');
     expect(screen.queryByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeInTheDocument();
   });
 
@@ -1257,6 +1263,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
   it('does not request operations from an unconfirmed context or a stored organization', () => {
     tenantContext.slug = null;
+    panelAuthority.privateSlug = null;
     renderPanel();
     expect(screen.getByText('Seleccioná una organización')).toBeVisible();
     Object.values(mocks).forEach((mock) => expect(mock).not.toHaveBeenCalled());
@@ -1294,12 +1301,13 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
   it('resets geographic filters and selected scope when the organization changes', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const view = render(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    const view = render(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
     await screen.findByText('Centro territorial');
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
     tenantContext.slug = 'tierra-del-fuego';
-    view.rerender(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    panelAuthority.privateSlug = 'tierra-del-fuego';
+    view.rerender(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'tierra-del-fuego' })));
     const latest = mocks.getOperationsHeatmapV2.mock.calls.at(-1)![0];
     expect(latest.categoria).toBeUndefined();
@@ -1312,6 +1320,21 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getAllByText('GLOBAL OUTSIDE FILTER').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(screen.queryByText('GLOBAL OUTSIDE FILTER')).not.toBeInTheDocument());
+  });
+  it('reads all private operations only from the verified actor after a public visit', async () => {
+    tenantContext.slug = 'tierra-del-fuego';
+    renderPanel(); await screen.findByText('Centro territorial');
+    for (const [name, read] of Object.entries(mocks)) {
+      if (name === 'ensureReady') continue;
+      expect(read.mock.calls.length).toBeGreaterThan(0);
+      expect(read.mock.calls.every(([options]) => options.tenantSlug === 'junin')).toBe(true);
+    }
+  });
+  it('does not dispatch private operations without a verified session', () => {
+    panelAuthority.session = false;
+    renderPanel();
+    expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+    Object.values(mocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
   });
 
 });

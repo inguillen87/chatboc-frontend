@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { analyticsService, type AnalyticsHeatmapResponse } from '@/services/analyticsService';
 import { assertHeatmapScope } from './heatmapBoundary';
 import { activeGeoFilters, assertGeoFilterReceipt, type GeoFilters } from './heatmapWorkspaceModel';
-interface Input { tenantId: number; tenantSlug: string; from: string; to: string; filters: GeoFilters }
+interface Input { tenantId: number; tenantSlug: string; context: 'municipio' | 'pyme'; from: string; to: string; filters: GeoFilters }
 interface State { key: string; phase: 'loading' | 'ready' | 'error'; data: AnalyticsHeatmapResponse | null }
 export function useHeatmapWorkspace(input: Input) {
   const [revision,setRevision] = useState(0);
-  const key = JSON.stringify([input.tenantId,input.tenantSlug,input.from,input.to,input.filters,revision]);
+  const key = JSON.stringify([input.tenantId,input.tenantSlug,input.context,input.from,input.to,input.filters,revision]);
   const valid = Number.isSafeInteger(input.tenantId) && input.tenantId > 0 && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(input.tenantSlug)
     && Number.isFinite(Date.parse(input.from)) && Number.isFinite(Date.parse(input.to)) && Date.parse(input.from) <= Date.parse(input.to);
   const [state,setState] = useState<State>({key:'',phase:'loading',data:null});
@@ -15,7 +15,7 @@ export function useHeatmapWorkspace(input: Input) {
     if (!valid) { refreshLock.current = false; return; }
     const serial = ++sequence.current; let active = true;
     refreshLock.current = true; setState({key,phase:'loading',data:null});
-    void analyticsService.getHeatmap({tenant_id:input.tenantId,tenantSlug:input.tenantSlug,from:input.from,to:input.to,...activeGeoFilters(input.filters)})
+    void analyticsService.getHeatmap({tenant_id:input.tenantId,tenantSlug:input.tenantSlug,scope:input.context,context:input.context,from:input.from,to:input.to,...activeGeoFilters(input.filters)})
       .then(data => {
         if (!active || serial !== sequence.current) return;
         if (!data || !Array.isArray(data.points)) throw new Error('Respuesta geográfica inválida.');

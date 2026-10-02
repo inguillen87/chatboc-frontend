@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getPublicSurveyLiveResults } from '@/api/encuestas';
 import type { SurveyLivePublicResultsPayload } from '@/types/encuestas';
-import { getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const BASE_INTERVAL = 5000;
@@ -54,6 +54,7 @@ const parseCachedPayload = (key: string): SurveyLivePublicResultsPayload | undef
 };
 
 const getTrend = (payload?: SurveyLivePublicResultsPayload) => payload?.momentum?.trend;
+const isAccessWithdrawn = (error: unknown) => error instanceof ApiError && [403, 404].includes(error.status);
 
 const toFiniteNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
@@ -150,9 +151,9 @@ export const resolveSurveyLiveStatus = ({
     };
   }
 
-  if (consecutiveErrors > 2 && hasData) {
+  if (hasError && hasData) {
     return {
-      status: 'reconnecting',
+      status: consecutiveErrors > 2 ? 'reconnecting' : 'stale',
       label: 'Reintentando',
       description: 'Se muestran datos previos mientras vuelve la conexion.',
     };
@@ -212,7 +213,8 @@ export const useSurveyLiveResults = (
   const [isDocumentHidden, setIsDocumentHidden] = useState<boolean>(() =>
     typeof document === 'undefined' ? false : document.hidden,
   );
-  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+  const [errorState, setErrorState] = useState({ scope: cacheKey, count: 0 });
+  const consecutiveErrors = errorState.scope === cacheKey ? errorState.count : 0;
 
   useEffect(() => {
     const onVisibilityChange = () => setIsDocumentHidden(document.hidden);
@@ -231,48 +233,57 @@ export const useSurveyLiveResults = (
     initialData: () => parseCachedPayload(cacheKey),
     retry: false,
     refetchInterval: (context) => {
+      if (isAccessWithdrawn(context.state.error)) return false;
       return getSurveyLivePollingInterval(
         context.state.data as SurveyLivePublicResultsPayload | undefined,
         isDocumentHidden,
         consecutiveErrors,
       );
     },
-    refetchOnWindowFocus: true,
+    retryOnMount: false,
+    refetchOnWindowFocus: (context) => !isAccessWithdrawn(context.state.error),
+    refetchOnReconnect: (context) => !isAccessWithdrawn(context.state.error),
   });
+  const accessWithdrawn = isAccessWithdrawn(query.error);
+  const visibleResults = accessWithdrawn ? undefined : query.data;
 
   useEffect(() => {
-    if (query.isError) {
-      setConsecutiveErrors((prev) => prev + 1);
-      return;
-    }
+    if (accessWithdrawn) safeLocalStorage.removeItem(cacheKey);
+  }, [accessWithdrawn, cacheKey]);
 
-    if (query.data) {
-      setConsecutiveErrors(0);
-    }
-  }, [query.isError, query.dataUpdatedAt]);
+  useEffect(() => {
+    setErrorState((previous) => ({
+      scope: cacheKey,
+      count: query.isError ? (previous.scope === cacheKey ? previous.count : 0) + 1 : 0,
+    }));
+  }, [cacheKey, query.isError, query.errorUpdatedAt, query.dataUpdatedAt]);
 
   const pollingIntervalMs = useMemo(
-    () => getSurveyLivePollingInterval(query.data, isDocumentHidden, consecutiveErrors),
-    [consecutiveErrors, isDocumentHidden, query.data],
+    () => accessWithdrawn ? null : getSurveyLivePollingInterval(visibleResults, isDocumentHidden, consecutiveErrors),
+    [accessWithdrawn, consecutiveErrors, isDocumentHidden, visibleResults],
   );
 
   const liveStatus = useMemo(
-    () =>
-      resolveSurveyLiveStatus({
+    () => accessWithdrawn ? {
+      status: 'error' as const,
+      label: 'Resultados no disponibles',
+      description: 'La organización no tiene habilitados los resultados públicos de esta encuesta.',
+    } : resolveSurveyLiveStatus({
         enabled: Boolean(normalizedSlug),
         isLoading: query.isLoading,
         isFetching: query.isFetching,
-        hasData: Boolean(query.data),
-        hasActivity: hasSurveyLiveActivity(query.data),
+        hasData: Boolean(visibleResults),
+        hasActivity: hasSurveyLiveActivity(visibleResults),
         hasError: query.isError,
         consecutiveErrors,
         isDocumentHidden,
       }),
     [
       consecutiveErrors,
+      accessWithdrawn,
       isDocumentHidden,
       normalizedSlug,
-      query.data,
+      visibleResults,
       query.isError,
       query.isFetching,
       query.isLoading,
@@ -280,7 +291,8 @@ export const useSurveyLiveResults = (
   );
 
   return {
-    liveResults: query.data,
+    liveResults: visibleResults,
+    accessWithdrawn,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error ? getErrorMessage(query.error) : null,

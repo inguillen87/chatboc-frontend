@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch, ApiError, resolveTenantSlug } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { getEmployeeRoutingV2, type EmployeeRoutingEmployee, type EmployeeRoutingV2 } from '@/api/v2/saas';
-import { useUser } from '@/hooks/useUser';
+import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
+import { ViewState } from '@/components/app-shell/ViewState';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
@@ -142,11 +143,12 @@ const buildVisibleCategories = (categories: Category[], routing: EmployeeRouting
 
 const CategoryManagementPage: React.FC = () => {
   useRequireRole(['tenant_admin', 'superadmin', 'catalog_manager'] as Role[]);
-  const { user } = useUser();
-  const tenantSlug = useMemo(
-    () => resolveTenantSlug(user?.tenantSlug || (user as { tenant_slug?: string } | null)?.tenant_slug),
-    [user],
-  );
+  const { scope, pending, key } = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso" />;
+  if (!scope) return <ViewState status="empty" title="Organización de las categorías no verificada" />;
+  return <ScopedCategoryManagement key={key} tenantSlug={scope.tenantSlug} />;
+};
+const ScopedCategoryManagement: React.FC<{ tenantSlug: string }> = ({ tenantSlug }) => {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [routing, setRouting] = useState<EmployeeRoutingV2 | null>(null);
@@ -288,7 +290,7 @@ const CategoryManagementPage: React.FC = () => {
     },
     {
       label: 'Sin asignar',
-      value: routing?.queues.unassigned_count ?? 0,
+      value: routing?.queues.unassigned_count ?? 'No informado',
       helper: 'Tickets que esperan una persona responsable.',
       icon: Workflow,
     },
@@ -410,7 +412,7 @@ const CategoryManagementPage: React.FC = () => {
                         {assignedEmployees.length ? 'Con cobertura' : 'Sin cobertura'}
                       </Badge>
                       <Badge variant="outline" className="rounded-full">
-                        {workload} abiertos
+                        {workload} abiertos del equipo
                       </Badge>
                     </div>
                     <div className="flex justify-start gap-2 lg:justify-end">

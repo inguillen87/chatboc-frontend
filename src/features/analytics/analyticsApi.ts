@@ -1907,11 +1907,13 @@ const normalizeOverview = (response: unknown): AnalyticsOverview => {
   };
 };
 
-export const getAnalyticsOverviewV2 = async (tenantSlug?: string | null) => {
+export const getAnalyticsOverviewV2 = async (tenantSlug?: string | null, isCurrent?: () => boolean) => {
   const response = await panelApi.get<unknown>('/api/v2/analytics/overview', {
     tenantSlug,
+    ...(isCurrent ? { isCurrent } : {}),
     legacyFallbackPath: '/analytics/overview',
   });
+  if (tenantSlug) assertOperationsResponseScope(response, tenantSlug);
   return normalizeOverview(response);
 };
 

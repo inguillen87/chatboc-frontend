@@ -2,6 +2,8 @@ import { resolveTerritorialTicketIdentity } from '@/utils/territorialTicketIdent
 import { assertHeatmapScope, assertHeatmapRecordScopes, isHeatmapRedacted, protectHeatmapPrivacy, mergeHeatmapHubPayload } from '@/features/analytics/heatmapBoundary';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
 import {
   type IdentityCoverageResponseV1,
   parseIdentityCoverageResponseV1,
@@ -1002,7 +1004,23 @@ const normalizeAnalyticsSummary = (payload: any): AnalyticsSummary => {
   };
 };
 
-const getHubCacheKey = (filters: AnalyticsFilters) => `${filters.tenantSlug || ''}|${buildQuery(filters)}`;
+let hubAuthorityEpoch = 0;
+let previousHubToken: string | null = null;
+let previousHubActor = '';
+// Partition transport caches; the server remains the authority for each read.
+// Credentials are never serialized into cache keys.
+const getHubAuthorityScope = () => {
+  const { authToken, user } = usePanelSessionStore.getState();
+  const actor = JSON.stringify([user?.id, user?.rol, user?.tenant_slug, user?.tenantSlug, user?.tenant?.id, user?.organization_profile?.tenant?.id]);
+  if (authToken !== previousHubToken || actor !== previousHubActor) {
+    previousHubToken = authToken;
+    previousHubActor = actor;
+    hubAuthorityEpoch += 1;
+    hubCache.clear();
+  }
+  return `${captureChatbocSessionRevision()}:${hubAuthorityEpoch}`;
+};
+const getHubCacheKey = (filters: AnalyticsFilters, authority: string) => `${authority}|${filters.tenantSlug || ''}|${buildQuery(filters)}`;
 
 const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, section: 'general' | 'municipio' | 'ventas'): AnalyticsSummary | null => {
   const raw = hub?.sections?.[section];
@@ -1028,7 +1046,10 @@ export const analyticsService = {
     delete geoQueryFilters.tenant;
     delete geoQueryFilters.limit;
     const query = buildQuery({ ...geoQueryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
-    const cacheKey = getHubCacheKey(filters);
+    const revision = captureChatbocSessionRevision();
+    const authority = getHubAuthorityScope();
+    const isCurrent = () => isChatbocSessionRevisionCurrent(revision) && getHubAuthorityScope() === authority;
+    const cacheKey = getHubCacheKey(filters, authority);
     const cached = hubCache.get(cacheKey);
     let responseEtag = cached?.etag;
 
@@ -1036,16 +1057,24 @@ export const analyticsService = {
       try {
         const response = await apiFetch<AnalyticsHubResponse>(`${endpoint}?${query}`, {
           tenantSlug: filters.tenantSlug,
+          singleAttempt: true,
+          allowStartupRecovery: true,
+          isCurrent,
           headers: buildAnalyticsHeaders(cached?.etag),
           onResponse: (raw) => {
             const nextEtag = raw.headers.get('ETag') || raw.headers.get('etag');
             if (nextEtag) responseEtag = nextEtag;
           },
         });
+        if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
         const normalized = response && typeof response === 'object' ? response : {};
         hubCache.set(cacheKey, { data: normalized, etag: responseEtag });
         return normalized;
       } catch (error) {
+        if (!isCurrent() || (error instanceof ApiError && [401, 403].includes(error.status))) {
+          hubCache.delete(cacheKey);
+          throw error;
+        }
         if (error instanceof ApiError && error.status === 304 && cached?.data) {
           return cached.data;
         }
@@ -1054,7 +1083,7 @@ export const analyticsService = {
           throw error;
         }
         const shouldRetryAlias =
-          error instanceof ApiError && [401, 403, 404, 405, 500, 502, 503, 504].includes(error.status);
+          error instanceof ApiError && [404, 405, 500, 502, 503, 504].includes(error.status);
         if (!shouldRetryAlias) {
           throw error;
         }

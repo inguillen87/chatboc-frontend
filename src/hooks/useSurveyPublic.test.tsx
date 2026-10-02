@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,6 +42,22 @@ describe('useSurveyPublic submission conflicts', () => {
   beforeEach(() => {
     apiMocks.getPublicSurvey.mockReset().mockResolvedValue(survey);
     apiMocks.postPublicResponse.mockReset();
+  });
+
+  it.each([403, 404, 503])('does not replay an authoritative %s denial on focus or remount', async (status) => {
+    apiMocks.getPublicSurvey.mockRejectedValue(new ApiError('Encuesta no disponible', status, { reason_code: 'survey_not_found', retryable: false }));
+    const wrapper = createWrapper();
+    const first = renderHook(() => useSurveyPublic('unavailable', { tenantSlug: 'tenant' }), { wrapper });
+    await waitFor(() => expect(first.result.current.errorStatus).toBe(status));
+    expect(first.result.current.isTransientError).toBe(false);
+    await act(async () => { focusManager.setFocused(false); focusManager.setFocused(true); });
+    expect(apiMocks.getPublicSurvey).toHaveBeenCalledTimes(1);
+    first.unmount();
+    const second = renderHook(() => useSurveyPublic('unavailable', { tenantSlug: 'tenant' }), { wrapper });
+    await act(async () => {});
+    expect(apiMocks.getPublicSurvey).toHaveBeenCalledTimes(1);
+    second.unmount();
+    focusManager.setFocused(undefined);
   });
 
   it.each([

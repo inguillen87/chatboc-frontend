@@ -144,6 +144,27 @@ describe('SurveyLiveResultsPanel', () => {
     expect(screen.getAllByText('24').length).toBeGreaterThan(0);
   });
 
+  it('vetoes previous socket results when HTTP withdraws public access', () => {
+    const view = render(<SurveyLiveResultsPanel slug="voto-plaza" tenantSlug="junin" />);
+    act(() => { mocks.socketOptions.onUpdate(payloadFixture(24, 2)); });
+    expect(screen.getAllByText('24').length).toBeGreaterThan(0);
+    mocks.liveHook = {
+      ...mocks.liveHook,
+      liveResults: undefined,
+      accessWithdrawn: true,
+      error: 'Resultados ocultos',
+      liveStatus: { status: 'error', label: 'Resultados no disponibles', description: 'La organización no habilita resultados públicos.' },
+    };
+    view.rerender(<SurveyLiveResultsPanel slug="voto-plaza" tenantSlug="junin" />);
+    expect(screen.getByTestId('survey-live-results-panel-unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('24')).not.toBeInTheDocument();
+    expect(screen.queryByText('Prioridad barrial')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Refrescar' })).not.toBeInTheDocument();
+    expect(mocks.socketOptions.enabled).toBe(false);
+    act(() => { mocks.socketOptions.onUpdate(payloadFixture(99, 3)); });
+    expect(screen.queryByText('99')).not.toBeInTheDocument();
+  });
+
   it('normalizes socket payloads with vote, snapshot and heatmap aliases before rendering', () => {
     mocks.liveHook = {
       ...mocks.liveHook,

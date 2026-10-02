@@ -488,6 +488,15 @@ export interface SurveyComment {
 export interface SurveyCommentConfig {
   requiresSocialToken?: boolean;
   acceptedModes?: string[];
+  socialProviders?: SurveyCommentSocialProvider[];
+}
+
+export interface SurveyCommentSocialProvider {
+  id?: string;
+  label?: string;
+  connectLabel?: string;
+  oauthUrl?: string;
+  messageOrigin?: string;
 }
 
 export type SurveyLocationPrecision = 'gps' | 'manual' | 'estimada';
@@ -621,6 +630,12 @@ export interface SurveyAdmin extends SurveyPublic {
   metricas?: SurveyAdminMetrics;
   admin_lifecycle?: SurveyAdminLifecycle;
   admin_scope?: SurveyAdminScopeContract;
+  public_access?: {
+    contract_version: 'surveys.public_access.v1';
+    allowed: boolean;
+    reason_code: string | null;
+    next_action: string | null;
+  };
 }
 
 export interface SurveyAdminMetrics {

@@ -99,7 +99,7 @@ const lifecycleFor = (
     can_publish: false,
     can_close: false,
     can_delete: false,
-    can_share: false,
+    can_share: phase === 'collecting' || phase === 'live_voting',
     can_view_results: true,
   },
   actions: {

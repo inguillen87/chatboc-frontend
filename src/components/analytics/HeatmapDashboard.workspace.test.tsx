@@ -3,6 +3,7 @@ import { act,cleanup,fireEvent,render,screen,waitFor } from '@testing-library/re
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 const mock=vi.hoisted(()=>({slug:'org-a',fetch:vi.fn()}));
 vi.mock('@/context/TenantContext',()=>({useTenant:()=>({currentSlug:mock.slug})}));
+vi.mock('@/features/analytics/usePrivateAnalyticsScope',()=>({usePrivateAnalyticsScope:()=>({pending:false,key:mock.slug,scope:{tenantSlug:mock.slug,tenantId:null,kind:'municipio'}})}));
 vi.mock('@/services/analyticsService',()=>({analyticsService:{getHeatmap:mock.fetch}}));
 vi.mock('@/components/LazyMapLibreMap',()=>({default:({heatmapData,geoLayerConfig}:any)=><div data-testid="map" data-points={JSON.stringify(heatmapData)} data-features={geoLayerConfig?.source?.features?.length||0}>Mapa de prueba</div>}));
 import HeatmapDashboard from './HeatmapDashboard';

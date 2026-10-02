@@ -16,6 +16,8 @@ vi.mock('@/utils/api', () => ({
 
 import { analyticsService } from '@/services/analyticsService';
 import { ApiError } from '@/utils/api';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
 
 describe('analyticsService.getSummary', () => {
   beforeEach(() => {
@@ -42,9 +44,33 @@ describe('analyticsService.getHub', () => {
     apiFetchMock.mockReset();
   });
 
+  it.each([401, 403])('never returns a cached hub or tries aliases after an access denial %s', async (status) => {
+    advanceChatbocSessionRevision();
+    const filters = { scope: 'municipio', tenantSlug: 'org-private' };
+    apiFetchMock.mockResolvedValueOnce({ sections: { general: { totals: { total_interactions: 99 } } } });
+    await analyticsService.getHub(filters);
+    apiFetchMock.mockReset().mockRejectedValue(new ApiError('denied', status));
+    await expect(analyticsService.getHub(filters)).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send the previous actor etag or reuse its cached snapshot without requiring logout', async () => {
+    advanceChatbocSessionRevision();
+    const filters = { scope: 'municipio', tenantSlug: 'org-private' };
+    apiFetchMock.mockImplementationOnce(async (_path, options) => {
+      options.onResponse(new Response(null, { headers: { ETag: 'session-a' } }));
+      return { sections: { general: { totals: { total_interactions: 99 } } } };
+    });
+    await analyticsService.getHub(filters);
+    usePanelSessionStore.getState().setUser({ id: 'second-actor', rol: 'tenant_admin', email: 'local@example.test' });
+    apiFetchMock.mockReset().mockRejectedValue(new ApiError('not found', 404));
+    expect(await analyticsService.getHub(filters)).toBeNull();
+    expect(apiFetchMock.mock.calls[0][1].headers['If-None-Match']).toBeUndefined();
+  });
+
   it('falls back across hub aliases and returns navigation when primary endpoint is unavailable', async () => {
     apiFetchMock
-      .mockRejectedValueOnce(new ApiError('forbidden', 403))
+      .mockRejectedValueOnce(new ApiError('not found', 404))
       .mockResolvedValueOnce({
         sections: {
           general: { totals: { total_interactions: 99 } },

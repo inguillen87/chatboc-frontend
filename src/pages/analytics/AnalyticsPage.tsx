@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Radio, Vote } from 'lucide-react';
-import { useTenant } from '@/context/TenantContext';
+import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
+import { ViewState } from '@/components/app-shell/ViewState';
 
 import { analyticsService, AnalyticsSummary, RealtimeHubResponse } from '@/services/analyticsService';
 import { enterpriseService, type LeadInteractionItem, type LeadInteractionsResponse } from '@/services/enterpriseService';
@@ -23,52 +24,7 @@ import { OperationsDashboardPanel } from '@/features/analytics/OperationsDashboa
 import { openExportAndTrack } from '@/utils/enterpriseExperience';
 import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { useUser } from '@/hooks/useUser';
-
-
-const resolveDefaultScope = (tenantType?: string | null) => {
-  try {
-    const rawUser = safeLocalStorage.getItem('user');
-    if (rawUser) {
-      const user = JSON.parse(rawUser);
-      if (user?.tipo_chat === 'pyme') return 'pyme';
-      if (user?.tipo_chat === 'municipio') return 'municipio';
-    }
-  } catch {
-    return 'municipio';
-  }
-
-  if (tenantType === 'pyme') return 'pyme';
-  if (tenantType === 'municipio' || tenantType === 'municipal') return 'municipio';
-
-  return 'municipio';
-};
-
-const resolveStoredPanelScope = () => {
-  try {
-    const rawUser = safeLocalStorage.getItem('user');
-    if (!rawUser) return null;
-    const user = JSON.parse(rawUser);
-    if (user?.tipo_chat === 'pyme') return 'pyme';
-    if (user?.tipo_chat === 'municipio') return 'municipio';
-  } catch {
-    return null;
-  }
-  return null;
-};
-
-const normalizeScopeCandidate = (value?: string | null) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'municipio' || normalized === 'municipal') return 'municipio';
-  if (normalized === 'pyme' || normalized === 'empresa' || normalized === 'ventas') return 'pyme';
-  return null;
-};
-
-const resolveRequestedScope = (value?: string | null) => {
-  return normalizeScopeCandidate(value);
-};
 
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
 
@@ -114,18 +70,6 @@ const resolveInitialAnalyticsTab = (searchParams: URLSearchParams, isEmbeddedInP
 
 const ANALYTICS_HUB_TIMEOUT_MS = 3500;
 const ANALYTICS_SUMMARY_TIMEOUT_MS = 5500;
-
-const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
-  kpis: {
-    total_interactions: 0,
-    active_users: 0,
-    avg_response_time_s: 0,
-  },
-  top_categories: [],
-  volume_by_day: [],
-  heatmap_points: [],
-  insights: [],
-};
 
 const withAnalyticsTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -183,19 +127,16 @@ function ModelPolicyBadges({ policy }: { policy: Record<string, unknown> | null 
 
 
 const AnalyticsPage = () => {
+  const { scope, pending, key } = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso" />;
+  if (!scope || !scope.kind) return <ViewState status="empty" title="Seleccioná una organización" description="El análisis requiere un perfil y una organización verificados." />;
+  return <ScopedAnalyticsPage key={key} currentSlug={scope.tenantSlug} tenantId={scope.tenantId ?? 0} panelUserScope={scope.kind} />;
+};
+const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { currentSlug: string; tenantId: number; panelUserScope: 'municipio' | 'pyme' }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentSlug, tenant } = useTenant();
-  const { user } = useUser();
   const isEmbeddedInProfile = location.pathname === '/perfil';
-  const storedPanelScope = resolveStoredPanelScope();
-  const liveUserScope = normalizeScopeCandidate(user?.tipo_chat);
-  const panelUserScope = isEmbeddedInProfile
-    ? storedPanelScope || liveUserScope
-    : liveUserScope || storedPanelScope;
-
-  const tenantId = tenant?.id ? Number(tenant.id) : (parseInt(searchParams.get('tenant_id') || '0', 10));
 
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -208,7 +149,7 @@ const AnalyticsPage = () => {
   const [genderFilter, setGenderFilter] = useState(searchParams.get('genero') || searchParams.get('sexo') || '');
   const [ageRangeFilter, setAgeRangeFilter] = useState(searchParams.get('rango_edad') || '');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || searchParams.get('fuente') || '');
-  const [scope, setScope] = useState(() => resolveRequestedScope(searchParams.get('scope')) || resolveDefaultScope(tenant?.tipo));
+  const scope = panelUserScope;
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [executiveModelPolicy, setExecutiveModelPolicy] = useState<Record<string, unknown> | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -309,18 +250,6 @@ const AnalyticsPage = () => {
     }
   }, [timeRange, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter, scope, searchParams, navigate]);
 
-  useEffect(() => {
-    const requestedScope = resolveRequestedScope(searchParams.get('scope'));
-    setScope((prevScope) => {
-      const lockedProfileScope = isEmbeddedInProfile ? panelUserScope : null;
-      const nextScope =
-        lockedProfileScope ||
-        requestedScope ||
-        panelUserScope ||
-        resolveDefaultScope(tenant?.tipo ?? null);
-      return prevScope === nextScope ? prevScope : nextScope;
-    });
-  }, [isEmbeddedInProfile, panelUserScope, searchParams, tenant?.tipo]);
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -352,38 +281,22 @@ const AnalyticsPage = () => {
       let result: AnalyticsSummary;
 
       const hub = await withAnalyticsTimeout(
-        analyticsService.getHub(requestPayload).catch(() => null),
+        analyticsService.getHub(requestPayload, { strictAccess: true }),
         ANALYTICS_HUB_TIMEOUT_MS,
         'analytics_hub_timeout',
-      ).catch(() => null);
+      ).catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      });
       const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
       setHubNavigation(primaryNavigation);
       setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
 
-      try {
-        result = await withAnalyticsTimeout(
+      result = await withAnalyticsTimeout(
           analyticsService.getSummary(requestPayload, hub),
           ANALYTICS_SUMMARY_TIMEOUT_MS,
           'analytics_summary_timeout',
         );
-      } catch (err: any) {
-        const shouldTryAlternateScope =
-          err instanceof ApiError &&
-          err.status === 400 &&
-          (scope === 'municipio' || scope === 'pyme') &&
-          !resolveRequestedScope(searchParams.get('scope')) &&
-          !panelUserScope &&
-          tenant?.tipo !== 'municipio' &&
-          tenant?.tipo !== 'municipal';
-
-        if (!shouldTryAlternateScope) {
-          throw err;
-        }
-
-        const alternateScope = scope === 'municipio' ? 'pyme' : 'municipio';
-        result = await analyticsService.getSummary({ ...requestPayload, scope: alternateScope });
-        setScope(alternateScope);
-      }
 
       setData(result);
       if (tenantId) {
@@ -397,11 +310,7 @@ const AnalyticsPage = () => {
       }
     } catch (err: any) {
       console.error(err);
-      if (err instanceof Error && err.message === 'analytics_summary_timeout') {
-        setData(EMPTY_ANALYTICS_SUMMARY);
-        setError(null);
-        return;
-      }
+      setData(null);
       const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err.status, 'load_analytics') : 'No se pudo cargar el dashboard.';
       setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
@@ -587,7 +496,7 @@ const AnalyticsPage = () => {
           <SelectItem value="30d">Ultimos 30 dias</SelectItem>
         </SelectContent>
       </Select>
-      <Select value={scope} onValueChange={setScope}>
+      <Select value={scope} disabled>
         <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Scope" />
         </SelectTrigger>
@@ -760,7 +669,7 @@ const AnalyticsPage = () => {
               <SelectItem value="30d">Últimos 30 días</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={scope} onValueChange={setScope}>
+          <Select value={scope} disabled>
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Scope" />
             </SelectTrigger>

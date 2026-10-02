@@ -701,13 +701,11 @@ export default function SurveyAnalyticsPage() {
     readRecordText(publicationLinks, 'public_url') ||
     readRecordText(publicationLinks, 'copy_url');
   const publicationState = readRecordText(surveyPublication, 'public_state') || effectiveSurvey?.estado || '';
-  const normalizedPublicationState = publicationState.trim().toLowerCase();
-  const lifecycleState = effectiveSurvey?.admin_lifecycle?.persisted_state?.trim().toLowerCase() ?? '';
-  const isPublicationReady =
-    surveyPublication?.is_published === true ||
-    effectiveSurvey?.admin_lifecycle?.capabilities.can_share === true ||
-    ['published', 'publicada', 'closed', 'cerrada'].includes(normalizedPublicationState) ||
-    ['published', 'publicada', 'closed', 'cerrada'].includes(lifecycleState);
+  const isPublicationReady = effectiveSurvey?.admin_lifecycle
+    ? effectiveSurvey.admin_lifecycle.capabilities.can_share === true &&
+      effectiveSurvey.public_access?.allowed !== false
+    : surveyPublication?.is_published === true &&
+      effectiveSurvey?.public_access?.allowed !== false;
   const publicHref = isPublicationReady
     ? backendPublicHref
       ? withPublicSurveyTenantScope(backendPublicHref, effectiveTenantSlug)
@@ -718,11 +716,11 @@ export default function SurveyAnalyticsPage() {
     [publicHref],
   );
   const copyPublicUrl = useMemo(
-    () => resolveDisplayUrl(withPublicSurveyTenantScope(
+    () => isPublicationReady ? resolveDisplayUrl(withPublicSurveyTenantScope(
       readRecordText(publicationLinks, 'copy_url') || publicHref,
       effectiveTenantSlug,
-    )),
-    [effectiveTenantSlug, publicHref, publicationLinks],
+    )) : null,
+    [effectiveTenantSlug, publicHref, publicationLinks, isPublicationReady],
   );
   const qrUrl = isPublicationReady
     ? (
@@ -734,7 +732,7 @@ export default function SurveyAnalyticsPage() {
         )
       ) || null
     : null;
-  const whatsappShareUrl = publicUrl
+  const whatsappShareUrl = !isPublicationReady ? null : publicUrl
     ? getPublicSurveyWhatsAppShareUrl(
         publicUrl,
         effectiveSurvey?.titulo
@@ -753,9 +751,9 @@ export default function SurveyAnalyticsPage() {
     effectiveSurvey?.requiere_identidad === true;
   const openLiveAction = publicationActions.find((action) => readRecordText(action, 'id') === 'open_live_results');
   const resolvedPublicHref = resolveHref(publicHref);
-  const openLiveActionHref = readRecordText(openLiveAction, 'href');
+  const openLiveActionHref = isPublicationReady ? readRecordText(openLiveAction, 'href') : '';
   const liveResultsPageHref = openLiveActionHref || (resolvedPublicHref ? appendClientQueryParam(resolvedPublicHref, 'live', '1') : '');
-  const shouldShowLiveResultsButton = liveResultsEnabled && Boolean(liveResultsPageHref);
+  const shouldShowLiveResultsButton = isPublicationReady && liveResultsEnabled && Boolean(liveResultsPageHref);
   const resolvedLiveResultsHref = resolveHref(liveResultsPageHref);
   const resolvedWhatsappShareUrl = resolveHref(whatsappShareUrl);
   const publicContractVersion = readRecordText(surveyPublication, 'contract_version');
@@ -1457,7 +1455,9 @@ export default function SurveyAnalyticsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/30 px-3.5 py-2.5 text-sm font-mono text-foreground shadow-xs">
                       <span className="truncate">
-                        {publicUrl || 'Configurá el slug público para generar el enlace compartible.'}
+                        {publicUrl || (isPublicationReady
+                          ? 'Configurá el slug público para generar el enlace compartible.'
+                          : 'Participación pública pendiente de validación.')}
                       </span>
                     </div>
                   </div>
