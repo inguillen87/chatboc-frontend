@@ -349,6 +349,7 @@ const resolveTenantInfo = async ({
       omitChatSessionId: true,
       sendAnonId: true,
       omitEntityToken: true,
+      persistTenantSlug: false,
     });
   };
 
@@ -468,10 +469,15 @@ export async function getTenantPublicNavigation(slug: string): Promise<TenantPub
     isWidgetRequest: true,
     omitChatSessionId: true,
     omitEntityToken: true,
+    persistTenantSlug: false,
   } as const;
 
   const response = await apiFetch<unknown>(`/api/public/tenants/${encoded}/public-navigation`, options);
-  return normalizePublicNavigation(response, normalized);
+  const navigation = normalizePublicNavigation(response, normalized);
+  if (navigation.tenant_slug.trim().toLowerCase() !== normalized.toLowerCase()) {
+    throw new TenantProfileScopeError();
+  }
+  return navigation;
 }
 
 export async function submitTenantTicket(
@@ -627,6 +633,11 @@ export async function listFollowedTenants(
       entityToken: widgetToken ?? undefined,
       isWidgetRequest: Boolean(widgetToken),
       omitChatSessionId: true,
+      // A panel user's followed spaces belong to that authenticated user, not
+      // the public organization currently being viewed. Keep widget scopes.
+      omitTenant: !widgetToken,
+      omitEntityToken: !widgetToken,
+      persistTenantSlug: false,
       suppressPanel401Redirect: true,
       baseUrlOverride: SAME_ORIGIN_API_BASE,
     });

@@ -133,9 +133,10 @@ const TenantPublicLanding = () => {
   const { tenant, currentSlug } = useTenant();
 
   const slug = useMemo(() => {
+    const fromRoute = params.tenant?.trim();
+    if (fromRoute) return fromRoute.toLowerCase() === 'default' ? '' : fromRoute;
     const fromContext = tenant?.slug ?? currentSlug;
-    if (fromContext?.trim()) return fromContext.trim();
-    if (params.tenant?.trim()) return params.tenant.trim();
+    if (fromContext?.trim() && fromContext.trim().toLowerCase() !== 'default') return fromContext.trim();
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 

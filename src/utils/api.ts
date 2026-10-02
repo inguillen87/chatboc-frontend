@@ -998,6 +998,13 @@ export async function apiFetch<T>(
     persistTenantSlug === false && typeof options.isCurrent === 'function' &&
     typeof body?.email === 'string' && Boolean(body.email) && typeof body?.password === 'string' && Boolean(body.password);
   const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin;
+  // An explicit anonymous tenant read does not carry the panel identity. A
+  // concurrent /me refresh must not retire it or select that private tenant.
+  // Its caller's signal/isCurrent still retires the public route itself.
+  const isIsolatedPublicTenantRead = method === 'GET' &&
+    skipAuth === true && omitCredentials === true && treatAsWidget === true &&
+    omitEntityToken === true && omitChatSessionId === true && persistTenantSlug === false &&
+    typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug);
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -1285,7 +1292,9 @@ export async function apiFetch<T>(
     cache,
   };
 
-  const readRequestIdentity = () => JSON.stringify([
+  const readRequestIdentity = () => isIsolatedPublicTenantRead
+    ? JSON.stringify(['public-tenant-read', effectiveTenantSlug])
+    : JSON.stringify([
     usePanelSessionStore.getState().authToken, hasIndependentRequestIdentity ? null : useWidgetSessionStore.getState().chatAuthToken,
     safeLocalStorage.getItem('authToken'), hasIndependentRequestIdentity ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
     safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),

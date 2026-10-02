@@ -297,6 +297,7 @@ export const TenantProvider = ({
   const location = useLocation();
   const tenantBootstrapSuppressed =
     !bootstrapEnabled || isTenantIndependentPath(location.pathname);
+  const isPublicTenantLanding = /^\/t\/[^/]+\/?$/i.test(location.pathname);
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
@@ -330,7 +331,7 @@ export const TenantProvider = ({
         if (info?.slug) {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
-           useTenantStore.getState().setTenant(info.slug, info);
+           if (!isPublicTenantLanding) useTenantStore.getState().setTenant(info.slug, info);
            if (token) {
              const scopedToken = resolveWidgetTokenForTenant(token, info.slug);
              if (scopedToken) {
@@ -352,7 +353,7 @@ export const TenantProvider = ({
         if (recoverable) {
           setCurrentSlug(null);
           currentSlugRef.current = null;
-          useTenantStore.getState().clearTenant();
+          if (!isPublicTenantLanding) useTenantStore.getState().clearTenant();
         }
 
       }
@@ -364,7 +365,7 @@ export const TenantProvider = ({
         setIsLoadingTenant(false);
       }
     }
-  }, [isRecoverableTenantError]);
+  }, [isRecoverableTenantError, isPublicTenantLanding]);
 
   useEffect(() => {
     const { slug, widgetToken: token } = tenantBootstrapSuppressed
@@ -421,14 +422,14 @@ export const TenantProvider = ({
   }, [tenantBootstrapSuppressed, widgetToken]);
 
   useEffect(() => {
-    if (tenantBootstrapSuppressed) return;
+    if (tenantBootstrapSuppressed || isPublicTenantLanding) return;
     const sanitized = sanitizeTenantSlug(currentSlugRef.current);
     if (sanitized) {
       safeLocalStorage.setItem('tenantSlug', sanitized);
     } else {
       safeLocalStorage.removeItem('tenantSlug');
     }
-  }, [currentSlug, tenantBootstrapSuppressed]);
+  }, [currentSlug, tenantBootstrapSuppressed, isPublicTenantLanding]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
