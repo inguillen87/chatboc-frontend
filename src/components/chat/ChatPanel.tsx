@@ -191,24 +191,6 @@ const readFirstString = (...values: unknown[]) => {
   return "";
 };
 
-const readStoredLeadContact = () => {
-  try {
-    const storedUser = JSON.parse(safeLocalStorage.getItem("user") || "null");
-    return {
-      name: readFirstString(storedUser?.name, storedUser?.nombre),
-      email: readFirstString(storedUser?.email),
-      phone: readFirstString(
-        storedUser?.telefono,
-        storedUser?.phone,
-        storedUser?.whatsapp,
-        storedUser?.celular,
-      ),
-    };
-  } catch {
-    return { name: "", email: "", phone: "" };
-  }
-};
-
 const readFirstNumber = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -3595,15 +3577,15 @@ const ChatPanel = (props: ChatPanelProps) => {
         (effectiveLeadCapture?.fields?.length ?? 0) === 0;
 
       if (shouldPostLead) {
-        const storedContact = readStoredLeadContact();
+        const visitorContact = contexto?.datos_reclamo;
         const actionPayload = action.payload ?? {};
-        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, storedContact.name);
-        const leadEmail = readFirstString(actionPayload.email, storedContact.email);
+        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, visitorContact?.nombre_ciudadano);
+        const leadEmail = readFirstString(actionPayload.email, visitorContact?.email_ciudadano);
         const leadPhone = readFirstString(
           actionPayload.telefono,
           actionPayload.phone,
           actionPayload.whatsapp,
-          storedContact.phone,
+          visitorContact?.telefono_ciudadano,
         );
 
         if (!leadName && !leadEmail && !leadPhone) {
@@ -3704,7 +3686,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [addSystemMessage, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
+    [addSystemMessage, contexto, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
   );
 
   const persistentLeadButton = [...messages]

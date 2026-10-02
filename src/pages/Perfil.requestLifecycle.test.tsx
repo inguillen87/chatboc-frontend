@@ -3,6 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { panelReadOptions } from '@/utils/panelReadOptions';
+import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
+import AccessRoute from '@/components/access/AccessRoute';
 
 const runtime = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -13,8 +15,19 @@ const runtime = vi.hoisted(() => ({
   toast: vi.fn(),
   ticketMounts: 0,
   hasSession: true,
+  realNavigation: false,
   user: null as Record<string, any> | null,
 }));
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return {
+    ...actual,
+    useNavigate: () => runtime.realNavigation
+      ? actual.useNavigate()
+      : vi.fn((path: string) => console.log(`Mocked navigate to: ${path}`)),
+  };
+});
 
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({
@@ -255,6 +268,7 @@ describe('Perfil request lifecycle', () => {
   beforeEach(() => {
     localStorage.clear();
     runtime.hasSession = true;
+    runtime.realNavigation = false;
     runtime.user = verifiedUser('junin');
     runtime.apiFetch.mockReset();
     runtime.getTicketStats.mockReset().mockResolvedValue({ heatmap: [], heatmapDataset: { points: [] } });
@@ -428,6 +442,68 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).not.toContain('section=channels');
     expect(window.location.search).toContain('section=general');
   });
+
+  it('opens the existing tenant integration workspace for a municipal Full administrator with a settings grant', async () => {
+    runtime.realNavigation = true;
+    runtime.user = { ...verifiedUser(), rol: 'admin_municipio', plan: 'full', capabilities: ['settings.tenant.write'] };
+    const read = runtime.apiFetch.getMockImplementation();
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      const payload = await read?.(path, options);
+      return path === '/api/me' ? { ...payload, plan: 'full' } : payload;
+    });
+    localStorage.setItem('tenantSlug', 'another-organization');
+    window.history.replaceState({}, '', '/perfil?section=channels');
+    render(<CapabilitiesProvider><BrowserRouter><Routes>
+      <Route path="/perfil" element={<ProfileHarness />} />
+      <Route path="/t/:tenant/integracion" element={
+        <AccessRoute roles={['tenant_admin', 'superadmin']} requiredAllCapabilities={['settings.tenant.write']}>
+          <div>Integraciones de la organización</div>
+        </AccessRoute>
+      } />
+      <Route path="/municipal/integrations" element={<div>Placeholder municipal</div>} />
+    </Routes></BrowserRouter></CapabilitiesProvider>);
+
+    const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
+    expect(entry).toBeEnabled();
+    fireEvent.click(entry);
+    await screen.findByText('Integraciones de la organización');
+    expect(window.location.pathname).toBe('/t/junin/integracion');
+    expect(screen.queryByText('Placeholder municipal')).not.toBeInTheDocument();
+  });
+
+  it.each(['missing-tenant', 'missing-capability'] as const)(
+    'keeps municipal integration navigation closed with %s and gives a recovery action', async (reason) => {
+      runtime.realNavigation = true;
+      runtime.user = {
+        ...verifiedUser(reason === 'missing-tenant' ? '' : 'junin'), rol: 'admin_municipio', plan: 'full',
+        capabilities: reason === 'missing-capability' ? ['knowledge.write'] : ['settings.tenant.write'],
+      };
+      if (reason === 'missing-tenant') {
+        runtime.apiFetch.mockImplementation(async (path: string) => path === '/api/me' ? { ...profileResponse(''), plan: 'full' } : {});
+      } else {
+        const read = runtime.apiFetch.getMockImplementation();
+        runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+          const payload = await read?.(path, options);
+          return path === '/api/me' ? { ...payload, plan: 'full' } : payload;
+        });
+      }
+      localStorage.setItem('tenantSlug', 'another-organization');
+      window.history.replaceState({}, '', '/perfil?section=channels');
+      render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+
+      const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
+      expect(entry).toBeDisabled();
+      fireEvent.click(entry);
+      expect(window.location.pathname).toBe('/perfil');
+      if (reason === 'missing-tenant') {
+        fireEvent.click(screen.getByRole('button', { name: 'Reintentar verificación de organización' }));
+        expect(runtime.refreshUser).toHaveBeenCalledTimes(1);
+      } else {
+        expect(screen.getByText(/Necesitás permiso para configurar los canales/)).toBeInTheDocument();
+        expect(runtime.refreshUser).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it('canonicalizes an institutional deep link without dropping section or setup', async () => {
     renderProfile('/perfil?tab=tickets&section=channels&setup=channels');

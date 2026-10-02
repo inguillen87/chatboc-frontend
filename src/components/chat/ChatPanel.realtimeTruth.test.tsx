@@ -73,9 +73,41 @@ describe("ChatPanel realtime transport truth", () => {
     chatLogic.institutionalBootstrapPending=false;
     chatLogic.suppressLegacyInitialMenu=false;
     chatLogic.messages=[];
+    chatLogic.contexto={};
+    window.localStorage.clear();window.sessionStorage.clear();
     vi.mocked(apiFetch).mockImplementation(async (path) =>
       path === "/api/public/realtime/session" ? provisionedSession : {},
     );
+  });
+
+  it('requests visitor details for an explicit public lead CTA instead of taking the administrative profile',()=>{
+    window.localStorage.setItem('user',JSON.stringify({name:'Synthetic operator',email:'panel@example.invalid',phone:'999999999'}));
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-visitor" leadCapture={{enabled:true,endpoint:'/api/public/lead-capture',fields:[]}}
+      conversionCtas={{actions:[{id:'visitor-follow-up',label:'Guardar mi seguimiento',endpoint:'/api/public/lead-capture'}]}}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Ver acciones'}));
+    fireEvent.click(screen.getAllByRole('button',{name:'Guardar mi seguimiento'})
+      .find(button=>button.closest('.chatboc-chat-footer'))!);
+    expect(vi.mocked(apiFetch).mock.calls.some(([path])=>path==='/api/public/lead-capture')).toBe(false);
+    expect(chatLogic.setMessages).toHaveBeenCalled();
+    const next=chatLogic.setMessages.mock.calls.at(-1)![0]([]);
+    expect(next.at(-1)).toMatchObject({text:'Para guardar el seguimiento, decime tu nombre y un WhatsApp o email.',data:{pedir_info:'nombre'}});
+    expect(window.localStorage.getItem('user')).toContain('panel@example.invalid');
+  });
+
+  it('keeps an explicit public lead CTA using only the visitor details in the current conversation',async()=>{
+    window.localStorage.setItem('user',JSON.stringify({name:'Synthetic operator',email:'panel@example.invalid',phone:'999999999'}));
+    chatLogic.contexto={datos_reclamo:{nombre_ciudadano:'Synthetic visitor',email_ciudadano:'visitor@example.invalid',telefono_ciudadano:'111111111'}};
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-visitor" leadCapture={{enabled:true,endpoint:'/api/public/lead-capture',fields:[]}}
+      conversionCtas={{actions:[{id:'visitor-follow-up',label:'Guardar mi seguimiento',endpoint:'/api/public/lead-capture'}]}}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Ver acciones'}));
+    fireEvent.click(screen.getAllByRole('button',{name:'Guardar mi seguimiento'})
+      .find(button=>button.closest('.chatboc-chat-footer'))!);
+    await waitFor(()=>expect(apiFetch).toHaveBeenCalledWith('/api/public/lead-capture',expect.objectContaining({method:'POST',
+      body:expect.objectContaining({tenant_slug:'qa-visitor',name:'Synthetic visitor',email:'visitor@example.invalid',phone:'111111111'}),
+      skipAuth:true})));
+    const request=vi.mocked(apiFetch).mock.calls.find(([path])=>path==='/api/public/lead-capture')![1];
+    expect(JSON.stringify(request)).not.toContain('panel@example.invalid');
+    expect(chatLogic.handleSend).not.toHaveBeenCalled();
   });
 
   it('shows only pending conversation status while resolving the public institutional menu',()=>{

@@ -99,12 +99,13 @@ import { ORDER_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
+import { useCapabilities } from '@/context/CapabilitiesContext';
 import IdentityAvatar from "@/components/identity/IdentityAvatar";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { hasAuthenticatedChatbocSession } from "@/utils/sessionLogout";
-import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
+import { buildTenantPath, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { panelReadOptions } from '@/utils/panelReadOptions';
@@ -498,7 +499,8 @@ const ControlCenterCardButton = ({
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, setUser, organizationProfileVerified } = useUser();
+  const { user, setUser, organizationProfileVerified, refreshUser } = useUser();
+  const { hasCapability } = useCapabilities();
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
@@ -612,6 +614,10 @@ export default function Perfil() {
     hasRequestedTenant &&
       (!matchingRequestedAuthority || matchingRequestedAuthority.status === 'loading'),
   );
+  const integrationTenantSlug = organizationProfileVerified && !tenantSelectionPending &&
+    (!hasRequestedTenant || matchingRequestedAuthority?.status === 'authorized')
+      ? derivedTenantSlug : null;
+  const canManageTenantIntegrations = isAdminUser && hasCapability('settings.tenant.write');
   const profileIdentityScope = user && !tenantSelectionPending
     ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
     : null;
@@ -3307,14 +3313,32 @@ export default function Perfil() {
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">Número emisor, webhook, plantillas y estado del proveedor.</p>
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => navigate(esMunicipio ? "/municipal/integrations" : derivedTenantSlug ? `/${derivedTenantSlug}/integracion` : "/integracion")}
-                    className="rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
-                  >
-                    <p className="font-semibold text-foreground">Integraciones y canales web</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Configuración técnica aislada de este registro institucional.</p>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      disabled={!integrationTenantSlug || !canManageTenantIntegrations}
+                      onClick={() => {
+                        if (!integrationTenantSlug || !canManageTenantIntegrations) return;
+                        navigate(buildTenantPath('/integracion', integrationTenantSlug));
+                      }}
+                      className="w-full rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <p className="font-semibold text-foreground">Integraciones y canales web</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Configuración técnica de la organización verificada.</p>
+                    </button>
+                    {!integrationTenantSlug ? (
+                      <div role="status" className="space-y-2 text-sm text-muted-foreground">
+                        <p>No pudimos verificar la organización para abrir sus integraciones.</p>
+                        <Button type="button" variant="outline" size="sm" onClick={() => void refreshUser()}>
+                          Reintentar verificación de organización
+                        </Button>
+                      </div>
+                    ) : !canManageTenantIntegrations ? (
+                      <p role="status" className="text-sm text-muted-foreground">
+                        Necesitás permiso para configurar los canales. Pedile acceso al administrador de tu organización.
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ) : null}

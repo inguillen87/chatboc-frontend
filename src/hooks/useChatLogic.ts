@@ -32,7 +32,7 @@ import {
 } from "@/utils/contexto_municipio";
 import { useUser } from "./useUser";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { getVisitorName, setVisitorName } from "@/utils/visitorName";
+import { setVisitorName } from "@/utils/visitorName";
 import {
   ensureAbsoluteUrl,
   mergeButtons,
@@ -40,7 +40,6 @@ import {
 } from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
-import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { readBackendFlag } from "@/utils/backendFlags";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
@@ -172,19 +171,6 @@ const findCategoryFromEmoji = (text: string): string | undefined => {
 };
 
 const LIVE_CHAT_STATUSES = new Set(["esperando_agente_en_vivo", "en_vivo"]);
-
-const HIGH_INTENT_PATTERNS = [
-  "hablar con un representante",
-  "hablar con un agente",
-  "hablar con ventas",
-  "quiero comprar",
-  "necesito asesor",
-  "cotizacion",
-  "cotización",
-  "presupuesto",
-  "contacto",
-  "whatsapp",
-];
 
 const URGENT_PATTERNS = [
   "urgente",
@@ -323,6 +309,7 @@ export function useChatLogic({
   const initializationMountedRef=useRef(true);
   const conversationScopeGenerationRef=useRef(0);
   const initializationScope=JSON.stringify([tipoChat,tenantSlug??null,entityToken??null]);
+  const visitorNameRef=useRef<{scope:string;name:string}|null>(null);
   const initializationScopeRef=useRef(initializationScope);
   if(initializationScopeRef.current!==initializationScope){
     initializationScopeRef.current=initializationScope;
@@ -357,6 +344,7 @@ export function useChatLogic({
     initializationAbortRef.current?.abort();initializationAbortRef.current=null;
     initSentRef.current=false;initPendingResponseRef.current=false;
     messagesRef.current=[];setMessages([]);setContexto(getInitialMunicipioContext());
+    visitorNameRef.current=null;
     setIsTyping(false);seenMessageFingerprintsRef.current.clear();
     setActiveTicketId(null);setLiveChatTicketId(null);setLiveChatSocketRoom(null);
     setLiveChatAccessToken(null);setLiveChatStatus(null);setUxContext(null);
@@ -542,7 +530,8 @@ export function useChatLogic({
         ? getInitialMunicipioContext()
         : contexto;
 
-      const visitorName = getVisitorName();
+      const visitorName = visitorNameRef.current?.scope===initializationScope
+        ? visitorNameRef.current.name : "";
       const endpoint = getAskEndpoint({
         tipoChat: tipoChatFinal,
         rubro: normalizedRubro || null,
@@ -748,7 +737,6 @@ export function useChatLogic({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
   const clientMessageIdCounter = useRef(0);
-  const leadCaptureSentRef = useRef(false);
 
   const generateClientMessageId = () => {
     clientMessageIdCounter.current += 1;
@@ -2903,57 +2891,8 @@ export function useChatLogic({
         ["submit_personal_data", "set_user_name"].includes(normalizedAction) &&
         payloadNombre
       ) {
+        visitorNameRef.current={scope:initializationScope,name:payloadNombre};
         setVisitorName(payloadNombre);
-      }
-
-      const isHighIntent = HIGH_INTENT_PATTERNS.some((keyword) =>
-        normalizedForMatching.includes(keyword),
-      );
-      if (isHighIntent && !leadCaptureSentRef.current) {
-        const storedUser = JSON.parse(
-          safeLocalStorage.getItem("user") || "null",
-        );
-        const leadName = pickFirstString(
-          actionPayload?.nombre,
-          storedUser?.name,
-          storedUser?.nombre,
-          getVisitorName(),
-        );
-        const leadEmail = pickFirstString(
-          actionPayload?.email,
-          storedUser?.email,
-        );
-        const leadPhone = pickFirstString(
-          actionPayload?.telefono,
-          storedUser?.telefono,
-          storedUser?.phone,
-          storedUser?.whatsapp,
-          storedUser?.celular,
-        );
-
-        if (leadName || leadEmail || leadPhone) {
-          leadCaptureSentRef.current = true;
-            enterpriseService
-              .captureLead({
-                tenant_slug: tenantSlug || undefined,
-                chat_session_id: getOrCreateChatSessionId(),
-                channel: "web",
-                trigger: resolvedAction || "high_intent",
-                intent: resolvedAction || undefined,
-                name: leadName,
-                email: leadEmail,
-                phone: leadPhone,
-              interest: userMessageText || normalizedQuestionBase,
-              message: originalText,
-              source: "widget_chat",
-              metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
-            })
-            .catch((captureError) => {
-              if(!isCurrentSend())return;
-              leadCaptureSentRef.current = false;
-              console.warn("Lead capture failed", captureError);
-            });
-        }
       }
 
       const isUrgentMessage = URGENT_PATTERNS.some((keyword) =>
@@ -2969,9 +2908,12 @@ export function useChatLogic({
       }
 
       if (resolvedAction === "iniciar_creacion_reclamo") {
-        // Check for existing user data
-        const userData =
-          user || JSON.parse(safeLocalStorage.getItem("user") || "null");
+        // Public visitors never inherit the administrative profile. Reuse only
+        // their current conversation, or the authenticated user in a private flow.
+        const visitorData=contexto.datos_reclamo;
+        const userData=visitorData.nombre_ciudadano&&visitorData.email_ciudadano
+          ? {name:visitorData.nombre_ciudadano,email:visitorData.email_ciudadano}
+          : isAnonimo ? null : user;
         if (userData?.name && userData?.email) {
           // Assume phone and DNI are not available in user object
           setContexto((prev) => ({
@@ -3112,7 +3054,8 @@ export function useChatLogic({
         });
         setContexto(updatedContext);
 
-        const visitorName = getVisitorName();
+        const visitorName = visitorNameRef.current?.scope===initializationScope
+          ? visitorNameRef.current.name : "";
 
         const sessionId = getOrCreateChatSessionId();
         const publicChatContext = resolvePersistentPublicContext(
