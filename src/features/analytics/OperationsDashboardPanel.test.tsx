@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  OperationsBucketItem,
   OperationsAIOpsQueueV1,
   OperationsAIProviderStatusV1,
   OperationsOpenAISuiteReadiness,
@@ -588,6 +589,56 @@ const renderPanel = () => {
   );
 };
 
+const receivingMonitorFixture = (overrides: Record<string, unknown> = {}): OperationsBucketItem => ({
+  id: '634', title: 'Votación verificada', slug: 'votacion-verificada', status: 'publicada',
+  phase: 'live_voting', state: 'live_collecting', published: true,
+  accepts_responses: true, can_share: true, show_live_results: true,
+  public_access: { contract_version: 'surveys.public_access.v1', allowed: true },
+  public_url: '/e/votacion-verificada',
+  live_results_endpoint: '/api/v2/public/surveys/votacion-verificada/live-results',
+  admin_url: '/admin/encuestas/634/analytics?focus=live', responses: 1,
+  ...overrides,
+});
+
+const surveyRoomFixture = (monitors: OperationsBucketItem[], summary: Record<string, unknown> = {}): OperationsDashboardV1 => ({
+  ...dashboardFixture(),
+  surveys: {
+    summary: { responses: 1, accepting_responses: 0 },
+    live_control_room: {
+      enabled: true, state: 'live',
+      summary: { live_surveys: 3, responses: 1, ...summary },
+      monitors,
+      actions: [
+        { id: 'open_surveys_admin', label: 'Abrir encuestas' },
+        { id: 'suggest_whatsapp', label: 'Invitar por WhatsApp', template_id: 'survey_invite' },
+        { id: 'public_qr', label: 'Compartir QR', endpoint: '/api/v2/public/surveys/votacion-verificada/qr' },
+      ],
+    },
+  },
+});
+
+// Synthetic contract fixture: categories remain measurable without GPS points.
+const zeroGpsCategoryFixture = (): OperationsHeatmapV1 => heatmapFixture({
+  tenant: { slug: 'junin', id: 22 }, points: [], facets: [], segments: {}, category_layers: [],
+  summary: { points: 0 }, render_contract: { state: 'empty', layers: ['tickets'] },
+  quality: { state: 'empty', visible_points: 0, total_ticket_records: 56, coverage_percent: 0, pending_geocode: 56 },
+  privacy: { mode: 'privileged_exact' },
+  territorial_facets: {
+    contract_version: 'operations.heatmap.territorial_facets.v1',
+    categories: [
+      ['luminarias', 'Luminarias', 35], ['arbol', 'Árbol / Poda', 9], ['limpieza', 'Limpieza', 4],
+      ['agua', 'Agua', 3], ['bache', 'Bache', 2], ['transito', 'Tránsito', 2], ['otros', 'Otros', 1],
+    ].map(([key, label, count]) => ({
+      key: String(key), label: String(label), count: Number(count), mapped_count: 0,
+      pending_geocode_count: Number(count), outside_jurisdiction_count: 0,
+      category_provenance: {
+        contract_version: 'operations.category_provenance.v1',
+        methods: [{ key: 'identity', count: Number(count) }], fuzzy_matching: false, writes_performed: false,
+      },
+    })),
+  },
+});
+
 describe('OperationsDashboardPanel territory UX', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -606,6 +657,105 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsAIProviderStatusV2.mockResolvedValue(aiProviderStatusFixture());
     mocks.getOperationsFreshnessV2.mockResolvedValue(freshnessFixture());
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
+  });
+
+  it('separates configured voting from reception and preserves private historical analytics for blocked surveys', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture({ id: '631', title: 'Votación cerrada', status: 'cerrada', phase: 'closed', accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false }, admin_url: '/admin/encuestas/631/analytics?focus=live' }),
+      receivingMonitorFixture({ id: '632', title: 'Votación borrador', status: 'borrador', phase: 'draft', accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false }, admin_url: '/admin/encuestas/632/analytics?focus=live' }),
+      receivingMonitorFixture({ accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false, reason_code: 'survey_tenant_jurisdiction_unverified' } }),
+    ], { accepting_responses: 0, configured_monitors: 3 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('0');
+    expect(within(room).getByText('Votaciones configuradas').parentElement).toHaveTextContent('3');
+    expect(room).toHaveTextContent('Participación finalizada');
+    expect(room).toHaveTextContent('Borrador');
+    expect(room).toHaveTextContent('Participación pendiente de habilitación');
+    expect(room).not.toHaveTextContent('recolectando');
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
+    expect(room).not.toHaveTextContent('Invitar por WhatsApp');
+    expect(room).not.toHaveTextContent('Compartir QR');
+    expect(within(room).getAllByRole('link', { name: 'Analítica' }).map(link => link.getAttribute('href'))).toEqual([
+      '/admin/encuestas/631/analytics?focus=live&tenant=junin',
+      '/admin/encuestas/632/analytics?focus=live&tenant=junin',
+      '/admin/encuestas/634/analytics?focus=live&tenant=junin',
+    ]);
+    expect(screen.getByRole('link', { name: /Ver encuestas/i })).toHaveAttribute('href', '/admin/encuestas?tenant=junin');
+  });
+
+  it.each([
+    { name: 'legacy metadata absent', fields: { accepts_responses: undefined, can_share: undefined, public_access: undefined, phase: undefined } },
+    { name: 'public access veto', fields: { public_access: { contract_version: 'surveys.public_access.v1', allowed: false } } },
+    { name: 'sharing veto', fields: { can_share: false } },
+    { name: 'reception veto', fields: { accepts_responses: false } },
+    { name: 'closed status with contradictory flags', fields: { status: 'cerrada' } },
+    { name: 'draft phase with contradictory flags', fields: { phase: 'draft' } },
+    { name: 'string booleans', fields: { accepts_responses: 'true', can_share: 'true' } },
+  ])('fails closed for $name despite legacy live state and public URLs', async ({ fields }) => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([receivingMonitorFixture(fields)]));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
+    expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('No informadas');
+    expect(room).not.toHaveTextContent('recolectando');
+    expect(room).not.toHaveTextContent('Invitar por WhatsApp');
+  });
+
+  it('shows public reception only with authoritative permission and keeps hidden live results closed', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture(),
+      receivingMonitorFixture({ id: '635', title: 'Encuesta sin resultados públicos', phase: 'collecting', show_live_results: false, public_url: '/e/otra', admin_url: '/admin/encuestas/635/analytics' }),
+    ], { accepting_responses: 2, configured_monitors: 2 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).getAllByRole('link', { name: 'Abrir pública' })).toHaveLength(2);
+    expect(within(room).getAllByRole('link', { name: 'Resultados API' })).toHaveLength(1);
+    expect(room).toHaveTextContent('Recibiendo votos');
+    expect(room).toHaveTextContent('Recibiendo respuestas');
+  });
+
+  it('rejects private analytics links carrying a different tenant or survey identity', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture({ admin_url: '/admin/encuestas/634/analytics?tenant=otro-tenant' }),
+      receivingMonitorFixture({ id: '635', admin_url: '/admin/encuestas/634/analytics' }),
+    ], { accepting_responses: 2, configured_monitors: 2 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).queryByRole('link', { name: 'Analítica' })).toBeNull();
+  });
+
+  it('offers all seven trusted categories without GPS and sends the exact canonical key to the backend', async () => {
+    const fixture = zeroGpsCategoryFixture();
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    const category = await screen.findByLabelText('Categoría');
+    expect(within(category).getAllByRole('option')).toHaveLength(8);
+    expect(within(category).getByRole('option', { name: 'Árbol / Poda (9)' })).toHaveAttribute('value', 'arbol');
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+    expect(screen.queryByText(/Los filtros aparecen cuando/)).toBeNull();
+    expect(screen.queryByLabelText('Barrio')).toBeNull();
+    fireEvent.change(category, { target: { value: 'luminarias' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'junin', categoria: 'luminarias' })));
+    expect(fixture.territorial_facets?.categories?.[0].category_provenance).toEqual({
+      contract_version: 'operations.category_provenance.v1', methods: [{ key: 'identity', count: 35 }], fuzzy_matching: false, writes_performed: false,
+    });
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+  });
+
+  it.each(['wrong contract', 'wrong facet tenant', 'privacy suppressed'])('does not promote territorial category metadata with %s', async (reason) => {
+    const fixture = zeroGpsCategoryFixture();
+    if (reason === 'wrong contract') fixture.territorial_facets!.contract_version = 'operations.heatmap.territorial_facets.untrusted';
+    if (reason === 'wrong facet tenant') fixture.territorial_facets!.tenant_slug = 'otro-tenant';
+    if (reason === 'privacy suppressed') fixture.privacy!.suppressed = { categories: true };
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByText('Centro territorial');
+    expect(screen.queryByLabelText('Categoría')).toBeNull();
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
   });
 
   it('waits through ten seconds of startup before dispatching and accepting the eight private reads', async () => {
@@ -664,7 +814,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
-    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/perfil?tab=analytics&focus=surveys');
+    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/admin/encuestas?tenant=junin');
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     const commercePanel = screen.getByTestId('operations-commerce');

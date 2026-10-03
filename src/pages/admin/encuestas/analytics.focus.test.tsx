@@ -373,6 +373,26 @@ describe('SurveyAnalyticsPage operational focus', () => {
     expect(screen.getByTestId('mock-survey-qr')).toBeInTheDocument();
   });
 
+  it('explains a closed survey using historical results without prompting publication', async () => {
+    const closedSurvey = {
+      ...shareableSurveyFixture, estado: 'cerrada',
+      admin_lifecycle: { ...shareableSurveyFixture.admin_lifecycle, phase: 'closed', persisted_state: 'cerrada', accepts_responses: false, capabilities: { can_share: false } },
+      public_access: { ...shareableSurveyFixture.public_access, allowed: false },
+    };
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: closedSurvey, surveys: { data: [closedSurvey] },
+      isLoadingSurvey: false, isLoadingList: false, surveyError: null, listError: null,
+    });
+    renderPage('/admin/encuestas/3/analytics?focus=live');
+    const blocked = await screen.findByTestId('survey-live-results-publication-blocked');
+    expect(blocked).toHaveTextContent('Participación finalizada');
+    expect(blocked).toHaveTextContent('resultados históricos');
+    expect(blocked).not.toHaveTextContent('Publicalo');
+    expect(blocked).not.toHaveTextContent('todavía no iniciada');
+    expect(screen.getByTestId('mock-survey-analytics')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-survey-live-results')).toBeNull();
+  });
+
   it('does not query or present public live results for an unpublished draft', async () => {
     const draftSurvey = {
       ...surveyFixture,

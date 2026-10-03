@@ -271,9 +271,9 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string }> = ({ tenantSlug
 
   const operationCards = [
     {
-      label: 'Categorias activas',
+      label: 'Temas de atencion',
       value: visibleCategories.length,
-      helper: 'Temas disponibles para clasificar tickets.',
+      helper: `${categories.length} en el catalogo · ${visibleCategories.filter((category) => category.source === 'routing').length} detectados por ruteo.`,
       icon: FolderTree,
     },
     {
@@ -380,7 +380,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string }> = ({ tenantSlug
               </p>
             </div>
             <Badge variant="secondary" className="w-fit rounded-full">
-              {visibleCategories.length} configuradas
+              {categories.length} en catalogo · {visibleCategories.filter((category) => category.source === 'routing').length} por ruteo
             </Badge>
           </div>
 
@@ -403,7 +403,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string }> = ({ tenantSlug
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {assignedEmployees.length
-                          ? `${assignedEmployees.length} integrante${assignedEmployees.length === 1 ? '' : 's'} atienden esta categoria.`
+                          ? `${assignedEmployees.length} integrante${assignedEmployees.length === 1 ? ' atiende' : 's atienden'} esta categoria.`
                           : 'Todavia no tiene un equipo asignado.'}
                       </p>
                     </div>

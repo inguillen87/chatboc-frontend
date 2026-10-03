@@ -705,6 +705,8 @@ export default function SurveyAnalyticsPage() {
   // tenant-scoped admin list may supply them. Stored publication is not authority.
   const publicationLifecycle = survey?.admin_lifecycle ?? surveyFromList?.admin_lifecycle;
   const publicationAccess = survey?.public_access ?? surveyFromList?.public_access;
+  const participationEnded = ['closed', 'window_ended', 'archived'].includes(publicationLifecycle?.phase ?? '')
+    || ['cerrada', 'closed', 'archivada', 'archived'].includes(effectiveSurvey?.estado ?? '');
   const publicationVeto =
     survey?.admin_lifecycle?.capabilities.can_share === false ||
     surveyFromList?.admin_lifecycle?.capabilities.can_share === false ||
@@ -1621,14 +1623,18 @@ export default function SurveyAnalyticsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Sala live todavía no iniciada
+              {participationEnded ? 'Participación finalizada' : 'Sala live todavía no iniciada'}
             </CardTitle>
             <CardDescription>
-              Este instrumento está en estado {publicationStateLabel(publicationState).toLowerCase()}. No consultamos el endpoint público ni mostramos una analítica vacía como si estuviera operativo.
+              {participationEnded
+                ? 'La recepción de respuestas finalizó. Los resultados históricos siguen disponibles en esta analítica privada.'
+                : `Este instrumento está en estado ${publicationStateLabel(publicationState).toLowerCase()}. No consultamos el endpoint público ni mostramos una analítica vacía como si estuviera operativo.`}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Publicalo con la jurisdicción y la configuración institucional validadas para habilitar votos, polling y mapa territorial real.
+            {participationEnded
+              ? 'Consultá las respuestas recibidas y su distribución histórica con los filtros de este panel.'
+              : 'Publicalo con la jurisdicción y la configuración institucional validadas para habilitar votos, polling y mapa territorial real.'}
           </CardContent>
         </Card>
       ) : null}
