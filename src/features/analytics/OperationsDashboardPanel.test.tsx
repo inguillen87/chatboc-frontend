@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  OperationsBucketItem,
   OperationsAIOpsQueueV1,
   OperationsAIProviderStatusV1,
   OperationsOpenAISuiteReadiness,
@@ -13,8 +14,14 @@ import type {
   PublicMapConfigV1,
 } from './analyticsTypes';
 import { OperationsDashboardPanel } from './OperationsDashboardPanel';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+
+// Exercise actual internal navigation rather than the global test Link stub.
+vi.mock('react-router-dom', () => vi.importActual('react-router-dom'));
 
 const mocks = vi.hoisted(() => ({
+  ensureReady: vi.fn(),
   getOperationsDashboardV2: vi.fn(),
   getOperationsHeatmapV2: vi.fn(),
   getOperationsActionCenterV2: vi.fn(),
@@ -24,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   getOperationsFreshnessV2: vi.fn(),
   getPublicMapConfigV1: vi.fn(),
 }));
+vi.mock('@/utils/backendBootstrapGate', () => ({ ensureBackendRuntimeReady: mocks.ensureReady }));
 
 const socketMocks = vi.hoisted(() => {
   const handlers = new Map<string, Set<(payload?: unknown) => void>>();
@@ -50,6 +58,13 @@ const socketMocks = vi.hoisted(() => {
 });
 
 const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
+const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true }));
+vi.mock('@/hooks/useUser', () => ({
+  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: 'admin_municipio', tenant_slug: panelAuthority.privateSlug, tipo_chat: 'municipio' } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
+}));
+vi.mock('@/context/CapabilitiesContext', () => ({
+  useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'market.orders.read' && panelAuthority.ordersRead }),
+}));
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: tenantContext.slug }),
 }));
@@ -101,6 +116,7 @@ vi.mock('./analyticsApi', () => ({
 
 const dashboardFixture = (): OperationsDashboardV1 => ({
   contract_version: 'operations.dashboard.v1',
+  tenant: { slug: 'junin', id: 22 },
   summary: {
     open_tickets: 12,
     survey_responses: 44,
@@ -275,7 +291,26 @@ const heatmapFixture = (overrides: Partial<OperationsHeatmapV1> = {}): Operation
       method: 'PATCH',
       endpoint: '/api/tickets/{record_id}/ubicacion',
     },
+    guidance: {
+      recommended_actions: [{
+        id: 'open_geocoding_queue', label: 'Revisar cola', enabled: true,
+        tenant_slug: 'junin', action_type: 'open_queue', writes_enabled: false,
+        ui_hint: 'open_geocoding_queue',
+        href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue',
+      }],
+    },
   },
+  ui: { labels: {
+    geocoding_queue: 'Cola de geocodificación',
+    pending_geocode: 'Ubicaciones pendientes de revisión',
+    geocoding_queue_description: 'Revisá las direcciones antes de completar o confirmar su ubicación. Abrir la cola no cambia los casos.',
+    geocoding_queue_empty: 'No hay direcciones pendientes para los filtros actuales.',
+    geocoding_technical_details: 'Detalles de la actualización de ubicación',
+    reason_address_without_coordinates: 'Dirección sin coordenadas guardadas.',
+    reason_addresses_need_geocoding: 'Hay direcciones que requieren revisión y coordenadas.',
+    realtime: 'Actualización por consulta', realtime_polling_status: 'Consulta periódica',
+    realtime_poll_description: 'Consulta cada 20 segundos mientras esta vista está activa. No indica una conexión en vivo.',
+  } },
   facets: [
     {
       key: 'categoria',
@@ -559,7 +594,12 @@ const mapConfigFixture = (): PublicMapConfigV1 => ({
   available_providers: ['maplibre'],
 });
 
-const renderPanel = () => {
+const LocationObserver = () => {
+  const location = useLocation();
+  return <output data-testid="navigation-location">{location.pathname}{location.search}</output>;
+};
+
+const renderPanel = (observeLocation = false) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -570,17 +610,73 @@ const renderPanel = () => {
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>
+    <MemoryRouter><QueryClientProvider client={queryClient}>
       <OperationsDashboardPanel />
-    </QueryClientProvider>,
+      {observeLocation ? <LocationObserver /> : null}
+    </QueryClientProvider></MemoryRouter>,
   );
 };
+
+const receivingMonitorFixture = (overrides: Record<string, unknown> = {}): OperationsBucketItem => ({
+  id: '634', title: 'Votación verificada', slug: 'votacion-verificada', status: 'publicada',
+  phase: 'live_voting', state: 'live_collecting', published: true,
+  accepts_responses: true, can_share: true, show_live_results: true,
+  public_access: { contract_version: 'surveys.public_access.v1', allowed: true },
+  public_url: '/e/votacion-verificada',
+  live_results_endpoint: '/api/v2/public/surveys/votacion-verificada/live-results',
+  admin_url: '/admin/encuestas/634/analytics?focus=live', responses: 1,
+  ...overrides,
+});
+
+const surveyRoomFixture = (monitors: OperationsBucketItem[], summary: Record<string, unknown> = {}): OperationsDashboardV1 => ({
+  ...dashboardFixture(),
+  surveys: {
+    summary: { responses: 1, accepting_responses: 0 },
+    live_control_room: {
+      enabled: true, state: 'live',
+      summary: { live_surveys: 3, responses: 1, ...summary },
+      monitors,
+      actions: [
+        { id: 'open_surveys_admin', label: 'Abrir encuestas' },
+        { id: 'suggest_whatsapp', label: 'Invitar por WhatsApp', template_id: 'survey_invite' },
+        { id: 'public_qr', label: 'Compartir QR', endpoint: '/api/v2/public/surveys/votacion-verificada/qr' },
+      ],
+    },
+  },
+});
+
+// Synthetic contract fixture: categories remain measurable without GPS points.
+const zeroGpsCategoryFixture = (): OperationsHeatmapV1 => heatmapFixture({
+  tenant: { slug: 'junin', id: 22 }, points: [], facets: [], segments: {}, category_layers: [],
+  summary: { points: 0 }, render_contract: { state: 'empty', layers: ['tickets'] },
+  quality: { state: 'empty', visible_points: 0, total_ticket_records: 56, coverage_percent: 0, pending_geocode: 56 },
+  privacy: { mode: 'privileged_exact' },
+  territorial_facets: {
+    contract_version: 'operations.heatmap.territorial_facets.v1',
+    categories: [
+      ['luminarias', 'Luminarias', 35], ['arbol', 'Árbol / Poda', 9], ['limpieza', 'Limpieza', 4],
+      ['agua', 'Agua', 3], ['bache', 'Bache', 2], ['transito', 'Tránsito', 2], ['otros', 'Otros', 1],
+    ].map(([key, label, count]) => ({
+      key: String(key), label: String(label), count: Number(count), mapped_count: 0,
+      pending_geocode_count: Number(count), outside_jurisdiction_count: 0,
+      category_provenance: {
+        contract_version: 'operations.category_provenance.v1',
+        methods: [{ key: 'identity', count: Number(count) }], fuzzy_matching: false, writes_performed: false,
+      },
+    })),
+  },
+});
 
 describe('OperationsDashboardPanel territory UX', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     socketMocks.reset();
     tenantContext.slug = 'junin';
+    panelAuthority.verified = true;
+    panelAuthority.privateSlug = 'junin';
+    panelAuthority.session = true;
+    panelAuthority.ordersRead = true;
+    mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
@@ -591,6 +687,197 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
   });
 
+  it('separates configured voting from reception and preserves private historical analytics for blocked surveys', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture({ id: '631', title: 'Votación cerrada', status: 'cerrada', phase: 'closed', accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false }, admin_url: '/admin/encuestas/631/analytics?focus=live' }),
+      receivingMonitorFixture({ id: '632', title: 'Votación borrador', status: 'borrador', phase: 'draft', accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false }, admin_url: '/admin/encuestas/632/analytics?focus=live' }),
+      receivingMonitorFixture({ accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false, reason_code: 'survey_tenant_jurisdiction_unverified' } }),
+    ], { accepting_responses: 0, configured_monitors: 3 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('0');
+    expect(within(room).getByText('Votaciones configuradas').parentElement).toHaveTextContent('3');
+    expect(room).toHaveTextContent('Participación finalizada');
+    expect(room).toHaveTextContent('Borrador');
+    expect(room).toHaveTextContent('Participación pendiente de habilitación');
+    expect(room).not.toHaveTextContent('recolectando');
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
+    expect(room).not.toHaveTextContent('Invitar por WhatsApp');
+    expect(room).not.toHaveTextContent('Compartir QR');
+    expect(within(room).getAllByRole('link', { name: 'Analítica' }).map(link => link.getAttribute('href'))).toEqual([
+      '/admin/encuestas/631/analytics?focus=live&tenant=junin',
+      '/admin/encuestas/632/analytics?focus=live&tenant=junin',
+      '/admin/encuestas/634/analytics?focus=live&tenant=junin',
+    ]);
+    expect(screen.getByRole('link', { name: /Ver encuestas/i })).toHaveAttribute('href', '/admin/encuestas?tenant=junin');
+  });
+
+  it.each([
+    { name: 'legacy metadata absent', fields: { accepts_responses: undefined, can_share: undefined, public_access: undefined, phase: undefined } },
+    { name: 'public access veto', fields: { public_access: { contract_version: 'surveys.public_access.v1', allowed: false } } },
+    { name: 'sharing veto', fields: { can_share: false } },
+    { name: 'reception veto', fields: { accepts_responses: false } },
+    { name: 'closed status with contradictory flags', fields: { status: 'cerrada' } },
+    { name: 'draft phase with contradictory flags', fields: { phase: 'draft' } },
+    { name: 'string booleans', fields: { accepts_responses: 'true', can_share: 'true' } },
+  ])('fails closed for $name despite legacy live state and public URLs', async ({ fields }) => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([receivingMonitorFixture(fields)]));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
+    expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('No informadas');
+    expect(room).not.toHaveTextContent('recolectando');
+    expect(room).not.toHaveTextContent('Invitar por WhatsApp');
+  });
+
+  it('shows public reception only with authoritative permission and keeps hidden live results closed', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture(),
+      receivingMonitorFixture({ id: '635', title: 'Encuesta sin resultados públicos', phase: 'collecting', show_live_results: false, public_url: '/e/otra', admin_url: '/admin/encuestas/635/analytics' }),
+    ], { accepting_responses: 2, configured_monitors: 2 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).getAllByRole('link', { name: 'Abrir pública' })).toHaveLength(2);
+    expect(within(room).getAllByRole('link', { name: 'Resultados API' })).toHaveLength(1);
+    expect(room).toHaveTextContent('Recibiendo votos');
+    expect(room).toHaveTextContent('Recibiendo respuestas');
+  });
+
+  it('rejects private analytics links carrying a different tenant or survey identity', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture({ admin_url: '/admin/encuestas/634/analytics?tenant=otro-tenant' }),
+      receivingMonitorFixture({ id: '635', admin_url: '/admin/encuestas/634/analytics' }),
+    ], { accepting_responses: 2, configured_monitors: 2 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).queryByRole('link', { name: 'Analítica' })).toBeNull();
+  });
+
+  it('offers all seven trusted categories without GPS and sends the exact canonical key to the backend', async () => {
+    const fixture = zeroGpsCategoryFixture();
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    const category = await screen.findByLabelText('Categoría');
+    expect(within(category).getAllByRole('option')).toHaveLength(8);
+    expect(within(category).getByRole('option', { name: 'Árbol / Poda (9)' })).toHaveAttribute('value', 'arbol');
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+    expect(screen.queryByText(/Los filtros aparecen cuando/)).toBeNull();
+    expect(screen.queryByLabelText('Barrio')).toBeNull();
+    fireEvent.change(category, { target: { value: 'luminarias' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'junin', categoria: 'luminarias' })));
+    expect(fixture.territorial_facets?.categories?.[0].category_provenance).toEqual({
+      contract_version: 'operations.category_provenance.v1', methods: [{ key: 'identity', count: 35 }], fuzzy_matching: false, writes_performed: false,
+    });
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+  });
+
+  it.each(['wrong contract', 'wrong facet tenant', 'privacy suppressed'])('does not promote territorial category metadata with %s', async (reason) => {
+    const fixture = zeroGpsCategoryFixture();
+    if (reason === 'wrong contract') fixture.territorial_facets!.contract_version = 'operations.heatmap.territorial_facets.untrusted';
+    if (reason === 'wrong facet tenant') fixture.territorial_facets!.tenant_slug = 'otro-tenant';
+    if (reason === 'privacy suppressed') fixture.privacy!.suppressed = { categories: true };
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByText('Centro territorial');
+    expect(screen.queryByLabelText('Categoría')).toBeNull();
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+  });
+
+  it('waits through ten seconds of startup before dispatching and accepting the eight private reads', async () => {
+    vi.useFakeTimers();
+    try {
+      let finishStartup!: () => void;
+      const startup = new Promise<void>(resolve => { finishStartup = resolve; });
+      mocks.ensureReady.mockReturnValue(startup);
+      renderPanel();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+      expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+      expect(screen.queryByText('operations_heatmap_timeout')).not.toBeInTheDocument();
+      await act(async () => { finishStartup(); await vi.advanceTimersByTimeAsync(10); });
+      expect(mocks.getOperationsDashboardV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsActionCenterV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIBriefV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIOpsQueueV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIProviderStatusV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsFreshnessV2).toHaveBeenCalledOnce();
+      expect(mocks.getPublicMapConfigV1).toHaveBeenCalledOnce();
+      expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 2 puntos');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not dispatch pending private reads after the dashboard unmounts during startup', async () => {
+    let finishStartup!: () => void;
+    mocks.ensureReady.mockReturnValue(new Promise<void>(resolve => { finishStartup = resolve; }));
+    const view = renderPanel();
+    view.unmount();
+    await act(async () => { finishStartup(); });
+    expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsActionCenterV2).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch pending private reads after the authentication generation changes', async () => {
+    let finishStartup!: () => void;
+    mocks.ensureReady.mockReturnValue(new Promise<void>(resolve => { finishStartup = resolve; }));
+    renderPanel();
+    advanceChatbocSessionRevision();
+    await act(async () => { finishStartup(); });
+    expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(mocks.getPublicMapConfigV1).not.toHaveBeenCalled();
+  });
+
+  it('opens the authorized location queue with current category and zone without refetching', async () => {
+    const fixture = heatmapFixture();
+    fixture.facets?.push({ key: 'zona', query_param: 'zona', label: 'Zona', items: [{ key: 'Centro', label: 'Centro', count: 1 }] });
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel(true);
+    await screen.findByTestId('operations-heatmap');
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    fireEvent.change(await screen.findByLabelText('Zona declarada'), { target: { value: 'Centro' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado', barrio: 'Centro' })));
+    const link = await screen.findByRole('link', { name: 'Revisar cola' });
+    const destination = '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&categoria=alumbrado&zona=Centro';
+    expect(link).toHaveAttribute('href', destination);
+    const reads = mocks.getOperationsHeatmapV2.mock.calls.length;
+    fireEvent.click(link);
+    expect(screen.getByTestId('navigation-location')).toHaveTextContent(destination);
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(reads);
+    expect(screen.getByText('Actualización por consulta')).toBeVisible();
+    expect(screen.getByText('Consulta periódica')).toBeVisible();
+    expect(screen.queryByText(/^activo$/i)).not.toBeInTheDocument();
+    const details = screen.getByText('Detalles de la actualización de ubicación').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent('/api/tickets/{record_id}/ubicacion');
+  });
+
+  it.each([
+    { enabled: false }, { enabled: 'true' }, { writes_enabled: true }, { action_type: 'api' },
+    { tenant_slug: 'tierra-del-fuego' },
+    { tenantSlug: 'tierra-del-fuego' },
+    { href: 'https://foreign.invalid/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue' },
+    { href: '//foreign.invalid/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=tierra-del-fuego&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&tenant=tierra-del-fuego' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&tenant_id=46' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=tierra-del-fuego&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue#foreign' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue\\foreign' },
+  ])('does not offer queue navigation for an unauthorized or conflicting action %j', async (override) => {
+    const fixture = heatmapFixture();
+    Object.assign(fixture.geocoding!.guidance!.recommended_actions![0], override);
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-heatmap');
+    expect(screen.queryByRole('link', { name: 'Revisar cola' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revisar cola' })).not.toBeInTheDocument();
+  });
+
   it('surfaces territorial quality, layers, filters and geocoding queue around the premium map', async () => {
     renderPanel();
 
@@ -598,10 +885,10 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Cabina de mando')).toBeTruthy();
     expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets');
-    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/perfil?tab=orders&focus=assisted');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
-    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/perfil?tab=analytics&focus=surveys');
+    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/admin/encuestas?tenant=junin');
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     const commercePanel = screen.getByTestId('operations-commerce');
@@ -659,6 +946,18 @@ describe('OperationsDashboardPanel territory UX', () => {
       );
     });
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
+  });
+
+  it.each(['permission', 'profile', 'tenant'] as const)('does not offer the orders link without verified %s authority', async (missing) => {
+    if (missing === 'permission') panelAuthority.ordersRead = false;
+    else if (missing === 'profile') panelAuthority.verified = false;
+    else mocks.getOperationsDashboardV2.mockResolvedValue({ ...dashboardFixture(), tenant: undefined });
+    renderPanel();
+    if (missing === 'profile') {
+      expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+      Object.values(mocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
+    } else await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeInTheDocument();
   });
 
   it('exposes backend segments.zone as a declared-zone filter', async () => {
@@ -1188,6 +1487,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
   it('does not request operations from an unconfirmed context or a stored organization', () => {
     tenantContext.slug = null;
+    panelAuthority.privateSlug = null;
     renderPanel();
     expect(screen.getByText('Seleccioná una organización')).toBeVisible();
     Object.values(mocks).forEach((mock) => expect(mock).not.toHaveBeenCalled());
@@ -1225,12 +1525,13 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
   it('resets geographic filters and selected scope when the organization changes', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const view = render(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    const view = render(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
     await screen.findByText('Centro territorial');
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
     tenantContext.slug = 'tierra-del-fuego';
-    view.rerender(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    panelAuthority.privateSlug = 'tierra-del-fuego';
+    view.rerender(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'tierra-del-fuego' })));
     const latest = mocks.getOperationsHeatmapV2.mock.calls.at(-1)![0];
     expect(latest.categoria).toBeUndefined();
@@ -1243,6 +1544,21 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getAllByText('GLOBAL OUTSIDE FILTER').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(screen.queryByText('GLOBAL OUTSIDE FILTER')).not.toBeInTheDocument());
+  });
+  it('reads all private operations only from the verified actor after a public visit', async () => {
+    tenantContext.slug = 'tierra-del-fuego';
+    renderPanel(); await screen.findByText('Centro territorial');
+    for (const [name, read] of Object.entries(mocks)) {
+      if (name === 'ensureReady') continue;
+      expect(read.mock.calls.length).toBeGreaterThan(0);
+      expect(read.mock.calls.every(([options]) => options.tenantSlug === 'junin')).toBe(true);
+    }
+  });
+  it('does not dispatch private operations without a verified session', () => {
+    panelAuthority.session = false;
+    renderPanel();
+    expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+    Object.values(mocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
   });
 
 });

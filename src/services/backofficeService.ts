@@ -1,4 +1,6 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import { privateBackendRead, type PrivateBackendReadLifecycle } from '@/utils/privateBackendRead';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 export type BackofficeScope = 'municipio' | 'pyme' | 'colegio' | string;
 export type BackofficeExportResource = 'tickets' | 'orders' | 'contacts' | 'team';
@@ -22,6 +24,11 @@ export interface BackofficeInboxSummaryResponse {
     open?: number;
     unread?: number;
     sla_risk?: number;
+    sla_breached?: number;
+    sla_at_risk?: number;
+    sla_known?: number;
+    sla_unknown?: number;
+    sla_eligible?: number;
     resolved?: number;
     unassigned?: number;
   };
@@ -37,41 +44,58 @@ export interface BackofficeInboxSummaryResponse {
 }
 
 export interface BackofficeOrdersSummaryResponse {
-  contract_version?: string;
+  [key: string]: unknown;
+  contract_version: 'backoffice.orders_summary.v1';
   request_id?: string;
-  tenant_slug?: string;
-  totals_by_status?: Record<string, number>;
-  active_orders?: number;
-  finished_orders?: number;
-  confirmed_revenue?: number;
-  pending_revenue?: number;
-  unassigned_orders?: number;
-  allowed_actions_by_status?: Record<string, unknown[]>;
+  tenant_slug: string;
+  summary?: {
+    total?: number;
+    active?: number;
+    finalized?: number;
+    confirmed_revenue?: number;
+    pending_revenue?: number;
+    unassigned?: number | null;
+  };
+  statuses?: unknown[];
+  active_orders?: unknown[];
+  actions_by_status?: Record<string, unknown[]>;
+  data_quality_notes?: string[];
 }
 
 export interface BackofficeContactsSummaryResponse {
-  contract_version?: string;
+  [key: string]: unknown;
+  contract_version: 'backoffice.contacts_summary.v1';
   request_id?: string;
-  tenant_slug?: string;
-  total_contacts?: number;
-  with_phone?: number;
-  with_email?: number;
-  marketing_opt_in?: number;
+  tenant_slug: string;
+  summary?: {
+    total?: number;
+    with_phone?: number;
+    with_email?: number;
+    opt_in_marketing?: number;
+    possible_duplicates?: number;
+    missing_minimum_data?: number;
+  };
   main_channels?: unknown[];
   segments?: Record<string, unknown[]>;
-  possible_duplicates?: number;
-  missing_minimum_data?: number;
+  possible_duplicates?: unknown[];
 }
 
 export interface BackofficeTeamCoverageSummaryResponse {
-  contract_version?: string;
+  [key: string]: unknown;
+  contract_version: 'backoffice.team_coverage_summary.v1';
   request_id?: string;
-  tenant_slug?: string;
-  active_employees?: number;
-  covered_categories?: unknown[];
-  uncovered_categories?: unknown[];
-  covered_zones?: unknown[];
-  covered_channels?: unknown[];
+  tenant_slug: string;
+  summary?: {
+    active_employees?: number;
+    covered_categories?: number;
+    uncovered_categories?: number;
+    covered_zones?: number;
+    covered_channels?: number;
+  };
+  categories_covered?: unknown[];
+  categories_without_owner?: unknown[];
+  zones_covered?: unknown[];
+  channels_covered?: unknown[];
   workload_by_agent?: unknown[];
   assignment_recommendations?: unknown[];
   editable_scopes?: unknown[];
@@ -116,6 +140,19 @@ const requireContract = <T extends Record<string, unknown>>(
   return record as T;
 };
 
+const requireTenantContract = <T extends Record<string, unknown>>(
+  value: unknown,
+  endpoint: string,
+  contractVersion: string,
+  tenantSlug?: string | null,
+): T => {
+  const record = requireContract<T>(value, endpoint, contractVersion);
+  if (tenantSlug && record.tenant_slug !== tenantSlug) {
+    throw new ApiError(`Organizacion invalida de ${endpoint}.`, 502, record);
+  }
+  return record;
+};
+
 const buildQuery = (params: Record<string, unknown>) => {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -130,31 +167,31 @@ export const backofficeService = {
   getInboxSummary: async (params: {
     tenantSlug?: string | null;
     scope?: BackofficeScope | null;
-  }): Promise<BackofficeInboxSummaryResponse> => {
+  }, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeInboxSummaryResponse> => {
     const endpoint = `/api/v2/backoffice/operations/inbox-summary${buildQuery({
       tenant_slug: params.tenantSlug,
       scope: params.scope,
     })}`;
-    const response = await apiFetch<unknown>(endpoint, { tenantSlug: params.tenantSlug || undefined });
-    return requireContract<BackofficeInboxSummaryResponse>(response, endpoint, 'backoffice.inbox_summary.v1');
+    const response = await privateBackendRead(endpoint, params.tenantSlug, lifecycle);
+    return requireTenantContract<BackofficeInboxSummaryResponse>(response, endpoint, 'backoffice.inbox_summary.v1', params.tenantSlug);
   },
 
-  getOrdersSummary: async (tenantSlug?: string | null): Promise<BackofficeOrdersSummaryResponse> => {
+  getOrdersSummary: async (tenantSlug?: string | null, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeOrdersSummaryResponse> => {
     const endpoint = `/api/v2/backoffice/orders/summary${buildQuery({ tenant_slug: tenantSlug })}`;
-    const response = await apiFetch<unknown>(endpoint, { tenantSlug: tenantSlug || undefined });
-    return asRecordResponse(response, endpoint) as BackofficeOrdersSummaryResponse;
+    const response = await privateBackendRead(endpoint, tenantSlug, lifecycle);
+    return requireTenantContract<BackofficeOrdersSummaryResponse>(response, endpoint, 'backoffice.orders_summary.v1', tenantSlug);
   },
 
-  getContactsSummary: async (tenantSlug?: string | null): Promise<BackofficeContactsSummaryResponse> => {
+  getContactsSummary: async (tenantSlug?: string | null, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeContactsSummaryResponse> => {
     const endpoint = `/api/v2/backoffice/contacts/summary${buildQuery({ tenant_slug: tenantSlug })}`;
-    const response = await apiFetch<unknown>(endpoint, { tenantSlug: tenantSlug || undefined });
-    return asRecordResponse(response, endpoint) as BackofficeContactsSummaryResponse;
+    const response = await privateBackendRead(endpoint, tenantSlug, lifecycle);
+    return requireTenantContract<BackofficeContactsSummaryResponse>(response, endpoint, 'backoffice.contacts_summary.v1', tenantSlug);
   },
 
-  getTeamCoverageSummary: async (tenantSlug?: string | null): Promise<BackofficeTeamCoverageSummaryResponse> => {
+  getTeamCoverageSummary: async (tenantSlug?: string | null, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeTeamCoverageSummaryResponse> => {
     const endpoint = `/api/v2/backoffice/team/coverage-summary${buildQuery({ tenant_slug: tenantSlug })}`;
-    const response = await apiFetch<unknown>(endpoint, { tenantSlug: tenantSlug || undefined });
-    return asRecordResponse(response, endpoint) as BackofficeTeamCoverageSummaryResponse;
+    const response = await privateBackendRead(endpoint, tenantSlug, lifecycle);
+    return requireTenantContract<BackofficeTeamCoverageSummaryResponse>(response, endpoint, 'backoffice.team_coverage_summary.v1', tenantSlug);
   },
 
   requestExport: async (payload: {
@@ -163,11 +200,14 @@ export const backofficeService = {
     format: BackofficeExportFormat;
     filters?: Record<string, unknown>;
     include_ai_summary?: boolean;
-  }): Promise<BackofficeExportResponse> => {
+  }, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeExportResponse> => {
     const response = await apiFetch<unknown>('/api/v2/backoffice/export', {
+      ...panelReadOptions(payload.tenant_slug),
       method: 'POST',
       body: payload,
-      tenantSlug: payload.tenant_slug || undefined,
+      singleAttempt: true,
+      allowStartupRecovery: false,
+      isCurrent: lifecycle.isCurrent,
     });
     const record = asRecordResponse(response, '/api/v2/backoffice/export');
     const downloadUrl = typeof record.download_url === 'string' ? record.download_url.trim() : '';
@@ -182,11 +222,14 @@ export const backofficeService = {
     resource?: BackofficeExportResource | 'overview';
     filters?: Record<string, unknown>;
     source_endpoints?: string[];
-  }): Promise<BackofficeExecutiveSummaryResponse> => {
+  }, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeExecutiveSummaryResponse> => {
     const response = await apiFetch<unknown>('/api/v2/backoffice/executive-summary', {
+      ...panelReadOptions(payload.tenant_slug),
       method: 'POST',
       body: payload,
-      tenantSlug: payload.tenant_slug || undefined,
+      singleAttempt: true,
+      allowStartupRecovery: false,
+      isCurrent: lifecycle.isCurrent,
     });
     return asRecordResponse(response, '/api/v2/backoffice/executive-summary') as BackofficeExecutiveSummaryResponse;
   },

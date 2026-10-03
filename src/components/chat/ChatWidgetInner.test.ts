@@ -7,6 +7,7 @@ import {
   restoreDialogFocus,
   resolvePublicDemoSurveyBootstrap,
   resolveStandaloneLauncherBottom,
+  resolveIframeOpenWidth,
   STANDALONE_MOBILE_OPEN_VIEWPORT,
 } from './ChatWidgetInner';
 
@@ -19,6 +20,23 @@ describe('ChatWidgetInner mobile open viewport', () => {
       height: '100dvh',
       maxHeight: '100dvh',
     });
+  });
+});
+
+describe('ChatWidgetInner iframe width', () => {
+  it('fits the real narrow viewport below the previous 320px threshold', () => {
+    expect(resolveIframeOpenWidth('460px', 291)).toBe('291px');
+    expect(resolveIframeOpenWidth('460px', 240)).toBe('240px');
+  });
+
+  it('preserves a smaller configured width and responsive CSS lengths', () => {
+    expect(resolveIframeOpenWidth('460px', 1024)).toBe('460px');
+    expect(resolveIframeOpenWidth('200px', 291)).toBe('200px');
+    expect(resolveIframeOpenWidth('100%', 291)).toBe('100%');
+  });
+
+  it('keeps the requested width while viewport dimensions are unavailable', () => {
+    expect(resolveIframeOpenWidth('460px', 0)).toBe('460px');
   });
 });
 

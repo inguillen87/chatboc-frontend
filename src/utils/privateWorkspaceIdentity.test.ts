@@ -22,8 +22,8 @@ describe('private workspace presentation',()=>{
   it.each(['/t/org-b/perfil','/t/org-a/perfil?tenant=org-b','/perfil?tenant=org-a&tenant=org-b','/perfil?endpoint=org-b'])('withholds branding for contradictory navigation scope %s',path=>{
     const url=new URL(path,'https://qa.example.com');expect(privateWorkspacePresentation({...input(),pathname:url.pathname,search:url.search}).identity).toBeNull();
   });
-  it('does not keep the previous organization while its context is switching',()=>{
-    expect(privateWorkspacePresentation({...input(),currentSlug:'org-b'})).toEqual({active:true,identity:null});
+  it('keeps the verified private identity independently of ambient public context',()=>{
+    expect(privateWorkspacePresentation({...input(),currentSlug:'org-b'}).identity?.tenantSlug).toBe('org-a');
   });
   it('rejects contradictory aliases in authenticated profile data',()=>{
     const data=input();expect(privateWorkspacePresentation({...data,user:{...data.user,tenantSlug:'org-b'}}).identity).toBeNull();

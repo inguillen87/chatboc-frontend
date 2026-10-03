@@ -3,8 +3,10 @@ import {
   type ClerkRuntimeValue,
 } from '@/components/auth/ClerkRuntimeContext';
 import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
+import { STARTUP_CONTINUITY_BUDGET_MS } from '@/utils/backendRequestContinuity';
 
-export const CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS = 5_000;
+// Keep the provider pending while the public configuration can still recover.
+export const CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS = STARTUP_CONTINUITY_BUDGET_MS + 5_000;
 
 interface PublicPreviewPresentationOptions {
   hostname?: string;

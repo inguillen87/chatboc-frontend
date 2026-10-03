@@ -28,7 +28,10 @@ describe('raw administrative order receipt boundary', () => {
     apiFetchMock.mockResolvedValue(receipt());
     const value = await apiClient.adminGetOrder('qa-order', id);
     expect(value).toMatchObject({ id, status: 'confirmed', total: 0, created_at: '' });
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/qa-order/orders/market%3A42', { tenantSlug: 'qa-order' });
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/qa-order/orders/market%3A42', expect.objectContaining({
+      tenantSlug: 'qa-order', isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true,
+      omitCredentials: false, persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true,
+    }));
   });
   it('accepts only the status acknowledged by the raw mutation response', async () => {
     apiFetchMock.mockResolvedValue({ ...receipt(), status: 'shipped' });

@@ -119,6 +119,39 @@ describe('backend bootstrap gate', () => {
     await expect(ensureBackendRuntimeReady({ enabled: true, fetcher })).resolves.toBeUndefined();
   });
 
+  it('keeps the default startup probe alive through a 25 second cold start', async () => {
+    vi.useFakeTimers();
+    let completeProbe!: (response: Response) => void;
+    const fetcher = vi.fn().mockImplementation(() => new Promise<Response>((resolve) => {
+      completeProbe = resolve;
+    }));
+    const pending = ensureBackendRuntimeReady({ enabled: true, fetcher });
+    const completed = vi.fn();
+    void pending.then(completed);
+
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(completed).not.toHaveBeenCalled();
+    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(false);
+
+    completeProbe(new Response('{"backend":"sha","frontend":"web"}', { status: 200 }));
+    await expect(pending).resolves.toBeUndefined();
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(false);
+  });
+
+  it('still aborts a stalled default startup probe at the 30 second limit', async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn().mockImplementation(() => new Promise<Response>(() => {}));
+    const pending = ensureBackendRuntimeReady({ enabled: true, fetcher });
+    const rejected = expect(pending).rejects.toBeInstanceOf(BackendBootstrapError);
+
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await rejected;
+    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(true);
+  });
+
   it('keeps the delivered institutional presentation and offline shell independent', () => {
     vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
     window.history.replaceState({}, '', '/demo/institucional/tdf-discapacidad');
@@ -127,5 +160,28 @@ describe('backend bootstrap gate', () => {
     expect(isBackendBootstrapGateEnabled()).toBe(true);
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     expect(isBackendBootstrapGateEnabled()).toBe(false);
+  });
+});
+
+describe('readiness is not a permanent container guarantee', () => {
+  it('reprobes an expired success but reuses a recent one', async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{"backend":"sha","frontend":"web"}'));
+    await ensureBackendRuntimeReady({ enabled:true, fetcher });
+    await ensureBackendRuntimeReady({ enabled:true, fetcher });
+    expect(fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(30_001);
+    await ensureBackendRuntimeReady({ enabled:true, fetcher });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('retires an explicit restarted container success without merging other origins', async () => {
+    const { invalidateBackendRuntimeReady } = await import('./backendBootstrapGate');
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{"backend":"sha","frontend":"web"}'));
+    await ensureBackendRuntimeReady({ baseUrl:'/api', enabled:true, fetcher });
+    await ensureBackendRuntimeReady({ baseUrl:'https://other.example.invalid', enabled:true, fetcher });
+    invalidateBackendRuntimeReady('/api/organizations');
+    await ensureBackendRuntimeReady({ baseUrl:'/api', enabled:true, fetcher });
+    await ensureBackendRuntimeReady({ baseUrl:'https://other.example.invalid', enabled:true, fetcher });
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });

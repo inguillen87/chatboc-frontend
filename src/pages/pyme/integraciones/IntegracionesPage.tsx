@@ -1583,7 +1583,7 @@ const IntegracionesPage = () => {
               </dd>
             </div>
             <div className="border-l-2 border-border pl-3">
-              <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Canal activo</dt>
+              <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Canal seleccionado</dt>
               <dd className="mt-2 text-sm font-semibold text-foreground">{selectedChannelConfig.label}</dd>
             </div>
           </dl>

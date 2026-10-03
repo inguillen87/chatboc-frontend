@@ -482,6 +482,7 @@ export interface Message {
   messageType?: string; // Tipo de mensaje enviado por backend (catalog_share, interactive_list, etc.)
   action?: string; // Acción asociada al mensaje
   data?: Record<string, unknown> | null; // Payload adicional para renderizado estructurado
+  institutional?: import('@/features/chat/institutionalChatMessage').InstitutionalChatMessage;
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
   categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
   menu_sections?: MenuSection[]; // Sections for structured menus

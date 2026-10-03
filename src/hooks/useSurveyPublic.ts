@@ -42,9 +42,12 @@ interface UseSurveyPublicResult {
 
 const RETRY_DELAYS_MS = [700, 1500] as const;
 
-const isTransientPublicSurveyError = (error: unknown): boolean => {
+export const isTransientPublicSurveyError = (error: unknown): boolean => {
   if (error instanceof NetworkError) return true;
-  if (error instanceof ApiError) return error.status >= 500;
+  if (error instanceof ApiError) {
+    if (error.body && typeof error.body === 'object' && error.body.retryable === false) return false;
+    return error.status >= 500;
+  }
   const message = error instanceof Error ? error.message.toLowerCase() : '';
   return message.includes('network') || message.includes('timeout');
 };
@@ -75,6 +78,9 @@ export function useSurveyPublic(
     enabled: Boolean(normalizedSlug),
     queryFn: () => getPublicSurvey(normalizedSlug, normalizedTenantSlug || undefined),
     staleTime: 1000 * 60,
+    retryOnMount: false,
+    refetchOnWindowFocus: (query) => !query.state.error || isTransientPublicSurveyError(query.state.error),
+    refetchOnReconnect: (query) => !query.state.error || isTransientPublicSurveyError(query.state.error),
     retry: (failureCount, err) => {
       if (!isTransientPublicSurveyError(err)) return false;
       return failureCount <= RETRY_DELAYS_MS.length;

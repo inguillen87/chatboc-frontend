@@ -4,9 +4,12 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), inventory: vi.fn(), executive: vi.fn(), command: vi.fn(), crm: vi.fn(), profile: vi.fn(), purge: vi.fn(), listeners: new Map<string, () => void>() }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), inventory: vi.fn(), executive: vi.fn(), command: vi.fn(), crm: vi.fn(), profile: vi.fn(), purge: vi.fn(), impersonate:vi.fn(), listeners: new Map<string, () => void>(), profileVerified: true, knowledgeGranted: true }));
+vi.mock('@/utils/completeNativeImpersonation',()=>({completeNativeImpersonation:mocks.impersonate,impersonationErrorMessage:()=> 'Acceso no verificable'}));
 vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 vi.mock('@/hooks/useRequireRole', () => ({ default: vi.fn() }));
+vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: { id: 99, rol: 'super_admin' }, organizationProfileVerified: mocks.profileVerified, hasVerifiedSession: true }) }));
+vi.mock('@/context/CapabilitiesContext', () => ({ useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'knowledge.read' && mocks.knowledgeGranted }) }));
 vi.mock('@/api/client', () => ({ apiClient: { superAdminListTenants: mocks.list, superAdminListWhatsappNumbers: mocks.inventory, superAdminPurgeTenant: mocks.purge } }));
 vi.mock('@/api/v2/saas', () => ({ getSuperadminExecutiveSummaryV2: mocks.executive, getSuperadminCommandCenterV2: mocks.command }));
 vi.mock('@/utils/api', () => ({ apiFetch: mocks.crm }));
@@ -22,11 +25,13 @@ const tenants = [
   { id: 1, nombre: 'Municipio Río', slug: 'rio', tipo: 'municipio', plan: 'enterprise', is_active: true, status: 'active' },
   { id: 2, nombre: 'Colegio Norte', slug: 'norte', tipo: 'colegio', plan: 'standard', is_active: true, status: 'active' },
 ];
-const locationProbe = () => { const location = useLocation(); return <output data-testid="location">{location.search}</output>; };
+const locationProbe = () => { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.search}</output>; };
 function mount(entry = '/superadmin') { const Probe = locationProbe; return render(<MemoryRouter initialEntries={[entry]}><SuperAdminDashboard /><Probe /></MemoryRouter>); }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((res) => { resolve = res; }); return { promise, resolve }; }
 beforeEach(() => {
   vi.clearAllMocks(); mocks.listeners.clear();
+  mocks.profileVerified = true;mocks.knowledgeGranted = true;
+  mocks.impersonate.mockReset();
   mocks.list.mockResolvedValue({ tenants, total: 102 });
   mocks.inventory.mockResolvedValue({ numbers: [] });
   mocks.executive.mockResolvedValue({}); mocks.command.mockResolvedValue({});
@@ -35,6 +40,28 @@ beforeEach(() => {
 });
 
 describe('SuperAdminDashboard workspace', () => {
+  it('replaces the current tab only after the impersonation handoff verifies',async()=>{
+    const pending=deferred<{destination:string}>();mocks.impersonate.mockReturnValue(pending.promise);
+    const open=vi.spyOn(window,'open');mount('/superadmin?section=organizations');
+    const row=(await screen.findByRole('button',{name:'Municipio Río'})).closest('tr')!;
+    fireEvent.keyDown(within(row).getByRole('button',{name:'Acciones de Municipio Río'}),{key:'Enter'});
+    fireEvent.click(await screen.findByRole('menuitem',{name:'Acceder como administrador'}));
+    expect(mocks.impersonate).toHaveBeenCalledWith('rio',expect.any(Function));expect(screen.getByTestId('location')).toHaveTextContent('/superadmin');expect(open).not.toHaveBeenCalled();
+    await act(async()=>{pending.resolve({destination:'/t/rio/perfil'});await pending.promise;});
+    expect(screen.getByTestId('location')).toHaveTextContent('/t/rio/perfil');expect(open).not.toHaveBeenCalled();open.mockRestore();
+  });
+  it('opens the selected directory organization knowledge using the existing SuperAdmin session', async () => {
+    mount('/superadmin?section=organizations');
+    fireEvent.click(await screen.findByRole('button', { name: 'Fuentes de conocimiento de Municipio Río' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/knowledge?tenant_slug=rio');
+    expect(mocks.profile).not.toHaveBeenCalled();
+  });
+  it.each([{ verified: false, grant: true }, { verified: true, grant: false }])('hides directory knowledge actions without a verified backend grant: %j', async ({ verified, grant }) => {
+    mocks.profileVerified = verified;mocks.knowledgeGranted = grant;
+    mount('/superadmin?section=organizations');
+    await screen.findByRole('button', { name: 'Municipio Río' });
+    expect(screen.queryByRole('button', { name: /Fuentes de conocimiento/ })).not.toBeInTheDocument();
+  });
   it('deep links sections, preserves existing work and opens creation without an automatic profile request', async () => {
     mount('/superadmin?section=organizations');
     expect(await screen.findByRole('button', { name: 'Municipio Río' })).toBeInTheDocument();
@@ -46,9 +73,15 @@ describe('SuperAdminDashboard workspace', () => {
     expect(screen.queryByText('__INIT__')).not.toBeInTheDocument();
     expect(screen.getByText('Pipeline existente')).toBeInTheDocument();
     expect(screen.getByText(/Actualización en vivo desconectada/)).toBeInTheDocument();
-    expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=8', { omitTenant: true });
-    expect(screen.getByRole('region', { name: 'Agenda de próximos contactos' })).toBeVisible();
-    await waitFor(() => expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=100', { omitTenant: true, persistTenantSlug: false }));
+    expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=8', {
+      omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    });
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Agenda de próximos contactos' })).toBeVisible());
+    await waitFor(() => expect(mocks.crm).toHaveBeenCalledWith('/api/admin/crm/leads?limit=100', {
+      omitTenant: true, persistTenantSlug: false, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    }));
     fireEvent.click(screen.getByRole('link', { name: 'Canales' }));
     expect(screen.getByText('Inventario existente')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Nueva organización' }));
@@ -104,6 +137,13 @@ describe('SuperAdminDashboard workspace', () => {
     await act(async () => { first.resolve({ tenant: { slug: 'rio', nombre: 'Ficha anterior' } }); await first.promise; });
     expect(screen.queryByText('Ficha anterior')).not.toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('organization=norte');
+  });
+  it('opens institutional data with the chosen tenant while retaining the SuperAdmin session', async () => {
+    mount('/superadmin?section=organizations');
+    fireEvent.click(await screen.findByRole('button', { name: 'Municipio Río' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar datos institucionales' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/perfil?section=general&tenant_slug=rio');
+    expect(mocks.impersonate).not.toHaveBeenCalled();
   });
   it('keeps the newest CRM refresh when event responses arrive out of order', async () => {
     mount('/superadmin?section=crm');

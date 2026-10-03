@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from "@/utils/api";
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { CreateTenantPayload, CreateTenantResponse, TenantConfigBundle } from "@/types/TenantConfig";
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import type {
@@ -18,15 +19,19 @@ export const tenantService = {
   },
 
   getTenantConfig: async (slug: string): Promise<TenantConfigBundle> => {
-    return apiFetch<TenantConfigBundle>(`${BASE_URL}/${slug}/config`);
+    const config = await apiFetch<TenantConfigBundle>(`${BASE_URL}/${encodeURIComponent(slug)}/config`, panelReadOptions(slug));
+    if (config?.tenant?.slug !== slug) throw new ApiError('La configuración no corresponde a esta organización.', 502);
+    return config;
   },
 
   updateTenantConfig: async (slug: string, payload: Partial<TenantConfigBundle>): Promise<TenantConfigBundle> => {
     const response = await apiFetch<TenantConfigBundle | { message?: string }>(`${BASE_URL}/${slug}/config`, {
+      ...panelReadOptions(slug), allowStartupRecovery: false,
       method: "PUT",
       body: JSON.stringify(payload),
     });
     if (response && "tenant" in response && "configs" in response) {
+      if (response.tenant.slug !== slug) throw new ApiError('La configuración no corresponde a esta organización.', 502);
       return response;
     }
     return tenantService.getTenantConfig(slug);
@@ -87,9 +92,7 @@ export const tenantService = {
   },
 
   getWhatsappTechProvider: async (slug: string): Promise<any> => {
-    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider`, {
-      tenantSlug: slug,
-    });
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider`, panelReadOptions(slug));
   },
 
   provisionWhatsappTechProvider: async (slug: string, payload: Record<string, unknown> = {}): Promise<any> => {
@@ -176,6 +179,9 @@ export const tenantService = {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        persistTenantSlug: false,
         tenantSlug: slug,
       });
     } catch (error) {
@@ -186,6 +192,9 @@ export const tenantService = {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        persistTenantSlug: false,
         tenantSlug: slug,
       });
     }

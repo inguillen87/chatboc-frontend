@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 import { broadcastAuthTokenToHost } from '@/utils/postMessage';
 import { GOOGLE_CLIENT_ID } from '@/env';
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
+import {persistPanelLoginSession} from '@/utils/panelLoginSession';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
+import {usePanelSessionStore,useWidgetSessionStore} from '@/stores';
 
 interface LoginResponse {
   id: number;
@@ -39,6 +42,7 @@ const GoogleLoginButton: React.FC<Props> = ({
   const clerkRuntime = useClerkRuntime();
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const active=React.useRef(true);React.useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
   const clerkOwnsGoogleLogin =
     clerkRuntime.enabled ||
     Boolean(
@@ -64,12 +68,16 @@ const GoogleLoginButton: React.FC<Props> = ({
     if (!cred || !cred.credential) return;
     setErrorMessage(null);
     setIsSubmitting(true);
+    const revision=captureChatbocSessionRevision();
     try {
       const data = await loginWithGoogle({ id_token: cred.credential });
-      safeLocalStorage.setItem('authToken', data.token);
-      safeLocalStorage.setItem('chatAuthToken', data.token);
+      if(!active.current||!isChatbocSessionRevisionCurrent(revision))return;
+      persistPanelLoginSession({token:data.token,user:{id:data.id,name:data.name,email:data.email},sessionRetirement:data.session_retirement,replaceIdentity:true,setUser:user=>usePanelSessionStore.getState().setUser(user as any)});
+      useWidgetSessionStore.getState().setChatAuthToken(data.token);
+      const committedRevision=captureChatbocSessionRevision();
       broadcastAuthTokenToHost(data.token, resolveTenantSlug(), 'google-login');
       await refreshUser();
+      if(!active.current||!isChatbocSessionRevisionCurrent(committedRevision))return;
       if (onLoggedIn) onLoggedIn(); else navigate('/perfil');
     } catch (err) {
       if (err instanceof ApiError) {

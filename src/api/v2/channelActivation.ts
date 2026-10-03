@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { privateBackendRead, type PrivateBackendReadLifecycle } from '@/utils/privateBackendRead';
 
 export const CHANNEL_ACTIVATION_CONTRACT_VERSION = 'tenant.channel_activation.v1' as const;
 export const TENANT_IMPLEMENTATION_JOURNEY_CONTRACT_VERSION = 'tenant.implementation_journey.v1' as const;
@@ -366,20 +366,13 @@ export const parseTenantChannelActivation = (
   };
 };
 
-export const fetchTenantChannelActivation = async (tenantSlug?: string | null) => {
+export const fetchTenantChannelActivation = async (tenantSlug?: string | null, lifecycle?: PrivateBackendReadLifecycle) => {
   const normalized = tenantSlug?.trim();
   const path = normalized
     ? `/api/v2/tenants/${encodeURIComponent(normalized)}/activation/channels`
     : '/api/v2/tenant/activation/channels';
 
-  const payload = await apiFetch<unknown>(path, {
-    tenantSlug: normalized || null,
-    // This contract is also the authorization probe for explicit tenant deep
-    // links. Do not persist the requested slug until the backend has returned
-    // a matching authorized contract.
-    persistTenantSlug: false,
-    cache: 'no-store',
-  });
+  const payload = await privateBackendRead(path, normalized, lifecycle);
 
   return parseTenantChannelActivation(payload, normalized);
 };

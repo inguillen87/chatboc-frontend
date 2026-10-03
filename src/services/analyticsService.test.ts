@@ -16,10 +16,40 @@ vi.mock('@/utils/api', () => ({
 
 import { analyticsService } from '@/services/analyticsService';
 import { ApiError } from '@/utils/api';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
 
 describe('analyticsService.getSummary', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+  });
+
+  it.each([401, 403])('does not continue to legacy metrics after hub access denial %s', async (status) => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('denied', status));
+    await expect(analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' })).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not continue to legacy metrics after an aborted hub read', async () => {
+    apiFetchMock.mockRejectedValueOnce(new DOMException('session changed', 'AbortError'));
+    await expect(analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an explicit unavailable hub without starting another hub request', async () => {
+    apiFetchMock.mockResolvedValueOnce({ totals: { total_interactions: 12 } });
+    expect((await analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' }, null)).kpis.total_interactions).toBe(12);
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock.mock.calls[0][0]).toContain('/admin/analytics/overview?');
+  });
+
+  it('rejects a late legacy summary after the session revision changes', async () => {
+    let resolve!: (data: unknown) => void;
+    apiFetchMock.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' }, null);
+    advanceChatbocSessionRevision();
+    resolve({ totals: { total_interactions: 99 } });
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('normalizes totals.total_interactions when kpis are missing', async () => {
@@ -42,9 +72,33 @@ describe('analyticsService.getHub', () => {
     apiFetchMock.mockReset();
   });
 
+  it.each([401, 403])('never returns a cached hub or tries aliases after an access denial %s', async (status) => {
+    advanceChatbocSessionRevision();
+    const filters = { scope: 'municipio', tenantSlug: 'org-private' };
+    apiFetchMock.mockResolvedValueOnce({ sections: { general: { totals: { total_interactions: 99 } } } });
+    await analyticsService.getHub(filters);
+    apiFetchMock.mockReset().mockRejectedValue(new ApiError('denied', status));
+    await expect(analyticsService.getHub(filters)).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send the previous actor etag or reuse its cached snapshot without requiring logout', async () => {
+    advanceChatbocSessionRevision();
+    const filters = { scope: 'municipio', tenantSlug: 'org-private' };
+    apiFetchMock.mockImplementationOnce(async (_path, options) => {
+      options.onResponse(new Response(null, { headers: { ETag: 'session-a' } }));
+      return { sections: { general: { totals: { total_interactions: 99 } } } };
+    });
+    await analyticsService.getHub(filters);
+    usePanelSessionStore.getState().setUser({ id: 'second-actor', rol: 'tenant_admin', email: 'local@example.test' });
+    apiFetchMock.mockReset().mockRejectedValue(new ApiError('not found', 404));
+    expect(await analyticsService.getHub(filters)).toBeNull();
+    expect(apiFetchMock.mock.calls[0][1].headers['If-None-Match']).toBeUndefined();
+  });
+
   it('falls back across hub aliases and returns navigation when primary endpoint is unavailable', async () => {
     apiFetchMock
-      .mockRejectedValueOnce(new ApiError('forbidden', 403))
+      .mockRejectedValueOnce(new ApiError('not found', 404))
       .mockResolvedValueOnce({
         sections: {
           general: { totals: { total_interactions: 99 } },

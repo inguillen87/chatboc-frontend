@@ -1,4 +1,6 @@
 import { apiFetch, ApiError, isLikelyHtmlErrorBody } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import {
   Ticket,
   Message,
@@ -744,11 +746,8 @@ export const getTickets = async (
         summary?: Record<string, unknown>;
         facets?: TicketInboxFacets | null;
       }>(ticketApiPath(`/tickets?${params.toString()}`), {
-      tenantSlug,
-      omitTenant: false,
+      ...panelReadOptions(tenantSlug),
       suppressPanel401Redirect: true,
-      omitCredentials: true,
-      omitChatSessionId: true,
       // Algunos despliegues requieren el tenant para filtrar los tickets
       // correctamente y evitar errores 500 en el backend.
     });
@@ -1937,8 +1936,12 @@ export const updateTicketReadState = async (
     ticketId: number,
     tipo: 'municipio' | 'pyme',
     lastReadCommentId: string | number,
-    opts?: { public?: boolean; pin?: string }
+    opts?: { public?: boolean; pin?: string; tenantSlug?: string | null; sourceModel?: string | null; isCurrent?: () => boolean }
 ): Promise<TicketRealtimeState | null> => {
+    const expectedSource = tipo === 'municipio' ? 'MunicipioTicket' : 'PymeTicket';
+    if (!opts?.public && opts?.sourceModel !== expectedSource) {
+        throw new ApiError('No se pudo verificar la fuente para registrar la lectura.', 400);
+    }
     const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/read-state`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
@@ -1946,12 +1949,20 @@ export const updateTicketReadState = async (
         : opts?.pin
             ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
             : endpointBase;
-    const fetchOptions = publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => isChatbocSessionRevisionCurrent(sessionRevision) && opts?.isCurrent?.() !== false;
+    const fetchOptions = publicAccess?.fetchOptions ?? {
+        ...panelReadOptions(opts?.tenantSlug),
+        singleAttempt: true,
+        allowStartupRecovery: false,
+        isCurrent,
+    };
     const response = await apiFetch<{ realtime_state?: any }>(endpoint, {
         method: 'POST',
         body: { last_read_comment_id: lastReadCommentId },
         ...fetchOptions,
     });
+    if (!opts?.public && !isCurrent()) throw new DOMException('Read acknowledgement scope expired', 'AbortError');
     return normalizeRealtimeState((response as any).realtime_state);
 };
 

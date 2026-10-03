@@ -32,7 +32,10 @@ export const followUpApi = {
     return parseFollowUpHistory(raw,identity);
   },
   async list() {
-    const raw = await apiFetch<unknown>('/api/admin/crm/leads?limit=100',{omitTenant:true,persistTenantSlug:false});
+    const raw = await apiFetch<unknown>('/api/admin/crm/leads?limit=100',{
+      omitTenant:true,persistTenantSlug:false,omitEntityToken:true,omitChatSessionId:true,isWidgetRequest:false,
+      singleAttempt:true,allowStartupRecovery:true,
+    });
     return parseFollowUpQueue(raw);
   },
   async save(baseline: FollowUpSnapshot, draft: FollowUpDraft, onPhase?: (phase: FollowUpSavePhase)=>void, isCurrent: ()=>boolean = ()=>true): Promise<FollowUpSnapshot> {

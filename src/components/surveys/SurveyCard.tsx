@@ -21,7 +21,7 @@ import {
 import type { SurveyAdmin } from '@/types/encuestas';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
-import { isGovernedSurvey } from '@/utils/surveyPublicationLifecycle';
+import { isGovernedSurvey, surveyCanShare, surveyIsReceiving } from '@/utils/surveyPublicationLifecycle';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
@@ -144,7 +144,7 @@ export const SurveyCard = ({
   const canClose = lifecycle
     ? lifecycle.capabilities.can_close && lifecycle.actions.close.enabled
     : survey.estado === 'publicada';
-  const canShare = lifecycle?.capabilities.can_share ?? survey.estado === 'publicada';
+  const canShare = surveyCanShare(survey);
   const canDelete = lifecycle?.capabilities.can_delete ?? survey.estado === 'borrador';
   const canViewResults = lifecycle?.capabilities.can_view_results ?? true;
   const participation = lifecycle?.participation;
@@ -215,7 +215,9 @@ export const SurveyCard = ({
             </Badge>
             {lifecycle ? (
               <span className="text-right text-xs text-muted-foreground">
-                {phaseLabels[lifecycle.phase] ?? lifecycle.phase}
+                {['collecting', 'live_voting'].includes(lifecycle.phase) && !surveyIsReceiving(survey)
+                  ? 'Participación pendiente de validación'
+                  : phaseLabels[lifecycle.phase] ?? lifecycle.phase}
               </span>
             ) : null}
           </div>

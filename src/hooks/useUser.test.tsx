@@ -3,12 +3,14 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { usePanelSessionStore } from '@/stores';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser, UserProvider } from './useUser';
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
 import profileFixture from '../../tests/fixtures/organization-profile-settings.json';
 import workspaceFixtures from '../../tests/fixtures/organization-workspaces.json';
+import {retirementProof} from '../../tests/fixtures/session-retirement.synthetic';
+import {captureSessionRetirement} from '@/utils/sessionRetirement';
 
 const SessionVisibleUserProbe = () => {
   const { user } = useUser();
@@ -48,12 +50,20 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     safeLocalStorage.setItem('authProvider', 'clerk');
     safeLocalStorage.setItem('clerkUserId', 'user_clerk_cookie');
     const workspace = { ...workspaceFixtures.gobierno, tenant: profileFixture.tenant };
+    const platform = { contract_version: 'platform.workspace.v1', heading: 'Administración de plataforma' };
     vi.mocked(apiFetch).mockResolvedValue({ id: 42, name: 'Operator', rol: 'tenant_admin', tipo_chat: 'municipio', rubro: 'gobierno',
-      tenant_slug: 'tenant-a', organization_profile: profileFixture, organization_workspace: workspace });
+      tenant_slug: 'tenant-a', organization_profile: profileFixture, organization_workspace: workspace, platform_workspace: platform });
     render(<UserProvider><VerifiedClerkBridgeProbe /></UserProvider>);
     await waitFor(() => expect(usePanelSessionStore.getState().user).toMatchObject({
-      organization_profile: profileFixture, organization_workspace: workspace, tenant_slug: 'tenant-a',
+      organization_profile: profileFixture, organization_workspace: workspace, platform_workspace: platform, tenant_slug: 'tenant-a',
     }));
+  });
+  it('registers verified cookie-only /me authority without persisting its proof in the profile',async()=>{
+    safeLocalStorage.setItem('authProvider','clerk');safeLocalStorage.setItem('clerkUserId','synthetic-clerk-user');
+    vi.mocked(apiFetch).mockResolvedValue({id:42,rol:'tenant_admin',tipo_chat:'municipio',rubro:'gobierno',session_retirement:retirementProof({actor_id:'42',provider:'clerk',clerk_session_id:'synthetic-sid-a'})});
+    render(<UserProvider><VerifiedClerkBridgeProbe/></UserProvider>);
+    await waitFor(()=>expect(captureSessionRetirement('42')?.clerk_session_id).toBe('synthetic-sid-a'));
+    expect(safeLocalStorage.getItem('user')).not.toContain('synthetic-proof-a');
   });
 
   it('revalidates a complete persisted profile once after reload and hides institutional identity until the response', async () => {
@@ -83,6 +93,18 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     await act(async () => finishOld({ id: 42, rol: 'tenant_admin', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
     expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-b|true');
     expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+  it('retires a native panel session when its isolated profile is actually denied with 401', async () => {
+    const token = 'synthetic-native-panel-session';
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'operator@example.test', rol: 'admin', tenant_slug: 'tenant-a' } });
+    vi.mocked(apiFetch).mockRejectedValue(new ApiError('Session expired', 401));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    await waitFor(() => expect(usePanelSessionStore.getState().authToken).toBeNull());
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
+    expect(safeLocalStorage.getItem('user')).toBeNull();
+    expect(apiFetch).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('false');
   });
 
   it.each(['loading', 'signed_out'] as const)(
@@ -194,6 +216,13 @@ describe('UserProvider Clerk cookie profile hydration', () => {
         expect.objectContaining({
           omitEntityToken: true,
           omitTenant: true,
+          isWidgetRequest: false,
+          omitChatSessionId: true,
+          omitCredentials: false,
+          persistTenantSlug: false,
+          singleAttempt: true,
+          allowStartupRecovery: true,
+          isCurrent: expect.any(Function),
           preserveAuthOn401: true,
           suppressPanel401Redirect: true,
         }),

@@ -1,4 +1,6 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
 import { assessOrderAmounts, assessOrderItemAmounts } from '@/features/orders/orderAmounts';
@@ -601,10 +603,8 @@ export const apiClient = {
 
   getTicketWorkflowMetadata: async (tenantSlug?: string) => {
     const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', {
-      tenantSlug,
+      ...panelReadOptions(tenantSlug),
       suppressPanel401Redirect: true,
-      omitCredentials: true,
-      omitChatSessionId: true,
     });
     return normalizeTicketWorkflowMetadata(response);
   },
@@ -702,13 +702,13 @@ export const apiClient = {
     }
     const params = new URLSearchParams(normalizedFilters);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, panelReadOptions(tenantSlug));
     return normalizeAdminOrdersEnvelope(raw);
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
     const encodedId = encodeURIComponent(String(orderId));
-    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, panelReadOptions(tenantSlug));
     // Validate the transport receipt before display defaults can disguise a missing identity or state.
     assertOrderReceipt(raw, String(orderId), undefined, tenantSlug);
     return normalizeAdminOrder(raw);
@@ -1069,7 +1069,10 @@ export const apiClient = {
   // --- Super Admin Methods ---
 
   superAdminListTenants: async (page = 1, perPage = 20): Promise<{ tenants: Tenant[], total: number }> => {
-    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`, { omitTenant: true });
+    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`, {
+      omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    });
   },
 
   superAdminCreateTenant: async (data: CreateTenantDTO): Promise<Tenant> => {
@@ -1124,9 +1127,10 @@ export const apiClient = {
     });
   },
 
-  superAdminImpersonate: async (slug: string): Promise<{ token: string; redirect_url: string }> => {
-    return apiFetch<{ token: string; redirect_url: string }>(`/api/admin/tenants/${slug}/impersonate`, {
+  superAdminImpersonate: async (slug: string,isCurrent?:()=>boolean): Promise<{ token: string; redirect_url: string;session_retirement:SessionRetirementProof }> => {
+    return apiFetch<{ token: string; redirect_url: string;session_retirement:SessionRetirementProof }>(`/api/admin/tenants/${slug}/impersonate`, {
       method: 'POST',
+      ...panelReadOptions(),allowStartupRecovery:false,preserveAuthOn401:true,suppressPanel401Redirect:true,isCurrent,
     });
   },
 
@@ -1158,7 +1162,10 @@ export const apiClient = {
     if (filters?.tenant_slug) params.append('tenant_slug', filters.tenant_slug);
     if (filters?.prefix) params.append('prefix', filters.prefix);
     const suffix = params.toString();
-    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`, { omitTenant: true });
+    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`, {
+      omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    });
   },
 
   superAdminCreateWhatsappNumber: async (payload: WhatsappNumberCreatePayload): Promise<any> => {

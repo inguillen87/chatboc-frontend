@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   useSurveyLiveResults: vi.fn(),
   trackSurveySubmission: vi.fn(),
   trackSurveyDemoInteraction: vi.fn(),
+  socketOptions: undefined as any,
 }));
 
 vi.mock('@/hooks/useSurveyPublic', () => ({
@@ -19,7 +20,7 @@ vi.mock('@/hooks/useSurveyLiveResults', () => ({
 }));
 
 vi.mock('@/hooks/useSurveySocket', () => ({
-  useSurveySocket: vi.fn(),
+  useSurveySocket: vi.fn((options: any) => { mocks.socketOptions = options; }),
 }));
 
 vi.mock('@/hooks/usePageMetadata', () => ({
@@ -187,6 +188,49 @@ describe('PublicSurveyPage loading experience', () => {
     );
     expect(mocks.useSurveyPublic).toHaveBeenCalledTimes(1);
     expect(mocks.useSurveyPublic.mock.calls[0]?.[1]).toEqual({ tenantSlug: 'municipio' });
+  });
+
+  it.each([403, 404])('offers a terminal list action after a definitive %s without repeating the request', async (status) => {
+    const retryLoad = vi.fn();
+    mocks.useSurveyPublic.mockReturnValue({
+      ...mocks.useSurveyPublic(), isLoading: false, error: 'Encuesta no disponible',
+      errorStatus: status, errorDetails: { retryable: false, action_hint: 'check_survey_link' },
+      errorReasonCode: 'survey_not_found', isTransientError: false, retryLoad,
+    });
+    render(<MemoryRouter initialEntries={['/e/unavailable?tenant_slug=tenant']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /><Route path="/encuestas" element={<p>Listado de encuestas</p>} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver encuestas' }));
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    expect(retryLoad).not.toHaveBeenCalled();
+  });
+
+  it('vetoes survey and socket snapshots after live public access is withdrawn', async () => {
+    const survey = {
+      ...publicBrandSurvey({ slug: 'tenant', nombre: 'Organización' }, 'tenant'),
+      es_votacion_envivo: true, mostrar_resultados_envivo: true,
+      resultados_envivo: { total_respuestas: 123, preguntas: {} },
+    };
+    mocks.useSurveyPublic.mockReturnValue({ ...mocks.useSurveyPublic(), survey, isLoading: false });
+    mocks.useSurveyLiveResults.mockReturnValue({
+      ...mocks.useSurveyLiveResults(), liveResults: { total_respuestas: 123, preguntas: [] },
+      liveStatus: { status: 'live', label: 'En vivo', description: 'Disponible' },
+    });
+    const content = <MemoryRouter initialEntries={['/e/consulta-publica?tenant_slug=tenant']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes></MemoryRouter>;
+    const view = render(content);
+    fireEvent.click(await screen.findByRole('button', { name: 'Resultados y territorio' }));
+    act(() => { mocks.socketOptions.onUpdate({ contract_version: 'surveys.live_results.v2', total_respuestas: 456, preguntas: [] }); });
+    expect(screen.getAllByText('456').length).toBeGreaterThan(0);
+    mocks.useSurveyLiveResults.mockReturnValue({
+      ...mocks.useSurveyLiveResults(), liveResults: undefined, accessWithdrawn: true,
+      error: 'Resultados ocultos', liveStatus: { status: 'error', label: 'Resultados no disponibles', description: 'Acceso público retirado.' },
+    });
+    view.rerender(<MemoryRouter initialEntries={['/e/consulta-publica?tenant_slug=tenant']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByText('Resultados públicos no disponibles.')).toBeInTheDocument();
+    expect(screen.queryByText('456')).not.toBeInTheDocument();
+    expect(screen.queryByText('123')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    expect(mocks.socketOptions.enabled).toBe(false);
+    act(() => { mocks.socketOptions.onUpdate({ contract_version: 'surveys.live_results.v2', total_respuestas: 789, preguntas: [] }); });
+    expect(screen.queryByText('789')).not.toBeInTheDocument();
   });
 
   it('shows the server synchronization time instead of mislabeling the survey closing date', async () => {

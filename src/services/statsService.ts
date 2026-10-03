@@ -221,7 +221,8 @@ export interface SurveySummaryResponse {
   active_survey?: { title: string; id: number };
   stats: {
     total_votes: number;
-    participation_rate: number;
+    participation_rate: number | null;
+    participation?: { contract_version?: string; value_pct?: number | null; reason_code?: string; denominator?: number | null; numerator?: number | null; verified?: boolean };
     results_by_option: { option: string; count: number }[];
   };
 }

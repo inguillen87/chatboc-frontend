@@ -234,6 +234,18 @@ const openComposerTools = async () => {
   return { trigger, menu };
 };
 
+const selectLegacyMunicipalTicket = () => {
+  harness.selectedTicket = { ...selectedTicket, source_model: 'MunicipioTicket' };
+  harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+    item: {
+      ...tenantAuthoritativeItem,
+      source_model: 'MunicipioTicket',
+      reply_contract: { ...tenantAuthoritativeItem.reply_contract, source_model: 'MunicipioTicket' },
+    },
+    raw: {},
+  });
+};
+
 describe('ConversationPanel tenant invalidation', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -1969,6 +1981,7 @@ describe('ConversationPanel tenant invalidation', () => {
   });
 
   it('keeps the timeline and composer stable on an identical fallback poll without repeating read-state', async () => {
+    selectLegacyMunicipalTicket();
     if (harness.socket) harness.socket.connected = false;
     let pollingCallback: (() => void) | null = null;
     vi.spyOn(window, 'setInterval').mockImplementation((handler: TimerHandler, timeout?: number) => {
@@ -1998,7 +2011,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const composerBefore = screen.getByRole('textbox', { name: 'Responder ticket' });
     fireEvent.change(composerBefore, { target: { value: 'Borrador que no debe perderse' } });
 
-    harness.selectedTicket = { ...selectedTicket, asunto: 'Payload refrescado sin cambiar identidad' };
+    harness.selectedTicket = { ...harness.selectedTicket!, asunto: 'Payload refrescado sin cambiar identidad' };
     view.rerender(renderConversation());
     expect(screen.getByTestId('ticket-conversation-panel')).toBe(panelBefore);
     expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toBe(composerBefore);
@@ -2017,8 +2030,10 @@ describe('ConversationPanel tenant invalidation', () => {
   });
 
   it('clears and reloads the conversation when another tenant has the same source, type and ticket id', async () => {
+    selectLegacyMunicipalTicket();
     const otherTenantTicket: Ticket = {
       ...selectedTicket,
+      source_model: 'MunicipioTicket',
       nro_ticket: 'USH-77',
       asunto: 'Caso del segundo tenant',
       tenant_slug: 'ushuaia',
@@ -2056,6 +2071,7 @@ describe('ConversationPanel tenant invalidation', () => {
       selectedTicket.id,
       selectedTicket.tipo,
       'tenant-junin-message-1',
+      expect.objectContaining({ tenantSlug: 'junin', sourceModel: 'MunicipioTicket', isCurrent: expect.any(Function) }),
     );
 
     act(() => {
@@ -2098,7 +2114,85 @@ describe('ConversationPanel tenant invalidation', () => {
       otherTenantTicket.id,
       otherTenantTicket.tipo,
       'tenant-ushuaia-message-1',
+      expect.objectContaining({ tenantSlug: 'ushuaia', sourceModel: 'MunicipioTicket', isCurrent: expect.any(Function) }),
     );
+  });
+
+  it('does not replay a failed acknowledgement when the same message and unread state are refreshed', async () => {
+    selectLegacyMunicipalTicket();
+    harness.selectedTicket = { ...harness.selectedTicket!, hasUnreadMessages: true };
+    harness.getTicketTimeline.mockResolvedValueOnce({
+      messages: [{ id: 123, author: 'user', content: 'Mensaje municipal', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    harness.updateTicketReadState.mockRejectedValueOnce(Object.assign(new Error('application_initializing'), { status: 503 }));
+    const view = render(renderConversation());
+    await screen.findByText('Mensaje municipal');
+    await waitFor(() => expect(warning).toHaveBeenCalled());
+    harness.selectedTicket = { ...harness.selectedTicket!, hasUnreadMessages: false };
+    view.rerender(renderConversation());
+    harness.selectedTicket = { ...harness.selectedTicket!, hasUnreadMessages: true };
+    view.rerender(renderConversation());
+    await act(async () => { await Promise.resolve(); });
+    expect(harness.updateTicketReadState).toHaveBeenCalledOnce();
+  });
+
+  it('retires the read acknowledgement callback on unmount and ignores its late result', async () => {
+    selectLegacyMunicipalTicket();
+    harness.getTicketTimeline.mockResolvedValueOnce({
+      messages: [{ id: 123, author: 'user', content: 'Mensaje municipal', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    let finishAcknowledgement!: (value: null) => void;
+    harness.updateTicketReadState.mockReturnValueOnce(new Promise(resolve => { finishAcknowledgement = resolve; }));
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledOnce());
+    const lifecycle = harness.updateTicketReadState.mock.calls[0][3];
+    expect(lifecycle.isCurrent()).toBe(true);
+    const updatesBeforeUnmount = harness.updateTicket.mock.calls.length;
+    view.unmount();
+    expect(lifecycle.isCurrent()).toBe(false);
+    await act(async () => finishAcknowledgement(null));
+    expect(harness.updateTicket.mock.calls.length).toBe(updatesBeforeUnmount);
+  });
+
+  it('does not mark a legacy municipal record while opening a colliding TenantTicket id', async () => {
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [{ id: 123, author: 'user', content: 'Mensaje de TenantTicket', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    const view = render(renderConversation());
+    await screen.findByText('Mensaje de TenantTicket');
+    expect(harness.updateTicketReadState).not.toHaveBeenCalled();
+    selectLegacyMunicipalTicket();
+    view.rerender(renderConversation());
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledOnce());
+    expect(harness.updateTicketReadState).toHaveBeenCalledWith(77, 'municipio', 123,
+      expect.objectContaining({ sourceModel: 'MunicipioTicket', tenantSlug: 'junin' }));
+    await waitFor(() => expect(harness.updateTicket).toHaveBeenCalledWith(77,
+      expect.objectContaining({ hasUnreadMessages: false }), 'MunicipioTicket'));
+  });
+
+  it.each(['actor', 'organization'])('retires a pending acknowledgement when the %s changes', async change => {
+    selectLegacyMunicipalTicket();
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [{ id: 123, author: 'user', content: 'Mensaje municipal', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    let finishAcknowledgement!: (value: null) => void;
+    harness.updateTicketReadState.mockReturnValueOnce(new Promise(resolve => { finishAcknowledgement = resolve; }));
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledOnce());
+    const lifecycle = harness.updateTicketReadState.mock.calls[0][3];
+    if (change === 'actor') harness.user = { ...harness.user, id: 11 };
+    else harness.selectedTicket = { ...harness.selectedTicket!, tenant_slug: 'ushuaia' };
+    view.rerender(renderConversation());
+    await waitFor(() => expect(lifecycle.isCurrent()).toBe(false));
+    await act(async () => { await Promise.resolve(); });
+    const updatesBeforeLateResult = harness.updateTicket.mock.calls.length;
+    await act(async () => finishAcknowledgement(null));
+    expect(harness.updateTicket.mock.calls.length).toBe(updatesBeforeLateResult);
   });
 
   it('scopes template list and suggestions from the authenticated user when a legacy ticket only has tenant_id', async () => {

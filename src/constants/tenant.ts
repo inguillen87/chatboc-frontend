@@ -32,6 +32,7 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'tickets',
   'opinar',
   'integracion',
+  'implementacion',
   'documentacion',
   'faqs',
   'legal',

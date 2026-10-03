@@ -83,6 +83,19 @@ const baseProps = {
 };
 
 describe('SurveyCard lifecycle actions', () => {
+  it('withdraws public links when a persisted published instrument fails public readiness', () => {
+    const item = survey(lifecycle('live_voting', { can_share: true }, 'voting'));
+    item.public_access = {
+      contract_version: 'surveys.public_access.v1', allowed: false,
+      reason_code: 'survey_jurisdiction_unverified', next_action: 'review_scope',
+    };
+    render(<SurveyCard {...baseProps} survey={item} onCopyLink={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Copiar link' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ver en vivo' })).toBeNull();
+    expect(screen.getByText('Participación pendiente de validación')).toBeVisible();
+    expect(screen.getByText('Publicada')).toBeVisible();
+  });
+
   it('shows publish only for a publishable draft', () => {
     render(
       <SurveyCard

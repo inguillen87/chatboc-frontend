@@ -30,6 +30,52 @@ vi.mock("@/utils/api", async () => {
   };
 });
 
+describe('WhatsApp activation readiness evidence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetTenantOpsQaPlaybookV2.mockResolvedValue({ tenant: { slug: 'junin-1' } } as any);
+  });
+  it.each([false, undefined])('does not operate providers when live_enabled is %s, while identifying a dry run honestly', async live => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: { ...baseContract, automation: { ...baseContract.automation, live_enabled: live } } });
+    mockedTenantService.runWhatsappTechProviderSmokeTest.mockResolvedValue({ status: 'pass', ok: true });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText('Preparación sin activar envío');
+    expect(screen.queryByText('Listo para operar')).not.toBeInTheDocument();
+    for (const label of ['Preparar activación', 'Registrar sender', 'Actualizar estado', 'Preparar voz', 'Iniciar registro embebido']) {
+      expect(screen.getByRole('button', { name: label })).toBeDisabled();
+    }
+    expect(screen.getByText(/Comprobación de configuración sin envío \(dry run\)/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /ejecutar prueba de conexion/i }));
+    await waitFor(() => expect(mockedTenantService.runWhatsappTechProviderSmokeTest).toHaveBeenCalledWith('junin-1', 'template_registry', {
+      source: 'tenant_panel', dry_run: true,
+    }));
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+    expect(mockedTenantService.refreshWhatsappSenderStatus).not.toHaveBeenCalled();
+    expect(mockedTenantService.provisionWhatsappVoiceApp).not.toHaveBeenCalled();
+  });
+  it('blocks configuration and provider actions when environment readiness is unknown', async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: { ...baseContract, automation: { live_enabled: true, env: {} } } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText('Bloqueado por plataforma');
+    expect(screen.getByRole('button', { name: /ejecutar prueba de conexion/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Registrar sender' })).toBeDisabled();
+    expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
+  });
+  it.each([
+    { ...baseContract, tenant: { id: 23, slug: 'foreign-organization' } },
+    { ...baseContract, tenant: undefined },
+    { ...baseContract, contract_version: 'future.provider.v2' },
+  ])('does not expose or operate a foreign or unverified activation contract', async contract => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText('No se pudo cargar el onboarding de WhatsApp.');
+    expect(screen.queryByRole('button', { name: 'Registrar sender' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Listo para operar')).not.toBeInTheDocument();
+    expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+  });
+});
+
 const mockedTenantService = vi.mocked(tenantService);
 const mockedGetTenantOpsQaPlaybookV2 = vi.mocked(getTenantOpsQaPlaybookV2);
 const mockedRunTenantOpsQaCheckV2 = vi.mocked(runTenantOpsQaCheckV2);
@@ -44,6 +90,7 @@ const findEnabledAction = (name: RegExp) => waitFor(() => {
 
 const baseContract = {
   contract_version: "twilio.tech_provider.v1",
+  tenant: { id: 22, slug: 'junin-1' },
   status: "pending_meta_signup",
   state: {
     waba_id: "123456789",
@@ -53,6 +100,7 @@ const baseContract = {
     sender_status: "online",
   },
   automation: {
+    live_enabled: true,
     env: {
       ready: true,
       missing: [],

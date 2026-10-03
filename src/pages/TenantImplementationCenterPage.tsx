@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
+import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import {
   activationAuthorizesTenant,
   normalizeProfileTenantSlug,
@@ -23,6 +24,10 @@ const TenantImplementationCenterPage = () => {
   const [searchParams] = useSearchParams();
   const { currentSlug, tenant } = useTenant();
   const { user, loading, hasVerifiedSession } = useUser();
+  const privateReadSessionKey = JSON.stringify([
+    user?.id == null ? null : String(user.id),
+    captureChatbocSessionRevision(),
+  ]);
   const [activationRevision, setActivationRevision] = React.useState(0);
   const [blueprintRefreshRevision, setBlueprintRefreshRevision] = React.useState(0);
   const [blueprintApplied, setBlueprintApplied] = React.useState(false);
@@ -72,7 +77,7 @@ const TenantImplementationCenterPage = () => {
 
   React.useEffect(() => {
     setBlueprintApplied(false);
-  }, [tenantSlug]);
+  }, [tenantSlug, privateReadSessionKey]);
 
   if (loading && !tenantSlug && !requestIsInvalid) {
     return (
@@ -109,7 +114,7 @@ const TenantImplementationCenterPage = () => {
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-5 py-6">
+    <section key={privateReadSessionKey} className="mx-auto w-full max-w-6xl space-y-5 py-6">
       <EnterprisePageHeader
         badge="Implementación"
         title="Preparar la organización para operar"

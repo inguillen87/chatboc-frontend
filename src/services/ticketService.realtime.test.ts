@@ -32,12 +32,35 @@ import {
   normalizeTicketReplyDelivery,
   sendMessage,
   updateTicketStatus,
+  updateTicketReadState,
 } from '@/services/ticketService';
 import { ApiError } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 describe('ticketService realtime normalization', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+  });
+
+  it('pins private read acknowledgements to panel authority without replay', async () => {
+    apiFetchMock.mockResolvedValueOnce({ realtime_state: null });
+    await updateTicketReadState(407, 'municipio', 123, {
+      tenantSlug: 'junin', sourceModel: 'MunicipioTicket', isCurrent: () => true,
+    });
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/tickets/municipio/407/read-state', {
+      ...panelReadOptions('junin'), method: 'POST', body: { last_read_comment_id: 123 },
+      singleAttempt: true, allowStartupRecovery: false, isCurrent: expect.any(Function),
+    });
+  });
+
+  it('preserves the public PIN and anonymous ticket read-state transport', async () => {
+    apiFetchMock.mockResolvedValueOnce({ realtime_state: null });
+    await updateTicketReadState(407, 'municipio', 123, { public: true, pin: 'synthetic-pin' });
+    expect(apiFetchMock).toHaveBeenCalledWith(expect.stringContaining('pin=synthetic-pin'), {
+      method: 'POST', body: { last_read_comment_id: 123 },
+      skipAuth: true, omitCredentials: true, isWidgetRequest: true,
+      sendAnonId: true, sendEntityToken: true, pin: 'synthetic-pin',
+    });
   });
 
   it('keeps derived presence state and idle counts in ticket realtime summaries', async () => {
@@ -765,7 +788,10 @@ describe('ticketService realtime normalization', () => {
       tenantSlug: 'junin',
       omitTenant: false,
       suppressPanel401Redirect: true,
-      omitCredentials: true,
+      omitCredentials: false,
+      omitEntityToken: true,
+      isWidgetRequest: false,
+      persistTenantSlug: false,
       omitChatSessionId: true,
     });
   });

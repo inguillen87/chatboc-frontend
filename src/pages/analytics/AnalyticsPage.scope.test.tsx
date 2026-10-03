@@ -7,7 +7,7 @@ import AnalyticsPage from './AnalyticsPage';
 import { analyticsService } from '@/services/analyticsService';
 import { ApiError } from '@/utils/api';
 
-const useUserMock = vi.hoisted(() => vi.fn(() => ({ user: null })));
+const useUserMock = vi.hoisted(() => vi.fn<() => any>());
 
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({
@@ -17,7 +17,7 @@ vi.mock('@/context/TenantContext', () => ({
 }));
 
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => useUserMock(),
+  useUser: () => ({ loading: false, hasVerifiedSession: true, organizationProfileVerified: true, ...useUserMock() }),
 }));
 
 vi.mock('@/services/enterpriseService', () => ({
@@ -67,12 +67,19 @@ describe('AnalyticsPage scope routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
-    useUserMock.mockReturnValue({ user: null });
+    useUserMock.mockReturnValue({ user: { id: 7, rol: 'admin_municipio', tipo_chat: 'municipio', tenant_slug: 'junin', organization_profile: { tenant: { id: 22, slug: 'junin' } } } });
+  });
+
+  it.each([new ApiError('denied', 401), new ApiError('denied', 403), new DOMException('session changed', 'AbortError')])('does not request summary after hub rejection $name/$status', async (error) => {
+    vi.mocked(analyticsService.getHub).mockRejectedValueOnce(error);
+    render(<MemoryRouter initialEntries={['/analytics?tenant_id=22&range=7d']}><AnalyticsPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument());
+    expect(analyticsService.getSummary).not.toHaveBeenCalled();
   });
 
   it('keeps the explicit municipio scope from the URL even when the stored tenant type is pyme', async () => {
     render(
-      <MemoryRouter initialEntries={['/analytics?tenant_id=333&scope=municipio&range=7d']}>
+      <MemoryRouter initialEntries={['/analytics?tenant_id=22&scope=municipio&range=7d']}>
         <Routes>
           <Route path="/analytics" element={<AnalyticsPage />} />
         </Routes>
@@ -80,7 +87,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }));
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), { strictAccess: true });
     });
 
     expect(analyticsService.getSummary).toHaveBeenCalledWith(
@@ -104,7 +111,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     render(
-      <MemoryRouter initialEntries={['/analytics?tenant_id=333&range=7d']}>
+      <MemoryRouter initialEntries={['/analytics?tenant_id=22&range=7d']}>
         <Routes>
           <Route path="/analytics" element={<AnalyticsPage />} />
         </Routes>
@@ -112,7 +119,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }));
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), { strictAccess: true });
     });
 
     expect(analyticsService.getSummary).toHaveBeenCalledWith(
@@ -136,7 +143,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     render(
-      <MemoryRouter initialEntries={['/analytics?tenant_id=333&range=7d']}>
+      <MemoryRouter initialEntries={['/analytics?tenant_id=22&range=7d']}>
         <Routes>
           <Route path="/analytics" element={<AnalyticsPage />} />
         </Routes>
@@ -163,11 +170,12 @@ describe('AnalyticsPage scope routing', () => {
         rol: 'admin',
         tipo_chat: 'municipio',
         tenant_slug: 'junin',
+        organization_profile: { tenant: { id: 22, slug: 'junin' } },
       },
     });
 
     render(
-      <MemoryRouter initialEntries={['/perfil?tab=analytics&tenant_id=333&range=7d&scope=pyme']}>
+      <MemoryRouter initialEntries={['/perfil?tab=analytics&tenant_id=22&range=7d&scope=pyme']}>
         <Routes>
           <Route path="/perfil" element={<AnalyticsPage />} />
         </Routes>
@@ -175,11 +183,11 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }));
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), { strictAccess: true });
     });
   });
 
-  it('prefers the stored municipio panel session over a live pyme user inside the profile CRM', async () => {
+  it('uses the verified live company profile despite an older stored municipal session', async () => {
     window.localStorage.setItem(
       'user',
       JSON.stringify({
@@ -195,6 +203,7 @@ describe('AnalyticsPage scope routing', () => {
         rol: 'admin',
         tipo_chat: 'pyme',
         tenant_slug: 'bodega',
+        organization_profile: { tenant: { id: 333, slug: 'bodega' } },
       },
     });
 
@@ -207,13 +216,13 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }));
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'pyme', tenantSlug: 'bodega', tenant_id: 333 }), { strictAccess: true });
     });
   });
 
   it('opens the operational cockpit first inside the profile CRM', async () => {
     render(
-      <MemoryRouter initialEntries={['/perfil?tab=analytics&tenant_id=333&range=7d']}>
+      <MemoryRouter initialEntries={['/perfil?tab=analytics&tenant_id=22&range=7d']}>
         <Routes>
           <Route path="/perfil" element={<AnalyticsPage />} />
         </Routes>
@@ -227,7 +236,7 @@ describe('AnalyticsPage scope routing', () => {
 
   it('routes maps, heatmaps and surveys focus links to the operational cockpit', async () => {
     render(
-      <MemoryRouter initialEntries={['/analytics?tenant_id=333&focus=heatmap&range=7d']}>
+      <MemoryRouter initialEntries={['/analytics?tenant_id=22&focus=heatmap&range=7d']}>
         <Routes>
           <Route path="/analytics" element={<AnalyticsPage />} />
         </Routes>
@@ -241,7 +250,7 @@ describe('AnalyticsPage scope routing', () => {
 
   it('keeps heatmap navigation on the premium operations cockpit instead of the legacy geo tab', async () => {
     render(
-      <MemoryRouter initialEntries={['/analytics?tenant_id=333&range=7d']}>
+      <MemoryRouter initialEntries={['/analytics?tenant_id=22&range=7d']}>
         <Routes>
           <Route path="/analytics" element={<AnalyticsPage />} />
         </Routes>

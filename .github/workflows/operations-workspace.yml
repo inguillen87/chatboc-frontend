@@ -5,6 +5,7 @@ name: Operations workspace and scoped reads
       - src/features/analytics/**
       - tests/operations-workspace.browser.mjs
       - tests/e2e/fixtures/operations-workspace*
+      - tests/e2e/fixtures/analytics-workspace.session.tsx
       - .github/workflows/operations-workspace.yml
 permissions:
   contents: read

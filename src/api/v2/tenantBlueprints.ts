@@ -1,4 +1,5 @@
 import { apiFetch } from '@/utils/api';
+import { privateBackendRead, type PrivateBackendReadLifecycle } from '@/utils/privateBackendRead';
 
 export const TENANT_BLUEPRINT_MANIFEST_VERSION = 'tenant.blueprint.manifest.v1' as const;
 export const TENANT_BLUEPRINT_DETAIL_VERSION = 'tenant.blueprint.detail.v1' as const;
@@ -348,20 +349,17 @@ export const parseTenantBlueprintApply = (
   } as TenantBlueprintApplyContract;
 };
 
-export const listTenantBlueprints = async () => {
-  const payload = await apiFetch<unknown>('/api/v2/tenant-blueprints', {
-    cache: 'no-store',
-    omitTenant: true,
-    persistTenantSlug: false,
-  });
+export const listTenantBlueprints = async (lifecycle?: PrivateBackendReadLifecycle) => {
+  const payload = await privateBackendRead('/api/v2/tenant-blueprints', null, lifecycle);
   return parseTenantBlueprintCatalog(payload);
 };
 
-export const getTenantBlueprint = async (tenantSlug: string, blueprintId: string) => {
+export const getTenantBlueprint = async (tenantSlug: string, blueprintId: string, lifecycle?: PrivateBackendReadLifecycle) => {
   const requested = assertRequestedIdentifiers(tenantSlug, blueprintId);
-  const payload = await apiFetch<unknown>(
+  const payload = await privateBackendRead(
     `/api/v2/tenants/${encodeURIComponent(requested.tenantSlug)}/blueprints/${encodeURIComponent(requested.blueprintId)}`,
-    { tenantSlug: requested.tenantSlug, persistTenantSlug: false, cache: 'no-store' },
+    requested.tenantSlug,
+    lifecycle,
   );
   return parseTenantBlueprintDetail(payload, requested.tenantSlug, requested.blueprintId);
 };

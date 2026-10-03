@@ -283,6 +283,107 @@ const lifecycleEnvelope = () => ({
 
 const cloneEnvelope = () => structuredClone(lifecycleEnvelope());
 
+const publicAccess = (allowed: boolean) => ({
+  contract_version: 'surveys.public_access.v1',
+  allowed,
+  reason_code: allowed ? null : 'survey_tenant_jurisdiction_unverified',
+  next_action: allowed ? null : 'configure_verified_tenant_jurisdiction',
+});
+
+const blockedParticipationEnvelope = () => {
+  const payload = cloneEnvelope();
+  Object.assign(payload.encuestas[0], { public_access: publicAccess(false), esta_activa: false });
+  payload.encuestas[0].admin_lifecycle.accepts_responses = false;
+  payload.encuestas[0].admin_lifecycle.capabilities.can_share = false;
+  Object.assign(payload.resumen, { activas: 0, accepting_responses: 0 });
+  for (const instruments of [payload.executive_summary.instruments,
+    payload.resumen.alcance_operativo.instruments, payload.executive_summary.operational_scope.instruments]) {
+    Object.assign(instruments, { active: 0, accepting_responses: 0 });
+  }
+  return payload;
+};
+
+// Safe structural projection of the native e4aa/594 failure: no titles,
+// credentials, contacts or raw response body are needed for this regression.
+const blockedJuninLegacyEnvelope = () => {
+  const payload = blockedParticipationEnvelope();
+  const observedRows = [
+    { id: 635, state: 'publicada', phase: 'collecting', kind: 'survey', responses: 0 },
+    { id: 634, state: 'publicada', phase: 'live_voting', kind: 'voting', responses: 0 },
+    { id: 633, state: 'publicada', phase: 'collecting', kind: 'survey', responses: 0 },
+    { id: 632, state: 'borrador', phase: 'draft', kind: 'voting', responses: 0 },
+    { id: 631, state: 'cerrada', phase: 'closed', kind: 'voting', responses: 1 },
+  ];
+  payload.tenant = { id: 22, slug: 'junin' };
+  payload.encuestas = observedRows.map((row) => {
+    const item = structuredClone(payload.encuestas[0]);
+    Object.assign(item, { id: row.id, tenant_id: 22, estado: row.state, slug: `legacy-${row.id}` });
+    Object.assign(item.jurisdiction, {
+      jurisdiction_ref: null, scope_status: 'unverified',
+      scope_reason_code: 'survey_tenant_jurisdiction_unverified', tenant_verified_ref: null,
+    });
+    Object.assign(item.admin_scope.jurisdiction, {
+      status: 'unverified', compatible: null, reason_code: 'survey_tenant_jurisdiction_unverified',
+      action_hint: 'configure_verified_tenant_jurisdiction', tenant_verified_ref: null, survey_ref: null,
+    });
+    Object.assign(item.admin_lifecycle, {
+      persisted_state: row.state, phase: row.phase, instrument_kind: row.kind,
+      jurisdiction: { status: 'unverified', reason_code: 'survey_tenant_jurisdiction_unverified', content_review_included: false },
+      government_survey_evidence_gate: { required: true, ready: false,
+        contract_version: 'surveys.government_evidence_gate.v1',
+        reason_code: 'survey_tenant_jurisdiction_unverified', next_action: 'configure_verified_tenant_jurisdiction' },
+    });
+    Object.assign(item.admin_lifecycle.capabilities, {
+      can_close: row.state === 'publicada', can_delete: row.state === 'borrador',
+      can_view_results: row.responses > 0,
+    });
+    Object.assign(item.admin_lifecycle.actions.publish, {
+      endpoint: `/api/v2/surveys/${row.id}/publish`,
+      disabled_reason_code: 'survey_tenant_jurisdiction_unverified',
+    });
+    Object.assign(item.admin_lifecycle.actions.close, {
+      endpoint: `/api/v2/surveys/${row.id}/close`, enabled: row.state === 'publicada',
+      disabled_reason_code: row.state === 'publicada' ? null : 'survey_not_published',
+    });
+    Object.assign(item.metricas, {
+      total_respuestas: row.responses, participantes_unicos: row.responses,
+      respuestas_ultimas_24h: 0, respuestas_con_coordenadas: 0, ultima_respuesta_at: null,
+    });
+    Object.assign(item.admin_lifecycle.participation, {
+      responses: row.responses, unique_participants: row.responses, responses_last_24h: 0,
+      last_response_at: null,
+    });
+    return item;
+  });
+  Object.assign(payload.pagination, { returned: 5, total_items: 5 });
+  const scope = { ...aggregationScope(), returned_items: 5, query_total_items: 5 };
+  const jurisdiction = { ...jurisdictionAggregate(), aggregation_scope: scope,
+    compatible: 0, unverified: 5, review_required: 5 };
+  const coverage = { ...geolocationCoverage(), numerator: 0, denominator: 1, percentage: 0 };
+  Object.assign(payload.resumen, {
+    total: 5, por_estado: { publicada: 3, borrador: 1, cerrada: 1 }, con_respuestas: 1,
+    total_respuestas: 1, respuestas_con_coordenadas: 0, respuestas_ultimas_24h: 0,
+    por_tipo_instrumento: { survey: 2, voting: 3 }, jurisdiccion: jurisdiction,
+    synthetic_responses_excluded: 400, unverified_responses_excluded: 100,
+  });
+  Object.assign(payload.executive_summary, { aggregation_scope: scope, jurisdiction });
+  Object.assign(payload.executive_summary.instruments, { returned: 5, surveys: 2, votings: 3 });
+  for (const operational of [payload.resumen.alcance_operativo, payload.executive_summary.operational_scope]) {
+    operational.aggregation_scope = scope;
+    Object.assign(operational.instruments, { included: 5, surveys: 2, votings: 3 });
+    Object.assign(operational.participation, { real_responses: 1, responses_last_24h: 0 });
+    Object.assign(operational.territorial, { responses_with_coordinates: 0, geolocation_coverage: coverage });
+  }
+  Object.assign(payload.executive_summary.participation, { real_responses: 1, responses_last_24h: 0 });
+  Object.assign(payload.executive_summary.territorial, { responses_with_coordinates: 0, geolocation_coverage: coverage });
+  Object.assign(payload.data_quality, { aggregation_scope: scope, jurisdiction, geolocation_coverage: coverage });
+  for (const provenance of [payload.data_provenance, payload.data_quality.response_provenance]) {
+    Object.assign(provenance, { real_responses_included: 1, synthetic_responses_excluded: 400,
+      unverified_responses_excluded: 100 });
+  }
+  return payload;
+};
+
 describe('admin survey lifecycle contract', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
@@ -309,6 +410,87 @@ describe('admin survey lifecycle contract', () => {
       '/api/admin/encuestas',
       expect.objectContaining({ tenantSlug: 'org-demo' }),
     );
+  });
+
+  it('accepts explicit public access without changing the active lifecycle', async () => {
+    const payload = cloneEnvelope();
+    Object.assign(payload.encuestas[0], { public_access: publicAccess(true) });
+    apiFetchMock.mockResolvedValueOnce(payload);
+
+    const result = await adminListSurveys(undefined, { tenantSlug: 'org-demo' });
+
+    expect(result.data[0].admin_lifecycle?.accepts_responses).toBe(true);
+    expect(result.data[0].public_access?.allowed).toBe(true);
+  });
+
+  it.each(['collecting', 'live_voting'])('accepts %s when the public guard blocks participation', async (phase) => {
+    const payload = blockedParticipationEnvelope();
+    payload.encuestas[0].admin_lifecycle.phase = phase;
+    if (phase === 'live_voting') {
+      payload.encuestas[0].tipo = 'votacion';
+      payload.encuestas[0].admin_lifecycle.instrument_kind = 'voting';
+      Object.assign(payload.resumen.por_tipo_instrumento, { survey: 0, voting: 1 });
+      for (const instruments of [payload.executive_summary.instruments,
+        payload.resumen.alcance_operativo.instruments, payload.executive_summary.operational_scope.instruments]) {
+        Object.assign(instruments, { surveys: 0, votings: 1 });
+      }
+    }
+    apiFetchMock.mockResolvedValueOnce(payload);
+
+    const result = await adminListSurveys(undefined, { tenantSlug: 'org-demo' });
+
+    expect(result.overview?.activas).toBe(0);
+    expect(result.overview?.accepting_responses).toBe(0);
+    expect(result.data[0].admin_lifecycle?.capabilities.can_share).toBe(false);
+  });
+
+  it('accepts the five nested legacy Junin rows with three published and zero receiving', async () => {
+    apiFetchMock.mockResolvedValueOnce(blockedJuninLegacyEnvelope());
+
+    const result = await adminListSurveys(undefined, { tenantSlug: 'junin' });
+
+    expect(result.data.map((item) => item.id)).toEqual([635, 634, 633, 632, 631]);
+    expect(result.overview).toMatchObject({ activas: 0, accepting_responses: 0,
+      por_estado: { publicada: 3, borrador: 1, cerrada: 1 }, total_respuestas: 1 });
+    expect(result.executive_summary?.instruments).toMatchObject({ active: 0, accepting_responses: 0 });
+    expect(result.data.every((item) => item.public_access?.allowed === false &&
+      item.admin_lifecycle?.accepts_responses === false && item.admin_lifecycle.capabilities.can_share === false)).toBe(true);
+    expect(result.data[4].admin_lifecycle).toMatchObject({ phase: 'closed',
+      capabilities: { can_view_results: true }, participation: { responses: 1 } });
+  });
+
+  it.each([
+    ['null', null],
+    ['unknown version', { ...publicAccess(true), contract_version: 'surveys.public_access.v999' }],
+    ['nonboolean allowed', { ...publicAccess(true), allowed: 'false' }],
+    ['missing allowed', { contract_version: 'surveys.public_access.v1', reason_code: null, next_action: null }],
+    ['invalid reason', { ...publicAccess(true), reason_code: 1 }],
+    ['missing reason', { contract_version: 'surveys.public_access.v1', allowed: true, next_action: null }],
+    ['invalid action', { ...publicAccess(true), next_action: [] }],
+    ['missing action', { contract_version: 'surveys.public_access.v1', allowed: true, reason_code: null }],
+  ])('rejects a malformed public access contract: %s', async (_label, access) => {
+    const payload = cloneEnvelope();
+    Object.assign(payload.encuestas[0], { public_access: access });
+    apiFetchMock.mockResolvedValueOnce(payload);
+
+    await expect(adminListSurveys(undefined, { tenantSlug: 'org-demo' })).rejects.toThrow('survey_admin_list_contract_invalid');
+  });
+
+  it.each(['accepts_responses', 'can_share'])('rejects %s enabled despite a public access veto', async (capability) => {
+    const payload = blockedParticipationEnvelope();
+    if (capability === 'accepts_responses') payload.encuestas[0].admin_lifecycle.accepts_responses = true;
+    else payload.encuestas[0].admin_lifecycle.capabilities.can_share = true;
+    apiFetchMock.mockResolvedValueOnce(payload);
+
+    await expect(adminListSurveys(undefined, { tenantSlug: 'org-demo' })).rejects.toThrow('survey_admin_list_contract_invalid');
+  });
+
+  it('rejects a blocked active lifecycle when public access explicitly allows participation', async () => {
+    const payload = blockedParticipationEnvelope();
+    Object.assign(payload.encuestas[0], { public_access: publicAccess(true) });
+    apiFetchMock.mockResolvedValueOnce(payload);
+
+    await expect(adminListSurveys(undefined, { tenantSlug: 'org-demo' })).rejects.toThrow('survey_admin_list_contract_invalid');
   });
 
   it('accepts a collecting conflict only when responses are blocked by the exact operational contract', async () => {

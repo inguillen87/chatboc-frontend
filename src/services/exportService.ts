@@ -270,7 +270,7 @@ const formatOptional = (value: string | null | undefined, fallback = '—'): str
 };
 
 const formatAverageHours = (value: number | null | undefined): string => {
-  if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return 'No disponible';
   return Number.isInteger(value)
     ? value.toString()
     : value.toFixed(2);
@@ -350,7 +350,7 @@ export interface MunicipalAnalyticsExportOptions {
   categoryTotals: AnalyticsCategoryTotal[];
   totals: {
     totalTickets: number;
-    averageResponseHours: number;
+    averageResponseHours: number | null;
     ticketsLabel: string;
   };
   filters: AnalyticsFilterSummary;
@@ -386,9 +386,7 @@ export const exportMunicipalAnalyticsPdf = async (options: MunicipalAnalyticsExp
     ['Total de tickets', formatNumberValue(options.totals.totalTickets)],
     [
       'Promedio de respuesta (h)',
-      Number.isFinite(options.totals.averageResponseHours)
-        ? formatNumberValue(options.totals.averageResponseHours)
-        : '0',
+      formatAverageHours(options.totals.averageResponseHours),
     ],
     ['Métrica principal', options.totals.ticketsLabel],
     ['Municipios analizados', options.municipalities.length.toString()],
@@ -520,9 +518,9 @@ export const exportMunicipalAnalyticsExcel = async (options: MunicipalAnalyticsE
     { Indicador: 'Total de tickets', Valor: safeNumberValue(options.totals.totalTickets) },
     {
       Indicador: 'Promedio de respuesta (h)',
-      Valor: Number.isFinite(options.totals.averageResponseHours)
+      Valor: typeof options.totals.averageResponseHours === 'number' && Number.isFinite(options.totals.averageResponseHours) && options.totals.averageResponseHours >= 0
         ? Number(options.totals.averageResponseHours.toFixed(2))
-        : 0,
+        : 'No disponible',
     },
     { Indicador: 'Métrica principal', Valor: options.totals.ticketsLabel },
     { Indicador: 'Municipios analizados', Valor: options.municipalities.length },
@@ -540,9 +538,9 @@ export const exportMunicipalAnalyticsExcel = async (options: MunicipalAnalyticsE
         Municipio: municipality.name,
         [options.totals.ticketsLabel]: ticketsValue,
         'Promedio respuesta (h)':
-          typeof municipality.averageResponseHours === 'number'
+          typeof municipality.averageResponseHours === 'number' && Number.isFinite(municipality.averageResponseHours) && municipality.averageResponseHours >= 0
             ? Number(municipality.averageResponseHours.toFixed(2))
-            : '',
+            : 'No disponible',
       };
       statusHeaders.forEach((header, index) => {
         const statusKey = options.statusKeys[index];

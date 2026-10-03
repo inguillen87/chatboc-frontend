@@ -14,7 +14,9 @@ import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new 
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
-import { ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
+import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
+import { fetchWithStartupContinuity, isClerkSessionRequest, isPanelCredentialLoginRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
+import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -453,6 +455,7 @@ const shouldLogVerboseApi = (): boolean => {
 export const REDACTED_API_LOG_VALUE = "[REDACTED]" as const;
 
 const SENSITIVE_API_DIAGNOSTIC_KEY_FRAGMENTS = [
+  "proof",
   "authorization",
   "token",
   "credential",
@@ -659,8 +662,15 @@ const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number
 };
 
 interface ApiFetchOptions {
-  /** One chosen destination and request only: no path/base fallback or redirects. */
+  /** Preserve document bytes; errors keep HTTP/auth handling without decoding bodies. */
+  responseType?: 'json' | 'response';
+  signal?: AbortSignal;
+  /** One chosen destination: no path/base fallback or redirects; no replay by default. */
   singleAttempt?: boolean;
+  /** Allow GET or the explicitly guarded password session exchange on pre-dispatch startup evidence. */
+  allowStartupRecovery?: boolean;
+  /** Retire a request when its initiating screen or credential attempt is no longer current. */
+  isCurrent?: () => boolean;
   schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
@@ -897,6 +907,8 @@ export const resolveOmnichannelConversationId = (
  * Soporta autenticación JWT y modo anónimo vía header "X-Anon-Id".
  * Elimina el uso de anon_id como query param (profesional).
  */
+export function apiFetch(path: string, options: ApiFetchOptions & { responseType: 'response'; schema?: never }): Promise<Response>;
+export function apiFetch<T = unknown>(path: string, options?: ApiFetchOptions & { responseType?: 'json' }): Promise<T>;
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
@@ -975,6 +987,24 @@ export async function apiFetch<T>(
     : treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path, { persist: persistTenantSlug !== false });
+  // Explicit tenant and global panel scopes have their own authority. Public page,
+  // cart and widget initialization may update presentation storage in parallel.
+  const isIsolatedPanelRequest = !skipAuth && !treatAsWidget && isWidgetRequest === false &&
+    (omitTenant === true || (typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug) && persistTenantSlug === false)) &&
+    omitEntityToken === true && omitChatSessionId === true;
+  const isStartupRecoveryCredentialLogin = options.allowStartupRecovery === true &&
+    isPanelCredentialLoginRequest(path, method) && skipAuth === true && omitCredentials === true &&
+    isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
+    persistTenantSlug === false && typeof options.isCurrent === 'function' &&
+    typeof body?.email === 'string' && Boolean(body.email) && typeof body?.password === 'string' && Boolean(body.password);
+  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin;
+  // An explicit anonymous tenant read does not carry the panel identity. A
+  // concurrent /me refresh must not retire it or select that private tenant.
+  // Its caller's signal/isCurrent still retires the public route itself.
+  const isIsolatedPublicTenantRead = method === 'GET' &&
+    skipAuth === true && omitCredentials === true &&
+    omitEntityToken === true && omitChatSessionId === true && persistTenantSlug === false &&
+    typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug);
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -1012,7 +1042,7 @@ export async function apiFetch<T>(
       if (panelToken) {
         token = panelToken;
         tokenSource = "authToken";
-      } else if (chatToken) {
+      } else if (chatToken && !isIsolatedPanelRequest) {
         token = chatToken;
         tokenSource = "chatAuthToken";
       }
@@ -1258,8 +1288,27 @@ export async function apiFetch<T>(
     headers,
     body: isForm ? body : (typeof body === "string" ? body : (body ? JSON.stringify(body) : undefined)),
     credentials: shouldOmitCredentials ? 'omit' : 'include',
+    signal: options.signal,
     cache,
   };
+
+  const readRequestIdentity = () => isIsolatedPublicTenantRead
+    ? JSON.stringify(['public-tenant-read', effectiveTenantSlug])
+    : JSON.stringify([
+    usePanelSessionStore.getState().authToken, hasIndependentRequestIdentity ? null : useWidgetSessionStore.getState().chatAuthToken,
+    safeLocalStorage.getItem('authToken'), hasIndependentRequestIdentity ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
+    safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),
+    ...(hasIndependentRequestIdentity ? [
+      safeLocalStorage.getItem('clerkSessionTransport'), usePanelSessionStore.getState().user?.id,
+      parseStoredJsonRecord('user')?.id, captureChatbocSessionRevision(),
+    ] : []),
+  ]);
+  const requestIdentity = readRequestIdentity();
+  const dispatch = (destination: string, init: RequestInit) => fetchWithStartupContinuity(destination, init, {
+    singleAttempt: options.singleAttempt === true && !(options.allowStartupRecovery === true && (method === 'GET' || isStartupRecoveryCredentialLogin)),
+    allowCredentialLoginRecovery: isStartupRecoveryCredentialLogin,
+    isCurrent: () => readRequestIdentity() === requestIdentity && options.isCurrent?.() !== false,
+  });
 
   // Vercel Preview containers can scale from zero. Every request, including
   // mutations, waits on the same contract-aware readiness promise so the first
@@ -1271,17 +1320,19 @@ export async function apiFetch<T>(
   const attemptedUrls = new Set<string>();
 
   const singleAttempt = options.singleAttempt === true;
-  if (singleAttempt) {
-    response = await fetch(url, { ...requestInit, redirect: 'error' });
+  const exclusiveRequest = singleAttempt || isClerkSessionRequest(url, method) || isPanelCredentialLoginRequest(url, method);
+  if (exclusiveRequest) {
+    response = await dispatch(url, { ...requestInit, redirect: 'error' });
   } else if (isAbsolutePath) {
     try {
-      response = await fetch(url, requestInit);
+      response = await dispatch(url, requestInit);
     } catch (err) {
+      if (err instanceof BackendBootstrapError || (err as Error)?.name === 'AbortError') throw err;
       lastError = err;
     }
   }
 
-  for (let baseIndex = 0; !singleAttempt && baseIndex < candidateBases.length; baseIndex++) {
+  for (let baseIndex = 0; !exclusiveRequest && baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];
     const cleanBase = (base || "").replace(/\/$/, "");
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
@@ -1305,7 +1356,7 @@ export async function apiFetch<T>(
       url = candidateUrl;
 
       try {
-        const candidateResponse = await fetch(candidateUrl, requestInit);
+        const candidateResponse = await dispatch(candidateUrl, requestInit);
 
         const shouldRetryForStatus = (status: number) => {
           if (status === 404) {
@@ -1333,7 +1384,7 @@ export async function apiFetch<T>(
         const hasMoreBases = baseIndex < candidateBases.length - 1;
         const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
         const isRetryableGatewayFailure =
-          isSafeReadRequest && [502, 503, 504].includes(candidateResponse.status);
+          isSafeReadRequest && !isStartupResponse(candidateResponse) && [502, 503, 504].includes(candidateResponse.status);
         const candidateContentType =
           candidateResponse.headers.get("content-type")?.toLowerCase() ?? "";
         const looksLikeFrontendHtmlShell =
@@ -1376,7 +1427,8 @@ export async function apiFetch<T>(
         response = candidateResponse;
         break;
       } catch (err) {
-        lastError = err;
+        if (err instanceof BackendBootstrapError || (err as Error)?.name === 'AbortError') throw err;
+      lastError = err;
         continue;
       }
     }
@@ -1386,10 +1438,10 @@ export async function apiFetch<T>(
     }
   }
 
-  if (!singleAttempt && !response && fallbackUrl) {
+  if (!exclusiveRequest && !response && fallbackUrl) {
     try {
       url = fallbackUrl;
-      response = await fetch(fallbackUrl, requestInit);
+      response = await dispatch(fallbackUrl, requestInit);
     } catch (fallbackErr) {
       lastError = fallbackErr;
     }
@@ -1402,6 +1454,12 @@ export async function apiFetch<T>(
     throw new NetworkError("No fue posible establecer la conexión con el servidor.");
   }
 
+  const assertCurrentResponse = () => {
+    if (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
+  };
+  assertCurrentResponse();
   if (typeof onResponse === "function") {
     try {
       onResponse(response.clone());
@@ -1413,7 +1471,16 @@ export async function apiFetch<T>(
     }
   }
 
+  // Document consumers validate MIME, size and digest without converting private
+  // bytes to text or including them in API diagnostics. Authentication and the
+  // dispatch retirement checks above are shared with ordinary requests.
+  if (options.responseType === 'response' && response.ok) {
+    assertCurrentResponse();
+    return response as T;
+  }
+
   try {
+    assertCurrentResponse();
     const responseTenantSlug = sanitizeTenantSlug(
       response.headers.get("X-Tenant-Slug") ||
       response.headers.get("x-tenant-slug") ||
@@ -1449,12 +1516,16 @@ export async function apiFetch<T>(
     }
 
     // Puede devolver vacío (204 No Content)
-    const text = await response.text().catch(() => "");
+    const responseContentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
+    // A denied document may carry private bytes under any Content-Type. Keep
+    // ordinary status/auth handling, without reading its body into diagnostics.
+    const text = options.responseType === 'response'
+      ? '' : await response.text().catch(() => "");
+    assertCurrentResponse();
     const trimmedText = text.trim();
     let data: any = null;
     let parsedAsJson = false;
-    const responseContentType =
-      response.headers.get("content-type")?.toLowerCase() ?? "";
 
     if (trimmedText) {
       try {
@@ -1620,6 +1691,7 @@ export async function apiFetch<T>(
 
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    if ((error as Error)?.name === 'AbortError') throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
         `Network/API connection issue while reaching ${BASE_API_URL}.`,

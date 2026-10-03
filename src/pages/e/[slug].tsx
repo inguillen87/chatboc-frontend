@@ -234,6 +234,7 @@ const PublicSurveyPage = () => {
   const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
   const {
     liveResults: polledLiveDashboard,
+    accessWithdrawn: liveAccessWithdrawn,
     isLoading: isLoadingLiveDashboard,
     isFetching: isFetchingLiveDashboard,
     error: liveDashboardError,
@@ -256,13 +257,15 @@ const PublicSurveyPage = () => {
       liveRequestParams.provincia,
   );
   const liveDashboard = useMemo(() => {
+    if (liveAccessWithdrawn) return undefined;
     if (!socketLiveDashboard || hasActiveLiveFilters) return polledLiveDashboard;
     if (!polledLiveDashboard) return socketLiveDashboard;
     return getLivePayloadVersion(socketLiveDashboard) >= getLivePayloadVersion(polledLiveDashboard)
       ? socketLiveDashboard
       : polledLiveDashboard;
-  }, [hasActiveLiveFilters, polledLiveDashboard, socketLiveDashboard]);
+  }, [hasActiveLiveFilters, liveAccessWithdrawn, polledLiveDashboard, socketLiveDashboard]);
   const seededResponseCount = useMemo(() => {
+    if (liveAccessWithdrawn) return null;
     const candidates = [
       liveDashboard?.seeded_responses,
       liveResults?.seeded_responses,
@@ -275,15 +278,17 @@ const PublicSurveyPage = () => {
     }
     return null;
   }, [
+    liveAccessWithdrawn,
     liveDashboard?.seeded_responses,
     liveResults?.seeded_responses,
     survey?.resultados_envivo?.seeded_responses,
     trustedResponseProvenance?.synthetic_responses_included,
   ]);
   const renderedLiveResults = useMemo(() => {
+    if (liveAccessWithdrawn) return undefined;
     const dashboardResults = toLegacyLiveResults(liveDashboard);
     return dashboardResults || liveResults;
-  }, [liveDashboard, liveResults]);
+  }, [liveAccessWithdrawn, liveDashboard, liveResults]);
   const surveySocketRooms = useMemo(() => {
     const realtime = survey?.realtime as Record<string, unknown> | undefined;
     const explicitRooms = Array.isArray(realtime?.rooms)
@@ -382,22 +387,24 @@ const PublicSurveyPage = () => {
 
   // Sync initial live results from survey data
   useEffect(() => {
-    if (!shouldRevealLiveResults) {
+    if (liveAccessWithdrawn || !shouldRevealLiveResults) {
       setLiveResults(undefined);
+      setSocketLiveDashboard(undefined);
       return;
     }
     if (survey?.resultados_envivo) {
       setLiveResults(survey.resultados_envivo);
     }
-  }, [shouldRevealLiveResults, survey?.resultados_envivo]);
+  }, [liveAccessWithdrawn, shouldRevealLiveResults, survey?.resultados_envivo]);
 
   // Handle Socket.IO connection
   useSurveySocket({
       slug: liveSlug || '',
       tenantSlug,
       rooms: surveySocketRooms,
-      enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
+      enabled: !liveAccessWithdrawn && Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
+          if (liveAccessWithdrawn || !shouldRevealLiveResults) return;
           const legacyResults = toLegacyLiveResults(data);
           setLiveResults(legacyResults);
           if (isLiveResultsV2(data)) {
@@ -566,7 +573,7 @@ const PublicSurveyPage = () => {
   }, [survey?.preguntas]);
 
   const totalVotes = useMemo(() => {
-    if (!survey) return null;
+    if (liveAccessWithdrawn || !survey) return null;
     if (typeof liveResults?.total_respuestas === 'number') {
       return liveResults.total_respuestas;
     }
@@ -580,13 +587,17 @@ const PublicSurveyPage = () => {
       }
     }
     return null;
-  }, [liveResults, survey]);
+  }, [liveAccessWithdrawn, liveResults, survey]);
 
   useEffect(() => {
+    if (liveAccessWithdrawn) {
+      setLivePollTotalVotes(null);
+      return;
+    }
     if (typeof totalVotes === 'number') {
       setLivePollTotalVotes(totalVotes);
     }
-  }, [totalVotes]);
+  }, [liveAccessWithdrawn, totalVotes]);
 
   const pollSubtitle = useMemo(() => {
     if (!survey?.descripcion) return null;
@@ -732,11 +743,12 @@ const PublicSurveyPage = () => {
     return {
       ...mapped,
       title: mapped.title,
-      subtitle: normalizedDescription,
-      primaryLabel: payloadPrimaryCta ?? mapped.primaryCta,
+      subtitle: !isTransientError && mapped.description === 'Proba nuevamente en unos segundos.' ? 'Solicitá un enlace vigente a la organización o consultá las encuestas disponibles.' : normalizedDescription,
+      actionHint: !isTransientError && mapped.actionHint !== 'go_home' ? 'view_other_surveys' : mapped.actionHint,
+      primaryLabel: !isTransientError && mapped.actionHint !== 'go_home' ? 'Ver encuestas' : payloadPrimaryCta ?? mapped.primaryCta,
       secondaryLabel: mode !== 'embed' ? payloadSecondaryCta ?? mapped.secondaryCta : null,
     };
-  }, [errorDetails, errorReasonCode, errorStatus, mode]);
+  }, [errorDetails, errorReasonCode, errorStatus, isTransientError, mode]);
 
   useEffect(() => {
     if (!error) return;
@@ -883,7 +895,7 @@ const PublicSurveyPage = () => {
                   onSubmit={async () => {}}
                   loading={false}
                   liveResults={renderedLiveResults}
-                  showLiveResults={true}
+                  showLiveResults={!liveAccessWithdrawn}
                   readOnly={true}
                   showHeader={false}
                   submitLabel={textOr(votacionUi?.resultados_boton, 'Ver resultados')}
@@ -943,7 +955,7 @@ const PublicSurveyPage = () => {
                 onSubmit={async () => {}}
                 loading={false}
                 liveResults={renderedLiveResults}
-                showLiveResults={true}
+                showLiveResults={!liveAccessWithdrawn}
                 readOnly={true}
                 showHeader={false}
                 submitLabel={textOr(votacionUi?.resultados_finales_boton, 'Ver resultados finales')}
@@ -976,10 +988,10 @@ const PublicSurveyPage = () => {
             >
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                  {!liveAccessWithdrawn ? <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
                     <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     {textOr(votacionUi?.badge_en_vivo, 'En vivo')}
-                  </span>
+                  </span> : null}
                   {isDemoParticipationSurvey ? (
                     <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
                       {textOr(votacionUi?.badge_demo, 'Demo')}
@@ -994,7 +1006,7 @@ const PublicSurveyPage = () => {
                 </div>
               </div>
 
-              {activeLiveView === 'results' ? (
+              {activeLiveView === 'results' && !liveAccessWithdrawn ? (
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border/60 py-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <Users className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -1014,7 +1026,7 @@ const PublicSurveyPage = () => {
               </div>
               ) : null}
 
-              {isDemoParticipationSurvey ? (
+              {isDemoParticipationSurvey && !liveAccessWithdrawn ? (
                 <div
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2 text-xs text-foreground"
                   data-testid="public-survey-demo-disclosure"
@@ -1356,13 +1368,13 @@ const PublicSurveyPage = () => {
                   aria-live="assertive"
                 >
                   <div>
-                    <p className="font-medium">No pudimos cargar los resultados en vivo.</p>
-                    <p className="mt-1 text-xs">{liveDashboardError}</p>
+                    <p className="font-medium">{liveAccessWithdrawn ? 'Resultados públicos no disponibles.' : 'No pudimos cargar los resultados en vivo.'}</p>
+                    <p className="mt-1 text-xs">{liveAccessWithdrawn ? liveStatus.description : liveDashboardError}</p>
                   </div>
-                  <Button type="button" size="sm" variant="outline" onClick={() => void refetchLiveDashboard()}>
+                  {!liveAccessWithdrawn ? <Button type="button" size="sm" variant="outline" onClick={() => void refetchLiveDashboard()}>
                     <RefreshCw className="mr-2 h-3.5 w-3.5" />
                     Reintentar
-                  </Button>
+                  </Button> : null}
                 </div>
               ) : null}
 

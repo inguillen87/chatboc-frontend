@@ -7,8 +7,9 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 const folder = '.vercel/operations-live-evidence/browser';
 const replacement = path.resolve('tests/e2e/fixtures/operations-workspace.api.tsx');
+const session = path.resolve('tests/e2e/fixtures/analytics-workspace.session.tsx');
 const server = await createServer({ configFile: false, plugins: [react()], cacheDir: '.vercel/operations-live-cache',
-  resolve: { alias: [{ find: /^@\/context\/(TenantContext|SocketContext)$/, replacement }, { find: /^\.\/(analyticsApi|PremiumTerritoryMap)$/, replacement }, { find: '@', replacement: path.resolve('src') }] },
+  resolve: { alias: [{ find: '@/hooks/useUser', replacement: session }, { find: /^@\/context\/(TenantContext|SocketContext)$/, replacement }, { find: /^\.\/(analyticsApi|PremiumTerritoryMap)$/, replacement }, { find: '@', replacement: path.resolve('src') }] },
   optimizeDeps: { entries: ['tests/e2e/fixtures/operations-workspace.html'] },
   server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 let browser; const results = [];
@@ -63,13 +64,21 @@ try {
       await expect(page.getByTestId('operations-workspace-status')).toContainText('con error');
       await page.getByTestId('operations-workspace-status').screenshot({ path: `${folder}/error-${width}.png` });
       assert.ok(methods.every(method => method === 'GET')); assert.deepEqual(errors, []);
-      results.push({ width, height, dark, passed: true, burstEvents: 50, burstReadBatches: 1, hiddenTabReads: 0, seriousAxeViolations: serious.length, requestMethods: [...new Set(methods)] });
+      for (const gate of ['qa-unverified','qa-profile-unverified']) {
+        const before = Object.values(counts).reduce((sum, count) => sum + count, 0);
+        await page.goto(`${origin}/tests/e2e/fixtures/operations-workspace.html?${gate}=1`);
+        await expect(page.getByText('Seleccioná una organización', { exact: true })).toBeVisible();
+        await expect(page.getByTestId('operations-workspace-status')).toHaveCount(0);
+        await page.waitForTimeout(250);
+        assert.equal(Object.values(counts).reduce((sum, count) => sum + count, 0), before); assert.deepEqual(errors, []);
+      }
+      results.push({ width, height, dark, passed: true, burstEvents: 50, burstReadBatches: 1, hiddenTabReads: 0, seriousAxeViolations: serious.length, requestMethods: [...new Set(methods)], unverifiedSessionReads: 0, unverifiedProfileReads: 0 });
     } catch (error) {
       await page.screenshot({ path: `${folder}/failure-${width}.png`, fullPage: true }).catch(() => {});
       results.push({ width, height, dark, passed: false, error: error.message, errors, counts });
     } finally { await context.close(); }
   }
-  const evidence = { syntheticData: true, productionBackend: false, realAuth: false, externalMapSubstituted: true, results };
+  const evidence = { syntheticData: true, syntheticVerifiedSession: true, productionBackend: false, realAuth: false, realPrivateScopeHook: true, realSessionAuthorityProvider: true, externalMapSubstituted: true, results };
   await writeFile(`${folder}/results.json`, JSON.stringify(evidence, null, 2)); console.log(JSON.stringify(evidence));
   assert.ok(results.every(result => result.passed), 'Operations workspace browser checks failed');
 } finally { await browser?.close(); await server.close(); }

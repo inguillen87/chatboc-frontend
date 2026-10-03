@@ -20,6 +20,7 @@ const results=[];
 try{
  for(const [route,width,height,dark] of [['/login',1440,1000,false],['/login',390,844,true],['/login',320,740,false],['/portal/index.html#/portal/dashboard',390,844,false],['/iframe.html',390,844,false]]){
   const context=await browser.newContext({viewport:{width,height},locale:'es-AR',reducedMotion:'reduce',serviceWorkers:'block'});
+  if(dark)await context.addInitScript(()=>localStorage.setItem('theme','dark'));
   const errors=[],writes=[];
   await context.route('**/*',route=>{
    const request=route.request(),url=new URL(request.url());
@@ -36,7 +37,6 @@ try{
   const id=route==='/login'?`login-${width}`:route.startsWith('/portal')?'portal':'iframe';
   try{
    const response=await page.goto(origin+route,{waitUntil:'domcontentloaded'});assert.equal(response.status(),200);
-   if(dark)await page.evaluate(()=>document.documentElement.classList.add('dark'));
    if(route==='/login'){
     await expect(page.getByRole('textbox',{name:'Correo electrónico'})).toBeVisible();
     await expect(page.getByLabel('Contraseña',{exact:true})).toBeVisible();
@@ -51,6 +51,7 @@ try{
    assert.equal(scriptReadiness.pendingScripts,0);assert.deepEqual(scriptReadiness.failures,[]);
    const requestedHeavy=scriptReadiness.observedPaths.filter(file=>HEAVY_STARTUP_CHUNK.test(file.slice(1)));
    if(mode==='check')assert.deepEqual(requestedHeavy,[],'No heavy feature may even begin loading during startup');
+   if(dark)await expect(page.locator('html')).toHaveClass(/\bdark\b/);
    const size=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
    assert.ok(size.scroll<=size.width+1,'Horizontal overflow');
    const resources=await page.evaluate(()=>performance.getEntriesByType('resource').filter(entry=>new URL(entry.name).origin===location.origin&&new URL(entry.name).pathname.endsWith('.js')).map(entry=>({path:new URL(entry.name).pathname,decodedBytes:entry.decodedBodySize,transferBytes:entry.transferSize})));

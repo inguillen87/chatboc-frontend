@@ -39,21 +39,26 @@ const humanizeCategory = (value: string): string =>
       : cleaned;
   })();
 
-const directAuthoritativeCategory = (ticket: Ticket): { published: boolean; value: string | null; conflict: boolean } => {
+const directAuthoritativeCategory = (ticket: Ticket): { value: string | null; conflict: boolean; unverified: boolean } => {
   const record = ticket as Ticket & {
     authoritative_category?: unknown;
     authoritativeCategory?: unknown;
+    category_authority?: unknown;
   };
-  const values = [record.authoritative_category, record.authoritativeCategory]
+  const publishedValues = [record.authoritative_category, record.authoritativeCategory]
+    .filter((value) => value !== undefined);
+  const values = publishedValues
     .map((value) => readCategory(value))
     .filter((value): value is string => Boolean(value));
-  const published = record.authoritative_category !== undefined || record.authoritativeCategory !== undefined;
-  if (!published) return { published: false, value: null, conflict: false };
-  if (!values.length) return { published: true, value: null, conflict: true };
+  const authority = record.category_authority && typeof record.category_authority === 'object' &&
+    !Array.isArray(record.category_authority)
+    ? record.category_authority as Record<string, unknown>
+    : null;
+  const unverified = publishedValues.some((value) => !readCategory(value)) ||
+    (authority?.contract_version === 'ticket.category_authority.v1' && authority.verified === false);
   const normalized = new Set(values.map(normalizeRoutingDimension));
-  return normalized.size === 1
-    ? { published: true, value: values[0], conflict: false }
-    : { published: true, value: null, conflict: true };
+  const conflict = normalized.size > 1;
+  return { value: !unverified && !conflict ? values[0] ?? null : null, conflict, unverified };
 };
 
 export const resolveTicketPresentationCategory = ({
@@ -82,7 +87,7 @@ export const resolveTicketPresentationCategory = ({
     };
   }
 
-  if (routingResolution?.ok) {
+  if (!directAuthority.unverified && routingResolution?.ok) {
     if (identity && routingResolution.authority.identity === identity && routingResolution.authority.category) {
       return {
         label: humanizeCategory(routingResolution.authority.category),
@@ -97,7 +102,7 @@ export const resolveTicketPresentationCategory = ({
     };
   }
 
-  if (routingResolution && 'reason' in routingResolution && routingResolution.reason === 'conflicting_authority') {
+  if (!directAuthority.unverified && routingResolution && 'reason' in routingResolution && routingResolution.reason === 'conflicting_authority') {
     return {
       label: 'Categoría por verificar',
       state: 'conflict',

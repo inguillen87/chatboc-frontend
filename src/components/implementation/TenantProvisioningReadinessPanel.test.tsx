@@ -1,9 +1,10 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TenantProvisioningReadinessPanel from '@/components/implementation/TenantProvisioningReadinessPanel';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 const readinessApi = vi.hoisted(() => ({ fetch: vi.fn() }));
 
@@ -132,5 +133,26 @@ describe('TenantProvisioningReadinessPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /reintentar/i }));
     expect(await screen.findByRole('heading', { name: /centro de implementación/i })).toBeInTheDocument();
     await waitFor(() => expect(readinessApi.fetch).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not accept a readiness contract from a retired session even when the actor returns unchanged', async () => {
+    let finishRead!: (value: typeof completeReadiness) => void;
+    readinessApi.fetch.mockReturnValueOnce(new Promise(resolve => { finishRead = resolve; }));
+    renderPanel();
+    const lifecycle = readinessApi.fetch.mock.calls[0][1];
+    expect(lifecycle.isCurrent()).toBe(true);
+    advanceChatbocSessionRevision();
+    await act(async () => finishRead(completeReadiness));
+    expect(lifecycle.isCurrent()).toBe(false);
+    expect(screen.queryByText('Configuración lista')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('retires the old scope before a delayed read can issue a request after unmount', async () => {
+    readinessApi.fetch.mockReturnValueOnce(new Promise(() => {}));
+    const view = renderPanel();
+    const lifecycle = readinessApi.fetch.mock.calls[0][1];
+    view.unmount();
+    expect(lifecycle.isCurrent()).toBe(false);
   });
 });

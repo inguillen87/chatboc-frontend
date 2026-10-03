@@ -42,6 +42,7 @@ import {
   useClerkStepUpAction,
 } from '@/hooks/useClerkStepUpAction';
 import { ApiError, NetworkError } from '@/utils/api';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { cn } from '@/lib/utils';
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -301,9 +302,19 @@ const GovernmentJurisdictionReadinessPanelContent: React.FC<GovernmentJurisdicti
   const [fieldErrors, setFieldErrors] = React.useState<Partial<Record<'jurisdictionRef' | 'evidenceRef' | 'evidenceSha256' | 'rejectionReason', string>>>({});
   const submissionAttemptRef = React.useRef<WriteAttempt | null>(null);
   const reviewAttemptRef = React.useRef<WriteAttempt | null>(null);
+  const readAttemptRef = React.useRef(0);
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      readAttemptRef.current += 1;
+    };
+  }, []);
 
   const scopeIsCurrent = (scope: RequestScope) =>
-    activeScopeRef.current.tenantSlug === scope.tenantSlug
+    mountedRef.current
+    && activeScopeRef.current.tenantSlug === scope.tenantSlug
     && activeScopeRef.current.generation === scope.generation;
 
   const publishReadiness = React.useCallback((nextReadiness: GovernmentJurisdictionReadiness) => {
@@ -313,24 +324,29 @@ const GovernmentJurisdictionReadinessPanelContent: React.FC<GovernmentJurisdicti
 
   const loadReadiness = React.useCallback(async (options: { preserveStatus?: boolean } = {}) => {
     const scope = activeScopeRef.current;
-    if (!scope.tenantSlug) return;
+    if (!scope.tenantSlug || !scopeIsCurrent(scope)) return;
+    const readAttempt = ++readAttemptRef.current;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => readAttempt === readAttemptRef.current
+      && isChatbocSessionRevisionCurrent(sessionRevision)
+      && scopeIsCurrent(scope);
     if (!options.preserveStatus) setLoading(true);
     setError(null);
     try {
-      const response = await getGovernmentJurisdictionReadiness(scope.tenantSlug);
-      if (!scopeIsCurrent(scope)) return;
+      const response = await getGovernmentJurisdictionReadiness(scope.tenantSlug, { isCurrent });
+      if (!isCurrent()) return;
       publishReadiness(response);
       setJurisdictionRef((current) => current || response.jurisdiction.reference || '');
       setEvidenceRef((current) => current || response.jurisdiction.evidence.reference || '');
     } catch (loadError) {
-      if (!scopeIsCurrent(scope)) return;
+      if (!isCurrent()) return;
       setReadiness(null);
       setError(safeErrorMessage(
         loadError,
         'No pudimos consultar el alcance institucional. La publicación permanece protegida.',
       ));
     } finally {
-      if (scopeIsCurrent(scope)) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [publishReadiness]);
 

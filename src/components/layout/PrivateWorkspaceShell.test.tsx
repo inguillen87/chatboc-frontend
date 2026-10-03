@@ -30,6 +30,12 @@ describe('authenticated organization shell',()=>{
     render(shell());expect(screen.getByTestId('private-workspace-pending')).toBeVisible();
     expect(screen.queryByText('Stored other brand')).not.toBeInTheDocument();expect(screen.queryByText('Organización A')).not.toBeInTheDocument();
   });
+  it('retains the verified private header on orders after a foreign public tenant visit',()=>{
+    state.slug='public-other';render(shell('/pedidos'));
+    expect(screen.getByRole('link',{name:'Panel de Organización A'})).toBeVisible();
+    expect(screen.getByTestId('private-workspace-brand')).toHaveAttribute('data-tenant-slug','org-a');
+    expect(screen.queryByTestId('private-workspace-pending')).not.toBeInTheDocument();
+  });
   it('withdraws the old logo and name immediately when a refresh starts',()=>{
     const view=render(shell());expect(screen.getByTestId('private-workspace-brand')).toBeVisible();
     state.loading=true;view.rerender(shell());expect(screen.queryByText('Organización A')).not.toBeInTheDocument();

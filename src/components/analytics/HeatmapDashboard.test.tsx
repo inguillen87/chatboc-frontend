@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'junin' }),
 }));
+vi.mock('@/features/analytics/usePrivateAnalyticsScope', () => ({ usePrivateAnalyticsScope: () => ({ pending: false, key: 'synthetic-junin', scope: { tenantSlug: 'junin', tenantId: null, kind: 'municipio' } }) }));
 
 vi.mock('@/services/analyticsService', () => ({
   analyticsService: {
