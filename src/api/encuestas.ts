@@ -1889,11 +1889,24 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
       if (!ADMIN_LIFECYCLE_PHASES.has(String(value.phase))) return false;
       if (!ADMIN_PERSISTED_STATES.has(String(value.persisted_state))) return false;
       if (typeof value.accepts_responses !== 'boolean') return false;
+      const hasPublicAccess = Object.prototype.hasOwnProperty.call(item, 'public_access');
+      const publicAccess = item.public_access;
+      if (hasPublicAccess && (
+        !isRecord(publicAccess) ||
+        publicAccess.contract_version !== 'surveys.public_access.v1' ||
+        typeof publicAccess.allowed !== 'boolean' ||
+        !(publicAccess.reason_code === null || (typeof publicAccess.reason_code === 'string' && Boolean(publicAccess.reason_code.trim()))) ||
+        !(publicAccess.next_action === null || (typeof publicAccess.next_action === 'string' && Boolean(publicAccess.next_action.trim())))
+      )) return false;
+      // Older list contracts omit public_access. When present, its public guard
+      // veto is part of the backend's effective participation calculation.
+      const publicParticipationAllowed = !hasPublicAccess ||
+        (isRecord(publicAccess) && publicAccess.allowed === true);
       const scope = resolveSurveyJurisdictionScope(item as unknown as SurveyAdmin);
       if (scope.source !== 'admin_scope') return false;
       const jurisdictionConflict = scope.classification === 'conflict';
       const phaseAcceptsResponses = ['collecting', 'live_voting'].includes(String(value.phase));
-      if (value.accepts_responses !== (phaseAcceptsResponses && !jurisdictionConflict)) return false;
+      if (value.accepts_responses !== (phaseAcceptsResponses && !jurisdictionConflict && publicParticipationAllowed)) return false;
       if (!isRecord(value.jurisdiction)) return false;
       if (
         value.jurisdiction.status !== scope.classification ||
@@ -1914,6 +1927,7 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
       if (!isRecord(value.capabilities) || !isRecord(value.participation) || !isRecord(value.actions)) return false;
       const capabilityKeys = ['can_publish', 'can_close', 'can_delete', 'can_share', 'can_view_results'];
       if (!capabilityKeys.every((key) => typeof value.capabilities[key] === 'boolean')) return false;
+      if (!publicParticipationAllowed && value.capabilities.can_share !== false) return false;
       if (
         jurisdictionConflict &&
         (value.capabilities.can_publish !== false || value.capabilities.can_share !== false)
