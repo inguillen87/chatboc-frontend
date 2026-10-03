@@ -40,6 +40,7 @@ interface UserData {
   logo_url?: string;
   organization_profile?: unknown;
   organization_workspace?: unknown;
+  platform_workspace?: unknown;
   avatar_url?: string;
   avatar_source?: string;
   avatar_consent?: boolean | string | number | null;
@@ -329,6 +330,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logo_url: data.logo_url,
         organization_profile: data.organization_profile,
         organization_workspace: data.organization_workspace,
+        platform_workspace: data.platform_workspace,
         avatar_url: resolvedProfileAvatar.avatarUrl,
         avatar_source: resolvedProfileAvatar.source,
         avatar_consent: resolvedProfileAvatar.consented,

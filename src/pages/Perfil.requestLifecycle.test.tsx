@@ -299,6 +299,82 @@ describe('Perfil request lifecycle', () => {
     });
   });
 
+  it('never presents the personal company as the platform workspace or an unselected institutional editor', async () => {
+    runtime.user = { ...verifiedUser('junin'), rol: 'super_admin', nombre_empresa: 'MyB Store',
+      platform_workspace: { contract_version: 'platform.workspace.v1', heading: 'Chatboc · Plataforma',
+        organization_label: 'Administración de plataforma', role_label: 'SuperAdmin',
+        organization_action: { label: 'Organizaciones', href: '/superadmin?section=organizations' } } };
+    runtime.apiFetch.mockImplementation(async (path: string) => path === '/api/me'
+      ? { ...profileResponse('junin'), nombre_empresa: 'MyB Store' } : {});
+    renderProfile('/perfil?section=general');
+    await screen.findByText('Elegí una organización');
+    expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+    expect(screen.getAllByRole('link', { name: 'Organizaciones' }).every(link => link.getAttribute('href') === '/superadmin?section=organizations')).toBe(true);
+  });
+
+  it('saves name, contact and activity only in the verified organization without replaying the write', async () => {
+    let profile = { ...organizationProfileResponse(), ui: { activity_label: 'Rubro o actividad', activity_description: 'Descripción institucional' },
+      values: { ...organizationProfileResponse().values, actividad: 'Servicios públicos' } };
+    wireSelectedOrganization(() => profile, body => {
+      profile = { ...profile, revision: 'b'.repeat(64), values: { ...profile.values, ...body.organization_profile } };
+      return { contract_version: 'organization.profile_save.v1', ok: true, tenant: profile.tenant, profile };
+    });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    const activity = await screen.findByRole('textbox', { name: 'Rubro o actividad' });
+    expect(activity).toHaveValue('Servicios públicos');
+    fireEvent.change(activity, { target: { value: 'Asistencia y accesibilidad' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre legal o institucional' }), { target: { value: 'Organización actualizada' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Teléfono institucional o de contacto/ }), { target: { value: '+54929015550101' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+    const writes = runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual(['/api/admin/tenants/selected-organization/config', expect.objectContaining({
+      tenantSlug: 'selected-organization', singleAttempt: true, allowStartupRecovery: false, isCurrent: expect.any(Function),
+      body: { expected_revision: 'a'.repeat(64), organization_profile: { nombre_empresa: 'Organización actualizada',
+        telefono: '+54929015550101', actividad: 'Asistencia y accesibilidad' } },
+    })]);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(runtime.user?.nombre_empresa).toBe('Mi cuenta personal');
+  });
+
+  it('uses the scoped organization editor even when SuperAdmin explicitly selects the home organization', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse());
+    runtime.user = { ...runtime.user, tenantSlug: 'selected-organization', tenant_slug: 'selected-organization' };
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(countApiCalls('/api/admin/tenants/selected-organization/config')).toBe(1);
+    expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+  });
+
+  it.each(['tenant_slug=', 'tenant_slug=../otro', 'tenant_slug=selected-organization&tenant=junin'])('never falls back to personal fields for an invalid explicit SuperAdmin selector: %s', async (query) => {
+    wireSelectedOrganization(() => organizationProfileResponse());
+    renderProfile(`/perfil?section=general&${query}`);
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it('retires the institutional save readback after leaving the editor', async () => {
+    let finishSave!: (value: unknown) => void;
+    const profile = organizationProfileResponse();
+    wireSelectedOrganization(() => profile, () => new Promise(resolve => { finishSave = resolve; }));
+    const view = renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    fireEvent.change(name, { target: { value: 'Edición pendiente' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1));
+    view.unmount();
+    await act(async () => finishSave({ contract_version: 'organization.profile_save.v1', ok: true, tenant: profile.tenant, profile }));
+    expect(runtime.apiFetch.mock.calls.filter(([path, options]) => path.endsWith('/config') && options?.method !== 'PUT')).toHaveLength(1);
+  });
+
   it('resolves the legacy orders link into the guarded orders route with filters and verified organization', async () => {
     window.history.replaceState({}, '', '/perfil?tab=orders&focus=assisted&channel=marketplace&q=consulta');
     render(<BrowserRouter><Routes>

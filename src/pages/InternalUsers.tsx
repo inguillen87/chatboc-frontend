@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch, ApiError, getErrorMessage, resolveTenantSlug } from '@/utils/api';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
 import {
   getEmployeeCoverageV2,
   getEmployeeRoutingV2,
@@ -10,7 +10,12 @@ import {
 import EmployeeRoutingMatrix from '@/components/admin/EmployeeRoutingMatrix';
 import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
-import type { Role } from '@/utils/roles';
+import { hasRequiredRole, type Role } from '@/utils/roles';
+import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { privateBackendRead } from '@/utils/privateBackendRead';
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -638,6 +643,14 @@ const ScopeBadges = ({ employee }: { employee: InternalUser }) => {
 export default function InternalUsers() {
   useRequireRole(['admin', 'super_admin', 'tenant_admin'] as Role[]);
   const { user } = useUser();
+  const { scope, pending, key } = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso al equipo" />;
+  if (!hasRequiredRole(user?.rol, ['admin', 'super_admin', 'tenant_admin'])) return <ViewState status="denied" title="No tenés acceso a la administración del equipo" />;
+  if (!scope) return <ViewState status="denied" title="Organización del equipo no verificada" />;
+  return <ScopedInternalUsers key={key} tenantSlug={scope.tenantSlug} />;
+}
+
+function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
   const [employees, setEmployees] = useState<InternalUser[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -665,31 +678,34 @@ export default function InternalUsers() {
   const [editChannels, setEditChannels] = useState<string[]>([]);
   const [editPermisos, setEditPermisos] = useState<string[]>([]);
 
-  const tenantSlug = useMemo(
-    () => resolveTenantSlug(user?.tenantSlug || (user as AnyRecord | undefined)?.tenant_slug),
-    [user],
-  );
+  const mounted = useRef(true), loadVersion = useRef(0);
+  const sessionRevision = useRef(captureChatbocSessionRevision());
+  const scopeIsCurrent = useCallback(() => mounted.current && isChatbocSessionRevisionCurrent(sessionRevision.current), []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; loadVersion.current++; }; }, []);
 
   const fetchData = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!scopeIsCurrent()) return;
+    const version = ++loadVersion.current;
+    const isCurrent = () => scopeIsCurrent() && version === loadVersion.current;
     setLoading(true);
     setError(null);
     try {
-      const employeesData = await apiFetch<InternalUser[] | EmployeesResponse>(EMPLOYEES_API_BASE, { tenantSlug });
+      const employeesData = await privateBackendRead(EMPLOYEES_API_BASE, tenantSlug, { isCurrent });
+      if (!isCurrent()) return;
       const list = extractEmployees(employeesData);
 
       let cats = normalizeCategoryList(employeesData);
       if (cats.length === 0) {
-        const categoriesData = await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/ticket-categories`, {
-          tenantSlug,
-        }).catch(() => null);
+        const categoriesData = await privateBackendRead(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/ticket-categories`, tenantSlug, { isCurrent }).catch(() => null);
+        if (!isCurrent()) return;
         cats = normalizeCategoryList(categoriesData);
       }
 
       const [coverageData, routingData] = await Promise.all([
-        getEmployeeCoverageV2(tenantSlug).catch(() => null),
-        getEmployeeRoutingV2(tenantSlug).catch(() => null),
+        getEmployeeCoverageV2(tenantSlug, { isCurrent }).catch(() => null),
+        getEmployeeRoutingV2(tenantSlug, { isCurrent }).catch(() => null),
       ]);
+      if (!isCurrent()) return;
 
       if (coverageData) {
         cats = mergeCategories(cats, coverageData.categories.map(coverageBucketToCategory));
@@ -700,12 +716,12 @@ export default function InternalUsers() {
       setCoverage(coverageData);
       setRouting(routingData);
     } catch (err: unknown) {
-      console.error(err);
+      if (!isCurrent()) return;
       setError(getErrorMessage(err, 'Error al cargar empleados o categorias.'));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeIsCurrent]);
 
   useEffect(() => {
     if (tenantSlug) {
@@ -782,7 +798,7 @@ export default function InternalUsers() {
         .includes(term);
     });
   }, [employeeSearch, employees]);
-  const unassignedCount = routing?.queues.unassigned_count ?? 0;
+  const unassignedCount = routing?.queues.unassigned_count ?? null;
 
   const resetCreateForm = () => {
     setNombre('');
@@ -813,6 +829,7 @@ export default function InternalUsers() {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!scopeIsCurrent()) return;
     if (!nombre.trim() || !email.trim() || !password.trim()) return;
     if (!isValidEmail(email)) {
       toast.error('Email invalido.');
@@ -840,10 +857,12 @@ export default function InternalUsers() {
       };
 
       const createdResponse = await apiFetch<unknown>(EMPLOYEES_API_BASE, {
+        ...panelReadOptions(tenantSlug), singleAttempt: true, allowStartupRecovery: false, isCurrent: scopeIsCurrent,
         method: 'POST',
         tenantSlug,
         body: payload,
       });
+      if (!scopeIsCurrent()) return;
 
       const createdEmployee =
         normalizeInternalUser(
@@ -857,6 +876,7 @@ export default function InternalUsers() {
       await fetchData();
       resetCreateForm();
     } catch (err: unknown) {
+      if (!scopeIsCurrent()) return;
       const backendMessage = getBackendErrorText(err);
       toast.error(backendMessage || getErrorMessage(err, 'Error al crear empleado.'));
     }
@@ -882,7 +902,7 @@ export default function InternalUsers() {
 
   const handleUpdate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingUser || !tenantSlug) return;
+    if (!editingUser || !scopeIsCurrent()) return;
 
     try {
       const selectedCategories = selectedCategorySlugs(editCategoriaIds, categories);
@@ -909,15 +929,18 @@ export default function InternalUsers() {
       if (editPassword) payload.password = editPassword;
 
       await apiFetch(`${EMPLOYEES_API_BASE}/${editingUser.id}`, {
+        ...panelReadOptions(tenantSlug), singleAttempt: true, allowStartupRecovery: false, isCurrent: scopeIsCurrent,
         method: 'PUT',
         tenantSlug,
         body: payload,
       });
+      if (!scopeIsCurrent()) return;
 
       toast.success('Empleado actualizado.');
       setEditingUser(null);
       await fetchData();
     } catch (err: unknown) {
+      if (!scopeIsCurrent()) return;
       const backendMessage = getBackendErrorText(err);
       toast.error(backendMessage || getErrorMessage(err, 'Error al actualizar empleado.'));
     }
@@ -943,8 +966,8 @@ export default function InternalUsers() {
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="rounded-full px-3 py-1">{employees.length} empleados</Badge>
             <Badge variant="outline" className="rounded-full px-3 py-1">{categories.length} categorias</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{uncoveredCategories.length} categorias sin responsable</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{unassignedCount} tickets sin asignar</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{coverage ? `${uncoveredCategories.length} categorias sin responsable` : 'Cobertura no disponible'}</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{unassignedCount === null ? 'Asignación no disponible' : `${unassignedCount} tickets sin asignar`}</Badge>
           </div>
         </div>
       </div>
@@ -953,7 +976,7 @@ export default function InternalUsers() {
         <TeamStatCard label="Empleados" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos" icon={Users2} />
         <TeamStatCard label="Roles" value={roleOptions.length.toLocaleString('es-AR')} helper="Perfiles disponibles" icon={KeyRound} />
         <TeamStatCard label="Categorias" value={categories.length.toLocaleString('es-AR')} helper="Tipos de reclamo asignables" icon={Layers3} />
-        <TeamStatCard label="Sin asignar" value={unassignedCount.toLocaleString('es-AR')} helper="Tickets abiertos sin responsable" icon={MapPinned} />
+        <TeamStatCard label="Sin asignar" value={unassignedCount === null ? 'No informado' : unassignedCount.toLocaleString('es-AR')} helper="Tickets abiertos sin responsable" icon={MapPinned} />
       </div>
 
       <Accordion type="single" collapsible className="w-full">
@@ -999,7 +1022,7 @@ export default function InternalUsers() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No hay categorias sin responsable publicadas por backend.</p>
+                    <p className="text-sm text-muted-foreground">{coverage ? 'No hay categorias sin responsable publicadas por backend.' : 'No pudimos verificar la cobertura. No se puede confirmar que todas las categorías tengan responsable.'}</p>
                   )}
                 </CardContent>
               </Card>

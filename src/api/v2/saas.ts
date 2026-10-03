@@ -1804,21 +1804,21 @@ export const normalizeOmnichannelInboxActionV2 = (
   };
 };
 
-export const getEmployeeCoverageV2 = async (tenantSlug?: string | null) => {
+export const getEmployeeCoverageV2 = async (tenantSlug?: string | null, lifecycle: { isCurrent?: () => boolean } = {}) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/employee-coverage` : '/api/v2/employee-coverage',
-      { tenantSlug },
+      { tenantSlug, ...lifecycle },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
     try {
-      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug });
+      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug, ...lifecycle });
     } catch (fallbackError) {
       if (!shouldFallbackEndpoint(fallbackError)) throw fallbackError;
-      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug });
+      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug, ...lifecycle });
     }
   }
   return normalizeEmployeeCoverageV2(response);
@@ -2292,17 +2292,17 @@ export const normalizeEmployeeRoutingV2 = (response: unknown): EmployeeRoutingV2
   };
 };
 
-export const getEmployeeRoutingV2 = async (tenantSlug?: string | null) => {
+export const getEmployeeRoutingV2 = async (tenantSlug?: string | null, lifecycle: { isCurrent?: () => boolean } = {}) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/employee-routing` : '/api/v2/employee-routing',
-      { tenantSlug },
+      { tenantSlug, ...lifecycle },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
-    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug });
+    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug, ...lifecycle });
   }
   return normalizeEmployeeRoutingV2(response);
 };

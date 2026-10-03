@@ -94,7 +94,7 @@ import InstitutionProfileWorkspace, {
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
-import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ORDER_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
@@ -415,6 +415,7 @@ type OrganizationProfileSettings = {
   can_edit: boolean;
   editability: { mode: string; message?: string };
   values: Record<string, any>;
+  ui?: { activity_label?: string; activity_description?: string };
 };
 
 const readOrganizationProfile = (value: unknown, expectedSlug: string): OrganizationProfileSettings | null => {
@@ -504,6 +505,7 @@ export default function Perfil() {
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
+    actividad: "",
     telefono: "",
     direccion: "",
     ciudad: "",
@@ -580,7 +582,7 @@ export default function Perfil() {
   );
   const isPlatformAdministrator = normalizeRole(user?.rol) === 'superadmin';
   const usesScopedOrganizationProfile = Boolean(
-    isPlatformAdministrator && hasRequestedTenant && requestedTenantSlug && requestedTenantSlug !== userTenantSlug,
+    isPlatformAdministrator && hasRequestedTenant,
   );
   const verifiedProfileTenantSlug = normalizeProfileTenantSlug(
     (perfil as any)?.tenant_slug || (perfil as any)?.slug,
@@ -623,11 +625,19 @@ export default function Perfil() {
     : null;
   const currentProfileScopeRef = useRef(profileIdentityScope);
   currentProfileScopeRef.current = profileIdentityScope;
+  const profileMountedRef = useRef(true);
+  useEffect(() => {
+    profileMountedRef.current = true;
+    return () => { profileMountedRef.current = false; };
+  }, []);
   const matchingOrganizationProfile = usesScopedOrganizationProfile && profileTenantScope &&
     organizationProfile?.tenant.slug === profileTenantScope &&
     matchingRequestedAuthority?.status === 'authorized'
       ? organizationProfile : null;
-  const institutionDisplayName = usesScopedOrganizationProfile
+  const isPlatformWorkspace = isPlatformAdministrator && !hasRequestedTenant;
+  const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
+    ? (user as any).platform_workspace : null;
+  const institutionDisplayName = isPlatformWorkspace ? platformWorkspace?.heading || 'Administración de plataforma' : usesScopedOrganizationProfile
     ? matchingOrganizationProfile?.values.nombre_empresa || requestedTenantSlug || 'Organización seleccionada'
     : perfil.nombre_empresa || 'Panel de Empresa';
   const authoritativeChannelActivation =
@@ -1385,6 +1395,7 @@ export default function Perfil() {
           throw new ApiError('No tenés acceso al perfil de esta organización.', 403);
         }
         const bundle = await apiFetch<any>(`/api/admin/tenants/${encodeURIComponent(normalizedRequestedTenant)}/config`, {
+          ...panelReadOptions(normalizedRequestedTenant), isCurrent,
           tenantSlug: normalizedRequestedTenant, cache: 'no-store', persistTenantSlug: false,
           omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
         });
@@ -1488,6 +1499,7 @@ export default function Perfil() {
           data.tenantSlug ||
           (prev as any).slug,
         nombre_empresa: data.nombre_empresa || "",
+        actividad: typeof data.actividad === 'string' ? data.actividad : '',
         telefono: data.telefono || "",
         direccion,
         ciudad: data.ciudad || "",
@@ -1983,8 +1995,11 @@ export default function Perfil() {
         return;
       }
       const savedScope = profileIdentityScope;
+      const savedRevision = captureChatbocSessionRevision();
+      const isSaveCurrent = () => profileMountedRef.current && currentProfileScopeRef.current === savedScope && isChatbocSessionRevisionCurrent(savedRevision);
       const currentValues = {
         nombre_empresa: perfil.nombre_empresa, telefono: perfil.telefono,
+        ...(typeof target.values.actividad === 'string' ? { actividad: perfil.actividad } : {}),
         direccion: perfil.direccion, ciudad: perfil.ciudad, provincia: perfil.provincia, pais: perfil.pais,
         latitud: perfil.latitud, longitud: perfil.longitud, link_web: perfil.link_web, logo_url: perfil.logo_url,
         ...(organizationHoursEdited ? {
@@ -2004,13 +2019,14 @@ export default function Perfil() {
       try {
         const receipt = await apiFetch<any>(`/api/admin/tenants/${encodeURIComponent(target.tenant.slug)}/config`, {
           method: 'PUT', tenantSlug: target.tenant.slug,
+          singleAttempt: true, allowStartupRecovery: false, isCurrent: isSaveCurrent,
           omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false, persistTenantSlug: false,
           body: {
             expected_revision: target.revision,
             organization_profile: changes,
           },
         });
-        if (currentProfileScopeRef.current !== savedScope) return;
+        if (!isSaveCurrent()) return;
         const savedProfile = readOrganizationProfile(receipt.profile, target.tenant.slug);
         if (receipt.contract_version !== 'organization.profile_save.v1' || receipt.ok !== true ||
           receipt.tenant?.id !== target.tenant.id || receipt.tenant?.slug !== target.tenant.slug ||
@@ -2019,19 +2035,19 @@ export default function Perfil() {
         }
         const refreshedProfile = await fetchPerfil({
           tenantSlug: target.tenant.slug,
-          isCurrent: () => currentProfileScopeRef.current === savedScope,
+          isCurrent: isSaveCurrent,
         });
-        if (refreshedProfile && currentProfileScopeRef.current === savedScope) {
+        if (refreshedProfile && isSaveCurrent()) {
           setMensaje('Cambios de la organización guardados correctamente.');
         }
       } catch (err) {
-        if (currentProfileScopeRef.current === savedScope) {
+        if (isSaveCurrent()) {
           setError(err instanceof ApiError && err.status === 412
             ? 'Otra persona actualizó este perfil. Conservamos tus cambios: usá Actualizar perfil para revisar la versión actual antes de volver a guardar.'
             : getErrorMessage(err, 'No pudimos confirmar el guardado de la organización. Actualizá el perfil antes de reintentar.'));
         }
       } finally {
-        if (currentProfileScopeRef.current === savedScope) setLoadingGuardar(false);
+        if (isSaveCurrent()) setLoadingGuardar(false);
       }
       return;
     }
@@ -2649,7 +2665,7 @@ export default function Perfil() {
   const renderedSecondaryControlCards = controlCardsFromBackend
     ? backendControlCards.slice(4)
     : secondaryControlCards;
-  const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
+  const backofficeScope = esMunicipio ? 'municipio' : (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) || 'pyme';
   const isInstitutionProfileViewport = activeProfileTab === "perfil" && isInstitutionProfileOpen;
   const isViewportWorkspaceProfileTab =
     activeProfileTab === "tickets" ||
@@ -2804,6 +2820,9 @@ export default function Perfil() {
                 </h1>
               </div>
             </div>
+            {isPlatformWorkspace ? <Button asChild variant="outline" size="sm"><Link to="/superadmin?section=organizations">
+              {platformWorkspace?.organization_action?.label || 'Organizaciones'}
+            </Link></Button> : null}
           </div>
         ) : (
         <div className="clear-both rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm backdrop-blur sm:p-5">
@@ -2823,7 +2842,11 @@ export default function Perfil() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 pl-14 lg:pl-0" role="group" aria-label="Contexto de la organización">
-              {isTenantAdministrator ? (
+              {isPlatformWorkspace ? (
+                <Button asChild variant="outline" size="sm"><Link to="/superadmin?section=organizations">
+                  <Settings2 className="mr-2 h-4 w-4" />{platformWorkspace?.organization_action?.label || 'Organizaciones'}
+                </Link></Button>
+              ) : isTenantAdministrator ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -2835,10 +2858,10 @@ export default function Perfil() {
                 </Button>
               ) : null}
               <Badge variant="outline" className="rounded-md px-2.5 py-1 text-xs font-medium">
-                {esMunicipio ? "Gestión municipal" : "Gestión comercial"}
+                {isPlatformWorkspace ? platformWorkspace?.organization_label || "Administración de plataforma" : esMunicipio ? "Gestión municipal" : "Gestión comercial"}
               </Badge>
               <Badge variant="secondary" className="rounded-md px-2.5 py-1 text-xs font-medium">
-                {isTenantAdministrator ? "Administrador" : "Operador"}
+                {isPlatformWorkspace ? platformWorkspace?.role_label || "SuperAdmin" : isTenantAdministrator ? "Administrador" : "Operador"}
               </Badge>
             </div>
           </div>
@@ -2982,7 +3005,11 @@ export default function Perfil() {
               <AlertDescription>Usá Actualizar perfil para volver a verificar los permisos de esta organización.</AlertDescription>
             </Alert>
           ) : null}
-          {usesScopedOrganizationProfile && !matchingOrganizationProfile ? (
+          {isPlatformWorkspace ? (
+            <ViewState status="empty" title={platformWorkspace?.selection_heading || 'Elegí una organización'}
+              description={platformWorkspace?.selection_description || 'Abrí el directorio para consultar o editar los datos de una organización.'}
+              action={<Button asChild><Link to="/superadmin?section=organizations">{platformWorkspace?.organization_action?.label || 'Organizaciones'}</Link></Button>} />
+          ) : usesScopedOrganizationProfile && !matchingOrganizationProfile ? (
             <ViewState
               status={organizationProfileStatus === 'denied' ? 'denied' : organizationProfileStatus === 'error' ? 'error' : 'loading'}
               title={organizationProfileStatus === 'denied' ? 'Perfil institucional no habilitado' : organizationProfileStatus === 'error' ? 'No pudimos verificar el perfil institucional' : 'Verificando la organización'}
@@ -3037,6 +3064,14 @@ export default function Perfil() {
                     Se muestra en el encabezado del espacio de trabajo y en las comunicaciones oficiales.
                   </p>
                 </div>
+                {usesScopedOrganizationProfile && typeof matchingOrganizationProfile?.values.actividad === 'string' &&
+                  matchingOrganizationProfile.ui?.activity_label ? (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="actividad">{matchingOrganizationProfile.ui.activity_label}</Label>
+                    <Input id="actividad" value={perfil.actividad} maxLength={100} onChange={handleInputChange} />
+                    <p className="text-xs leading-5 text-muted-foreground">{matchingOrganizationProfile.ui.activity_description}</p>
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   <Label htmlFor="telefono">Teléfono institucional o de contacto — no configura WhatsApp</Label>
                   <Input

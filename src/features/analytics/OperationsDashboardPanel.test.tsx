@@ -15,7 +15,10 @@ import type {
 } from './analyticsTypes';
 import { OperationsDashboardPanel } from './OperationsDashboardPanel';
 import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+
+// Exercise actual internal navigation rather than the global test Link stub.
+vi.mock('react-router-dom', () => vi.importActual('react-router-dom'));
 
 const mocks = vi.hoisted(() => ({
   ensureReady: vi.fn(),
@@ -288,7 +291,26 @@ const heatmapFixture = (overrides: Partial<OperationsHeatmapV1> = {}): Operation
       method: 'PATCH',
       endpoint: '/api/tickets/{record_id}/ubicacion',
     },
+    guidance: {
+      recommended_actions: [{
+        id: 'open_geocoding_queue', label: 'Revisar cola', enabled: true,
+        tenant_slug: 'junin', action_type: 'open_queue', writes_enabled: false,
+        ui_hint: 'open_geocoding_queue',
+        href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue',
+      }],
+    },
   },
+  ui: { labels: {
+    geocoding_queue: 'Cola de geocodificación',
+    pending_geocode: 'Ubicaciones pendientes de revisión',
+    geocoding_queue_description: 'Revisá las direcciones antes de completar o confirmar su ubicación. Abrir la cola no cambia los casos.',
+    geocoding_queue_empty: 'No hay direcciones pendientes para los filtros actuales.',
+    geocoding_technical_details: 'Detalles de la actualización de ubicación',
+    reason_address_without_coordinates: 'Dirección sin coordenadas guardadas.',
+    reason_addresses_need_geocoding: 'Hay direcciones que requieren revisión y coordenadas.',
+    realtime: 'Actualización por consulta', realtime_polling_status: 'Consulta periódica',
+    realtime_poll_description: 'Consulta cada 20 segundos mientras esta vista está activa. No indica una conexión en vivo.',
+  } },
   facets: [
     {
       key: 'categoria',
@@ -572,7 +594,12 @@ const mapConfigFixture = (): PublicMapConfigV1 => ({
   available_providers: ['maplibre'],
 });
 
-const renderPanel = () => {
+const LocationObserver = () => {
+  const location = useLocation();
+  return <output data-testid="navigation-location">{location.pathname}{location.search}</output>;
+};
+
+const renderPanel = (observeLocation = false) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -585,6 +612,7 @@ const renderPanel = () => {
   return render(
     <MemoryRouter><QueryClientProvider client={queryClient}>
       <OperationsDashboardPanel />
+      {observeLocation ? <LocationObserver /> : null}
     </QueryClientProvider></MemoryRouter>,
   );
 };
@@ -802,6 +830,52 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
     expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
     expect(mocks.getPublicMapConfigV1).not.toHaveBeenCalled();
+  });
+
+  it('opens the authorized location queue with current category and zone without refetching', async () => {
+    const fixture = heatmapFixture();
+    fixture.facets?.push({ key: 'zona', query_param: 'zona', label: 'Zona', items: [{ key: 'Centro', label: 'Centro', count: 1 }] });
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel(true);
+    await screen.findByTestId('operations-heatmap');
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    fireEvent.change(await screen.findByLabelText('Zona declarada'), { target: { value: 'Centro' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado', barrio: 'Centro' })));
+    const link = await screen.findByRole('link', { name: 'Revisar cola' });
+    const destination = '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&categoria=alumbrado&zona=Centro';
+    expect(link).toHaveAttribute('href', destination);
+    const reads = mocks.getOperationsHeatmapV2.mock.calls.length;
+    fireEvent.click(link);
+    expect(screen.getByTestId('navigation-location')).toHaveTextContent(destination);
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(reads);
+    expect(screen.getByText('Actualización por consulta')).toBeVisible();
+    expect(screen.getByText('Consulta periódica')).toBeVisible();
+    expect(screen.queryByText(/^activo$/i)).not.toBeInTheDocument();
+    const details = screen.getByText('Detalles de la actualización de ubicación').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent('/api/tickets/{record_id}/ubicacion');
+  });
+
+  it.each([
+    { enabled: false }, { enabled: 'true' }, { writes_enabled: true }, { action_type: 'api' },
+    { tenant_slug: 'tierra-del-fuego' },
+    { tenantSlug: 'tierra-del-fuego' },
+    { href: 'https://foreign.invalid/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue' },
+    { href: '//foreign.invalid/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=tierra-del-fuego&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&tenant=tierra-del-fuego' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&tenant_id=46' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=tierra-del-fuego&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue#foreign' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue\\foreign' },
+  ])('does not offer queue navigation for an unauthorized or conflicting action %j', async (override) => {
+    const fixture = heatmapFixture();
+    Object.assign(fixture.geocoding!.guidance!.recommended_actions![0], override);
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-heatmap');
+    expect(screen.queryByRole('link', { name: 'Revisar cola' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revisar cola' })).not.toBeInTheDocument();
   });
 
   it('surfaces territorial quality, layers, filters and geocoding queue around the premium map', async () => {

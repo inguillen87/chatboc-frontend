@@ -468,6 +468,40 @@ const formatEndpoint = (action?: OperationsActionItem) =>
 const actionHref = (action?: OperationsActionItem) =>
   asString(action?.href) ?? asString(action?.frontend_path) ?? asString(action?.route);
 
+const geocodingQueueHref = (
+  action: OperationsActionItem | undefined,
+  tenantSlug: string,
+  filters: HeatmapFilterState,
+): string | undefined => {
+  if (!action || action.id !== 'open_geocoding_queue' || action.enabled !== true
+    || action.action_type !== 'open_queue' || action.writes_enabled !== false
+    || action.ui_hint !== 'open_geocoding_queue' || asString(action.tenant_slug) !== tenantSlug
+    || !isTerritorialTenantScopeCompatible(action, tenantSlug)) return undefined;
+  const href = actionHref(action);
+  if (!href?.startsWith('/perfil?') || /[\\\u0000-\u0020]/.test(href)) return undefined;
+  try {
+    const url = new URL(href, 'https://private.invalid');
+    if (url.origin !== 'https://private.invalid' || url.pathname !== '/perfil' || url.hash
+      || url.searchParams.getAll('tab').length !== 1 || url.searchParams.get('tab') !== 'tickets'
+      || url.searchParams.getAll('focus').length !== 1 || url.searchParams.get('focus') !== 'open_geocoding_queue'
+      || url.searchParams.getAll('tenant_slug').length !== 1 || url.searchParams.get('tenant_slug') !== tenantSlug) return undefined;
+    const allowed = new Set(['tab', 'focus', 'tenant_slug', 'categoria', 'zona']);
+    if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) return undefined;
+    const activeValues = {
+      categoria: filters.categoria,
+      zona: [filters.barrio, filters.distrito].filter(Boolean).join(','),
+    };
+    for (const key of ['categoria', 'zona'] as const) {
+      if (url.searchParams.getAll(key).length > 1) return undefined;
+      if (activeValues[key]) url.searchParams.set(key, activeValues[key]);
+      else url.searchParams.delete(key);
+    }
+    return `${url.pathname}?${url.searchParams.toString()}`;
+  } catch {
+    return undefined;
+  }
+};
+
 const isExternalHref = (href: string) => /^https?:\/\//i.test(href);
 
 const appendInternalQueryParam = (href: string, key: string, value: string) => {
@@ -3000,9 +3034,8 @@ function OperationsHeatmapPanel({
     asString(quality?.label) ??
     (qualityState ? uiLabels[`quality_${qualityState}`] : undefined) ??
     'Calidad pendiente';
-  const qualityReason = quality?.reason_code
-    ? humanizeHeatmapToken(quality.reason_code, 'contrato operativo')
-    : 'contrato operativo';
+  const qualityReason = (quality?.reason_code ? uiLabels[`reason_${quality.reason_code}`] : undefined)
+    ?? uiLabels.quality_reason_unavailable;
   const coveragePercent =
     readNumber(quality?.coverage_percent, heatmap?.summary?.coverage_percent, heatmap?.summary?.coordinate_coverage_pct) ??
     normalizedCoverageRate;
@@ -3034,16 +3067,8 @@ function OperationsHeatmapPanel({
     recordsWithoutCoordinates !== undefined
       ? `${formatNumber(recordsWithoutCoordinates)} registros sin coordenadas`
       : 'sin cola publicada';
-  const latestRealtime = asString(realtime?.latest_event_at);
-  const realtimeEvents = realtime?.socket_events ?? [];
-  const realtimeSources = realtime?.sources ?? [];
-  const realtimeReady = Boolean(realtime?.poll_seconds || latestRealtime || realtimeEvents.length || realtimeSources.length);
-  const realtimeDetail =
-    latestRealtime
-      ? `ultimo evento ${latestRealtime}`
-      : realtimeEvents.length
-        ? `${realtimeEvents.slice(0, 2).join(', ')}`
-        : 'sin eventos recientes';
+  const periodicReadsConfigured = Boolean(realtime?.poll_seconds && realtime.poll_seconds > 0);
+  const realtimeDetail = uiLabels.realtime_poll_description ?? '';
   const mapEngines = mapExperience?.map_engines ?? [];
   const layerGroups = mapExperience?.layer_groups ?? [];
   const preferredVisualizationRaw = asString(mapExperience?.preferred_visualization);
@@ -3062,7 +3087,7 @@ function OperationsHeatmapPanel({
       key: 'quality',
       label: uiLabels.map_quality || 'Calidad del mapa',
       value: qualityLabel,
-      detail: qualityReason,
+      detail: qualityReason ?? '',
       icon: Gauge,
       badge: qualityState ? statusLabel(qualityState) : undefined,
       badgeVariant: qualityState ? statusVariant(qualityState) : undefined,
@@ -3083,12 +3108,12 @@ function OperationsHeatmapPanel({
     },
     {
       key: 'realtime',
-      label: uiLabels.realtime || 'Actualización en vivo',
+      label: uiLabels.realtime ?? '',
       value: realtime?.poll_seconds ? `${formatNumber(realtime.poll_seconds)}s` : '--',
       detail: realtimeDetail,
       icon: Radio,
-      badge: realtimeReady ? 'activo' : 'sin senal',
-      badgeVariant: realtimeReady ? 'default' : 'outline',
+      badge: periodicReadsConfigured ? uiLabels.realtime_polling_status : uiLabels.realtime_unavailable,
+      badgeVariant: 'outline',
     },
   ];
   const mainHotspot = heatmap?.hotspots?.[0] ?? heatmap?.cells?.[0];
@@ -3148,6 +3173,9 @@ function OperationsHeatmapPanel({
     asString(geocodingAction?.title) ?? asString(geocodingAction?.label) ?? asString(geocodingAction?.id);
   const geocodingActionEndpoint = formatEndpoint(geocodingAction);
   const geocodingActionMethod = asString(geocodingAction?.method) ?? (geocodingActionEndpoint ? 'PATCH' : undefined);
+  const openGeocodingAction = geocoding?.guidance?.recommended_actions?.find((action) => action.id === 'open_geocoding_queue');
+  const openGeocodingHref = geocodingQueueHref(openGeocodingAction, tenantSlug, filters);
+  const openGeocodingLabel = asString(openGeocodingAction?.title) ?? asString(openGeocodingAction?.label);
   const candidateCountLabel =
     geocodingCandidateCount === 1 ? '1 pendiente' : `${formatNumber(geocodingCandidateCount)} pendientes`;
   const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
@@ -3860,10 +3888,10 @@ function OperationsHeatmapPanel({
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {geocodingCandidates.length
-                  ? 'Direcciones con texto útil pero sin coordenadas. Resolverlas mejora mapa, SLA y asignación de equipo.'
+                  ? uiLabels.geocoding_queue_description
                   : geocoding
-                    ? 'No hay direcciones pendientes para los filtros actuales.'
-                    : 'El backend aún no publicó cola de geocodificación para este mapa.'}
+                    ? uiLabels.geocoding_queue_empty
+                    : uiLabels.geocoding_queue_unavailable}
               </p>
 
               {geocodingCandidates.length ? (
@@ -3878,7 +3906,8 @@ function OperationsHeatmapPanel({
                         <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
                           {candidate.category ? <Badge variant="outline">{candidate.category}</Badge> : null}
                           {candidate.source ? <Badge variant="outline">{candidate.source}</Badge> : null}
-                          {candidate.reason_code ? <span>{humanizeHeatmapToken(candidate.reason_code, 'motivo')}</span> : null}
+                          {candidate.reason_code && uiLabels[`reason_${candidate.reason_code}`]
+                            ? <span>{uiLabels[`reason_${candidate.reason_code}`]}</span> : null}
                         </div>
                       </div>
                     );
@@ -3894,20 +3923,27 @@ function OperationsHeatmapPanel({
                       <p className="text-sm font-medium text-foreground">
                         {geocodingActionTitle || 'Acción de geocodificación disponible'}
                       </p>
-                      {geocodingActionEndpoint ? (
-                        <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                          {geocodingActionMethod ?? 'PATCH'} {geocodingActionEndpoint}
-                        </p>
+                      {geocodingActionEndpoint && uiLabels.geocoding_technical_details ? (
+                        <details className="mt-1 text-xs text-muted-foreground">
+                          <summary className="cursor-pointer">{uiLabels.geocoding_technical_details}</summary>
+                          <p className="mt-1 break-all font-mono text-[11px]">
+                            {geocodingActionMethod ?? 'PATCH'} {geocodingActionEndpoint}
+                          </p>
+                        </details>
                       ) : null}
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              <Button type="button" size="sm" variant="outline" className="mt-3 w-full justify-start" onClick={refetch}>
-                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-                Revisar cola
-              </Button>
+              {openGeocodingHref && openGeocodingLabel ? (
+                <Button asChild size="sm" variant="outline" className="mt-3 w-full justify-start">
+                  <Link to={openGeocodingHref}>
+                    <Route className="h-4 w-4" />
+                    {openGeocodingLabel}
+                  </Link>
+                </Button>
+              ) : null}
             </div>
 
             {demographicItems.length || demographicBreakdowns.length ? (

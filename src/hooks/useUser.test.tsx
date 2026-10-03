@@ -50,11 +50,12 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     safeLocalStorage.setItem('authProvider', 'clerk');
     safeLocalStorage.setItem('clerkUserId', 'user_clerk_cookie');
     const workspace = { ...workspaceFixtures.gobierno, tenant: profileFixture.tenant };
+    const platform = { contract_version: 'platform.workspace.v1', heading: 'Administración de plataforma' };
     vi.mocked(apiFetch).mockResolvedValue({ id: 42, name: 'Operator', rol: 'tenant_admin', tipo_chat: 'municipio', rubro: 'gobierno',
-      tenant_slug: 'tenant-a', organization_profile: profileFixture, organization_workspace: workspace });
+      tenant_slug: 'tenant-a', organization_profile: profileFixture, organization_workspace: workspace, platform_workspace: platform });
     render(<UserProvider><VerifiedClerkBridgeProbe /></UserProvider>);
     await waitFor(() => expect(usePanelSessionStore.getState().user).toMatchObject({
-      organization_profile: profileFixture, organization_workspace: workspace, tenant_slug: 'tenant-a',
+      organization_profile: profileFixture, organization_workspace: workspace, platform_workspace: platform, tenant_slug: 'tenant-a',
     }));
   });
   it('registers verified cookie-only /me authority without persisting its proof in the profile',async()=>{

@@ -24,9 +24,10 @@ interface Props {
   onToggleStatus: (tenant: Tenant) => void;
   onPurge: (tenant: Tenant) => void;
   onKnowledge?: (tenant: Tenant) => void;
+  onInstitutionProfile?: (tenant: Tenant) => void;
 }
 
-export function OrganizationDirectory({ tenants, total, loading, error, onRefresh, onLoadMore, onProfile, onEdit, onImpersonate, onToggleStatus, onPurge, onKnowledge }: Props) {
+export function OrganizationDirectory({ tenants, total, loading, error, onRefresh, onLoadMore, onProfile, onEdit, onImpersonate, onToggleStatus, onPurge, onKnowledge, onInstitutionProfile }: Props) {
   const [query, setQuery] = useState('');
   const [type, setType] = useState('all');
   const [status, setStatus] = useState('all');
@@ -73,6 +74,8 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
               <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug}
                 aria-label={`Marca y URLs de ${tenant.nombre || tenant.slug}`}
                 onClick={(event)=>{presenceTrigger.current=event.currentTarget;setPresence({id:tenant.id,slug:tenant.slug});}}>Marca y URLs</Button>
+              {onInstitutionProfile && tenant.is_active === true && <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug}
+                aria-label={`Datos institucionales de ${tenant.nombre || tenant.slug}`} onClick={() => onInstitutionProfile(tenant)}><Settings2 className="mr-2 h-4 w-4" />Datos institucionales</Button>}
               {onKnowledge && tenant.is_active === true && <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug}
                 aria-label={`Fuentes de conocimiento de ${tenant.nombre || tenant.slug}`} onClick={()=>onKnowledge(tenant)}><BookOpen className="mr-2 h-4 w-4"/>Fuentes de conocimiento</Button>}</td>
             <td data-label="Plan"><span className="platform-plan">{tenant.plan || 'Sin dato'}</span></td>
@@ -81,7 +84,9 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
             <td className="platform-row-actions"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Acciones de ${tenant.nombre || tenant.slug}`}><MoreHorizontal size={19} /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => onProfile(tenant.slug)}><ArrowUpRight className="mr-2 h-4 w-4" />Ver organización</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onEdit(tenant, 'general')}><Settings2 className="mr-2 h-4 w-4" />Editar organización y plan</DropdownMenuItem>
+                {onInstitutionProfile && <DropdownMenuItem disabled={tenant.is_active !== true}
+                  onSelect={() => onInstitutionProfile(tenant)}><Settings2 className="mr-2 h-4 w-4" />Editar datos institucionales</DropdownMenuItem>}
+                <DropdownMenuItem onSelect={() => onEdit(tenant, 'general')}><Settings2 className="mr-2 h-4 w-4" />Administrar plan y estado</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onEdit(tenant, 'users')}><Users className="mr-2 h-4 w-4" />Administrar acceso</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onEdit(tenant, 'integrations')}><MessageSquare className="mr-2 h-4 w-4" />Configurar WhatsApp</DropdownMenuItem>
                 <DropdownMenuItem disabled={!tenant.is_active} onSelect={() => onImpersonate(tenant)}>Acceder como administrador</DropdownMenuItem>

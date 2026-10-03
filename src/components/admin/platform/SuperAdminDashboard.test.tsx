@@ -138,6 +138,13 @@ describe('SuperAdminDashboard workspace', () => {
     expect(screen.queryByText('Ficha anterior')).not.toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('organization=norte');
   });
+  it('opens institutional data with the chosen tenant while retaining the SuperAdmin session', async () => {
+    mount('/superadmin?section=organizations');
+    fireEvent.click(await screen.findByRole('button', { name: 'Municipio Río' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar datos institucionales' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/perfil?section=general&tenant_slug=rio');
+    expect(mocks.impersonate).not.toHaveBeenCalled();
+  });
   it('keeps the newest CRM refresh when event responses arrive out of order', async () => {
     mount('/superadmin?section=crm');
     await screen.findByRole('heading', { name: 'Contacto QA' });
