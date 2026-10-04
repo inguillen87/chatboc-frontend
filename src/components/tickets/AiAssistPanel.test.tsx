@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Profiler, StrictMode } from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AiAssistPanel from './AiAssistPanel';
-import { enterpriseService } from '@/services/enterpriseService';
+import { enterpriseService, type TicketAiEnrichmentResponse } from '@/services/enterpriseService';
 import type { Ticket } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
 import { TICKET_AI_DRAFT_EVENT_NAME } from './aiDraftEvents';
@@ -25,9 +26,42 @@ const ticketFixture = (): Ticket => ({
   categoria: 'Luminaria',
 } as Ticket);
 
+const suggestedReply = 'Hola, recibimos tu reclamo y lo derivamos al area correspondiente.';
+const ticketWithReply = (overrides: Partial<Ticket> = {}, reply = suggestedReply): Ticket => ({
+  ...ticketFixture(),
+  tenant_slug: 'municipio-junin',
+  ...overrides,
+  ai_enrichment: {
+    contract_version: 'ticket.ai_enrichment.v1',
+    operator_brief: { recommended_first_reply: reply },
+  },
+} as Ticket);
+
+const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+const installClipboard = (writeText: (text: string) => Promise<void>) => {
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+};
+const deferredClipboard = () => {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
+
 describe('AiAssistPanel', () => {
   beforeEach(() => {
     mockedGetTicketAiEnrichment.mockReset();
+  });
+
+  afterEach(() => {
+    if (clipboardDescriptor) {
+      Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+    } else {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
   });
 
   it('uses persisted CRM enrichment immediately and keeps it if refresh is unavailable', async () => {
@@ -201,6 +235,275 @@ describe('AiAssistPanel', () => {
     } finally {
       window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
     }
+  });
+
+  it('keeps the loaded acknowledgement when the draft is used before passive effects finish', async () => {
+    mockedGetTicketAiEnrichment.mockResolvedValue({
+      contract_version: 'ticket.ai_enrichment.v1',
+      operator_brief: { recommended_first_reply: suggestedReply },
+    });
+    let usedDuringCommit = false;
+    render(
+      <Profiler id="reply-commit" onRender={() => {
+        const useDraft = screen.queryByRole('button', { name: 'Usar borrador' });
+        if (useDraft && !usedDuringCommit) {
+          usedDuringCommit = true;
+          useDraft.click();
+        }
+      }}>
+        <AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />
+      </Profiler>,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(usedDuringCommit).toBe(true);
+  });
+
+  it.each([
+    ['ticket ID', { id: 45 }, suggestedReply],
+    ['tenant', { tenant_slug: 'tierra-del-fuego' }, suggestedReply],
+    ['scope', { tipo: 'pyme' }, suggestedReply],
+    ['reply text', {}, 'Hola, revisamos el nuevo borrador de este caso.'],
+  ] as const)('does not carry loaded or copied acknowledgements across a changed %s or a return to the old context', async (_field, overrides, reply) => {
+    installClipboard(vi.fn().mockResolvedValue(undefined));
+    const originalTicket = ticketWithReply();
+    const { rerender } = render(<AiAssistPanel ticket={originalTicket} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Usar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+
+    rerender(<AiAssistPanel ticket={ticketWithReply(overrides, reply)} autoRefreshDelayMs={-1} />);
+    expect(screen.getByRole('button', { name: 'Usar borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
+
+    rerender(<AiAssistPanel ticket={originalTicket} autoRefreshDelayMs={-1} />);
+    expect(screen.getByRole('button', { name: 'Usar borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
+  });
+
+  it('keeps acknowledgements when only unrelated ticket fields change', async () => {
+    installClipboard(vi.fn().mockResolvedValue(undefined));
+    const { rerender } = render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Usar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+
+    rerender(<AiAssistPanel ticket={ticketWithReply({ asunto: 'Otra descripción del mismo caso' })} autoRefreshDelayMs={-1} />);
+    expect(screen.getByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+  });
+
+  it.each(['resolve', 'reject'] as const)('ignores an old clipboard %s after another tenant becomes current', async (outcome) => {
+    const oldCopy = deferredClipboard();
+    const writeText = vi.fn().mockReturnValue(oldCopy.promise);
+    installClipboard(writeText);
+    const { rerender } = render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+
+    rerender(<AiAssistPanel ticket={ticketWithReply({ tenant_slug: 'tierra-del-fuego' })} autoRefreshDelayMs={-1} />);
+    await act(async () => {
+      if (outcome === 'resolve') oldCopy.resolve();
+      else oldCopy.reject(new Error('Clipboard denied'));
+      await oldCopy.promise.catch(() => undefined);
+    });
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(suggestedReply);
+  });
+
+  it.each(['resolve', 'reject'] as const)('does not erase a newer clipboard acknowledgement when an old copy %s', async (outcome) => {
+    const oldCopy = deferredClipboard();
+    installClipboard(vi.fn().mockReturnValueOnce(oldCopy.promise).mockResolvedValue(undefined));
+    const { rerender } = render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+
+    rerender(<AiAssistPanel ticket={ticketWithReply({ tenant_slug: 'tierra-del-fuego' })} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+    await act(async () => {
+      if (outcome === 'resolve') oldCopy.resolve();
+      else oldCopy.reject(new Error('Old clipboard denied'));
+      await oldCopy.promise.catch(() => undefined);
+    });
+    expect(screen.getByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+  });
+
+  it.each([undefined, {}])('does not acknowledge a copy when clipboard writeText is unavailable (%s)', (clipboard) => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard });
+    render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copiado' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the latest successful copy when an earlier attempt in the same context fails', async () => {
+    const oldCopy = deferredClipboard();
+    installClipboard(vi.fn().mockReturnValueOnce(oldCopy.promise).mockResolvedValue(undefined));
+    render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+
+    await act(async () => {
+      oldCopy.reject(new Error('Earlier copy failed'));
+      await oldCopy.promise.catch(() => undefined);
+    });
+    expect(screen.getByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+  });
+
+  it('keeps the latest failed copy when an earlier attempt in the same context succeeds', async () => {
+    const oldCopy = deferredClipboard();
+    installClipboard(vi.fn().mockReturnValueOnce(oldCopy.promise).mockRejectedValue(new Error('Latest copy failed')));
+    render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      oldCopy.resolve();
+      await oldCopy.promise;
+    });
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copiado' })).not.toBeInTheDocument();
+  });
+
+  it('retires a pending clipboard acknowledgement when the panel unmounts', async () => {
+    const oldCopy = deferredClipboard();
+    installClipboard(vi.fn().mockReturnValue(oldCopy.promise));
+    const { unmount } = render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    unmount();
+    render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
+
+    await act(async () => {
+      oldCopy.resolve();
+      await oldCopy.promise;
+    });
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['ticket ID', { id: 45 }],
+    ['tenant with the same ID', { tenant_slug: 'tierra-del-fuego' }],
+    ['scope with the same ID', { tipo: 'pyme' }],
+  ] as const)('hides persisted suggestions immediately when the %s changes to a case without enrichment', (_field, overrides) => {
+    const original = ticketWithReply();
+    const { rerender } = render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+    expect(screen.getByText(suggestedReply)).toBeInTheDocument();
+
+    rerender(<AiAssistPanel ticket={{ ...ticketFixture(), tenant_slug: 'municipio-junin', ...overrides } as Ticket} autoRefreshDelayMs={-1} />);
+    expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Usar borrador' })).not.toBeInTheDocument();
+    expect(mockedGetTicketAiEnrichment).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['ticket ID', { id: 45 }],
+    ['tenant with the same ID', { tenant_slug: 'tierra-del-fuego' }],
+    ['scope with the same ID', { tipo: 'pyme' }],
+  ] as const)('ignores a pending enrichment after the %s changes before its next refresh', async (_field, overrides) => {
+    let resolveOld!: (payload: TicketAiEnrichmentResponse) => void;
+    const oldRequest = new Promise<TicketAiEnrichmentResponse>((resolve) => { resolveOld = resolve; });
+    const currentReply = 'Borrador del caso actual confirmado por su respuesta IA.';
+    mockedGetTicketAiEnrichment.mockReturnValueOnce(oldRequest).mockResolvedValueOnce({
+      contract_version: 'ticket.ai_enrichment.v1',
+      operator_brief: { recommended_first_reply: currentReply },
+    });
+    const original = { ...ticketFixture(), tenant_slug: 'municipio-junin' } as Ticket;
+    const received: unknown[] = [];
+    const handler = (event: Event) => received.push((event as CustomEvent).detail);
+    window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
+    try {
+      const { rerender } = render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
+      expect(screen.getByText('Analizando IA')).toBeInTheDocument();
+      const current = { ...original, ...overrides } as Ticket;
+      rerender(<AiAssistPanel ticket={current} autoRefreshDelayMs={-1} />);
+      expect(screen.queryByText('Analizando IA')).not.toBeInTheDocument();
+
+      await act(async () => {
+        resolveOld({ operator_brief: { recommended_first_reply: suggestedReply } });
+        await oldRequest;
+      });
+      expect(mockedGetTicketAiEnrichment).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Usar borrador' })).not.toBeInTheDocument();
+      expect(received).toEqual([]);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
+      expect(await screen.findByText(currentReply)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Usar borrador' }));
+      expect(received).toEqual([{ ticketId: String(current.id), draft: currentReply, source: 'operator_brief' }]);
+    } finally {
+      window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
+    }
+  });
+
+  it.each(['resolve', 'reject'] as const)('does not publish a retired request %s after A → B → A', async (outcome) => {
+    let resolveOld!: (payload: TicketAiEnrichmentResponse) => void;
+    let rejectOld!: (error: Error) => void;
+    const oldRequest = new Promise<TicketAiEnrichmentResponse>((resolve, reject) => {
+      resolveOld = resolve;
+      rejectOld = reject;
+    });
+    mockedGetTicketAiEnrichment.mockReturnValueOnce(oldRequest);
+    const original = { ...ticketFixture(), tenant_slug: 'municipio-junin' } as Ticket;
+    const { rerender } = render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
+    rerender(<AiAssistPanel ticket={{ ...original, tenant_slug: 'tierra-del-fuego' } as Ticket} autoRefreshDelayMs={-1} />);
+    rerender(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+
+    await act(async () => {
+      if (outcome === 'resolve') resolveOld({ operator_brief: { recommended_first_reply: suggestedReply } });
+      else rejectOld(new ApiError('Retired request failed', 502, {}));
+      await oldRequest.catch(() => undefined);
+    });
+    expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
+    expect(screen.queryByText('Analizando IA')).not.toBeInTheDocument();
+    expect(screen.queryByText('Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.')).not.toBeInTheDocument();
+  });
+
+  it('does not retain a previous tenant error in a new case', async () => {
+    mockedGetTicketAiEnrichment.mockRejectedValueOnce(new ApiError('Unavailable', 502, {}));
+    const original = { ...ticketFixture(), tenant_slug: 'municipio-junin' } as Ticket;
+    const { rerender } = render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
+    expect(await screen.findByText('Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.')).toBeInTheDocument();
+
+    rerender(<AiAssistPanel ticket={{ ...original, tenant_slug: 'tierra-del-fuego' } as Ticket} autoRefreshDelayMs={-1} />);
+    expect(screen.queryByText('Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.')).not.toBeInTheDocument();
+  });
+
+  it('retires a pending enrichment when the panel unmounts', async () => {
+    let resolveOld!: (payload: TicketAiEnrichmentResponse) => void;
+    const oldRequest = new Promise<TicketAiEnrichmentResponse>((resolve) => { resolveOld = resolve; });
+    mockedGetTicketAiEnrichment.mockReturnValueOnce(oldRequest);
+    const original = { ...ticketFixture(), tenant_slug: 'municipio-junin' } as Ticket;
+    const { unmount } = render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
+    unmount();
+    render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
+
+    await act(async () => {
+      resolveOld({ operator_brief: { recommended_first_reply: suggestedReply } });
+      await oldRequest;
+    });
+    expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Usar borrador' })).not.toBeInTheDocument();
+    expect(mockedGetTicketAiEnrichment).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows the current request and acknowledgements after StrictMode lifecycle replay', async () => {
+    installClipboard(vi.fn().mockResolvedValue(undefined));
+    mockedGetTicketAiEnrichment.mockResolvedValue({ operator_brief: { recommended_first_reply: suggestedReply } });
+    render(<StrictMode><AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} /></StrictMode>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
+    expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(mockedGetTicketAiEnrichment).toHaveBeenCalledTimes(1);
   });
 
   it('degrades safely when the AI enrichment endpoint is temporarily unavailable', async () => {
