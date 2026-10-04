@@ -415,7 +415,7 @@ type OrganizationProfileSettings = {
   can_edit: boolean;
   editability: { mode: string; message?: string };
   values: Record<string, any>;
-  ui?: { activity_label?: string; activity_description?: string };
+  ui?: { activity_label?: string; activity_description?: string; organization_type_label_contract?: string; organization_type_label?: string | null };
 };
 
 const readOrganizationProfile = (value: unknown, expectedSlug: string): OrganizationProfileSettings | null => {
@@ -3025,6 +3025,8 @@ export default function Perfil() {
             activeSection={activeInstitutionSection}
             institutionName={perfil.nombre_empresa}
             isMunicipal={esMunicipio}
+            organizationType={usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro}
+            organizationTypePresentation={usesScopedOrganizationProfile ? matchingOrganizationProfile?.ui : (user as any)?.organization_profile?.ui}
             isAdministrator={usesScopedOrganizationProfile
               ? matchingOrganizationProfile?.can_edit === true && matchingOrganizationProfile.editability.mode === 'editable'
               : isTenantAdministrator}

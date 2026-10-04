@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { organizationTypeLabel, type OrganizationTypePresentation } from '@/utils/organizationTypeLabel';
 
 export type InstitutionProfileSection =
   | "general"
@@ -84,6 +85,8 @@ interface InstitutionProfileWorkspaceProps {
   children: ReactNode;
   institutionName: string;
   isMunicipal: boolean;
+  organizationType?: string | null;
+  organizationTypePresentation?: OrganizationTypePresentation | null;
   isAdministrator: boolean;
   loading?: boolean;
   plan?: string;
@@ -97,6 +100,8 @@ export default function InstitutionProfileWorkspace({
   children,
   institutionName,
   isMunicipal,
+  organizationType,
+  organizationTypePresentation,
   isAdministrator,
   loading = false,
   plan,
@@ -124,10 +129,10 @@ export default function InstitutionProfileWorkspace({
             </p>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
               <h2 className="max-w-full break-words text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                {institutionName || (isMunicipal ? "Gobierno local" : "Organización")}
+                {institutionName || "Organización"}
               </h2>
               <Badge variant="outline" className="rounded-md !bg-muted !text-foreground border-border">
-                {isMunicipal ? "Gobierno" : "Empresa"}
+                {organizationTypeLabel(organizationType ?? (isMunicipal ? 'municipio' : undefined), organizationTypePresentation)}
               </Badge>
               {plan ? (
                 <Badge variant="secondary" className="rounded-md capitalize">

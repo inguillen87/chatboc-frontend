@@ -353,7 +353,7 @@ export default function SuperAdminDashboard() {
         { label: 'Inventario de WhatsApp', loading: whatsappLoading, failed: Boolean(whatsappError) },
       ].map((item) => <div className="platform-service-row" key={item.label}><span>{item.label}</span><span className="platform-plan">{item.loading ? 'Consultando…' : item.failed ? 'No disponible' : 'Consulta recibida'}</span></div>)}</div></section><section className="platform-panel"><details className="platform-technical-details"><summary>Ver comprobaciones técnicas de producción</summary><div><ProductionSmokeReport /></div></details></section></>}
     </motion.div>
-    <TenantModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={fetchTenants} tenantToEdit={editingTenant} initialTab={modalTab} />
+    <TenantModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={fetchTenants} tenantToEdit={editingTenant} initialTab={modalTab} onInstitutionProfile={organizationProfileVerified ? openInstitutionProfile : undefined} />
       <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

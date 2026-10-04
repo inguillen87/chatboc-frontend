@@ -7,8 +7,9 @@ import type { Tenant } from '@/types/superAdmin';
 import { exportOrganizationsCsv } from './exportOrganizations';
 import { OrganizationCommercialWorkspace } from './OrganizationCommercialWorkspace';
 import { OrganizationPresenceDialog } from './OrganizationPresenceDialog';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 
-export const organizationTypeLabel = (type: string) => ({ pyme: 'Empresa', municipio: 'Municipio', colegio: 'Colegio' }[type] || type);
+export { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 
 interface Props {
@@ -54,7 +55,7 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
     </div>
     <div className="platform-directory-filters">
       <label className="platform-search"><span className="sr-only">Buscar organizaciones</span><Search aria-hidden="true" size={17} /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre, identificador o correo" /></label>
-      <label><span>Tipo</span><select value={type} onChange={(event) => setType(event.target.value)}><option value="all">Todos los tipos</option>{types.map((value) => <option key={value} value={value}>{organizationTypeLabel(value)}</option>)}</select></label>
+      <label><span>Tipo</span><select value={type} onChange={(event) => setType(event.target.value)}><option value="all">Todos los tipos</option>{types.map((value) => <option key={value} value={value}>{organizationTypeLabel(value, tenants.find((tenant) => tenant.tipo === value))}</option>)}</select></label>
       <label><span>Plan</span><select value={plan} onChange={(event) => setPlan(event.target.value)}><option value="all">Todos los planes</option>{plans.map((value) => <option key={value}>{value}</option>)}</select></label>
       <label><span>Estado</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
     </div>
@@ -68,7 +69,7 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
         : <div className="platform-directory-table"><table>
           <thead><tr><th>Organización</th><th>Plan</th><th>Estado</th><th>Responsable</th><th><span className="sr-only">Acciones</span></th></tr></thead>
           <tbody>{filtered.map((tenant) => <tr key={tenant.id}>
-            <td><button type="button" className="platform-organization-name" onClick={() => onProfile(tenant.slug)}>{tenant.nombre || tenant.slug}<ArrowUpRight size={14} aria-hidden="true" /></button><span className="platform-row-detail">{organizationTypeLabel(tenant.tipo)} · {tenant.slug}</span>
+            <td><button type="button" className="platform-organization-name" onClick={() => onProfile(tenant.slug)}>{tenant.nombre || tenant.slug}<ArrowUpRight size={14} aria-hidden="true" /></button><span className="platform-row-detail">{organizationTypeLabel(tenant.tipo, tenant)} · {tenant.slug}</span>
               <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug} aria-label={`Abrir CRM de ${tenant.nombre || tenant.slug}`}
                 onClick={(event) => { commercialTrigger.current = event.currentTarget; setCommercialTenant(tenant); }}>Seguimiento comercial</Button>
               <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug}

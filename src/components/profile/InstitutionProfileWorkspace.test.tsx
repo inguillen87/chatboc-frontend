@@ -6,6 +6,22 @@ import InstitutionProfileWorkspace, {
 } from "@/components/profile/InstitutionProfileWorkspace";
 
 describe("InstitutionProfileWorkspace", () => {
+  it('does not invent a local-government scope when the organization has no name', () => {
+    render(<InstitutionProfileWorkspace activeSection="general" institutionName="" isMunicipal
+      organizationType="municipio" isAdministrator={false} onCancel={vi.fn()} onSave={vi.fn()} onSectionChange={vi.fn()}>Consulta</InstitutionProfileWorkspace>);
+    expect(screen.getByRole('heading', { name: 'Organización' })).toBeVisible();
+    expect(screen.queryByText('Gobierno local')).not.toBeInTheDocument();
+  });
+  it.each([['municipio', 'Gobierno'], ['colegio', 'Educación'], ['pyme', 'Empresa'], ['unknown', 'Organización']])
+    ('renders the descriptive %s badge without changing editing authority', (type, label) => {
+      render(<InstitutionProfileWorkspace activeSection="general" institutionName="Organización sintética"
+        isMunicipal={type === 'municipio'} organizationType={type}
+        organizationTypePresentation={{ organization_type_label_contract: 'organization.type_label.v1', organization_type_label: label === 'Organización' ? null : label }}
+        isAdministrator={false} onCancel={vi.fn()} onSave={vi.fn()} onSectionChange={vi.fn()}><input aria-label="Dato institucional" /></InstitutionProfileWorkspace>);
+      expect(screen.getByText(label, { exact: true })).toBeVisible();
+      expect(screen.getByRole('textbox', { name: 'Dato institucional' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+    });
   it("normalizes legacy and localized deep links", () => {
     expect(normalizeInstitutionProfileSection("plan")).toBe("plan-security");
     expect(normalizeInstitutionProfileSection("canales")).toBe("channels");

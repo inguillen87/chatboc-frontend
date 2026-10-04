@@ -15,7 +15,7 @@ vi.mock('@/api/v2/saas', () => ({ getSuperadminExecutiveSummaryV2: mocks.executi
 vi.mock('@/utils/api', () => ({ apiFetch: mocks.crm }));
 vi.mock('@/services/enterpriseService', () => ({ enterpriseService: { getTenantProfile360: mocks.profile } }));
 vi.mock('@/context/SocketContext', () => ({ useSocket: () => ({ isConnected: false, socket: { on: (event: string, callback: () => void) => mocks.listeners.set(event, callback), off: (event: string) => mocks.listeners.delete(event) } }) }));
-vi.mock('@/components/admin/TenantModal', () => ({ TenantModal: ({ isOpen }: { isOpen: boolean }) => isOpen ? <div role="dialog">Formulario de organización</div> : null }));
+vi.mock('@/components/admin/TenantModal', () => ({ TenantModal: ({ isOpen, tenantToEdit, onInstitutionProfile }: { isOpen: boolean; tenantToEdit?: typeof tenants[number]; onInstitutionProfile?: (tenant: typeof tenants[number]) => void }) => isOpen ? <div role="dialog">Formulario de organización{tenantToEdit && onInstitutionProfile && <button onClick={() => onInstitutionProfile(tenantToEdit)}>Editar datos institucionales</button>}</div> : null }));
 vi.mock('@/components/admin/WhatsappInventoryPanel', () => ({ WhatsappInventoryPanel: () => <div>Inventario existente</div> }));
 vi.mock('@/components/admin/SuperadminLeadsPipeline', () => ({ default: () => <div>Pipeline existente</div> }));
 vi.mock('@/components/admin/ProductionSmokeReport', () => ({ default: () => <div>Comprobaciones existentes</div> }));
@@ -40,6 +40,15 @@ beforeEach(() => {
 });
 
 describe('SuperAdminDashboard workspace', () => {
+  it('takes the plan modal institutional action to the selected tenant revisioned profile rather than the actor home', async () => {
+    mount('/superadmin?section=organizations');
+    const row = (await screen.findByRole('button', { name: 'Colegio Norte' })).closest('tr')!;
+    fireEvent.keyDown(within(row).getByRole('button', { name: 'Acciones de Colegio Norte' }), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Administrar plan y estado' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Editar datos institucionales' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/perfil?section=general&tenant_slug=norte');
+    expect(mocks.impersonate).not.toHaveBeenCalled();
+  });
   it('replaces the current tab only after the impersonation handoff verifies',async()=>{
     const pending=deferred<{destination:string}>();mocks.impersonate.mockReturnValue(pending.promise);
     const open=vi.spyOn(window,'open');mount('/superadmin?section=organizations');

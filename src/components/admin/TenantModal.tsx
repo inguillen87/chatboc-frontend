@@ -34,6 +34,7 @@ import { NativeAdminLegacyMembershipCard } from '@/components/admin/platform/Nat
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import { Building2, GraduationCap, Loader2, MessageCircle, ShieldCheck, Store } from 'lucide-react';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 
 const createSchema = z.object({
   nombre: z.string().min(2, 'El nombre es requerido'),
@@ -48,7 +49,6 @@ const createSchema = z.object({
 });
 
 const updateSchema = z.object({
-  nombre: z.string().min(2, 'El nombre es requerido'),
   plan: z.enum(['free', 'pro', 'full', 'enterprise']),
   is_active: z.boolean(),
 });
@@ -73,9 +73,10 @@ interface TenantModalProps {
   onSuccess: () => void;
   tenantToEdit?: Tenant | null;
   initialTab?: "general" | "users" | "integrations";
+  onInstitutionProfile?: (tenant: Tenant) => void;
 }
 
-export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialTab = "general" }: TenantModalProps) {
+export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialTab = "general", onInstitutionProfile }: TenantModalProps) {
   const [loading, setLoading] = useState(false);
   const isEditing = !!tenantToEdit;
   const [activeTab, setActiveTab] = useState("general");
@@ -83,7 +84,6 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
   const form = useForm<z.infer<typeof createSchema> | z.infer<typeof updateSchema>>({
     resolver: zodResolver(isEditing ? updateSchema : createSchema),
     defaultValues: isEditing ? {
-      nombre: tenantToEdit.nombre,
       plan: tenantToEdit.plan as any,
       is_active: tenantToEdit.is_active,
     } : {
@@ -108,7 +108,6 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
     if (isOpen) {
         if (tenantToEdit) {
             form.reset({
-                nombre: tenantToEdit.nombre,
                 plan: tenantToEdit.plan as any,
                 is_active: tenantToEdit.is_active,
             });
@@ -130,7 +129,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
     setLoading(true);
     try {
       if (isEditing && tenantToEdit) {
-        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, values);
+        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, { plan: values.plan, is_active: values.is_active });
         toast.success('Tenant actualizado correctamente');
       } else {
         await apiClient.superAdminCreateTenant(values);
@@ -212,17 +211,12 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                 <TabsContent value="general" className="space-y-4 py-4">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmitGeneral)} className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="nombre"
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Nombre</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <section aria-label="Datos institucionales" className="space-y-2 rounded-lg border p-3">
+                                <p className="font-medium">{tenantToEdit.nombre}</p>
+                                <p className="text-sm text-muted-foreground">El nombre, contacto y rubro se guardan desde el perfil institucional de esta organización.</p>
+                                <Button type="button" variant="outline" disabled={loading || !onInstitutionProfile || tenantToEdit.is_active !== true}
+                                    onClick={() => { onClose(); onInstitutionProfile?.(tenantToEdit); }}>Editar datos institucionales</Button>
+                            </section>
                             <FormField
                                 control={form.control}
                                 name="plan"
@@ -349,14 +343,14 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                       <div className="flex items-start gap-2">
                         <Building2 className="mt-0.5 h-4 w-4 text-primary" />
                         <div>
-                          <p className="text-sm font-medium">Municipio</p>
+                          <p className="text-sm font-medium">{organizationTypeLabel('municipio')}</p>
                           <p className="text-xs text-muted-foreground">Reclamos, turnos, mapa y encuestas.</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-2">
                         <GraduationCap className="mt-0.5 h-4 w-4 text-primary" />
                         <div>
-                          <p className="text-sm font-medium">Colegio</p>
+                          <p className="text-sm font-medium">{organizationTypeLabel('colegio')}</p>
                           <p className="text-xs text-muted-foreground">Familias, certificados y comunicados.</p>
                         </div>
                       </div>
@@ -400,9 +394,9 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl>
                                 <SelectContent>
-                                <SelectItem value="pyme">Pyme</SelectItem>
-                                <SelectItem value="municipio">Municipio</SelectItem>
-                                <SelectItem value="colegio">Colegio</SelectItem>
+                                <SelectItem value="pyme">{organizationTypeLabel('pyme')}</SelectItem>
+                                <SelectItem value="municipio">{organizationTypeLabel('municipio')}</SelectItem>
+                                <SelectItem value="colegio">{organizationTypeLabel('colegio')}</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />

@@ -14,6 +14,20 @@ const tenants: Tenant[] = [
 const props = () => ({ tenants, total: 103, loading: false, error: null, onRefresh: vi.fn(), onLoadMore: vi.fn(), onProfile: vi.fn(), onEdit: vi.fn(), onImpersonate: vi.fn(), onToggleStatus: vi.fn(), onPurge: vi.fn() });
 
 describe('OrganizationDirectory', () => {
+  it('shows the published descriptive types while filters and selected identities retain their technical values', () => {
+    const handlers = props();
+    const records = tenants.map((tenant, index) => ({ ...tenant, organization_type_label_contract: 'organization.type_label.v1', organization_type_label: ['Gobierno', 'Educación', 'Empresa'][index] }));
+    render(<OrganizationDirectory {...handlers} tenants={records} />);
+    expect(screen.getByText('Gobierno · rio')).toBeVisible();
+    expect(screen.getByText('Educación · colegio')).toBeVisible();
+    expect(screen.getByText('Empresa · tienda')).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Gobierno' })).toHaveValue('municipio');
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'colegio' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Colegio Norte' }));
+    expect(handlers.onProfile).toHaveBeenCalledWith('colegio');
+    expect(screen.queryByRole('button', { name: 'Municipio Río' })).not.toBeInTheDocument();
+    expect(records.map((tenant) => tenant.tipo)).toEqual(['municipio', 'colegio', 'pyme']);
+  });
   it('combines search, type, plan and status within the explicitly partial list', () => {
     render(<OrganizationDirectory {...props()} />);
     expect(screen.getByText('3 resultados · 3 organizaciones cargadas de 103')).toBeInTheDocument();

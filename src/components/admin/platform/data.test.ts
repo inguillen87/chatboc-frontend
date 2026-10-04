@@ -24,6 +24,18 @@ const command = (items: unknown[]) => ({
 });
 
 describe('platform overview source boundaries', () => {
+  it('keeps technical composition keys and counts while carrying descriptive server labels', () => {
+    const records = [
+      { ...tenants[0], organization_type_label_contract: 'organization.type_label.v1', organization_type_label: 'Gobierno' },
+      { ...tenants[0], id: 3, slug: 'qa-second-government' },
+      { ...tenants[1], organization_type_label_contract: 'organization.type_label.v1', organization_type_label: 'Empresa' },
+      { ...tenants[1], id: 4, slug: 'qa-school', tipo: 'colegio', organization_type_label_contract: 'organization.type_label.v1', organization_type_label: 'Educación' },
+    ];
+    const before = structuredClone(records);
+    const data = buildPlatformOverview({ tenants: records, total: 4 });
+    expect(data.typeDistribution).toEqual([{ key: 'municipio', count: 2, label: 'Gobierno' }, { key: 'colegio', count: 1, label: 'Educación' }, { key: 'pyme', count: 1, label: 'Empresa' }]);
+    expect(records).toEqual(before);
+  });
   it('uses the directory total without promoting a limited command cohort to the global total', () => {
     const data = buildPlatformOverview({ tenants, total: 131, commandCenter: command([healthItem('qa-public', 50)]) });
     expect(data.directory).toMatchObject({ total: 131, loaded: 2, complete: false, activeLoaded: 1, inactiveLoaded: 1 });
@@ -112,7 +124,7 @@ describe('platform overview source boundaries', () => {
     const data = buildPlatformOverview({ tenants: [{ slug: 'qa-unknown', is_active: true, status: 'inactive' }], total: 1 });
     expect(data.directory).toMatchObject({ activeLoaded: 0, inactiveLoaded: 0, unknownStatusLoaded: 1 });
     expect(data.planDistribution).toEqual([{ key: 'unknown', count: 1 }]);
-    expect(data.typeDistribution).toEqual([{ key: 'unknown', count: 1 }]);
+    expect(data.typeDistribution).toEqual([{ key: 'unknown', count: 1, label: 'Organización' }]);
   });
 
   it('exposes rejected directory rows and does not claim full coverage after deduplication', () => {

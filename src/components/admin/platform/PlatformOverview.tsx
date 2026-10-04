@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { useReducedMotion } from 'framer-motion';
 import type { PlatformOverviewData } from './data';
 import { Button } from '@/components/ui/button';
-import { organizationTypeLabel } from './OrganizationDirectory';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 
 const palette = ['#4267a9', '#57a38a', '#d69c58', '#8b82b4', '#729aa7', '#b17e87'];
 const displayNumber = (value: number | null) => value === null ? 'No disponible' : value.toLocaleString('es-AR', { maximumFractionDigits: 1 });
@@ -29,7 +29,7 @@ export function PlatformOverview({ data, directoryLoading, crmLoading, healthLoa
     { label: 'Índice operativo', value: data.health.mean, loading: healthLoading, icon: Activity, detail: `Promedio sobre ${data.health.denominator ?? '—'} organizaciones evaluadas. Escala de 0 a 100.` },
   ];
   const statusData = data.statusDistribution.map((row) => ({ ...row, label: stateLabels[row.key] || row.key }));
-  const planData = (distribution === 'type' ? data.typeDistribution : data.planDistribution).map((row) => ({ ...row, label: row.key === 'unknown' ? 'Sin dato' : distribution === 'type' ? organizationTypeLabel(row.key) : row.key }));
+  const planData = (distribution === 'type' ? data.typeDistribution : data.planDistribution).map((row) => ({ ...row, label: row.key === 'unknown' ? 'Sin dato' : distribution === 'type' ? row.label || organizationTypeLabel(row.key) : row.key }));
   const healthRows = data.health.rows.slice().sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)).slice(0, 5);
   return <>
     <div className="flex justify-end"><Button variant="outline" disabled={directoryLoading || crmLoading || healthLoading} onClick={onRefresh}><RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />Actualizar resumen</Button></div>
