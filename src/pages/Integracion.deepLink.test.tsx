@@ -16,6 +16,10 @@ vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'
 vi.mock("@/hooks/useUser", () => ({
   useUser: () => session,
 }));
+vi.mock('@/context/TenantContext', () => ({ useTenant: () => ({
+  currentSlug: null, tenant: null, tenantError: null, isLoadingTenant: false, refreshTenant: vi.fn(),
+}) }));
+vi.mock('@/components/admin/ChatCustomizer', () => ({ default: () => null }));
 
 vi.mock("@/services/tenantService", () => ({
   tenantService: {

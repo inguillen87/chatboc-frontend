@@ -154,8 +154,20 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const loadGenerationRef = useRef(0);
   const publicLoadGenerationRef = useRef(0);
   const saveGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
   const activeTenantSlugRef = useRef(currentSlug);
   activeTenantSlugRef.current = currentSlug;
+  useEffect(() => {
+    mountedRef.current = true;
+    activeTenantSlugRef.current = currentSlug;
+    return () => {
+      mountedRef.current = false;
+      activeTenantSlugRef.current = null;
+      saveGenerationRef.current += 1;
+      loadGenerationRef.current += 1;
+      publicLoadGenerationRef.current += 1;
+    };
+  }, []);
   const loadedRuntimePayloadRef = useRef<TenantRuntimeWidgetConfig | null>(null);
   const draftStorage = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -275,7 +287,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const editorReady = Boolean(currentSlug && loadedTenantSlug === currentSlug && !loadError);
 
   const loadTheme = useCallback(async () => {
-    if (!currentSlug) return;
+    if (!currentSlug || !mountedRef.current) return;
     const requestedSlug = currentSlug;
     const generation = ++loadGenerationRef.current;
     saveGenerationRef.current += 1;
@@ -409,6 +421,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   };
 
   const performSave = async (cfg: ChatCustomizerConfig): Promise<boolean> => {
+    if (!mountedRef.current) return false;
     if (!currentSlug || !editorReady) {
       setSaveError('Primero debe cargarse y confirmarse la configuración de la organización activa.');
       return false;
@@ -417,7 +430,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     const saveVersion = changeVersionRef.current;
     const saveGeneration = ++saveGenerationRef.current;
     const isActiveSave = () =>
-      activeTenantSlugRef.current === requestedSlug && saveGenerationRef.current === saveGeneration;
+      mountedRef.current && activeTenantSlugRef.current === requestedSlug && saveGenerationRef.current === saveGeneration;
     setSaving(true);
     setSaveError(null);
     try {

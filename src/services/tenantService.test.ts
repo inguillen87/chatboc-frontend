@@ -45,7 +45,7 @@ describe('tenantService config updates', () => {
     apiFetchMock.mockResolvedValueOnce(tenantConfigBundle);
 
     const updated = await tenantService.updateTenantConfig('junin', {
-      tenant: { ...tenantConfigBundle.tenant, color_primario: '#0f8f4f' },
+      configs: { widget: { default: { welcome_title: 'Hola' } } },
     });
 
     expect(updated).toBe(tenantConfigBundle);
@@ -55,7 +55,7 @@ describe('tenantService config updates', () => {
       tenantSlug: 'junin', persistTenantSlug: false, isWidgetRequest: false,
       omitEntityToken: true, omitChatSessionId: true, singleAttempt: true, allowStartupRecovery: false,
       body: JSON.stringify({
-        tenant: { ...tenantConfigBundle.tenant, color_primario: '#0f8f4f' },
+        configs: { widget: { default: { welcome_title: 'Hola' } } },
       }),
     }));
   });
@@ -82,7 +82,84 @@ describe('tenantService config updates', () => {
     const foreign = { ...tenantConfigBundle, tenant: { ...tenantConfigBundle.tenant, slug: 'foreign-organization' } };
     apiFetchMock.mockResolvedValue(foreign);
     await expect(tenantService.getTenantConfig('junin')).rejects.toMatchObject({ status: 502 });
-    await expect(tenantService.updateTenantConfig('junin', {})).rejects.toMatchObject({ status: 502 });
+    await expect(tenantService.updateTenantConfig('junin', { configs: {} })).rejects.toMatchObject({ status: 502 });
+  });
+  it('requires a versioned saved profile receipt before reading back the institutional logo', async () => {
+    const logo = 'https://assets.example.invalid/logo.svg';
+    const receipt = { contract_version: 'organization.profile_save.v1', ok: true, saved: true,
+      tenant: { id: 17, slug: 'junin' }, profile: { contract_version: 'organization.profile_settings.v1',
+        tenant: { id: 17, slug: 'junin' }, revision: 'b'.repeat(64), values: { logo_url: logo } } };
+    apiFetchMock.mockResolvedValueOnce(receipt).mockResolvedValueOnce({ ...tenantConfigBundle, tenant: { ...tenantConfigBundle.tenant, logo_url: logo } });
+    const payload = { expected_revision: 'a'.repeat(64), organization_profile: { logo_url: logo } };
+    const updated = await tenantService.updateTenantConfig('junin', payload);
+    expect(updated.tenant.logo_url).toBe(logo);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/admin/tenants/junin/config', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify(payload), singleAttempt: true, allowStartupRecovery: false,
+      tenantSlug: 'junin', persistTenantSlug: false, isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true,
+    }));
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/admin/tenants/junin/config', expect.objectContaining({
+      tenantSlug: 'junin', persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true,
+    }));
+    expect(apiFetchMock.mock.calls[1][1]).not.toHaveProperty('method');
+  });
+  it.each(['ack_only', 'invalid_saved', 'foreign', 'invalid_revision', 'unconfirmed_logo', 'wrong_profile_contract', 'different_id'])
+    ('does not turn an uncertain %s profile receipt into a successful configuration readback', async cause => {
+      const receipt: any = { contract_version: 'organization.profile_save.v1', ok: true, saved: true,
+        tenant: { id: 17, slug: 'junin' }, profile: { contract_version: 'organization.profile_settings.v1',
+          tenant: { id: 17, slug: 'junin' }, revision: 'b'.repeat(64), values: { logo_url: 'https://assets.example.invalid/logo.svg' } } };
+      if (cause === 'ack_only') { delete receipt.contract_version; delete receipt.profile; }
+      if (cause === 'invalid_saved') receipt.saved = 'false';
+      if (cause === 'foreign') receipt.tenant.slug = 'another-organization';
+      if (cause === 'invalid_revision') receipt.profile.revision = 'legacy';
+      if (cause === 'unconfirmed_logo') receipt.profile.values.logo_url = 'old';
+      if (cause === 'wrong_profile_contract') receipt.profile.contract_version = 'legacy';
+      if (cause === 'different_id') receipt.profile.tenant.id = 99;
+      apiFetchMock.mockResolvedValueOnce(receipt);
+      await expect(tenantService.updateTenantConfig('junin', { expected_revision: 'a'.repeat(64),
+        organization_profile: { logo_url: 'https://assets.example.invalid/logo.svg' } })).rejects.toMatchObject({ status: 502 });
+      expect(apiFetchMock).toHaveBeenCalledOnce();
+    });
+  it('accepts a valid idempotent profile receipt only with an exact confirmed logo and subsequent readback', async () => {
+    const logo = 'https://assets.example.invalid/logo.svg';
+    apiFetchMock.mockResolvedValueOnce({ contract_version: 'organization.profile_save.v1', ok: true, saved: false,
+      tenant: { id: 17, slug: 'junin' }, profile: { contract_version: 'organization.profile_settings.v1',
+        tenant: { id: 17, slug: 'junin' }, revision: 'a'.repeat(64), values: { logo_url: logo } } })
+      .mockResolvedValueOnce({ ...tenantConfigBundle, tenant: { ...tenantConfigBundle.tenant, logo_url: logo } });
+    await expect(tenantService.updateTenantConfig('junin', { expected_revision: 'a'.repeat(64), organization_profile: { logo_url: logo } }))
+      .resolves.toMatchObject({ tenant: { slug: 'junin', logo_url: logo } });
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+  });
+  it.each(['profile', 'configs'])('does not start a readback after a retired %s PUT resolves', async kind => {
+    let resolvePut!: (value: unknown) => void;
+    apiFetchMock.mockReturnValueOnce(new Promise(resolve => { resolvePut = resolve; }));
+    let current = true;
+    const isCurrent = () => current;
+    const payload = kind === 'profile' ? { expected_revision: 'a'.repeat(64), organization_profile: { logo_url: 'https://assets.example.invalid/logo.svg' } }
+      : { configs: {} };
+    const pending = tenantService.updateTenantConfig('junin', payload, { isCurrent });
+    current = false;
+    resolvePut({ message: 'Saved' });
+    await expect(pending).rejects.toMatchObject({ status: 409 });
+    expect(apiFetchMock).toHaveBeenCalledOnce();
+    expect(apiFetchMock.mock.calls[0][1].isCurrent()).toBe(false);
+    expect(apiFetchMock.mock.calls[0][1]).toMatchObject({ singleAttempt: true, allowStartupRecovery: false });
+  });
+  it('blocks already retired config reads and writes before transport', async () => {
+    await expect(tenantService.getTenantConfig('junin', { isCurrent: () => false })).rejects.toMatchObject({ status: 409 });
+    await expect(tenantService.updateTenantConfig('junin', { configs: {} }, { isCurrent: () => false })).rejects.toMatchObject({ status: 409 });
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+  it('propagates the current lifecycle to the readback and retires its late result', async () => {
+    let resolveRead!: (value: unknown) => void;
+    apiFetchMock.mockResolvedValueOnce({ message: 'Config updated' }).mockReturnValueOnce(new Promise(resolve => { resolveRead = resolve; }));
+    let current = true;
+    const isCurrent = () => current;
+    const pending = tenantService.updateTenantConfig('junin', { configs: {} }, { isCurrent });
+    await Promise.resolve();
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    expect(apiFetchMock.mock.calls[1][1].isCurrent).toBe(isCurrent);
+    current = false; resolveRead(tenantConfigBundle);
+    await expect(pending).rejects.toMatchObject({ status: 409 });
   });
   it('pins the private WhatsApp contract read to the requested organization and panel session', async () => {
     apiFetchMock.mockResolvedValue({ contract_version: 'twilio.tech_provider.v1' });
