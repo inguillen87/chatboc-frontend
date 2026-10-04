@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -467,6 +467,29 @@ const formatEndpoint = (action?: OperationsActionItem) =>
 
 const actionHref = (action?: OperationsActionItem) =>
   asString(action?.href) ?? asString(action?.frontend_path) ?? asString(action?.route);
+
+const ticketQueueHref = (href: unknown, tenantSlug: string): string | undefined => {
+  // An absent destination may use the verified workspace route. A supplied,
+  // invalid destination must stay unavailable rather than silently falling back.
+  const destination = href === undefined || href === null ? '/perfil?tab=tickets' : href;
+  if (typeof destination !== 'string' || !destination.startsWith('/perfil?') || /[\\\u0000-\u0020]/.test(destination)) return undefined;
+  try {
+    const url = new URL(destination, 'https://private.invalid');
+    if (url.origin !== 'https://private.invalid' || url.pathname !== '/perfil' || url.hash
+      || url.searchParams.getAll('tab').length !== 1 || url.searchParams.get('tab') !== 'tickets') return undefined;
+    const allowed = new Set(['tab', 'focus', 'tenant_slug', 'tenant', 'tenantSlug']);
+    if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) return undefined;
+    if (url.searchParams.getAll('focus').length > 1 || (url.searchParams.has('focus') && url.searchParams.get('focus') !== 'open_queue')) return undefined;
+    for (const key of ['tenant_slug', 'tenant', 'tenantSlug']) {
+      const values = url.searchParams.getAll(key);
+      if (values.length > 1 || values.some((value) => value !== tenantSlug)) return undefined;
+    }
+    url.searchParams.set('tenant_slug', tenantSlug);
+    return `${url.pathname}?${url.searchParams.toString()}`;
+  } catch {
+    return undefined;
+  }
+};
 
 const geocodingQueueHref = (
   action: OperationsActionItem | undefined,
@@ -1250,6 +1273,10 @@ function OperationsCommandCockpit({
   const queueSummary = queueSnapshot?.summary ?? {};
   const queueSla = queueSnapshot?.sla ?? {};
   const queueLinks = queueSnapshot?.links ?? {};
+  const ticketsHref = organizationProfileVerified && user?.id && operationsEventMatchesTenant(data, tenantSlug)
+    && isTerritorialTenantScopeCompatible(queueSnapshot ?? {}, tenantSlug)
+    ? ticketQueueHref(queueLinks.open, tenantSlug)
+    : undefined;
   const surveysSummary = data.surveys?.summary ?? {};
   const commerceSummary = data.commerce?.summary ?? {};
   const openTickets = readNumber(queueSummary.open_total, data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos);
@@ -1306,7 +1333,7 @@ function OperationsCommandCockpit({
       detail: ticketDetail,
       icon: Ticket,
       tone: !queueSnapshot || overdueTickets || slaUnknown ? 'warning' : 'success',
-      href: queueLinks.open || '/perfil?tab=tickets',
+      href: ticketsHref,
       action: 'Abrir bandeja de reclamos',
     },
     {
@@ -2665,6 +2692,7 @@ function OperationsHeatmapPanel({
   mapConfig?: PublicMapConfigV1;
   refetch: () => void;
 }) {
+  const periodFilterId = useId();
   const layers = heatmap?.render_contract?.layers ?? [];
   const layersKey = layers.join('|');
   const [enabledLayers, setEnabledLayers] = useState<string[]>(layers);
@@ -3758,9 +3786,10 @@ function OperationsHeatmapPanel({
                 ) : null}
               </div>
 
-              <label className="mt-3 block space-y-1 text-xs font-medium text-muted-foreground">
+              <label htmlFor={periodFilterId} className="mt-3 block space-y-1 text-xs font-medium text-muted-foreground">
                 <span>{periodLabel}</span>
                 <select
+                  id={periodFilterId}
                   value={selectedPeriod}
                   onChange={(event) => {
                     const nextValue = event.target.value;

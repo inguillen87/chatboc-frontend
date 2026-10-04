@@ -58,15 +58,15 @@ const socketMocks = vi.hoisted(() => {
 });
 
 const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
-const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true }));
+const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true, role: 'admin_municipio' }));
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: 'admin_municipio', tenant_slug: panelAuthority.privateSlug, tipo_chat: 'municipio' } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
+  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: panelAuthority.role, tenant_slug: panelAuthority.privateSlug, tipo_chat: 'municipio' } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
 }));
 vi.mock('@/context/CapabilitiesContext', () => ({
   useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'market.orders.read' && panelAuthority.ordersRead }),
 }));
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({ currentSlug: tenantContext.slug }),
+  useTenant: () => ({ currentSlug: tenantContext.slug, tenant: { id: 22, slug: tenantContext.slug, tipo: 'municipio' }, isLoadingTenant: false, tenantError: null }),
 }));
 
 vi.mock('@/context/SocketContext', () => ({
@@ -599,7 +599,7 @@ const LocationObserver = () => {
   return <output data-testid="navigation-location">{location.pathname}{location.search}</output>;
 };
 
-const renderPanel = (observeLocation = false) => {
+const renderPanel = (observeLocation = false, initialEntry = '/') => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -610,7 +610,7 @@ const renderPanel = (observeLocation = false) => {
   });
 
   return render(
-    <MemoryRouter><QueryClientProvider client={queryClient}>
+    <MemoryRouter initialEntries={[initialEntry]}><QueryClientProvider client={queryClient}>
       <OperationsDashboardPanel />
       {observeLocation ? <LocationObserver /> : null}
     </QueryClientProvider></MemoryRouter>,
@@ -676,6 +676,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     panelAuthority.privateSlug = 'junin';
     panelAuthority.session = true;
     panelAuthority.ordersRead = true;
+    panelAuthority.role = 'admin_municipio';
     mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
@@ -856,6 +857,64 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(details).toHaveTextContent('/api/tickets/{record_id}/ubicacion');
   });
 
+  it('preserves the verified SuperAdmin selection when opening the executive claim queue', async () => {
+    panelAuthority.role = 'superadmin';
+    panelAuthority.privateSlug = 'actor-home';
+    const fixture = dashboardFixture();
+    fixture.queue_truth = { queue_snapshot: { links: { open: '/perfil?tab=tickets&focus=open_queue' } } };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel(true, '/perfil?tenant_slug=junin');
+    const link = await screen.findByRole('link', { name: 'Abrir bandeja de reclamos' });
+    const destination = '/perfil?tab=tickets&focus=open_queue&tenant_slug=junin';
+    expect(link).toHaveAttribute('href', destination);
+    const reads = mocks.getOperationsDashboardV2.mock.calls.length;
+    fireEvent.click(link);
+    expect(screen.getByTestId('navigation-location')).toHaveTextContent(destination);
+    expect(mocks.getOperationsDashboardV2).toHaveBeenCalledTimes(reads);
+    expect(mocks.getOperationsDashboardV2.mock.calls.every(([options]) => options.tenantSlug === 'junin')).toBe(true);
+  });
+
+  it.each([
+    'https://foreign.invalid/perfil?tab=tickets', '//foreign.invalid/perfil?tab=tickets',
+    '/perfil?tab=tickets&tenant_slug=foreign-org', '/perfil?tab=tickets&tenant=foreign-org',
+    '/perfil?tab=tickets&tenantSlug=foreign-org', '/perfil?tab=tickets&tenant_id=99',
+    '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=foreign-org',
+    '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=junin',
+    '/perfil?tab=tickets&tab=chat', '/perfil?tab=tickets&focus=other_queue',
+    '/perfil?tab=tickets#foreign', '/perfil?tab=tickets\\foreign', '/otra?tab=tickets', '',
+  ])('does not substitute a fallback for an invalid supplied executive queue link %j', async (href) => {
+    const fixture = dashboardFixture();
+    fixture.queue_truth = { queue_snapshot: { links: { open: href } } };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: 'Abrir bandeja de reclamos' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the executive queue unavailable without a confirmed response origin', async () => {
+    const fixture = dashboardFixture();
+    delete fixture.tenant;
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: 'Abrir bandeja de reclamos' })).not.toBeInTheDocument();
+  });
+
+  it('associates the backend period label with the selector and preserves category filters when changing it', async () => {
+    const fixture = heatmapFixture();
+    fixture.ui = { labels: { period_filter: 'Período de consulta' } };
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    const selector = await screen.findByRole('combobox', { name: 'Período de consulta' });
+    expect(screen.getByLabelText('Período de consulta')).toBe(selector);
+    expect(selector).toHaveAttribute('id');
+    expect(screen.getByText('Período de consulta').closest('label')).toHaveAttribute('for', selector.id);
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
+    fireEvent.change(selector, { target: { value: '7' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'junin', categoria: 'alumbrado', days: '7' })));
+  });
+
   it.each([
     { enabled: false }, { enabled: 'true' }, { writes_enabled: true }, { action_type: 'api' },
     { tenant_slug: 'tierra-del-fuego' },
@@ -884,7 +943,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
     expect(screen.getByText('Cabina de mando')).toBeTruthy();
     expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets');
+    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
@@ -1181,7 +1240,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText(/2 vencidos confirmados/)).toBeTruthy();
     expect(screen.queryByText('Bandeja operativa sin vencidos publicados')).toBeNull();
     expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe(
-      '/perfil?tab=tickets&focus=open_queue',
+      '/perfil?tab=tickets&focus=open_queue&tenant_slug=junin',
     );
     expect(mocks.getOperationsDashboardV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));
     expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));

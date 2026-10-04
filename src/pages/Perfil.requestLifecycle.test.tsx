@@ -811,7 +811,10 @@ describe('Perfil request lifecycle', () => {
 
     const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
     expect(name).toHaveValue('Organización seleccionada');
+    expect(name).toHaveAccessibleDescription('Se muestra en el encabezado del espacio de trabajo y en las comunicaciones oficiales.');
     expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveValue('+542900123456');
+    expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveAttribute('type', 'tel');
+    expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveAccessibleDescription('Es un dato de contacto del perfil. El número oficial de WhatsApp se vincula y verifica en Canales.');
     expect(countApiCalls('/api/me')).toBe(0);
     expect(runtime.apiFetch).toHaveBeenCalledWith('/api/admin/tenants/selected-organization/config', expect.objectContaining({
       tenantSlug: 'selected-organization', persistTenantSlug: false,

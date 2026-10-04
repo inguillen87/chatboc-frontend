@@ -2982,25 +2982,25 @@ export default function Perfil() {
           active={activeProfileTab === "perfil" && isInstitutionProfileOpen}
           label="Perfil institucional"
           data-testid="profile-institution-workspace"
-          className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=institution-profile-workspace]]:!h-full [&_[data-testid=institution-profile-workspace]]:!min-h-0"
+          className="mt-1 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden pb-0 [&_[data-testid=institution-profile-workspace]]:!h-auto [&_[data-testid=institution-profile-workspace]]:!min-h-0 [&_[data-testid=institution-profile-workspace]]:flex-1"
         >
           {usesScopedOrganizationProfile ? (
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => navigate('/perfil')}>
+            <nav aria-label="Navegación de la organización seleccionada" className="mb-2 grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <Button type="button" variant="outline" size="sm" className="min-h-11 min-w-0" onClick={() => navigate('/perfil')}>
                 Mi perfil
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => navigate('/superadmin?section=organizations')}>
-                Directorio de organizaciones
-              </Button>
               {matchingOrganizationProfile ? (
-                <Button type="button" variant="outline" size="sm" disabled={loadingGuardar} onClick={handleCancelProfileChanges}>
+                <Button type="button" variant="outline" size="sm" className="min-h-11 min-w-0" disabled={loadingGuardar} onClick={handleCancelProfileChanges}>
                   Actualizar perfil
                 </Button>
               ) : null}
-            </div>
+              <Button type="button" variant="outline" size="sm" className="col-span-2 min-h-11 min-w-0 whitespace-normal" onClick={() => navigate('/superadmin?section=organizations')}>
+                Directorio de organizaciones
+              </Button>
+            </nav>
           ) : null}
           {matchingOrganizationProfile && matchingOrganizationProfile.editability.mode === 'read_only' ? (
-            <Alert className="mb-2">
+            <Alert className="mb-2 shrink-0">
               <AlertTitle>Perfil en modo consulta</AlertTitle>
               <AlertDescription>Usá Actualizar perfil para volver a verificar los permisos de esta organización.</AlertDescription>
             </Alert>
@@ -3050,8 +3050,8 @@ export default function Perfil() {
             ) : null}
 
             {activeInstitutionSection === "general" ? (
-              <div className="grid max-w-4xl gap-5 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
+              <div className="grid min-w-0 max-w-4xl gap-5 xl:grid-cols-2">
+                <div className="min-w-0 space-y-2 xl:col-span-2">
                   <Label htmlFor="nombre_empresa">Nombre legal o institucional</Label>
                   <Input
                     id="nombre_empresa"
@@ -3059,17 +3059,18 @@ export default function Perfil() {
                     onChange={handleInputChange}
                     required
                     autoComplete="organization"
+                    aria-describedby="profile-institution-name-help"
                   />
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p id="profile-institution-name-help" className="text-xs leading-5 text-muted-foreground">
                     Se muestra en el encabezado del espacio de trabajo y en las comunicaciones oficiales.
                   </p>
                 </div>
                 {usesScopedOrganizationProfile && typeof matchingOrganizationProfile?.values.actividad === 'string' &&
                   matchingOrganizationProfile.ui?.activity_label ? (
-                  <div className="space-y-2 md:col-span-2">
+                  <div className="min-w-0 space-y-2 xl:col-span-2">
                     <Label htmlFor="actividad">{matchingOrganizationProfile.ui.activity_label}</Label>
-                    <Input id="actividad" value={perfil.actividad} maxLength={100} onChange={handleInputChange} />
-                    <p className="text-xs leading-5 text-muted-foreground">{matchingOrganizationProfile.ui.activity_description}</p>
+                    <Input id="actividad" value={perfil.actividad} maxLength={100} onChange={handleInputChange} aria-describedby={matchingOrganizationProfile.ui.activity_description ? 'profile-institution-activity-help' : undefined} />
+                    {matchingOrganizationProfile.ui.activity_description ? <p id="profile-institution-activity-help" className="text-xs leading-5 text-muted-foreground">{matchingOrganizationProfile.ui.activity_description}</p> : null}
                   </div>
                 ) : null}
                 <div className="space-y-2">
@@ -3081,8 +3082,10 @@ export default function Perfil() {
                     onChange={handleInputChange}
                     required={!usesScopedOrganizationProfile}
                     autoComplete="tel"
+                    type="tel"
+                    aria-describedby="profile-institution-phone-help"
                   />
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p id="profile-institution-phone-help" className="text-xs leading-5 text-muted-foreground">
                     Es un dato de contacto del perfil. El número oficial de WhatsApp se vincula y verifica en Canales.
                   </p>
                 </div>
@@ -3096,8 +3099,10 @@ export default function Perfil() {
                     onChange={handleInputChange}
                     required={!usesScopedOrganizationProfile}
                     autoComplete="url"
+                    inputMode="url"
+                    aria-describedby="profile-institution-website-help"
                   />
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p id="profile-institution-website-help" className="text-xs leading-5 text-muted-foreground">
                     URL pública de referencia; no modifica dominios ni despliegues.
                   </p>
                 </div>

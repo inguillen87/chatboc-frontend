@@ -965,8 +965,8 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="rounded-full px-3 py-1">{employees.length} empleados</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{categories.length} categorias</Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">{coverage ? `${uncoveredCategories.length} categorias sin responsable` : 'Cobertura no disponible'}</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{categories.length} temas de ruteo</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{coverage ? `${uncoveredCategories.length} temas sin responsable` : 'Cobertura no disponible'}</Badge>
             <Badge variant="outline" className="rounded-full px-3 py-1">{unassignedCount === null ? 'Asignación no disponible' : `${unassignedCount} tickets sin asignar`}</Badge>
           </div>
         </div>
@@ -975,7 +975,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <TeamStatCard label="Empleados" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos" icon={Users2} />
         <TeamStatCard label="Roles" value={roleOptions.length.toLocaleString('es-AR')} helper="Perfiles disponibles" icon={KeyRound} />
-        <TeamStatCard label="Categorias" value={categories.length.toLocaleString('es-AR')} helper="Tipos de reclamo asignables" icon={Layers3} />
+        <TeamStatCard label="Temas de ruteo" value={categories.length.toLocaleString('es-AR')} helper="Catálogo y taxonomía publicados para asignar alcance" icon={Layers3} />
         <TeamStatCard label="Sin asignar" value={unassignedCount === null ? 'No informado' : unassignedCount.toLocaleString('es-AR')} helper="Tickets abiertos sin responsable" icon={MapPinned} />
       </div>
 
@@ -999,7 +999,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   <CardTitle>Cobertura operativa</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
-                  <CoverageColumn title="Categorias" items={coverageCategories} emptyLabel="categoria" />
+                  <CoverageColumn title="Temas de ruteo" items={coverageCategories} emptyLabel="tema" />
                   <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
                   <CoverageColumn title="Canales" items={coverageChannels} emptyLabel="canal" />
                 </CardContent>
@@ -1009,7 +1009,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
                     <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    Categorias sin responsable
+                    Temas sin responsable
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1022,7 +1022,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">{coverage ? 'No hay categorias sin responsable publicadas por backend.' : 'No pudimos verificar la cobertura. No se puede confirmar que todas las categorías tengan responsable.'}</p>
+                    <p className="text-sm text-muted-foreground">{coverage ? 'No hay temas sin responsable publicados por el servidor.' : 'No pudimos verificar la cobertura. No se puede confirmar que todos los temas tengan responsable.'}</p>
                   )}
                 </CardContent>
               </Card>
@@ -1115,14 +1115,14 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               <section className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">3. Alcance operativo</p>
-                  <p className="text-xs text-muted-foreground">Selecciona solo las categorias reales que va a atender. No se crean categorias desde aca.</p>
+                  <p className="text-xs text-muted-foreground">Seleccioná los temas publicados que va a atender. El catálogo se administra por separado.</p>
                 </div>
                 <SearchableOptionGroup
                   label="Que reclamos atiende"
                   options={categoryOptions}
                   selected={categoriaIds}
                   onToggle={(value) => toggleValue(value, categoriaIds, setCategoriaIds)}
-                  empty="No hay categorias operativas publicadas para este tenant."
+                  empty="No hay temas de ruteo publicados para esta organización."
                 />
                 <div className="grid gap-4 lg:grid-cols-2">
                   <OptionGroup
@@ -1231,7 +1231,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                 options={categoryOptions}
                 selected={editCategoriaIds}
                 onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)}
-                empty="Sin categorias operativas publicadas."
+                empty="Sin temas de ruteo publicados."
               />
               <div className="grid gap-4 lg:grid-cols-2">
                 <OptionGroup label="Canales" options={channelOptions} selected={editChannels} onToggle={(value) => toggleValue(value, editChannels, setEditChannels)} empty="Sin canales publicados." />

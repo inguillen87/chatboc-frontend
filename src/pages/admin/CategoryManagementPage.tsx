@@ -233,6 +233,13 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
   const inventory=useMemo(()=>readCategoryInventory(routing,tenantSlug),[routing,tenantSlug]);
   const visibleCategories = useMemo(() => buildVisibleCategories(categories, routing,inventory), [categories, routing,inventory]);
   const inventoryByName=useMemo(()=>new Map(inventory?.items.map(item=>[normalizeKey(item.label),item])),[inventory]);
+  const routingTopicCount = visibleCategories.filter((category) => category.source === 'routing').length;
+  const categorySourceLabels = [
+    `${catalogVerified ? categories.length : 'Cantidad no verificada'} en catálogo`,
+    routing ? `${routingTopicCount} temas de ruteo fuera del catálogo` : 'Temas de ruteo no informados',
+    inventory ? `${inventory.summary.detected_topics} con demanda abierta fuera del catálogo` : 'Demanda abierta no verificada',
+  ];
+  const categorySourcesSummary = categorySourceLabels.join(' · ');
 
   const assignedByCategory = useMemo(() => {
     const employees = routing?.employees ?? [];
@@ -337,7 +344,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
     {
       label: 'Temas de atencion',
       value: visibleCategories.length,
-      helper: `${catalogVerified ? categories.length : 'Cantidad no verificada'} en el catalogo · ${visibleCategories.filter((category) => category.source === 'routing').length} detectados por ruteo.`,
+      helper: categorySourcesSummary,
       icon: FolderTree,
     },
     {
@@ -405,7 +412,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
           {canManageTeam ? <a href={responsibleHref} className="mt-2 inline-flex min-h-11 items-center underline underline-offset-4">Revisar responsables</a> : null}
         </div> : null}
         {canManageTeam ? <a href={responsibleHref} className="inline-flex min-h-11 items-center gap-2 underline underline-offset-4"><Users2 size={18} aria-hidden="true" />Ver equipo y responsables</a> : null}
-        {inventory ? <p className="text-sm text-muted-foreground">Los temas observados no son categorías del catálogo. La compatibilidad publicada indica personas que pueden atender al menos un caso abierto del tema; no garantiza que todos sus casos tengan cobertura.</p> : null}
+        {inventory ? <p className="text-sm text-muted-foreground">Los temas de ruteo pueden provenir de la taxonomía publicada o de casos abiertos. Los temas con demanda abierta fuera del catálogo se cuentan por separado. La compatibilidad publicada indica personas que pueden atender al menos un caso abierto del tema; no garantiza que todos sus casos tengan cobertura.</p> : null}
         {unconfirmedCategory && !isDialogOpen ? <Button variant="outline" disabled={isSaving} onClick={()=>void verifyUnconfirmedCategory()}>Comprobar categoría enviada</Button> : null}
 
         {error && !isDialogOpen ? (
@@ -446,14 +453,14 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
         <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/70 shadow-sm">
           <div className="flex flex-col gap-2 border-b border-border/70 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">Categorias de atencion</h2>
+              <h2 className="text-xl font-semibold text-foreground">Catálogo y temas de ruteo</h2>
               <p className="text-sm text-muted-foreground">
                 Usa esta lista para mantener claro que atiende cada equipo.
               </p>
             </div>
-            <Badge variant="secondary" className="w-fit rounded-full">
-              {catalogVerified ? categories.length : 'Cantidad no verificada'} en catalogo · {visibleCategories.filter((category) => category.source === 'routing').length} por ruteo
-            </Badge>
+            <div className="flex flex-wrap gap-2">
+              {categorySourceLabels.map((label) => <Badge key={label} variant="secondary" className="w-fit rounded-full">{label}</Badge>)}
+            </div>
           </div>
 
           {visibleCategories.length ? (
@@ -470,7 +477,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
                         <h3 className="text-lg font-semibold text-foreground">{category.nombre}</h3>
                         {category.source === 'routing' ? (
                           <Badge variant="outline" className="rounded-full">
-                            tema observado · fuera del catálogo
+                            {demand?.open_count ? 'demanda abierta · fuera del catálogo' : demand?.source_types.some((source) => source !== 'open_tickets') ? 'taxonomía de ruteo · fuera del catálogo' : 'tema de ruteo · fuera del catálogo'}
                           </Badge>
                         ) : null}
                       </div>
