@@ -21,7 +21,19 @@ try{
       const form=page.getByTestId('institution-profile-workspace');
       const input=page.getByRole('textbox',{name:'Campo de prueba'});
       await input.fill('Texto conservado al navegar');
-      await page.getByTestId('institution-profile-section-plan-security').click();
+      const sectionSelector=page.getByRole('combobox',{name:'Sección del perfil institucional'});
+      const desktopPlan=page.getByTestId('institution-profile-section-plan-security');
+      const usesSelector=width<1024;
+      if(usesSelector){
+        await expect(sectionSelector).toBeVisible();await expect(desktopPlan).toBeHidden();
+        await sectionSelector.focus();await expect(sectionSelector).toBeFocused();
+        await sectionSelector.selectOption('plan-security');await expect(sectionSelector).toHaveValue('plan-security');
+      }else{
+        await expect(sectionSelector).toBeHidden();await expect(desktopPlan).toBeVisible();
+        await desktopPlan.click();await expect(desktopPlan).toHaveAttribute('aria-current','page');
+      }
+      await expect(page.getByRole('group',{name:'Plan y seguridad'})).toContainText('Campo de prueba');
+      await expect(page.getByTestId('fixture-submits')).toHaveText('0');
       await page.screenshot({path:`${folder}/profile-${width}.png`,fullPage:true});
       const bounds=await page.getByRole('heading',{name:'Organización de evaluación multidispositivo'}).boundingBox();
       const metrics=await form.evaluate(el=>({left:el.scrollLeft,width:el.clientWidth,scroll:el.scrollWidth}));
@@ -29,8 +41,17 @@ try{
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
       assert.ok(metrics.left===0&&metrics.scroll<=metrics.width+1,'Form must not be scrolled horizontally');
       await expect(input).toHaveValue('Texto conservado al navegar');
-      const last=page.getByTestId('institution-profile-section-general');await last.focus();await page.keyboard.press('Enter');
-      await expect(last).toHaveAttribute('aria-current','page');
+      if(usesSelector){
+        await sectionSelector.focus();await expect(sectionSelector).toBeFocused();
+        await page.keyboard.press('Home');await page.keyboard.press('Enter');
+        await expect(sectionSelector).toHaveValue('general');
+      }else{
+        const last=page.getByTestId('institution-profile-section-general');await last.focus();await expect(last).toBeFocused();await page.keyboard.press('Enter');
+        await expect(last).toHaveAttribute('aria-current','page');
+      }
+      await expect(page.getByRole('group',{name:'General'})).toContainText('Campo de prueba');
+      await expect(input).toHaveValue('Texto conservado al navegar');
+      await expect(page.getByTestId('fixture-submits')).toHaveText('0');
       await page.getByTestId('fixture-end').scrollIntoViewIfNeeded();
       const save=page.getByRole('button',{name:'Guardar',exact:true});
       await save.click();await expect(page.getByTestId('fixture-submits')).toHaveText('1');
@@ -38,6 +59,12 @@ try{
       await page.goto(origin+'/tests/e2e/fixtures/production-profile.html?readonly=1');
       await expect(page.getByRole('button',{name:'Guardar',exact:true})).toBeDisabled();
       await expect(page.getByRole('textbox',{name:'Campo de prueba'})).toBeDisabled();
+      if(usesSelector){
+        await expect(sectionSelector).toBeVisible();await expect(sectionSelector).toBeEnabled();
+        await sectionSelector.selectOption('plan-security');
+        await expect(page.getByRole('group',{name:'Plan y seguridad'})).toBeVisible();
+        await expect(page.getByTestId('fixture-submits')).toHaveText('0');
+      }
     }catch(error){results.push({width,height,dark,passed:false,reason:error.message});}
     await context.close();
   }
