@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChannelActivationChecklist from './ChannelActivationChecklist';
 import { fetchTenantChannelActivation } from '@/api/v2/channelActivation';
+vi.mock('@/hooks/useUser', () => ({ useUser: () => ({
+  user: { id: 1, rol: 'admin' }, hasVerifiedSession: true, organizationProfileVerified: true, loading: false,
+}) }));
 
 vi.mock('@/api/v2/channelActivation', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/api/v2/channelActivation')>(),
@@ -130,11 +133,11 @@ describe('ChannelActivationChecklist', () => {
     expect(screen.getAllByText(/requiere plan full/i)).toHaveLength(2);
     expect(screen.getAllByRole('link', { name: /conectar whatsapp/i })[0]).toHaveAttribute(
       'href',
-      '/t/junin/integracion',
+      '/t/junin/integracion?tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin',
     );
-    expect(screen.getByRole('link', { name: /configurar cloudflare/i })).toHaveAttribute('href', '/t/junin/integracion');
-    expect(screen.getByRole('link', { name: /configurar cobros/i })).toHaveAttribute('href', '/t/junin/integracion');
-    expect(screen.getByRole('link', { name: /configurar equipo/i })).toHaveAttribute('href', '/perfil?tab=empleados');
+    expect(screen.getByRole('link', { name: /configurar cloudflare/i })).toHaveAttribute('href', '/t/junin/integracion?tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin');
+    expect(screen.getByRole('link', { name: /configurar cobros/i })).toHaveAttribute('href', '/t/junin/integracion?tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin');
+    expect(screen.getByRole('link', { name: /configurar equipo/i })).toHaveAttribute('href', '/perfil?tab=empleados&tenant_slug=junin&return_to=%2Fimplementacion%3Ftenant_slug%3Djunin');
   });
 
   it('refreshes the contract from the current tenant', async () => {

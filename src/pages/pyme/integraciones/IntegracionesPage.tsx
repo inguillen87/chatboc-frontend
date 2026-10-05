@@ -31,6 +31,7 @@ import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import CatalogSpreadsheetEditor from '@/components/admin/catalog/CatalogSpreadsheetEditor';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
+import InstitutionalChannelPreview from '@/components/integrations/InstitutionalChannelPreview';
 import WhatsappTechProviderOnboarding from '@/components/integrations/WhatsappTechProviderOnboarding';
 import InstitutionalProfileAccess from '@/components/integrations/InstitutionalProfileAccess';
 import {
@@ -1196,7 +1197,7 @@ const IntegracionesPage = () => {
                   <ShieldCheck className="h-3.5 w-3.5" /> Prueba controlada
                 </Badge>
                 <Badge variant="secondary" className="gap-1">
-                  <Bot className="h-3.5 w-3.5" /> Menu publicado
+                  <Bot className="h-3.5 w-3.5" /> Opciones de prueba
                 </Badge>
                 {sandboxSetupLoading ? (
                   <Badge variant="outline" className="gap-1">
@@ -1210,7 +1211,7 @@ const IntegracionesPage = () => {
                   Prepará una prueba guiada con número, frase de unión y brief del rubro. El usuario abre WhatsApp desde un enlace o copia las instrucciones; no se promete envío automático desde el backend.
               */}
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  Prepara una prueba guiada con número, frase de unión, brief del rubro y menú publicado. El backend debe registrar la sesión antes de mostrar el enlace de grabación.
+                  Prepara una prueba guiada con número, frase de unión, brief del rubro y opciones de la configuración del sandbox. El backend debe registrar la sesión antes de mostrar el enlace de grabación.
                 </p>
               </div>
             </div>
@@ -1309,8 +1310,11 @@ const IntegracionesPage = () => {
           <div className="mt-4 rounded-xl border bg-background/70 p-4">
             <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
               <KeyRound className="h-4 w-4 text-primary" />
-              Menu que verá el usuario
+              Opciones de la prueba
             </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Estas opciones provienen del sandbox o de la configuración del widget. El contenido público del agente se consulta en la vista previa.
+            </p>
             {(effectiveJoinNumber || effectiveJoinPhrase) && (
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                 {effectiveJoinNumber ? (
@@ -2155,7 +2159,11 @@ const IntegracionesPage = () => {
                                 <Eye className="h-5 w-5 text-muted-foreground" />
                                 Vista Previa
                             </h3>
-                            <Card className="border border-white/10 bg-gradient-to-br from-slate-950/30 via-slate-900/30 to-slate-900/60 shadow-xl">
+                            <InstitutionalChannelPreview />
+                            <details className="min-w-0 rounded-xl border bg-card text-card-foreground">
+                              <summary className="flex min-h-11 cursor-pointer items-center p-3 text-sm font-medium underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                                Simulación de {CHANNELS.find(c => c.id === selectedChannel)?.label}
+                              </summary>
                                 <CardContent className="p-6">
                                     <div className="origin-top transform transition-all duration-300">
                                         <ChannelPreview
@@ -2165,15 +2173,13 @@ const IntegracionesPage = () => {
                                                     ? whatsappSandbox.testMessage || whatsappSandbox.brief || undefined
                                                     : undefined
                                             }
-                                            menuItems={selectedChannel === 'whatsapp' ? widgetQuickMenu : []}
-                                            product={selectedChannel === 'mercadolibre' ? { name: 'Producto Demo', price: '$15.000' } : undefined}
                                         />
                                     </div>
                                     <p className="text-center text-xs text-muted-foreground mt-4">
-                                        Así verán los mensajes tus clientes en {CHANNELS.find(c => c.id === selectedChannel)?.label}.
+                                        Simulación del borrador en {CHANNELS.find(c => c.id === selectedChannel)?.label}; no confirma una conexión productiva.
                                     </p>
                                 </CardContent>
-                            </Card>
+                            </details>
                         </div>
                     </div>
 

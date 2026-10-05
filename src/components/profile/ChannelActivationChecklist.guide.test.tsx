@@ -3,6 +3,7 @@ import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/reac
 import {beforeEach,afterEach,describe,expect,it,vi} from 'vitest';
 import {guideActivation,guideAccess,guideCopy,guideNode} from '../../../tests/fixtures/private-guide.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
+vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:{id:1,rol:'admin'},hasVerifiedSession:true,organizationProfileVerified:true,loading:false})}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
 import ChannelActivationChecklist from './ChannelActivationChecklist';
 const deferred=()=>{let resolve!:(v:any)=>void,reject!:(v:any)=>void;const promise=new Promise<any>((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};

@@ -28,6 +28,7 @@ import {
 
 import {
   fetchTenantChannelActivation,
+  parseTenantChannelActivation,
   parseTenantImplementationJourney,
   type ChannelActivationChannel,
   type ChannelActivationContract,
@@ -37,7 +38,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { readActiveClerkSessionId } from '@/utils/sessionRetirement';
+import { useUser } from '@/hooks/useUser';
+import { useSessionAuthority } from '@/components/access/SessionAuthorityContext';
+import { normalizeProfileTenantSlug } from '@/utils/profileTenantAuthority';
 
 const channelIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   crm: TicketCheck,
@@ -92,11 +99,30 @@ const normalizeProgress = (value: unknown) => {
 const syncErrorMessage =
   'No pudimos sincronizar los canales ahora. El panel queda disponible y podes reintentar en unos segundos.';
 
+// Only compare authority locally; credentials never become link parameters.
+const readPanelAuthority = () => {
+  const panel = usePanelSessionStore.getState();
+  let storedActor: unknown = null;
+  try { storedActor = JSON.parse(safeLocalStorage.getItem('user') || 'null')?.id ?? null; } catch {}
+  return JSON.stringify([
+    panel.authToken, panel.user?.id == null ? null : String(panel.user.id),
+    panel.user?.rol, panel.user?.tenant_slug,
+    storedActor == null ? null : String(storedActor), readActiveClerkSessionId(),
+    ...['authToken', 'authProvider', 'clerkUserId', 'clerkSessionTransport'].map(key => safeLocalStorage.getItem(key)),
+  ]);
+};
+
+const readInitialActivation = (data: ChannelActivationContract | null | undefined, slug: string | null) => {
+  if (!data || !slug) return null;
+  try { return parseTenantChannelActivation(data, slug); } catch { return null; }
+};
+
 const ChannelTechnicalGrid: React.FC<{
   channels: ChannelActivationChannel[];
   secureTenantSlug?: string;
   returnTo?: string;
-}> = ({ channels, secureTenantSlug, returnTo }) => {
+  onNavigate?: React.MouseEventHandler<HTMLAnchorElement>;
+}> = ({ channels, secureTenantSlug, returnTo, onNavigate }) => {
   const hasChannels = channels.length > 0;
 
   return (
@@ -125,7 +151,7 @@ const ChannelTechnicalGrid: React.FC<{
           || (channel.actions || []).find((item) => item.href && item.kind !== 'api');
         const primaryHref = primary?.href && secureTenantSlug
           ? buildTenantJourneyHref(primary.href, secureTenantSlug, returnTo)
-          : primary?.href || null;
+          : null;
 
         return (
           <article
@@ -177,7 +203,7 @@ const ChannelTechnicalGrid: React.FC<{
 
             {primaryHref ? (
               <Button asChild variant="outline" size="sm" className="mt-4 w-full justify-between">
-                <a href={primaryHref}>
+                <a href={primaryHref} onClick={onNavigate}>
                   {primary.label || 'Abrir'}
                   <ArrowRight className="h-4 w-4" />
                 </a>
@@ -207,49 +233,101 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   returnTo,
   privateGuideSessionKey,
 }) => {
-  const [data, setData] = React.useState<ChannelActivationContract | null>(initialData || null);
-  const [loading, setLoading] = React.useState(Boolean(tenantSlug || initialData));
+  const selectedTenant = normalizeProfileTenantSlug(tenantSlug);
+  const { user, hasVerifiedSession, organizationProfileVerified, loading: profileLoading } = useUser();
+  const { clerkStatus } = useSessionAuthority();
+  const profileReady = hasVerifiedSession && organizationProfileVerified && !profileLoading
+    && clerkStatus !== 'loading' && clerkStatus !== 'syncing';
+  const [authorityEpoch, setAuthorityEpoch] = React.useState(0);
+  const contextIdentity = JSON.stringify([user?.id, user?.rol, user?.role, user?.tenant_slug, user?.tenantSlug,
+    user?.capabilities, user?.permissions, hasVerifiedSession, organizationProfileVerified, profileLoading, clerkStatus]);
+  const guideScope = JSON.stringify([selectedTenant, privateGuideSessionKey, contextIdentity,
+    readPanelAuthority(), captureChatbocSessionRevision(), authorityEpoch]);
+  const [dataEntry, setDataEntry] = React.useState(() => ({
+    data: readInitialActivation(initialData, selectedTenant), scope: guideScope,
+  }));
+  const data = dataEntry.scope === guideScope ? dataEntry.data : null;
+  const [loading, setLoading] = React.useState(Boolean(selectedTenant));
   const [error, setError] = React.useState<string | null>(null);
-  const guideScope=JSON.stringify([tenantSlug,privateGuideSessionKey]);
-  const activeScope=React.useRef(guideScope);activeScope.current=guideScope;
-  const requestRevision=React.useRef(0);
-  const [verifiedGuideScope,setVerifiedGuideScope]=React.useState<string|null>(null);
-  React.useEffect(()=>()=>{++requestRevision.current;},[guideScope]);
+  const activeScope = React.useRef(guideScope); activeScope.current = guideScope;
+  const requestRevision = React.useRef(0);
+  const mounted = React.useRef(false);
+  const [verifiedActivation, setVerifiedActivation] = React.useState<{
+    data: ChannelActivationContract; scope: string; request: number; session: number; authority: string;
+  } | null>(null);
+
+  React.useLayoutEffect(() => {
+    mounted.current = true;
+    let authority = readPanelAuthority();
+    const retire = () => {
+      ++requestRevision.current;
+      setVerifiedActivation(null);
+      setAuthorityEpoch(epoch => epoch + 1);
+    };
+    const changed = () => {
+      const next = readPanelAuthority();
+      if (next !== authority) retire();
+      authority = next;
+    };
+    const unsubscribePanel = usePanelSessionStore.subscribe(changed);
+    const unsubscribeRevision = subscribeChatbocSessionRevision(retire);
+    const onStorage = (event: StorageEvent) => { if (event.storageArea === window.localStorage) changed(); };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      mounted.current = false;
+      ++requestRevision.current;
+      unsubscribePanel(); unsubscribeRevision(); window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+  React.useLayoutEffect(() => { ++requestRevision.current; }, [guideScope]);
 
   React.useEffect(() => {
     // `/me` may finish after the workspace mounts. Keep the visible contract
     // aligned with that verified tenant snapshot instead of retaining a stale
     // session payload (for example, an obsolete Free plan badge).
-    setData(initialData || null);
-  }, [initialData, tenantSlug]);
+    setDataEntry({ data: readInitialActivation(initialData, selectedTenant), scope: guideScope });
+    // Profile metadata can update presentation, but never grants navigation.
+    // An authority-only change must not rebind an old initial descriptor.
+  }, [initialData, selectedTenant]);
 
   const load = React.useCallback(async () => {
-    if (!tenantSlug && !initialData) return;
-    const revision=++requestRevision.current;
+    if (!selectedTenant || !profileReady) return;
+    const revision = ++requestRevision.current;
     const sessionRevision = captureChatbocSessionRevision();
-    const isCurrent = () => revision === requestRevision.current
+    const authority = readPanelAuthority();
+    const isCurrent = () => mounted.current && revision === requestRevision.current
       && activeScope.current === guideScope
-      && isChatbocSessionRevisionCurrent(sessionRevision);
-    setVerifiedGuideScope(null);
+      && isChatbocSessionRevisionCurrent(sessionRevision) && readPanelAuthority() === authority;
+    setVerifiedActivation(null);
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchTenantChannelActivation(tenantSlug, { isCurrent });
+      const response = parseTenantChannelActivation(await fetchTenantChannelActivation(selectedTenant, { isCurrent }), selectedTenant);
       if (!isCurrent()) return;
-      setData(response);
-      setVerifiedGuideScope(guideScope);
+      setDataEntry({ data: response, scope: guideScope });
+      setVerifiedActivation({ data: response, scope: guideScope, request: revision, session: sessionRevision, authority });
     } catch (err) {
       if (isCurrent()) setError(syncErrorMessage);
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [initialData, tenantSlug, guideScope]);
+  }, [initialData, selectedTenant, guideScope, profileReady]);
 
   React.useEffect(() => {
     void load();
   }, [load]);
 
-  if (!tenantSlug && !data) return null;
+  if (!selectedTenant) return null;
+
+  const navigationIsCurrent = () => Boolean(profileReady && !loading && !error && verifiedActivation
+    && verifiedActivation.data === data && verifiedActivation.scope === activeScope.current
+    && verifiedActivation.request === requestRevision.current && mounted.current
+    && isChatbocSessionRevisionCurrent(verifiedActivation.session)
+    && readPanelAuthority() === verifiedActivation.authority);
+  const secureTenant = navigationIsCurrent() ? selectedTenant : undefined;
+  const onNavigate: React.MouseEventHandler<HTMLAnchorElement> = event => {
+    if (!navigationIsCurrent()) event.preventDefault();
+  };
 
   const channels = Array.isArray(data?.channels) ? data.channels : [];
   const progress = normalizeProgress(data?.summary?.progress);
@@ -260,32 +338,35 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   const hasChannels = channels.length > 0;
   const integrationStatus = String(data?.integration_access?.status || '').toLowerCase();
   const selfServiceActive = integrationStatus === 'partial';
-  const implementationJourney = parseTenantImplementationJourney(data?.implementation_journey);
+  const implementationJourney = secureTenant ? parseTenantImplementationJourney(data?.implementation_journey) : null;
+  const primaryHref = secureTenant && primaryAction?.href && primaryAction.kind !== 'api'
+    ? buildTenantJourneyHref(primaryAction.href, secureTenant, returnTo) : null;
 
   if (presentation === 'launch-journey') {
     return (
-      <div data-testid="channel-activation-checklist" data-presentation="launch-journey">
+      <div data-testid="channel-activation-checklist" data-presentation="launch-journey" onClickCapture={event => {
+        if ((event.target as Element).closest('a') && !navigationIsCurrent()) event.preventDefault();
+      }}>
         <TenantLaunchJourney
-          tenantSlug={tenantSlug || data?.tenant?.slug || ''}
+          tenantSlug={selectedTenant}
           journey={implementationJourney}
-          loading={loading}
+          loading={loading || !profileReady}
           error={error}
           onRefresh={() => void load()}
           returnTo={returnTo}
           technicalDetails={(
             <ChannelTechnicalGrid
               channels={channels}
-              secureTenantSlug={tenantSlug || data?.tenant?.slug || ''}
+              secureTenantSlug={secureTenant}
               returnTo={returnTo}
+              onNavigate={onNavigate}
             />
           )}
         />
         <PrivateGuideControl sessionKey={privateGuideSessionKey||''} onSaved={()=>void load()}
-          access={!loading&&!error&&verifiedGuideScope===guideScope&&privateGuideSessionKey&&tenantSlug
-            ?readActivationControl(data,tenantSlug):null}/>
+          access={secureTenant&&privateGuideSessionKey ?readActivationControl(data,secureTenant):null}/>
         <PrivateConversationGuide sessionKey={privateGuideSessionKey||''}
-          access={!loading&&!error&&verifiedGuideScope===guideScope&&privateGuideSessionKey&&tenantSlug
-            ?readActivationGuide(data,tenantSlug):null}/>
+          access={secureTenant&&privateGuideSessionKey ?readActivationGuide(data,secureTenant):null}/>
       </div>
     );
   }
@@ -348,9 +429,9 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
             {hasChannels ? `${ready} de ${total || channels.length} frentes listos.` : 'Esperando sincronizacion del backend.'}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            {primaryAction?.href && primaryAction?.kind !== 'api' ? (
+            {primaryHref ? (
               <Button asChild size="sm" className="h-9">
-                <a href={primaryAction.href}>
+                <a href={primaryHref} onClick={onNavigate}>
                   {primaryAction.label || 'Continuar'}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
@@ -362,7 +443,7 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
               size="sm"
               className="h-9 border-white/20 bg-white/5 text-white hover:bg-white/10"
               onClick={() => void load()}
-              disabled={loading}
+              disabled={loading || !profileReady}
             >
               <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
               Actualizar
@@ -372,7 +453,7 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
       </div>
 
       <div className="p-4">
-        <ChannelTechnicalGrid channels={channels} />
+        <ChannelTechnicalGrid channels={channels} secureTenantSlug={secureTenant} returnTo={returnTo} onNavigate={onNavigate} />
       </div>
     </section>
   );
