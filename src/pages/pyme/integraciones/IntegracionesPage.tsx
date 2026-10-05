@@ -32,6 +32,7 @@ import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard'
 import CatalogSpreadsheetEditor from '@/components/admin/catalog/CatalogSpreadsheetEditor';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
 import WhatsappTechProviderOnboarding from '@/components/integrations/WhatsappTechProviderOnboarding';
+import InstitutionalProfileAccess from '@/components/integrations/InstitutionalProfileAccess';
 import {
   Dialog,
   DialogContent,
@@ -1569,6 +1570,7 @@ const IntegracionesPage = () => {
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
                 Autoriza WhatsApp Business, prueba recorridos reales y deja cada canal listo para operar desde el espacio de la organización.
               </p>
+              <InstitutionalProfileAccess />
             </div>
           </div>
           <dl className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">

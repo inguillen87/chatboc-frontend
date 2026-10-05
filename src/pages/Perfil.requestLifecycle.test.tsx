@@ -195,19 +195,19 @@ const organizationProfileResponse = (tenantSlug = 'selected-organization', canEd
   },
 });
 
-const wireSelectedOrganization = (loadProfile: () => any, saveProfile?: (body: any) => any) => {
+const wireSelectedOrganization = (loadProfile: () => any, saveProfile?: (body: any) => any, tenantSlug = 'selected-organization') => {
   runtime.user = { ...verifiedUser('junin'), rol: 'superadmin', nombre_empresa: 'Mi cuenta personal' };
   runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
-    if (path === '/api/v2/tenants/selected-organization/activation/channels') {
+    if (path === `/api/v2/tenants/${tenantSlug}/activation/channels`) {
       return {
         contract_version: 'tenant.channel_activation.v1',
-        tenant: { id: 909, slug: 'selected-organization', plan: 'full' },
+        tenant: { id: 909, slug: tenantSlug, plan: 'full' },
         integration_access: { enabled: true, status: 'enabled', current_plan: 'full' }, channels: [],
       };
     }
-    if (path === '/api/admin/tenants/selected-organization/config') {
+    if (path === `/api/admin/tenants/${tenantSlug}/config`) {
       if (options?.method === 'PUT') return saveProfile?.(options.body);
-      return { tenant: { slug: 'selected-organization', tipo: 'municipio', plan: 'full' }, organization_profile: await loadProfile() };
+      return { tenant: { slug: tenantSlug, tipo: 'municipio', plan: 'full' }, organization_profile: await loadProfile() };
     }
     if (path === '/api/me') return { ...profileResponse('junin'), nombre_empresa: 'Mi cuenta personal' };
     if (path.startsWith('/api/app/backoffice/navigation')) {
@@ -351,12 +351,49 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
   });
 
-  it.each(['tenant_slug=', 'tenant_slug=../otro', 'tenant_slug=selected-organization&tenant=junin'])('never falls back to personal fields for an invalid explicit SuperAdmin selector: %s', async (query) => {
+  it.each([
+    'tenant_slug=', 'tenant_slug=../otro', 'tenant_slug=selected-organization&tenant=junin',
+    'tenant_slug=selected-organization&tenant_slug=junin',
+    'tenant=selected-organization&tenant=junin',
+    'tenant_slug=selected-organization&tenant_slug=',
+    'tenant_slug=organismo_norte&tenant=organismo-norte',
+    'tenant_slug=organismo.norte', 'tenant_slug=organismo%2Fnorte',
+  ])('never falls back to personal fields for an invalid explicit SuperAdmin selector: %s', async (query) => {
     wireSelectedOrganization(() => organizationProfileResponse());
     renderProfile(`/perfil?section=general&${query}`);
     await screen.findByText('Perfil institucional no habilitado');
     expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.includes('/activation/channels') || path.endsWith('/config'))).toBe(false);
     expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it('preserves an underscore organization through activation and the scoped profile editor', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse('organismo_norte'), undefined, 'organismo_norte');
+    renderProfile('/perfil?section=general&tenant_slug=organismo_norte&tenant=organismo_norte&tenant_slug=organismo_norte');
+    await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    expect(countApiCalls('/api/v2/tenants/organismo_norte/activation/channels')).toBe(1);
+    expect(countApiCalls('/api/admin/tenants/organismo_norte/config')).toBe(1);
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.includes('organismo-norte'))).toBe(false);
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it('cannot authorize an underscore organization with a different hyphen activation identity', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse('organismo_norte'), undefined, 'organismo_norte');
+    const originalTransport = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      const response = await originalTransport(path, options);
+      return path === '/api/v2/tenants/organismo_norte/activation/channels'
+        ? { ...response, tenant: { ...response.tenant, slug: 'organismo-norte' } }
+        : response;
+    });
+    renderProfile('/perfil?section=general&tenant_slug=organismo_norte');
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(countApiCalls('/api/v2/tenants/organismo_norte/activation/channels')).toBe(1);
+    expect(countApiCalls('/api/admin/tenants/organismo_norte/config')).toBe(0);
+    expect(countApiCalls('/api/me')).toBe(0);
     expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
     expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
   });
