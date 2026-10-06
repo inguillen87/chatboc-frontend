@@ -16,9 +16,9 @@ vi.mock('@/api/client', () => ({ apiClient: { adminListOrders: state.list, admin
 vi.mock('@/hooks/useDateSettings', () => ({ useDateSettings: () => ({ timezone: 'America/Argentina/Buenos_Aires', locale: 'es-AR', updateSettings: vi.fn() }) }));
 import SmartPedidosWrapper from './SmartPedidosWrapper';
 
-const tree = (path = '/pedidos') => <MemoryRouter initialEntries={[path]}>
+const tree = (path = '/pedidos', embedded = false) => <MemoryRouter initialEntries={[path]}>
   <SessionAuthorityProvider value={{ clerkStatus: 'ready', hasBearerSession: false, hasVerifiedSession: state.hasVerifiedSession }}>
-    <Routes><Route path="/pedidos" element={<SmartPedidosWrapper />} /><Route path="/t/:tenant/pedidos" element={<SmartPedidosWrapper />} /></Routes>
+    <Routes><Route path="/pedidos" element={<SmartPedidosWrapper embedded={embedded} />} /><Route path="/t/:tenant/pedidos" element={<SmartPedidosWrapper embedded={embedded} />} /></Routes>
   </SessionAuthorityProvider>
 </MemoryRouter>;
 beforeEach(() => {
@@ -31,6 +31,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('private order scope after a public tenant visit', () => {
+  it('passes embedded presentation into the classic municipal panel while preserving private scope', async () => {
+    state.user.organization_profile = {
+      contract_version: 'organization.profile_settings.v1', tenant: { id: 303, slug: 'private-municipality' },
+      values: { nombre_empresa: 'Verified institution', logo_url: null },
+    };
+    state.user.organization_workspace = {
+      contract_version: 'organization.profile_workspace.v1', tenant: { id: 303, slug: 'private-municipality' }, organization_type: 'municipio',
+    };
+    render(tree('/pedidos?tenant_slug=private-municipality', true));
+    await screen.findByText('No hay pedidos institucionales');
+    expect(screen.getByRole('heading', { name: 'Tareas y gestión' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Salir' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(state.list).toHaveBeenCalledExactlyOnceWith('private-municipality', { status: 'all' });
+    expect(state.summary).not.toHaveBeenCalled();
+  });
   it('loads only the verified municipal actor orders despite a public pyme default', async () => {
     render(tree());
     await screen.findByText('No hay pedidos');

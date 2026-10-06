@@ -135,6 +135,7 @@ describe('Navbar account menu routing', () => {
     expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
     expect(screen.queryByText('Plan Inicial')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Perfil y organización' })).toHaveAttribute('href', '/perfil?tab=perfil&tenant_slug=selected-organization');
+    expect(screen.getByRole('link', { name: 'Pedidos' })).toHaveAttribute('href', '/perfil?tab=pedidos&tenant_slug=selected-organization');
     expect(screen.getByRole('link', { name: 'Ver sitio publico' })).toHaveAttribute('href', '/t/selected-organization');
   });
   it.each(['pending','foreign','unverified','missing'])('uses a neutral selected organization label while identity is %s', state => {
@@ -146,6 +147,7 @@ describe('Navbar account menu routing', () => {
     expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
     expect(screen.queryByText('Untrusted organization label')).not.toBeInTheDocument();
     expect(screen.queryByText('Empresa')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Pedidos' })).toHaveAttribute('href', '/perfil?tab=pedidos');
   });
 
   it('opens municipal claims from the tenant profile tab instead of the protected root route on mobile', () => {
@@ -211,6 +213,78 @@ describe('Navbar account menu routing', () => {
       'href',
       '/perfil?tab=perfil',
     );
+  });
+
+  it.each([
+    { surface: 'desktop', slug: 'junin', actorId: 101, tenantId: 7 },
+    { surface: 'mobile', slug: 'junin', actorId: 101, tenantId: 7 },
+    { surface: 'desktop', slug: 'tierra-del-fuego', actorId: 449, tenantId: 46 },
+    { surface: 'mobile', slug: 'tierra-del-fuego', actorId: 449, tenantId: 46 },
+  ])('routes administrative orders into the verified workspace: $surface $slug', async ({ surface, slug, actorId, tenantId }) => {
+    const user = canonicalOrganizationUser('municipio', slug);
+    user.id = actorId;
+    user.organization_profile.tenant.id = tenantId;
+    user.organization_workspace.tenant.id = tenantId;
+    const originalActor = JSON.stringify(user);
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: true, loading: false });
+    useTenantMock.mockReturnValue({ currentSlug: 'previous-public-workspace' });
+    const RouteProbe = () => {
+      const route = useLocation();
+      return <output data-testid="orders-route">{route.pathname + route.search}</output>;
+    };
+    render(<MemoryRouter initialEntries={['/perfil?tab=tickets&tenant_slug=foreign-workspace']}><Navbar /><RouteProbe /></MemoryRouter>);
+
+    let ordersLink: HTMLElement;
+    if (surface === 'desktop') {
+      fireEvent.keyDown(screen.getByRole('button', { name: /Mi cuenta/i }), { key: 'Enter' });
+      ordersLink = await screen.findByRole('menuitem', { name: 'Pedidos' });
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+      ordersLink = screen.getByRole('link', { name: 'Pedidos' });
+    }
+    const destination = `/perfil?tab=pedidos&tenant_slug=${slug}`;
+    expect(ordersLink).toHaveAttribute('href', destination);
+    fireEvent.click(ordersLink);
+    expect(screen.getByTestId('orders-route')).toHaveTextContent(destination);
+    expect(screen.getByTestId('orders-route')).not.toHaveTextContent('foreign-workspace');
+    expect(JSON.stringify(user)).toBe(originalActor);
+  });
+
+  it.each([
+    { verified: false, loading: false, foreign: false },
+    { verified: true, loading: true, foreign: false },
+    { verified: true, loading: false, foreign: true },
+  ])('does not borrow an orders tenant from unverified contracts or public context: %j', ({ verified, loading, foreign }) => {
+    const user = canonicalOrganizationUser();
+    if (foreign) user.organization_workspace.tenant.slug = 'foreign-workspace';
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: verified, loading });
+    useTenantMock.mockReturnValue({ currentSlug: 'foreign-workspace' });
+    render(<MemoryRouter initialEntries={['/perfil?tenant_slug=foreign-workspace']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByRole('link', { name: 'Pedidos' })).toHaveAttribute('href', '/perfil?tab=pedidos');
+  });
+
+  it('does not expose orders from a stale signed-out administrative account', () => {
+    useUserMock.mockReturnValue({ user: canonicalOrganizationUser(), organizationProfileVerified: true, loading: false });
+    useSessionAuthorityMock.mockReturnValue({ hasVerifiedSession: false });
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.queryByRole('link', { name: 'Pedidos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mi cuenta/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps administrative orders gated by the existing capability policy for delegates', () => {
+    const user = canonicalOrganizationUser('municipio', 'civic-workspace', false);
+    user.rol = 'employee';
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: true, loading: false });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['tickets.read'],
+      hasAnyCapability: (required: string[]) => required.includes('tickets.read'),
+    });
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByRole('link', { name: 'Reclamos' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Pedidos' })).not.toBeInTheDocument();
   });
 
   it('routes backoffice live chat into the operational ticket desk on mobile', () => {

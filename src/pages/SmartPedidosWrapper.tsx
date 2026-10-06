@@ -12,7 +12,7 @@ import { hasRequiredRole } from '@/utils/roles';
 import PedidosPage from '@/pages/PedidosPage'; // Classic/Municipal
 import PymePedidosPage from '@/pages/pyme/pedidos/PedidosPage'; // New/Pyme
 
-const SmartPedidosWrapper: React.FC = () => {
+const SmartPedidosWrapper: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { tenant, isLoadingTenant, tenantError } = useTenant();
   const { user, loading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
   const { clerkStatus } = useSessionAuthority();
@@ -39,7 +39,7 @@ const SmartPedidosWrapper: React.FC = () => {
   const type = platform ? tenant?.tipo : user.tipo_chat;
   const scopeKey = buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user });
   if (!scopeKey || (type !== 'pyme' && type !== 'municipio')) return failure;
-  return type === 'pyme' ? <PymePedidosPage key={scopeKey} tenantSlug={tenantSlug} /> : <PedidosPage key={scopeKey} tenantSlug={tenantSlug} />;
+  return type === 'pyme' ? <PymePedidosPage key={scopeKey} tenantSlug={tenantSlug} /> : <PedidosPage key={scopeKey} tenantSlug={tenantSlug} embedded={embedded} />;
 };
 
 export default SmartPedidosWrapper;

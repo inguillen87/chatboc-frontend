@@ -23,6 +23,7 @@ import { fmtAR } from '@/utils/date';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { LOCALE_OPTIONS } from '@/utils/localeOptions';
 import { TICKET_DESK_PATH } from '@/utils/backofficeRoutes';
+import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 import {
   Select,
   SelectContent,
@@ -234,7 +235,7 @@ const PedidoMetricCard = ({
   </Card>
 );
 
-const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
+const PageHeader: FC<{ onLogout: () => void; title: string }> = ({ onLogout, title }) => {
   const navigate = useNavigate();
   const { locale, updateSettings } = useDateSettings();
   return (
@@ -243,7 +244,7 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
         <ChevronLeft className="w-5 h-5 mr-2" /> Volver al Perfil
       </Button>
       <h1 className="text-3xl sm:text-4xl font-extrabold text-primary leading-tight text-center flex-1 hidden sm:block">
-        Panel de Pedidos
+        {title}
       </h1>
       <Button
         variant="ghost"
@@ -285,7 +286,7 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
 };
 
 // ---------- Página Principal ----------
-export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?: string } = {}) {
+export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false }: { tenantSlug?: string; embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenant: routeTenant } = useParams();
@@ -298,6 +299,14 @@ export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?:
     user?.tenant_slug || user?.tenantSlug;
   const tenantSlug = typeof candidateTenant === 'string' && /^[a-z0-9][a-z0-9_-]{0,127}$/i.test(candidateTenant.trim())
     ? candidateTenant.trim().toLowerCase() : null;
+  const organization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(profileLoading),
+  });
+  const isMunicipal = organization?.tenantSlug === tenantSlug && organization.isMunicipal;
+  const pageTitle = isMunicipal ? 'Tareas y gestión' : 'Operacion de pedidos';
+  const pageDescription = isMunicipal
+    ? 'Consultá y gestioná los pedidos institucionales de esta organización.'
+    : 'Estados, detalle y seguimiento comercial en una vista simple para el equipo.';
   const requestScopeKey = canReadOrders ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user }) : null;
   const currentScopeRef = useRef(requestScopeKey);
   currentScopeRef.current = requestScopeKey;
@@ -456,15 +465,15 @@ export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?:
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-4 md:px-6 lg:px-8">
-      <PageHeader onLogout={handleLogout} />
-      <main className="w-full max-w-7xl mx-auto space-y-4">
+    <div className={cn('flex flex-col text-foreground', embedded ? 'min-h-0' : 'min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 py-8 px-4 md:px-6 lg:px-8')}>
+      {!embedded && <PageHeader onLogout={handleLogout} title={isMunicipal ? pageTitle : 'Panel de Pedidos'} />}
+      <section aria-label={pageTitle} className="w-full max-w-7xl mx-auto space-y-4">
         <section className="rounded-[28px] border border-border/70 bg-card/85 p-4 shadow-sm md:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Operacion de pedidos</h2>
+              <h2 className="text-2xl font-bold tracking-tight">{pageTitle}</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Estados, detalle y seguimiento comercial en una vista simple para el equipo.
+                {pageDescription}
               </p>
             </div>
             <div className="relative w-full lg:max-w-sm">
@@ -472,7 +481,7 @@ export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?:
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar cliente, pedido o producto"
+                placeholder={isMunicipal ? 'Buscar pedido o contacto' : 'Buscar cliente, pedido o producto'}
                 className="h-10 pl-9"
               />
             </div>
@@ -494,8 +503,8 @@ export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?:
         ) : filteredCategories.length === 0 ? (
           <div className="text-center text-muted-foreground text-lg mt-16">
             <Inbox className="w-20 h-20 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-2xl font-semibold text-foreground">No hay pedidos</h3>
-            <p>Aún no se han registrado pedidos. Los nuevos pedidos aparecerán aquí.</p>
+            <h3 className="text-2xl font-semibold text-foreground">{isMunicipal ? 'No hay pedidos institucionales' : 'No hay pedidos'}</h3>
+            <p>{isMunicipal ? 'Los pedidos institucionales registrados aparecerán aquí.' : 'Aún no se han registrado pedidos. Los nuevos pedidos aparecerán aquí.'}</p>
           </div>
         ) : (
           filteredCategories.map(([estado, pedidos]) => (
@@ -513,7 +522,7 @@ export default function PedidosPage({ tenantSlug: scopedTenant }: { tenantSlug?:
             />
           ))
         )}
-      </main>
+      </section>
     </div>
   );
 }

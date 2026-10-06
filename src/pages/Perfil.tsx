@@ -4307,7 +4307,7 @@ export default function Perfil() {
         </WorkspacePanel>
         <WorkspacePanel active={activeProfileTab === "pedidos" && workspaceCapabilities.operation} label={esMunicipio ? "Tareas y gestión" : "Ventas y pedidos"}>
           <React.Suspense fallback={<ProfileTabFallback label="Cargando gestion..." />}>
-            <SmartPedidosWrapper />
+            <SmartPedidosWrapper embedded />
           </React.Suspense>
         </WorkspacePanel>
         <WorkspacePanel

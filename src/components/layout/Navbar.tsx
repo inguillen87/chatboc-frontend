@@ -167,6 +167,12 @@ const Navbar: React.FC = () => {
     : !hasRequiredRole(userRole, ['superadmin']) && authenticatedOrganization
       ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(authenticatedOrganization.tenantSlug)}&section=general`
       : '/perfil?tab=perfil';
+  const ordersWorkspaceTenant = isSelectedPlatformTenant
+    ? selectedTenantIdentity?.tenantSlug
+    : !hasRequiredRole(userRole, ['superadmin']) ? authenticatedOrganization?.tenantSlug : null;
+  const ordersHref = ordersWorkspaceTenant
+    ? `/perfil?tab=pedidos&tenant_slug=${encodeURIComponent(ordersWorkspaceTenant)}`
+    : '/perfil?tab=pedidos';
   const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant : currentSlug;
   const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
     ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
@@ -230,7 +236,7 @@ const Navbar: React.FC = () => {
         requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
       },
       {
-        to: "/pedidos",
+        to: ordersHref,
         label: "Pedidos",
         icon: ClipboardList,
         requiredAnyCapabilities: ORDER_READ_CAPABILITIES,
@@ -295,7 +301,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref]);
+  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref]);
 
   const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
   useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);
