@@ -475,6 +475,8 @@ export interface ChatWidgetUiHints {
 
 export interface Message {
   id: number | string; // Identificador único del mensaje
+  /** Native legacy comment identifier, independent of display/fallback message identity. */
+  readCommentId?: number;
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje

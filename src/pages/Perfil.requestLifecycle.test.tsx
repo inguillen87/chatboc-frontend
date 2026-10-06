@@ -15,6 +15,7 @@ const runtime = vi.hoisted(() => ({
   toast: vi.fn(),
   ticketMounts: 0,
   hasSession: true,
+  profileVerified: true,
   realNavigation: false,
   user: null as Record<string, any> | null,
 }));
@@ -35,7 +36,8 @@ vi.mock('@/hooks/useUser', () => ({
     setUser: runtime.setUser,
     refreshUser: runtime.refreshUser,
     loading: false,
-    organizationProfileVerified: true,
+    organizationProfileVerified: runtime.profileVerified,
+    hasVerifiedSession: runtime.hasSession,
   }),
 }));
 
@@ -81,7 +83,7 @@ vi.mock('@/components/admin/EventForm', () => ({ EventForm: () => null }));
 vi.mock('@/components/admin/PromotionForm', () => ({ PromotionForm: () => null }));
 vi.mock('@/components/admin/AgendaPasteForm', () => ({ AgendaPasteForm: () => null }));
 vi.mock('@/components/ui/MunicipioIcon', () => ({ default: () => <span /> }));
-vi.mock('@/components/backoffice/BackofficeCommandCenter', () => ({ default: () => <div /> }));
+vi.mock('@/components/backoffice/BackofficeCommandCenter', () => ({ default: ({scope}: {scope?: string}) => <div data-testid="mock-command-center" data-scope={scope} /> }));
 vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
   default: ({ tenantSlug, initialData }: { tenantSlug?: string | null; initialData?: any }) => (
     <div
@@ -264,10 +266,63 @@ const updateBrowserLocation = (nextPath: string) => {
   window.dispatchEvent(new PopStateEvent('popstate'));
 };
 
+
+const canonicalOrganizationUser = (kind = 'municipio', slug = 'civic-workspace', canEdit = true) => ({
+  id: 9001, name: 'Personal operator', email: 'operator@example.test',
+  rol: 'admin_municipio', tipo_chat: 'pyme', rubro: 'medico', plan: 'full',
+  tenant_slug: slug, tenantSlug: slug,
+  avatar_url: 'https://cdn.example.test/personal.png', avatar_consent: true,
+  capabilities: ['tickets.read', 'orders.read'],
+  organization_profile: {
+    contract_version: 'organization.profile_settings.v1', tenant: { id: 303, slug },
+    revision: 'a'.repeat(64), can_edit: canEdit,
+    editability: { mode: canEdit ? 'editable' : 'read_only' },
+    values: {
+      nombre_empresa: 'Verified institution', telefono: '+541112345678', actividad: 'Public services',
+      direccion: 'Institutional address', ciudad: 'Institutional city', provincia: 'Province', pais: 'Argentina',
+      latitud: null, longitud: null, link_web: 'https://institution.example.test',
+      logo_url: 'https://cdn.example.test/institution.png', horario_json: [],
+    },
+    ui: { organization_type_label_contract: 'organization.type_label.v1',
+      organization_type_label: kind === 'municipio' ? 'Gobierno' : kind === 'colegio' ? 'Educación' : 'Empresa' },
+  },
+  organization_workspace: {
+    contract_version: 'organization.profile_workspace.v1', tenant: { id: 303, slug },
+    organization_type: kind,
+  },
+});
+
+const wireBoundOrganization = (canEdit = true, save?: (body: any) => any) => {
+  const baseFetch = runtime.apiFetch.getMockImplementation()!;
+  const user = canonicalOrganizationUser('municipio', 'civic-workspace', canEdit);
+  runtime.user = user;
+  let profile = user.organization_profile;
+  runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+    if (path === '/api/me') return {...profileResponse('civic-workspace'),
+      id: user.id, nombre_empresa: undefined, rubro: 'medico', tipo_chat: 'pyme',
+      organization_profile: profile, organization_workspace: user.organization_workspace};
+    if (path === '/api/v2/tenants/civic-workspace/activation/channels') return {
+      contract_version: 'tenant.channel_activation.v1', tenant: {id: 303, slug: 'civic-workspace', plan: 'full'},
+      integration_access: {enabled: true, current_plan: 'full'}, channels: [],
+    };
+    if (path === '/api/admin/tenants/civic-workspace/config') {
+      if (options?.method === 'PUT') {
+        if (save) return save(options.body);
+        profile = {...profile, revision: 'b'.repeat(64), values: {...profile.values, ...options.body.organization_profile}};
+        return {contract_version: 'organization.profile_save.v1', ok: true, tenant: profile.tenant, profile};
+      }
+      return {tenant: {id: 303, slug: 'civic-workspace', tipo: 'municipio', plan: 'full'}, organization_profile: profile};
+    }
+    return baseFetch(path, options);
+  });
+  return user;
+};
+
 describe('Perfil request lifecycle', () => {
   beforeEach(() => {
     localStorage.clear();
     runtime.hasSession = true;
+    runtime.profileVerified = true;
     runtime.realNavigation = false;
     runtime.user = verifiedUser('junin');
     runtime.apiFetch.mockReset();
@@ -1103,4 +1158,139 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('tab=mapas');
     expect(window.location.search).not.toContain('tab=estadisticas');
   });
+
+  it('uses the verified organization name and municipal workspace while leaving the actor unchanged', async () => {
+    const user = wireBoundOrganization();
+    renderProfile('/perfil');
+    await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
+    expect(screen.getByText('Gobierno')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /CRM ciudadano/})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: /CRM comercial/})).not.toBeInTheDocument();
+    expect(user.id).toBe(9001);
+    expect(user.name).toBe('Personal operator');
+    expect(user.tipo_chat).toBe('pyme');
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('opens the bound institutional editor from the home with the canonical slug', async () => {
+    wireBoundOrganization();
+    renderProfile('/perfil');
+    await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
+    fireEvent.click(screen.getByRole('button', {name: 'Perfil institucional'}));
+    const name = await screen.findByRole('textbox', {name: 'Nombre legal o institucional'});
+    expect(name).toHaveValue('Verified institution');
+    expect(window.location.search).toContain('tenant_slug=civic-workspace');
+    expect(window.location.search).toContain('section=general');
+    expect(screen.queryByRole('button', {name: 'Directorio de organizaciones'})).not.toBeInTheDocument();
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/admin/tenants/civic-workspace/config', expect.objectContaining({
+      tenantSlug: 'civic-workspace', omitEntityToken: true, omitChatSessionId: true, persistTenantSlug: false,
+    }));
+  });
+
+  it('canonicalizes an institutional deep link before exposing legacy actor fields', async () => {
+    runtime.realNavigation = true;
+    wireBoundOrganization();
+    renderProfile('/perfil?tab=perfil&section=channels&setup=channels');
+    await waitFor(() => expect(window.location.search).toContain('tenant_slug=civic-workspace'));
+    expect(window.location.search).toContain('section=channels');
+    expect(window.location.search).toContain('setup=channels');
+    await screen.findByTestId('institution-profile-workspace');
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(countApiCalls('/perfil')).toBe(0);
+  });
+
+  it('saves the bound organization with CAS and readback instead of editing the member actor', async () => {
+    const user = wireBoundOrganization();
+    renderProfile('/perfil?tab=perfil&tenant_slug=civic-workspace&section=general');
+    const name = await screen.findByRole('textbox', {name: 'Nombre legal o institucional'});
+    expect(name).toHaveValue('Verified institution');
+    fireEvent.change(name, {target: {value: 'Revised institution'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Guardar'}));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+    const writes = runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual(['/api/admin/tenants/civic-workspace/config', expect.objectContaining({
+      singleAttempt: true, allowStartupRecovery: false, tenantSlug: 'civic-workspace',
+      body: {expected_revision: 'a'.repeat(64), organization_profile: {nombre_empresa: 'Revised institution'}},
+    })]);
+    expect(countApiCalls('/api/admin/tenants/civic-workspace/config')).toBe(3);
+    expect(countApiCalls('/perfil')).toBe(0);
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(user.name).toBe('Personal operator');
+    expect(user.organization_profile.values.nombre_empresa).toBe('Verified institution');
+    expect(user.avatar_url).toBe('https://cdn.example.test/personal.png');
+  });
+
+  it('keeps a normal member read only when the bound server contract disables editing', async () => {
+    wireBoundOrganization(false);
+    renderProfile('/perfil?tenant_slug=civic-workspace&section=general');
+    expect(await screen.findByRole('textbox', {name: 'Nombre legal o institucional'})).toHaveValue('Verified institution');
+    expect(screen.getByRole('button', {name: 'Guardar'})).toBeDisabled();
+    expect(screen.getByText('Perfil en modo consulta')).toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('never loads an explicit different organization for a normal member with a bound contract', async () => {
+    wireBoundOrganization();
+    renderProfile('/perfil?tenant_slug=another-workspace&section=general');
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(screen.queryByRole('textbox', {name: 'Nombre legal o institucional'})).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.includes('another-workspace'))).toBe(false);
+    expect(countApiCalls('/api/me')).toBe(0);
+  });
+
+  it('does not expose institutional fields from a persisted contract before fresh profile verification', async () => {
+    wireBoundOrganization();
+    runtime.profileVerified = false;
+    renderProfile('/perfil?section=general');
+    await screen.findByText('Verificando la organización');
+    expect(screen.queryByRole('textbox', {name: 'Nombre legal o institucional'})).not.toBeInTheDocument();
+    expect(screen.queryByText('Verified institution')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.startsWith('/api/admin/tenants/'))).toBe(false);
+  });
+
+  it.each([{id: 404, slug: 'civic-workspace'}, {id: 303, slug: 'another-workspace'}])(
+    'rejects a foreign config wrapper even when its nested profile matches: %j', async tenant => {
+      wireBoundOrganization();
+      const baseFetch = runtime.apiFetch.getMockImplementation()!;
+      runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+        const response = await baseFetch(path, options);
+        return path === '/api/admin/tenants/civic-workspace/config' ? {...response, tenant} : response;
+      });
+      renderProfile('/perfil?tenant_slug=civic-workspace&section=general');
+      await screen.findByText('No pudimos verificar el perfil institucional');
+      expect(screen.queryByRole('textbox', {name: 'Nombre legal o institucional'})).not.toBeInTheDocument();
+      expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
+    });
+
+  it('preserves the institutional draft and rejects stale readback instead of confirming a save', async () => {
+    wireBoundOrganization(true, body => ({
+      contract_version: 'organization.profile_save.v1', ok: true,
+      tenant: {id: 303, slug: 'civic-workspace'},
+      profile: {...runtime.user!.organization_profile, revision: 'b'.repeat(64),
+        values: {...runtime.user!.organization_profile.values, ...body.organization_profile}},
+    }));
+    renderProfile('/perfil?tenant_slug=civic-workspace&section=general');
+    const name = await screen.findByRole('textbox', {name: 'Nombre legal o institucional'});
+    fireEvent.change(name, {target: {value: 'Preserved institutional draft'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Guardar'}));
+    await screen.findByText('No pudimos verificar el perfil de tu organización. Reintentá o volvé al inicio.');
+    expect(screen.getByRole('textbox', {name: 'Nombre legal o institucional'})).toHaveValue('Preserved institutional draft');
+    expect(screen.queryByText('Cambios de la organización guardados correctamente.')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('preserves the selected organization type for SuperAdmin instead of using the actor home contract', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse());
+    const own = canonicalOrganizationUser('empresa', 'junin');
+    runtime.user = {...runtime.user, organization_profile: own.organization_profile,
+      organization_workspace: own.organization_workspace};
+    renderProfile('/perfil?tenant_slug=selected-organization');
+    await screen.findByRole('heading', {level: 1, name: 'Organización seleccionada'});
+    expect(screen.getByText('Gestión municipal')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('mock-command-center')).toHaveAttribute('data-scope', 'municipio'));
+  });
+
 });

@@ -61,6 +61,7 @@ import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/modul
 import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionLogout";
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import { readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
+import { hasOrganizationIdentityContracts, readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 
 interface AdminNavLink {
   to: string;
@@ -111,7 +112,7 @@ const Navbar: React.FC = () => {
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
   const navigate=useNavigate();
-  const { user, organizationProfileVerified } = useUser();
+  const { user, organizationProfileVerified, loading: userLoading } = useUser();
   const cartCount = useCartCount(!privateShell.active);
   const clerkRuntime = useClerkRuntime();
   const { currentSlug,tenant,isLoadingTenant,tenantError } = useTenant();
@@ -137,6 +138,10 @@ const Navbar: React.FC = () => {
   );
   const storedUser = useMemo(() => parseStoredUser(storedUserRaw), [storedUserRaw]);
   const effectiveUser = user ?? storedUser;
+  const authenticatedOrganization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: userLoading,
+  });
+  const hasOrganizationContracts = hasOrganizationIdentityContracts(effectiveUser);
 
   const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
   const contextPath = location.pathname.toLowerCase();
@@ -158,28 +163,33 @@ const Navbar: React.FC = () => {
     tenant?.publishedIdentity?.tenantSlug === selectedKnowledgeTenant ? tenant.publishedIdentity : null;
   const selectedTenantType = selectedTenantIdentity ? String(tenant?.tipo || '').trim().toLowerCase() : '';
   const organizationProfileHref = isSelectedPlatformTenant && selectedKnowledgeTenant
-    ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/perfil?tab=perfil';
+    ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}`
+    : !hasRequiredRole(userRole, ['superadmin']) && authenticatedOrganization
+      ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(authenticatedOrganization.tenantSlug)}&section=general`
+      : '/perfil?tab=perfil';
   const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant : currentSlug;
   const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
     ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
     : '/admin/knowledge';
-  const isMunicipal = isSelectedPlatformTenant ? selectedTenantType === 'municipio' : effectiveUser?.tipo_chat === "municipio";
+  const isMunicipal = isSelectedPlatformTenant ? selectedTenantType === 'municipio'
+    : authenticatedOrganization ? authenticatedOrganization.isMunicipal
+      : !hasOrganizationContracts && effectiveUser?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
   const organizationName = isSelectedPlatformTenant ? selectedTenantIdentity?.name || 'Organización seleccionada' : privateShell.active ? privateShell.identity?.name || 'Organización' :
-    isPlatformAdmin ? 'ChatBoc · Plataforma' : String(
+    isPlatformAdmin ? 'ChatBoc · Plataforma' : authenticatedOrganization?.name || (hasOrganizationContracts ? 'Organización' : String(
       effectiveUser?.nombre_empresa ||
         effectiveUser?.tenant?.nombre ||
         effectiveUser?.tenant?.name ||
         effectiveUser?.organization_name ||
         "",
-    ).trim() || "Organización";
+    ).trim() || "Organización");
   const organizationType = isPlatformAdmin ? 'Superadministrador' : isSelectedPlatformTenant
     ? selectedTenantType === 'municipio' ? 'Municipio' : ['pyme','empresa'].includes(selectedTenantType) ? 'Empresa' : 'Organización'
-    : isMunicipal ? "Municipio" : "Empresa";
+    : authenticatedOrganization?.organizationTypeLabel || (hasOrganizationContracts ? 'Organización' : isMunicipal ? "Municipio" : "Empresa");
   const normalizedPlan = String(effectiveUser?.plan || effectiveUser?.tenant?.plan || "").trim().toLowerCase();
   const readablePlanName = normalizedPlan
     .split("_")

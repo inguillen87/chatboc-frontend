@@ -2366,6 +2366,7 @@ export const getOmnichannelInboxDetailV2 = async (
   ticketId: string | number,
   tenantSlug?: string | null,
   detailEndpoint?: string | null,
+  options?: { isCurrent?: () => boolean },
 ) => {
   const encodedTicketId = encodeURIComponent(String(ticketId));
   if (detailEndpoint) {
@@ -2374,7 +2375,7 @@ export const getOmnichannelInboxDetailV2 = async (
     if (!decoded.startsWith('/api/') || /[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.split(/[/?#]/).includes('..')) throw new ApiError('Ruta de detalle inválida.', 400);
   }
   const endpoint = detailEndpoint || `/api/v2/inbox/omnichannel/${encodedTicketId}`;
-  const response = await panelApi.get<unknown>(endpoint, { tenantSlug });
+  const response = await panelApi.get<unknown>(endpoint, { tenantSlug, isCurrent: options?.isCurrent });
   assertInboxTenantEnvelope(response, tenantSlug);
   const result = normalizeOmnichannelInboxDetailV2(response);
   if (result.item.id !== String(ticketId) && !isExactMunicipalLegacyDetail(result, String(ticketId), tenantSlug, endpoint)) {

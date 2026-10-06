@@ -1,4 +1,5 @@
 import {exactInstitutionSlug, safeInstitutionLogo} from './publishedTenantIdentity';
+import {hasOrganizationIdentityContracts, readVerifiedOrganizationIdentity} from './verifiedOrganizationIdentity';
 import {isBackofficeRole, normalizeRole} from './roles';
 import {TENANT_PLACEHOLDER_SLUGS,TENANT_ROUTE_PREFIXES} from '@/constants/tenant';
 export interface PrivateWorkspaceIdentity { tenantSlug: string; name: string; logoUrl: string | null }
@@ -38,6 +39,9 @@ export function privateWorkspacePresentation(input:Input):PrivateWorkspacePresen
   for(const key of ['tenant','tenant_slug','tenantSlug','endpoint']) {
     if(query.getAll(key).some(value=>exactInstitutionSlug(value)!==slug))return pending;
   }
+  const canonical=readVerifiedOrganizationIdentity(user,{hasVerifiedSession:input.hasVerifiedSession,profileVerified:input.profileVerified,loading:input.loading});
+  if(canonical)return {active:true,identity:{tenantSlug:canonical.tenantSlug,name:canonical.name,logoUrl:canonical.logoUrl}};
+  if(hasOrganizationIdentityContracts(user))return pending;
   const name=typeof user.nombre_empresa==='string'?user.nombre_empresa.trim():'';
   if(!name||name.length>240||control.test(name))return pending;
   const values=record(profile.values);

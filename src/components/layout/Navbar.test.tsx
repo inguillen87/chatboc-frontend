@@ -43,6 +43,32 @@ vi.mock('@/components/access/SessionAuthorityContext', () => ({
   useSessionAuthority: () => useSessionAuthorityMock(),
 }));
 
+
+const canonicalOrganizationUser = (kind = 'municipio', slug = 'civic-workspace', canEdit = true) => ({
+  id: 9001, name: 'Personal operator', email: 'operator@example.test',
+  rol: 'admin_municipio', tipo_chat: 'pyme', rubro: 'medico', plan: 'full',
+  tenant_slug: slug, tenantSlug: slug,
+  avatar_url: 'https://cdn.example.test/personal.png', avatar_consent: true,
+  capabilities: ['tickets.read', 'orders.read'],
+  organization_profile: {
+    contract_version: 'organization.profile_settings.v1', tenant: { id: 303, slug },
+    revision: 'a'.repeat(64), can_edit: canEdit,
+    editability: { mode: canEdit ? 'editable' : 'read_only' },
+    values: {
+      nombre_empresa: 'Verified institution', telefono: '+541112345678', actividad: 'Public services',
+      direccion: 'Institutional address', ciudad: 'Institutional city', provincia: 'Province', pais: 'Argentina',
+      latitud: null, longitud: null, link_web: 'https://institution.example.test',
+      logo_url: 'https://cdn.example.test/institution.png', horario_json: [],
+    },
+    ui: { organization_type_label_contract: 'organization.type_label.v1',
+      organization_type_label: kind === 'municipio' ? 'Gobierno' : kind === 'colegio' ? 'Educación' : 'Empresa' },
+  },
+  organization_workspace: {
+    contract_version: 'organization.profile_workspace.v1', tenant: { id: 303, slug },
+    organization_type: kind,
+  },
+});
+
 describe('Navbar account menu routing', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -486,6 +512,60 @@ describe('Navbar account menu routing', () => {
     expect(document.body).not.toHaveClass('chatboc-mobile-menu-open');
     expect(mediaQuery.removeEventListener).toHaveBeenCalled();
   });
+
+  it.each([
+    {kind: 'municipio', label: 'Gobierno'},
+    {kind: 'empresa', label: 'Empresa'},
+    {kind: 'colegio', label: 'Educación'},
+  ])('presents the verified institution independently of actor fields and role: $kind', ({kind, label}) => {
+    const user = canonicalOrganizationUser(kind);
+    useUserMock.mockReturnValue({user, organizationProfileVerified: true, loading: false});
+    useTenantMock.mockReturnValue({currentSlug: 'previous-public-workspace'});
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', {name: /abrir men/i}));
+    const nav = within(screen.getByRole('navigation', {name: 'Navegación principal móvil'}));
+    expect(nav.getByText('Verified institution')).toBeInTheDocument();
+    expect(nav.getByText(label)).toBeInTheDocument();
+    expect(nav.getByRole('link', {name: 'Perfil y organización'})).toHaveAttribute(
+      'href', '/perfil?tab=perfil&tenant_slug=civic-workspace&section=general');
+    expect(user.name).toBe('Personal operator');
+    expect(user.tipo_chat).toBe('pyme');
+    expect(user.rol).toBe('admin_municipio');
+    expect(user.capabilities).toEqual(['tickets.read', 'orders.read']);
+  });
+
+  it.each([
+    {verified: false, loading: false, wrongTenant: false},
+    {verified: true, loading: true, wrongTenant: false},
+    {verified: true, loading: false, wrongTenant: true},
+  ])('withholds cached or contradictory institutional identity: %j', ({verified, loading, wrongTenant}) => {
+    const user = canonicalOrganizationUser();
+    if (wrongTenant) user.organization_workspace.tenant.id = 404;
+    useUserMock.mockReturnValue({user, organizationProfileVerified: verified, loading});
+    render(<MemoryRouter initialEntries={['/perfil']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', {name: /abrir men/i}));
+    const nav = within(screen.getByRole('navigation', {name: 'Navegación principal móvil'}));
+    expect(nav.queryByText('Verified institution')).not.toBeInTheDocument();
+    expect(nav.queryByText('Gobierno')).not.toBeInTheDocument();
+    expect(nav.getByRole('link', {name: 'Perfil y organización'})).toHaveAttribute('href', '/perfil?tab=perfil');
+  });
+
+  it.each([true, false])('uses canonical or neutral identity outside supported private branding routes, verified=%s', verified => {
+    const user = {...canonicalOrganizationUser(), nombre_empresa: 'Legacy actor company'};
+    useUserMock.mockReturnValue({user, organizationProfileVerified: verified, loading: false});
+    render(<MemoryRouter initialEntries={['/settings']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', {name: /abrir men/i}));
+    const nav = within(screen.getByRole('navigation', {name: 'Navegación principal móvil'}));
+    expect(nav.queryByText('Legacy actor company')).not.toBeInTheDocument();
+    if (verified) {
+      expect(nav.getByText('Verified institution')).toBeInTheDocument();
+      expect(nav.getByText('Gobierno')).toBeInTheDocument();
+    } else {
+      expect(nav.queryByText('Verified institution')).not.toBeInTheDocument();
+      expect(nav.queryByText('Gobierno')).not.toBeInTheDocument();
+    }
+  });
+
 });
 
 describe('verified institutional entry branding',()=>{

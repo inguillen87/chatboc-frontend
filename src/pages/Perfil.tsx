@@ -109,6 +109,7 @@ import { buildTenantPath, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { panelReadOptions } from '@/utils/panelReadOptions';
+import { hasOrganizationIdentityContracts, readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 import { buildLoginPathWithNext } from "@/utils/authRedirect";
 import { toLocalISOString } from "@/utils/fecha";
 import { fmtAR } from "@/utils/date";
@@ -500,7 +501,11 @@ const ControlCenterCardButton = ({
 export default function Perfil() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, setUser, organizationProfileVerified, refreshUser } = useUser();
+  const { user, setUser, organizationProfileVerified, refreshUser, loading: userLoading, hasVerifiedSession } = useUser();
+  const authenticatedOrganization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(userLoading),
+  });
+  const hasOrganizationContracts = hasOrganizationIdentityContracts(user);
   const { hasCapability } = useCapabilities();
   const isPyme = user?.tipo_chat === "pyme";
   const [perfil, setPerfil] = useState({
@@ -582,7 +587,7 @@ export default function Perfil() {
   );
   const isPlatformAdministrator = normalizeRole(user?.rol) === 'superadmin';
   const usesScopedOrganizationProfile = Boolean(
-    isPlatformAdministrator && hasRequestedTenant,
+    hasRequestedTenant && (isPlatformAdministrator || hasOrganizationContracts),
   );
   const verifiedProfileTenantSlug = normalizeProfileTenantSlug(
     (perfil as any)?.tenant_slug || (perfil as any)?.slug,
@@ -594,13 +599,14 @@ export default function Perfil() {
     (user as any)?.channel_activation?.tenant?.slug,
   );
   const requestAuthorityKey = user && hasRequestedTenant
-    ? `${user.id ?? user.email ?? 'verified-user'}:${requestedTenantSlug || 'invalid-request'}`
+    ? `${user.id ?? user.email ?? 'verified-user'}:${requestedTenantSlug || 'invalid-request'}:${authenticatedOrganization?.tenantId || 'legacy'}`
     : null;
   const matchingRequestedAuthority =
     requestAuthorityKey && requestedTenantAuthority?.key === requestAuthorityKey
       ? requestedTenantAuthority
       : null;
   const safeSessionTenantSlug =
+    authenticatedOrganization?.tenantSlug ||
     sessionActivationTenantSlug ||
     userTenantSlug ||
     (!isPlatformAdministrator ? verifiedActivationTenantSlug || verifiedProfileTenantSlug : null);
@@ -620,8 +626,11 @@ export default function Perfil() {
     (!hasRequestedTenant || matchingRequestedAuthority?.status === 'authorized')
       ? derivedTenantSlug : null;
   const canManageTenantIntegrations = isAdminUser && hasCapability('settings.tenant.write');
-  const profileIdentityScope = user && !tenantSelectionPending
-    ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}`
+  const profileIdentityScope = user && !tenantSelectionPending &&
+    (isPlatformAdministrator || !hasOrganizationContracts || authenticatedOrganization) &&
+    !(hasOrganizationContracts && !isPlatformAdministrator && !hasRequestedTenant &&
+      (searchParams.has('section') || searchParams.get('setup') === 'channels'))
+    ? `${user.id ?? user.email ?? "verified-user"}:${profileTenantScope || "default-tenant"}:${authenticatedOrganization?.tenantId || 'legacy'}:${usesScopedOrganizationProfile ? 'organization' : 'actor'}`
     : null;
   const currentProfileScopeRef = useRef(profileIdentityScope);
   currentProfileScopeRef.current = profileIdentityScope;
@@ -632,14 +641,15 @@ export default function Perfil() {
   }, []);
   const matchingOrganizationProfile = usesScopedOrganizationProfile && profileTenantScope &&
     organizationProfile?.tenant.slug === profileTenantScope &&
-    matchingRequestedAuthority?.status === 'authorized'
+    matchingRequestedAuthority?.status === 'authorized' &&
+    (isPlatformAdministrator || organizationProfile?.tenant.id === authenticatedOrganization?.tenantId)
       ? organizationProfile : null;
   const isPlatformWorkspace = isPlatformAdministrator && !hasRequestedTenant;
   const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
     ? (user as any).platform_workspace : null;
   const institutionDisplayName = isPlatformWorkspace ? platformWorkspace?.heading || 'Administración de plataforma' : usesScopedOrganizationProfile
     ? matchingOrganizationProfile?.values.nombre_empresa || requestedTenantSlug || 'Organización seleccionada'
-    : perfil.nombre_empresa || 'Panel de Empresa';
+    : authenticatedOrganization?.name || (hasOrganizationContracts ? 'Organización' : perfil.nombre_empresa || 'Panel de Empresa');
   const authoritativeChannelActivation =
     matchingRequestedAuthority?.status === 'authorized'
       ? matchingRequestedAuthority.activation
@@ -650,6 +660,13 @@ export default function Perfil() {
   useEffect(() => {
     if (!requestAuthorityKey || !hasRequestedTenant) {
       setRequestedTenantAuthority(null);
+      return;
+    }
+
+    if (!isPlatformAdministrator && hasOrganizationContracts &&
+      (!authenticatedOrganization || authenticatedOrganization.tenantSlug !== requestedTenantSlug)) {
+      setRequestedTenantAuthority({ key: requestAuthorityKey,
+        status: organizationProfileVerified ? 'denied' : 'loading', slug: null, activation: null });
       return;
     }
 
@@ -717,6 +734,10 @@ export default function Perfil() {
     hasRequestedTenant,
     requestAuthorityKey,
     requestedTenantSlug,
+    isPlatformAdministrator,
+    hasOrganizationContracts,
+    authenticatedOrganization?.tenantSlug,
+    organizationProfileVerified,
   ]);
 
   useEffect(() => {
@@ -782,7 +803,10 @@ export default function Perfil() {
   const canViewCatalog = isTenantAdministrator || isCatalogManager;
   const canManageTeam = isTenantAdministrator;
   const canAccessSurveys = FEATURE_ENCUESTAS && isStaff;
-  const esMunicipio = (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
+  const esMunicipio = !isPlatformAdministrator && authenticatedOrganization
+    ? authenticatedOrganization.isMunicipal
+    : !isPlatformAdministrator && hasOrganizationContracts ? false
+      : (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
   const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
   const [backofficeNavigationStatus, setBackofficeNavigationStatus] = useState<
     'idle' | 'loading' | 'ready' | 'denied' | 'error'
@@ -1013,8 +1037,12 @@ export default function Perfil() {
     const next = new URLSearchParams(searchParams.toString());
     next.set("tab", "perfil");
     next.set("section", "plan");
+    if (!isPlatformAdministrator && authenticatedOrganization) {
+      next.delete('tenant');
+      next.set('tenant_slug', authenticatedOrganization.tenantSlug);
+    }
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, isPlatformAdministrator, authenticatedOrganization?.tenantSlug]);
 
   const updateInstitutionSection = useCallback(
     (section: InstitutionProfileSection) => {
@@ -1023,9 +1051,13 @@ export default function Perfil() {
       next.set("tab", "perfil");
       next.set("section", section === "plan-security" ? "plan" : section);
       if (section !== "channels") next.delete("setup");
+      if (!isPlatformAdministrator && authenticatedOrganization) {
+        next.delete('tenant');
+        next.set('tenant_slug', authenticatedOrganization.tenantSlug);
+      }
       setSearchParams(next, { replace: true });
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, isPlatformAdministrator, authenticatedOrganization?.tenantSlug],
   );
 
   const openInstitutionProfile = useCallback(
@@ -1373,15 +1405,17 @@ export default function Perfil() {
   const fetchPerfil = useCallback(async ({
     tenantSlug,
     isCurrent = () => true,
+    expectedOrganizationRevision,
   }: {
     tenantSlug?: string | null;
     isCurrent?: () => boolean;
+    expectedOrganizationRevision?: string;
   } = {}): Promise<ProfileIdentitySnapshot | null> => {
     setLoadingGuardar(true);
     setError(null);
     setMensaje(null);
     if (usesScopedOrganizationProfile) {
-      setOrganizationProfile(null);
+      if (!expectedOrganizationRevision) setOrganizationProfile(null);
       setOrganizationProfileStatus('loading');
     }
     try {
@@ -1391,7 +1425,8 @@ export default function Perfil() {
       const normalizedRequestedTenant = normalizeProfileTenantSlug(tenantSlug);
       let data: any;
       if (usesScopedOrganizationProfile) {
-        if (!normalizedRequestedTenant || normalizedRequestedTenant !== requestedTenantSlug) {
+        if (!normalizedRequestedTenant || normalizedRequestedTenant !== requestedTenantSlug ||
+          (!isPlatformAdministrator && (!authenticatedOrganization || normalizedRequestedTenant !== authenticatedOrganization.tenantSlug))) {
           throw new ApiError('No tenés acceso al perfil de esta organización.', 403);
         }
         const bundle = await apiFetch<any>(`/api/admin/tenants/${encodeURIComponent(normalizedRequestedTenant)}/config`, {
@@ -1400,10 +1435,19 @@ export default function Perfil() {
           omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
         });
         if (!isCurrent()) return null;
+        if (!isPlatformAdministrator && (!Number.isSafeInteger(bundle.tenant?.id) ||
+          bundle.tenant.id !== authenticatedOrganization?.tenantId ||
+          normalizeProfileTenantSlug(bundle.tenant.slug) !== normalizedRequestedTenant)) {
+          throw new Error('No pudimos verificar la organización del perfil recibido.');
+        }
         const profile = readOrganizationProfile(bundle.organization_profile, normalizedRequestedTenant);
         const activationTenantId = authoritativeActivationRef.current?.tenant?.id;
-        if (!profile || (activationTenantId != null && String(profile.tenant.id) !== String(activationTenantId))) {
+        if (!profile || (activationTenantId != null && String(profile.tenant.id) !== String(activationTenantId)) ||
+          (!isPlatformAdministrator && profile.tenant.id !== authenticatedOrganization?.tenantId)) {
           throw new Error('organization_profile_unverified');
+        }
+        if (expectedOrganizationRevision && profile.revision !== expectedOrganizationRevision) {
+          throw new Error('No pudimos verificar la versión guardada de esta organización.');
         }
         setOrganizationProfile(profile);
         setOrganizationProfileStatus('ready');
@@ -1545,7 +1589,9 @@ export default function Perfil() {
       if (isCurrent()) {
         if (usesScopedOrganizationProfile) {
           setOrganizationProfileStatus(err instanceof ApiError && [401, 403].includes(err.status) ? 'denied' : 'error');
-          setError('No pudimos verificar el perfil de esta organización. Reintentá o elegí otra organización desde el directorio.');
+          setError(isPlatformAdministrator
+            ? 'No pudimos verificar el perfil de esta organización. Reintentá o elegí otra organización desde el directorio.'
+            : 'No pudimos verificar el perfil de tu organización. Reintentá o volvé al inicio.');
         } else {
           setError(getErrorMessage(err, "Error al cargar el perfil."));
         }
@@ -1557,7 +1603,7 @@ export default function Perfil() {
         setProfileReady(true);
       }
     }
-  }, [usesScopedOrganizationProfile, requestedTenantSlug]);
+  }, [usesScopedOrganizationProfile, requestedTenantSlug, isPlatformAdministrator, authenticatedOrganization?.tenantSlug, authenticatedOrganization?.tenantId]);
 
   const fetchMapData = useCallback(async (tenantSlug?: string | null) => {
     setIsMapLoading(true);
@@ -1991,7 +2037,9 @@ export default function Perfil() {
     if (usesScopedOrganizationProfile) {
       const target = matchingOrganizationProfile;
       if (loadingGuardar || !target || target.can_edit !== true || target.editability.mode !== 'editable') {
-        setError('No tenés permiso para modificar el perfil de esta organización. Actualizá su estado o volvé al directorio.');
+        setError(isPlatformAdministrator
+          ? 'No tenés permiso para modificar el perfil de esta organización. Actualizá su estado o volvé al directorio.'
+          : 'No tenés permiso para modificar el perfil de esta organización. Actualizá su estado o volvé al inicio.');
         return;
       }
       const savedScope = profileIdentityScope;
@@ -2036,6 +2084,7 @@ export default function Perfil() {
         const refreshedProfile = await fetchPerfil({
           tenantSlug: target.tenant.slug,
           isCurrent: isSaveCurrent,
+          expectedOrganizationRevision: savedProfile!.revision,
         });
         if (refreshedProfile && isSaveCurrent()) {
           setMensaje('Cambios de la organización guardados correctamente.');
@@ -2665,7 +2714,9 @@ export default function Perfil() {
   const renderedSecondaryControlCards = controlCardsFromBackend
     ? backendControlCards.slice(4)
     : secondaryControlCards;
-  const backofficeScope = esMunicipio ? 'municipio' : (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) || 'pyme';
+  const backofficeScope = !isPlatformAdministrator && authenticatedOrganization ? authenticatedOrganization.organizationType
+    : hasOrganizationContracts && !isPlatformAdministrator ? 'organizacion'
+      : esMunicipio ? 'municipio' : (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) || 'pyme';
   const isInstitutionProfileViewport = activeProfileTab === "perfil" && isInstitutionProfileOpen;
   const isViewportWorkspaceProfileTab =
     activeProfileTab === "tickets" ||
@@ -2758,6 +2809,19 @@ export default function Perfil() {
         </section>
       </div>
     );
+  }
+
+  // Institutional editing always enters the revisioned tenant contract;
+  // actor fields and the personal profile write remain separate.
+  if (isInstitutionProfileOpen && !isPlatformAdministrator && hasOrganizationContracts) {
+    if (!authenticatedOrganization) {
+      return <ViewState status={organizationProfileVerified ? 'denied' : 'loading'} title="Verificando la organización" />;
+    }
+    if (!hasRequestedTenant) {
+      const canonicalParams = new URLSearchParams(searchParams);
+      canonicalParams.set('tenant_slug', authenticatedOrganization.tenantSlug);
+      return <Navigate to={`${location.pathname}?${canonicalParams.toString()}`} replace />;
+    }
   }
 
   // Older operations links used an unsupported workspace tab. Enter the real
@@ -2858,7 +2922,10 @@ export default function Perfil() {
                 </Button>
               ) : null}
               <Badge variant="outline" className="rounded-md px-2.5 py-1 text-xs font-medium">
-                {isPlatformWorkspace ? platformWorkspace?.organization_label || "Administración de plataforma" : esMunicipio ? "Gestión municipal" : "Gestión comercial"}
+                {isPlatformWorkspace ? platformWorkspace?.organization_label || "Administración de plataforma"
+                  : !isPlatformAdministrator && authenticatedOrganization ? authenticatedOrganization.organizationTypeLabel
+                    : hasOrganizationContracts && !isPlatformAdministrator ? 'Organización'
+                      : esMunicipio ? "Gestión municipal" : "Gestión comercial"}
               </Badge>
               <Badge variant="secondary" className="rounded-md px-2.5 py-1 text-xs font-medium">
                 {isPlatformWorkspace ? platformWorkspace?.role_label || "SuperAdmin" : isTenantAdministrator ? "Administrador" : "Operador"}
@@ -2987,16 +3054,16 @@ export default function Perfil() {
           {usesScopedOrganizationProfile ? (
             <nav aria-label="Navegación de la organización seleccionada" className="mb-2 grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <Button type="button" variant="outline" size="sm" className="min-h-11 min-w-0" onClick={() => navigate('/perfil')}>
-                Mi perfil
+                {isPlatformAdministrator ? 'Mi perfil' : 'Inicio'}
               </Button>
               {matchingOrganizationProfile ? (
                 <Button type="button" variant="outline" size="sm" className="min-h-11 min-w-0" disabled={loadingGuardar} onClick={handleCancelProfileChanges}>
                   Actualizar perfil
                 </Button>
               ) : null}
-              <Button type="button" variant="outline" size="sm" className="col-span-2 min-h-11 min-w-0 whitespace-normal" onClick={() => navigate('/superadmin?section=organizations')}>
+              {isPlatformAdministrator ? <Button type="button" variant="outline" size="sm" className="col-span-2 min-h-11 min-w-0 whitespace-normal" onClick={() => navigate('/superadmin?section=organizations')}>
                 Directorio de organizaciones
-              </Button>
+              </Button> : null}
             </nav>
           ) : null}
           {matchingOrganizationProfile && matchingOrganizationProfile.editability.mode === 'read_only' ? (
@@ -3014,7 +3081,7 @@ export default function Perfil() {
               status={organizationProfileStatus === 'denied' ? 'denied' : organizationProfileStatus === 'error' ? 'error' : 'loading'}
               title={organizationProfileStatus === 'denied' ? 'Perfil institucional no habilitado' : organizationProfileStatus === 'error' ? 'No pudimos verificar el perfil institucional' : 'Verificando la organización'}
               description={organizationProfileStatus === 'denied' || organizationProfileStatus === 'error'
-                ? 'Reintentá o elegí otra organización desde el directorio.'
+                ? isPlatformAdministrator ? 'Reintentá o elegí otra organización desde el directorio.' : 'Reintentá o volvé al inicio.'
                 : 'Cargando los datos y permisos de la organización seleccionada.'}
               action={organizationProfileStatus === 'denied' || organizationProfileStatus === 'error'
                 ? <Button type="button" variant="outline" onClick={handleCancelProfileChanges}>Reintentar perfil</Button>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -67,13 +67,39 @@ describe('SessionBootstrapGuard', () => {
     Object.values(privateBootstrapMocks).forEach((mock) => mock.mockReset());
   });
 
-  it('redirects a sessionless tenant inbox to /403 before any private bootstrap mounts', async () => {
+  it('redirects a sessionless tenant inbox to central login before any private bootstrap mounts', async () => {
     safeLocalStorage.setItem('tenantSlug', 'junin');
 
     renderGuard('/t/junin/inbox');
 
-    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/403'));
+    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/login?next=%2Ft%2Fjunin%2Finbox'));
     expectNoPrivateBootstrap();
+  });
+
+  it('returns a retired integration session to login and unmounts private providers', async () => {
+    safeLocalStorage.setItem('authToken', 'authenticated-panel-token');
+    const RetiringGuard = () => {
+      const [, refresh] = React.useState(0);
+      return <>
+        <button onClick={() => {
+          safeLocalStorage.removeItem('authToken');
+          refresh((revision) => revision + 1);
+        }}>Cerrar sesión de prueba</button>
+        <SessionBootstrapGuard clerkStatus="disabled" renderRuntime={(active) =>
+          active ? <PrivateBootstrapProbe /> : <PassiveRouteProbe />
+        } />
+      </>;
+    };
+    render(<MemoryRouter initialEntries={['/t/qa-institution/integracion']}>
+      <RetiringGuard />
+    </MemoryRouter>);
+    expect(screen.getByText('private-bootstrap-mounted')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión de prueba' }));
+    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent(
+      '/login?next=%2Ft%2Fqa-institution%2Fintegracion',
+    ));
+    expect(screen.queryByText('private-bootstrap-mounted')).not.toBeInTheDocument();
+    Object.values(privateBootstrapMocks).forEach((mock) => expect(mock).toHaveBeenCalledTimes(1));
   });
 
   it('resolves sessionless /admin to login before tenant, cart or profile APIs mount', async () => {
@@ -184,7 +210,7 @@ describe('SessionBootstrapGuard', () => {
 
     renderGuard('/t/junin/inbox', 'signed_out');
 
-    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/403'));
+    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/login?next=%2Ft%2Fjunin%2Finbox'));
     expectNoPrivateBootstrap();
   });
 
@@ -206,7 +232,7 @@ describe('SessionBootstrapGuard', () => {
 
     renderGuard('/t/junin/inbox', 'signed_out');
 
-    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/403'));
+    await waitFor(() => expect(screen.getByTestId('passive-route')).toHaveTextContent('/login?next=%2Ft%2Fjunin%2Finbox'));
     expectNoPrivateBootstrap();
   });
 

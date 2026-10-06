@@ -8,7 +8,7 @@ vi.mock('@/config', async original => ({ ...await original<typeof import('@/conf
   API_BASE_CANDIDATES: ['/api', 'https://retired.example.invalid'], BASE_API_URL: '/api', SAME_ORIGIN_PROXY_BASE: '/api',
 }));
 vi.mock('@/utils/api', async () => await vi.importActual<typeof import('@/utils/api')>('@/utils/api'));
-import { updateTicketReadState } from './ticketService';
+import { getTicketTimeline, getTicketMessages, updateTicketReadState } from './ticketService';
 
 const originalFetch = global.fetch;
 const privateScope = { tenantSlug: 'panel-tenant', sourceModel: 'MunicipioTicket' };
@@ -40,6 +40,48 @@ afterEach(() => {
 });
 
 describe('private read acknowledgements with actual apiFetch', () => {
+  it('preserves chat history while exposing only backend-provided native comment identities for acknowledgement', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ timeline: [], historial_chat: [
+      { texto: 'Historia sin comentario persistido', fecha: '2026-08-20T12:00:00Z' },
+      { id: 'provider-uuid', texto: 'Mensaje con identidad externa', fecha: '2026-08-20T12:01:00Z' },
+      { id: '123', texto: 'Comentario nativo persistido', fecha: '2026-08-20T12:02:00Z' },
+    ] }), { headers: { 'Content-Type': 'application/json' } }));
+    const result = await getTicketTimeline(407, 'municipio', { tenantSlug: 'panel-tenant', ticket: { source_model: 'MunicipioTicket' } });
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages.map(message => message.readCommentId)).toEqual([undefined, undefined, 123]);
+    expect(result.messages.map(message => message.content)).toEqual([
+      'Historia sin comentario persistido', 'Mensaje con identidad externa', 'Comentario nativo persistido']);
+  });
+
+  it('never promotes fallback array indices to native comment identities', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ messages: [
+      { comentario: 'Primer mensaje sin id' }, { comentario: 'Segundo mensaje sin id' },
+      { id: 456, comentario: 'Comentario nativo' },
+    ] }), { headers: { 'Content-Type': 'application/json' } }));
+    const messages = await getTicketMessages(407, 'municipio', { tenantSlug: 'panel-tenant', ticket: { source_model: 'MunicipioTicket' } });
+    expect(messages.map(message => message.id)).toEqual([0, 1, 456]);
+    expect(messages.map(message => message.readCommentId)).toEqual([undefined, undefined, 456]);
+  });
+
+  it.each(['chat_history:synthetic', 'provider-uuid', '', '0', 0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648, '9007199254740993'])
+    ('rejects invalid native comment identity %s before any HTTP request', async id => {
+      vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');
+      global.fetch = vi.fn();
+      const error = await updateTicketReadState(407, 'municipio', id, privateScope).catch(reason => reason);
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(error).toMatchObject({ status: 400 });
+    });
+
+  it('accepts an explicit native numeric-string comment id and sends exactly one canonical integer', async () => {
+    vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'false');
+    global.fetch = vi.fn().mockResolvedValue(success());
+    await expect(updateTicketReadState(407, 'municipio', '123', privateScope)).resolves.toBeNull();
+    expect(global.fetch).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(vi.mocked(global.fetch).mock.calls[0][1]?.body))).toEqual({ last_read_comment_id: 123 });
+  });
+
   it('issues no POST while readiness is pending and exactly one after readiness succeeds', async () => {
     vi.useFakeTimers();
     vi.stubEnv('VITE_BACKEND_BOOTSTRAP_GATE_ENABLED', 'true');

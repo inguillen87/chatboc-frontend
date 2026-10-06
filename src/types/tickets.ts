@@ -107,6 +107,8 @@ export interface Attachment {
 
 export interface Message {
   id: number | string;
+  /** Native legacy comment identifier, independent of display/fallback message identity. */
+  readCommentId?: number;
   author: "user" | "agent";
   agentName?: string;
   content: string; // Corresponds to 'text' in ChatMessageData

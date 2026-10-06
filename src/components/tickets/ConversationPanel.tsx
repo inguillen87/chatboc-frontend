@@ -30,6 +30,7 @@ import {
   summarizeTicketFetchError,
   updateTicketStatus,
   updateTicketReadState,
+  normalizeTicketReadCommentId,
   normalizeTicketReplyDelivery,
   type TicketReplyDeliveryStatus,
 } from '@/services/ticketService';
@@ -1152,6 +1153,7 @@ const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): Ch
 
   return {
     id: msg.id,
+    readCommentId: msg.readCommentId,
     text: msg.content,
     isBot: msg.author === 'agent',
     timestamp: new Date(msg.timestamp),
@@ -1383,6 +1385,7 @@ const normalizeTicketMessageFromPayload = (raw: any): TicketMessage | null => {
 
   return {
     id,
+    readCommentId: normalizeTicketReadCommentId(source.comment_id ?? source.comentario_id ?? source.id),
     content: String(content || ''),
     timestamp: source.fecha || source.timestamp || source.created_at || new Date().toISOString(),
     author: isAdmin ? 'agent' : 'user',
@@ -1555,14 +1558,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
   const latestReadableMessageId = useMemo(
     () => messages
-      .map((item) => item.id)
-      .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
-      .filter((id) => {
-        const value = String(id);
-        if (!value || value.startsWith('sent-') || value.startsWith('temp-')) return false;
-        if (typeof id === 'number' && id > 1_000_000_000_000) return false;
-        return true;
-      })
+      .map((item) => normalizeTicketReadCommentId(item.readCommentId))
+      .filter((id): id is number => id !== undefined)
       .at(-1),
     [messages],
   );
@@ -1676,7 +1673,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     [selectedTicket?.detail_endpoint, selectedTicket?.id, selectedTicket?.source_model],
   );
   const composerActionSelectedTicketId = String(selectedTicket?.id ?? '');
-  const composerActionScopeKey = `${selectedConversationKey || 'no-ticket'}|${composerActionDetailEndpoint || 'no-detail'}`;
+  const composerActionScopeKey = `${activeConversationScopeKey || 'no-ticket'}|session:${readStateSessionRevision}|${composerActionDetailEndpoint || 'no-detail'}`;
   const composerActionQueryKey = useMemo(
     () => composerActionContractQueryKey(composerActionScopeKey, composerActionDetailEndpoint),
     [composerActionDetailEndpoint, composerActionScopeKey],
@@ -1689,6 +1686,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       composerActionSelectedTicketId,
       responseTemplateTenantSlug,
       composerActionDetailEndpoint,
+      { isCurrent: () => activeComposerActionScopeRef.current === composerActionScopeKey &&
+        activeConversationScopeRef.current === activeConversationScopeKey &&
+        isChatbocSessionRevisionCurrent(readStateSessionRevision) },
     ),
     enabled: Boolean(selectedTicket && composerActionDetailEndpoint),
     retry: 0,
@@ -3507,6 +3507,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           >
             <span className="font-semibold">Respuesta bloqueada. </span>
             {replyBlockReason}
+            {composerActionContractQuery.isError && composerActionDetailEndpoint ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-2 h-7"
+                disabled={composerActionContractQuery.isFetching || isSending || composerActionMutation.isPending}
+                onClick={() => {
+                  if (activeComposerActionScopeRef.current !== composerActionScopeKey ||
+                      !isChatbocSessionRevisionCurrent(readStateSessionRevision)) return;
+                  void composerActionContractQuery.refetch();
+                }}
+              >
+                {composerActionContractQuery.isFetching ? 'Verificando…' : 'Reintentar verificación'}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 

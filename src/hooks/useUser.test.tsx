@@ -11,6 +11,8 @@ import profileFixture from '../../tests/fixtures/organization-profile-settings.j
 import workspaceFixtures from '../../tests/fixtures/organization-workspaces.json';
 import {retirementProof} from '../../tests/fixtures/session-retirement.synthetic';
 import {captureSessionRetirement} from '@/utils/sessionRetirement';
+import { privateWorkspacePresentation } from '@/utils/privateWorkspaceIdentity';
+import { hasOrganizationIdentityContracts } from '@/utils/verifiedOrganizationIdentity';
 
 const SessionVisibleUserProbe = () => {
   const { user } = useUser();
@@ -28,6 +30,14 @@ const VerifiedClerkBridgeProbe = () => {
 const InstitutionalVerificationProbe = () => {
   const { user, organizationProfileVerified } = useUser();
   return <output data-testid="institutional-verification">{`${user?.tenant_slug}|${organizationProfileVerified}`}</output>;
+};
+const LegacyOrganizationPresentationProbe = () => {
+  const { user, organizationProfileVerified, loading, hasVerifiedSession } = useUser();
+  const presentation = privateWorkspacePresentation({pathname: '/perfil', search: '', user,
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading});
+  return <output data-testid="legacy-organization-presentation">
+    {`${presentation.identity?.name || 'neutral'}|${hasOrganizationIdentityContracts(user)}|${organizationProfileVerified}`}
+  </output>;
 };
 const verifiedAuthority = { clerkStatus: 'disabled' as const, hasBearerSession: true, hasVerifiedSession: true };
 const jwt = (id: number) => `header.${btoa(JSON.stringify({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600 }))}.signature`;
@@ -78,6 +88,22 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     await act(async () => finish({ id: 42, rol: 'tenant_admin', rubro: 'gobierno', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
     expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-a|true');
     expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a verified legacy organization when fresh hydration omits both organization contracts', async () => {
+    const token = jwt(42);
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({authToken: token, user: {id: '42', rol: 'tenant_admin', tenant_slug: 'qa-legacy'}});
+    vi.mocked(apiFetch).mockResolvedValue({id: 42, name: 'Personal operator', rol: 'tenant_admin',
+      tipo_chat: 'pyme', rubro: 'pyme', nombre_empresa: 'Verified legacy organization', tenant_slug: 'qa-legacy'});
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}>
+      <LegacyOrganizationPresentationProbe />
+    </SessionAuthorityProvider></UserProvider>);
+    await waitFor(() => expect(screen.getByTestId('legacy-organization-presentation'))
+      .toHaveTextContent('Verified legacy organization|false|true'));
+    expect(apiFetch).toHaveBeenCalledOnce();
+    expect(usePanelSessionStore.getState().user).toHaveProperty('organization_profile', undefined);
+    expect(usePanelSessionStore.getState().user).toHaveProperty('organization_workspace', undefined);
   });
 
   it('does not verify a late profile response after the credential session changes', async () => {

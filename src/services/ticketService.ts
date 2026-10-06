@@ -384,6 +384,7 @@ const normalizeTicketMessages = (rawMsgs: any[] | undefined | null): Message[] =
 
         return {
             id: m.id ?? m.comentario_id ?? m.comment_id ?? idx,
+            readCommentId: normalizeTicketReadCommentId(m.comment_id ?? m.comentario_id ?? m.id),
             author: isAgentMessage ? 'agent' : 'user',
             agentName: m.nombre_agente || m.agentName || m.autor_nombre || m.author_name,
             content: m.content || m.body || m.texto || m.mensaje || m.comentario || '',
@@ -1767,6 +1768,7 @@ export const getTicketTimeline = async (
       );
       return {
         id,
+        readCommentId: normalizeTicketReadCommentId(raw.comment_id ?? raw.comentario_id ?? raw.id),
         author: isAgent ? 'agent' : 'user',
         content: normalizedContent,
         timestamp,
@@ -1932,12 +1934,21 @@ export const updateTicketPresence = async (
     return normalizeRealtimeState((response as any).realtime_state);
 };
 
+/** Accept only identifiers representable by the native TicketComentario integer key. */
+export const normalizeTicketReadCommentId = (value: unknown): number | undefined => {
+    if (typeof value !== 'number' && !(typeof value === 'string' && /^[1-9]\d*$/.test(value))) return undefined;
+    const id = Number(value);
+    return Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : undefined;
+};
+
 export const updateTicketReadState = async (
     ticketId: number,
     tipo: 'municipio' | 'pyme',
     lastReadCommentId: string | number,
     opts?: { public?: boolean; pin?: string; tenantSlug?: string | null; sourceModel?: string | null; isCurrent?: () => boolean }
 ): Promise<TicketRealtimeState | null> => {
+    const nativeCommentId = normalizeTicketReadCommentId(lastReadCommentId);
+    if (nativeCommentId === undefined) throw new ApiError('No se pudo verificar el comentario para registrar la lectura.', 400);
     const expectedSource = tipo === 'municipio' ? 'MunicipioTicket' : 'PymeTicket';
     if (!opts?.public && opts?.sourceModel !== expectedSource) {
         throw new ApiError('No se pudo verificar la fuente para registrar la lectura.', 400);
@@ -1959,7 +1970,7 @@ export const updateTicketReadState = async (
     };
     const response = await apiFetch<{ realtime_state?: any }>(endpoint, {
         method: 'POST',
-        body: { last_read_comment_id: lastReadCommentId },
+        body: { last_read_comment_id: nativeCommentId },
         ...fetchOptions,
     });
     if (!opts?.public && !isCurrent()) throw new DOMException('Read acknowledgement scope expired', 'AbortError');
