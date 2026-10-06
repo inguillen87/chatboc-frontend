@@ -644,6 +644,11 @@ export default function Perfil() {
     matchingRequestedAuthority?.status === 'authorized' &&
     (isPlatformAdministrator || organizationProfile?.tenant.id === authenticatedOrganization?.tenantId)
       ? organizationProfile : null;
+  const whatsappIntegrationTenantSlug = hasVerifiedSession === true && !userLoading && integrationTenantSlug && (
+    usesScopedOrganizationProfile
+      ? organizationProfileStatus === 'ready' && matchingOrganizationProfile?.tenant.slug === integrationTenantSlug
+      : authenticatedOrganization?.tenantSlug === integrationTenantSlug
+  ) ? integrationTenantSlug : null;
   const isPlatformWorkspace = isPlatformAdministrator && !hasRequestedTenant;
   const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
     ? (user as any).platform_workspace : null;
@@ -3417,8 +3422,12 @@ export default function Perfil() {
                   {esMunicipio ? (
                     <button
                       type="button"
-                      onClick={() => navigate("/municipal/whatsapp")}
-                      className="rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                      disabled={!whatsappIntegrationTenantSlug || !canManageTenantIntegrations}
+                      onClick={() => {
+                        if (!whatsappIntegrationTenantSlug || !canManageTenantIntegrations) return;
+                        navigate(`${buildTenantPath('/integracion', whatsappIntegrationTenantSlug)}?channel=whatsapp`);
+                      }}
+                      className="rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <p className="font-semibold text-foreground">Administrar WhatsApp institucional</p>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">Número emisor, webhook, plantillas y estado del proveedor.</p>

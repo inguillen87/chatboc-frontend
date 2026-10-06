@@ -180,12 +180,13 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     const wasSignedIn = previousSignedInRef.current;
     previousSignedInRef.current = isSignedIn;
     const signedOutAfterTransition = wasSignedIn === true && isSignedIn === false;
-    const hasActiveClerkIdentity = Boolean(activeClerkUserIdRef.current);
     const persistedClerkSession = hasPersistedClerkSession();
     const loadedWithStaleClerkSession =
       wasSignedIn === undefined && isSignedIn === false && persistedClerkSession;
+    // A former SDK identity can report signout after a native login replaced it.
+    // Only the currently persisted Clerk session belongs to this transition.
     const signedOutFromChatbocClerkSession =
-      signedOutAfterTransition && (hasActiveClerkIdentity || persistedClerkSession);
+      signedOutAfterTransition && persistedClerkSession;
     if (!signedOutFromChatbocClerkSession && !loadedWithStaleClerkSession) return;
 
     const transition = resetChatbocSessionForIdentityTransition();

@@ -16,6 +16,8 @@ const runtime = vi.hoisted(() => ({
   ticketMounts: 0,
   realTicketPanel: false,
   hasSession: true,
+  sessionVerified: true,
+  userLoading: false,
   profileVerified: true,
   realNavigation: false,
   user: null as Record<string, any> | null,
@@ -36,9 +38,9 @@ vi.mock('@/hooks/useUser', () => ({
     user: runtime.user,
     setUser: runtime.setUser,
     refreshUser: runtime.refreshUser,
-    loading: false,
+    loading: runtime.userLoading,
     organizationProfileVerified: runtime.profileVerified,
-    hasVerifiedSession: runtime.hasSession,
+    hasVerifiedSession: runtime.hasSession && runtime.sessionVerified,
   }),
 }));
 
@@ -333,6 +335,8 @@ describe('Perfil request lifecycle', () => {
   beforeEach(() => {
     localStorage.clear();
     runtime.hasSession = true;
+    runtime.sessionVerified = true;
+    runtime.userLoading = false;
     runtime.profileVerified = true;
     runtime.realNavigation = false;
     runtime.user = verifiedUser('junin');
@@ -692,6 +696,69 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByText('Placeholder municipal')).not.toBeInTheDocument();
   });
 
+  it.each(['junin', 'mendoza'])(
+    'opens institutional WhatsApp in the verified %s integration workspace instead of the legacy municipal page', async (tenantSlug) => {
+      runtime.realNavigation = true;
+      wireSelectedOrganization(() => organizationProfileResponse(tenantSlug), undefined, tenantSlug);
+      runtime.user = { ...runtime.user, capabilities: ['settings.tenant.write'] };
+      localStorage.setItem('tenantSlug', 'another-organization');
+      window.history.replaceState({}, '', `/perfil?section=channels&tenant_slug=${tenantSlug}`);
+      render(<CapabilitiesProvider><BrowserRouter><Routes>
+        <Route path="/perfil" element={<ProfileHarness />} />
+        <Route path="/t/:tenant/integracion" element={
+          <AccessRoute roles={['tenant_admin', 'superadmin']} requiredAllCapabilities={['settings.tenant.write']}>
+            <div>Integraciones de WhatsApp verificadas</div>
+          </AccessRoute>
+        } />
+        <Route path="/municipal/whatsapp" element={<div>WhatsApp municipal legacy</div>} />
+      </Routes></BrowserRouter></CapabilitiesProvider>);
+
+      const entry = await screen.findByRole('button', { name: /Administrar WhatsApp institucional/ });
+      await waitFor(() => expect(entry).toBeEnabled());
+      fireEvent.click(entry);
+      expect(window.location.pathname).toBe(`/t/${tenantSlug}/integracion`);
+      expect(window.location.search).toBe('?channel=whatsapp');
+      await screen.findByText('Integraciones de WhatsApp verificadas');
+      expect(screen.queryByText('WhatsApp municipal legacy')).not.toBeInTheDocument();
+      expect(runtime.apiFetch.mock.calls.some(([path]) => path === '/municipal/whatsapp')).toBe(false);
+      expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT' || options?.method === 'POST')).toBe(false);
+    },
+  );
+
+  it('keeps institutional WhatsApp closed when only legacy actor and persisted tenant hints exist', async () => {
+    runtime.user = { ...verifiedUser(), rol: 'admin_municipio', plan: 'full', capabilities: ['settings.tenant.write'] };
+    localStorage.setItem('tenantSlug', 'another-organization');
+    window.history.replaceState({}, '', '/perfil?section=channels');
+    render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+
+    const entry = await screen.findByRole('button', { name: /Administrar WhatsApp institucional/ });
+    expect(entry).toBeDisabled();
+    fireEvent.click(entry);
+    expect(window.location.pathname).toBe('/perfil');
+    expect(window.location.search).not.toContain('channel=whatsapp');
+  });
+
+  it.each(['unverified-session', 'loading-session'] as const)(
+    'closes a previously verified institutional WhatsApp action during %s', async (reason) => {
+      runtime.realNavigation = true;
+      wireSelectedOrganization(() => organizationProfileResponse());
+      runtime.user = { ...runtime.user, capabilities: ['settings.tenant.write'] };
+      window.history.replaceState({}, '', '/perfil?section=channels&tenant_slug=selected-organization');
+      const view = render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+      const entry = await screen.findByRole('button', { name: /Administrar WhatsApp institucional/ });
+      await waitFor(() => expect(entry).toBeEnabled());
+
+      if (reason === 'unverified-session') runtime.sessionVerified = false;
+      else runtime.userLoading = true;
+      view.rerender(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+
+      expect(entry).toBeDisabled();
+      fireEvent.click(entry);
+      expect(window.location.pathname).toBe('/perfil');
+      expect(window.location.search).not.toContain('channel=whatsapp');
+    },
+  );
+
   it.each(['missing-tenant', 'missing-capability'] as const)(
     'keeps municipal integration navigation closed with %s and gives a recovery action', async (reason) => {
       runtime.realNavigation = true;
@@ -714,6 +781,9 @@ describe('Perfil request lifecycle', () => {
 
       const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
       expect(entry).toBeDisabled();
+      const whatsappEntry = screen.getByRole('button', { name: /Administrar WhatsApp institucional/ });
+      expect(whatsappEntry).toBeDisabled();
+      fireEvent.click(whatsappEntry);
       fireEvent.click(entry);
       expect(window.location.pathname).toBe('/perfil');
       if (reason === 'missing-tenant') {
