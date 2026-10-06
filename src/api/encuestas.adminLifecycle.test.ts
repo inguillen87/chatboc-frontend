@@ -14,6 +14,7 @@ vi.mock('@/utils/api', () => ({
 }));
 
 import { adminCloseSurvey, adminListSurveys } from '@/api/encuestas';
+import { syntheticRelocationAction } from '../../tests/fixtures/survey-editorial-relocation.synthetic';
 
 const aggregationScope = () => ({
   mode: 'returned_page',
@@ -421,6 +422,21 @@ describe('admin survey lifecycle contract', () => {
 
     expect(result.data[0].admin_lifecycle?.accepts_responses).toBe(true);
     expect(result.data[0].public_access?.allowed).toBe(true);
+  });
+
+  it('preserves the backend relocation action and requests archived history explicitly without widening the tenant', async () => {
+    const history = { '41': { archive_idempotency_key: '12345678-1234-4567-89ab-123456789abc', archive_operation_id: 'synthetic-archive-operation', source_editorial_sha256: '1'.repeat(64) } };
+    const payload = cloneEnvelope(); Object.assign(payload, { editorial_relocation: syntheticRelocationAction, include_archived: true, archived_editorial_relocations: history });
+    apiFetchMock.mockResolvedValueOnce(payload);
+    const result = await adminListSurveys({ include_archived: true }, { tenantSlug: 'org-demo' });
+    expect(result.editorial_relocation).toEqual(syntheticRelocationAction);
+    expect(result.include_archived).toBe(true); expect(result.archived_editorial_relocations).toEqual(history);
+    expect(apiFetchMock).toHaveBeenCalledExactlyOnceWith('/api/admin/encuestas?include_archived=1', expect.objectContaining({ tenantSlug: 'org-demo' }));
+  });
+  it('does not expose restore metadata without the backend explicit history envelope', async () => {
+    const payload = cloneEnvelope(); Object.assign(payload, { archived_editorial_relocations: { '41': { archive_idempotency_key: '12345678-1234-4567-89ab-123456789abc', archive_operation_id: 'synthetic', source_editorial_sha256: '1'.repeat(64) } } });
+    apiFetchMock.mockResolvedValueOnce(payload); const result = await adminListSurveys(undefined, { tenantSlug: 'org-demo' });
+    expect(result.include_archived).toBe(false); expect(result.archived_editorial_relocations).toBeUndefined();
   });
 
   it.each(['collecting', 'live_voting'])('accepts %s when the public guard blocks participation', async (phase) => {

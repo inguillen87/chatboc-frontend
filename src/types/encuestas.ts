@@ -941,6 +941,9 @@ export interface SurveyDraftPayload {
 }
 
 export interface SurveyListResponse {
+  editorial_relocation?: import('@/api/surveyEditorialRelocation').RelocationAction;
+  archived_editorial_relocations?: Record<string, import('@/api/surveyEditorialRelocation').ArchivedRelocation>;
+  include_archived?: boolean;
   data: SurveyAdmin[];
   contract_version?: 'surveys.admin_list.v2' | string;
   tenant?: { id: number | null; slug: string | null };
@@ -962,6 +965,7 @@ export interface SurveyListResponse {
 }
 
 export interface SurveyAdminListParams {
+  include_archived?: boolean;
   estado?: SurveyAdmin['estado'];
   limit?: number;
   cursor?: string;

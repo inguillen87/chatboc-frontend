@@ -1,5 +1,6 @@
 import { ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK, PUBLIC_SURVEY_BASE_URL } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
+import { readRelocationAction, readArchivedRelocations } from '@/api/surveyEditorialRelocation';
 import {
   PreguntaTipo,
   PublicResponsePayload,
@@ -2063,6 +2064,9 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
 
     return {
       contract_version: 'surveys.admin_list.v2',
+      editorial_relocation: readRelocationAction(payload.editorial_relocation) ?? undefined,
+      include_archived: payload.include_archived === true,
+      archived_editorial_relocations: payload.include_archived === true ? readArchivedRelocations(payload.archived_editorial_relocations) : undefined,
       tenant: { id: tenant.id as number, slug: (tenant.slug as string).trim() },
       freshness: {
         generated_at: freshness.generated_at as string,

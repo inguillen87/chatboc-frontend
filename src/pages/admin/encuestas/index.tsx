@@ -16,6 +16,8 @@ import type { LucideIcon } from 'lucide-react';
 
 import { SurveyCard } from '@/components/surveys/SurveyCard';
 import { SurveyOperationsOverview } from '@/components/surveys/SurveyOperationsOverview';
+import { SurveyRelocationPanel } from '@/components/surveys/SurveyRelocationPanel';
+import { SurveyRestorePanel } from '@/components/surveys/SurveyRestorePanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
@@ -201,6 +203,7 @@ const AdminSurveysIndex = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const focusMode = normalizeFocusMode(searchParams.get('focus'));
+  const includeArchived = searchParams.get('include_archived') === 'true';
   const {
     surveys,
     isLoadingList,
@@ -221,7 +224,9 @@ const AdminSurveysIndex = () => {
     refetchList,
     loadMoreSurveys,
     tenantSlug,
-  } = useSurveyAdmin();
+  } = useSurveyAdmin(includeArchived ? { listParams: { include_archived: true } } : undefined);
+  const [relocationPending, setRelocationPending] = useState(false);
+  const [restorePending, setRestorePending] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [closingId, setClosingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -439,12 +444,19 @@ const AdminSurveysIndex = () => {
           <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados en un solo lugar.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" disabled={!tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>
-        <Button disabled={!tenantSlug} onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
+        <Button type="button" variant="outline" disabled={relocationPending || restorePending || !tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>
+        <Button disabled={relocationPending || restorePending || !tenantSlug} onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
           <Plus className="h-4 w-4" /> Nueva encuesta
         </Button>
         </div>
       </div>
+
+      <SurveyRelocationPanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
+        externalBusy={restorePending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
+        onPendingChange={setRelocationPending} onCompleted={refetchList} />
+      <SurveyRestorePanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
+        externalBusy={relocationPending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
+        onPendingChange={setRestorePending} onCompleted={refetchList} />
 
       {focusMeta && !isLoadingList && !listError ? (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
