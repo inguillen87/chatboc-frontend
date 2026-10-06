@@ -23,6 +23,7 @@ const surveyApiMocks = vi.hoisted(() => ({
 
 vi.mock('@/api/encuestas', () => apiMocks);
 vi.mock('@/features/surveys/surveysApi', () => surveyApiMocks);
+vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: { id: 4, rol: 'superadmin' }, hasVerifiedSession: true, organizationProfileVerified: true }) }));
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'org-demo' }),
 }));
