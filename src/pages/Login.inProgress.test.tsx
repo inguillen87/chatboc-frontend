@@ -20,6 +20,7 @@ vi.mock('@clerk/clerk-react', () => ({
   SignUpButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useSignIn: () => ({ isLoaded: true, signIn: { authenticateWithRedirect: mocks.oauthRedirect } }),
   useSignUp: () => ({ isLoaded: true, signUp: { authenticateWithRedirect: mocks.oauthRedirect } }),
+  useClerk: () => ({ session: null, client: { signIn: { authenticateWithRedirect: mocks.oauthRedirect }, signUp: { authenticateWithRedirect: mocks.oauthRedirect } } }),
 }));
 vi.mock('@react-oauth/google', () => ({
   GoogleLogin: ({ onSuccess }: { onSuccess: (response: { credential: string }) => void }) => (
