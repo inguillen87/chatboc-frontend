@@ -1,6 +1,6 @@
 import {safeSessionStorage} from './safeLocalStorage';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from './chatbocSessionRevision';
-import {abortablePause,hasUndispatchedStartupReceipt} from './backendRequestContinuity';
+import {abortablePause,hasUndispatchedStartupReceipt,STARTUP_CONTINUITY_BUDGET_MS} from './backendRequestContinuity';
 
 export interface SessionRetirementProof {
  contract_version:'chatboc.session_retirement.v1'; actor_id:string; provider:'native'|'clerk';
@@ -63,24 +63,27 @@ export const readLogoutNotice=()=>logoutNotice;
 export const subscribeLogoutNotice=(listener:()=>void)=>{noticeListeners.add(listener);return()=>{noticeListeners.delete(listener);};};
 export const setLogoutNotice=(notice:LogoutNotice)=>{logoutNotice=notice;noticeListeners.forEach(listener=>{try{listener();}catch{}});};
 
-/** A frozen A-only operation, with one retry only when the WSGI boundary proves no dispatch. */
+const MAX_RETIREMENT_STARTUP_ATTEMPTS=6;
+/** A frozen A-only operation; startup continuation requires WSGI proof of no dispatch on every response. */
 export async function dispatchSessionRetirement(authority:SessionRetirementProof|null):Promise<SessionRetirementResult>{
  if(!authority)return {status:'unavailable',providerStatus:'unknown'};
  const frozen={...authority};const uncertain=():SessionRetirementResult=>({status:'uncertain',providerStatus:'unknown'});
- const controller=new AbortController();const expiresAt=Date.now()+10_000;
+ const controller=new AbortController();const expiresAt=Date.now()+STARTUP_CONTINUITY_BUDGET_MS;
  let timer:ReturnType<typeof setTimeout>;
- const deadline=new Promise<SessionRetirementResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(uncertain());},10_000);});
+ const deadline=new Promise<SessionRetirementResult>(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(uncertain());},STARTUP_CONTINUITY_BUDGET_MS);});
  const operation=async():Promise<SessionRetirementResult>=>{
   try{
    const body=JSON.stringify({proof:frozen.proof,request_id:crypto.randomUUID()});
    const init:RequestInit={method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
     body,credentials:'omit',cache:'no-store',redirect:'error',keepalive:true,signal:controller.signal};
-   for(let attempt=0;attempt<2;attempt+=1){
+   for(let attempt=0;attempt<MAX_RETIREMENT_STARTUP_ATTEMPTS;attempt+=1){
     controller.signal.throwIfAborted();
+    if(Date.now()>=expiresAt)return uncertain();
     const response=await fetch('/api/v2/auth/sessions/retire',init);
     controller.signal.throwIfAborted();
+    if(Date.now()>=expiresAt)return uncertain();
     if(!response.ok){
-     if(attempt===0&&await hasUndispatchedStartupReceipt(response)){
+     if(attempt<MAX_RETIREMENT_STARTUP_ATTEMPTS-1&&await hasUndispatchedStartupReceipt(response)){
       controller.signal.throwIfAborted();
       const seconds=Number(response.headers.get('Retry-After')??'2');
       const delay=Number.isFinite(seconds)&&seconds>=0?Math.max(250,seconds*1000):2000;

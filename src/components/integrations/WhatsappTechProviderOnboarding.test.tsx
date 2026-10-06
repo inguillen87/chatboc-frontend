@@ -94,7 +94,7 @@ describe('WhatsApp activation readiness evidence', () => {
       } });
       render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
-      await screen.findByText('Listo con pendientes');
+      await screen.findByText('Configuración con pendientes');
       const steps = within(screen.getByRole('list', { name: 'Pasos de activación de WhatsApp' }));
       expect(steps.getByText('Probar WhatsApp').closest('li')).toHaveTextContent('Paso actual: Probar WhatsApp');
       expect(steps.getByText('Operar y medir').closest('li')).toHaveTextContent('Pendiente: Operar y medir');
@@ -247,6 +247,212 @@ const baseContract = {
   ],
   limitations: ["El cliente debe autorizar su WABA desde Meta."],
 };
+
+const liveUnavailableMessage = "La prueba real todavía no está habilitada; la configuración registrada se conserva";
+const vaultUnavailableMessage = "La preparación segura de esta organización requiere una activación de Chatboc.";
+const r15Availability = (vaultOwned = false) => ({
+  contract_version: "whatsapp.operation_availability.v1",
+  operations: Object.fromEntries([
+    "create_subaccount", "create_messaging_service", "register_sender", "poll_sender_status", "prepare_voice", "live_whatsapp_message",
+  ].map((id) => [id, {
+    implemented: id !== "live_whatsapp_message",
+    can_execute: !vaultOwned && ["register_sender", "poll_sender_status", "prepare_voice"].includes(id),
+    dry_run_available: true,
+    reason_code: id === "live_whatsapp_message" ? "execution_not_implemented" : vaultOwned ? "twilio_vault_onboarding_integration_required" : null,
+    message: id === "live_whatsapp_message" ? liveUnavailableMessage : vaultOwned ? vaultUnavailableMessage : null,
+  }])),
+});
+const r15ConfiguredContract = (vaultOwned = false) => ({
+  ...baseContract,
+  status: vaultOwned ? "needs_secure_activation" : "configuration_complete",
+  next_action: vaultOwned ? "wait_for_platform_activation" : "await_live_test_support",
+  operation_availability: r15Availability(vaultOwned),
+  setup_health: {
+    ...baseContract.setup_health,
+    status: vaultOwned ? "action_required" : "configuration_complete",
+    recommended_next_action: vaultOwned ? "wait_for_platform_activation" : "await_live_test_support",
+    blockers: vaultOwned ? [{ code: "twilio_vault_onboarding_integration_required", message: vaultUnavailableMessage, action: "wait_for_platform_activation" }] : [],
+  },
+  operator_checklist: [
+    { id: "templates_webviews", done: true }, { id: "webhooks", done: true },
+  ],
+  smoke_playbook: {
+    ...baseContract.smoke_playbook,
+    tests: [
+      baseContract.smoke_playbook.tests[0],
+      { ...baseContract.smoke_playbook.tests[1], reason_code: "execution_not_implemented", description: liveUnavailableMessage },
+    ],
+  },
+});
+
+describe("R15 operation availability contract", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetTenantOpsQaPlaybookV2.mockResolvedValue({ tenant: { slug: "junin-1" } } as any);
+  });
+
+  it("preserves complete metadata but blocks vault onboarding operations and keeps contract refresh", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: r15ConfiguredContract(true) });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    const primary = within(await screen.findByTestId("whatsapp-primary-action"));
+    expect(primary.getByText(vaultUnavailableMessage)).toBeInTheDocument();
+    expect(primary.getByRole("button", { name: /volver a comprobar habilitación/i })).toBeEnabled();
+    expect(screen.getByTestId("whatsapp-onboarding-primary-status")).toHaveTextContent("Preparación segura pendiente");
+    expect(screen.getByText("XESENDER123")).toBeInTheDocument();
+    expect(screen.queryByText("Número aprobado, asociado y listo para mensajes reales.")).not.toBeInTheDocument();
+    for (const name of ["Preparar activación", "Registrar sender", "Actualizar estado", "Preparar voz"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled(); fireEvent.click(button);
+    }
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+    expect(mockedTenantService.refreshWhatsappSenderStatus).not.toHaveBeenCalled();
+    expect(mockedTenantService.provisionWhatsappVoiceApp).not.toHaveBeenCalled();
+    fireEvent.click(primary.getByRole("button", { name: /volver a comprobar habilitación/i }));
+    await waitFor(() => expect(mockedTenantService.getWhatsappTechProvider).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows complete configuration with real testing pending while supported env actions remain available", async () => {
+    const configured = r15ConfiguredContract();
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: configured });
+    mockedTenantService.refreshWhatsappSenderStatus.mockResolvedValue({ contract: configured });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    expect(await screen.findByTestId("whatsapp-onboarding-primary-status")).toHaveTextContent("Configuración completa; prueba real pendiente");
+    const primary = within(screen.getByTestId("whatsapp-primary-action"));
+    expect(primary.getByText(liveUnavailableMessage)).toBeInTheDocument();
+    expect(primary.getByRole("button", { name: /volver a comprobar habilitación/i })).toBeEnabled();
+    expect(screen.getAllByText("Esperar habilitación de la prueba real").length).toBeGreaterThan(0);
+    for (const name of ["Registrar sender", "Actualizar estado", "Preparar voz"]) {
+      expect(screen.getByRole("button", { name })).toBeEnabled();
+    }
+    expect(screen.getByRole("button", { name: "Preparar activación" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar estado" }));
+    await waitFor(() => expect(mockedTenantService.refreshWhatsappSenderStatus).toHaveBeenCalledExactlyOnceWith("junin-1"));
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    const liveCard = screen.getByText("Prueba real WhatsApp").closest("div.rounded-xl")!;
+    expect(within(liveCard as HTMLElement).getByRole("button", { name: "Prueba real no habilitada" })).toBeDisabled();
+    expect(within(liveCard as HTMLElement).queryByText("Requiere confirmacion")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["register_sender", "Registrar sender", "registerWhatsappSender"],
+    ["poll_sender_status", "Actualizar estado", "refreshWhatsappSenderStatus"],
+    ["prepare_voice", "Preparar voz", "provisionWhatsappVoiceApp"],
+  ] as const)("honors explicit unavailability for %s without blocking the safe configuration check", async (operation, label, method) => {
+    const configured = r15ConfiguredContract();
+    configured.operation_availability.operations[operation].can_execute = false;
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: configured });
+    mockedTenantService.runWhatsappTechProviderSmokeTest.mockResolvedValue({ status: "pass", ok: true });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-primary-action");
+    const button = screen.getByRole("button", { name: label });
+    expect(button).toBeDisabled(); fireEvent.click(button);
+    expect(mockedTenantService[method]).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /ejecutar prueba de conexion/i }));
+    await waitFor(() => expect(mockedTenantService.runWhatsappTechProviderSmokeTest).toHaveBeenCalledExactlyOnceWith("junin-1", "template_registry", {
+      source: "tenant_panel", dry_run: true,
+    }));
+  });
+
+  it("honors the shared availability projection supplied only in setup health", async () => {
+    const configured = r15ConfiguredContract(true);
+    const { operation_availability, ...contract } = configured;
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...contract, setup_health: { ...configured.setup_health, operation_availability },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-primary-action");
+    expect(screen.getByRole("button", { name: "Actualizar estado" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preparar voz" })).toBeDisabled();
+  });
+
+  it.each([
+    { can_execute: "false", implemented: true }, { can_execute: true, implemented: false },
+    { can_execute: true, implemented: null }, { can_execute: true, implemented: "true" }, { can_execute: true },
+  ])(
+    "requires exact availability booleans and an implemented operation: %j", async operation => {
+      const configured = r15ConfiguredContract();
+      mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+        ...configured, operation_availability: {
+          ...configured.operation_availability,
+          operations: { ...configured.operation_availability.operations, register_sender: operation },
+        },
+      } });
+      render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+      await screen.findByTestId("whatsapp-primary-action");
+      expect(screen.getByRole("button", { name: "Registrar sender" })).toBeDisabled();
+    },
+  );
+
+  it.each([
+    null, undefined,
+    { contract_version: "future.operation_availability.v2", operations: r15Availability().operations },
+    { contract_version: "whatsapp.operation_availability.v1", operations: null },
+    { contract_version: "whatsapp.operation_availability.v1", operations: {} },
+    { contract_version: "whatsapp.operation_availability.v1" },
+  ])("fails closed for a present null, incomplete or unknown availability contract: %j", async operation_availability => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...r15ConfiguredContract(), operation_availability,
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-primary-action");
+    for (const name of ["Preparar activación", "Registrar sender", "Actualizar estado", "Preparar voz"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled(); fireEvent.click(button);
+    }
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+    expect(mockedTenantService.refreshWhatsappSenderStatus).not.toHaveBeenCalled();
+    expect(mockedTenantService.provisionWhatsappVoiceApp).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar" }));
+    await waitFor(() => expect(mockedTenantService.getWhatsappTechProvider).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not fall back to a valid setup projection when top-level availability is present but null", async () => {
+    const configured = r15ConfiguredContract();
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...configured, operation_availability: null,
+      setup_health: { ...configured.setup_health, operation_availability: configured.operation_availability },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-primary-action");
+    expect(screen.getByRole("button", { name: "Registrar sender" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Actualizar estado" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preparar voz" })).toBeDisabled();
+  });
+
+  it("rejects a stale executable production channel when polling is unavailable", async () => {
+    const configured = r15ConfiguredContract(true);
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...configured, smoke_playbook: { ...configured.smoke_playbook, tests: [{
+        id: "production_channel", label: "Consulta del canal registrado", can_execute: true, danger_level: "read_only",
+      }] },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-primary-action");
+    expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeDisabled();
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    const check = screen.getByRole("button", { name: "Ejecutar prueba" });
+    expect(check).toBeDisabled(); fireEvent.click(check);
+    expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
+  });
+
+  it("does not offer live smoke when its unavailable executor lacks legacy danger metadata", async () => {
+    const configured = r15ConfiguredContract();
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...configured, smoke_playbook: { ...configured.smoke_playbook, tests: [{
+        id: "live_whatsapp_message", label: "Prueba real WhatsApp", can_execute: true,
+      }] },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-primary-action");
+    expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeDisabled();
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    expect(screen.getByRole("button", { name: "Prueba real no habilitada" })).toBeDisabled();
+    expect(screen.getAllByText(liveUnavailableMessage).length).toBeGreaterThan(0);
+    expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
+  });
+});
 
 const baseOpsQaPlaybook = {
   contract_version: "tenant.ops_qa.playbook.v1",
@@ -678,7 +884,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("Resumen de activacion")).toBeInTheDocument();
     expect(screen.getByTestId("whatsapp-primary-action")).toHaveTextContent("Configurar plantillas");
     expect(screen.getByTestId("whatsapp-advanced-controls")).not.toHaveAttribute("open");
-    expect(screen.getByText("Listo con pendientes")).toBeInTheDocument();
+    expect(screen.getByText("Configuración con pendientes")).toBeInTheDocument();
     expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
     expect(screen.getByText(/Cerrar pendiente: Configurar plantillas, menu y webviews del tenant/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeEnabled();
@@ -695,7 +901,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("Score 82%")).toBeInTheDocument();
     expect(screen.getAllByText("read-only").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Revisar plantillas y webviews").length).toBeGreaterThan(0);
-    expect(screen.getByText("78% listo")).toBeInTheDocument();
+    expect(screen.getByText("78% configurado")).toBeInTheDocument();
     expect(screen.getByText("7/9 controles")).toBeInTheDocument();
     expect(screen.getAllByText("Plantillas y webviews").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Falta revisar plantillas").length).toBeGreaterThan(0);

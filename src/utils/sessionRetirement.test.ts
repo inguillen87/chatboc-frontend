@@ -40,7 +40,7 @@ describe('server proof binding and dedicated retirement dispatcher',()=>{
  });
  it('times out once without replaying or claiming remote success',async()=>{
   vi.useFakeTimers();vi.mocked(fetch).mockImplementation((_url,init)=>new Promise((_resolve,reject)=>init!.signal!.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')))));
-  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(10_000);
+  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(30_000);
   await expect(operation).resolves.toEqual({status:'uncertain',providerStatus:'unknown'});expect(fetch).toHaveBeenCalledOnce();
  });
  it('retries an exact undispatched startup response once using the original frozen proof and request id',async()=>{
@@ -82,10 +82,11 @@ describe('server proof binding and dedicated retirement dispatcher',()=>{
   await expect(dispatchSessionRetirement(retirementProof())).resolves.toMatchObject({status:'uncertain'});
   expect(fetch).toHaveBeenCalledOnce();
  });
- it('does not send a third request after a second explicit startup rejection',async()=>{
-  vi.mocked(fetch).mockImplementation(async()=>initializing());
-  await expect(dispatchSessionRetirement(retirementProof())).resolves.toMatchObject({status:'uncertain'});
-  expect(fetch).toHaveBeenCalledTimes(2);
+ it('does not send a seventh request after six explicit undispatched startup responses',async()=>{
+  vi.useFakeTimers();vi.mocked(fetch).mockImplementation(async()=>timedInitializing());
+  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(1250);
+  await expect(operation).resolves.toMatchObject({status:'uncertain'});
+  expect(fetch).toHaveBeenCalledTimes(6);
  });
  it('does not shorten a Retry-After beyond the bounded retry window',async()=>{
   vi.mocked(fetch).mockResolvedValue(initializing({}, {'Retry-After':'60'}));
@@ -96,7 +97,7 @@ describe('server proof binding and dedicated retirement dispatcher',()=>{
   vi.useFakeTimers();let respond!:(response:Response)=>void;
   vi.mocked(fetch).mockImplementation(()=>new Promise<Response>(resolve=>{respond=resolve;}));
   const operation=dispatchSessionRetirement(retirementProof());
-  await vi.advanceTimersByTimeAsync(9000);respond(timedInitializing({'Retry-After':'2'}));
+  await vi.advanceTimersByTimeAsync(29_000);respond(timedInitializing({'Retry-After':'2'}));
   await expect(operation).resolves.toMatchObject({status:'uncertain'});expect(fetch).toHaveBeenCalledOnce();
  });
  it('aborts the retry at the original deadline instead of restarting its timeout',async()=>{
@@ -104,7 +105,9 @@ describe('server proof binding and dedicated retirement dispatcher',()=>{
    .mockImplementationOnce(()=>new Promise<Response>(()=>{}));
   const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(2000);
   expect(fetch).toHaveBeenCalledTimes(2);expect(vi.mocked(fetch).mock.calls[1][1]!.signal!.aborted).toBe(false);
-  await vi.advanceTimersByTimeAsync(8000);
+  await vi.advanceTimersByTimeAsync(27_999);
+  expect(vi.mocked(fetch).mock.calls[1][1]!.signal!.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
   await expect(operation).resolves.toMatchObject({status:'uncertain'});
   expect(vi.mocked(fetch).mock.calls[1][1]!.signal!.aborted).toBe(true);expect(fetch).toHaveBeenCalledTimes(2);
  });
@@ -115,15 +118,58 @@ describe('server proof binding and dedicated retirement dispatcher',()=>{
    const response=new Response('{}');vi.spyOn(response,'json').mockReturnValue(never);
    vi.mocked(fetch).mockResolvedValue(response);
   }
-  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(10_000);
+  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(30_000);
   await expect(operation).resolves.toMatchObject({status:'uncertain'});
   expect(vi.mocked(fetch).mock.calls[0][1]!.signal!.aborted).toBe(true);expect(fetch).toHaveBeenCalledOnce();
  });
  it('cannot retry a startup response that arrives after the operation timed out',async()=>{
   vi.useFakeTimers();let respond!:(response:Response)=>void;
   vi.mocked(fetch).mockImplementation(()=>new Promise<Response>(resolve=>{respond=resolve;}));
-  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(10_000);
+  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(30_000);
   await expect(operation).resolves.toMatchObject({status:'uncertain'});
   respond(initializing());await vi.advanceTimersByTimeAsync(5000);expect(fetch).toHaveBeenCalledOnce();
+ });
+});
+
+describe('R15 bounded undispatched retirement continuity',()=>{
+ it('honors three consecutive undispatched Retry-After waits then accepts the fourth response with frozen A proof and request id',async()=>{
+  vi.useFakeTimers();const authority=retirementProof();const requestId=vi.spyOn(crypto,'randomUUID');
+  vi.mocked(fetch).mockImplementationOnce(async()=>{
+   authority.proof='synthetic-new-proof';authority.lineage_id='synthetic-new-lineage';
+   return timedInitializing({'Retry-After':'2'});
+  }).mockResolvedValueOnce(timedInitializing({'Retry-After':'2'}))
+   .mockResolvedValueOnce(timedInitializing({'Retry-After':'2'}))
+   .mockResolvedValueOnce(new Response(JSON.stringify(retirementReceipt())));
+  const operation=dispatchSessionRetirement(authority);
+  await vi.advanceTimersByTimeAsync(1999);expect(fetch).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);expect(fetch).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(3999);expect(fetch).toHaveBeenCalledTimes(3);
+  await vi.advanceTimersByTimeAsync(1);
+  await expect(operation).resolves.toEqual({status:'retired',providerStatus:'not_applicable'});
+  expect(fetch).toHaveBeenCalledTimes(4);expect(requestId).toHaveBeenCalledOnce();
+  const calls=vi.mocked(fetch).mock.calls;
+  for(const call of calls)expect(call).toEqual(calls[0]);
+  expect(JSON.parse(calls[0][1]!.body as string)).toEqual({proof:'synthetic-proof-a',request_id:expect.any(String)});
+  expect(calls[0][0]).toBe('/api/v2/auth/sessions/retire');
+  expect(calls[0][1]).toMatchObject({credentials:'omit',cache:'no-store',redirect:'error',keepalive:true});
+ });
+ it('can accept the sixth response while honoring every five-second server wait within the original budget',async()=>{
+  vi.useFakeTimers();vi.mocked(fetch).mockImplementation(async()=>timedInitializing({'Retry-After':'5'}));
+  for(let i=0;i<5;i+=1)vi.mocked(fetch).mockResolvedValueOnce(timedInitializing({'Retry-After':'5'}));
+  vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(retirementReceipt())));
+  const operation=dispatchSessionRetirement(retirementProof());
+  await vi.advanceTimersByTimeAsync(24_999);expect(fetch).toHaveBeenCalledTimes(5);
+  await vi.advanceTimersByTimeAsync(1);
+  await expect(operation).resolves.toMatchObject({status:'retired'});expect(fetch).toHaveBeenCalledTimes(6);
+  expect(vi.mocked(fetch).mock.calls[5][1]!.signal!.aborted).toBe(false);
+ });
+ it.each(['network','abort','denied','ambiguous503'])('does not replay %s after an earlier confirmed undispatched response',async outcome=>{
+  vi.useFakeTimers();vi.mocked(fetch).mockResolvedValueOnce(timedInitializing());
+  if(outcome==='network')vi.mocked(fetch).mockRejectedValueOnce(new TypeError('synthetic network failure'));
+  else if(outcome==='abort')vi.mocked(fetch).mockRejectedValueOnce(new DOMException('synthetic abort','AbortError'));
+  else vi.mocked(fetch).mockResolvedValueOnce(new Response('{}',{status:outcome==='denied'?403:503}));
+  const operation=dispatchSessionRetirement(retirementProof());await vi.advanceTimersByTimeAsync(250);
+  await expect(operation).resolves.toEqual({status:'uncertain',providerStatus:'unknown'});
+  await vi.advanceTimersByTimeAsync(30_000);expect(fetch).toHaveBeenCalledTimes(2);
  });
 });
