@@ -1019,9 +1019,11 @@ export default function Perfil() {
 
   const updateProfileTab = useCallback(
     (tab: ProfileTabValue) => {
-      setActiveProfileTab(tab);
+      // Commit the URL before changing the workspace so the previous
+      // institutional deep link cannot restore itself during a transition.
       const next = new URLSearchParams(searchParams.toString());
       next.delete("section");
+      next.delete("setup");
       if (tab === "perfil") {
         next.delete("tab");
       } else {

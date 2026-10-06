@@ -22,6 +22,8 @@ import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { cn } from '@/lib/utils';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
+import { useUser } from '@/hooks/useUser';
+import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -694,6 +696,21 @@ const CrmOperatorActionsPanel = ({
 };
 
 const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
+  const { user, loading: profileLoading, organizationProfileVerified, hasVerifiedSession } = useUser();
+  const organization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(profileLoading),
+  });
+  const organizationType = organization?.tenantSlug === currentSlug ? organization.organizationType : null;
+  const isGovernment = organizationType === 'municipio' || organizationType === 'gobierno';
+  const isSchool = organizationType === 'colegio';
+  const isCompany = organizationType === 'empresa' || organizationType === 'pyme';
+  const pageTitle = isGovernment ? 'Pedidos institucionales'
+    : isSchool ? 'Pedidos de la institución'
+    : isCompany ? 'Pedidos y ventas' : 'Pedidos';
+  const pageDescription = isGovernment ? 'Consultá y gestioná los pedidos institucionales de esta organización.'
+    : isSchool ? 'Consultá y gestioná los pedidos de la institución educativa.'
+    : isCompany ? 'Consultá y gestioná los pedidos de tu empresa.'
+    : 'Consultá el estado de los pedidos registrados para esta organización.';
   const active = useRef(true);
   const scope = useRef({ slug: currentSlug, generation: 0 });
   if (scope.current.slug !== currentSlug) scope.current = { slug: currentSlug, generation: scope.current.generation + 1 };
@@ -928,8 +945,8 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
       <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-none ${selectedOrder ? 'hidden md:flex' : ''}`}>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Pedidos & Fidelización</h1>
-          <p className="text-sm md:text-base text-muted-foreground mb-2">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{pageTitle}</h1>
+          <p className="text-sm md:text-base text-muted-foreground mb-2">{pageDescription}</p>
           <div className="flex items-center gap-2">
             <Button
               variant={activeTab === 'pedidos' ? 'default' : 'outline'}

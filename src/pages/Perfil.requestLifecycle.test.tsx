@@ -14,6 +14,7 @@ const runtime = vi.hoisted(() => ({
   setUser: vi.fn(),
   toast: vi.fn(),
   ticketMounts: 0,
+  realTicketPanel: false,
   hasSession: true,
   profileVerified: true,
   realNavigation: false,
@@ -100,12 +101,22 @@ vi.mock('@/components/identity/IdentityAvatar', () => ({ default: () => <div /> 
 vi.mock('@/components/LazyMapLibreMap', () => ({ default: () => <div /> }));
 vi.mock('@/components/catalog/ImportWizard', () => ({ default: () => <div /> }));
 
-vi.mock('@/pages/TicketsPanel', () => ({
-  default: () => {
+vi.mock('@/pages/TicketsPanel', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/pages/TicketsPanel')>();
+  return { default: (props: React.ComponentProps<typeof actual.default>) => {
     runtime.ticketMounts += 1;
+    if (runtime.realTicketPanel) return <actual.default {...props} />;
     return <div data-testid="mock-tickets" />;
-  },
-}));
+  } };
+});
+vi.mock('@/hooks/useTicketUpdates', () => ({ default: () => undefined }));
+vi.mock('@/components/tickets/NewTicketsPanel', async () => {
+  const { useTickets } = await import('@/context/TicketContext');
+  return { default: () => {
+    const { loading, tickets } = useTickets();
+    return <div data-testid="ticket-inbox-probe" data-loading={String(loading)} data-count={tickets.length} />;
+  } };
+});
 vi.mock('@/pages/EstadisticasPage', () => ({ default: () => <div data-testid="mock-stats" /> }));
 vi.mock('@/pages/analytics/AnalyticsPage', () => ({ default: () => <div data-testid="mock-analytics" /> }));
 vi.mock('@/pages/UsuariosPage', () => ({
@@ -332,6 +343,7 @@ describe('Perfil request lifecycle', () => {
     runtime.setUser.mockReset();
     runtime.toast.mockReset();
     runtime.ticketMounts = 0;
+    runtime.realTicketPanel = false;
     runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
       const tenantSlug = options?.tenantSlug || runtime.user?.tenantSlug || 'junin';
       if (path === '/api/me') return profileResponse(tenantSlug);
@@ -609,6 +621,47 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByText('Teléfono institucional o de contacto — no configura WhatsApp')).toBeInTheDocument();
     expect(window.location.search).not.toContain('section=channels');
     expect(window.location.search).toContain('section=general');
+  });
+
+  it.each([
+    ['general', 'section=general', 9002],
+    ['channels', 'section=channels&setup=channels', 9003],
+  ] as const)('leaves the native institutional %s editor for the scoped ticket inbox with concurrent URL commits', async (section, query, actorId) => {
+    wireBoundOrganization();
+    runtime.user = { ...runtime.user, id: actorId, tipo_chat: 'municipio', rubro: 'municipio', auth_provider: 'native' };
+    runtime.realTicketPanel = true;
+    const read = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if (path.startsWith('/api/tickets?')) return { tickets: [] };
+      const payload = await read(path, options);
+      return path === '/api/me' ? { ...payload, id: actorId } : payload;
+    });
+    window.history.replaceState({}, '', `/perfil?tab=perfil&${query}&tenant_slug=civic-workspace&source=channels&return_to=%2Fimplementacion%3Ftenant_slug%3Dcivic-workspace`);
+    render(<BrowserRouter future={{ v7_startTransition: true }}><CapabilitiesProvider><ProfileHarness /></CapabilitiesProvider></BrowserRouter>);
+
+    await screen.findByTestId(`institution-profile-panel-${section}`);
+    await screen.findByRole('button', { name: 'Abrir menú Atención' });
+    expect(runtime.ticketMounts).toBe(0);
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.startsWith('/api/tickets?'))).toBe(false);
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Abrir menú Atención' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /Reclamos/i }));
+
+    await screen.findByTestId('tickets-panel-root');
+    await waitFor(() => expect(screen.getByTestId('ticket-inbox-probe')).toHaveAttribute('data-loading', 'false'));
+    const inboxReads = runtime.apiFetch.mock.calls.filter(([path]) => path.startsWith('/api/tickets?'));
+    expect(inboxReads).toHaveLength(1);
+    expect(inboxReads[0][1]).toEqual(expect.objectContaining({ tenantSlug: 'civic-workspace',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, persistTenantSlug: false }));
+    const queryAfter = new URLSearchParams(window.location.search);
+    expect(queryAfter.get('tab')).toBe('tickets');
+    expect(queryAfter.has('section')).toBe(false);
+    expect(queryAfter.has('setup')).toBe(false);
+    expect(queryAfter.get('tenant_slug')).toBe('civic-workspace');
+    expect(queryAfter.get('source')).toBe('channels');
+    expect(queryAfter.get('return_to')).toBe('/implementacion?tenant_slug=civic-workspace');
+    expect(screen.queryByTestId('institution-profile-workspace')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT' || options?.method === 'POST')).toBe(false);
   });
 
   it('opens the existing tenant integration workspace for a municipal Full administrator with a settings grant', async () => {
