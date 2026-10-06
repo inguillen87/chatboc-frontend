@@ -1,6 +1,7 @@
 import type { Ticket } from '@/types/tickets';
 import {
   getTicketRoutingIdentity,
+  inspectTicketCategoryAuthority,
   normalizeRoutingDimension,
   type TicketRoutingAuthorityResolution,
 } from './ticketRoutingAuthority';
@@ -50,14 +51,11 @@ const directAuthoritativeCategory = (ticket: Ticket): { value: string | null; co
   const values = publishedValues
     .map((value) => readCategory(value))
     .filter((value): value is string => Boolean(value));
-  const authority = record.category_authority && typeof record.category_authority === 'object' &&
-    !Array.isArray(record.category_authority)
-    ? record.category_authority as Record<string, unknown>
-    : null;
+  const authority = inspectTicketCategoryAuthority(record);
   const unverified = publishedValues.some((value) => !readCategory(value)) ||
-    (authority?.contract_version === 'ticket.category_authority.v1' && authority.verified === false);
+    (authority.published && !authority.verified);
   const normalized = new Set(values.map(normalizeRoutingDimension));
-  const conflict = normalized.size > 1;
+  const conflict = normalized.size > 1 || authority.conflict;
   return { value: !unverified && !conflict ? values[0] ?? null : null, conflict, unverified };
 };
 

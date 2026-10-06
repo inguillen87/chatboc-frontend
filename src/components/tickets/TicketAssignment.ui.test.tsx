@@ -3,8 +3,9 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Ticket } from '@/types/tickets';
-import { normalizeEmployeeRoutingV2 } from '@/api/v2/saas';
+import { normalizeEmployeeRoutingV2, normalizeOmnichannelInboxItemV2 } from '@/api/v2/saas';
 import { resolveTicketRoutingAuthority } from './ticketRoutingAuthority';
+import { inboxAssignmentTicket } from './inbox/inboxAssignmentTicket';
 
 const mocks = vi.hoisted(() => ({
   user: { id: 10, name: 'Operadora Junín', rol: 'empleado' } as Record<string, unknown>,
@@ -199,6 +200,82 @@ describe('TicketAssignment enterprise authority UI', () => {
     expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText(/luminarias/i)).toBeInTheDocument();
+  });
+
+  it('preserva la denegación explícita del detalle a través del normalizador y el adaptador Inbox ante routing legacy', () => {
+    const descriptor = { ...detailCategory(false).category_authority!,
+      message: 'Clasificación pendiente del servidor.', recovery_text: 'Revisá el catálogo antes de derivar.' };
+    const item = normalizeOmnichannelInboxItemV2({
+      id: 'municipio:396', ticket_id: 396, source_model: 'MunicipioTicket', tenant_slug: 'junin',
+      category: 'reclamo ciudadano', authoritative_category: null, category_authority: descriptor,
+    })!;
+    const ticket = inboxAssignmentTicket(item, { tenantSlug: 'junin' })!;
+    mocks.routingPayload = publishedRouting('reclamo ciudadano', [10]);
+    render(<TicketAssignment ticket={ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
+
+    const claimAction = screen.queryByRole('button', { name: 'Tomar ticket' });
+    if (claimAction) fireEvent.click(claimAction);
+    expect(mocks.postAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('Clasificación pendiente del servidor. Revisá el catálogo antes de derivar.');
+    expect(ticket.authoritative_category).toBeNull();
+    expect(ticket.category_authority).toEqual(descriptor);
+    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+  });
+
+  it('muestra recuperación server-side para autoridad nula de la matriz sin confundirla con responsables contradictorios', () => {
+    const payload = publishedRouting('reclamo ciudadano', [10]);
+    Object.assign(payload.queues.open[0], { authoritative_category: null,
+      category_authority: { ...detailCategory(false).category_authority!, message: 'Revisá la clasificación oficial.', recovery_text: null } });
+    mocks.routingPayload = payload;
+    mocks.ticket = { ...detailCategory(false), authoritative_category: undefined };
+    delete mocks.ticket.category_authority;
+    render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
+    expect(screen.getByRole('status')).toHaveTextContent('Revisá la clasificación oficial.');
+    expect(screen.queryByText(/datos de responsable.*no coinciden/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar matriz' }));
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(mocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it.each([null, { contract_version: 'unknown', verified: true, conflict: false },
+    { contract_version: 'ticket.category_authority.v1', verified: 'true', conflict: false },
+    { contract_version: 'ticket.category_authority.v1', verified: true },
+    { contract_version: 'ticket.category_authority.v1', verified: true, conflict: false }])('no promueve un descriptor publicado malformado aunque routing anuncie candidato %j', descriptor => {
+    const item = normalizeOmnichannelInboxItemV2({ id: 396, source_model: 'MunicipioTicket', tenant_slug: 'junin',
+      category: 'luminarias', authoritative_category: 'luminarias', category_authority: descriptor })!;
+    mocks.routingPayload = publishedRouting('luminarias', [10]);
+    render(<TicketAssignment ticket={inboxAssignmentTicket(item)} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
+    const claimAction = screen.queryByRole('button', { name: 'Tomar ticket' });
+    if (claimAction) fireEvent.click(claimAction);
+    expect(mocks.postAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
+    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+  });
+
+  it('acepta un descriptor verificado mínimo consistente sin exigir IDs ni textos opcionales', () => {
+    const item = normalizeOmnichannelInboxItemV2({ id: 396, source_model: 'MunicipioTicket', tenant_slug: 'junin',
+      category: 'luminarias', authoritative_category: 'luminarias',
+      category_authority: { contract_version: 'ticket.category_authority.v1', verified: true, conflict: false, authoritative_category: 'Luminarias' } })!;
+    mocks.routingPayload = publishedRouting('luminarias', [10]);
+    render(<TicketAssignment ticket={inboxAssignmentTicket(item)} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
+    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    expect(mocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it('bloquea un descriptor verifiedtrue cuya autoridad anidada contradice la categoría top sin permitir POST', () => {
+    const item = normalizeOmnichannelInboxItemV2({ id: 396, source_model: 'MunicipioTicket', tenant_slug: 'junin',
+      category: 'luminarias', authoritative_category: 'luminarias',
+      category_authority: { contract_version: 'ticket.category_authority.v1', verified: true, conflict: false, authoritative_category: 'agua' } })!;
+    mocks.routingPayload = publishedRouting('luminarias', [10]);
+    render(<TicketAssignment ticket={inboxAssignmentTicket(item)} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
+    const claimAction = screen.queryByRole('button', { name: 'Tomar ticket' });
+    if (claimAction) fireEvent.click(claimAction);
+    expect(mocks.postAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Los datos de responsable de este caso no coinciden');
+    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
   });
 
   it.each(['default', 'compact'] as const)('muestra UNKNOWN del detalle real como pendiente, sin denegación ni acción (%s)', (variant) => {

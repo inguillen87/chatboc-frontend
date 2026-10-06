@@ -41,6 +41,7 @@ import {
   describeRoutingReason,
   employeeIsEligibleForRoutingTicket,
   getTicketRoutingIdentity,
+  inspectTicketCategoryAuthority,
   normalizeRoutingDimension,
   type TicketRoutingAuthority,
 } from './ticketRoutingAuthority';
@@ -182,7 +183,9 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
       routingLoading: routingState.loading,
     })
     : null;
-  const detailAuthority = (selectedTicket as Ticket & { category_authority?: { conflict?: unknown } } | null)?.category_authority;
+  const detailAuthority = selectedTicket?.category_authority;
+  const categoryRecovery = inspectTicketCategoryAuthority(selectedTicket).recoveryText ||
+    (routingState.resolution?.ok === false ? routingState.resolution.recoveryText : null);
   const categoryVerified = categoryPresentation?.state === 'verified' &&
     detailAuthority?.conflict !== true &&
     authority?.identity === getTicketRoutingIdentity(selectedTicket) &&
@@ -312,8 +315,9 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
     }
   };
 
-  if (routingState.loading || routingState.error || !routingState.resolution?.ok) {
-    const reason = routingState.resolution?.ok === false
+  const categoryUnverified = routingState.resolution?.ok === false && routingState.resolution.reason === 'category_unverified';
+  if (routingState.loading || routingState.error || categoryPresentation?.state === 'conflict' || (!routingState.resolution?.ok && !categoryUnverified)) {
+    const reason = categoryPresentation?.state === 'conflict' ? 'conflicting_authority' : routingState.resolution?.ok === false
       ? routingState.resolution.reason
       : undefined;
     return (
@@ -335,7 +339,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           <div>
             <p className="text-sm font-semibold">Asignación protegida</p>
             <p className="mt-1 text-xs">
-              {authorityFailureMessage(routingState.loading, routingState.error, reason)}
+              {!routingState.loading && !routingState.error && categoryRecovery && reason === 'conflicting_authority' ? categoryRecovery : authorityFailureMessage(routingState.loading, routingState.error, reason)}
             </p>
           </div>
         </div>
@@ -343,7 +347,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
     );
   }
 
-  if (!categoryVerified) {
+  if (categoryUnverified || !categoryVerified) {
     return (
       <div
         className={cn('space-y-2 rounded-lg border border-amber-300/70 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100', className)}
@@ -352,7 +356,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
       >
         <p className="text-sm font-semibold">Categoría pendiente de verificación</p>
         <p className="text-xs">
-          No pudimos confirmar la categoría y la cobertura de asignación de este caso. Actualizá la bandeja; si continúa, avisá a supervisión.
+          {categoryRecovery || 'No pudimos confirmar la categoría y la cobertura de asignación de este caso. Actualizá la bandeja; si continúa, avisá a supervisión.'}
         </p>
         <Button type="button" size="sm" variant="outline" onClick={() => void routingState.refresh()}>
           <RefreshCcw className="mr-2 h-3.5 w-3.5" />

@@ -131,13 +131,13 @@ describe('resolveTicketPresentationCategory', () => {
     })).toMatchObject({ label: 'Categoría por verificar', state: 'conflict' });
   });
 
-  it('no confunde una etiqueta persistida distinta con dos categorías autoritativas contradictorias', () => {
+  it('respeta un conflicto publicado por backend aunque las categorías top y anidada coincidan', () => {
     expect(resolveTicketPresentationCategory({
       ticket: ticket({
         authoritative_category: 'luminarias',
-        category_authority: { contract_version: 'ticket.category_authority.v1', verified: true, conflict: true },
+        category_authority: { contract_version: 'ticket.category_authority.v1', verified: true, conflict: true, authoritative_category: 'luminarias' },
       } as Partial<Ticket>),
       routingResolution: null,
-    })).toMatchObject({ label: 'Luminarias', state: 'verified' });
+    })).toMatchObject({ label: 'Categoría por verificar', state: 'conflict' });
   });
 });

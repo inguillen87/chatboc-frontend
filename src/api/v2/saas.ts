@@ -9,7 +9,7 @@ import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
-import type { TicketSlaContract } from '@/types/tickets';
+import type { TicketCategoryAuthority, TicketSlaContract } from '@/types/tickets';
 import { normalizeTicketSla } from '@/utils/ticketSla';
 
 type UnknownRecord = Record<string, unknown>;
@@ -240,6 +240,9 @@ export interface OmnichannelInboxItem {
   priority?: string;
   channel?: string;
   category?: string;
+  authoritative_category?: string | null;
+  authoritativeCategory?: string | null;
+  category_authority?: TicketCategoryAuthority | null;
   intent?: string;
   sensitivity?: string;
   lastMessageAt: string;
@@ -1628,6 +1631,15 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     priority: asString(getFirst(value, ['priority', 'prioridad'])),
     channel: asString(getFirst(value, ['channel', 'canal', 'canal_ingreso'])),
     category: asString(getFirst(value, ['category', 'categoria'])),
+    ...(Object.prototype.hasOwnProperty.call(value, 'authoritative_category') ? {
+      authoritative_category: typeof value.authoritative_category === 'string' ? value.authoritative_category : null,
+    } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'authoritativeCategory') ? {
+      authoritativeCategory: typeof value.authoritativeCategory === 'string' ? value.authoritativeCategory : null,
+    } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'category_authority') ? {
+      category_authority: isRecord(value.category_authority) ? value.category_authority as unknown as TicketCategoryAuthority : null,
+    } : {}),
     intent: asString(getFirst(value, ['intent', 'intencion', 'intent_id'])),
     sensitivity: asString(getFirst(value, ['sensitivity', 'priority', 'prioridad'])),
     lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? '',

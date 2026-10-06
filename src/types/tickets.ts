@@ -11,6 +11,20 @@ export type TicketStatus =
   | "en_vivo";
 export type TicketPriority = "baja" | "media" | "alta" | "urgente";
 
+export interface TicketCategoryAuthority {
+  contract_version: string;
+  verified: boolean;
+  conflict: boolean;
+  source?: string;
+  reason_code?: string;
+  category_id?: number | null;
+  authoritative_category?: string | null;
+  persisted_category?: string | null;
+  message?: string;
+  recovery_text?: string | null;
+  action_hint?: string | null;
+}
+
 export type TicketSlaClockState =
   | "due"
   | "overdue"
@@ -271,8 +285,9 @@ export interface Ticket {
   fecha: string; // ISO format
   categoria?: string;
   categoria_reclamo?: string;
-  authoritative_category?: string;
-  authoritativeCategory?: string;
+  authoritative_category?: string | null;
+  authoritativeCategory?: string | null;
+  category_authority?: TicketCategoryAuthority | null;
   categories?: string[];
   categoria_principal?: string;
   categoria_secundaria?: string;
