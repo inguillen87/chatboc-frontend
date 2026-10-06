@@ -1283,6 +1283,22 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).not.toContain('tab=estadisticas');
   });
 
+  it('keeps the ordinary heading and institutional navigation own-scoped despite a rejected foreign query', async () => {
+    runtime.realNavigation = true;
+    const user = wireBoundOrganization(), before = JSON.stringify(user);
+    renderProfile('/perfil?tab=perfil&tenant_slug=foreign-workspace');
+    await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
+    expect(screen.queryByRole('heading', {level: 1, name: 'foreign-workspace'})).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([path]) => typeof path === 'string' && path.includes('/tenants/foreign-workspace/'))).toBe(false);
+    fireEvent.click(screen.getByRole('button', {name: 'Perfil institucional'}));
+    expect(await screen.findByRole('textbox', {name: 'Nombre legal o institucional'})).toHaveValue('Verified institution');
+    expect(window.location.search).toContain('tenant_slug=civic-workspace');
+    expect(window.location.search).toContain('section=general');
+    expect(runtime.apiFetch.mock.calls.some(([path, options]) => typeof path === 'string' && (path.includes('/tenants/foreign-workspace/') || options?.method === 'PUT'))).toBe(false);
+    expect(JSON.stringify(user)).toBe(before);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
   it('uses the verified organization name and municipal workspace while leaving the actor unchanged', async () => {
     const user = wireBoundOrganization();
     renderProfile('/perfil');

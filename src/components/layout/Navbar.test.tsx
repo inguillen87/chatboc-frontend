@@ -125,6 +125,19 @@ describe('Navbar account menu routing', () => {
     expect(screen.getByText('Municipalidad de Junín')).toBeInTheDocument();
     expect(screen.queryByText('ChatBoc · Plataforma')).not.toBeInTheDocument();
   });
+  it('keeps the ordinary public-site link own-scoped despite a foreign query and public tenant context', () => {
+    const user = canonicalOrganizationUser('municipio', 'junin'), before = JSON.stringify(user);
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: true, loading: false });
+    useTenantMock.mockReturnValue({ currentSlug: 'tierra-del-fuego' });
+    render(<MemoryRouter initialEntries={['/perfil?tab=perfil&tenant_slug=tierra-del-fuego']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', {name: /abrir men/i}));
+    expect(screen.getByRole('link', {name: 'Ver sitio publico'})).toHaveAttribute('href', '/t/junin');
+    expect(screen.getByRole('link', {name: 'Panel de Verified institution'})).toHaveAttribute('href', '/perfil');
+    expect(screen.getByRole('link', {name: 'Perfil y organización'})).toHaveAttribute('href', '/perfil?tab=perfil&tenant_slug=junin&section=general');
+    expect(screen.getByRole('link', {name: 'Pedidos'})).toHaveAttribute('href', '/perfil?tab=pedidos&tenant_slug=junin');
+    expect(JSON.stringify(user)).toBe(before);
+  });
+
   it('uses the selected knowledge organization identity and scoped profile without relabeling the actor home', () => {
     useUserMock.mockReturnValue({ organizationProfileVerified: true, user: { id: 8, rol: 'superadmin', name: 'Marcelo', nombre_empresa: 'MyB Store', tenant_slug: 'actor-home', tipo_chat: 'pyme', plan: 'free' } });
     useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', tenant: { slug: 'selected-organization', tipo: 'municipio', publishedIdentity: { tenantId: 7, tenantSlug: 'selected-organization', name: 'Organización elegida' } } });

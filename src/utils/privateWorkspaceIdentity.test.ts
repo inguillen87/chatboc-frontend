@@ -2,6 +2,9 @@ import {describe,expect,it} from 'vitest';
 import {privateWorkspacePresentation} from './privateWorkspaceIdentity';
 const input=()=>({pathname:'/perfil',search:'?tab=tickets',hasVerifiedSession:true,profileVerified:true,loading:false,currentSlug:'org-a',
   user:{id:12,rol:'admin',tenant_slug:'org-a',tenantSlug:'org-a',nombre_empresa:'Organización A',logo_url:'https://cdn.example.com/logo.png'}});
+const canonicalInput=()=>{const data=input();return {...data,user:{...data.user,
+  organization_profile:{contract_version:'organization.profile_settings.v1',tenant:{id:22,slug:'org-a'},values:{nombre_empresa:'Verified institution',logo_url:'https://cdn.example.com/institution.png'}},
+  organization_workspace:{contract_version:'organization.profile_workspace.v1',tenant:{id:22,slug:'org-a'},organization_type:'municipio'}}};};
 describe('private workspace presentation',()=>{
   it('uses the verified authenticated profile rather than public branding',()=>{
     expect(privateWorkspacePresentation(input())).toEqual({active:true,identity:{tenantSlug:'org-a',name:'Organización A',logoUrl:'https://cdn.example.com/logo.png'}});
@@ -24,6 +27,22 @@ describe('private workspace presentation',()=>{
   });
   it('keeps the verified private identity independently of ambient public context',()=>{
     expect(privateWorkspacePresentation({...input(),currentSlug:'org-b'}).identity?.tenantSlug).toBe('org-a');
+  });
+  it.each(['?tenant_slug=org-b','?tenant=org-b','?endpoint=org-b','?tenant_slug=org-a&tenant_slug=org-b'])('keeps canonical ordinary identity despite a rejected foreign query %s',search=>{
+    const data=canonicalInput(),before=JSON.stringify(data.user);
+    expect(privateWorkspacePresentation({...data,search,currentSlug:'org-b'})).toEqual({active:true,identity:{tenantSlug:'org-a',name:'Verified institution',logoUrl:'https://cdn.example.com/institution.png'}});
+    expect(JSON.stringify(data.user)).toBe(before);
+  });
+  it('withholds canonical ordinary identity on a foreign private path',()=>{
+    expect(privateWorkspacePresentation({...canonicalInput(),pathname:'/t/org-b/perfil'}).identity).toBeNull();
+  });
+  it('keeps malformed canonical identity neutral even when aliases are coherent',()=>{
+    const data=canonicalInput();data.user.organization_workspace.tenant.id=23;
+    expect(privateWorkspacePresentation({...data,search:'?tenant_slug=org-b'}).identity).toBeNull();
+  });
+  it('leaves canonical SuperAdmin query selection to the platform presentation',()=>{
+    const data=canonicalInput();data.user.rol='superadmin';
+    expect(privateWorkspacePresentation({...data,search:'?tenant_slug=org-b'})).toEqual({active:false,identity:null});
   });
   it('rejects contradictory aliases in authenticated profile data',()=>{
     const data=input();expect(privateWorkspacePresentation({...data,user:{...data.user,tenantSlug:'org-b'}}).identity).toBeNull();

@@ -432,6 +432,7 @@ function AppRoutes() {
     "/cuenta",
     '/chat',
     "/tracking",
+    "/pruebas/encuestas",
     "/integracion",
     "/admin",
     "/perfil",

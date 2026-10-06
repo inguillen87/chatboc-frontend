@@ -654,7 +654,9 @@ export default function Perfil() {
   const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
     ? (user as any).platform_workspace : null;
   const institutionDisplayName = isPlatformWorkspace ? platformWorkspace?.heading || 'Administración de plataforma' : usesScopedOrganizationProfile
-    ? matchingOrganizationProfile?.values.nombre_empresa || requestedTenantSlug || 'Organización seleccionada'
+    ? matchingOrganizationProfile?.values.nombre_empresa || (isPlatformAdministrator
+      ? requestedTenantSlug || 'Organización seleccionada'
+      : authenticatedOrganization?.name || 'Organización')
     : authenticatedOrganization?.name || (hasOrganizationContracts ? 'Organización' : perfil.nombre_empresa || 'Panel de Empresa');
   const authoritativeChannelActivation =
     matchingRequestedAuthority?.status === 'authorized'

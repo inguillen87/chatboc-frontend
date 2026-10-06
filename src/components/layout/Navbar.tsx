@@ -177,7 +177,8 @@ const Navbar: React.FC = () => {
     ? ordersWorkspaceTenant : null;
   const surveysHref = surveyWorkspaceTenant
     ? `/admin/encuestas?tenant_slug=${encodeURIComponent(surveyWorkspaceTenant)}` : null;
-  const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant : currentSlug;
+  const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant
+    : privateShell.active ? privateShell.identity?.tenantSlug : currentSlug;
   const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
     ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
     : '/admin/knowledge';
