@@ -356,6 +356,263 @@ describe("WhatsappTechProviderOnboarding", () => {
     vi.stubGlobal("open", vi.fn());
   });
 
+  it.each([false, true])("honors blocked provisioning operations when credential storage ready is %s", async (ready) => {
+    const message = "Chatboc debe completar la preparación segura de esta organización.";
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      state: { requested_phone_number: "+5492634123456" },
+      embedded_signup: { enabled: false },
+      automation: {
+        ...baseContract.automation,
+        credential_storage: {
+          ready,
+          status: ready ? "ready" : "unavailable",
+          reason_code: "twilio_tenant_credential_store_unavailable",
+          blocked_operations: ["create_subaccount", "create_messaging_service"],
+          message,
+        },
+      },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: /numero de whatsapp/i })).toHaveValue("+5492634123456"));
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    for (const prepareButton of screen.getAllByRole("button", { name: /^preparar activación$/i })) {
+      expect(prepareButton).toBeDisabled();
+      fireEvent.click(prepareButton);
+    }
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(screen.getByTestId("whatsapp-credential-storage-status")).toHaveTextContent(message);
+    const primary = within(screen.getByTestId("whatsapp-primary-action"));
+    expect(primary.getByText(message)).toBeInTheDocument();
+    fireEvent.click(primary.getByRole("button", { name: /volver a comprobar configuración/i }));
+    await waitFor(() => expect(mockedTenantService.getWhatsappTechProvider).toHaveBeenCalledTimes(2));
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+  });
+
+  it("does not enable live operations just because credential storage is ready", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      automation: {
+        ...baseContract.automation, live_enabled: false,
+        credential_storage: { ready: true, blocked_operations: [] },
+      },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText("Preparación sin activar envío");
+    for (const name of ["Preparar activación", "Registrar sender", "Actualizar estado", "Preparar voz"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+  });
+
+  it("keeps provider status, registration and safe smoke actions available when only infrastructure creation is blocked", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      automation: {
+        ...baseContract.automation,
+        credential_storage: {
+          ready: false,
+          blocked_operations: ["create_subaccount", "create_messaging_service"],
+          message: "Las conexiones existentes conservan sus consultas de estado.",
+        },
+      },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByTestId("whatsapp-credential-storage-status");
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    expect(screen.getByRole("button", { name: /^preparar activación$/i })).toBeDisabled();
+    expect(await findEnabledAction(/^registrar sender$/i)).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: /^actualizar estado$/i }));
+    await waitFor(() => expect(mockedTenantService.refreshWhatsappSenderStatus).toHaveBeenCalledExactlyOnceWith("junin-1"));
+    fireEvent.click(screen.getByRole("button", { name: /ejecutar prueba de conexion/i }));
+    await waitFor(() => expect(mockedTenantService.runWhatsappTechProviderSmokeTest).toHaveBeenCalledExactlyOnceWith("junin-1", "template_registry", {
+      source: "tenant_panel", dry_run: true,
+    }));
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, { ready: true, blocked_operations: [] }, { ready: false, blocked_operations: ["unrelated_operation"] }])(
+    "preserves provisioning when the backend does not block its operations: %j", async (credentialStorage) => {
+      mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+        ...baseContract,
+        automation: { ...baseContract.automation, credential_storage: credentialStorage },
+      } });
+      render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+      fireEvent.click(await findEnabledAction(/^preparar activación$/i));
+      await waitFor(() => expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledExactlyOnceWith("junin-1", {
+        source: "tenant_panel", phone_number: "+18564858589",
+      }));
+    },
+  );
+
+  it("does not restore a late GET contract after switching organizations", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    mockedTenantService.getWhatsappTechProvider.mockImplementation((slug) => slug === "junin-1"
+      ? new Promise((resolve) => { resolveFirst = resolve; }) as any
+      : Promise.resolve({ contract: { ...baseContract, tenant: { id: 23, slug }, state: { ...baseContract.state, sender_sid: "XECURRENTB" } } }));
+    mockedGetTenantOpsQaPlaybookV2.mockImplementation(async (slug) => ({ ...baseOpsQaPlaybook, tenant: { slug } }));
+    const { rerender } = render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    rerender(<WhatsappTechProviderOnboarding tenantSlug="tenant-b" />);
+    expect(await screen.findByText("XECURRENTB")).toBeInTheDocument();
+    await act(async () => { resolveFirst({ contract: { ...baseContract, state: { ...baseContract.state, sender_sid: "XESTALEA" } } }); });
+    expect(screen.getByText("XECURRENTB")).toBeInTheDocument();
+    expect(screen.queryByText("XESTALEA")).not.toBeInTheDocument();
+  });
+
+  it("does not restore an earlier GET when returning to the same organization", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    let firstOrganizationRequests = 0;
+    mockedTenantService.getWhatsappTechProvider.mockImplementation((slug) => {
+      if (slug === "junin-1" && firstOrganizationRequests++ === 0) {
+        return new Promise((resolve) => { resolveFirst = resolve; }) as any;
+      }
+      return Promise.resolve({ contract: {
+        ...baseContract, tenant: { id: 23, slug }, state: { ...baseContract.state, sender_sid: `XECURRENT-${slug}` },
+      } });
+    });
+    mockedGetTenantOpsQaPlaybookV2.mockImplementation(async (slug) => ({ ...baseOpsQaPlaybook, tenant: { slug } }));
+    const { rerender } = render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    rerender(<WhatsappTechProviderOnboarding tenantSlug="tenant-b" />);
+    await screen.findByText("XECURRENT-tenant-b");
+    rerender(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText("XECURRENT-junin-1");
+    await act(async () => { resolveFirst({ contract: { ...baseContract, state: { ...baseContract.state, sender_sid: "XESTALEA" } } }); });
+    expect(screen.getByText("XECURRENT-junin-1")).toBeInTheDocument();
+    expect(screen.queryByText("XESTALEA")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["provisionWhatsappTechProvider", /^preparar activación$/i],
+    ["registerWhatsappSender", /^registrar sender$/i],
+    ["refreshWhatsappSenderStatus", /^actualizar estado$/i],
+    ["provisionWhatsappVoiceApp", /^preparar voz$/i],
+  ] as const)("ignores a late %s result after switching organizations", async (method, label) => {
+    let resolveFirst!: (value: unknown) => void;
+    mockedTenantService[method].mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }) as any);
+    mockedTenantService.getWhatsappTechProvider.mockImplementation(async (slug) => ({ contract: {
+      ...baseContract, tenant: { id: slug === "junin-1" ? 22 : 23, slug },
+      state: { ...baseContract.state, sender_sid: slug === "junin-1" ? "XEFIRSTA" : "XECURRENTB" },
+    } }));
+    mockedGetTenantOpsQaPlaybookV2.mockImplementation(async (slug) => ({ ...baseOpsQaPlaybook, tenant: { slug } }));
+    const { rerender } = render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    fireEvent.click(await findEnabledAction(label));
+    expect(mockedTenantService[method]).toHaveBeenCalledTimes(1);
+    rerender(<WhatsappTechProviderOnboarding tenantSlug="tenant-b" />);
+    expect(await screen.findByText("XECURRENTB")).toBeInTheDocument();
+    await act(async () => { resolveFirst({ contract: { ...baseContract, state: { ...baseContract.state, sender_sid: "XESTALEA" } } }); });
+    expect(screen.getByText("XECURRENTB")).toBeInTheDocument();
+    expect(screen.queryByText("XESTALEA")).not.toBeInTheDocument();
+    expect(mockedTenantService[method]).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show a previous organization's late mutation error", async () => {
+    let rejectFirst!: (reason: unknown) => void;
+    mockedTenantService.provisionWhatsappTechProvider.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectFirst = reject; }) as any);
+    mockedTenantService.getWhatsappTechProvider.mockImplementation(async (slug) => ({ contract: {
+      ...baseContract, tenant: { id: 23, slug }, state: { ...baseContract.state, sender_sid: slug === "junin-1" ? "XEFIRSTA" : "XECURRENTB" },
+    } }));
+    mockedGetTenantOpsQaPlaybookV2.mockImplementation(async (slug) => ({ ...baseOpsQaPlaybook, tenant: { slug } }));
+    const { rerender } = render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    fireEvent.click(await findEnabledAction(/^preparar activación$/i));
+    rerender(<WhatsappTechProviderOnboarding tenantSlug="tenant-b" />);
+    await screen.findByText("XECURRENTB");
+    await act(async () => { rejectFirst(new Error("transport_failure")); });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("XECURRENTB")).toBeInTheDocument();
+  });
+
+  it.each(["smoke", "qa"] as const)("clears previous %s results and ignores a late result after switching organizations", async (operation) => {
+    let resolveFirst!: (value: any) => void;
+    const method = operation === "smoke" ? mockedTenantService.runWhatsappTechProviderSmokeTest : mockedRunTenantOpsQaCheckV2;
+    method.mockResolvedValueOnce(operation === "smoke" ? { ok: true, status: "prior_tenant_result" } : {
+      ...baseOpsQaPlaybook, status: "prior_tenant_result", playbook_status: "prior_tenant_result",
+    } as any);
+    method.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }) as any);
+    mockedTenantService.getWhatsappTechProvider.mockImplementation(async (slug) => ({ contract: {
+      ...baseContract, tenant: { id: 23, slug }, state: { ...baseContract.state, sender_sid: slug === "junin-1" ? "XEFIRSTA" : "XECURRENTB" },
+    } }));
+    mockedGetTenantOpsQaPlaybookV2.mockImplementation(async (slug) => ({ ...baseOpsQaPlaybook, tenant: { slug } }));
+    const { rerender } = render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText("XEFIRSTA");
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    const label = operation === "smoke" ? /ejecutar prueba de conexion/i : /ejecutar qa read-only/i;
+    fireEvent.click(await findEnabledAction(label));
+    expect((await screen.findAllByText("prior_tenant_result")).length).toBeGreaterThan(0);
+    fireEvent.click(await findEnabledAction(label));
+    rerender(<WhatsappTechProviderOnboarding tenantSlug="tenant-b" />);
+    await screen.findByText("XECURRENTB");
+    expect(screen.queryAllByText("prior_tenant_result")).toHaveLength(0);
+    await act(async () => { resolveFirst({ ok: true, status: "late_tenant_result", playbook_status: "late_tenant_result" }); });
+    expect(screen.queryAllByText("late_tenant_result")).toHaveLength(0);
+    expect(screen.getByText("XECURRENTB")).toBeInTheDocument();
+    expect(method).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports an uncertain provisioning result without replaying the write", async () => {
+    mockedTenantService.provisionWhatsappTechProvider.mockRejectedValueOnce(new Error("transport_failure"));
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    fireEvent.click(await findEnabledAction(/^preparar activación$/i));
+    expect(await screen.findByText(/No pudimos confirmar la preparación de la activación\. Actualiza el estado/)).toBeInTheDocument();
+    expect(screen.getByText("XESENDER123")).toBeInTheDocument();
+    expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([undefined, false, "true"])("does not treat workflow, routing metadata or template status as explicit readiness when done is %s", async (done) => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      frontend_contract: { primary_action: "poll_sender_status" },
+      api_workflow: [{ id: "templates_webviews", state: "ready", endpoint: "/api/admin/templates/twilio-content/sync" }],
+      operator_checklist: [{ id: "templates_webviews", done, status: "ready" }],
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText("XESENDER123");
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    const templateCard = screen.getByText("Plantillas y menú").closest(".rounded-xl") as HTMLElement;
+    expect(within(templateCard).queryByText("Listo")).not.toBeInTheDocument();
+    expect(templateCard).not.toHaveClass("border-emerald-500/30");
+    expect(screen.getByText("Configurar plantillas, menu y webviews del tenant")).toBeInTheDocument();
+    expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
+  });
+
+  it("marks templates ready only when the backend checklist explicitly confirms them", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      frontend_contract: { primary_action: "poll_sender_status" },
+      api_workflow: [],
+      operator_checklist: [{ id: "templates_webviews", done: true, status: "ready" }],
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    await screen.findByText("XESENDER123");
+    fireEvent.click(screen.getByText(/controles avanzados y detalles técnicos/i));
+    const templateCard = screen.getByText("Plantillas y menú").closest(".rounded-xl") as HTMLElement;
+    expect(within(templateCard).getByText("Listo")).toBeInTheDocument();
+    expect(templateCard).toHaveClass("border-emerald-500/30");
+    expect(screen.queryByText("Configurar plantillas, menu y webviews del tenant")).not.toBeInTheDocument();
+  });
+
+  it("explains secure activation with backend messages and human-readable status labels", async () => {
+    const message = "La preparación segura de esta organización debe completarla Chatboc.";
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      status: "needs_secure_activation",
+      state: { requested_phone_number: "+5492634123456" },
+      embedded_signup: { enabled: false },
+      automation: {
+        ...baseContract.automation,
+        credential_storage: { ready: true, blocked_operations: ["create_subaccount"], message },
+      },
+      setup_health: { ...baseContract.setup_health, recommended_next_action: "wait_for_platform_activation" },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    expect(await screen.findByTestId("whatsapp-onboarding-primary-status")).toHaveTextContent("Preparación segura pendiente");
+    expect(screen.getAllByText("Esperar preparación de Chatboc").length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId("whatsapp-primary-action")).getByText(message)).toBeInTheDocument();
+    expect(screen.queryByText("Wait For Platform Activation")).not.toBeInTheDocument();
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+  });
+
   it("shows a recoverable state when tenant context is missing", () => {
     render(<WhatsappTechProviderOnboarding tenantSlug={null} />);
 
@@ -423,7 +680,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByTestId("whatsapp-advanced-controls")).not.toHaveAttribute("open");
     expect(screen.getByText("Listo con pendientes")).toBeInTheDocument();
     expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
-    expect(screen.getByText(/Cerrar pendiente: Verificar la configuración de webhooks/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cerrar pendiente: Configurar plantillas, menu y webviews del tenant/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeEnabled();
     expect(screen.getByText("Activación guiada por Chatboc")).toBeInTheDocument();
     expect(screen.getByText("123456789")).toBeInTheDocument();

@@ -52,6 +52,13 @@ type TechProviderContract = {
     render_env_sync_enabled?: boolean | null;
     manual_twilio_console_allowed?: boolean | null;
     customer_sees_twilio_console?: boolean | null;
+    credential_storage?: {
+      ready?: boolean | null;
+      status?: string | null;
+      reason_code?: string | null;
+      blocked_operations?: string[] | null;
+      message?: string | null;
+    } | null;
     env?: {
       ready?: boolean | null;
       missing?: string[] | null;
@@ -220,6 +227,7 @@ const actionLabel = (value?: string | null) => {
     "review operations hub": "Revisar hub operativo",
     "fix whatsapp experience contract": "Corregir contrato WhatsApp",
     "wait for meta approval or poll again": "Esperar Meta o actualizar estado",
+    "wait for platform activation": "Esperar preparación de Chatboc",
   };
   return labels[normalized] ?? normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
@@ -235,6 +243,7 @@ const statusDisplayLabel = (value?: string | null) => {
     online: "En linea",
     pending: "Pendiente",
     pending_meta_signup: "Falta autorizar Meta",
+    needs_secure_activation: "Preparación segura pendiente",
     provisioning_plan_ready: "Plan de activacion listo",
     ready: "Listo",
     register_whatsapp_sender_via_senders_api: "Registro del numero en curso",
@@ -389,10 +398,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const phoneNumberInputRef = useRef<HTMLInputElement>(null);
   const primaryActionButtonRef = useRef<HTMLButtonElement>(null);
   const activeTenantRef = useRef(tenantSlug);
-  activeTenantRef.current = tenantSlug;
+  const tenantGenerationRef = useRef(0);
+  if (activeTenantRef.current !== tenantSlug) {
+    activeTenantRef.current = tenantSlug;
+    tenantGenerationRef.current += 1;
+  }
+  const isCurrentTenantRequest = (slug: string, generation: number) =>
+    activeTenantRef.current === slug && tenantGenerationRef.current === generation;
 
   const load = async () => {
     if (!tenantSlug) return;
+    const requestGeneration = tenantGenerationRef.current;
     setLoading(true);
     setContract(null);
     setOpsQa(null);
@@ -403,7 +419,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         tenantService.getWhatsappTechProvider(tenantSlug),
         getTenantOpsQaPlaybookV2(tenantSlug),
       ]);
-      if (activeTenantRef.current !== tenantSlug) return;
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       if (contractResult.status === "rejected") {
         throw contractResult.reason;
       }
@@ -420,7 +436,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
           : 'No pudimos verificar la organización del QA.');
       }
     } catch (err) {
-      if (activeTenantRef.current !== tenantSlug) return;
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       const lock = extractIntegrationPlanLock(err);
       setContract(null);
       if (lock) {
@@ -432,17 +448,32 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         setError(getErrorMessage(err, "No se pudo cargar el onboarding de WhatsApp."));
       }
     } finally {
-      if (activeTenantRef.current === tenantSlug) setLoading(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setLoading(false);
     }
   };
 
   useEffect(() => {
+    setSmokeResults({});
+    setOpsQaResults({});
+    setOpsQaError(null);
+    setRequestedPhoneNumber("");
+    setProvisioning(false);
+    setRegisteringSender(false);
+    setPollingSender(false);
+    setProvisioningVoice(false);
+    setRunningSmokeTest(null);
+    setRunningOpsQaCheck(null);
     void load();
   }, [tenantSlug]);
 
   const contractVerified = contract?.contract_version === 'twilio.tech_provider.v1' && contract.tenant?.slug === tenantSlug;
   const envReady = contractVerified && contract?.automation?.env?.ready === true;
   const liveEnabled = envReady && contract?.automation?.live_enabled === true;
+  const credentialStorage = contract?.automation?.credential_storage;
+  const credentialStorageMessage = readText(credentialStorage?.message);
+  const provisioningBlocked = Array.isArray(credentialStorage?.blocked_operations) && credentialStorage.blocked_operations.some((operation) =>
+    operation === "create_subaccount" || operation === "create_messaging_service",
+  );
   const missingEnv = Array.isArray(contract?.automation?.env?.missing)
     ? contract.automation.env.missing.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
@@ -451,7 +482,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     ? contract.limitations.map(limitationLabel).filter((item): item is string => Boolean(item))
     : [];
   const embeddedSignup = contract?.embedded_signup ?? null;
-  const state = contract?.state ?? null;
+  const state = contractVerified ? contract?.state ?? null : null;
   const normalizedPhoneNumber = normalizeE164(requestedPhoneNumber);
   const phoneNumberValid = isValidE164(normalizedPhoneNumber);
   const voice = contract?.voice ?? null;
@@ -561,7 +592,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     return status;
   }, [contract?.next_action, contract?.status]);
 
-  const primaryStatus = readText(state?.sender_status, statusLabel, contract?.status, "pending");
+  const primaryStatus = contractVerified ? readText(state?.sender_status, statusLabel, contract?.status, "pending") : "pending";
 
   const hasMetaAccount = Boolean(state?.waba_id && state?.phone_number_id);
   const hasSender = Boolean(state?.sender_id || state?.sender_sid);
@@ -628,7 +659,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const progressPercent = Math.round((completedSteps / activationSteps.length) * 100);
   const currentStep = activationSteps.find((step) => !step.done) ?? activationSteps[activationSteps.length - 1];
   const voiceReady = isReadyStatus(voice?.status);
-  const hasTemplateConfig = Boolean(contract?.frontend_contract?.primary_action || workflow.length);
+  const hasTemplateConfig = operatorChecklist.some((item) => item.id === "templates_webviews" && item.done === true);
   const capabilityCards = [
     {
       key: "messaging",
@@ -736,7 +767,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const recommendedNextActionRaw = readText(setupHealth?.recommended_next_action, finalQaNextAction, contract?.next_action, currentStep.label);
   const recommendedNextActionLabel =
     recommendedNextActionRaw === currentStep.label ? currentStep.label : actionLabel(recommendedNextActionRaw);
-  const recommendedNextActionDetail = missingConfigurationItems[0]
+  const recommendedNextActionDetail = provisioningBlocked && credentialStorageMessage
+    ? credentialStorageMessage
+    : missingConfigurationItems[0]
     ? `Cerrar pendiente: ${missingConfigurationItems[0]}`
     : "Mantener QA final y monitoreo antes de abrir mas trafico.";
   const connectionTestLabel = readText(primarySmokeTest?.label, primarySmokeTest?.id) ?? "Sin prueba ejecutable";
@@ -748,7 +781,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     : `${progressPercent}% de ruta completada`;
 
   const handleProvision = async () => {
-    if (!tenantSlug || !liveEnabled || !phoneNumberValid) return;
+    if (!tenantSlug || !liveEnabled || !phoneNumberValid || provisioningBlocked) return;
+    const requestGeneration = tenantGenerationRef.current;
     setProvisioning(true);
     setError(null);
     try {
@@ -756,16 +790,19 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         source: "tenant_panel",
         phone_number: normalizedPhoneNumber,
       });
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setContract(extractContract(response, tenantSlug));
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo preparar la activación."));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setError(getErrorMessage(err, "No pudimos confirmar la preparación de la activación. Actualiza el estado antes de intentarlo nuevamente."));
     } finally {
-      setProvisioning(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setProvisioning(false);
     }
   };
 
   const handleRegisterSender = async () => {
     if (!tenantSlug || !canRegisterSender) return;
+    const requestGeneration = tenantGenerationRef.current;
     setRegisteringSender(true);
     setError(null);
     try {
@@ -773,47 +810,56 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         source: "tenant_panel",
         sender_id: normalizedPhoneNumber,
       });
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setContract(extractContract(response, tenantSlug));
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo registrar el sender de WhatsApp."));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setError(getErrorMessage(err, "No pudimos confirmar el registro del número. Actualiza el estado antes de intentarlo nuevamente."));
     } finally {
-      setRegisteringSender(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setRegisteringSender(false);
     }
   };
 
   const handleProvisionVoice = async () => {
     if (!tenantSlug || !liveEnabled) return;
+    const requestGeneration = tenantGenerationRef.current;
     setProvisioningVoice(true);
     setError(null);
     try {
       const response = await tenantService.provisionWhatsappVoiceApp(tenantSlug, {
         source: "tenant_panel",
       });
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setContract(extractContract(response, tenantSlug));
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo preparar la app de voz."));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setError(getErrorMessage(err, "No pudimos confirmar la preparación de voz. Actualiza el estado antes de intentarlo nuevamente."));
     } finally {
-      setProvisioningVoice(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setProvisioningVoice(false);
     }
   };
 
   const handlePollSender = async () => {
     if (!tenantSlug || !canPollSender) return;
+    const requestGeneration = tenantGenerationRef.current;
     setPollingSender(true);
     setError(null);
     try {
       const response = await tenantService.refreshWhatsappSenderStatus(tenantSlug);
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setContract(extractContract(response, tenantSlug));
     } catch (err) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setError(getErrorMessage(err, "No se pudo actualizar el estado del sender."));
     } finally {
-      setPollingSender(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setPollingSender(false);
     }
   };
 
   const handleRunSmokeTest = async (testId?: string | null) => {
     const id = readText(testId);
     if (!tenantSlug || !envReady || !id) return;
+    const requestGeneration = tenantGenerationRef.current;
     setRunningSmokeTest(id);
     setError(null);
     try {
@@ -821,8 +867,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         source: "tenant_panel",
         dry_run: true,
       });
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setSmokeResults((current) => ({ ...current, [id]: response }));
     } catch (err: any) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       const body = err?.body && typeof err.body === "object" ? err.body : null;
       if (body?.contract_version === "twilio.tech_provider.smoke_execution.v1") {
         setSmokeResults((current) => ({ ...current, [id]: body }));
@@ -830,21 +878,24 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         setError(getErrorMessage(err, "No se pudo ejecutar la prueba operativa."));
       }
     } finally {
-      setRunningSmokeTest(null);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setRunningSmokeTest(null);
     }
   };
 
   const handleRunFinalQaCheck = async () => {
     if (!tenantSlug || !primaryFinalQaCheck) return;
+    const requestGeneration = tenantGenerationRef.current;
     setRunningOpsQaCheck(primaryFinalQaCheck.id);
     setOpsQaError(null);
     try {
       const result = await runTenantOpsQaCheckV2(tenantSlug, primaryFinalQaCheck.id);
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setOpsQaResults((current) => ({ ...current, [primaryFinalQaCheck.id]: result }));
     } catch (err) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setOpsQaError(getErrorMessage(err, "No se pudo ejecutar el QA final del tenant."));
     } finally {
-      setRunningOpsQaCheck(null);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setRunningOpsQaCheck(null);
     }
   };
 
@@ -885,7 +936,16 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
             onClick: openEmbeddedSignup,
           }
         : !hasMetaAccount
-          ? {
+          ? provisioningBlocked
+            ? {
+                label: "Volver a comprobar configuración",
+                detail: credentialStorageMessage ?? "Vuelve a consultar el contrato y los controles disponibles.",
+                disabled: loading,
+                busy: loading,
+                icon: RefreshCw,
+                onClick: () => void load(),
+              }
+            : {
               label: "Preparar activación",
               detail: "Guarda el número y solicita la URL segura de autorización.",
               disabled: !phoneNumberValid || provisioning,
@@ -1120,8 +1180,13 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         </div>
       ) : null}
 
-      {contract ? (
+      {contractVerified ? (
         <div className="mt-4 space-y-4">
+          {credentialStorageMessage ? (
+            <div role="status" aria-live="polite" data-testid="whatsapp-credential-storage-status" className="rounded-lg border bg-muted/30 p-3 text-sm text-foreground">
+              {credentialStorageMessage}
+            </div>
+          ) : null}
           <div className="rounded-2xl border bg-background/85 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -1828,7 +1893,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
               </div>
             ) : null}
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button className="w-full sm:w-auto" type="button" onClick={handleProvision} disabled={!liveEnabled || !phoneNumberValid || provisioning}>
+              <Button className="w-full sm:w-auto" type="button" onClick={handleProvision} disabled={!liveEnabled || !phoneNumberValid || provisioningBlocked || provisioning}>
                 {provisioning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar activación
               </Button>
