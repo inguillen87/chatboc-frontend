@@ -674,13 +674,14 @@ describe('App session bootstrap ordering', () => {
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
   });
 
-  it('reaches /403 from a sessionless tenant inbox with zero tenant, cart or private calls', async () => {
+  it('reaches login preserving the sessionless tenant inbox with zero tenant, cart or private calls', async () => {
     safeLocalStorage.setItem('tenantSlug', 'junin');
     window.history.replaceState({}, '', '/t/junin/inbox');
 
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/403'));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(window.location.search).toBe('?next=%2Ft%2Fjunin%2Finbox');
     expectNoPrivateBootstrapCalls();
   });
 
@@ -805,7 +806,8 @@ describe('App session bootstrap ordering', () => {
 
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/403'));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(window.location.search).toBe('?next=%2Ft%2Fjunin%2Finbox');
     expectNoPrivateBootstrapCalls();
   });
 
@@ -844,7 +846,8 @@ describe('App session bootstrap ordering', () => {
       await runtimeConfig.promise;
     });
 
-    await waitFor(() => expect(window.location.pathname).toBe('/403'));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(window.location.search).toBe('?next=%2Ft%2Fjunin%2Finbox');
     expectNoPrivateBootstrapCalls();
   });
 
