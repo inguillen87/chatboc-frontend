@@ -35,6 +35,7 @@ import { buildTenantPath } from '@/utils/tenantPaths';
 import { resolveTenantSlug } from '@/utils/api';
 import {
   captureChatbocSessionRevision,
+  hasAuthenticatedChatbocSession,
   hasPersistedClerkSession,
   isChatbocSessionRevisionCurrent,
   readPersistedClerkUserId,
@@ -129,6 +130,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
   const nativeImpersonation=hasSelectedNativePanelImpersonation();
   const { refreshUser } = useUser();
   const location = useLocation();
+  const authEntry = isAuthEntryPath(location.pathname);
   const navigate = useNavigate();
   const [onboardingOpen, setOnboardingOpen] = React.useState(false);
   const [onboardingRequired, setOnboardingRequired] = React.useState(false);
@@ -205,6 +207,13 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     const currentSessionIdentity = `${currentClerkUserId}:${sessionId || ''}`;
 
     const persistedClerkSession = hasPersistedClerkSession();
+    // A signed-in SDK snapshot does not own a current native Chatboc session.
+    // Switching providers requires returning to an explicit authentication entry.
+    if (hasAuthenticatedChatbocSession() && !persistedClerkSession && !authEntry) {
+      onSessionReset?.();
+      resetBridgeState();
+      return;
+    }
     if (activeClerkUserIdRef.current === undefined) {
       activeClerkUserIdRef.current = persistedClerkSession
         ? readPersistedClerkUserId()
@@ -331,7 +340,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
       cancelled = true;
       syncController.abort();
     };
-  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, onSessionPending, onSessionReady, refreshUser, resetBridgeState, sessionId, syncRetryNonce,retiredClerkSession,nativeImpersonation]);
+  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, onSessionPending, onSessionReady, onSessionReset, refreshUser, resetBridgeState, sessionId, syncRetryNonce,retiredClerkSession,nativeImpersonation,authEntry]);
 
   if (nativeImpersonation||!clerkRuntime.enabled || !isLoaded || !isSignedIn||isClerkSessionRetired(String(clerkUser?.id||''),sessionId)) return null;
 
