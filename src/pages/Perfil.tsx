@@ -644,11 +644,12 @@ export default function Perfil() {
     matchingRequestedAuthority?.status === 'authorized' &&
     (isPlatformAdministrator || organizationProfile?.tenant.id === authenticatedOrganization?.tenantId)
       ? organizationProfile : null;
-  const whatsappIntegrationTenantSlug = hasVerifiedSession === true && !userLoading && integrationTenantSlug && (
+  const verifiedOrganizationNavigationTenantSlug = hasVerifiedSession === true && !userLoading && integrationTenantSlug && (
     usesScopedOrganizationProfile
       ? organizationProfileStatus === 'ready' && matchingOrganizationProfile?.tenant.slug === integrationTenantSlug
       : authenticatedOrganization?.tenantSlug === integrationTenantSlug
   ) ? integrationTenantSlug : null;
+  const whatsappIntegrationTenantSlug = verifiedOrganizationNavigationTenantSlug;
   const isPlatformWorkspace = isPlatformAdministrator && !hasRequestedTenant;
   const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
     ? (user as any).platform_workspace : null;
@@ -2559,6 +2560,17 @@ export default function Perfil() {
     return 'Herramientas habilitadas para este espacio de trabajo.';
   };
 
+  const openSurveyWorkspace = (path = '/admin/encuestas') => {
+    if (!verifiedOrganizationNavigationTenantSlug || !workspaceCapabilities.participation) return;
+    const [route, fragment] = path.split('#', 2);
+    const [pathname, search] = route.split('?', 2);
+    if (!/^\/admin\/encuestas(?:\/|$)/.test(pathname)) return;
+    const params = new URLSearchParams(search);
+    params.delete('tenant');
+    params.set('tenant_slug', verifiedOrganizationNavigationTenantSlug);
+    navigate(`${pathname}?${params.toString()}${fragment === undefined ? '' : `#${fragment}`}`);
+  };
+
   const moduleRouteToTarget = (
     moduleId: string,
     route?: string | null,
@@ -2566,7 +2578,9 @@ export default function Perfil() {
     const normalizedId = moduleId.trim().toLowerCase();
     if (normalizedId === 'operations') return { tab: 'tickets' };
     if (normalizedId === 'reports') return { tab: 'estadisticas' };
-    if (normalizedId === 'surveys') return { path: '/admin/encuestas' };
+    if (normalizedId === 'surveys') return {
+      path: route && /^\/admin\/encuestas(?:\/|[?#]|$)/.test(route) ? route : '/admin/encuestas',
+    };
     if (normalizedId === 'people') {
       return { tab: workspaceCapabilities.team ? 'empleados' : 'usuarios' };
     }
@@ -2586,7 +2600,7 @@ export default function Perfil() {
     const normalizedId = moduleId.trim().toLowerCase();
     if (normalizedId === 'operations') return workspaceCapabilities.operation;
     if (normalizedId === 'reports') return workspaceCapabilities.reports;
-    if (normalizedId === 'surveys') return workspaceCapabilities.participation;
+    if (normalizedId === 'surveys') return workspaceCapabilities.participation && Boolean(verifiedOrganizationNavigationTenantSlug);
     if (normalizedId === 'people') {
       return workspaceCapabilities.contacts || workspaceCapabilities.team;
     }
@@ -2621,7 +2635,7 @@ export default function Perfil() {
           ...moduleRouteToTarget(id, module.route || module.path),
         };
       });
-  }, [backofficeNavigation?.modules, esMunicipio, workspaceCapabilities]);
+  }, [backofficeNavigation?.modules, esMunicipio, workspaceCapabilities, verifiedOrganizationNavigationTenantSlug]);
 
   const openControlCenterItem = (item: ControlCenterCard) => {
     if (item.enabled === false) return;
@@ -2631,7 +2645,8 @@ export default function Perfil() {
       return;
     }
     if (item.path) {
-      navigate(item.path);
+      if (/^\/admin\/encuestas(?:\/|[?#]|$)/.test(item.path)) openSurveyWorkspace(item.path);
+      else navigate(item.path);
     }
   };
 
@@ -2663,7 +2678,7 @@ export default function Perfil() {
       icon: Vote,
       actionLabel: "Abrir encuestas",
       path: "/admin/encuestas",
-      enabled: workspaceCapabilities.participation,
+      enabled: workspaceCapabilities.participation && Boolean(verifiedOrganizationNavigationTenantSlug),
     },
     {
       id: "people",
@@ -2742,12 +2757,12 @@ export default function Perfil() {
             : "institution-profile"
           : undefined
       }
-      capabilities={workspaceCapabilities}
+      capabilities={{ ...workspaceCapabilities, participation: workspaceCapabilities.participation && Boolean(verifiedOrganizationNavigationTenantSlug) }}
       isMunicipal={esMunicipio}
       onOpenImplementation={openImplementationCenter}
       onOpenInstitutionProfile={openInstitutionProfile}
       onOpenPlan={openPlanAndBilling}
-      onOpenSurveys={() => navigate("/admin/encuestas")}
+      onOpenSurveys={() => openSurveyWorkspace()}
       onTabChange={updateProfileTab}
     />
   ) : (
@@ -2833,7 +2848,7 @@ export default function Perfil() {
 
   // Older operations links used an unsupported workspace tab. Enter the real
   // orders route so its permission guard and operational filters remain active.
-  if (searchParams.get('tab') === 'orders') {
+  if (['orders', 'pedidos'].includes(searchParams.get('tab') || '')) {
     if (!organizationProfileVerified || tenantSelectionPending) {
       return <ViewState status="loading" title="Validando acceso a pedidos" />;
     }

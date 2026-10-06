@@ -173,6 +173,10 @@ const Navbar: React.FC = () => {
   const ordersHref = ordersWorkspaceTenant
     ? `/perfil?tab=pedidos&tenant_slug=${encodeURIComponent(ordersWorkspaceTenant)}`
     : '/perfil?tab=pedidos';
+  const surveyWorkspaceTenant = hasVerifiedSession && organizationProfileVerified && !userLoading
+    ? ordersWorkspaceTenant : null;
+  const surveysHref = surveyWorkspaceTenant
+    ? `/admin/encuestas?tenant_slug=${encodeURIComponent(surveyWorkspaceTenant)}` : null;
   const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant : currentSlug;
   const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
     ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
@@ -528,9 +532,9 @@ const Navbar: React.FC = () => {
                     ))}
                   </>
                 ) : null}
-                {FEATURE_ENCUESTAS && !isPlatformAdmin ? (
+                {FEATURE_ENCUESTAS && !isPlatformAdmin && surveysHref ? (
                   <DropdownMenuItem asChild>
-                    <RouterLink to="/admin/encuestas" className="flex items-center gap-2 text-sm">
+                    <RouterLink to={surveysHref} className="flex items-center gap-2 text-sm">
                       <BarChart3 className="h-4 w-4" />
                       Panel de encuestas
                     </RouterLink>
@@ -658,9 +662,9 @@ const Navbar: React.FC = () => {
                           {label}
                         </RouterLink>
                       ))}
-                      {FEATURE_ENCUESTAS && !isPlatformAdmin ? (
+                      {FEATURE_ENCUESTAS && !isPlatformAdmin && surveysHref ? (
                         <RouterLink
-                          to="/admin/encuestas"
+                          to={surveysHref}
                           onClick={() => setMenuOpen(false)}
                           className="flex items-center gap-2 rounded-[8px] border border-border/70 px-3 py-2 text-sm transition-colors hover:border-primary/50 hover:text-primary"
                         >

@@ -483,8 +483,8 @@ describe('Perfil request lifecycle', () => {
     expect(runtime.apiFetch.mock.calls.filter(([path, options]) => path.endsWith('/config') && options?.method !== 'PUT')).toHaveLength(1);
   });
 
-  it('resolves the legacy orders link into the guarded orders route with filters and verified organization', async () => {
-    window.history.replaceState({}, '', '/perfil?tab=orders&focus=assisted&channel=marketplace&q=consulta');
+  it.each(['orders', 'pedidos'])('resolves the legacy %s link into the guarded orders route with filters and verified organization', async (tab) => {
+    window.history.replaceState({}, '', `/perfil?tab=${tab}&order_id=72&focus=assisted&channel=marketplace&q=consulta`);
     render(<BrowserRouter><Routes>
       <Route path="/perfil" element={<ProfileHarness />} />
       <Route path="/pedidos" element={<div>Pedidos verificados</div>} />
@@ -493,15 +493,16 @@ describe('Perfil request lifecycle', () => {
     await screen.findByText('Pedidos verificados');
     expect(window.location.pathname).toBe('/pedidos');
     expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    expect(new URLSearchParams(window.location.search).get('order_id')).toBe('72');
     expect(new URLSearchParams(window.location.search).get('focus')).toBe('assisted');
     expect(new URLSearchParams(window.location.search).get('channel')).toBe('marketplace');
     expect(new URLSearchParams(window.location.search).get('q')).toBe('consulta');
     expect(new URLSearchParams(window.location.search).has('tab')).toBe(false);
   });
 
-  it('denies the legacy orders link when a verified actor lacks an orders read grant', async () => {
+  it.each(['orders', 'pedidos'])('denies the legacy %s link when a verified actor lacks an orders read grant', async (tab) => {
     runtime.user = { ...verifiedUser(), capabilities: ['tickets.read'] };
-    window.history.replaceState({}, '', '/perfil?tab=orders&focus=assisted');
+    window.history.replaceState({}, '', `/perfil?tab=${tab}&focus=assisted`);
     render(<BrowserRouter><Routes>
       <Route path="/perfil" element={<ProfileHarness />} />
       <Route path="/pedidos" element={<div>Pedidos verificados</div>} />
@@ -1414,6 +1415,109 @@ describe('Perfil request lifecycle', () => {
     await screen.findByRole('heading', {level: 1, name: 'Organización seleccionada'});
     expect(screen.getByText('Gestión municipal')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('mock-command-center')).toHaveAttribute('data-scope', 'municipio'));
+  });
+
+  describe('verified survey workspace navigation', () => {
+    const wireSurveyOrganization = (
+      loadProfile: () => any = () => organizationProfileResponse('junin'),
+      route = '/admin/encuestas',
+    ) => {
+      wireSelectedOrganization(loadProfile, undefined, 'junin');
+      runtime.user = { ...canonicalOrganizationUser('municipio', 'tierra-del-fuego'), rol: 'superadmin' };
+      const read = runtime.apiFetch.getMockImplementation()!;
+      runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+        if (path === '/api/app/backoffice/navigation?tenant_slug=junin') return {
+          contract_version: 'backoffice.navigation.v1',
+          modules: [{ id: 'surveys', label: 'Instrumento seleccionado', route, enabled: true }],
+        };
+        return read(path, options);
+      });
+      runtime.realNavigation = true;
+      localStorage.setItem('tenantSlug', 'tierra-del-fuego');
+    };
+
+    const renderSurveyProfile = (query = 'section=general&tenant_slug=junin') => {
+      window.history.replaceState({}, '', `/perfil?${query}`);
+      return render(<BrowserRouter><Routes>
+        <Route path="/perfil" element={<ProfileHarness />} />
+        <Route path="/admin/encuestas/*" element={<div data-testid="survey-destination" />} />
+      </Routes></BrowserRouter>);
+    };
+
+    const openSurveyMenu = async () => {
+      const menu = await screen.findByRole('button', { name: 'Abrir menú Participación' });
+      fireEvent.keyDown(menu, { key: 'Enter' });
+      fireEvent.click(screen.getByRole('menuitem', { name: /Encuestas, sondeos y votaciones/ }));
+      await screen.findByTestId('survey-destination');
+    };
+
+    it('opens the verified selected Junin from the institutional menu while the actor and stored preference are TDF', async () => {
+      wireSurveyOrganization();
+      renderSurveyProfile();
+      await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+      await openSurveyMenu();
+      expect(window.location.pathname).toBe('/admin/encuestas');
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+      expect(runtime.user?.organization_profile.tenant.slug).toBe('tierra-del-fuego');
+      expect(runtime.setUser).not.toHaveBeenCalled();
+    });
+
+    it('opens the enabled backend survey home card with the verified selected organization', async () => {
+      wireSurveyOrganization();
+      renderSurveyProfile('tenant_slug=junin');
+      fireEvent.click(await screen.findByRole('button', { name: /Instrumento seleccionado.*Abrir/ }));
+      await screen.findByTestId('survey-destination');
+      expect(window.location.pathname).toBe('/admin/encuestas');
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    });
+
+    it('preserves an explicit backend survey detail, filter and fragment while replacing its obsolete tenant hints', async () => {
+      wireSurveyOrganization(undefined, '/admin/encuestas/632/analytics?focus=live&tenant_slug=tierra-del-fuego&tenant=tierra-del-fuego#results');
+      renderSurveyProfile('tenant_slug=junin');
+      fireEvent.click(await screen.findByRole('button', { name: /Instrumento seleccionado.*Abrir/ }));
+      await screen.findByTestId('survey-destination');
+      expect(window.location.pathname).toBe('/admin/encuestas/632/analytics');
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+      expect(new URLSearchParams(window.location.search).get('focus')).toBe('live');
+      expect(new URLSearchParams(window.location.search).has('tenant')).toBe(false);
+      expect(window.location.hash).toBe('#results');
+    });
+
+    it('does not expose a survey destination until the selected organization profile is verified', async () => {
+      let resolveProfile!: (value: any) => void;
+      wireSurveyOrganization(() => new Promise(resolve => { resolveProfile = resolve; }));
+      renderSurveyProfile();
+      await waitFor(() => expect(countApiCalls('/api/admin/tenants/junin/config')).toBe(1));
+      expect(screen.queryByRole('button', { name: 'Abrir menú Participación' })).not.toBeInTheDocument();
+      expect(window.location.pathname).toBe('/perfil');
+      await act(async () => resolveProfile(organizationProfileResponse('junin')));
+      await openSurveyMenu();
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    });
+
+    it.each(['mismatched_profile', 'denied_selection', 'unverified_session', 'session_loading'])(
+      'never enables a survey destination through the actor or stored preference for %s', async (failure) => {
+        wireSurveyOrganization(() => failure === 'mismatched_profile'
+          ? organizationProfileResponse('tierra-del-fuego') : organizationProfileResponse('junin'));
+        if (failure === 'denied_selection') runtime.apiFetch.mockImplementation(async () => { throw new ApiError('Denied', 403); });
+        if (failure === 'unverified_session') runtime.sessionVerified = false;
+        if (failure === 'session_loading') runtime.userLoading = true;
+        renderSurveyProfile();
+        await act(async () => { await Promise.resolve(); });
+        expect(screen.queryByRole('button', { name: 'Abrir menú Participación' })).not.toBeInTheDocument();
+        expect(screen.queryByTestId('survey-destination')).not.toBeInTheDocument();
+        expect(window.location.pathname).toBe('/perfil');
+      },
+    );
+
+    it('opens the verified own organization for an ordinary member without a requested selector', async () => {
+      wireBoundOrganization();
+      runtime.realNavigation = true;
+      renderSurveyProfile('section=general');
+      await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+      await openSurveyMenu();
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('civic-workspace');
+    });
   });
 
 });

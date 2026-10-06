@@ -264,6 +264,59 @@ describe('Navbar account menu routing', () => {
     expect(screen.getByRole('link', { name: 'Pedidos' })).toHaveAttribute('href', '/perfil?tab=pedidos');
   });
 
+  it.each([
+    { surface: 'desktop', ownSlug: 'junin', selected: false },
+    { surface: 'mobile', ownSlug: 'junin', selected: false },
+    { surface: 'desktop', ownSlug: 'tierra-del-fuego', selected: false },
+    { surface: 'mobile', ownSlug: 'tierra-del-fuego', selected: false },
+    { surface: 'desktop', ownSlug: 'tierra-del-fuego', selected: true },
+    { surface: 'mobile', ownSlug: 'tierra-del-fuego', selected: true },
+  ])('preserves the verified survey workspace: $surface $ownSlug selected=$selected', async ({ surface, ownSlug, selected }) => {
+    const user = canonicalOrganizationUser('municipio', ownSlug);
+    if (selected) user.rol = 'superadmin';
+    const originalActor = JSON.stringify(user);
+    const destinationSlug = selected ? 'junin' : ownSlug;
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: true, loading: false });
+    useTenantMock.mockReturnValue(selected ? {
+      currentSlug: 'junin', isLoadingTenant: false,
+      tenant: { slug: 'junin', tipo: 'municipio', publishedIdentity: { tenantId: 22, tenantSlug: 'junin', name: 'Selected institution' } },
+    } : { currentSlug: 'previous-public-workspace' });
+    const RouteProbe = () => {
+      const route = useLocation();
+      return <output data-testid="survey-route">{route.pathname + route.search}</output>;
+    };
+    render(<MemoryRouter initialEntries={[selected ? '/perfil?tenant_slug=junin' : '/perfil?tenant_slug=foreign-workspace']}><Navbar /><RouteProbe /></MemoryRouter>);
+    let surveyLink: HTMLElement;
+    if (surface === 'desktop') {
+      fireEvent.keyDown(screen.getByRole('button', { name: /Mi cuenta/i }), { key: 'Enter' });
+      surveyLink = await screen.findByRole('menuitem', { name: 'Panel de encuestas' });
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+      surveyLink = screen.getByRole('link', { name: 'Panel de encuestas' });
+    }
+    const destination = `/admin/encuestas?tenant_slug=${destinationSlug}`;
+    expect(surveyLink).toHaveAttribute('href', destination);
+    fireEvent.click(surveyLink);
+    expect(screen.getByTestId('survey-route')).toHaveTextContent(destination);
+    expect(JSON.stringify(user)).toBe(originalActor);
+  });
+
+  it.each(['unverified', 'loading', 'foreign_contract', 'selected_pending', 'selected_foreign', 'signed_out'])('does not expose an unverified survey destination: %s', state => {
+    const user = canonicalOrganizationUser('municipio', 'tierra-del-fuego');
+    const selected = state.startsWith('selected_');
+    if (selected) user.rol = 'superadmin';
+    if (state === 'foreign_contract') user.organization_workspace.tenant.slug = 'foreign-workspace';
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: state !== 'unverified', loading: state === 'loading' });
+    if (state === 'signed_out') useSessionAuthorityMock.mockReturnValue({ hasVerifiedSession: false });
+    useTenantMock.mockReturnValue({
+      currentSlug: 'junin', isLoadingTenant: state === 'selected_pending',
+      tenant: { slug: 'junin', tipo: 'municipio', publishedIdentity: { tenantId: 22, tenantSlug: state === 'selected_foreign' ? 'foreign-workspace' : 'junin', name: 'Untrusted identity' } },
+    });
+    render(<MemoryRouter initialEntries={['/perfil?tenant_slug=junin']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.queryByRole('link', { name: 'Panel de encuestas' })).not.toBeInTheDocument();
+  });
+
   it('does not expose orders from a stale signed-out administrative account', () => {
     useUserMock.mockReturnValue({ user: canonicalOrganizationUser(), organizationProfileVerified: true, loading: false });
     useSessionAuthorityMock.mockReturnValue({ hasVerifiedSession: false });
