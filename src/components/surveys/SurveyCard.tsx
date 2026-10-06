@@ -22,6 +22,8 @@ import type { SurveyAdmin } from '@/types/encuestas';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 import { isGovernedSurvey, surveyCanShare, surveyIsReceiving } from '@/utils/surveyPublicationLifecycle';
+import { SurveyParticipationAssurance } from '@/components/surveys/SurveyParticipationAssurance';
+import { SurveyJurisdictionNextAction } from '@/components/surveys/SurveyJurisdictionNextAction';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
@@ -225,6 +227,8 @@ export const SurveyCard = ({
       </CardHeader>
 
       <CardContent className="space-y-3 px-5 pb-4 pt-0">
+        <SurveyParticipationAssurance survey={survey} />
+        <SurveyJurisdictionNextAction survey={survey} tenantSlug={tenantSlug} />
         <div role="group" aria-label="Métricas de participación">
         <dl
           aria-label="Métricas de participación"

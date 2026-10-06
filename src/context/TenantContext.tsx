@@ -150,6 +150,8 @@ const readTenantFromConfig = (): { slug: string | null; widgetToken: string | nu
 };
 
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
+  const rehearsal = pathname.match(/^\/pruebas\/encuestas\/([a-z0-9][a-z0-9-]{0,99})\/rehearsal_[a-f0-9]{32}\/?$/);
+  if (rehearsal) return sanitizeTenantSlug(rehearsal[1]);
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
     try {

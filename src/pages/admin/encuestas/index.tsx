@@ -18,6 +18,7 @@ import { SurveyCard } from '@/components/surveys/SurveyCard';
 import { SurveyOperationsOverview } from '@/components/surveys/SurveyOperationsOverview';
 import { SurveyRelocationPanel } from '@/components/surveys/SurveyRelocationPanel';
 import { SurveyRestorePanel } from '@/components/surveys/SurveyRestorePanel';
+import { SurveyRehearsalPanel } from '@/components/surveys/SurveyRehearsalPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
@@ -457,6 +458,8 @@ const AdminSurveysIndex = () => {
       <SurveyRestorePanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
         externalBusy={relocationPending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
         onPendingChange={setRestorePending} onCompleted={refetchList} />
+      <SurveyRehearsalPanel tenantSlug={tenantSlug} listReady={listReadState?.phase === 'ready'}
+        externalBusy={relocationPending || restorePending || isPublishing || isClosing || isDeleting || isSeeding} />
 
       {focusMeta && !isLoadingList && !listError ? (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, RefreshCw, Timer, TrendingUp, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
+import { SurveyParticipationAssurance } from '@/components/surveys/SurveyParticipationAssurance';
 import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
 import {
@@ -979,6 +980,7 @@ const PublicSurveyPage = () => {
 
   return (
     <div className={containerClass} data-testid="public-survey-page">
+      <SurveyParticipationAssurance survey={survey} />
       {survey.es_votacion_envivo ? (
         <div className="animate-in fade-in-50 duration-300 motion-reduce:animate-none">
           <Card className="border border-border/70 bg-card shadow-sm">

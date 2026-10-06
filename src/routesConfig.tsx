@@ -73,6 +73,7 @@ const MarketCartPage = React.lazy(() => import('@/pages/market/MarketCartPage'))
 const MarketplaceBlueprintPage = React.lazy(() => import('@/pages/market/MarketplaceBlueprintPage'));
 const PublicSurveysIndex = React.lazy(() => import('@/pages/encuestas'));
 const PublicSurveyPage = React.lazy(() => import('@/pages/e/[slug]'));
+const RehearsalPage = React.lazy(() => import('@/pages/encuestas/RehearsalPage'));
 const SurveyQrPage = React.lazy(() => import('@/pages/encuestas/QrPage'));
 const AdminSurveysIndex = React.lazy(() => import('@/pages/admin/encuestas/index'));
 const NewSurveyPage = React.lazy(() => import('@/pages/admin/encuestas/new'));
@@ -411,6 +412,7 @@ const routes: RouteConfig[] = [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
         { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
         { path: '/e/:slug', element: <PublicSurveyPage /> },
+        { path: '/pruebas/encuestas/:tenantSlug/:runId', element: <RehearsalPage />, allowGuest: true },
         ...withTenantPrefixes('/:tenant/encuestas', { element: <TenantSurveyListPage /> }),
         ...withTenantPrefixes('/:tenant/encuestas/:slug', { element: <TenantSurveyDetailPage /> }),
       ]

@@ -101,6 +101,12 @@ describe('TenantProvider global route bootstrap', () => {
     expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('junin', null);
     expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalledWith('implementacion', expect.anything());
   });
+  it('reads the explicit rehearsal organization instead of interpreting the product prefix as a tenant', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({ slug: 'organization-a', nombre: 'Organización A', tipo: 'municipio' });
+    render(<MemoryRouter initialEntries={['/pruebas/encuestas/organization-a/rehearsal_' + '4'.repeat(32)]}><TenantProvider><TenantProbe /></TenantProvider></MemoryRouter>);
+    await waitFor(() => expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('organization-a', null));
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalledWith('pruebas', expect.anything());
+  });
 
   it('ignores every ambient tenant source on /superadmin and preserves the stored preference', async () => {
     safeLocalStorage.setItem('tenantSlug', 'junin');
