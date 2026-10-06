@@ -670,7 +670,11 @@ const LoginSession = () => {
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
           <div className="space-y-2">
-            <ClerkAuthButtons mode="login" className="pt-1" />
+            <ClerkAuthButtons
+              mode="login"
+              className="pt-1"
+              disabled={isLoading || isPasskeyLoading || isDemoLoading || isActivatingDemoWhatsapp}
+            />
             {isPasskeyAvailable && (
               <Button
                 type="button"
@@ -682,7 +686,11 @@ const LoginSession = () => {
                 {isPasskeyLoading ? "Verificando Passkey..." : "Entrar con Passkey"}
               </Button>
             )}
-            <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
+            <GoogleLoginButton
+              className="w-full"
+              disabled={isLoading || isPasskeyLoading || isDemoLoading || isActivatingDemoWhatsapp}
+              onLoggedIn={() => navigateToTenantCatalog()}
+            />
           </div>
         </form>
         {isGlobalLogin && <div className="mt-6 border-t border-border pt-4 space-y-3">

@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTechProviderOnboarding";
@@ -62,6 +62,59 @@ describe('WhatsApp activation readiness evidence', () => {
     expect(screen.getByRole('button', { name: 'Registrar sender' })).toBeDisabled();
     expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
   });
+  it.each(['not_ready', 'disconnected', 'inactive', 'provisioning_plan_ready', 'ready', 'unknown'])
+    ('keeps sender approval pending for the provider status %s', async senderStatus => {
+      mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+        ...baseContract,
+        status: 'inactive',
+        state: { ...baseContract.state, sender_status: senderStatus },
+      } });
+      render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+      await screen.findByText('Sender en revision');
+      expect(screen.getByTestId('whatsapp-primary-action')).toHaveTextContent('Actualizar aprobación');
+      expect(screen.getByRole('textbox', { name: /numero de whatsapp/i })).toBeEnabled();
+      const steps = within(screen.getByRole('list', { name: 'Pasos de activación de WhatsApp' }));
+      expect(steps.getByText('Probar WhatsApp').closest('li')).toHaveTextContent('Pendiente: Probar WhatsApp');
+      expect(steps.getByText('Operar y medir').closest('li')).toHaveTextContent('Pendiente: Operar y medir');
+      expect(mockedTenantService.refreshWhatsappSenderStatus).not.toHaveBeenCalled();
+      expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
+    });
+  it.each(['online', 'approved', 'connected', 'active'])
+    ('does not count sender status %s or complete configuration as a verified real exchange', async senderStatus => {
+      mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+        ...baseContract,
+        status: 'active',
+        state: { ...baseContract.state, sender_status: senderStatus },
+        setup_health: { ...baseContract.setup_health, status: 'ready', activation_score: 100, completed: 9, blockers: [] },
+        operator_checklist: [
+          { id: 'sender_online', done: true, status: senderStatus },
+          { id: 'webhooks', done: true, status: 'done' },
+        ],
+      } });
+      render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+      await screen.findByText('Listo con pendientes');
+      const steps = within(screen.getByRole('list', { name: 'Pasos de activación de WhatsApp' }));
+      expect(steps.getByText('Probar WhatsApp').closest('li')).toHaveTextContent('Paso actual: Probar WhatsApp');
+      expect(steps.getByText('Operar y medir').closest('li')).toHaveTextContent('Pendiente: Operar y medir');
+      expect(screen.getByText('2/4 pasos tecnicos')).toBeInTheDocument();
+      expect(screen.getAllByText('Verificar envío, entrega y respuesta con una prueba real autorizada').length).toBeGreaterThan(0);
+      expect(screen.getByText(/Rutas de callbacks configuradas; la entrega, lectura y los eventos reales siguen pendientes/)).toBeInTheDocument();
+      expect(mockedTenantService.runWhatsappTechProviderSmokeTest).not.toHaveBeenCalled();
+      expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+    });
+  it.each(['not_ready', 'disconnected', 'inactive', 'provisioning_plan_ready'])
+    ('does not give the misleading status %s a successful status pill', async senderStatus => {
+      mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+        ...baseContract,
+        state: { ...baseContract.state, sender_status: senderStatus },
+      } });
+      render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+
+      const primaryStatus = await screen.findByTestId('whatsapp-onboarding-primary-status');
+      expect(primaryStatus.querySelector('span')).not.toHaveClass('text-emerald-700');
+    });
   it.each([
     { ...baseContract, tenant: { id: 23, slug: 'foreign-organization' } },
     { ...baseContract, tenant: undefined },
@@ -370,7 +423,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByTestId("whatsapp-advanced-controls")).not.toHaveAttribute("open");
     expect(screen.getByText("Listo con pendientes")).toBeInTheDocument();
     expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
-    expect(screen.getByText(/Cerrar pendiente: Falta revisar plantillas/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cerrar pendiente: Verificar la configuración de webhooks/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeEnabled();
     expect(screen.getByText("Activación guiada por Chatboc")).toBeInTheDocument();
     expect(screen.getByText("123456789")).toBeInTheDocument();

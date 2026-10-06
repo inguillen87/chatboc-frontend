@@ -182,12 +182,14 @@ const isReadyStatus = (value?: string | null) => {
     normalized === "online" ||
     normalized === "connected" ||
     normalized === "approved" ||
-    normalized === "sender_attached" ||
-    normalized.includes("ready") ||
-    normalized.includes("connected") ||
-    normalized.includes("active")
+    normalized === "sender_attached"
   );
 };
+
+// Match the provider platform's READY_SENDER_STATUSES; a plan or generic
+// workflow result is not an online sender.
+const isSenderReadyStatus = (value?: string | null) =>
+  ["online", "approved", "connected", "active"].includes(normalizeStatus(value));
 
 const isPendingStatus = (value?: string | null) => {
   const normalized = normalizeStatus(value);
@@ -563,8 +565,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
 
   const hasMetaAccount = Boolean(state?.waba_id && state?.phone_number_id);
   const hasSender = Boolean(state?.sender_id || state?.sender_sid);
-  const senderReady = isReadyStatus(state?.sender_status);
-  const operationalReady = senderReady || normalizeStatus(contract?.status).includes("active");
+  const senderReady = isSenderReadyStatus(state?.sender_status);
+  const webhooksConfigured = operatorChecklist.some((item) => item.id === "webhooks" && item.done === true);
+  // tech_provider.v1 exposes configuration and sender status, but no receipt
+  // proving a real message's delivery and inbound reply. Keep those steps pending.
   const normalizedFocusAction = normalizeStatus(focusAction).replace(/_/g, "-");
   const normalizedNextAction = normalizeStatus(contract?.next_action || setupHealth?.recommended_next_action || contract?.status);
   const registerSenderIsPrimary =
@@ -606,17 +610,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     {
       id: "test",
       label: "Probar WhatsApp",
-      detail: "Se valida envío, lectura, webhook de estado y rutas de respuesta.",
-      done: senderReady,
-      active: hasSender && !senderReady,
+      detail: "Falta verificar un intercambio real autorizado, su entrega y la respuesta recibida.",
+      done: false,
+      active: senderReady,
       icon: MessageSquareText,
     },
     {
       id: "operate",
       label: "Operar y medir",
-      detail: "El tenant queda listo para usar WhatsApp Business Platform desde Chatboc.",
-      done: operationalReady,
-      active: senderReady && !operationalReady,
+      detail: "La operación y sus eventos quedan pendientes hasta verificar el intercambio real.",
+      done: false,
+      active: false,
       icon: Sparkles,
     },
   ];
@@ -666,10 +670,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     },
     {
       key: "webhooks",
-      label: "Webhooks y métricas",
-      detail: "Entrega, lectura, actividad y eventos conectados al panel.",
-      done: operationalReady,
-      active: senderReady && !operationalReady,
+      label: "Configuración de webhooks",
+      detail: "Rutas de callbacks configuradas; la entrega, lectura y los eventos reales siguen pendientes.",
+      done: webhooksConfigured,
+      active: senderReady && !webhooksConfigured,
     },
   ];
   const primarySmokeTest =
@@ -692,8 +696,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         hasSender && !senderReady ? `Actualizar aprobacion del sender (${state?.sender_status || "pendiente"})` : null,
         !hasTemplateConfig ? "Configurar plantillas, menu y webviews del tenant" : null,
         !voiceReady ? "Preparar voz y rutas de asistencia" : null,
-        senderReady && !operationalReady ? "Verificar webhooks de entrega, lectura y actividad" : null,
+        senderReady && !webhooksConfigured ? "Verificar la configuración de webhooks" : null,
         ...setupBlockers.map((blocker) => readText(blocker.label, blocker.code, blocker.detail)),
+        senderReady ? "Verificar envío, entrega y respuesta con una prueba real autorizada" : null,
       ].filter((item): item is string => Boolean(item?.trim())),
     ),
   ).slice(0, 6);
@@ -726,8 +731,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         : !senderReady
           ? "El numero esta registrado, pero todavia no esta listo para operar."
           : missingConfigurationItems.length
-            ? "El canal base responde, pero quedan controles antes de produccion completa."
-            : "El canal tiene cuenta, sender y controles operativos listos.";
+            ? "Hay configuración disponible, pero quedan controles antes de la operación real."
+            : "Falta verificar un intercambio real y sus eventos antes de confirmar la operación.";
   const recommendedNextActionRaw = readText(setupHealth?.recommended_next_action, finalQaNextAction, contract?.next_action, currentStep.label);
   const recommendedNextActionLabel =
     recommendedNextActionRaw === currentStep.label ? currentStep.label : actionLabel(recommendedNextActionRaw);
