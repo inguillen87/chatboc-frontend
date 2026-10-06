@@ -25,8 +25,13 @@ describe('production rehearsal real bound transport', () => {
   });
   it('refuses a foreign admin descriptor and a backend-denied create before any POST', async () => {
     expect(() => readRehearsalList({ ...list(), source_tenant: { ...list().source_tenant, slug: 'foreign' } }, tenant)).toThrow();
-    const blocked = list(); blocked.create_action.can_create = false; blocked.create_action.blocked_reason_code = 'strict_mfa_required';
+    const blocked = list(); blocked.create_action.can_create = false; blocked.create_action.blocked_reason_code = 'rehearsal_license_required';
     await expect(createRehearsal(blocked, key, () => true)).rejects.toThrow(); expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+  it.each([true, undefined])('rejects an unexpected strict-MFA contract value %s before any POST', async value => {
+    const unexpected = list(); Object.assign(unexpected.create_action, { requires_strict_mfa: value });
+    expect(() => readRehearsalList(unexpected, tenant)).toThrow();
+    await expect(createRehearsal(unexpected, key, () => true)).rejects.toThrow(); expect(mocks.fetch).not.toHaveBeenCalled();
   });
   it('sends one normal bearer response with the same key in header and body', async () => {
     mocks.fetch.mockResolvedValueOnce(response()); const current = vi.fn(() => true); await respondToRehearsal(data(), key, 'yes', current);

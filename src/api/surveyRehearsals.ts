@@ -14,7 +14,7 @@ export interface Rehearsal {
 export interface RehearsalList {
   contract_version: 'surveys.production_rehearsal.v1'; official: false; source_tenant: { slug: string; display_name: string; canonical: true };
   items: Rehearsal[]; max_active_runs: 3; ui: Record<string, string>;
-  create_action: { contract_version: 'surveys.production_rehearsal.create_action.v1'; can_create: boolean; requires_strict_mfa: true;
+  create_action: { contract_version: 'surveys.production_rehearsal.create_action.v1'; can_create: boolean; requires_strict_mfa: false;
     method: 'POST'; api_path: string; blocked_reason_code: string | null; ui: Record<string, string> };
 }
 export interface RehearsalResponse {
@@ -59,7 +59,7 @@ export const readRehearsalList = (value: unknown, tenant: string): RehearsalList
   const raw = record(value), source = record(raw.source_tenant), action = record(raw.create_action), ui = record(raw.ui), actionUi = record(action.ui);
   if (!validRehearsalTenant(tenant) || raw.contract_version !== 'surveys.production_rehearsal.v1' || raw.official !== false || source.slug !== tenant || !text(source.display_name) || source.canonical !== true ||
       raw.max_active_runs !== 3 || !Array.isArray(raw.items) || raw.items.length > 3 || action.contract_version !== 'surveys.production_rehearsal.create_action.v1' ||
-      typeof action.can_create !== 'boolean' || action.requires_strict_mfa !== true || action.method !== 'POST' || action.api_path !== base(tenant) ||
+      typeof action.can_create !== 'boolean' || action.requires_strict_mfa !== false || action.method !== 'POST' || action.api_path !== base(tenant) ||
       !(action.blocked_reason_code === null || text(action.blocked_reason_code)) || (action.can_create && action.blocked_reason_code !== null) ||
       !['label', 'description'].every(name => text(actionUi[name])) || !['title', 'warning', 'refresh_label', 'open_label', 'check_status_label', 'uncertain_message', 'error_message'].every(name => text(ui[name]))) throw invalid();
   const items = raw.items.map(value => readRehearsal(value, tenant));

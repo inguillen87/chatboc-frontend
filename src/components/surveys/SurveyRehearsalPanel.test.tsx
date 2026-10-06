@@ -26,8 +26,8 @@ describe('verified SA persistent rehearsal administration', () => {
     mocks.session.user.rol = 'admin_municipio'; const owned = list(); owned.items = [rehearsal(2)]; owned.create_action.can_create = false; owned.create_action.blocked_reason_code = 'rehearsal_superadmin_required'; mocks.list.mockResolvedValueOnce(owned);
     render(<SurveyRehearsalPanel {...props} />); expect(await createButton()).toBeDisabled(); expect(screen.getByText(/Participaciones guardadas: 2/)).toBeVisible(); expect(mocks.list).toHaveBeenCalledExactlyOnceWith(tenant, expect.any(Function)); expect(mocks.create).not.toHaveBeenCalled();
   });
-  it('respects a server-denied create, including strict assurance or license gates', async () => {
-    const denied = list(); denied.create_action.can_create = false; denied.create_action.blocked_reason_code = 'strict_mfa_required'; mocks.list.mockResolvedValueOnce(denied);
+  it('respects a server-denied create from the license gate', async () => {
+    const denied = list(); denied.create_action.can_create = false; denied.create_action.blocked_reason_code = 'rehearsal_license_required'; mocks.list.mockResolvedValueOnce(denied);
     render(<SurveyRehearsalPanel {...props} />); expect(await createButton()).toBeDisabled(); expect(mocks.create).not.toHaveBeenCalled();
   });
   it('sends one POST while pending and rejects an eventual result after logout', async () => {
