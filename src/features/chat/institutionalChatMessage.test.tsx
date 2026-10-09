@@ -2,7 +2,7 @@ import React from 'react';
 import {act,cleanup,fireEvent,render,renderHook,screen} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node} from '../../../tests/fixtures/institutional-assistant.synthetic';
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel} from './institutionalChatMessage';
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel,institutionalChatBootstrapPayload} from './institutionalChatMessage';
 const mocks=vi.hoisted(()=>({fetch:vi.fn(),workspace:vi.fn()}));
 vi.mock('@/utils/api',async importOriginal=>({...await importOriginal<typeof import('@/utils/api')>(),apiFetch:(...args:unknown[])=>String(args[0]).includes('/institutional-assistant')?mocks.workspace(...args):mocks.fetch(...args)}));
 vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:null})}));
@@ -27,6 +27,18 @@ beforeEach(()=>{mocks.fetch.mockReset();mocks.workspace.mockReset();mocks.worksp
 afterEach(cleanup);
 
 describe('institutional responder boundary',()=>{
+ it('propagates backend navigation copy through the ordinary public bootstrap without inventing copy for older workspaces',()=>{
+  const w=workspace({visibility:'public',can_edit:false});
+  const ui={more_options:'Otras consultas',previous_options:'Consultas previas',options_page:'Grupo {current}/{total}'};
+  const next={...w,ui:{...w.ui,...ui}};
+  expect(parseInstitutionalChatMessage(institutionalChatBootstrapPayload(next,w.tenant.slug),w.tenant.slug)?.ui).toEqual({...ui,large_text:w.ui.large_text,source_details:w.ui.source_details});
+  expect(parseInstitutionalChatMessage(institutionalChatBootstrapPayload(w,w.tenant.slug),w.tenant.slug)?.ui).toBeUndefined();
+ });
+ it('validates supplied navigation copy without changing revision-bound button validation',()=>{
+  const data=payload(),ui={more_options:'Más opciones',previous_options:'Opciones anteriores',options_page:'Grupo {current} de {total}',large_text:'Lectura ampliada',source_details:'Consultar documentos'};
+  expect(parseInstitutionalChatMessage({...data,knowledge_ui:ui},'qa-knowledge')?.ui).toEqual(ui);
+  for(const invalid of [null,{}, {...ui,options_page:'Grupo {current}'},{...ui,large_text:' '},{...ui,more_options:'x'.repeat(201)}])expect(parseInstitutionalChatMessage({...data,knowledge_ui:invalid},'qa-knowledge')).toBeNull();
+ });
  it('accepts only the exact responder source, tenant and advertised revision-bound actions',()=>{
   const data=payload();expect(parseInstitutionalChatMessage(data,'qa-knowledge')?.nodes).toHaveLength(1);
   expect(isInstitutionalChatPayload(data)).toBe(true);expect(parseInstitutionalChatMessage({...data,fuente:'government_widget_menu'},'qa-knowledge')).toBeNull();
@@ -53,6 +65,21 @@ describe('institutional responder boundary',()=>{
 });
 
 describe('actual embedded chat normalization and renderer',()=>{
+ it('reaches all eleven options through backend-labelled pages and sends the exact final advertised action',()=>{
+  const data=payload(),actions=Array.from({length:11},(_,i)=>({code:String(i),label:`📄 Consulta ${i+1}`,target:`topic-${i}`}));
+  data.knowledge_nodes=[0,1,2].map(i=>({...data.knowledge_nodes[0],id:`node-${i}`,title:`Tema ${i+1}`,actions:actions.slice(i*4,i*4+4)}));
+  data.botones=actions.map(a=>({texto:a.label,action_id:`knowledge:${data.context_revision.slice(0,16)}:${a.target}`}));
+  const ui={more_options:'Más opciones',previous_options:'Opciones anteriores',options_page:'Grupo {current} de {total}',large_text:'Lectura ampliada',source_details:'Consultar documentos'};
+  const answer=parseInstitutionalChatMessage({...data,knowledge_ui:ui},'qa-knowledge')!,onButtonClick=vi.fn(),mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={onButtonClick}/>);
+  expect(screen.getByRole('button',{name:'Lectura ampliada'})).toBeVisible();expect(screen.getAllByText('Consultar documentos')).toHaveLength(3);
+  fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));expect(screen.getByRole('button',{name:'Consulta 5'})).toHaveFocus();
+  expect(screen.getAllByText(node().text)).toHaveLength(3);expect(screen.getAllByText('Información institucional de prueba')).toHaveLength(3);
+  fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));expect(onButtonClick).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Consulta 11'}));expect(onButtonClick).toHaveBeenCalledWith({text:data.botones[10].texto,action:data.botones[10].action_id,action_id:data.botones[10].action_id,source:'button'});
+  mounted.rerender(<InstitutionalChatMessage answer={{...answer,revision:'d'.repeat(64),tenant:{id:702,slug:'other-organization'}}} onButtonClick={onButtonClick}/>);
+  expect(screen.getByRole('status')).toHaveTextContent('Grupo 1 de 3');expect(screen.getByRole('button',{name:'Consulta 1'})).toBeVisible();
+  expect(screen.queryByRole('button',{name:'Opciones anteriores'})).not.toBeInTheDocument();
+ });
  it('uses the same semantic reading blocks in the widget and preserves source metadata and choices',()=>{
   const data=payload();data.knowledge_nodes[0].text='Documentación disponible.\n\n• Original legible\n• <script>literal</script>\n\nPasos de consulta.\n1. Prepará la consulta\n2. Consultá con el equipo';
   const onButtonClick=vi.fn(),answer=parseInstitutionalChatMessage(data,'qa-knowledge')!;

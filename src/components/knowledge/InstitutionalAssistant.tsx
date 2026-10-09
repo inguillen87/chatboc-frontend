@@ -4,6 +4,7 @@ import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,ty
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
+import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
@@ -149,7 +150,9 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
                <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
           </article>)}
-          {!busy&&!error&&actions.length>0?<div className="institutional-assistant__choices">{actions.map(action=><button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={()=>navigate(action.target)}><span>{action.label}</span><ChevronRight size={16}/></button>)}</div>:null}
+          {!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={nodes}
+            disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
+            renderChoice={action=><button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={()=>navigate(action.target)}><span>{action.label}</span><ChevronRight size={16}/></button>}/>:null}
         </div>
         {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{event.preventDefault();if(question.trim())void navigate(current,question.trim());}}>
           <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19}/><textarea id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}

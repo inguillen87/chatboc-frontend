@@ -10,6 +10,8 @@
 .institutional-chat-message__choices button { width:100%; min-width:0; }
 .institutional-chat-message__choices button [aria-hidden] { flex-shrink:0; }
 .institutional-chat-message__choices button span:last-child { min-width:0; overflow-wrap:anywhere; }
+.institutional-chat-message .institutional-choices__status { margin-top:1rem; margin-bottom:0; color:hsl(var(--muted-foreground)); }
+.institutional-chat-message__choices :is([data-choice-more],[data-choice-previous]) { justify-content:center; background:hsl(var(--muted)/.35); }
 .institutional-chat-message__links { display:grid; gap:.5rem; margin-block:1rem; }
 .institutional-chat-message a { display:flex; align-items:center; text-decoration:underline; text-underline-offset:.2em; }
 .institutional-chat-message__sources { margin-top:1rem; border-top:1px solid hsl(var(--border)); }

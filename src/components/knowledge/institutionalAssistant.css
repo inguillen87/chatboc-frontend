@@ -42,6 +42,9 @@
 .institutional-assistant__choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:25px; }
 .institutional-assistant__choices button { justify-content:space-between; padding:13px 15px; min-height:54px; border:1px solid hsl(var(--border)); text-align:left; background:hsl(var(--background)); }
 .institutional-assistant__choices button span { overflow-wrap:anywhere; }.institutional-assistant__choices svg{flex-shrink:0;}
+.institutional-assistant .institutional-choices__status { margin-top:25px; color:hsl(var(--muted-foreground)); font-size:var(--institutional-detail-size); }
+.institutional-assistant .institutional-choices__status+.institutional-assistant__choices { margin-top:9px; }
+.institutional-assistant__choices :is([data-choice-more],[data-choice-previous]) { justify-content:center; background:hsl(var(--muted)/.35); }
 .institutional-assistant__composer { padding:19px 25px 23px; border-top:1px solid hsl(var(--border)); background:hsl(var(--card)); }
 .institutional-assistant__composer label { font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); display:block; margin-bottom:9px; }
 .institutional-assistant__composer>div { display:flex; align-items:center; gap:12px; border:1px solid hsl(var(--border)); border-radius:12px; padding:6px 7px 6px 14px; background:hsl(var(--background)); }

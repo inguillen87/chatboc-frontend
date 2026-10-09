@@ -1,8 +1,10 @@
 import {isKnowledgeNode,isKnowledgeSource,sameKnowledgeSourceIdentity,parseWorkspace,parseAnswer,type KnowledgeNode,type KnowledgeSource} from '@/components/knowledge/institutionalAssistantContract';
 import {ApiError} from '@/utils/api';
+import {readInstitutionalChoiceNavigation,type InstitutionalChoiceNavigation} from '@/components/knowledge/InstitutionalChoices';
 
 export interface InstitutionalChatMessage {
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
+  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string};
 }
 const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 export const isInstitutionalChatPayload=(value:unknown):boolean=>record(value)&&typeof value.fuente==='string'&&value.fuente.startsWith('institutional_knowledge');
@@ -21,6 +23,7 @@ export function institutionalChatBootstrapPayload(value:unknown,tenantSlug:strin
   const payload={fuente:'institutional_knowledge',context_revision:answer.revision,
     knowledge_tenant:answer.tenant,knowledge_nodes:answer.nodes,
     knowledge_sources:answer.nodes.flatMap(node=>node.sources),message_body:answer.text,
+    ...(readInstitutionalChoiceNavigation(workspace.ui)?{knowledge_ui:{...readInstitutionalChoiceNavigation(workspace.ui),large_text:workspace.ui.large_text,source_details:workspace.ui.source_details}}:{}),
     botones:institutionalChatActions(answer.nodes).map(action=>({texto:action.label,
       action_id:`knowledge:${answer.revision.slice(0,16)}:${action.target}`}))};
   if(!parseInstitutionalChatMessage(payload,tenantSlug))throw new Error('knowledge_initial_response_invalid');
@@ -41,6 +44,9 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     !Array.isArray(value.knowledge_nodes)||!value.knowledge_nodes.length||value.knowledge_nodes.length>3||!value.knowledge_nodes.every(isKnowledgeNode)||
     !Array.isArray(value.knowledge_sources)||!value.knowledge_sources.length||!value.knowledge_sources.every(isKnowledgeSource)||!Array.isArray(value.botones))return null;
   const revision=value.context_revision;
+  const suppliedUi=record(value.knowledge_ui)?value.knowledge_ui:null,navigation=readInstitutionalChoiceNavigation(suppliedUi);
+  if(value.knowledge_ui!==undefined&&(!navigation||!suppliedUi||
+    !['large_text','source_details'].every(key=>typeof suppliedUi[key]==='string'&&suppliedUi[key].trim()&&suppliedUi[key].length<=200)))return null;
   const sources=new Map<string,KnowledgeSource>();
   for(const source of value.knowledge_sources){
     const previous=sources.get(source.id);if(previous&&!sameKnowledgeSourceIdentity(previous,source))return null;
@@ -52,7 +58,8 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
   const expected=institutionalChatActions(value.knowledge_nodes);
   if(value.botones.length!==expected.length||value.botones.some((button,index)=>!record(button)||
     button.texto!==expected[index].label||button.action_id!==`knowledge:${revision.slice(0,16)}:${expected[index].target}`))return null;
-  return {tenant:{id:Number(value.knowledge_tenant.id),slug:tenantSlug},revision,nodes:value.knowledge_nodes,sources:[...sources.values()]};
+  return {tenant:{id:Number(value.knowledge_tenant.id),slug:tenantSlug},revision,nodes:value.knowledge_nodes,sources:[...sources.values()],
+    ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string}}:{})};
 }
 
 /** Decorative leading emoji stay visible; assistive technology reads the words. */

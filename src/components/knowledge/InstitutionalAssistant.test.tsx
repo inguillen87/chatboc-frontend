@@ -109,6 +109,20 @@ describe('institutional workspace inside the application',()=>{
  });
 });
 describe('source evidence and inclusive navigation',()=>{
+ it('paginates a three-node answer locally and sends only the selected canonical destination',async()=>{
+  const value=workspace({ui:{...workspace().ui,more_options:'Más opciones',previous_options:'Opciones anteriores',options_page:'Opciones: grupo {current} de {total}'}});
+  mocks.fetch.mockResolvedValue(value);render(view());await screen.findByText(node().text);
+  const nodes=[node('requirements'),node('other'),node('last')];nodes[1].title='Otro tema';nodes[2].title='Último tema';
+  nodes.forEach((n,i)=>n.actions=Array.from({length:i===2?3:4},(_,j)=>({code:String(j),label:`Consulta ${i*4+j+1}`,target:`target-${i*4+j}`})));
+  mocks.fetch.mockResolvedValueOnce({...reply(),nodes});const input=screen.getByLabelText('Escribí tu consulta');
+  fireEvent.change(input,{target:{value:'Consulta sobre tres temas'}});fireEvent.submit(input.closest('form')!);await screen.findByRole('heading',{name:'Último tema'});
+  expect(screen.getByRole('status')).toHaveTextContent('grupo 1 de 3');fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
+  expect(screen.getByRole('button',{name:'Consulta 5'})).toHaveFocus();fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
+  expect(screen.getByRole('heading',{name:'Otro tema'})).toBeVisible();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  const final=reply('target-10');final.nodes[0].title='Destino elegido';
+  mocks.fetch.mockResolvedValueOnce(final);fireEvent.click(screen.getByRole('button',{name:'Consulta 11'}));await screen.findByRole('heading',{name:'Destino elegido'});
+  expect(mocks.fetch.mock.calls[2][0]).toContain('/nodes/target-10?revision=');expect(screen.queryByRole('button',{name:'Más opciones'})).not.toBeInTheDocument();
+ });
  it('presents supplied lists as reading lists without changing the source citation',async()=>{
   const value=workspace();value.knowledge!.initial.text='Documentos para consultar.\n\n• Original legible\n• <img src=x onerror=literal()>\n\nPasos de consulta.\n1. Reuní la documentación\n2. Consultá con el equipo';
   mocks.fetch.mockResolvedValue(value);const mounted=render(view());await screen.findByText('Documentos para consultar.');
