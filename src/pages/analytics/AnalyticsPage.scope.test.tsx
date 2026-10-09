@@ -1,15 +1,23 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import AnalyticsPage from './AnalyticsPage';
+import AnalyticsPage, { ANALYTICS_RESPONSE_TIMEOUT_MS, ANALYTICS_TOTAL_TIMEOUT_MS } from './AnalyticsPage';
 import { analyticsService } from '@/services/analyticsService';
 import { enterpriseService } from '@/services/enterpriseService';
 import { ApiError } from '@/utils/api';
+import { STARTUP_CONTINUITY_BUDGET_MS } from '@/utils/backendRequestContinuity';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 const useUserMock = vi.hoisted(() => vi.fn<() => any>());
 const useTenantMock = vi.hoisted(() => vi.fn<() => any>());
+const readiness = vi.hoisted(() => vi.fn<() => Promise<void>>());
+
+vi.mock('@/utils/backendBootstrapGate', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/utils/backendBootstrapGate')>(),
+  ensureBackendRuntimeReady: readiness,
+}));
 
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => useTenantMock(),
@@ -50,10 +58,10 @@ vi.mock('@/services/analyticsService', () => ({
   },
 }));
 
-vi.mock('@/components/analytics/OverviewDashboard', () => ({ default: () => <div>overview</div> }));
+vi.mock('@/components/analytics/OverviewDashboard', () => ({ default: ({ data }: any) => <div>overview<span data-testid="overview-count">{data.kpis.total_interactions}</span></div> }));
 vi.mock('@/components/analytics/IdentityCoverageBanner', () => ({ default: () => <div>identity</div> }));
 vi.mock('@/components/analytics/HeatmapDashboard', () => ({ default: () => <div>heatmap</div> }));
-vi.mock('@/components/analytics/InsightsDashboard', () => ({ default: () => <div>insights</div> }));
+vi.mock('@/components/analytics/InsightsDashboard', () => ({ default: ({ recommendations, recommendationsLoading }: any) => <div>insights{!recommendationsLoading ? recommendations?.map((text: string) => <p key={text}>{text}</p>) : null}</div> }));
 vi.mock('@/components/analytics/MunicipioDashboard', () => ({ default: () => <div>municipio</div> }));
 vi.mock('@/components/analytics/PymeDashboard', () => ({ default: () => <div>pyme</div> }));
 vi.mock('@/components/analytics/RealtimeHubDashboard', () => ({ default: () => <div>realtime</div> }));
@@ -65,15 +73,21 @@ vi.mock('@/features/analytics/OperationsDashboardPanel', () => ({
 describe('AnalyticsPage scope routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    readiness.mockReset().mockResolvedValue(undefined);
+    vi.mocked(analyticsService.getHub).mockReset().mockResolvedValue({ sections: {}, navigation: { primary: [] } });
+    vi.mocked(analyticsService.getSummary).mockReset().mockResolvedValue({ kpis: { total_interactions: 0, active_users: 0, avg_response_time_s: 0 }, top_categories: [], volume_by_day: [], heatmap_points: [], insights: [] });
+    vi.mocked(analyticsService.getRealtimeHub).mockReset().mockResolvedValue({ ui: { labels: {} }, totals: {} });
     window.localStorage.clear();
     useTenantMock.mockReturnValue({ currentSlug: null, tenant: { id: 333, tipo: 'pyme' } });
     useUserMock.mockReturnValue({ user: { id: 4, rol: 'admin_municipio', tipo_chat: 'municipio', tenant_slug: 'junin', organization_profile: { tenant: { id: 22, slug: 'junin' } } } });
   });
 
+  afterEach(() => { cleanup(); vi.useRealTimers(); });
+
   it('keeps Mauricio profile 22 in the explicit namespace and skips platform leads', async () => {
     render(<MemoryRouter initialEntries={['/perfil?tab=analytics']}><AnalyticsPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('operations')).toBeInTheDocument());
-    expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22, tenantSlug: 'junin', scope: 'municipio' }), { strictAccess: true });
+    expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22, tenantSlug: 'junin', scope: 'municipio' }), expect.objectContaining({ strictAccess: true }));
     expect(analyticsService.getSummary).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22 }), expect.anything());
     expect(analyticsService.getRealtimeHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22, tenantSlug: 'junin' }));
     expect(vi.mocked(analyticsService.getHub).mock.calls[0][0]).not.toHaveProperty('tenant_id');
@@ -98,7 +112,7 @@ describe('AnalyticsPage scope routing', () => {
     render(<MemoryRouter initialEntries={['/analytics?tenant_slug=tierra-del-fuego']}><AnalyticsPage /></MemoryRouter>);
     await waitFor(() => expect(enterpriseService.getLeadInteractions).toHaveBeenCalled());
     expect(enterpriseService.getLeadInteractions).toHaveBeenCalledWith(expect.not.objectContaining({ tenant_id: expect.anything() }), 'tierra-del-fuego');
-    expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 46, tenantSlug: 'tierra-del-fuego' }), { strictAccess: true });
+    expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 46, tenantSlug: 'tierra-del-fuego' }), expect.objectContaining({ strictAccess: true }));
   });
 
   it.each([new ApiError('denied', 401), new ApiError('denied', 403), new DOMException('session changed', 'AbortError')])('does not request summary after hub rejection $name/$status', async (error) => {
@@ -118,7 +132,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), { strictAccess: true });
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), expect.objectContaining({ strictAccess: true }));
     });
 
     expect(analyticsService.getSummary).toHaveBeenCalledWith(
@@ -150,7 +164,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), { strictAccess: true });
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), expect.objectContaining({ strictAccess: true }));
     });
 
     expect(analyticsService.getSummary).toHaveBeenCalledWith(
@@ -214,7 +228,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), { strictAccess: true });
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'municipio' }), expect.objectContaining({ strictAccess: true }));
     });
   });
 
@@ -247,7 +261,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'pyme', tenantSlug: 'bodega', tenant_profile_id: 333 }), { strictAccess: true });
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'pyme', tenantSlug: 'bodega', tenant_profile_id: 333 }), expect.objectContaining({ strictAccess: true }));
     });
   });
 
@@ -289,7 +303,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('overview')).toBeInTheDocument();
+      expect(screen.getByTestId('overview-count')).toBeInTheDocument();
     });
 
     expect(screen.queryByRole('tab', { name: 'Mapas' })).not.toBeInTheDocument();
@@ -300,5 +314,164 @@ describe('AnalyticsPage scope routing', () => {
       expect(screen.getByText('operations')).toBeInTheDocument();
     });
     expect(screen.queryByText('heatmap')).not.toBeInTheDocument();
+  });
+
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>(finish => { resolve = finish; });
+    return { promise, resolve };
+  };
+  const flush = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const openAnalytics = () => render(<MemoryRouter initialEntries={['/analytics?tenant_profile_id=22&range=7d']}><AnalyticsPage /></MemoryRouter>);
+  const summary = (count: number) => ({ kpis: { total_interactions: count, active_users: 0, avg_response_time_s: 0 }, top_categories: [], volume_by_day: [], heatmap_points: [], insights: [] });
+
+  it('waits for readiness and a hub response beyond the old 3.5s deadline without requiring retry', async () => {
+    vi.useFakeTimers();
+    const ready = deferred<void>(), hub = deferred<any>();
+    readiness.mockReturnValueOnce(ready.promise);
+    vi.mocked(analyticsService.getHub).mockReturnValueOnce(hub.promise);
+    openAnalytics();
+    await act(async () => { await vi.advanceTimersByTimeAsync(9_000); });
+    expect(analyticsService.getHub).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    await act(async () => { ready.resolve(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    expect(analyticsService.getHub).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    await act(async () => { hub.resolve({ sections: {}, navigation: { primary: [] } }); });
+    expect(screen.getByTestId('overview-count')).toHaveTextContent('0');
+  });
+
+  it('bounds an attempt when readiness never settles and does not dispatch after late readiness', async () => {
+    vi.useFakeTimers();
+    const ready = deferred<void>();
+    readiness.mockReturnValueOnce(ready.promise);
+    openAnalytics();
+    await act(async () => { await vi.advanceTimersByTimeAsync(ANALYTICS_TOTAL_TIMEOUT_MS); });
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+    expect(analyticsService.getHub).not.toHaveBeenCalled();
+    await act(async () => { ready.resolve(); });
+    expect(analyticsService.getHub).not.toHaveBeenCalled();
+    expect(analyticsService.getSummary).not.toHaveBeenCalled();
+    expect(enterpriseService.trackEvent).not.toHaveBeenCalled();
+  });
+
+  it('aborts a hung hub and allows one manual retry without accepting its late payload', async () => {
+    vi.useFakeTimers();
+    const oldHub = deferred<any>();
+    vi.mocked(analyticsService.getHub).mockReturnValueOnce(oldHub.promise);
+    openAnalytics();
+    await flush();
+    const oldOptions = vi.mocked(analyticsService.getHub).mock.calls[0][1]!;
+    await act(async () => { await vi.advanceTimersByTimeAsync(STARTUP_CONTINUITY_BUDGET_MS + ANALYTICS_RESPONSE_TIMEOUT_MS); });
+    expect(oldOptions.signal?.aborted).toBe(true);
+    expect(oldOptions.isCurrent?.()).toBe(false);
+    expect(analyticsService.getSummary).not.toHaveBeenCalled();
+    expect(enterpriseService.trackEvent).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await flush();
+    expect(screen.getByTestId('overview-count')).toHaveTextContent('0');
+    expect(analyticsService.getHub).toHaveBeenCalledTimes(2);
+    expect(analyticsService.getSummary).toHaveBeenCalledTimes(1);
+    await act(async () => { oldHub.resolve({ sections: { general: summary(999) } }); });
+    expect(analyticsService.getSummary).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('overview-count')).toHaveTextContent('0');
+    expect(enterpriseService.trackEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a successful summary beyond the old 5.5s deadline without retry', async () => {
+    vi.useFakeTimers();
+    const slowSummary = deferred<any>();
+    vi.mocked(analyticsService.getSummary).mockReturnValueOnce(slowSummary.promise);
+    openAnalytics();
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    await act(async () => { slowSummary.resolve(summary(7)); });
+    expect(screen.getByTestId('overview-count')).toHaveTextContent('7');
+    expect(analyticsService.getHub).toHaveBeenCalledTimes(1);
+    expect(enterpriseService.trackEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('retires a late summary after a timeout and manual retry', async () => {
+    vi.useFakeTimers();
+    const oldSummary = deferred<any>();
+    vi.mocked(analyticsService.getSummary).mockReturnValueOnce(oldSummary.promise).mockResolvedValueOnce(summary(7));
+    openAnalytics();
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(STARTUP_CONTINUITY_BUDGET_MS + ANALYTICS_RESPONSE_TIMEOUT_MS - 8_000); });
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await flush();
+    expect(screen.getByTestId('overview-count')).toHaveTextContent('7');
+    await act(async () => { oldSummary.resolve(summary(999)); });
+    expect(screen.getByTestId('overview-count')).toHaveTextContent('7');
+    expect(enterpriseService.trackEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not dispatch or publish when the session changes during readiness', async () => {
+    vi.useFakeTimers();
+    const ready = deferred<void>();
+    readiness.mockReturnValueOnce(ready.promise);
+    const view = openAnalytics();
+    advanceChatbocSessionRevision();
+    await act(async () => { ready.resolve(); });
+    expect(analyticsService.getHub).not.toHaveBeenCalled();
+    expect(analyticsService.getSummary).not.toHaveBeenCalled();
+    expect(enterpriseService.trackEvent).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('does not publish a hub payload after the session is retired', async () => {
+    vi.useFakeTimers();
+    const hub = deferred<any>();
+    vi.mocked(analyticsService.getHub).mockReturnValueOnce(hub.promise);
+    const view = openAnalytics();
+    await flush();
+    advanceChatbocSessionRevision();
+    await act(async () => { hub.resolve({ sections: { general: summary(999) } }); });
+    expect(analyticsService.getSummary).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('overview-count')).not.toBeInTheDocument();
+    expect(enterpriseService.trackEvent).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('passes only the latest authorized realtime recommendations after a refresh', async () => {
+    vi.useFakeTimers();
+    const oldRealtime = deferred<any>();
+    vi.mocked(analyticsService.getRealtimeHub).mockReturnValueOnce(oldRealtime.promise)
+      .mockResolvedValueOnce({ recommendations: ['Acción del servicio actual'] });
+    openAnalytics();
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(45_000); });
+    expect(screen.getByText('Acción del servicio actual')).toBeInTheDocument();
+    await act(async () => { oldRealtime.resolve({ recommendations: ['Acción de lectura vencida'] }); });
+    expect(screen.queryByText('Acción de lectura vencida')).not.toBeInTheDocument();
+    expect(screen.getByText('Acción del servicio actual')).toBeInTheDocument();
+  });
+
+  it('retires hub and realtime payloads when a different verified organization replaces the scope', async () => {
+    vi.useFakeTimers();
+    const oldHub = deferred<any>(), oldRealtime = deferred<any>();
+    vi.mocked(analyticsService.getHub).mockReturnValueOnce(oldHub.promise);
+    vi.mocked(analyticsService.getRealtimeHub).mockReturnValueOnce(oldRealtime.promise)
+      .mockResolvedValueOnce({ recommendations: ['Acción de bodega'] });
+    const view = render(<MemoryRouter initialEntries={['/perfil?tab=analytics']}><AnalyticsPage /></MemoryRouter>);
+    await flush();
+    const oldOptions = vi.mocked(analyticsService.getHub).mock.calls[0][1]!;
+    useUserMock.mockReturnValue({ user: { id: 4, rol: 'admin', tipo_chat: 'pyme', tenant_slug: 'bodega', organization_profile: { tenant: { id: 333, slug: 'bodega' } } } });
+    view.rerender(<MemoryRouter initialEntries={['/perfil?tab=analytics']}><AnalyticsPage /></MemoryRouter>);
+    await flush();
+    expect(oldOptions.signal?.aborted).toBe(true);
+    expect(analyticsService.getHub).toHaveBeenLastCalledWith(expect.objectContaining({ tenant_profile_id: 333, tenantSlug: 'bodega', scope: 'pyme' }), expect.objectContaining({ strictAccess: true }));
+    expect(screen.getByText('Acción de bodega')).toBeInTheDocument();
+    await act(async () => {
+      oldHub.resolve({ sections: { general: summary(999) } });
+      oldRealtime.resolve({ recommendations: ['Acción de junin retirada'] });
+    });
+    expect(analyticsService.getSummary).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Acción de junin retirada')).not.toBeInTheDocument();
+    expect(screen.getByText('Acción de bodega')).toBeInTheDocument();
   });
 });

@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Zap, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { analyticsService } from '@/services/analyticsService';
 import { useTenant } from '@/context/TenantContext';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 interface Props {
   tenantId?: number;
   tenantProfileId?: number;
   tenantSlug?: string;
   scope?: string;
+  recommendations?: string[];
+  recommendationsLoading?: boolean;
+  onRefreshRecommendations?: () => void;
 }
 
-const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantSlug, scope }) => {
+const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantSlug, scope, recommendations, recommendationsLoading = false, onRefreshRecommendations }) => {
   const { currentSlug } = useTenant();
   const verifiedSlug = tenantSlug || currentSlug || undefined;
   const [insights, setInsights] = useState<any[]>([]);
@@ -20,25 +24,29 @@ const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantS
 
   useEffect(() => {
     let active = true;
+    const revision = captureChatbocSessionRevision();
+    const isCurrent = () => active && isChatbocSessionRevisionCurrent(revision);
     const loadInsights = async () => {
-        if(!tenantId && !tenantProfileId) return;
+        if(!tenantId && !tenantProfileId) { setInsights([]); setLoading(false); return; }
         setLoading(true);
         setInsights([]);
         try {
             const selector = tenantProfileId ? { tenant_profile_id: tenantProfileId, tenantSlug: verifiedSlug, scope } : tenantId!;
             const data = await analyticsService.getInsights(selector, verifiedSlug);
-            if (active) setInsights(data || []);
+            if (isCurrent()) setInsights(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error(e);
         } finally {
-            if (active) setLoading(false);
+            if (isCurrent()) setLoading(false);
         }
     };
     loadInsights();
     return () => { active = false; };
   }, [tenantId, tenantProfileId, verifiedSlug, scope]);
 
-  if (loading) return <div className="p-4 text-center text-muted-foreground">Analizando datos...</div>;
+  const backendRecommendations = Array.isArray(recommendations)
+    ? recommendations.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    : [];
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -47,12 +55,14 @@ const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantS
               <CardTitle className="flex items-center gap-2 text-primary">
                   <Zap className="h-5 w-5" /> Hallazgos Automáticos
               </CardTitle>
-              <CardDescription>Patrones detectados por IA en la última semana.</CardDescription>
+              <CardDescription>Hallazgos del servicio para la organización seleccionada.</CardDescription>
           </CardHeader>
           <CardContent>
               <ul className="space-y-4">
-                  {insights.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No se detectaron patrones inusuales.</p>
+                  {loading ? (
+                      <li className="text-sm text-muted-foreground">Analizando datos...</li>
+                  ) : insights.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No hay hallazgos disponibles para este alcance.</p>
                   ) : (
                       insights.map((insight, i) => (
                           <li key={i} className="flex gap-3 items-start p-3 bg-card rounded-lg shadow-sm border">
@@ -72,31 +82,21 @@ const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantS
 
       <Card>
           <CardHeader>
-              <CardTitle>Recomendaciones</CardTitle>
+              <CardTitle>Recomendaciones en tiempo real</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-              {/* Mock recommendations based on typical patterns if API returns specific actions */}
-              <div className="p-4 border rounded-lg hover:bg-accent/5 transition-colors cursor-pointer group">
-                  <div className="flex justify-between items-start">
-                      <h4 className="font-semibold text-sm mb-1 flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                          Optimizar Horarios
-                      </h4>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">Se detectó alto volumen de consultas no atendidas los Lunes entre 8am y 10am.</p>
-              </div>
-
-              <div className="p-4 border rounded-lg hover:bg-accent/5 transition-colors cursor-pointer group">
-                   <div className="flex justify-between items-start">
-                      <h4 className="font-semibold text-sm mb-1 flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          Actualizar FAQ: Envíos
-                      </h4>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">El 15% de las consultas son sobre "Costo de envío". Agregar esto al menú podría reducir la carga.</p>
-              </div>
+              {recommendationsLoading ? (
+                  <p className="text-sm text-muted-foreground" role="status">Consultando recomendaciones…</p>
+              ) : backendRecommendations.length ? (
+                  <ul className="space-y-3">
+                      {backendRecommendations.map((recommendation, index) => (
+                          <li key={index} className="rounded-lg border p-4 text-sm">{recommendation}</li>
+                      ))}
+                  </ul>
+              ) : (
+                  <p className="text-sm text-muted-foreground">No hay recomendaciones disponibles para este alcance. Actualizá los datos para volver a consultar.</p>
+              )}
+              {onRefreshRecommendations ? <Button variant="outline" size="sm" onClick={onRefreshRecommendations} disabled={recommendationsLoading}>Actualizar recomendaciones</Button> : null}
           </CardContent>
       </Card>
     </div>

@@ -25,6 +25,11 @@ import { openExportAndTrack } from '@/utils/enterpriseExperience';
 import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { BASE_API_URL } from '@/config';
+import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
+import { STARTUP_CONTINUITY_BUDGET_MS } from '@/utils/backendRequestContinuity';
+import { withAsyncTimeout } from '@/utils/asyncTimeout';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
 
@@ -68,21 +73,9 @@ const resolveRequestedAnalyticsTab = (searchParams: URLSearchParams): AnalyticsT
 const resolveInitialAnalyticsTab = (searchParams: URLSearchParams, isEmbeddedInProfile: boolean): AnalyticsTab =>
   resolveRequestedAnalyticsTab(searchParams) || (isEmbeddedInProfile ? 'operations' : 'overview');
 
-const ANALYTICS_HUB_TIMEOUT_MS = 3500;
-const ANALYTICS_SUMMARY_TIMEOUT_MS = 5500;
-
-const withAnalyticsTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-};
+export const ANALYTICS_RESPONSE_TIMEOUT_MS = 15_000;
+// Preserve readiness/recovery budgets, with a deliberate ceiling for the complete attempt.
+export const ANALYTICS_TOTAL_TIMEOUT_MS = 2 * STARTUP_CONTINUITY_BUDGET_MS + 2 * ANALYTICS_RESPONSE_TIMEOUT_MS;
 
 
 const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> = [
@@ -142,6 +135,8 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const summaryRequest = useRef(0);
+  const summaryAbort = useRef<AbortController | null>(null);
+  const realtimeRequest = useRef(0);
 
   const [timeRange, setTimeRange] = useState(searchParams.get('range') || '7d');
   const [channelFilter, setChannelFilter] = useState(searchParams.get('canal') || '');
@@ -262,8 +257,13 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
   }, [timeRange]);
 
   const fetchData = async () => {
+    summaryAbort.current?.abort();
+    const controller = new AbortController();
+    summaryAbort.current = controller;
     const request = ++summaryRequest.current;
-    const isCurrent = () => summaryRequest.current === request;
+    const sessionRevision = captureChatbocSessionRevision();
+    const ownsRequest = () => summaryRequest.current === request && isChatbocSessionRevisionCurrent(sessionRevision);
+    const isCurrent = () => ownsRequest() && !controller.signal.aborted;
     setLoading(true);
     setError(null);
     try {
@@ -281,23 +281,28 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         rango_edad: ageRangeFilter || undefined,
         source: sourceFilter || undefined,
       };
-      let result: AnalyticsSummary;
-
-      const hub = await withAnalyticsTimeout(
-        analyticsService.getHub(requestPayload, { strictAccess: true }),
-        ANALYTICS_HUB_TIMEOUT_MS,
-        'analytics_hub_timeout',
-      );
-      if (!isCurrent()) return;
-      const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
-      setHubNavigation(primaryNavigation);
-      setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
-
-      result = await withAnalyticsTimeout(
-          analyticsService.getSummary(requestPayload, hub),
-          ANALYTICS_SUMMARY_TIMEOUT_MS,
-          'analytics_summary_timeout',
+      const read = async () => {
+        const hub = await withBackendReadTimeout(
+          () => analyticsService.getHub(requestPayload, { strictAccess: true, signal: controller.signal, isCurrent }),
+          ANALYTICS_RESPONSE_TIMEOUT_MS,
+          'Analytics hub',
+          BASE_API_URL,
+          isCurrent,
         );
+        if (!isCurrent()) throw new DOMException('Analytics read retired', 'AbortError');
+        const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
+        setHubNavigation(primaryNavigation);
+        setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
+
+        return withBackendReadTimeout(
+          () => analyticsService.getSummary(requestPayload, hub),
+          ANALYTICS_RESPONSE_TIMEOUT_MS,
+          'Analytics summary',
+          BASE_API_URL,
+          isCurrent,
+        );
+      };
+      const result = await withAsyncTimeout(read(), ANALYTICS_TOTAL_TIMEOUT_MS, 'Analytics dashboard');
 
       if (!isCurrent()) return;
       setData(result);
@@ -312,6 +317,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       }
     } catch (err: any) {
       if (!isCurrent()) return;
+      controller.abort();
       console.error(err);
       setData(null);
       setHubNavigation([]);
@@ -319,7 +325,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err.status, 'load_analytics') : 'No se pudo cargar el dashboard.';
       setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
-      if (isCurrent()) setLoading(false);
+      if (ownsRequest()) setLoading(false);
     }
   };
 
@@ -327,7 +333,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     if (tenantId || currentSlug) {
         fetchData();
     }
-    return () => { summaryRequest.current += 1; };
+    return () => { summaryRequest.current += 1; summaryAbort.current?.abort(); };
   }, [tenantId, currentSlug, dateRange, activeTab, scope, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter]);
 
   const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {
@@ -383,8 +389,12 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     () => async () => {
       if (!tenantId) return;
 
+      const request = ++realtimeRequest.current;
+      const sessionRevision = captureChatbocSessionRevision();
+      const isCurrent = () => realtimeRequest.current === request && isChatbocSessionRevisionCurrent(sessionRevision);
       const windowMinutes = timeRange === '24h' ? 60 : timeRange === '7d' ? 30 : 15;
       setLoadingRealtimeHub(true);
+      setRealtimeHub(null);
       analyticsService
         .getRealtimeHub({
           tenant_profile_id: tenantId,
@@ -392,18 +402,20 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
           window_minutes: windowMinutes,
           tenantSlug: currentSlug || undefined,
         })
-        .then((response) => setRealtimeHub(response || null))
+        .then((response) => { if (isCurrent()) setRealtimeHub(response || null); })
         .catch((error) => {
+          if (!isCurrent()) return;
           console.warn('[AnalyticsPage] realtime hub unavailable', error);
           setRealtimeHub(null);
         })
-        .finally(() => setLoadingRealtimeHub(false));
+        .finally(() => { if (isCurrent()) setLoadingRealtimeHub(false); });
     },
     [tenantId, timeRange, scope, currentSlug],
   );
 
   useEffect(() => {
     fetchRealtimeHub();
+    return () => { realtimeRequest.current += 1; };
   }, [fetchRealtimeHub]);
 
   useEffect(() => {
@@ -840,7 +852,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       {/* Insights Section always visible at bottom or side */}
       <div className="mt-8">
         <SectionErrorBoundary title="No pudimos cargar insights" resetKeys={[currentSlug,tenantId]}>
-          <InsightsDashboard tenantProfileId={tenantId} tenantSlug={currentSlug} scope={scope} />
+          <InsightsDashboard tenantProfileId={tenantId} tenantSlug={currentSlug} scope={scope} recommendations={realtimeHub?.recommendations} recommendationsLoading={loadingRealtimeHub} onRefreshRecommendations={fetchRealtimeHub} />
         </SectionErrorBoundary>
       </div>
 
