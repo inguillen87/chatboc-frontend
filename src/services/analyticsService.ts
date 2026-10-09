@@ -14,8 +14,10 @@ export { parseIdentityCoverageResponseV1 };
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 export interface AnalyticsFilters {
+  // Legacy analytics tenant_id is an owner ID; profile callers opt in explicitly.
   tenant_id?: number;
   tenantId?: number | string;
+  tenant_profile_id?: number;
   from?: string;
   to?: string;
   context?: AnalyticsContext;
@@ -412,6 +414,8 @@ export interface AnalyticsHeatmapLocationQuality {
 export interface AnalyticsHeatmapResponse {
   tenant_slug?: string;
   tenant_id?: number | string;
+  tenant_profile_id?: number | string;
+  tenant_owner_id?: number | string;
   raw_points_redacted?: boolean;
   privacy_mode?: string;
   contract_version?: string;
@@ -932,6 +936,7 @@ const buildQuery = (filters: AnalyticsFilters) => {
 
   const tenantId = filters.tenant_id ?? filters.tenantId;
   if (tenantId) params.append('tenant_id', String(tenantId));
+  if (filters.tenant_profile_id) params.append('tenant_profile_id', String(filters.tenant_profile_id));
   if (filters.tenantSlug) {
     params.append('tenant_slug', filters.tenantSlug);
     params.append('tenant', filters.tenantSlug);
@@ -1040,7 +1045,7 @@ const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, 
 };
 
 export const analyticsService = {
-  getHub: async (filters: AnalyticsFilters, options: { strictAccess?: boolean } = {}): Promise<AnalyticsHubResponse | null> => {
+  getHub: async (filters: AnalyticsFilters, options: { strictAccess?: boolean; signal?: AbortSignal; isCurrent?: () => boolean } = {}): Promise<AnalyticsHubResponse | null> => {
     const geoQueryFilters: Record<string, unknown> = { ...filters };
     delete geoQueryFilters.tenantSlug;
     delete geoQueryFilters.tenant;
@@ -1048,18 +1053,21 @@ export const analyticsService = {
     const query = buildQuery({ ...geoQueryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
     const revision = captureChatbocSessionRevision();
     const authority = getHubAuthorityScope();
-    const isCurrent = () => isChatbocSessionRevisionCurrent(revision) && getHubAuthorityScope() === authority;
+    const isCurrent = () => !options.signal?.aborted && (options.isCurrent?.() ?? true)
+      && isChatbocSessionRevisionCurrent(revision) && getHubAuthorityScope() === authority;
     const cacheKey = getHubCacheKey(filters, authority);
     const cached = hubCache.get(cacheKey);
     let responseEtag = cached?.etag;
 
     for (const endpoint of HUB_ENDPOINTS) {
       try {
+        if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
         const response = await apiFetch<AnalyticsHubResponse>(`${endpoint}?${query}`, {
           tenantSlug: filters.tenantSlug,
           singleAttempt: true,
           allowStartupRecovery: true,
           isCurrent,
+          signal: options.signal,
           headers: buildAnalyticsHeaders(cached?.etag),
           onResponse: (raw) => {
             const nextEtag = raw.headers.get('ETag') || raw.headers.get('etag');
@@ -1116,7 +1124,18 @@ export const analyticsService = {
     return normalizeAnalyticsSummary(response);
   },
 
-  getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
+  getHeatmap: async (
+    filters: AnalyticsFilters,
+    hubOverride?: AnalyticsHubResponse | null,
+    options: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+  ): Promise<AnalyticsHeatmapResponse> => {
+    const revision = captureChatbocSessionRevision();
+    const authority = getHubAuthorityScope();
+    const isCurrent = () => !options.signal?.aborted && (options.isCurrent?.() ?? true)
+      && isChatbocSessionRevisionCurrent(revision) && getHubAuthorityScope() === authority;
+    const assertCurrent = () => {
+      if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
+    };
     const normalizeList = <T extends Record<string, unknown>>(value: unknown): T[] =>
       Array.isArray(value) ? value.filter(isRecord).map((item) => item as T) : [];
     const normalizeCellList = (value: unknown): AnalyticsHeatmapCell[] =>
@@ -1131,6 +1150,7 @@ export const analyticsService = {
       });
 
     const buildResponse = (value: unknown): AnalyticsHeatmapResponse => {
+      assertCurrent();
       assertHeatmapRecordScopes(value, filters);
       const raw: any = protectHeatmapPrivacy(value);
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
@@ -1167,6 +1187,9 @@ export const analyticsService = {
         ...(isRecord(raw.metadata) ? { metadata: raw.metadata } : {}),
         ...(typeof raw.tenant_slug === 'string' ? { tenant_slug: raw.tenant_slug } : {}),
         ...(typeof raw.tenant_id === 'number' || typeof raw.tenant_id === 'string' ? { tenant_id: raw.tenant_id } : {}),
+        ...(typeof (raw.tenant_profile_id ?? raw.tenant?.id) === 'number' || typeof (raw.tenant_profile_id ?? raw.tenant?.id) === 'string'
+          ? { tenant_profile_id: raw.tenant_profile_id ?? raw.tenant?.id } : {}),
+        ...(typeof raw.tenant_owner_id === 'number' || typeof raw.tenant_owner_id === 'string' ? { tenant_owner_id: raw.tenant_owner_id } : {}),
         ...(typeof raw.privacy_mode === 'string' ? { privacy_mode: raw.privacy_mode } : {}),
         ...(isHeatmapRedacted(raw) ? { raw_points_redacted: true } : {}),
         cells: normalizeCellList(raw?.cells),
@@ -1190,10 +1213,14 @@ export const analyticsService = {
     const query = buildQuery({ ...queryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
     let operationsEndpointHubCandidate: AnalyticsHubResponse | null = null;
     try {
+      assertCurrent();
       const response = await apiFetch<any>(`/api/v2/analytics/operations/heatmap?${query}`, {
         tenantSlug: filters.tenantSlug,
         headers: buildAnalyticsHeaders(),
+        signal: options.signal,
+        isCurrent,
       });
+      assertCurrent();
       assertHeatmapScope(response, filters);
       if (response?.sections && typeof response.sections === 'object') {
         operationsEndpointHubCandidate = response as AnalyticsHubResponse;
@@ -1201,15 +1228,18 @@ export const analyticsService = {
         return buildResponse(response || {});
       }
     } catch (error) {
+      assertCurrent();
       if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
         throw error;
       }
     }
 
-    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters, { strictAccess: true }).catch((error): AnalyticsHubResponse | null => {
+    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters, { strictAccess: true, signal: options.signal, isCurrent }).catch((error): AnalyticsHubResponse | null => {
+      assertCurrent();
       if (error instanceof ApiError && [404, 405, 501].includes(error.status)) return null;
       throw error;
     });
+    assertCurrent();
     assertHeatmapScope(hub, filters);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
@@ -1230,12 +1260,15 @@ export const analyticsService = {
     if (Array.isArray(hubPoints) || Array.isArray((hubGeo as any)?.cells) || hasHubGeoLayerFeatures || hasHubGeoLayerCategories) {
       assertHeatmapScope(hubGeo, filters);
       return buildResponse(mergeHeatmapHubPayload(hub, { ...hubGeo,
-        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}) }));
+        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}) }, filters));
     }
 
+    assertCurrent();
     const response = await apiFetch<any>(`/admin/analytics/heatmap?${query}`, {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
+      signal: options.signal,
+      isCurrent,
     });
     return buildResponse(response || {});
   },
@@ -1308,9 +1341,10 @@ export const analyticsService = {
     }
   },
 
-  getInsights: async (tenantId: number, tenantSlug?: string) => {
-    const response = await apiFetch<{ insights: any[] }>(`/admin/analytics/overview?tenant_id=${tenantId}`, {
-      tenantSlug,
+  getInsights: async (tenant: number | Pick<AnalyticsFilters, 'tenant_profile_id' | 'tenantSlug' | 'scope'>, tenantSlug?: string) => {
+    const filters = typeof tenant === 'number' ? { tenant_id: tenant, tenantSlug } : tenant;
+    const response = await apiFetch<{ insights: any[] }>(`/admin/analytics/overview?${buildQuery(filters)}`, {
+      tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
     });
     return response?.insights || [];
@@ -1380,9 +1414,10 @@ export const analyticsService = {
     });
   },
 
-  getRealtimeHub: async (params: { tenant_id: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
+  getRealtimeHub: async (params: { tenant_id?: number; tenant_profile_id?: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
     const query = new URLSearchParams();
-    query.set('tenant_id', String(params.tenant_id));
+    if (params.tenant_id) query.set('tenant_id', String(params.tenant_id));
+    if (params.tenant_profile_id) query.set('tenant_profile_id', String(params.tenant_profile_id));
     if (params.scope) query.set('scope', params.scope);
     if (params.window_minutes) query.set('window_minutes', String(params.window_minutes));
 

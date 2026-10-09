@@ -130,9 +130,9 @@ const AnalyticsPage = () => {
   const { scope, pending, key } = usePrivateAnalyticsScope();
   if (pending) return <ViewState status="loading" title="Validando acceso" />;
   if (!scope || !scope.kind) return <ViewState status="empty" title="Seleccioná una organización" description="El análisis requiere un perfil y una organización verificados." />;
-  return <ScopedAnalyticsPage key={key} currentSlug={scope.tenantSlug} tenantId={scope.tenantId ?? 0} panelUserScope={scope.kind} />;
+  return <ScopedAnalyticsPage key={key} currentSlug={scope.tenantSlug} tenantId={scope.tenantId ?? 0} panelUserScope={scope.kind} platformAdmin={scope.platformAdmin} />;
 };
-const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { currentSlug: string; tenantId: number; panelUserScope: 'municipio' | 'pyme' }) => {
+const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAdmin }: { currentSlug: string; tenantId: number; panelUserScope: 'municipio' | 'pyme'; platformAdmin: boolean }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -226,7 +226,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
     }
   }, [activeTab, requestedAnalyticsTab, visibleTabs]);
 
-  const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
+  const fireAndForgetTrackEvent = (payload: { tenant_profile_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
       .trackEvent(payload, currentSlug || undefined)
       .catch((trackError) => console.warn('[AnalyticsPage] tracking failed', trackError));
@@ -268,7 +268,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
     setError(null);
     try {
       const requestPayload = {
-        tenant_id: tenantId,
+        tenant_profile_id: tenantId,
         tenantSlug: currentSlug || undefined,
         from: dateRange.from,
         to: dateRange.to,
@@ -303,7 +303,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
       setData(result);
       if (tenantId) {
         fireAndForgetTrackEvent({
-          tenant_id: tenantId,
+          tenant_profile_id: tenantId,
           event_name: 'dashboard_view',
           payload: { path: '/panel/analytics', source: 'web' },
           channel: 'web_widget',
@@ -338,7 +338,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
   };
 
   const fetchLeadInteractions = async (options?: { cursor?: string; append?: boolean }) => {
-    if (!tenantId) return;
+    if (!platformAdmin || !currentSlug) return;
     const isAppend = Boolean(options?.append);
     if (isAppend) {
       setLoadingMoreLeadInteractions(true);
@@ -349,7 +349,6 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
     try {
       const response = await enterpriseService.getLeadInteractions(
         {
-          tenant_id: tenantId,
           limit: 20,
           cursor: options?.cursor,
           from: dateRange.from,
@@ -378,7 +377,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
 
   useEffect(() => {
     fetchLeadInteractions();
-  }, [tenantId, currentSlug, dateRange.from, dateRange.to, scope]);
+  }, [platformAdmin, currentSlug, dateRange.from, dateRange.to, scope]);
 
   const fetchRealtimeHub = useMemo(
     () => async () => {
@@ -388,7 +387,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
       setLoadingRealtimeHub(true);
       analyticsService
         .getRealtimeHub({
-          tenant_id: tenantId,
+          tenant_profile_id: tenantId,
           scope,
           window_minutes: windowMinutes,
           tenantSlug: currentSlug || undefined,
@@ -425,7 +424,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!tenantId) return;
     const filters = {
-      tenant_id: tenantId,
+      tenant_profile_id: tenantId,
       tenantSlug: currentSlug || undefined,
       scope,
       from: dateRange.from,
@@ -440,7 +439,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
     const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
     openExportAndTrack(url, async () => {
       fireAndForgetTrackEvent({
-        tenant_id: tenantId,
+        tenant_profile_id: tenantId,
         event_name: 'export_click',
         payload: { format, scope },
         channel: 'web_widget',
@@ -457,7 +456,6 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
     try {
       const response = await enterpriseService.getExecutiveSummary(
         {
-          tenant_id: tenantId,
           scope,
           from: dateRange.from,
           to: dateRange.to,
@@ -771,7 +769,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
       </details>
       ) : null}
 
-      <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
+      <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_profile_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <div className="overflow-x-auto pb-1">
           <TabsList className="inline-flex min-w-max">
           {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
@@ -842,7 +840,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope }: { curren
       {/* Insights Section always visible at bottom or side */}
       <div className="mt-8">
         <SectionErrorBoundary title="No pudimos cargar insights" resetKeys={[currentSlug,tenantId]}>
-          <InsightsDashboard tenantId={tenantId} />
+          <InsightsDashboard tenantProfileId={tenantId} tenantSlug={currentSlug} scope={scope} />
         </SectionErrorBoundary>
       </div>
 

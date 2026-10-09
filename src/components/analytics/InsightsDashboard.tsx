@@ -6,29 +6,37 @@ import { analyticsService } from '@/services/analyticsService';
 import { useTenant } from '@/context/TenantContext';
 
 interface Props {
-  tenantId: number;
+  tenantId?: number;
+  tenantProfileId?: number;
+  tenantSlug?: string;
+  scope?: string;
 }
 
-const InsightsDashboard: React.FC<Props> = ({ tenantId }) => {
+const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantSlug, scope }) => {
   const { currentSlug } = useTenant();
+  const verifiedSlug = tenantSlug || currentSlug || undefined;
   const [insights, setInsights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     const loadInsights = async () => {
-        if(!tenantId) return;
+        if(!tenantId && !tenantProfileId) return;
         setLoading(true);
+        setInsights([]);
         try {
-            const data = await analyticsService.getInsights(tenantId, currentSlug || undefined);
-            setInsights(data || []);
+            const selector = tenantProfileId ? { tenant_profile_id: tenantProfileId, tenantSlug: verifiedSlug, scope } : tenantId!;
+            const data = await analyticsService.getInsights(selector, verifiedSlug);
+            if (active) setInsights(data || []);
         } catch (e) {
             console.error(e);
         } finally {
-            setLoading(false);
+            if (active) setLoading(false);
         }
     };
     loadInsights();
-  }, [tenantId, currentSlug]);
+    return () => { active = false; };
+  }, [tenantId, tenantProfileId, verifiedSlug, scope]);
 
   if (loading) return <div className="p-4 text-center text-muted-foreground">Analizando datos...</div>;
 

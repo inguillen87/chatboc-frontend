@@ -10,7 +10,8 @@ const positiveId = (value: unknown): number | null => {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 };
-export interface PrivateAnalyticsScope { tenantSlug: string; tenantId: number | null; kind: 'municipio' | 'pyme' | null; scopeKey: string }
+// tenantId comes from the verified TenantProfile, never from its legacy owner.
+export interface PrivateAnalyticsScope { tenantSlug: string; tenantId: number | null; kind: 'municipio' | 'pyme' | null; scopeKey: string; platformAdmin: boolean }
 /** A URL selects a scope, but never establishes authority. Public context is metadata only. */
 export function resolvePrivateAnalyticsScope(input: { user: unknown; verified: boolean; profileVerified: boolean; pathname: string; search: string; tenant?: unknown; tenantPending?: boolean; tenantError?: unknown }): PrivateAnalyticsScope | null {
   const user = record(input.user), role = typeof user.rol === 'string' ? user.rol : typeof user.role === 'string' ? user.role : '';
@@ -36,10 +37,10 @@ export function resolvePrivateAnalyticsScope(input: { user: unknown; verified: b
   const ids = (platform ? [] : privateIds).map(positiveId);
   if (ids.some(id => id === null) || new Set(ids).size > 1) return null;
   const tenantId = ids[0] ?? (matchingMetadata ? positiveId(tenant.id) : null);
-  if (query.getAll('tenant_id').some(value => positiveId(value) === null || positiveId(value) !== tenantId)) return null;
+  if (['tenant_id', 'tenant_profile_id'].some(field => query.getAll(field).some(value => positiveId(value) === null || positiveId(value) !== tenantId))) return null;
   const rawKind = platform ? tenant.tipo : user.tipo_chat;
   // The backend provisions schools under the nonmunicipal analytics contract.
   const kind = rawKind === 'municipio' || rawKind === 'municipal' ? 'municipio' : rawKind === 'pyme' || rawKind === 'colegio' ? 'pyme' : null;
   const scopeKey = buildVerifiedSessionScopeKey({ hasVerifiedSession: true, tenantSlug, user });
-  return scopeKey ? { tenantSlug, tenantId, kind, scopeKey } : null;
+  return scopeKey ? { tenantSlug, tenantId, kind, scopeKey, platformAdmin: platform } : null;
 }

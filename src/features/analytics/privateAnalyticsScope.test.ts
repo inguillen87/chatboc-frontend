@@ -18,7 +18,7 @@ describe('verified private analytics scope', () => {
     expect(resolvePrivateAnalyticsScope({ ...input, search: '' })).toBeNull();
   });
   it('uses private profile after a public tenant visit, including its numeric id and type', () => {
-    expect(resolvePrivateAnalyticsScope(base())).toMatchObject({ tenantSlug: 'junin', tenantId: 22, kind: 'municipio' });
+    expect(resolvePrivateAnalyticsScope(base())).toMatchObject({ tenantSlug: 'junin', tenantId: 22, kind: 'municipio', platformAdmin: false });
   });
   it.each(['admin_pyme','school_admin','government_admin','employee','analytics_viewer'])('supports existing backoffice role %s using verified type', rol => {
     const input = base(); input.user.rol = rol; input.user.tipo_chat = 'pyme';
@@ -30,7 +30,7 @@ describe('verified private analytics scope', () => {
   it.each(['/t/tierra-del-fuego/analytics','/t/preview/analytics'])('rejects foreign or reserved explicit path %s', pathname => {
     expect(resolvePrivateAnalyticsScope({...base(),pathname})).toBeNull();
   });
-  it.each(['?tenant_slug=tierra-del-fuego','?tenant=junin&tenant=tierra-del-fuego','?tenant_slug=','?tenant_id=46','?tenant_id=22&tenant_id=46','?tenant=junin&tenantSlug=tierra-del-fuego'])('rejects foreign or contradictory selection %s', search => {
+  it.each(['?tenant_slug=tierra-del-fuego','?tenant=junin&tenant=tierra-del-fuego','?tenant_slug=','?tenant_id=46','?tenant_id=22&tenant_id=46','?tenant_profile_id=46','?tenant_profile_id=22&tenant_profile_id=46','?tenant=junin&tenantSlug=tierra-del-fuego'])('rejects foreign or contradictory selection %s', search => {
     expect(resolvePrivateAnalyticsScope({...base(),search})).toBeNull();
   });
   it('accepts matching repeated declarations', () => {
@@ -45,7 +45,7 @@ describe('verified private analytics scope', () => {
   });
   it('requires matching explicit platform metadata and a verified actor', () => {
     const input={...base(),user:{id:5,rol:'super_admin'},search:'?tenant_slug=tierra-del-fuego'};
-    expect(resolvePrivateAnalyticsScope(input)).toMatchObject({tenantSlug:'tierra-del-fuego',tenantId:46,kind:'pyme'});
+    expect(resolvePrivateAnalyticsScope(input)).toMatchObject({tenantSlug:'tierra-del-fuego',tenantId:46,kind:'pyme',platformAdmin:true});
     expect(resolvePrivateAnalyticsScope({...input,tenantPending:true})).toBeNull();
     expect(resolvePrivateAnalyticsScope({...input,tenant:{slug:'junin'}})).toBeNull();
   });

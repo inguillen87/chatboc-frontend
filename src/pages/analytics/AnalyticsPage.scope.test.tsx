@@ -5,15 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AnalyticsPage from './AnalyticsPage';
 import { analyticsService } from '@/services/analyticsService';
+import { enterpriseService } from '@/services/enterpriseService';
 import { ApiError } from '@/utils/api';
 
 const useUserMock = vi.hoisted(() => vi.fn<() => any>());
+const useTenantMock = vi.hoisted(() => vi.fn<() => any>());
 
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({
-    currentSlug: null,
-    tenant: { id: 333, tipo: 'pyme' },
-  }),
+  useTenant: () => useTenantMock(),
 }));
 
 vi.mock('@/hooks/useUser', () => ({
@@ -67,7 +66,39 @@ describe('AnalyticsPage scope routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
-    useUserMock.mockReturnValue({ user: { id: 7, rol: 'admin_municipio', tipo_chat: 'municipio', tenant_slug: 'junin', organization_profile: { tenant: { id: 22, slug: 'junin' } } } });
+    useTenantMock.mockReturnValue({ currentSlug: null, tenant: { id: 333, tipo: 'pyme' } });
+    useUserMock.mockReturnValue({ user: { id: 4, rol: 'admin_municipio', tipo_chat: 'municipio', tenant_slug: 'junin', organization_profile: { tenant: { id: 22, slug: 'junin' } } } });
+  });
+
+  it('keeps Mauricio profile 22 in the explicit namespace and skips platform leads', async () => {
+    render(<MemoryRouter initialEntries={['/perfil?tab=analytics']}><AnalyticsPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('operations')).toBeInTheDocument());
+    expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22, tenantSlug: 'junin', scope: 'municipio' }), { strictAccess: true });
+    expect(analyticsService.getSummary).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22 }), expect.anything());
+    expect(analyticsService.getRealtimeHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22, tenantSlug: 'junin' }));
+    expect(vi.mocked(analyticsService.getHub).mock.calls[0][0]).not.toHaveProperty('tenant_id');
+    expect(enterpriseService.getLeadInteractions).not.toHaveBeenCalled();
+    expect(enterpriseService.trackEvent).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 22 }), 'junin');
+    fireEvent.click(screen.getByRole('button', { name: 'Resumen ejecutivo IA' }));
+    await waitFor(() => expect(enterpriseService.getExecutiveSummary).toHaveBeenCalled());
+    expect(vi.mocked(enterpriseService.getExecutiveSummary).mock.calls[0][0]).not.toHaveProperty('tenant_id');
+    expect(vi.mocked(enterpriseService.getExecutiveSummary).mock.calls[0][1]).toBe('junin');
+  });
+
+  it.each(['?tab=analytics&tenant_slug=foreign', '?tab=analytics&tenant_profile_id=46', '?tab=analytics&tenant_id=4'])('rejects a foreign or owner-valued profile selection %s before reads', async (search) => {
+    render(<MemoryRouter initialEntries={[`/perfil${search}`]}><AnalyticsPage /></MemoryRouter>);
+    expect(await screen.findByText('Seleccioná una organización')).toBeInTheDocument();
+    expect(analyticsService.getHub).not.toHaveBeenCalled();
+    expect(enterpriseService.getLeadInteractions).not.toHaveBeenCalled();
+  });
+
+  it('retains platform reads only with verified actor and explicit organization selection', async () => {
+    useUserMock.mockReturnValue({ user: { id: 5, rol: 'super_admin' } });
+    useTenantMock.mockReturnValue({ tenant: { id: 46, slug: 'tierra-del-fuego', tipo: 'municipio' } });
+    render(<MemoryRouter initialEntries={['/analytics?tenant_slug=tierra-del-fuego']}><AnalyticsPage /></MemoryRouter>);
+    await waitFor(() => expect(enterpriseService.getLeadInteractions).toHaveBeenCalled());
+    expect(enterpriseService.getLeadInteractions).toHaveBeenCalledWith(expect.not.objectContaining({ tenant_id: expect.anything() }), 'tierra-del-fuego');
+    expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ tenant_profile_id: 46, tenantSlug: 'tierra-del-fuego' }), { strictAccess: true });
   });
 
   it.each([new ApiError('denied', 401), new ApiError('denied', 403), new DOMException('session changed', 'AbortError')])('does not request summary after hub rejection $name/$status', async (error) => {
@@ -216,7 +247,7 @@ describe('AnalyticsPage scope routing', () => {
     );
 
     await waitFor(() => {
-      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'pyme', tenantSlug: 'bodega', tenant_id: 333 }), { strictAccess: true });
+      expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ scope: 'pyme', tenantSlug: 'bodega', tenant_profile_id: 333 }), { strictAccess: true });
     });
   });
 

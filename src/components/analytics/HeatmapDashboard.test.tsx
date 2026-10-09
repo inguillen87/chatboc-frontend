@@ -5,6 +5,10 @@ import HeatmapDashboard from './HeatmapDashboard';
 
 const mocks = vi.hoisted(() => ({
   getHeatmap: vi.fn(),
+  ready: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('@/utils/backendBootstrapGate',async importOriginal=>({
+  ...await importOriginal<typeof import('@/utils/backendBootstrapGate')>(),ensureBackendRuntimeReady:mocks.ready,
 }));
 
 vi.mock('@/context/TenantContext', () => ({
@@ -64,6 +68,7 @@ describe('HeatmapDashboard', () => {
     expect(screen.getByTestId('mock-heatmap-first-lat')).toHaveTextContent('-33.086');
     expect(screen.getByTestId('mock-heatmap-first-lng')).toHaveTextContent('-68.471');
     expect(screen.getByTestId('mock-heatmap-cell-fallback')).toHaveTextContent('true');
-    expect(mocks.getHeatmap).toHaveBeenCalledWith(expect.objectContaining({ tenantSlug: 'junin' }));
+    expect(mocks.getHeatmap).toHaveBeenCalledWith(expect.objectContaining({ tenantSlug: 'junin' }),undefined,
+      expect.objectContaining({signal:expect.any(AbortSignal),isCurrent:expect.any(Function)}));
   });
 });
