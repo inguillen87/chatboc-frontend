@@ -109,6 +109,14 @@ describe('institutional workspace inside the application',()=>{
  });
 });
 describe('source evidence and inclusive navigation',()=>{
+ it('presents supplied lists as reading lists without changing the source citation',async()=>{
+  const value=workspace();value.knowledge!.initial.text='Documentos para consultar.\n\n• Original legible\n• <img src=x onerror=literal()>\n\nPasos de consulta.\n1. Reuní la documentación\n2. Consultá con el equipo';
+  mocks.fetch.mockResolvedValue(value);const mounted=render(view());await screen.findByText('Documentos para consultar.');
+  const prose=mounted.container.querySelector('.institutional-assistant__prose')!;
+  expect(Array.from(prose.children,element=>element.tagName)).toEqual(['P','UL','P','OL']);
+  expect(prose.querySelectorAll('li')).toHaveLength(4);expect(prose).toHaveTextContent('<img src=x onerror=literal()>');expect(prose.querySelector('img')).toBeNull();
+  expect(screen.getByText('Información institucional de prueba')).toBeInTheDocument();expect(mocks.fetch).toHaveBeenCalledOnce();
+ });
  it('keeps distinct options even when they lead to the same next menu',async()=>{
   const value=workspace();value.knowledge!.initial.actions=[{code:'1',label:'Para mí',target:'requirements'},{code:'2',label:'Para una persona que acompaño',target:'requirements'}];
   mocks.fetch.mockResolvedValue(value);render(view());

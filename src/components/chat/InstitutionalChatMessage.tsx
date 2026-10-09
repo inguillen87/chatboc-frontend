@@ -2,6 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import type {SendPayload} from '@/types/chat';
 import {institutionalChoiceLabel,institutionalChatActions,type InstitutionalChatMessage as InstitutionalMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
+import {InstitutionalTextBlocks} from '@/components/knowledge/InstitutionalTextBlocks';
 import {knowledgeSourceExternalUrl} from '@/components/knowledge/institutionalAssistantContract';
 import './institutionalChatMessage.css';
 
@@ -19,7 +20,7 @@ const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:Instituti
    <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>setLarge(value=>!value)}>Texto más grande</button>
    {answer.nodes.map((node,index)=><article key={node.id}>
     <h3 ref={index===0?heading:undefined} tabIndex={-1}>{node.title}</h3>
-    <div className="institutional-chat-message__prose">{node.text.split(/\n\n+/).map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div>
+    <div className="institutional-chat-message__prose"><InstitutionalTextBlocks text={node.text}/></div>
     {node.links.length?<div className="institutional-chat-message__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>)}</div>:null}
     <details className="institutional-chat-message__sources"><summary>Fuentes y revisión</summary>{node.sources.map(source=><section key={source.id}>
      <h4>{source.title}</h4><KnowledgeSourceMetadata source={source} mode="public"/>

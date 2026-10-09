@@ -71,10 +71,14 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
       {pending===source.id?<p role="status" className="mt-2 text-sm">Estamos verificando el documento.</p>:null}
       {failure?.id===source.id?<p role="alert" className="mt-3 text-sm leading-relaxed">{failure.message}</p>:null}
       {document?.id===source.id?<section className="mt-4 min-w-0 space-y-3 rounded-lg border p-3" aria-label={`Lectura: ${source.title}`}>
+       {document.format==='pdf'?<div role="status" className="rounded-lg bg-muted/50 p-3 text-sm leading-relaxed">
+        <p className="font-medium">Documento PDF verificado.</p>
+        <p>Podés descargarlo para leer el original en tu dispositivo.</p>
+       </div>:null}
        <a href={document.url} download={document.filename} className="inline-flex">Descargar {document.format==='text'?'texto extraído':'documento'}<span className="sr-only">: {source.title}</span></a>
        {document.format==='text'?<pre className="max-h-[50dvh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-relaxed" tabIndex={0}>{document.text}</pre>
         :document.format==='jpeg'?<img src={document.url} alt={source.title} className="h-auto w-full"/>
-        :<><iframe src={document.url} title={source.title} sandbox="allow-same-origin" className="h-[50dvh] min-h-64 w-full rounded border"/><p className="text-sm text-muted-foreground">Si tu navegador no muestra el archivo, podés descargarlo para leerlo.</p></>}
+        :null}
       </section>:null}
      </div>
     </article>)}

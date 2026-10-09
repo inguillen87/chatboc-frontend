@@ -58,10 +58,23 @@ describe('mounted verified document reading',()=>{
  it.each(['pdf','jpeg','text'] as const)('displays a verified %s using a private Blob and renders text literally',async format=>{
   const {source,download}=await openDocument(format);
   expect(download).toHaveAttribute('href','blob:synthetic-private-document');expect(download).toHaveAttribute('download',source.delivery!.filename);
-  if(format==='pdf')expect(screen.getByTitle(source.title)).toHaveAttribute('src','blob:synthetic-private-document');
+  if(format==='pdf'){
+   expect(screen.getByRole('status')).toHaveTextContent('Documento PDF verificado.');
+   expect(screen.getByRole('status')).toHaveTextContent('Podés descargarlo para leer el original en tu dispositivo.');
+   expect(document.querySelector('iframe,embed,object')).toBeNull();expect(download).not.toHaveAttribute('target');
+  }
   if(format==='jpeg')expect(screen.getByRole('img',{name:source.title})).toHaveAttribute('src','blob:synthetic-private-document');
   if(format==='text'){expect(screen.getByText(/<script>LOCAL_SENTINEL<\/script>/)).toBeVisible();expect(document.querySelector('script')).toBeNull();}
   expect(mocks.create).toHaveBeenCalledOnce();expect(mocks.fetch).toHaveBeenCalledOnce();
+ });
+ it('never offers a verified card or download when the original fails integrity checking',async()=>{
+  const {model,bytes}=await fixture();const altered=bytes.slice();altered[altered.length-1]^=1;
+  mocks.fetch.mockResolvedValue(new Response(altered,{headers:{'Content-Type':'application/pdf','Content-Length':String(altered.length)}}));
+  render(<KnowledgeSourceDialog workspace={model} open onOpenChange={()=>{}} restoreFocus={()=>{}}/>);
+  fireEvent.click(screen.getByRole('button',{name:/Leer documento/}));
+  await screen.findByRole('alert');
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();expect(screen.queryByRole('link',{name:/Descargar/})).not.toBeInTheDocument();
+  expect(document.querySelector('iframe,embed,object')).toBeNull();expect(mocks.create).not.toHaveBeenCalled();
  });
  it.each(['actor','token','generation','session-tenant'] as const)('revokes an already displayed document on %s change without an owner rerender',async cause=>{
   const {changed}=await openDocument(cause==='actor'?'text':'pdf');
@@ -73,6 +86,7 @@ describe('mounted verified document reading',()=>{
   });
   expect(mocks.revoke).toHaveBeenCalledExactlyOnceWith('blob:synthetic-private-document');
   expect(screen.queryByRole('link',{name:/Descargar/})).not.toBeInTheDocument();expect(screen.queryByTitle('Documento de prueba local')).not.toBeInTheDocument();
+  expect(screen.queryByText('Documento PDF verificado.')).not.toBeInTheDocument();
   expect(screen.queryByText(/LOCAL_SENTINEL/)).not.toBeInTheDocument();expect(changed).toHaveBeenCalledWith(false);expect(mocks.fetch).toHaveBeenCalledOnce();
  });
  it.each(['tenant','revision'] as const)('revokes an already displayed image before a new %s scope is shown',async cause=>{

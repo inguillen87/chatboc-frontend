@@ -53,6 +53,16 @@ describe('institutional responder boundary',()=>{
 });
 
 describe('actual embedded chat normalization and renderer',()=>{
+ it('uses the same semantic reading blocks in the widget and preserves source metadata and choices',()=>{
+  const data=payload();data.knowledge_nodes[0].text='Documentación disponible.\n\n• Original legible\n• <script>literal</script>\n\nPasos de consulta.\n1. Prepará la consulta\n2. Consultá con el equipo';
+  const onButtonClick=vi.fn(),answer=parseInstitutionalChatMessage(data,'qa-knowledge')!;
+  const mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={onButtonClick}/>);
+  const prose=mounted.container.querySelector('.institutional-chat-message__prose')!;
+  expect(Array.from(prose.children,element=>element.tagName)).toEqual(['P','UL','P','OL']);
+  expect(prose.querySelectorAll('li')).toHaveLength(4);expect(prose).toHaveTextContent('<script>literal</script>');expect(prose.querySelector('script')).toBeNull();
+  expect(screen.getByText('Información institucional de prueba')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Documentación'})).toBeVisible();
+  expect(screen.queryByRole('link')).not.toBeInTheDocument();expect(mounted.container.textContent).not.toContain('reserved-');expect(onButtonClick).not.toHaveBeenCalled();
+ });
  it('preserves the institutional envelope over legacy messages, renders all six choices and sends the exact action through the existing chat',async()=>{
   const data=payload();mocks.fetch.mockResolvedValue(data);
   const hook=renderHook(()=>useChatLogic({tipoChat:'municipio',tenantSlug:'qa-knowledge',skipAuth:true,socketEnabled:false,autoInitEnabled:false}));

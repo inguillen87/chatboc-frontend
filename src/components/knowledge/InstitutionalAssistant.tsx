@@ -3,6 +3,7 @@ import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,P
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,type KnowledgeWorkspace,type KnowledgeNode} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
+import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
@@ -140,7 +141,7 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
           {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32}/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
           {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{ui.unknown}</p>:null}
           {(!error||failedAnswer)&&nodes.map((node,index)=><article key={node.id} className="institutional-assistant__answer">
-            <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose">{node.text.split(/\n\n+/).map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div>
+            <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15}/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15}/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
