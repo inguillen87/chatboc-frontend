@@ -1,4 +1,4 @@
-import React,{useEffect,useId,useRef,useState} from 'react';
+import React,{useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Search,Type} from 'lucide-react';
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,type KnowledgeWorkspace,type KnowledgeNode} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
@@ -31,6 +31,7 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
   const sourcesReturnFocus=useRef<HTMLElement|null>(null);
   const dialog=useRef<'sources'|'review'|null>(null),review=useRef<KnowledgeReview|null>(null);
   const returnToHeading=useRef(false),frame=useRef<number|null>(null);
+  const recoveryFocus=useRef<number|null>(null);
   const published=mode==='public'&&workspace?.visibility==='public'&&workspace.can_edit===false&&workspace.tenant.slug===tenantSlug&&workspace.knowledge?workspace:null;
   const publishedTenantId=published?.tenant.id??null,publishedRevision=published?.revision??null;
   useEffect(()=>{
@@ -61,12 +62,27 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
     dialog.current=open?'sources':null;setShowSources(open);
   };
   const current=nodes.at(-1)?.id??workspace?.knowledge?.start??'';
-  const load=async()=>{
+  const load=async(recovery=false)=>{
+    if(recovery&&(!active.current||locked.current||dialog.current))return;
+    recoveryFocus.current=null;
     const seq=++serial.current;locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setPending(null);review.current=null;dialog.current=null;setShowSources(false);
-    try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);setAsked('');setUncovered(false);}}
+    try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){if(recovery)recoveryFocus.current=seq;setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);setAsked('');setUncovered(false);}}
     catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;setErrorStatus(status===401||status===403?status:null);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
+  useLayoutEffect(()=>{
+    const seq=recoveryFocus.current;if(seq===null||busy)return;
+    recoveryFocus.current=null;
+    if(!workspace||!active.current||serial.current!==seq||dialog.current)return;
+    if(frame.current!==null)cancelAnimationFrame(frame.current);
+    frame.current=requestAnimationFrame(()=>{
+      if(!active.current||serial.current!==seq||dialog.current)return;
+      const target=heading.current?.isConnected?heading.current:pageHeading.current;
+      if(!target?.isConnected)return;
+      if(reading.current)reading.current.scrollTop=0;
+      target.focus({preventScroll:true});target.scrollIntoView?.({block:'nearest',behavior:'auto'});
+    });
+  },[busy,workspace,nodes]);
   useEffect(()=>{active.current=true;void load();return()=>{active.current=false;serial.current++;if(frame.current!==null)cancelAnimationFrame(frame.current);};},[]);
   const navigate=async(id:string,text?:string)=>{
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
@@ -85,7 +101,7 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
   const retryAnswer=()=>{
     if(failedAnswer&&workspace&&failedAnswer.revision===workspace.revision&&failedAnswer.tenantId===workspace.tenant.id)
       void navigate(failedAnswer.id,failedAnswer.text);
-    else void load();
+    else void load(true);
   };
   const importFile=async(event:React.ChangeEvent<HTMLInputElement>)=>{
     const file=event.target.files?.[0];event.target.value='';
@@ -111,9 +127,9 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
   if(!workspace){
-    if(error&&lastUi)return <section className="institutional-assistant"><div className="institutional-assistant__notice" ref={element=>{heading.current=element;}} role="alert" tabIndex={-1}><p>{lastUi.error}</p><button type="button" disabled={busy} onClick={()=>void load()}>{lastUi.retry}</button></div></section>;
+    if(error&&lastUi)return <section className="institutional-assistant"><div className="institutional-assistant__notice" ref={element=>{heading.current=element;}} role="alert" tabIndex={-1}><p>{lastUi.error}</p><button type="button" disabled={busy} onClick={()=>void load(true)}>{lastUi.retry}</button></div></section>;
     if(error)return <div role="alert"><ViewState status={errorStatus?'denied':'error'} title={errorStatus?'No tenés acceso al conocimiento de esta organización':'No pudimos cargar el conocimiento'}
-      action={<Button variant="outline" disabled={busy} onClick={()=>void load()}>Reintentar</Button>}/></div>;
+      action={<Button variant="outline" disabled={busy} onClick={()=>void load(true)}>Reintentar</Button>}/></div>;
     return <div role="status"><ViewState status="loading" title="Cargando conocimiento"/></div>;
   }
   const ui=workspace.ui,knowledge=workspace.knowledge;
