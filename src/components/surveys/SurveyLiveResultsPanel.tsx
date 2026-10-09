@@ -246,6 +246,7 @@ export function SurveyLiveResultsPanel({
 
   const {
     liveResults: polledPayload,
+    accessWithdrawn,
     isLoading,
     isFetching,
     error,
@@ -263,7 +264,7 @@ export function SurveyLiveResultsPanel({
 
   useEffect(() => {
     setSocketPayload(undefined);
-  }, [normalizedSlug, normalizedTenant]);
+  }, [accessWithdrawn, normalizedSlug, normalizedTenant]);
 
   useSurveySocket({
     slug: normalizedSlug,
@@ -274,8 +275,9 @@ export function SurveyLiveResultsPanel({
     events: realtimeSocketOptions.events,
     // HTTP polling is the durable baseline. Only open Socket.IO after the
     // backend explicitly advertises it for this survey and tenant.
-    enabled: enabled && Boolean(normalizedSlug) && realtimeSocketEnabled,
+    enabled: !accessWithdrawn && enabled && Boolean(normalizedSlug) && realtimeSocketEnabled,
     onUpdate: (payload) => {
+      if (accessWithdrawn) return;
       const normalizedPayload = normalizeSocketLiveResultsPayload(payload);
       if (normalizedPayload && matchesSurveyLivePayloadScope(normalizedPayload, normalizedSlug, normalizedTenant || undefined)) {
         setSocketPayload(normalizedPayload);
@@ -286,10 +288,11 @@ export function SurveyLiveResultsPanel({
   });
 
   const payload = useMemo(() => {
+    if (accessWithdrawn) return undefined;
     if (!socketPayload) return polledPayload;
     if (!polledPayload) return socketPayload;
     return payloadVersion(socketPayload) >= payloadVersion(polledPayload) ? socketPayload : polledPayload;
-  }, [polledPayload, socketPayload]);
+  }, [accessWithdrawn, polledPayload, socketPayload]);
 
   const hasSocketPayload = Boolean(socketPayload && payload === socketPayload);
   const hasActivity = hasSurveyLiveActivity(payload);
@@ -334,6 +337,17 @@ export function SurveyLiveResultsPanel({
         <CardHeader>
           <CardTitle>{title}</CardTitle>
           <CardDescription>Activa resultados en vivo y publica la encuesta para ver la sala operativa.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (accessWithdrawn) {
+    return (
+      <Card className={className} data-testid="survey-live-results-panel-unavailable">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{liveStatus.description}</CardDescription>
         </CardHeader>
       </Card>
     );

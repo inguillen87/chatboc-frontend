@@ -2,6 +2,7 @@ import React from 'react';
 import {act,cleanup,render,screen,waitFor} from '@testing-library/react';
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
+vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:{id:1,rol:'admin'},hasVerifiedSession:true,organizationProfileVerified:true,loading:false})}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
 import ChannelActivationChecklist from './ChannelActivationChecklist';
 import {tenant,descriptor,controlUi} from '../../../tests/fixtures/guide-control.synthetic';

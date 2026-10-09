@@ -3,6 +3,7 @@ import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/reac
 import {beforeEach,afterEach,describe,expect,it,vi} from 'vitest';
 import {guideActivation,guideAccess,guideCopy,guideNode} from '../../../tests/fixtures/private-guide.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
+vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:{id:1,rol:'admin'},hasVerifiedSession:true,organizationProfileVerified:true,loading:false})}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
 import ChannelActivationChecklist from './ChannelActivationChecklist';
 const deferred=()=>{let resolve!:(v:any)=>void,reject!:(v:any)=>void;const promise=new Promise<any>((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
@@ -43,7 +44,7 @@ describe('guide integration in the activation checklist',()=>{
  });
  it('does not restore another actor descriptor after a delayed activation response',async()=>{
   const first=deferred();mocks.fetch.mockReturnValueOnce(first.promise).mockResolvedValueOnce({...guideActivation(),organization_setup:null});
-  const rendered=render(view());rendered.rerender(view('actor-b'));
+  const rendered=render(view());await waitFor(()=>expect(mocks.fetch).toHaveBeenCalledOnce());rendered.rerender(view('actor-b'));
   await waitFor(()=>expect(mocks.fetch).toHaveBeenCalledTimes(2));
   await act(async()=>{first.resolve(guideActivation());await first.promise;});
   expect(screen.queryByText(guideCopy.open)).not.toBeInTheDocument();

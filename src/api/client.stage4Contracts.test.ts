@@ -289,7 +289,10 @@ describe('apiClient stage4 contract integrations', () => {
       expect.objectContaining({
         tenantSlug: 'municipio',
         suppressPanel401Redirect: true,
-        omitCredentials: true,
+        omitCredentials: false,
+        omitEntityToken: true,
+        isWidgetRequest: false,
+        persistTenantSlug: false,
         omitChatSessionId: true,
       }),
     );

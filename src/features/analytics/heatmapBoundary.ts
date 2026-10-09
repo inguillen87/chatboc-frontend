@@ -12,13 +12,24 @@ export function isHeatmapRedacted(value: unknown): boolean {
   return [data.raw_points_redacted, meta.raw_points_redacted, privacy.raw_points_redacted].some(enabled)
     || ['aggregated', 'cells_only', 'aggregate_only'].includes(geoText(meta.privacy_mode || data.privacy_mode).toLowerCase());
 }
-export function assertHeatmapScope(value: unknown, expected: { tenantSlug?: string | null; tenant_id?: number | string }): void {
+export interface HeatmapScopeExpectation { tenantSlug?: string | null; tenant_id?: number | string; tenant_profile_id?: number | string }
+export function assertHeatmapScope(value: unknown, expected: HeatmapScopeExpectation): void {
   const data = geoRecord(value), tenant = geoRecord(data.tenant);
   for (const slug of [data.tenant_slug, data.tenantSlug, tenant.slug]) {
     if (slug !== undefined && slug !== null && expected.tenantSlug && slug !== expected.tenantSlug) throw new Error('La respuesta geográfica corresponde a otra organización.');
   }
-  for (const id of [data.tenant_id, tenant.id]) {
-    if (id !== undefined && id !== null && expected.tenant_id !== undefined && String(id) !== String(expected.tenant_id)) throw new Error('La identidad geográfica recibida no coincide.');
+  if (expected.tenant_profile_id !== undefined) {
+    // The legacy hub explicitly reports its owner as tenant_id. Geographic
+    // records and the v2 tenant object report TenantProfile identities.
+    const legacyOwnerEnvelope = data.contract_version === '2026-analytics-hub-v2';
+    const profileIds = [data.tenant_profile_id, tenant.id, ...(legacyOwnerEnvelope ? [] : [data.tenant_id])];
+    for (const id of profileIds) {
+      if (id !== undefined && id !== null && String(id) !== String(expected.tenant_profile_id)) throw new Error('La identidad geográfica recibida no coincide.');
+    }
+  } else {
+    for (const id of [data.tenant_id, tenant.id]) {
+      if (id !== undefined && id !== null && expected.tenant_id !== undefined && String(id) !== String(expected.tenant_id)) throw new Error('La identidad geográfica recibida no coincide.');
+    }
   }
 }
 export function protectHeatmapPrivacy(value: unknown): GeoRecord {
@@ -32,15 +43,21 @@ export function protectHeatmapPrivacy(value: unknown): GeoRecord {
     geocoding: undefined, hotspots: [], category_layers: [], raw_points_redacted: true,
     metadata: { ...geoRecord(data.metadata), raw_points_redacted: true } };
 }
-export function mergeHeatmapHubPayload(hubValue: unknown, geoValue: unknown): GeoRecord {
+export function mergeHeatmapHubPayload(hubValue: unknown, geoValue: unknown, expected: HeatmapScopeExpectation = {}): GeoRecord {
   const hub = geoRecord(hubValue), geo = geoRecord(geoValue);
+  if (expected.tenant_profile_id !== undefined) {
+    return { ...geo, ...(hub.tenant_slug !== undefined ? { tenant_slug: hub.tenant_slug } : {}),
+      ...(hub.tenant_profile_id !== undefined ? { tenant_profile_id: hub.tenant_profile_id } : {}),
+      ...(hub.contract_version === '2026-analytics-hub-v2' && hub.tenant_id !== undefined ? { tenant_owner_id: hub.tenant_id } : {}),
+      ...(isHeatmapRedacted(hub) ? { raw_points_redacted: true } : {}) };
+  }
   return { ...geo, ...(hub.tenant_slug !== undefined ? { tenant_slug: hub.tenant_slug } : {}),
     ...(hub.tenant_id !== undefined ? { tenant_id: hub.tenant_id } : {}),
     ...(isHeatmapRedacted(hub) ? { raw_points_redacted: true } : {}) };
 }
-export function assertHeatmapRecordScopes(value: unknown, expected: {tenantSlug?:string|null;tenant_id?:number|string}):void {
+export function assertHeatmapRecordScopes(value: unknown, expected: HeatmapScopeExpectation):void {
   const queue:unknown[]=[value],seen=new Set<object>();
-  const fields=['points','puntos','geo_points','heatmap_points','cells','hotspots','category_layers','geo_layers','map_layers','source','features','properties','categories','layers','data','result','results','response','payload','geo'];
+  const fields=['points','puntos','geo_points','heatmap_points','cells','hotspots','category_layers','geo_layers','map_layers','source','features','properties','categories','layers','data','result','results','response','payload','geo','sections','mapas'];
   while(queue.length){
     const item=queue.pop();
     if(!item || typeof item!=='object' || seen.has(item))continue;

@@ -41,6 +41,35 @@ import {
 import { ApiError } from '@/utils/api';
 import { AmbiguousSurveySubmissionError } from '@/utils/surveySubmissionErrors';
 
+describe('public comment submission contract', () => {
+  beforeEach(() => apiFetchMock.mockReset());
+
+  it('unwraps the real acknowledgement and strips identity from anonymous writes', async () => {
+    const comment = { id: 51, texto: 'Opinión', nombre_autor: 'Anónimo', fecha: '2026-10-02T12:00:00Z' };
+    apiFetchMock.mockResolvedValueOnce({ ok: true, comentario: comment });
+    expect(await postSurveyComment('consulta', { texto: 'Opinión', modo: 'anonimo', nombre: 'Nombre privado', auth_user_id: 'private-id', anon_id: 'correlation' }, 'junin')).toEqual(comment);
+    expect(apiFetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      skipAuth: true, omitCredentials: true, omitChatSessionId: true, body: { texto: 'Opinión', mode: 'anon' },
+    }));
+  });
+
+  it('transmits the signed social token with the canonical social mode', async () => {
+    apiFetchMock.mockResolvedValueOnce({ ok: true, comentario: { id: 52, texto: 'Verificada', fecha: '2026-10-02T12:00:00Z' } });
+    await postSurveyComment('consulta', { texto: 'Verificada', modo: 'google', social_token: 'opaque-signed-proof' }, 'junin');
+    expect(apiFetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      skipAuth: true, body: expect.objectContaining({ mode: 'social', social_token: 'opaque-signed-proof' }),
+    }));
+  });
+
+  it('does not turn a synthetic or malformed acknowledgement into a published comment', async () => {
+    apiFetchMock.mockResolvedValueOnce({ ok: true, demo_mode: true, comment: null });
+    await expect(postSurveyComment('consulta', { texto: 'Opinión' }, 'junin')).rejects.toMatchObject({
+      body: { reason_code: 'invalid_comment_ack' },
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('survey summary eligibility contract', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
@@ -506,7 +535,7 @@ describe('public survey tenant query contract', () => {
         realtime: { contract_version: 'surveys.realtime.v2', room: 'encuesta_consulta-barrial' },
       })
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce({ id: 12, texto: 'Buen punto' });
+      .mockResolvedValueOnce({ ok: true, comentario: { id: 12, texto: 'Buen punto', fecha: '2026-10-02T12:00:00Z' } });
 
     await getPublicSurvey('consulta-barrial', 'junin');
     await getPublicSurveyLiveResults('consulta-barrial', 'junin', {
@@ -572,7 +601,7 @@ describe('public survey tenant query contract', () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/v2/public/surveys/movilidad-y-transporte-junin?tenant_slug=tenant-equivocado',
-      expect.objectContaining({ tenantSlug: 'tenant-equivocado', omitTenant: true }),
+      expect.objectContaining({ tenantSlug: 'tenant-equivocado', omitTenant: true, singleAttempt: true, allowStartupRecovery: true }),
     );
   });
 

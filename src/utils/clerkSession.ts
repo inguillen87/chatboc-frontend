@@ -5,6 +5,8 @@ import type {
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import type { ClerkAuthIntent } from '@/utils/clerkAuthContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {registerSessionRetirement,validateSessionRetirementProof,isClerkSessionRetired} from './sessionRetirement';
+import {advanceChatbocSessionRevision} from './chatbocSessionRevision';
 
 export const buildClerkProfile = (rawUser: any): ClerkUserProfilePayload => ({
   id: rawUser?.id ?? null,
@@ -46,12 +48,17 @@ export const persistChatbocSession = (
   session: ClerkSessionResponse,
   clerkUserId?: string | null,
   authIntent: ClerkAuthIntent = session.auth_intent === 'tenant_portal' ? 'tenant_portal' : 'tenant_owner',
+  clerkSessionId?:string|null,
 ) => {
   if (!session?.user) return;
+  if(isClerkSessionRetired(clerkUserId,clerkSessionId))throw new Error('La sesión anterior ya se cerró. Ingresá con una sesión nueva.');
+  const retirement=session.session_retirement;
+  if(retirement&&!validateSessionRetirementProof(retirement,{actorId:session.user.id,provider:'clerk',clerkSessionId}))throw new Error('El servicio no devolvió una sesión verificable.');
   const sessionToken = typeof session.token === 'string' && session.token.trim()
     ? session.token.trim()
     : null;
 
+  advanceChatbocSessionRevision();
   usePanelSessionStore.getState().setAuthToken(sessionToken);
   if (authIntent === 'tenant_portal') {
     useWidgetSessionStore.getState().setChatAuthToken(sessionToken);
@@ -80,4 +87,5 @@ export const persistChatbocSession = (
     tenantSlug: tenantSlug || undefined,
     tenant_slug: tenantSlug || undefined,
   } as any);
+  if(retirement)registerSessionRetirement(retirement,{actorId:session.user.id,provider:'clerk',clerkSessionId});
 };

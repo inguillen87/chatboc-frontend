@@ -20,8 +20,19 @@ try{
   if(dark)await context.addInitScript(()=>{document.addEventListener('DOMContentLoaded',()=>document.documentElement.classList.add('dark'),{once:true});});
   await context.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());if(url.origin!==origin)return route.abort();if(!url.pathname.startsWith('/api/'))return route.continue();
+   const canonicalNode=url.pathname.match(/^\/api\/admin\/tenants\/qa-knowledge\/institutional-assistant\/nodes\/([^/]+)$/);
+   if(canonicalNode){
+    assert.equal(request.method(),'GET');assert.equal(request.postData(),null);
+    assert.equal(url.searchParams.get('revision'),state.revision);
+    assert.equal(url.searchParams.get('tenant_slug'),'qa-knowledge');
+    assert.equal(url.searchParams.get('tenant'),'qa-knowledge');
+    const input={method:'GET',node_id:decodeURIComponent(canonicalNode[1]),revision:url.searchParams.get('revision')};
+    answerRequests.push(input);return route.fulfill({json:reply(input.node_id,state)});
+   }
    if(url.pathname.endsWith('/answer')){
-    const input=request.postDataJSON();answerRequests.push(input);
+    assert.equal(request.method(),'POST');
+    const input=request.postDataJSON();assert.equal(input.revision,state.revision);assert.equal(typeof input.question,'string');
+    assert.ok(input.question.trim());assert.ok(!input.node_id||['start','requirements'].includes(input.node_id));answerRequests.push({method:'POST',...input});
     const response=reply(input.question?'requirements':input.node_id,state);
     if(input.question==='Consulta extensa'){response.nodes[0].text=Array(30).fill(response.nodes[0].text).join('\n\n');response.text=response.nodes[0].text;}
     if(input.question==='Consulta sin fuente'){response.nodes=[];response.text=state.ui.unknown;}
@@ -48,6 +59,7 @@ try{
    assert.deepEqual(writes[0].bundle,sourceFile);assert.equal(writes.length,1);
    await page.getByRole('button',{name:'Consultar requisitos',exact:true}).click();
    await expect(page.getByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
+   assert.deepEqual(answerRequests,[{method:'GET',node_id:'requirements',revision:state.revision}]);assert.equal(writes.length,1);
    await expect(page.getByRole('link',{name:'Referencia institucional'})).toHaveAttribute('href','https://example.org/informacion');
    const input=page.getByLabel(state.ui.question);
    await input.fill('Consulta extensa');await input.press('Enter');
@@ -113,7 +125,7 @@ try{
    await expect(page.getByRole('heading',{name:'Preparar la organización para operar'})).toHaveCount(0);
    await expect(page.getByText('Normativa Municipal V2.pdf')).toHaveCount(0);
    assert.deepEqual(errors,[]);
-   results.push({width,height,dark,passed:true,registeredKnowledgeRoute:true,realApiFetch:true,realImplementationPage:true,canonicalNavigation:true,questionUsesSameSources:true,importRequiresConfirmation:true,publicationReadback:true,denialDoesNotRetry:true,syntheticWriteAttempts:writes.length,syntheticChanges:2,seriousAccessibilityViolations:severe.length,sourceDialogViolations:sourceSevere.length,reviewDialogViolations:reviewSevere.length,sourceFocusRestored:true,readingPositionPreserved:true,reviewBlocksBackground:true,multilineQuestion:true,uncoveredResponseFocused:true});
+   results.push({width,height,dark,passed:true,registeredKnowledgeRoute:true,realApiFetch:true,realImplementationPage:true,canonicalNavigation:true,canonicalGetRead:true,questionUsesSameSources:true,importRequiresConfirmation:true,publicationReadback:true,denialDoesNotRetry:true,syntheticWriteAttempts:writes.length,syntheticChanges:2,seriousAccessibilityViolations:severe.length,sourceDialogViolations:sourceSevere.length,reviewDialogViolations:reviewSevere.length,sourceFocusRestored:true,readingPositionPreserved:true,reviewBlocksBackground:true,multilineQuestion:true,uncoveredResponseFocused:true});
   }catch(error){results.push({width,height,dark,passed:false,error:error.message,errors,writeAttempts:writes.length});await page.screenshot({path:`${folder}/failure-${width}.png`,fullPage:true}).catch(()=>{});}
   finally{await context.close();}
  }

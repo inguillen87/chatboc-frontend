@@ -38,6 +38,7 @@ import {
   useClerkStepUpAction,
 } from '@/hooks/useClerkStepUpAction';
 import { ApiError, NetworkError } from '@/utils/api';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 const activationStateLabels: Record<string, string> = {
   configuration_required: 'Requiere configuración',
@@ -92,6 +93,7 @@ interface BlueprintWorkflowScope {
   manifestDigest: string;
   reloadRevision: number;
   refreshRevision: number;
+  sessionRevision: number;
 }
 
 const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvisioningPanelContentProps> = ({
@@ -120,6 +122,11 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
   const applyAttemptRef = React.useRef<{ fingerprint: string; key: string } | null>(null);
   const loadedDetailScopeRef = React.useRef<BlueprintWorkflowScope | null>(null);
   const activeWorkflowRef = React.useRef<BlueprintWorkflowScope | null>(null);
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const loadedScope = loadedDetailScopeRef.current;
   activeWorkflowRef.current = detail
@@ -138,6 +145,8 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
     const active = activeWorkflowRef.current;
     return Boolean(
       active
+      && mountedRef.current
+      && isChatbocSessionRevisionCurrent(scope.sessionRevision)
       && active.tenantSlug === scope.tenantSlug
       && active.blueprintId === scope.blueprintId
       && active.tenantId === scope.tenantId
@@ -150,6 +159,8 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
 
   React.useEffect(() => {
     let cancelled = false;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => !cancelled && isChatbocSessionRevisionCurrent(sessionRevision);
     setLoadingCatalog(true);
     setLoadError(null);
     setCatalog(null);
@@ -165,9 +176,9 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
     applyAttemptRef.current = null;
     loadedDetailScopeRef.current = null;
 
-    void listTenantBlueprints()
+    void listTenantBlueprints({ isCurrent })
       .then((response) => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         setCatalog(response);
         const governmentCore = response.blueprints.find(
           (blueprint) => blueprint.id === GOVERNMENT_CORE_BLUEPRINT_ID,
@@ -176,7 +187,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
         if (!governmentCore) onApplicationStateChange?.(false, GOVERNMENT_CORE_BLUEPRINT_ID);
       })
       .catch((error) => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         onApplicationStateChange?.(false, GOVERNMENT_CORE_BLUEPRINT_ID);
         setLoadError(safeErrorMessage(
           error,
@@ -184,7 +195,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
         ));
       })
       .finally(() => {
-        if (!cancelled) setLoadingCatalog(false);
+        if (isCurrent()) setLoadingCatalog(false);
       });
 
     return () => {
@@ -195,6 +206,8 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
   React.useEffect(() => {
     if (!selectedBlueprintId) return;
     let cancelled = false;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => !cancelled && isChatbocSessionRevisionCurrent(sessionRevision);
     setLoadingDetail(true);
     setLoadError(null);
     setDetail(null);
@@ -208,9 +221,9 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
     applyAttemptRef.current = null;
     loadedDetailScopeRef.current = null;
 
-    void getTenantBlueprint(tenantSlug, selectedBlueprintId)
+    void getTenantBlueprint(tenantSlug, selectedBlueprintId, { isCurrent })
       .then((response) => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         loadedDetailScopeRef.current = {
           tenantSlug: normalizeScopeTenant(tenantSlug),
           blueprintId: response.blueprint.id,
@@ -219,12 +232,13 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
           manifestDigest: response.blueprint.manifest_digest,
           reloadRevision,
           refreshRevision,
+          sessionRevision,
         };
         setDetail(response);
         onApplicationStateChange?.(Boolean(response.application_receipt), response.blueprint.id);
       })
       .catch((error) => {
-        if (cancelled) return;
+        if (!isCurrent()) return;
         onApplicationStateChange?.(false, selectedBlueprintId);
         setLoadError(safeErrorMessage(
           error,
@@ -232,7 +246,7 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
         ));
       })
       .finally(() => {
-        if (!cancelled) setLoadingDetail(false);
+        if (isCurrent()) setLoadingDetail(false);
       });
 
     return () => {
@@ -269,7 +283,9 @@ const TenantBlueprintProvisioningPanelContent: React.FC<TenantBlueprintProvision
 
   const refreshAfterApply = async (scope: BlueprintWorkflowScope) => {
     try {
-      const refreshedDetail = await getTenantBlueprint(scope.tenantSlug, scope.blueprintId);
+      const refreshedDetail = await getTenantBlueprint(scope.tenantSlug, scope.blueprintId, {
+        isCurrent: () => workflowIsCurrent(scope),
+      });
       if (!workflowIsCurrent(scope)) return;
       if (
         String(refreshedDetail.tenant.id) !== scope.tenantId

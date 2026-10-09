@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 type ReadinessBlock = {
   id: 'brand' | 'team' | 'content' | 'channels' | 'certification';
@@ -284,24 +285,26 @@ const TenantProvisioningReadinessPanel = ({ tenantSlug }: TenantProvisioningRead
 
   React.useEffect(() => {
     let active = true;
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => active && isChatbocSessionRevisionCurrent(sessionRevision);
     setLoading(true);
     setError(null);
     setSnapshot((current) => (
       current?.tenant.slug.toLowerCase() === normalizedTenantSlug ? current : null
     ));
 
-    void fetchTenantProvisioningReadiness(normalizedTenantSlug)
+    void fetchTenantProvisioningReadiness(normalizedTenantSlug, { isCurrent })
       .then((response) => {
-        if (!active) return;
+        if (!isCurrent()) return;
         setSnapshot(response);
       })
       .catch(() => {
-        if (!active) return;
+        if (!isCurrent()) return;
         setSnapshot(null);
         setError('No pudimos validar el estado de implementación. No se muestra ningún frente como listo hasta recuperar el contrato del servidor.');
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (isCurrent()) setLoading(false);
       });
 
     return () => {

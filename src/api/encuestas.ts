@@ -1,5 +1,6 @@
 import { ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK, PUBLIC_SURVEY_BASE_URL } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
+import { readRelocationAction, readArchivedRelocations } from '@/api/surveyEditorialRelocation';
 import {
   PreguntaTipo,
   PublicResponsePayload,
@@ -358,6 +359,10 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}`, tenantSlug),
   ), {
     skipAuth: true,
+    // A public 404/403 from the configured backend is authoritative; generic
+    // base fallback would replay it before reading the resolution contract.
+    singleAttempt: true,
+    allowStartupRecovery: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -402,6 +407,7 @@ const shouldRetryPublicSurveyRequest = (
   method: ApiFetchOptions['method'],
 ) => {
   if (error instanceof ApiError) {
+    if (error.body && typeof error.body === 'object' && error.body.retryable === false) return false;
     const reasonCode =
       error.body && typeof error.body === 'object' && typeof error.body.reason_code === 'string'
         ? error.body.reason_code.trim()
@@ -770,6 +776,8 @@ export const getPublicSurveyLiveResults = (
     `/api/public/encuestas/v1/${slug}/live-results${buildQueryString({ ...(params ?? {}), tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
+    singleAttempt: true,
+    allowStartupRecovery: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -1227,6 +1235,8 @@ export const getSurveyComments = (
     `/api/public/encuestas/v1/${slug}/comentarios${buildQueryString({ limit, offset, tenant_slug: tenantSlug?.trim() })}`,
   ), {
     skipAuth: true,
+    singleAttempt: true,
+    allowStartupRecovery: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -1250,14 +1260,23 @@ export const postSurveyComment = (
     auth_email?: string;
     auth_first_name?: string;
     auth_last_name?: string;
+    mode?: 'anon' | 'social';
+    social_token?: string;
   },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
-  callPublicSurveyEndpoint<SurveyComment>(buildPublicSurveyPaths(
+  callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
     withTenantSlugParam(`/api/public/encuestas/v1/${slug}/comentarios`, tenantSlug),
   ), {
     method: 'POST',
-    body: payload,
+    body: (() => {
+      const rawMode = payload.mode ?? payload.modo ?? 'anon';
+      const mode = rawMode === 'anon' || rawMode === 'anonimo' ? 'anon' : 'social';
+      return mode === 'anon'
+        ? { texto: payload.texto, mode }
+        : { ...payload, mode, modo: undefined };
+    })(),
+    skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
@@ -1265,6 +1284,14 @@ export const postSurveyComment = (
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
     omitTenant: true,
+  }).then((response) => {
+    const comment = isRecord(response) && isRecord(response.comentario)
+      ? response.comentario
+      : response;
+    if (!isRecord(comment) || !Number.isInteger(comment.id) || typeof comment.texto !== 'string' || typeof comment.fecha !== 'string') {
+      throw new ApiError('No pudimos confirmar el comentario publicado.', 502, { reason_code: 'invalid_comment_ack' });
+    }
+    return comment as unknown as SurveyComment;
   });
 
 export type AdminSurveyComment = SurveyComment & {
@@ -1863,11 +1890,24 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
       if (!ADMIN_LIFECYCLE_PHASES.has(String(value.phase))) return false;
       if (!ADMIN_PERSISTED_STATES.has(String(value.persisted_state))) return false;
       if (typeof value.accepts_responses !== 'boolean') return false;
+      const hasPublicAccess = Object.prototype.hasOwnProperty.call(item, 'public_access');
+      const publicAccess = item.public_access;
+      if (hasPublicAccess && (
+        !isRecord(publicAccess) ||
+        publicAccess.contract_version !== 'surveys.public_access.v1' ||
+        typeof publicAccess.allowed !== 'boolean' ||
+        !(publicAccess.reason_code === null || (typeof publicAccess.reason_code === 'string' && Boolean(publicAccess.reason_code.trim()))) ||
+        !(publicAccess.next_action === null || (typeof publicAccess.next_action === 'string' && Boolean(publicAccess.next_action.trim())))
+      )) return false;
+      // Older list contracts omit public_access. When present, its public guard
+      // veto is part of the backend's effective participation calculation.
+      const publicParticipationAllowed = !hasPublicAccess ||
+        (isRecord(publicAccess) && publicAccess.allowed === true);
       const scope = resolveSurveyJurisdictionScope(item as unknown as SurveyAdmin);
       if (scope.source !== 'admin_scope') return false;
       const jurisdictionConflict = scope.classification === 'conflict';
       const phaseAcceptsResponses = ['collecting', 'live_voting'].includes(String(value.phase));
-      if (value.accepts_responses !== (phaseAcceptsResponses && !jurisdictionConflict)) return false;
+      if (value.accepts_responses !== (phaseAcceptsResponses && !jurisdictionConflict && publicParticipationAllowed)) return false;
       if (!isRecord(value.jurisdiction)) return false;
       if (
         value.jurisdiction.status !== scope.classification ||
@@ -1888,6 +1928,7 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
       if (!isRecord(value.capabilities) || !isRecord(value.participation) || !isRecord(value.actions)) return false;
       const capabilityKeys = ['can_publish', 'can_close', 'can_delete', 'can_share', 'can_view_results'];
       if (!capabilityKeys.every((key) => typeof value.capabilities[key] === 'boolean')) return false;
+      if (!publicParticipationAllowed && value.capabilities.can_share !== false) return false;
       if (
         jurisdictionConflict &&
         (value.capabilities.can_publish !== false || value.capabilities.can_share !== false)
@@ -2023,6 +2064,9 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
 
     return {
       contract_version: 'surveys.admin_list.v2',
+      editorial_relocation: readRelocationAction(payload.editorial_relocation) ?? undefined,
+      include_archived: payload.include_archived === true,
+      archived_editorial_relocations: payload.include_archived === true ? readArchivedRelocations(payload.archived_editorial_relocations) : undefined,
       tenant: { id: tenant.id as number, slug: (tenant.slug as string).trim() },
       freshness: {
         generated_at: freshness.generated_at as string,

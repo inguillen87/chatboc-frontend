@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -8,6 +8,7 @@ import {
   Bell,
   Brain,
   CheckCircle2,
+  ChevronDown,
   DatabaseZap,
   ExternalLink,
   Gauge,
@@ -29,10 +30,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSocket } from '@/context/SocketContext';
-import { useTenant } from '@/context/TenantContext';
+import { usePrivateAnalyticsScope } from './usePrivateAnalyticsScope';
+import type { PrivateAnalyticsScope } from './privateAnalyticsScope';
+import { useCapabilities } from '@/context/CapabilitiesContext';
+import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
-import { operationsTenantSlug, assertOperationsResponseScope, visibleOperationsQuery } from './operationsReadState';
+import { BASE_API_URL } from '@/config';
+import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { operationsEventMatchesTenant, assertOperationsResponseScope, visibleOperationsQuery } from './operationsReadState';
+import { isTerritorialTenantScopeCompatible } from '@/utils/territorialTicketIdentity';
 import { useOperationsRefresh } from './useOperationsRefresh';
 import { OperationsWorkspaceStatus } from './OperationsWorkspaceStatus';
 
@@ -73,20 +81,16 @@ const OPERATIONS_QUERY_TIMEOUT_MS = 9_000;
 const OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS = 7_000;
 
 const withOperationsTimeout = async <T,>(
-  promise: Promise<T>,
+  read: (isCurrent: () => boolean) => Promise<T>,
   label: string,
   timeoutMs = OPERATIONS_QUERY_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
+  const sessionRevision = captureChatbocSessionRevision();
+  const isCurrent = () => !signal?.aborted && isChatbocSessionRevisionCurrent(sessionRevision);
+  const payload = await withBackendReadTimeout(() => read(isCurrent), timeoutMs, label, BASE_API_URL, isCurrent);
+  if (!isCurrent()) throw new DOMException('Private operations scope expired', 'AbortError');
+  return payload;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -466,6 +470,63 @@ const formatEndpoint = (action?: OperationsActionItem) =>
 const actionHref = (action?: OperationsActionItem) =>
   asString(action?.href) ?? asString(action?.frontend_path) ?? asString(action?.route);
 
+const ticketQueueHref = (href: unknown, tenantSlug: string): string | undefined => {
+  // An absent destination may use the verified workspace route. A supplied,
+  // invalid destination must stay unavailable rather than silently falling back.
+  const destination = href === undefined || href === null ? '/perfil?tab=tickets' : href;
+  if (typeof destination !== 'string' || !destination.startsWith('/perfil?') || /[\\\u0000-\u0020]/.test(destination)) return undefined;
+  try {
+    const url = new URL(destination, 'https://private.invalid');
+    if (url.origin !== 'https://private.invalid' || url.pathname !== '/perfil' || url.hash
+      || url.searchParams.getAll('tab').length !== 1 || url.searchParams.get('tab') !== 'tickets') return undefined;
+    const allowed = new Set(['tab', 'focus', 'tenant_slug', 'tenant', 'tenantSlug']);
+    if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) return undefined;
+    if (url.searchParams.getAll('focus').length > 1 || (url.searchParams.has('focus') && url.searchParams.get('focus') !== 'open_queue')) return undefined;
+    for (const key of ['tenant_slug', 'tenant', 'tenantSlug']) {
+      const values = url.searchParams.getAll(key);
+      if (values.length > 1 || values.some((value) => value !== tenantSlug)) return undefined;
+    }
+    url.searchParams.set('tenant_slug', tenantSlug);
+    return `${url.pathname}?${url.searchParams.toString()}`;
+  } catch {
+    return undefined;
+  }
+};
+
+const geocodingQueueHref = (
+  action: OperationsActionItem | undefined,
+  tenantSlug: string,
+  filters: HeatmapFilterState,
+): string | undefined => {
+  if (!action || action.id !== 'open_geocoding_queue' || action.enabled !== true
+    || action.action_type !== 'open_queue' || action.writes_enabled !== false
+    || action.ui_hint !== 'open_geocoding_queue' || asString(action.tenant_slug) !== tenantSlug
+    || !isTerritorialTenantScopeCompatible(action, tenantSlug)) return undefined;
+  const href = actionHref(action);
+  if (!href?.startsWith('/perfil?') || /[\\\u0000-\u0020]/.test(href)) return undefined;
+  try {
+    const url = new URL(href, 'https://private.invalid');
+    if (url.origin !== 'https://private.invalid' || url.pathname !== '/perfil' || url.hash
+      || url.searchParams.getAll('tab').length !== 1 || url.searchParams.get('tab') !== 'tickets'
+      || url.searchParams.getAll('focus').length !== 1 || url.searchParams.get('focus') !== 'open_geocoding_queue'
+      || url.searchParams.getAll('tenant_slug').length !== 1 || url.searchParams.get('tenant_slug') !== tenantSlug) return undefined;
+    const allowed = new Set(['tab', 'focus', 'tenant_slug', 'categoria', 'zona']);
+    if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) return undefined;
+    const activeValues = {
+      categoria: filters.categoria,
+      zona: [filters.barrio, filters.distrito].filter(Boolean).join(','),
+    };
+    for (const key of ['categoria', 'zona'] as const) {
+      if (url.searchParams.getAll(key).length > 1) return undefined;
+      if (activeValues[key]) url.searchParams.set(key, activeValues[key]);
+      else url.searchParams.delete(key);
+    }
+    return `${url.pathname}?${url.searchParams.toString()}`;
+  } catch {
+    return undefined;
+  }
+};
+
 const isExternalHref = (href: string) => /^https?:\/\//i.test(href);
 
 const appendInternalQueryParam = (href: string, key: string, value: string) => {
@@ -598,13 +659,47 @@ interface OperationsDashboardPanelProps {
   className?: string;
 }
 
-export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
-  const { currentSlug } = useTenant();
-  const tenantSlug = operationsTenantSlug(currentSlug);
-  if (!tenantSlug) return <ViewState status="empty" title="Seleccioná una organización" description="El centro de decisiones necesita un contexto de organización confirmado." className={className} />;
-  return <ScopedOperationsDashboard key={tenantSlug} tenantSlug={tenantSlug} className={className} />;
+function OperationsDisclosure({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
+  return (
+    <details id={id} className="operations-secondary-details rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold text-foreground">
+        <span>{label}</span>
+        <ChevronDown className="operations-secondary-chevron h-4 w-4 shrink-0" aria-hidden="true" />
+      </summary>
+      <div className="mt-4 space-y-4">{children}</div>
+    </details>
+  );
 }
-function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboardPanelProps & { tenantSlug: string }) {
+
+const revealOperationsTarget = (id: string) => {
+  if (!id.startsWith('operations-')) return;
+  let disclosure = document.getElementById(id)?.closest('details');
+  while (disclosure) {
+    disclosure.open = true;
+    disclosure = disclosure.parentElement?.closest('details') ?? null;
+  }
+};
+
+const hasCommerceActivity = (data: OperationsDashboardV1) => {
+  const commerce = data.commerce;
+  const summary = commerce?.summary ?? {};
+  return [
+    summary.orders, summary.source_records, summary.assisted_orders, summary.orders_needing_review,
+    summary.unmatched_items, summary.total_monetary,
+    data.summary.assisted_orders, data.summary.orders_needing_review, data.summary.unmatched_order_items,
+  ].some((value) => (asNumber(value) ?? 0) > 0)
+    || Boolean(commerce?.review_items?.length)
+    || [commerce?.by_origin, commerce?.by_source_model, commerce?.by_request_kind, commerce?.totals_by_currency]
+      .some((items) => items?.some((item) => (itemValue(item) ?? 0) > 0 || (asNumber(item.amount) ?? 0) > 0));
+};
+
+export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
+  const { scope, pending, sessionRevision, key } = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso" className={className} />;
+  if (!scope) return <ViewState status="empty" title="Seleccioná una organización" description="El centro de decisiones necesita un perfil y una organización verificados." className={className} />;
+  return <ScopedOperationsDashboard key={key} tenantSlug={scope.tenantSlug} organizationKind={scope.kind} sessionScopeKey={scope.scopeKey} sessionRevision={sessionRevision} className={className} />;
+}
+function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeKey, sessionRevision, className }: OperationsDashboardPanelProps & { tenantSlug: string; organizationKind: PrivateAnalyticsScope['kind']; sessionScopeKey: string; sessionRevision: number }) {
   const { socket, isConnected: socketConnected } = useSocket();
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
   const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
@@ -614,10 +709,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   );
 
   const dashboardQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-dashboard', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-dashboard', tenantSlug, sessionScopeKey, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsDashboardV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_dashboard_timeout',
+      OPERATIONS_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -625,11 +722,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }));
 
   const heatmapQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-heatmap', tenantSlug, activeHeatmapFilters],
-    queryFn: () => withOperationsTimeout(
-      getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-heatmap', tenantSlug, sessionScopeKey, sessionRevision, activeHeatmapFilters],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsHeatmapV2({ tenantSlug, include_ai: 0, ...activeHeatmapFilters, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_heatmap_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -637,11 +735,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }));
 
   const mapConfigQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['public-map-config-v1', tenantSlug],
-    queryFn: () => withOperationsTimeout(
-      getPublicMapConfigV1({ tenantSlug }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['public-map-config-v1', tenantSlug, sessionScopeKey, sessionRevision],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getPublicMapConfigV1({ tenantSlug, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'public_map_config_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -649,55 +748,60 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }));
 
   const actionCenterQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-action-center', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-action-center', tenantSlug, sessionScopeKey, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsActionCenterV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_action_center_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   }));
   const aiBriefQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-ai-brief', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-ai-brief', tenantSlug, sessionScopeKey, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsAIBriefV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_brief_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   }));
   const aiOpsQueueQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-ai-ops-queue', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-ai-ops-queue', tenantSlug, sessionScopeKey, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsAIOpsQueueV2({ tenantSlug, limit: 12, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_ops_queue_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   }));
   const aiProviderStatusQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-ai-provider-status', tenantSlug],
-    queryFn: () => withOperationsTimeout(
-      getOperationsAIProviderStatusV2({ tenantSlug }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-ai-provider-status', tenantSlug, sessionScopeKey, sessionRevision],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsAIProviderStatusV2({ tenantSlug, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_ai_provider_status_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
   }));
   const freshnessQuery = visibleOperationsQuery(useQuery({
-    queryKey: ['v2-operations-freshness', tenantSlug, activeOperationsPeriod],
-    queryFn: () => withOperationsTimeout(
-      getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
+    queryKey: ['v2-operations-freshness', tenantSlug, sessionScopeKey, sessionRevision, activeOperationsPeriod],
+    queryFn: ({ signal }) => withOperationsTimeout(
+      (isCurrent) => getOperationsFreshnessV2({ tenantSlug, ...activeOperationsPeriod, isCurrent }).then((response) => assertOperationsResponseScope(response, tenantSlug)),
       'operations_freshness_timeout',
       OPERATIONS_SECONDARY_QUERY_TIMEOUT_MS,
+      signal,
     ),
     retry: 0,
     refetchOnWindowFocus: false,
@@ -744,6 +848,12 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
     ? operationsDashboardErrorMessage(dashboardQuery.error)
     : undefined;
   const data = dashboardData ?? OPERATIONS_DASHBOARD_FALLBACK;
+  useEffect(() => {
+    const revealHashTarget = () => revealOperationsTarget(window.location.hash.slice(1));
+    revealHashTarget();
+    window.addEventListener('hashchange', revealHashTarget);
+    return () => window.removeEventListener('hashchange', revealHashTarget);
+  }, [dashboardQuery.isLoading]);
   const actionCenter = actionCenterQuery.data;
   const aiBrief = aiBriefQuery.data ?? (data?.ai_brief as OperationsAIBriefV1 | undefined);
   const aiOpsQueue = aiOpsQueueQuery.data;
@@ -828,7 +938,10 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
   }
 
   return (
-    <section className={cn('operations-live-workspace space-y-5', className)}>
+    <section className={cn('operations-live-workspace space-y-5', className)} onClickCapture={(event) => {
+      const anchor = (event.target as Element).closest('a[href^="#operations-"]');
+      if (anchor) revealOperationsTarget(anchor.getAttribute('href')!.slice(1));
+    }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -861,7 +974,6 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
       </div>
 
       <OperationsWorkspaceStatus tenantSlug={tenantSlug} sources={readSources} paused={liveRefresh.paused} mapFilterCount={mapFilterCount} labels={data.frontend_contract?.labels} />
-      {freshness ? <FreshnessBanner freshness={freshness} /> : null}
       {aiBrief ? <AIBriefBanner brief={aiBrief} /> : null}
       {dashboardFallbackActive ? (
         <div
@@ -886,6 +998,8 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
 
       <div id="operations-overview">
       <OperationsCommandCockpit
+        tenantSlug={tenantSlug}
+        organizationKind={organizationKind}
         data={data}
         heatmap={heatmapQuery.data}
         freshness={freshness}
@@ -896,26 +1010,6 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
       />
 
       <QueueTruthPanel data={data} />
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        {focusCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div key={card.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', focusCardToneClass[card.tone])}>
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Prioridad</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">{card.title}</p>
-                  <p className="mt-1 text-sm leading-5 text-muted-foreground">{card.description}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {canRenderDashboard === false ? (
@@ -929,15 +1023,10 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
 
       {alerts.length ? <AlertsStrip alerts={alerts} /> : null}
 
-      <KpiGrid data={data} heatmap={heatmapQuery.data} alertsCount={alerts.length} />
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+      <div data-testid="operations-primary-workspace" className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <div className="space-y-5">
-          <TrendsPanel data={data} />
-          <div id="operations-tickets"><TicketBreakdowns data={data} /></div>
-          <div id="operations-engagement"><EngagementPanel data={data} /></div>
-          <div id="operations-team"><EmployeePanel data={data} /></div>
           <OperationsHeatmapPanel
+            tenantSlug={tenantSlug}
             heatmap={heatmapQuery.data}
             freshness={freshness}
             loading={heatmapQuery.isLoading}
@@ -950,19 +1039,6 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
           />
         </div>
         <div className="space-y-5">
-          <AIOpsQueuePanel
-            queue={aiOpsQueue}
-            loading={aiOpsQueueQuery.isLoading}
-            error={aiOpsQueueQuery.error}
-            refetch={() => void refetchAIOpsQueue()}
-          />
-          <CommerceOpsPanel data={data} />
-          <AIProviderStatusPanel
-            status={aiProviderStatus}
-            loading={aiProviderStatusQuery.isLoading}
-            error={aiProviderStatusQuery.error}
-            refetch={() => void refetchAIProviderStatus()}
-          />
           <div id="operations-actions">
           <ActionCenterPanel
             items={actions}
@@ -972,9 +1048,53 @@ function ScopedOperationsDashboard({ tenantSlug, className }: OperationsDashboar
             refetch={() => void refetchActionCenter()}
           />
           </div>
+          <AIOpsQueuePanel
+            queue={aiOpsQueue}
+            loading={aiOpsQueueQuery.isLoading}
+            error={aiOpsQueueQuery.error}
+            refetch={() => void refetchAIOpsQueue()}
+          />
+          {organizationKind === 'pyme' ? <CommerceOpsPanel data={data} /> : null}
           <HotspotsPanel data={data} heatmap={heatmapQuery.data} mapFiltered={mapFilterCount > 0} />
         </div>
       </div>
+
+      <EngagementPanel data={data} tenantSlug={tenantSlug} />
+      <KpiGrid data={data} heatmap={heatmapQuery.data} alertsCount={alerts.length} />
+      <OperationsDisclosure label={resolveLabel(data, 'activity_details', 'Desgloses y equipo')}>
+        <TrendsPanel data={data} />
+        <div id="operations-tickets"><TicketBreakdowns data={data} /></div>
+        <div id="operations-team"><EmployeePanel data={data} /></div>
+      </OperationsDisclosure>
+      <OperationsDisclosure label={resolveLabel(data, 'ai_provider_details', 'Configuración e integraciones IA')}>
+          <AIProviderStatusPanel
+            status={aiProviderStatus}
+            loading={aiProviderStatusQuery.isLoading}
+            error={aiProviderStatusQuery.error}
+            refetch={() => void refetchAIProviderStatus()}
+          />
+      </OperationsDisclosure>
+      <OperationsDisclosure label={resolveLabel(data, 'priority_details', 'Estado y prioridades')}>
+        {freshness ? <FreshnessBanner freshness={freshness} /> : null}
+        <div className="grid gap-3 lg:grid-cols-3">
+          {focusCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', focusCardToneClass[card.tone])}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{card.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">{card.description}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </OperationsDisclosure>
     </section>
   );
 }
@@ -1172,6 +1292,8 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
 }
 
 function OperationsCommandCockpit({
+  tenantSlug,
+  organizationKind,
   data,
   heatmap,
   freshness,
@@ -1180,6 +1302,8 @@ function OperationsCommandCockpit({
   actionsCount,
   alertsCount,
 }: {
+  tenantSlug: string;
+  organizationKind: PrivateAnalyticsScope['kind'];
   data: OperationsDashboardV1;
   heatmap?: OperationsHeatmapV1;
   freshness?: OperationsFreshnessV1;
@@ -1188,11 +1312,23 @@ function OperationsCommandCockpit({
   actionsCount: number;
   alertsCount: number;
 }) {
+  const { user, organizationProfileVerified } = useUser();
+  const { hasCapability } = useCapabilities();
+  const ordersHref = organizationProfileVerified && user?.id && hasCapability('market.orders.read') && operationsEventMatchesTenant(data, tenantSlug)
+    ? `/pedidos?focus=assisted&tenant_slug=${encodeURIComponent(tenantSlug)}`
+    : null;
+  const surveysHref = organizationProfileVerified && user?.id && operationsEventMatchesTenant(data, tenantSlug)
+    ? `/admin/encuestas?tenant=${encodeURIComponent(tenantSlug)}`
+    : null;
   const ticketsSummary = data.tickets?.summary ?? {};
   const queueSnapshot = data.queue_truth?.queue_snapshot;
   const queueSummary = queueSnapshot?.summary ?? {};
   const queueSla = queueSnapshot?.sla ?? {};
   const queueLinks = queueSnapshot?.links ?? {};
+  const ticketsHref = organizationProfileVerified && user?.id && operationsEventMatchesTenant(data, tenantSlug)
+    && isTerritorialTenantScopeCompatible(queueSnapshot ?? {}, tenantSlug)
+    ? ticketQueueHref(queueLinks.open, tenantSlug)
+    : undefined;
   const surveysSummary = data.surveys?.summary ?? {};
   const commerceSummary = data.commerce?.summary ?? {};
   const openTickets = readNumber(queueSummary.open_total, data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos);
@@ -1200,7 +1336,7 @@ function OperationsCommandCockpit({
   const slaKnown = readNumber(queueSla.known);
   const slaUnknown = readNumber(queueSla.unknown, queueSummary.sla_unknown);
   const surveyResponses = readNumber(data.summary.survey_responses, surveysSummary.responses, surveysSummary.respuestas);
-  const liveVotes = readNumber(data.summary.live_votes, surveysSummary.votaciones_live, surveysSummary.live_votes);
+  const acceptingSurveys = readNumber(surveysSummary.accepting_responses);
   const assistedOrders = readNumber(data.summary.assisted_orders, commerceSummary.assisted_orders);
   const ordersNeedingReview = readNumber(data.summary.orders_needing_review, commerceSummary.orders_needing_review);
   const unmatchedItems = readNumber(data.summary.unmatched_order_items, commerceSummary.unmatched_items);
@@ -1244,25 +1380,25 @@ function OperationsCommandCockpit({
     {
       key: 'tickets',
       eyebrow: 'Resolucion',
-      title: 'Reclamos abiertos',
+      title: resolveLabel(data, 'open_tickets', 'Reclamos abiertos'),
       value: formatNumber(openTickets),
       detail: ticketDetail,
       icon: Ticket,
       tone: !queueSnapshot || overdueTickets || slaUnknown ? 'warning' : 'success',
-      href: queueLinks.open || '/perfil?tab=tickets',
+      href: ticketsHref,
       action: 'Abrir bandeja de reclamos',
     },
     {
       key: 'commerce',
       eyebrow: 'Marketplace',
-      title: 'Pedidos asistidos',
+      title: resolveLabel(data, 'assisted_orders', 'Pedidos asistidos'),
       value: formatNumber(assistedOrders),
       detail: ordersNeedingReview
         ? `${formatNumber(ordersNeedingReview)} a revisar · ${formatNumber(unmatchedItems)} items sin resolver`
-        : 'Notas, fotos y PDFs listos para operar',
+        : resolveLabel(data, 'orders_review_empty', 'Sin pedidos publicados para revisar'),
       icon: ShoppingCart,
       tone: ordersNeedingReview ? 'warning' : 'success',
-      href: '/perfil?tab=orders&focus=assisted',
+      href: ordersHref,
       action: 'Abrir pedidos asistidos',
     },
     {
@@ -1294,13 +1430,16 @@ function OperationsCommandCockpit({
       eyebrow: 'Participacion',
       title: 'Encuestas y votos',
       value: formatNumber(surveyResponses),
-      detail: liveVotes ? `${formatNumber(liveVotes)} votaciones en vivo` : 'Sin votaciones live publicadas',
+      detail: acceptingSurveys === undefined
+        ? 'Recepción de respuestas no informada'
+        : `${formatNumber(acceptingSurveys)} habilitadas para participar`,
       icon: Activity,
-      tone: liveVotes ? 'default' : 'neutral',
-      href: '/perfil?tab=analytics&focus=surveys',
+      tone: acceptingSurveys ? 'default' : 'neutral',
+      href: surveysHref,
       action: 'Ver encuestas',
     },
   ] as const;
+  const primaryCards = cards.filter((card) => card.key !== 'commerce' || organizationKind === 'pyme');
 
   return (
     <div
@@ -1309,8 +1448,8 @@ function OperationsCommandCockpit({
     >
       <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cabina de mando</p>
-          <h3 className="mt-1 text-xl font-semibold tracking-tight">Vista ejecutiva para operar ahora</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{resolveLabel(data, 'cockpit_title', 'Cabina de mando')}</p>
+          <h3 className="mt-1 text-xl font-semibold tracking-tight">{resolveLabel(data, 'cockpit_headline', 'Vista ejecutiva para operar ahora')}</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Reclamos, mapa, IA y participación unidos en una sola lectura. Cada bloque abre el módulo donde se resuelve.
           </p>
@@ -1321,8 +1460,8 @@ function OperationsCommandCockpit({
           {alertsCount ? <Badge variant="destructive">{formatNumber(alertsCount)} alertas</Badge> : null}
         </div>
       </div>
-      <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
-        {cards.map((card) => {
+      <div data-testid="operations-cockpit-metrics" className={cn('grid gap-0 md:grid-cols-2', organizationKind === 'pyme' ? 'xl:grid-cols-5' : 'xl:grid-cols-4')}>
+        {primaryCards.map((card) => {
           const Icon = card.icon;
           const toneClass =
             card.tone === 'warning'
@@ -1338,7 +1477,9 @@ function OperationsCommandCockpit({
                 <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
                   <Icon className="h-5 w-5" />
                 </span>
-                {card.href.startsWith('#') ? (
+                {!card.href ? (
+                  <span className="text-xs text-muted-foreground">Acceso no habilitado</span>
+                ) : card.href.startsWith('#') ? (
                   <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
                     {card.action}
                   </a>
@@ -1356,6 +1497,18 @@ function OperationsCommandCockpit({
           );
         })}
       </div>
+      {organizationKind !== 'pyme' && hasCommerceActivity(data) ? (
+        <div className="border-t border-border/60 p-3">
+          <OperationsDisclosure label={resolveLabel(data, 'commerce_secondary_title', 'Actividad adicional')}>
+            {ordersHref ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to={ordersHref}>{resolveLabel(data, 'open_assisted_orders', 'Abrir pedidos asistidos')}</Link>
+              </Button>
+            ) : null}
+            <CommerceOpsPanel data={data} />
+          </OperationsDisclosure>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1585,7 +1738,7 @@ function AIProviderStatusPanel({
               Estado seguro de proveedores para analytics, mapas, reclamos y automatizacion.
             </CardDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} className="h-8 shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} aria-label={status?.frontend_contract?.labels?.refresh_ai_providers || 'Actualizar integraciones IA'} className="h-8 shrink-0">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
@@ -1740,10 +1893,10 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShoppingCart className="h-4 w-4 text-primary" />
-              Pedidos y ventas
+              {resolveLabel(data, 'commerce', 'Pedidos y ventas')}
             </CardTitle>
             <CardDescription>
-              Pipeline unificado de WhatsApp, widget, marketplace e integraciones, con cola asistida y deduplicacion.
+              {resolveLabel(data, 'commerce_description', 'Actividad publicada de pedidos, importes y pendientes de revisión.')}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -2076,12 +2229,15 @@ function AIBriefBanner({ brief }: { brief: OperationsAIBriefV1 }) {
               </div>
             ))}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
+          {primaryProvider || providerOrder || hfMode || hfConfigured ? <details className="operations-secondary-details mt-4 text-xs text-slate-300">
+            <summary className="cursor-pointer font-semibold">{brief.frontend_contract?.labels?.ai_technical_details || 'Detalles de la lectura IA'}</summary>
+          <div className="mt-2 flex flex-wrap gap-2">
             {primaryProvider ? <span className="rounded-full border border-white/10 px-2 py-1">IA {primaryProvider}</span> : null}
             {providerOrder ? <span className="rounded-full border border-white/10 px-2 py-1">{providerOrder}</span> : null}
             {hfMode ? <span className="rounded-full border border-white/10 px-2 py-1">HF {hfMode}</span> : null}
             {hfConfigured ? <span className="rounded-full border border-emerald-400/30 px-2 py-1 text-emerald-200">HF activo</span> : null}
           </div>
+          </details> : null}
         </div>
       </div>
     </div>
@@ -2288,7 +2444,7 @@ function TrendsPanel({ data }: { data: OperationsDashboardV1 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Tendencias</CardTitle>
+        <CardTitle className="text-lg">{resolveLabel(data, 'trends', 'Tendencias')}</CardTitle>
         <CardDescription>Comparacion contra el periodo anterior.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -2332,42 +2488,88 @@ function TicketBreakdowns({ data }: { data: OperationsDashboardV1 }) {
   );
 }
 
-function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
+const canReceiveSurveyResponses = (monitor: OperationsBucketItem, tenantSlug: string): boolean => {
+  const access = isRecord(monitor.public_access) ? monitor.public_access : null;
+  return isTerritorialTenantScopeCompatible(monitor, tenantSlug)
+    && monitor.accepts_responses === true
+    && monitor.can_share === true
+    && access?.contract_version === 'surveys.public_access.v1'
+    && access.allowed === true
+    && ['collecting', 'live_voting'].includes(asString(monitor.phase) ?? '')
+    && ['publicada', 'published'].includes(asString(monitor.status) ?? '');
+};
+
+const surveyMonitorStateLabel = (monitor: OperationsBucketItem, receiving: boolean): string => {
+  const phase = asString(monitor.phase);
+  const status = asString(monitor.status);
+  if (phase === 'closed' || ['cerrada', 'closed'].includes(status ?? '')) return 'Participación finalizada';
+  if (phase === 'archived' || ['archivada', 'archived'].includes(status ?? '')) return 'Archivada';
+  if (phase === 'draft' || ['borrador', 'draft'].includes(status ?? '')) return 'Borrador';
+  if (phase === 'scheduled') return 'Programada';
+  if (phase === 'window_ended') return 'Participación finalizada';
+  if (receiving) return phase === 'live_voting' ? 'Recibiendo votos' : 'Recibiendo respuestas';
+  return 'Participación pendiente de habilitación';
+};
+
+const surveyPrivateAnalyticsHref = (monitor: OperationsBucketItem, tenantSlug: string): string | undefined => {
+  const href = asString(monitor.admin_url);
+  const id = typeof monitor.id === 'number' ? String(monitor.id) : asString(monitor.id);
+  if (!href || !id || !/^[1-9]\d*$/.test(id) || !isTerritorialTenantScopeCompatible(monitor, tenantSlug)) return undefined;
+  if (!href.startsWith(`/admin/encuestas/${id}/analytics`) || /[\\\u0000-\u0020]/.test(href)) return undefined;
+  const url = new URL(href, 'https://private.invalid');
+  if (url.pathname !== `/admin/encuestas/${id}/analytics`) return undefined;
+  if (['tenant', 'tenant_slug', 'tenantSlug'].some((key) => url.searchParams.getAll(key).some((value) => value !== tenantSlug))) return undefined;
+  return appendInternalQueryParam(href, 'tenant', tenantSlug);
+};
+
+function SurveyLiveControlRoom({ data, tenantSlug }: { data: OperationsDashboardV1; tenantSlug: string }) {
   const room = data.surveys?.live_control_room;
   if (!room || room.enabled === false) return null;
 
   const monitors = Array.isArray(room.monitors) ? room.monitors : [];
-  const actions = Array.isArray(room.actions) ? room.actions : [];
   const summary = room.summary ?? {};
   const realtime = isRecord(room.realtime) ? room.realtime : {};
-  const state = asString(room.state) ?? 'monitor';
+  const scopeMatches = operationsEventMatchesTenant(data, tenantSlug);
+  const receivingMonitors = scopeMatches ? monitors.filter((monitor) => canReceiveSurveyResponses(monitor, tenantSlug)) : [];
+  const acceptingResponses = readNumber(summary.accepting_responses);
+  const configuredMonitors = readNumber(summary.configured_monitors);
+  const actions = (Array.isArray(room.actions) ? room.actions : []).filter((action) =>
+    ['open_surveys_admin', 'open_operations_heatmap'].includes(action.id ?? '')
+      || receivingMonitors.length > 0,
+  );
   const refreshSeconds = readNumber(realtime.refresh_seconds);
   const channels = Array.isArray(summary.channels) ? (summary.channels as OperationsBucketItem[]) : [];
 
   return (
-    <Card className="overflow-hidden border-primary/20">
+    <Card data-testid="operations-survey-control-room" className="overflow-hidden border-primary/20">
       <CardHeader className="border-b bg-primary/5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Activity className="h-5 w-5 text-primary" />
-              Control de votaciones en vivo
+              Control de votaciones
             </CardTitle>
             <CardDescription>
-              Participación, resultados, canales y cobertura geográfica para decisiones en tiempo real.
+              Recepción habilitada, instrumentos configurados y resultados del periodo.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge variant={state === 'live' ? 'default' : 'secondary'}>{state === 'live' ? 'en vivo' : statusLabel(state)}</Badge>
+            <Badge variant={acceptingResponses ? 'default' : 'secondary'}>
+              {acceptingResponses === undefined ? 'Recepción no informada' : acceptingResponses > 0 ? 'Recepción habilitada' : 'Sin recepción pública habilitada'}
+            </Badge>
             {refreshSeconds !== undefined ? <Badge variant="outline">refresh {formatNumber(refreshSeconds)}s</Badge> : null}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 pt-4">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border bg-background p-3">
-            <p className="text-xs text-muted-foreground">Votaciones activas</p>
-            <p className="text-2xl font-semibold">{formatNumber(summary.live_surveys)}</p>
+            <p className="text-xs text-muted-foreground">Habilitadas para participar</p>
+            <p className="text-2xl font-semibold">{acceptingResponses === undefined ? 'No informadas' : formatNumber(acceptingResponses)}</p>
+          </div>
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-xs text-muted-foreground">Votaciones configuradas</p>
+            <p className="text-2xl font-semibold">{configuredMonitors === undefined ? 'No informadas' : formatNumber(configuredMonitors)}</p>
           </div>
           <div className="rounded-lg border bg-background p-3">
             <p className="text-xs text-muted-foreground">Respuestas</p>
@@ -2384,9 +2586,10 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
             {monitors.slice(0, 4).map((monitor, index) => {
               const responses = readNumber(monitor.responses, monitor.value, monitor.count);
               const geoCoverage = readNumber(monitor.geo_coverage_rate);
-              const liveResults = asString(monitor.live_results_endpoint);
-              const publicUrl = asString(monitor.public_url);
-              const adminUrl = asString(monitor.admin_url);
+              const receiving = scopeMatches && canReceiveSurveyResponses(monitor, tenantSlug);
+              const liveResults = receiving && monitor.show_live_results === true ? asString(monitor.live_results_endpoint) : undefined;
+              const publicUrl = receiving ? asString(monitor.public_url) : undefined;
+              const adminUrl = scopeMatches ? surveyPrivateAnalyticsHref(monitor, tenantSlug) : undefined;
               return (
                 <div key={String(monitor.id ?? monitor.slug ?? index)} className="rounded-xl border bg-muted/20 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2396,8 +2599,8 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
                         {asString(monitor.slug) ?? 'encuesta'} · {statusLabel(asString(monitor.status))}
                       </p>
                     </div>
-                    <Badge variant={asString(monitor.state) === 'live_collecting' ? 'default' : 'secondary'}>
-                      {asString(monitor.state) === 'live_collecting' ? 'recolectando' : statusLabel(asString(monitor.state))}
+                    <Badge variant={receiving ? 'default' : 'secondary'}>
+                      {surveyMonitorStateLabel(monitor, receiving)}
                     </Badge>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -2407,7 +2610,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {publicUrl ? (
                       <Button asChild size="sm" variant="outline">
-                        <a href={publicUrl}>Abrir publica</a>
+                        <a href={publicUrl}>Abrir pública</a>
                       </Button>
                     ) : null}
                     {liveResults ? (
@@ -2426,7 +2629,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
             })}
           </div>
         ) : (
-          <ViewState status="empty" description="No hay votaciones en vivo publicadas para este periodo." className="min-h-[140px]" />
+          <ViewState status="empty" description="No hay votaciones configuradas para este periodo." className="min-h-[140px]" />
         )}
 
         {channels.length || actions.length ? (
@@ -2455,7 +2658,7 @@ function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
   );
 }
 
-function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
+function EngagementPanel({ data, tenantSlug }: { data: OperationsDashboardV1; tenantSlug: string }) {
   const surveyItems = data.surveys?.items ?? [];
   const liveItems = Array.isArray(data.surveys?.live_items)
     ? (data.surveys?.live_items as OperationsBucketItem[])
@@ -2464,13 +2667,16 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
   const liveChatItems = data.live_chat?.items ?? [];
   const surveyRows = [...liveItems, ...surveyItems].slice(0, 8);
   const channelRows = [...channelItems, ...liveChatItems].slice(0, 8);
-  const hasSignal = surveyItems.length || liveItems.length || channelItems.length || liveChatItems.length || data.live_chat?.active_viewers !== undefined;
+  const hasDetails = Boolean(surveyRows.length || channelRows.length || data.live_chat?.active_viewers !== undefined);
+  const hasSignal = surveyItems.length || liveItems.length || channelItems.length || liveChatItems.length || data.live_chat?.active_viewers !== undefined || Boolean(data.surveys?.live_control_room?.enabled);
 
-  if (!hasSignal) return null;
+  if (!hasSignal) return <div id="operations-engagement" />;
 
   return (
-    <div className="space-y-4">
-      <SurveyLiveControlRoom data={data} />
+    <div id={hasDetails ? undefined : 'operations-engagement'} className="space-y-4">
+      <SurveyLiveControlRoom data={data} tenantSlug={tenantSlug} />
+      {hasDetails ? (
+      <OperationsDisclosure id="operations-engagement" label={resolveLabel(data, 'engagement_details', 'Detalle de participación y canales')}>
       <div className="grid gap-4 lg:grid-cols-2">
         {surveyRows.length ? (
           <BreakdownCard title={resolveLabel(data, 'surveys', 'Encuestas y votaciones')} items={surveyRows} />
@@ -2497,6 +2703,8 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
           </Card>
         ) : null}
       </div>
+      </OperationsDisclosure>
+      ) : null}
     </div>
   );
 }
@@ -2535,6 +2743,7 @@ function EmployeePanel({ data }: { data: OperationsDashboardV1 }) {
 }
 
 function OperationsHeatmapPanel({
+  tenantSlug,
   heatmap,
   freshness,
   loading,
@@ -2545,6 +2754,7 @@ function OperationsHeatmapPanel({
   mapConfig,
   refetch,
 }: {
+  tenantSlug: string;
   heatmap?: OperationsHeatmapV1;
   freshness?: OperationsFreshnessV1;
   loading: boolean;
@@ -2555,6 +2765,7 @@ function OperationsHeatmapPanel({
   mapConfig?: PublicMapConfigV1;
   refetch: () => void;
 }) {
+  const periodFilterId = useId();
   const layers = heatmap?.render_contract?.layers ?? [];
   const layersKey = layers.join('|');
   const [enabledLayers, setEnabledLayers] = useState<string[]>(layers);
@@ -2571,6 +2782,12 @@ function OperationsHeatmapPanel({
       ['zones', 'zone', 'neighborhoods', 'neighborhood', 'districts', 'district'].some(
         (key) => asBoolean(privacySuppressed[key]) === true,
       ));
+  const categoriesPrivacyProtected = privacySuppressed === true
+    || (isRecord(privacySuppressed)
+      && ['categories', 'category'].some((key) => privacySuppressed[key] === true));
+  const trustedCategoryFacets = heatmap?.territorial_facets?.contract_version === 'operations.heatmap.territorial_facets.v1'
+    && operationsEventMatchesTenant(heatmap, tenantSlug)
+    && isTerritorialTenantScopeCompatible(heatmap.territorial_facets, tenantSlug);
   const filterControls = useMemo(() => {
     const byKey = new Map<HeatmapFilterKey, Map<string, HeatmapFilterOption>>();
     const encounteredKeys = new Set<HeatmapFilterKey>();
@@ -2581,7 +2798,8 @@ function OperationsHeatmapPanel({
       byKey.set(key, next);
       return next;
     };
-    const addOption = (key: HeatmapFilterKey, value: unknown, labelCandidate?: unknown, countCandidate?: unknown) => {
+    const addOption = (key: HeatmapFilterKey, value: unknown, labelCandidate?: unknown, countCandidate?: unknown, exactLabel = false) => {
+      if (key === 'categoria' && categoriesPrivacyProtected) return;
       const parsedValue = typeof value === 'number' && Number.isFinite(value) ? String(value) : asString(value);
       if (!parsedValue) return;
       const rawLabel =
@@ -2596,7 +2814,7 @@ function OperationsHeatmapPanel({
       ) {
         return;
       }
-      const label = heatmapDisplayLabel(rawLabel, parsedValue);
+      const label = exactLabel ? rawLabel : heatmapDisplayLabel(rawLabel, parsedValue);
       const group = ensureGroup(key);
       const previous = group.get(parsedValue);
       const count = readNumber(countCandidate);
@@ -2609,7 +2827,7 @@ function OperationsHeatmapPanel({
 
     (heatmap?.facets ?? []).forEach((facet) => {
       const key = normalizeHeatmapFilterKey(facet.key ?? facet.field ?? facet.query_param);
-      if (!key) return;
+      if (!key || (key === 'categoria' && trustedCategoryFacets)) return;
       facet.items.forEach((item) => {
         addOption(key, readItemOptionValue(item), itemLabel(item), itemValue(item));
       });
@@ -2617,7 +2835,7 @@ function OperationsHeatmapPanel({
 
     Object.entries(heatmap?.segments ?? {}).forEach(([segmentKey, items]) => {
       const key = normalizeHeatmapFilterKey(segmentKey);
-      if (!key) return;
+      if (!key || (key === 'categoria' && trustedCategoryFacets)) return;
       items.forEach((item) => {
         addOption(key, readItemOptionValue(item), itemLabel(item), itemValue(item));
       });
@@ -2625,9 +2843,17 @@ function OperationsHeatmapPanel({
 
     (heatmap?.points ?? []).forEach((point) => {
       HEATMAP_FILTERS.forEach((config) => {
+        if (config.key === 'categoria' && trustedCategoryFacets) return;
         addOption(config.key, readPointField(point, config));
       });
     });
+
+    if (trustedCategoryFacets && Array.isArray(heatmap?.territorial_facets?.categories)) {
+      heatmap.territorial_facets.categories.forEach((facet) => {
+        if (!isRecord(facet) || !isTerritorialTenantScopeCompatible(facet, tenantSlug)) return;
+        addOption('categoria', facet.key, facet.label, facet.count, true);
+      });
+    }
 
     return HEATMAP_FILTERS.map((config) => {
       const options = Array.from(byKey.get(config.key)?.values() ?? [])
@@ -2652,7 +2878,7 @@ function OperationsHeatmapPanel({
             : undefined,
       };
     }).filter((config) => config.options.length > 0 || Boolean(config.unavailableReason));
-  }, [heatmap?.facets, heatmap?.points, heatmap?.segments, territoryPrivacyProtected, uiLabels]);
+  }, [heatmap?.facets, heatmap?.points, heatmap?.segments, heatmap?.territorial_facets, tenantSlug, trustedCategoryFacets, categoriesPrivacyProtected, territoryPrivacyProtected, uiLabels]);
 
   const hasActiveSegmentFilters = Object.keys(filters).some((key) => !HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey));
   const clearFiltersLabel = uiLabels.clear_filters || 'Limpiar filtros';
@@ -2909,9 +3135,8 @@ function OperationsHeatmapPanel({
     asString(quality?.label) ??
     (qualityState ? uiLabels[`quality_${qualityState}`] : undefined) ??
     'Calidad pendiente';
-  const qualityReason = quality?.reason_code
-    ? humanizeHeatmapToken(quality.reason_code, 'contrato operativo')
-    : 'contrato operativo';
+  const qualityReason = (quality?.reason_code ? uiLabels[`reason_${quality.reason_code}`] : undefined)
+    ?? uiLabels.quality_reason_unavailable;
   const coveragePercent =
     readNumber(quality?.coverage_percent, heatmap?.summary?.coverage_percent, heatmap?.summary?.coordinate_coverage_pct) ??
     normalizedCoverageRate;
@@ -2943,16 +3168,8 @@ function OperationsHeatmapPanel({
     recordsWithoutCoordinates !== undefined
       ? `${formatNumber(recordsWithoutCoordinates)} registros sin coordenadas`
       : 'sin cola publicada';
-  const latestRealtime = asString(realtime?.latest_event_at);
-  const realtimeEvents = realtime?.socket_events ?? [];
-  const realtimeSources = realtime?.sources ?? [];
-  const realtimeReady = Boolean(realtime?.poll_seconds || latestRealtime || realtimeEvents.length || realtimeSources.length);
-  const realtimeDetail =
-    latestRealtime
-      ? `ultimo evento ${latestRealtime}`
-      : realtimeEvents.length
-        ? `${realtimeEvents.slice(0, 2).join(', ')}`
-        : 'sin eventos recientes';
+  const periodicReadsConfigured = Boolean(realtime?.poll_seconds && realtime.poll_seconds > 0);
+  const realtimeDetail = uiLabels.realtime_poll_description ?? '';
   const mapEngines = mapExperience?.map_engines ?? [];
   const layerGroups = mapExperience?.layer_groups ?? [];
   const preferredVisualizationRaw = asString(mapExperience?.preferred_visualization);
@@ -2971,7 +3188,7 @@ function OperationsHeatmapPanel({
       key: 'quality',
       label: uiLabels.map_quality || 'Calidad del mapa',
       value: qualityLabel,
-      detail: qualityReason,
+      detail: qualityReason ?? '',
       icon: Gauge,
       badge: qualityState ? statusLabel(qualityState) : undefined,
       badgeVariant: qualityState ? statusVariant(qualityState) : undefined,
@@ -2992,12 +3209,12 @@ function OperationsHeatmapPanel({
     },
     {
       key: 'realtime',
-      label: uiLabels.realtime || 'Actualización en vivo',
+      label: uiLabels.realtime ?? '',
       value: realtime?.poll_seconds ? `${formatNumber(realtime.poll_seconds)}s` : '--',
       detail: realtimeDetail,
       icon: Radio,
-      badge: realtimeReady ? 'activo' : 'sin senal',
-      badgeVariant: realtimeReady ? 'default' : 'outline',
+      badge: periodicReadsConfigured ? uiLabels.realtime_polling_status : uiLabels.realtime_unavailable,
+      badgeVariant: 'outline',
     },
   ];
   const mainHotspot = heatmap?.hotspots?.[0] ?? heatmap?.cells?.[0];
@@ -3057,6 +3274,9 @@ function OperationsHeatmapPanel({
     asString(geocodingAction?.title) ?? asString(geocodingAction?.label) ?? asString(geocodingAction?.id);
   const geocodingActionEndpoint = formatEndpoint(geocodingAction);
   const geocodingActionMethod = asString(geocodingAction?.method) ?? (geocodingActionEndpoint ? 'PATCH' : undefined);
+  const openGeocodingAction = geocoding?.guidance?.recommended_actions?.find((action) => action.id === 'open_geocoding_queue');
+  const openGeocodingHref = geocodingQueueHref(openGeocodingAction, tenantSlug, filters);
+  const openGeocodingLabel = asString(openGeocodingAction?.title) ?? asString(openGeocodingAction?.label);
   const candidateCountLabel =
     geocodingCandidateCount === 1 ? '1 pendiente' : `${formatNumber(geocodingCandidateCount)} pendientes`;
   const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
@@ -3330,6 +3550,7 @@ function OperationsHeatmapPanel({
         </div>
 
         {hasAiCockpit ? (
+          <OperationsDisclosure label={uiLabels.ai_technical_details || 'Detalles de la lectura territorial IA'}>
           <div
             data-testid="territorial-ai-cockpit"
             className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,rgba(37,99,235,0.09),hsl(var(--background)),rgba(20,184,166,0.08))] shadow-sm"
@@ -3404,6 +3625,7 @@ function OperationsHeatmapPanel({
               </div>
             ) : null}
           </div>
+          </OperationsDisclosure>
         ) : null}
 
         <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -3639,9 +3861,10 @@ function OperationsHeatmapPanel({
                 ) : null}
               </div>
 
-              <label className="mt-3 block space-y-1 text-xs font-medium text-muted-foreground">
+              <label htmlFor={periodFilterId} className="mt-3 block space-y-1 text-xs font-medium text-muted-foreground">
                 <span>{periodLabel}</span>
                 <select
+                  id={periodFilterId}
                   value={selectedPeriod}
                   onChange={(event) => {
                     const nextValue = event.target.value;
@@ -3769,10 +3992,10 @@ function OperationsHeatmapPanel({
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {geocodingCandidates.length
-                  ? 'Direcciones con texto útil pero sin coordenadas. Resolverlas mejora mapa, SLA y asignación de equipo.'
+                  ? uiLabels.geocoding_queue_description
                   : geocoding
-                    ? 'No hay direcciones pendientes para los filtros actuales.'
-                    : 'El backend aún no publicó cola de geocodificación para este mapa.'}
+                    ? uiLabels.geocoding_queue_empty
+                    : uiLabels.geocoding_queue_unavailable}
               </p>
 
               {geocodingCandidates.length ? (
@@ -3787,7 +4010,8 @@ function OperationsHeatmapPanel({
                         <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
                           {candidate.category ? <Badge variant="outline">{candidate.category}</Badge> : null}
                           {candidate.source ? <Badge variant="outline">{candidate.source}</Badge> : null}
-                          {candidate.reason_code ? <span>{humanizeHeatmapToken(candidate.reason_code, 'motivo')}</span> : null}
+                          {candidate.reason_code && uiLabels[`reason_${candidate.reason_code}`]
+                            ? <span>{uiLabels[`reason_${candidate.reason_code}`]}</span> : null}
                         </div>
                       </div>
                     );
@@ -3803,20 +4027,27 @@ function OperationsHeatmapPanel({
                       <p className="text-sm font-medium text-foreground">
                         {geocodingActionTitle || 'Acción de geocodificación disponible'}
                       </p>
-                      {geocodingActionEndpoint ? (
-                        <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                          {geocodingActionMethod ?? 'PATCH'} {geocodingActionEndpoint}
-                        </p>
+                      {geocodingActionEndpoint && uiLabels.geocoding_technical_details ? (
+                        <details className="mt-1 text-xs text-muted-foreground">
+                          <summary className="cursor-pointer">{uiLabels.geocoding_technical_details}</summary>
+                          <p className="mt-1 break-all font-mono text-[11px]">
+                            {geocodingActionMethod ?? 'PATCH'} {geocodingActionEndpoint}
+                          </p>
+                        </details>
                       ) : null}
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              <Button type="button" size="sm" variant="outline" className="mt-3 w-full justify-start" onClick={refetch}>
-                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-                Revisar cola
-              </Button>
+              {openGeocodingHref && openGeocodingLabel ? (
+                <Button asChild size="sm" variant="outline" className="mt-3 w-full justify-start">
+                  <Link to={openGeocodingHref}>
+                    <Route className="h-4 w-4" />
+                    {openGeocodingLabel}
+                  </Link>
+                </Button>
+              ) : null}
             </div>
 
             {demographicItems.length || demographicBreakdowns.length ? (

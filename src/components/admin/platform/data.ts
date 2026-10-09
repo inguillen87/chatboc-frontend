@@ -4,8 +4,10 @@
  * routes/crm/routes.py:superadmin_crm_leads. No response is a revenue contract.
  * Command center and CRM are bounded selections, never global denominators.
  */
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
+
 type RecordValue = Record<string, unknown>;
-export interface PlatformDistributionItem { key: string; count: number }
+export interface PlatformDistributionItem { key: string; count: number; label?: string }
 export interface PlatformHealthRow {
   slug: string;
   name: string | null;
@@ -167,7 +169,11 @@ export function buildPlatformOverview(input: PlatformOverviewInput): PlatformOve
       discardedRows,
     },
     planDistribution: distribution(tenants.map(tenant => text(tenant.plan)?.toLowerCase() ?? 'unknown')),
-    typeDistribution: distribution(tenants.map(tenant => text(tenant.tipo)?.toLowerCase() ?? 'unknown')),
+    typeDistribution: distribution(tenants.map(tenant => text(tenant.tipo)?.toLowerCase() ?? 'unknown')).map((row) => {
+      const labels = new Set(tenants.filter((tenant) => (text(tenant.tipo)?.toLowerCase() ?? 'unknown') === row.key)
+        .map((tenant) => organizationTypeLabel(tenant.tipo, tenant)));
+      return { ...row, label: labels.size === 1 ? [...labels][0] : organizationTypeLabel(row.key) };
+    }),
     statusDistribution: distribution(states),
     crm: {
       loaded: crmAvailable ? crmItems.length : null,

@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
+// The global setup stubs useParams without an id; these scope regressions need
+// the real route id so a different list item cannot authorize public access.
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
 vi.mock('@/hooks/useSurveyAdmin', () => ({ useSurveyAdmin: mocks.useSurveyAdmin }));
 vi.mock('@/hooks/useSurveyAnalytics', () => ({ useSurveyAnalytics: mocks.useSurveyAnalytics }));
 vi.mock('@/hooks/useAnchor', () => ({ useAnchor: mocks.useAnchor }));
@@ -76,6 +79,21 @@ const surveyFixture = {
   mostrar_resultados_envivo: true,
   permitir_comentarios: true,
   recursos: {},
+};
+
+const shareableSurveyFixture = {
+  ...surveyFixture,
+  admin_lifecycle: {
+    contract_version: 'surveys.admin_lifecycle.v1',
+    persisted_state: 'publicada',
+    capabilities: { can_share: true },
+  },
+  public_access: {
+    contract_version: 'surveys.public_access.v1',
+    allowed: true,
+    reason_code: null,
+    next_action: null,
+  },
 };
 
 const dashboardBundleFixture = {
@@ -156,13 +174,41 @@ function renderPage(path: string) {
   );
 }
 
+function expectPublicParticipationBlocked() {
+  expect(screen.queryByTestId('mock-survey-live-results')).toBeNull();
+  expect(screen.queryByTestId('mock-survey-qr')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Copiar link' })).toBeDisabled();
+  expect(screen.queryByRole('link', { name: 'Resultados en vivo' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'WhatsApp' })).toBeNull();
+  const publicLinks = screen.getAllByRole('link').filter((link) =>
+    /\/e\/|\/api\/public\/encuestas\/|https:\/\/wa\.me/.test(link.getAttribute('href') || ''),
+  );
+  expect(publicLinks).toEqual([]);
+  const operationsCard = screen.getByTestId('survey-admin-operations-card');
+  expect(within(operationsCard).getByRole('button', { name: 'No disponible' })).toBeDisabled();
+}
+
 describe('SurveyAnalyticsPage operational focus', () => {
+  it('vetoes public links and live queries despite stored published state and stale publication links', () => {
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: { ...surveyFixture,
+        public_access: { contract_version: 'surveys.public_access.v1', allowed: false, reason_code: 'scope_unverified', next_action: 'review_scope' },
+        admin_lifecycle: { capabilities: { can_share: false }, persisted_state: 'publicada' },
+      },
+      surveys: { data: [] }, isLoadingSurvey: false, isLoadingList: false,
+      surveyError: null, listError: null,
+    });
+    renderPage('/admin/encuestas/3/analytics?focus=live_results&tenant_slug=junin');
+    expectPublicParticipationBlocked();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();
+    mocks.trackEvent.mockResolvedValue({});
     mocks.useSurveyAdmin.mockReturnValue({
       survey: surveyFixture,
-      surveys: { data: [surveyFixture] },
+      surveys: { data: [shareableSurveyFixture] },
       isLoadingSurvey: false,
       isLoadingList: false,
       surveyError: null,
@@ -246,12 +292,105 @@ describe('SurveyAnalyticsPage operational focus', () => {
     mocks.adminModerateSurveyComment.mockResolvedValue({ id: 11, estado: 'oculto', report_count: 2 });
   });
 
-  it('opens analytics with a live operational focus', async () => {
+  it('uses the denied scoped list contract for legacy published detail 634', () => {
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: { ...surveyFixture, id: 634 },
+      surveys: { data: [{
+        ...shareableSurveyFixture,
+        id: 634,
+        admin_lifecycle: {
+          ...shareableSurveyFixture.admin_lifecycle,
+          capabilities: { can_share: false },
+        },
+        public_access: {
+          ...shareableSurveyFixture.public_access,
+          allowed: false,
+          reason_code: 'survey_tenant_jurisdiction_unverified',
+          next_action: 'review_scope',
+        },
+      }] },
+      isLoadingSurvey: false, isLoadingList: false, surveyError: null, listError: null,
+    });
+
+    renderPage('/admin/encuestas/634/analytics?focus=live_results&tenant_slug=junin');
+
+    expectPublicParticipationBlocked();
+  });
+
+  it('keeps public access pending without an admin contract despite is_published true', () => {
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: surveyFixture, surveys: { data: [surveyFixture] },
+      isLoadingSurvey: false, isLoadingList: false, surveyError: null, listError: null,
+    });
+
+    renderPage('/admin/encuestas/3/analytics?focus=live_results&tenant_slug=junin');
+
+    expectPublicParticipationBlocked();
+    expect(screen.queryByText(/Resultados listos|Distribucion lista/)).toBeNull();
+  });
+
+  it.each([
+    { name: 'can_share false', detail: {
+      ...surveyFixture,
+      admin_lifecycle: {
+        ...shareableSurveyFixture.admin_lifecycle,
+        capabilities: { can_share: false },
+      },
+    } },
+    { name: 'public_access false', detail: {
+      ...surveyFixture,
+      public_access: { ...shareableSurveyFixture.public_access, allowed: false },
+    } },
+  ])('preserves a detail $name veto over a shareable list contract', ({ detail }) => {
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: detail, surveys: { data: [shareableSurveyFixture] },
+      isLoadingSurvey: false, isLoadingList: false, surveyError: null, listError: null,
+    });
+
+    renderPage('/admin/encuestas/3/analytics?focus=live_results&tenant_slug=junin');
+
+    expectPublicParticipationBlocked();
+  });
+
+  it('does not borrow a sharing contract from a different survey', () => {
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: surveyFixture, surveys: { data: [{ ...shareableSurveyFixture, id: 4 }] },
+      isLoadingSurvey: false, isLoadingList: false, surveyError: null, listError: null,
+    });
+
+    renderPage('/admin/encuestas/3/analytics?focus=live_results&tenant_slug=junin');
+
+    expectPublicParticipationBlocked();
+  });
+
+  it('uses the same survey list contract when legacy detail omits it', async () => {
     renderPage('/admin/encuestas/3/analytics?focus=live');
 
     expect(await screen.findByTestId('survey-analytics-focus-banner')).toHaveTextContent('Foco operativo: sala live');
     expect(screen.getByTestId('survey-live-results-focus')).toBeInTheDocument();
     expect(screen.getByTestId('mock-survey-live-results')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiar link' })).toBeEnabled();
+    expect(screen.getByTestId('mock-survey-qr')).toBeInTheDocument();
+  });
+
+  it('explains a closed survey using historical results without prompting publication', async () => {
+    const closedSurvey = {
+      ...shareableSurveyFixture, estado: 'cerrada',
+      admin_lifecycle: { ...shareableSurveyFixture.admin_lifecycle, phase: 'closed', persisted_state: 'cerrada', accepts_responses: false, capabilities: { can_share: false } },
+      public_access: { ...shareableSurveyFixture.public_access, allowed: false },
+    };
+    mocks.useSurveyAdmin.mockReturnValue({
+      survey: closedSurvey, surveys: { data: [closedSurvey] },
+      isLoadingSurvey: false, isLoadingList: false, surveyError: null, listError: null,
+    });
+    renderPage('/admin/encuestas/3/analytics?focus=live');
+    const blocked = await screen.findByTestId('survey-live-results-publication-blocked');
+    expect(blocked).toHaveTextContent('Participación finalizada');
+    expect(blocked).toHaveTextContent('resultados históricos');
+    expect(blocked).not.toHaveTextContent('Publicalo');
+    expect(blocked).not.toHaveTextContent('todavía no iniciada');
+    expect(screen.getByTestId('mock-survey-analytics')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-survey-live-results')).toBeNull();
   });
 
   it('does not query or present public live results for an unpublished draft', async () => {

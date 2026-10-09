@@ -1,10 +1,14 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach,beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
-import { logoutChatbocSession } from '@/utils/sessionLogout';
+import { logoutChatbocSession,clearLocalChatbocSession } from '@/utils/sessionLogout';
+import {retirementProof} from '../../../tests/fixtures/session-retirement.synthetic';
+import {captureSessionRetirement,isClerkSessionRetired} from '@/utils/sessionRetirement';
+import {persistPanelLoginSession} from '@/utils/panelLoginSession';
+import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
 import { persistClerkAuthContext } from '@/utils/clerkAuthContext';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import { completeClerkOnboarding } from '@/api/clerkAuth';
@@ -137,9 +141,11 @@ const renderBridge = (
   );
 
 describe('ClerkAuthBridge session lifecycle', () => {
+  afterEach(()=>vi.unstubAllGlobals());
   beforeEach(() => {
     safeLocalStorage.clear();
     safeSessionStorage.clear();
+    clearLocalChatbocSession();
     usePanelSessionStore.setState({ authToken: null, user: null });
     useWidgetSessionStore.setState({
       status: 'idle',
@@ -348,6 +354,7 @@ describe('ClerkAuthBridge session lifecycle', () => {
       'clerk-jwt',
       expect.any(Object),
       { intent: 'tenant_portal', tenant_slug: 'junin' },
+      expect.any(AbortSignal),
     );
     expect(safeLocalStorage.getItem('clerkAuthIntent')).toBe('tenant_portal');
   });
@@ -485,7 +492,7 @@ describe('ClerkAuthBridge session lifecycle', () => {
       expect(safeLocalStorage.getItem('authToken')).toBeNull();
     });
     expect(usePanelSessionStore.getState().authToken).toBeNull();
-    expect(clerkMocks.backendLogout).toHaveBeenCalledTimes(1);
+    expect(clerkMocks.backendLogout).not.toHaveBeenCalled();
     expect(clerkMocks.syncClerkSession).not.toHaveBeenCalled();
   });
 
@@ -748,8 +755,9 @@ describe('ClerkAuthBridge session lifecycle', () => {
     await act(async () => {
       await logoutChatbocSession({ clerkEnabled: true });
     });
-    expect(clerkMocks.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(clerkMocks.auth.signOut).not.toHaveBeenCalled();
     expect(usePanelSessionStore.getState()).toMatchObject({ authToken: null, user: null });
+    expect(isClerkSessionRetired('user_clerk_1','session_clerk_1')).toBe(true);
 
     await act(async () => {
       lateSync.resolve({
@@ -768,5 +776,107 @@ describe('ClerkAuthBridge session lifecycle', () => {
     expect(safeLocalStorage.getItem('user')).toBeNull();
     expect(usePanelSessionStore.getState()).toMatchObject({ authToken: null, user: null });
     expect(useWidgetSessionStore.getState().chatAuthToken).toBeNull();
+    expect(clerkMocks.syncClerkSession).toHaveBeenCalledTimes(1);
+  });
+  it('keeps retired SID A blocked and accepts new SID B of the same Clerk actor while A cleanup is pending',async()=>{
+    const base={contract_version:'auth.clerk.v1',auth_provider:'clerk',user:{id:42,rol:'tenant_admin',tenant_slug:'qa'},onboarding:{required:false}};
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({...base,token:'synthetic-token-a',session_retirement:retirementProof({actor_id:'42',provider:'clerk',clerk_session_id:'session_clerk_1'})})
+      .mockResolvedValueOnce({...base,token:'synthetic-token-b',session_retirement:retirementProof({actor_id:'42',provider:'clerk',clerk_session_id:'synthetic-sid-b',lineage_id:'synthetic-lineage-b'})});
+    const view=renderBridge();await waitFor(()=>expect(safeLocalStorage.getItem('authToken')).toBe('synthetic-token-a'));
+    const pending=deferred<Response>();vi.stubGlobal('fetch',vi.fn().mockReturnValue(pending.promise));let cleanup!:Promise<unknown>;
+    act(()=>{cleanup=logoutChatbocSession();});expect(isClerkSessionRetired('user_clerk_1','session_clerk_1')).toBe(true);
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();expect(clerkMocks.auth.signOut).not.toHaveBeenCalled();
+    clerkMocks.auth.sessionId='synthetic-sid-b';
+    view.rerender(<MemoryRouter><ClerkRuntimeProvider value={{enabled:true,loading:false,publishableKey:'pk_test_local',source:'backend',socialProviders:['google']}}><ClerkAuthBridge/></ClerkRuntimeProvider></MemoryRouter>);
+    await waitFor(()=>expect(safeLocalStorage.getItem('authToken')).toBe('synthetic-token-b'));
+    await act(async()=>{pending.resolve(new Response(JSON.stringify({contract_version:'chatboc.session_retirement_receipt.v1',status:'retired',lineage_id:'synthetic-lineage-a',local_revoked:true,provider_revocation:{status:'pending'}})));await cleanup;});
+    expect(safeLocalStorage.getItem('authToken')).toBe('synthetic-token-b');expect(isClerkSessionRetired('user_clerk_1','synthetic-sid-b')).toBe(false);expect(fetch).toHaveBeenCalledOnce();
+  });
+  it('preserves selected native impersonation B through a late SDK sync and SDK signout of A',async()=>{
+    const lateA=deferred<Record<string,unknown>>();clerkMocks.syncClerkSession.mockReturnValueOnce(lateA.promise);
+    const view=renderBridge();await waitFor(()=>expect(clerkMocks.syncClerkSession).toHaveBeenCalledOnce());
+    const nativeToken=`header.${btoa(JSON.stringify({user_id:7,auth_provider:'native',asid:'synthetic-native-b',impersonated_by:42,exp:4070908800}))}.signature`;
+    act(()=>{clearLocalChatbocSession();persistPanelLoginSession({token:nativeToken,user:{id:7,email:'native@example.invalid',rol:'admin',tenant_slug:'qa'},
+      sessionRetirement:retirementProof({lineage_id:'synthetic-native-b'}),nativeImpersonation:{initiatedByActorId:'42'},replaceIdentity:true,
+      setUser:user=>usePanelSessionStore.getState().setUser(user as any)});});
+    expect(hasSelectedNativePanelImpersonation()).toBe(true);
+    await act(async()=>{lateA.resolve({contract_version:'auth.clerk.v1',token:'late-a',auth_provider:'clerk',user:{id:42},onboarding:{required:false}});await lateA.promise;});
+    clerkMocks.auth.isSignedIn=false;clerkMocks.clerkUser=null;
+    view.rerender(<MemoryRouter><ClerkRuntimeProvider value={{enabled:true,loading:false,publishableKey:'pk_test_local',source:'backend',socialProviders:['google']}}><ClerkAuthBridge/></ClerkRuntimeProvider></MemoryRouter>);
+    expect(usePanelSessionStore.getState()).toMatchObject({authToken:nativeToken,user:{id:7}});expect(clerkMocks.syncClerkSession).toHaveBeenCalledOnce();
+    expect(clerkMocks.auth.signOut).not.toHaveBeenCalled();expect(hasSelectedNativePanelImpersonation()).toBe(true);
+  });
+
+  it('preserves ordinary native login B through a late SDK signout and reappearance of retired Clerk A', async () => {
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({
+      contract_version: 'auth.clerk.v1', token: 'synthetic-clerk-a', auth_provider: 'clerk',
+      user: { id: 42, rol: 'superadmin' }, onboarding: { required: false },
+      session_retirement: retirementProof({ actor_id: '42', provider: 'clerk', clerk_session_id: 'session_clerk_1' }),
+    });
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response('', { status: 503 })));
+    const view = renderBridge('/perfil');
+    await waitFor(() => expect(usePanelSessionStore.getState().authToken).toBe('synthetic-clerk-a'));
+    await act(async () => { await logoutChatbocSession(); });
+    expect(isClerkSessionRetired('user_clerk_1', 'session_clerk_1')).toBe(true);
+
+    const nativeToken = jwtWithClaims({ user_id: 7, auth_provider: 'native', asid: 'synthetic-native-b', exp: 4070908800 });
+    act(() => {
+      persistPanelLoginSession({
+        token: nativeToken, user: { id: 7, email: 'native@example.invalid', rol: 'admin', tenant_slug: 'qa' },
+        sessionRetirement: retirementProof({ lineage_id: 'synthetic-native-b' }), replaceIdentity: true,
+        setUser: user => usePanelSessionStore.getState().setUser(user as any),
+      });
+    });
+    expect(hasSelectedNativePanelImpersonation()).toBe(false);
+    expect(safeLocalStorage.getItem('authProvider')).toBeNull();
+
+    const rerenderSdk = () => view.rerender(
+      <MemoryRouter initialEntries={['/perfil']}>
+        <ClerkRuntimeProvider value={{ enabled: true, loading: false, publishableKey: 'pk_test_local', source: 'backend', socialProviders: ['google'] }}>
+          <ClerkAuthBridge />
+        </ClerkRuntimeProvider>
+      </MemoryRouter>,
+    );
+    clerkMocks.auth.isSignedIn = false;
+    rerenderSdk();
+    expect(usePanelSessionStore.getState()).toMatchObject({ authToken: nativeToken, user: { id: 7 } });
+    expect(safeLocalStorage.getItem('authToken')).toBe(nativeToken);
+    expect(captureSessionRetirement(7)?.lineage_id).toBe('synthetic-native-b');
+    expect(fetch).toHaveBeenCalledOnce();
+
+    clerkMocks.auth.isSignedIn = true;
+    rerenderSdk();
+    expect(usePanelSessionStore.getState()).toMatchObject({ authToken: nativeToken, user: { id: 7 } });
+    expect(captureSessionRetirement(7)?.lineage_id).toBe('synthetic-native-b');
+    expect(clerkMocks.syncClerkSession).toHaveBeenCalledOnce();
+    expect(clerkMocks.auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('still clears and retires the currently owned Clerk session after its SDK signs out', async () => {
+    clerkMocks.syncClerkSession.mockResolvedValueOnce({
+      contract_version: 'auth.clerk.v1', token: 'synthetic-current-clerk-a', auth_provider: 'clerk',
+      user: { id: 42, rol: 'tenant_admin' }, onboarding: { required: false },
+      session_retirement: retirementProof({ actor_id: '42', provider: 'clerk', clerk_session_id: 'session_clerk_1', lineage_id: 'synthetic-owned-clerk-a' }),
+    });
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response('', { status: 503 })));
+    const view = renderBridge('/perfil');
+    await waitFor(() => expect(usePanelSessionStore.getState().authToken).toBe('synthetic-current-clerk-a'));
+    expect(safeLocalStorage.getItem('authProvider')).toBe('clerk');
+
+    clerkMocks.auth.isSignedIn = false;
+    clerkMocks.clerkUser = null;
+    view.rerender(
+      <MemoryRouter initialEntries={['/perfil']}>
+        <ClerkRuntimeProvider value={{ enabled: true, loading: false, publishableKey: 'pk_test_local', source: 'backend', socialProviders: ['google'] }}>
+          <ClerkAuthBridge />
+        </ClerkRuntimeProvider>
+      </MemoryRouter>,
+    );
+    expect(usePanelSessionStore.getState()).toMatchObject({ authToken: null, user: null });
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
+    expect(safeLocalStorage.getItem('authProvider')).toBeNull();
+    expect(captureSessionRetirement(42)).toBeNull();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(clerkMocks.auth.signOut).not.toHaveBeenCalled();
   });
 });

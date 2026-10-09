@@ -17,6 +17,7 @@ const CANONICAL_RBAC_CAPABILITIES = new Set([
   'analytics.read',
   'analytics.admin',
   'settings.tenant.write',
+  'knowledge.read',
   'interviews.cases.read',
   'interviews.sessions.conduct',
 ]);
@@ -194,14 +195,16 @@ describe('routesConfig route capabilities', () => {
 
 
 describe('institutional knowledge entry',()=>{
-  it('registers the actual knowledge console lazily with the tenant administration guard',()=>{
+  it('registers the actual knowledge console with the verified backend knowledge grant',()=>{
     const content=fs.readFileSync(path.resolve(__dirname,'routesConfig.tsx'),'utf8');
     const route=content.match(/\{\s*path:\s*'\/admin\/knowledge',[\s\S]*?\n\s*\},/)?.[0]??'';
     expect(content).toContain("import('@/pages/admin/knowledge/KnowledgeSourcesPage')");
     expect(content).toContain('default: module.KnowledgeSourcesPage');
     expect(route).toContain('element: <KnowledgeSourcesPage />');
     expect(route).toContain("roles: ['tenant_admin', 'superadmin']");
-    expect(route).toContain("requiredAllCapabilities: ['settings.tenant.write']");
+    expect(route).toContain("requiredAllCapabilities: ['knowledge.read']");
+    expect(route).toContain('enforceCapabilities: true');
+    expect(route).toContain('requiresSession: true');
     expect(route).not.toContain('allowGuest');
   });
 });

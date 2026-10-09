@@ -5,6 +5,7 @@ import {
   parseTenantChannelActivation,
   parseTenantImplementationJourney,
 } from '@/api/v2/channelActivation';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { apiFetch } from '@/utils/api';
 
 vi.mock('@/utils/api', () => ({
@@ -115,7 +116,7 @@ describe('fetchTenantChannelActivation', () => {
 
     expect(apiFetch).toHaveBeenCalledWith(
       '/api/v2/tenants/gobierno-demo/activation/channels',
-      { tenantSlug: 'gobierno-demo', persistTenantSlug: false, cache: 'no-store' },
+      { ...panelReadOptions('gobierno-demo'), cache: 'no-store', isCurrent: expect.any(Function) },
     );
   });
 

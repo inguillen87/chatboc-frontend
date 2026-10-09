@@ -11,6 +11,7 @@ export type TicketRoutingAuthorityFailure =
   | 'missing_ticket_identity'
   | 'invalid_contract'
   | 'ticket_not_published'
+  | 'category_unverified'
   | 'conflicting_authority';
 
 export interface TicketRoutingAuthority {
@@ -29,12 +30,37 @@ export interface TicketRoutingAuthority {
 
 export type TicketRoutingAuthorityResolution =
   | { ok: true; authority: TicketRoutingAuthority }
-  | { ok: false; reason: TicketRoutingAuthorityFailure };
+  | { ok: false; reason: TicketRoutingAuthorityFailure; recoveryText?: string };
 
 const asRecord = (value: unknown): UnknownRecord =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as UnknownRecord)
     : {};
+
+export const inspectTicketCategoryAuthority = (value: unknown) => {
+  const record = asRecord(value);
+  const published = Object.prototype.hasOwnProperty.call(record, 'category_authority');
+  const descriptor = asRecord(record.category_authority);
+  const valid = descriptor.contract_version === 'ticket.category_authority.v1' &&
+    typeof descriptor.verified === 'boolean' && typeof descriptor.conflict === 'boolean';
+  const category = (item: unknown) => typeof item === 'string' ? normalizeRoutingDimension(item) : '';
+  const nestedCategory = category(descriptor.authoritative_category);
+  const topKeys = ['authoritative_category', 'authoritativeCategory'].filter((key) => Object.prototype.hasOwnProperty.call(record, key));
+  const comparisonKeys = topKeys.length ? topKeys :
+    ['category', 'categoria', 'category_name', 'categoria_principal'].filter((key) => Object.prototype.hasOwnProperty.call(record, key));
+  const consistentCategory = Boolean(nestedCategory) && comparisonKeys.length > 0 &&
+    comparisonKeys.every((key) => category(record[key]) === nestedCategory);
+  const nestedConflict = valid && descriptor.verified === true && Boolean(nestedCategory) &&
+    topKeys.some((key) => Boolean(category(record[key])) && category(record[key]) !== nestedCategory);
+  const text = (key: string) => valid && typeof descriptor[key] === 'string'
+    ? (descriptor[key] as string).trim() || null : null;
+  return {
+    published,
+    verified: valid && descriptor.verified === true && consistentCategory,
+    conflict: (valid && descriptor.conflict === true) || nestedConflict,
+    recoveryText: [...new Set([text('message'), text('recovery_text')].filter(Boolean))].join(' ') || null,
+  };
+};
 
 const first = (record: UnknownRecord, keys: string[]): unknown => {
   for (const key of keys) {
@@ -272,9 +298,13 @@ const fallbackCategoryKeys = [
 interface CategoryAuthorityResolution {
   value: string | null;
   conflict: boolean;
+  unverified: boolean;
 }
 
 const resolveCategoryAuthority = (records: UnknownRecord[]): CategoryAuthorityResolution => {
+  const descriptors = records.map(inspectTicketCategoryAuthority);
+  const descriptorUnverified = descriptors.some((item) => item.published && !item.verified);
+  const descriptorConflict = descriptors.some((item) => item.conflict);
   const authoritative = records
     .map((record) => publishedAliasValue(
       record,
@@ -287,13 +317,18 @@ const resolveCategoryAuthority = (records: UnknownRecord[]): CategoryAuthorityRe
     const values = authoritative
       .map((value) => value.value)
       .filter((value): value is string => Boolean(value));
-    const conflict = authoritative.some((value) => value.conflict || !value.value) ||
-      new Set(values).size !== 1;
-    return { value: conflict ? null : values[0], conflict };
+    const conflict = descriptorConflict || authoritative.some((value) => value.conflict) ||
+      new Set(values).size > 1;
+    const unverified = descriptorUnverified || authoritative.some((value) => !value.value);
+    return { value: conflict || unverified ? null : values[0], conflict, unverified };
   }
 
   if (recordsConflictOn(records, fallbackCategoryKeys, normalizeRoutingDimension)) {
-    return { value: null, conflict: true };
+    return { value: null, conflict: true, unverified: descriptorUnverified };
+  }
+
+  if (descriptorConflict || descriptorUnverified) {
+    return { value: null, conflict: descriptorConflict, unverified: descriptorUnverified };
   }
 
   const fallback = records
@@ -303,7 +338,7 @@ const resolveCategoryAuthority = (records: UnknownRecord[]): CategoryAuthorityRe
       normalizeRoutingDimension,
     ))
     .find((value) => value.published && value.value);
-  return { value: fallback?.value ?? null, conflict: false };
+  return { value: fallback?.value ?? null, conflict: false, unverified: false };
 };
 
 const resolveRecordCategory = (ticket: UnknownRecord): string | null =>
@@ -420,6 +455,11 @@ export const resolveTicketRoutingAuthority = (
     new Set(candidateSignatures).size > 1
   ) {
     return { ok: false, reason: 'conflicting_authority' };
+  }
+
+  if (categoryAuthority.unverified) {
+    const recoveryText = matchingTickets.map(inspectTicketCategoryAuthority).find((item) => item.recoveryText)?.recoveryText;
+    return { ok: false, reason: 'category_unverified', ...(recoveryText ? { recoveryText } : {}) };
   }
 
   const sourceModel = asIdentifier(first(authoritativeTicket, ['source_model', 'sourceModel', 'model']));

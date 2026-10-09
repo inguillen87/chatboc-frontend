@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Layers3, MapPinned, RefreshCw, ShieldCheck, Filter, BarChart3 } from 'lucide-react';
-import { useTenant } from '@/context/TenantContext';
+import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
+import { ViewState } from '@/components/app-shell/ViewState';
 import MapLibreMap from '@/components/LazyMapLibreMap';
 import { Button } from '@/components/ui/button';
 import { geoRecord, geoText, geoNumber } from '@/features/analytics/heatmapBoundary';
@@ -11,15 +12,17 @@ import './heatmapWorkspace.css';
 interface Props { tenantId: number; dateRange: { from: string; to: string }; filters?: Partial<GeoFilters> }
 const number = (value: number | null) => value === null ? 'No informado' : value.toLocaleString('es-AR');
 export default function HeatmapDashboard({tenantId,dateRange,filters}: Props) {
-  const {currentSlug} = useTenant();
+  const {scope,pending,key} = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso" />;
+  if (!scope || !scope.kind || (scope.tenantId !== null && scope.tenantId !== tenantId)) return <ViewState status="empty" title="Organización del mapa no verificada" />;
   const initial = geoFilters(filters);
-  const identity = JSON.stringify([tenantId,currentSlug,dateRange.from,dateRange.to,initial]);
-  return <HeatmapSession key={identity} tenantId={tenantId} tenantSlug={currentSlug || ''} from={dateRange.from} to={dateRange.to} initial={initial} />;
+  const identity = JSON.stringify([key,tenantId,dateRange.from,dateRange.to,initial]);
+  return <HeatmapSession key={identity} tenantId={tenantId} tenantSlug={scope.tenantSlug} context={scope.kind} from={dateRange.from} to={dateRange.to} initial={initial} />;
 }
-function HeatmapSession({tenantId,tenantSlug,from,to,initial}: {tenantId:number;tenantSlug:string;from:string;to:string;initial:GeoFilters}) {
+function HeatmapSession({tenantId,tenantSlug,context,from,to,initial}: {tenantId:number;tenantSlug:string;context:'municipio'|'pyme';from:string;to:string;initial:GeoFilters}) {
   const [draft,setDraft] = useState(initial), [active,setActive] = useState(initial);
   const [local,setLocal] = useState({estado:'',severidad:''}), [layer,setLayer] = useState('heatmap');
-  const {data,phase,refresh} = useHeatmapWorkspace({tenantId,tenantSlug,from,to,filters:active});
+  const {data,phase,refresh} = useHeatmapWorkspace({tenantId,tenantSlug,context,from,to,filters:active});
   const model = useMemo(()=>data ? heatmapMapModel(data,local) : null,[data,local]);
   const labels = geoRecord(data?.ui?.labels), layerLabels = geoRecord(data?.ui?.layer_labels);
   const busy = phase === 'loading';

@@ -73,6 +73,7 @@ const MarketCartPage = React.lazy(() => import('@/pages/market/MarketCartPage'))
 const MarketplaceBlueprintPage = React.lazy(() => import('@/pages/market/MarketplaceBlueprintPage'));
 const PublicSurveysIndex = React.lazy(() => import('@/pages/encuestas'));
 const PublicSurveyPage = React.lazy(() => import('@/pages/e/[slug]'));
+const RehearsalPage = React.lazy(() => import('@/pages/encuestas/RehearsalPage'));
 const SurveyQrPage = React.lazy(() => import('@/pages/encuestas/QrPage'));
 const AdminSurveysIndex = React.lazy(() => import('@/pages/admin/encuestas/index'));
 const NewSurveyPage = React.lazy(() => import('@/pages/admin/encuestas/new'));
@@ -138,6 +139,7 @@ export interface RouteConfig {
   roles?: string[]; // Roles para admin/empleado de Chatboc
   requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
   requiredAllCapabilities?: string[]; // Capacidades obligatorias para integraciones/configuración sensible
+  enforceCapabilities?: boolean; // Exige permisos de /api/me verificado sin atajos por rol
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
@@ -410,6 +412,7 @@ const routes: RouteConfig[] = [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
         { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
         { path: '/e/:slug', element: <PublicSurveyPage /> },
+        { path: '/pruebas/encuestas/:tenantSlug/:runId', element: <RehearsalPage />, allowGuest: true },
         ...withTenantPrefixes('/:tenant/encuestas', { element: <TenantSurveyListPage /> }),
         ...withTenantPrefixes('/:tenant/encuestas/:slug', { element: <TenantSurveyDetailPage /> }),
       ]
@@ -561,8 +564,10 @@ const routes: RouteConfig[] = [
   {
     path: '/admin/knowledge',
     element: <KnowledgeSourcesPage />,
+    requiresSession: true,
     roles: ['tenant_admin', 'superadmin'],
-    requiredAllCapabilities: ['settings.tenant.write'],
+    requiredAllCapabilities: ['knowledge.read'],
+    enforceCapabilities: true,
   },
   {
     path: '/implementacion',

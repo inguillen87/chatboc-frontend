@@ -25,6 +25,7 @@ export interface ChatBootstrapMessagePayload {
   action_id?: string | null;
   extraPayload?: Record<string, unknown>;
   idempotencyKey?: string;
+  isCurrent?: () => boolean;
 }
 
 export interface LeadCaptureNextAction {
@@ -986,6 +987,7 @@ export const sendChatBootstrapMessage = async (
       omitChatSessionId: true,
       suppressPanel401Redirect: true,
       baseUrlOverride: resolveSameOriginChatBase(target),
+      ...(payload.isCurrent ? { isCurrent: payload.isCurrent } : {}),
     });
 
   return normalizeChatBootstrapResponse(await requestEndpoint(endpoint));

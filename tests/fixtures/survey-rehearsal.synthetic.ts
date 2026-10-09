@@ -1,0 +1,21 @@
+import type { Rehearsal, RehearsalAccountStatus, RehearsalList, RehearsalResponse } from '@/api/surveyRehearsals';
+export const rehearsalTenant = 'organization-a', rehearsalRun = 'rehearsal_' + '4'.repeat(32), rehearsalKey = '12345678-1234-4567-89ab-123456789abc';
+export const rehearsal = (total = 0): Rehearsal => ({
+  contract_version: 'surveys.production_rehearsal.v1', mode: 'technical_rehearsal', tenant_slug: rehearsalTenant, run_id: rehearsalRun,
+  instrument_sha256: 'a'.repeat(64), expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), max_responses: 20,
+  authentication_required: true, one_account_per_run: true, official: false, unique_person_certified: false, result_certified: false, seeded_responses: 0,
+  persisted: true, response_origin: 'interactive_demo', branding: { tenant_slug: rehearsalTenant, display_name: 'Organización A' },
+  question: { id: 'technical_form_v1', type: 'single', label: '¿Pudiste utilizar este formulario de prueba?', options: [{ id: 'yes', label: 'Sí' }, { id: 'no', label: 'No' }] },
+  ui: { title: 'Prueba técnica', label: 'Formulario de prueba persistente', warning: 'Prueba técnica, sin valor de consulta oficial', description: 'Una participación por cuenta. Datos separados de consultas oficiales.',
+    submit_label: 'Guardar participación de prueba', login_label: 'Iniciar sesión para participar', refresh_label: 'Actualizar resultados', results_label: 'Resultados de la prueba', total_label: 'Participaciones guardadas',
+    expires_label: 'Vigente hasta', limit_label: 'Límite de participaciones', read_at_label: 'Última lectura', check_status_label: 'Consultar mi participación', uncertain_message: 'La confirmación está pendiente. Consultá el estado sin volver a enviar.', error_message: 'No se pudo verificar esta prueba.' },
+  links: { metadata_api: `/api/v2/public/tenants/${rehearsalTenant}/survey-rehearsals/${rehearsalRun}`, respond_api: `/api/v2/public/tenants/${rehearsalTenant}/survey-rehearsals/${rehearsalRun}/respond`, results_api: `/api/v2/public/tenants/${rehearsalTenant}/survey-rehearsals/${rehearsalRun}/results` },
+  metrics: { total_responses: total, options: [{ option_id: 'yes', count: total }, { option_id: 'no', count: 0 }] }, result_version: 'b'.repeat(64), refresh: { polling_enabled: true, interval_ms: 5000, socket_delivery_proven: false },
+});
+export const rehearsalList = (): RehearsalList => ({ contract_version: 'surveys.production_rehearsal.v1', official: false, source_tenant: { slug: rehearsalTenant, display_name: 'Organización A', canonical: true }, items: [], max_active_runs: 3,
+  create_action: { contract_version: 'surveys.production_rehearsal.create_action.v1', can_create: true, requires_strict_mfa: false, method: 'POST', api_path: `/api/v2/tenants/${rehearsalTenant}/survey-rehearsals`, blocked_reason_code: null,
+    ui: { label: 'Crear prueba técnica', description: 'Una pregunta genérica, hasta 20 participaciones y 24 horas de vigencia.' } }, ui: { title: 'Pruebas técnicas', warning: rehearsal().ui.warning, open_label: 'Abrir formulario de prueba', refresh_label: 'Consultar pruebas', check_status_label: 'Consultar resultado', uncertain_message: rehearsal().ui.uncertain_message, error_message: rehearsal().ui.error_message } });
+export const rehearsalResponse = (): RehearsalResponse => ({ contract_version: 'surveys.production_rehearsal.response.v1', tenant_slug: rehearsalTenant, run_id: rehearsalRun, persisted: true, replayed: false, response_origin: 'interactive_demo', official: false, unique_person_certified: false,
+  receipt: { submission_id: rehearsalKey, option_id: 'yes', instrument_sha256: rehearsal().instrument_sha256, verified_current_account: true, run_id: rehearsalRun, tenant_slug: rehearsalTenant, payload_sha256: 'c'.repeat(64) }, ui: { label: 'Participación guardada', warning: rehearsal().ui.warning } });
+export const rehearsalAccount = (participated = false): RehearsalAccountStatus => ({ contract_version: 'surveys.production_rehearsal.account_status.v1', tenant_slug: rehearsalTenant, run_id: rehearsalRun, verified_current_account: true, participated, official: false, unique_person_certified: false,
+  ui: { label: participated ? 'Esta cuenta ya participó' : 'Esta cuenta puede participar', warning: rehearsal().ui.warning } });

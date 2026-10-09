@@ -21,6 +21,7 @@ vi.mock("@/utils/widgetTelemetry", () => ({
 }));
 
 import { useChatLogic } from "./useChatLogic";
+import { ApiError } from "@/utils/api";
 
 const successfulReply = {
   respuesta_usuario: "Respuesta municipal",
@@ -30,7 +31,10 @@ const successfulReply = {
 describe("useChatLogic municipal idempotency", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
-    apiFetchMock.mockResolvedValue(successfulReply);
+    apiFetchMock.mockImplementation(async(path:string)=>{
+      if(path.includes('/institutional-assistant'))throw new ApiError('Not available',404,{reason_code:'knowledge_not_available'});
+      return successfulReply;
+    });
     window.localStorage.clear();
     window.sessionStorage.clear();
   });
@@ -61,9 +65,11 @@ describe("useChatLogic municipal idempotency", () => {
       });
     });
 
-    expect(apiFetchMock).toHaveBeenCalledTimes(2);
-    const firstKey = apiFetchMock.mock.calls[0][1].headers["Idempotency-Key"];
-    const retryKey = apiFetchMock.mock.calls[1][1].headers["Idempotency-Key"];
+    expect(apiFetchMock).toHaveBeenCalledTimes(4);
+    const turns=apiFetchMock.mock.calls.filter(([path])=>!String(path).includes('/institutional-assistant'));
+    expect(turns).toHaveLength(2);
+    const firstKey = turns[0][1].headers["Idempotency-Key"];
+    const retryKey = turns[1][1].headers["Idempotency-Key"];
     expect(firstKey).toMatch(MUNICIPAL_CHAT_IDEMPOTENCY_KEY_PATTERN);
     expect(retryKey).toBe(firstKey);
   });

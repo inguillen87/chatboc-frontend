@@ -16,10 +16,40 @@ vi.mock('@/utils/api', () => ({
 
 import { analyticsService } from '@/services/analyticsService';
 import { ApiError } from '@/utils/api';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
 
 describe('analyticsService.getSummary', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+  });
+
+  it.each([401, 403])('does not continue to legacy metrics after hub access denial %s', async (status) => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('denied', status));
+    await expect(analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' })).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not continue to legacy metrics after an aborted hub read', async () => {
+    apiFetchMock.mockRejectedValueOnce(new DOMException('session changed', 'AbortError'));
+    await expect(analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an explicit unavailable hub without starting another hub request', async () => {
+    apiFetchMock.mockResolvedValueOnce({ totals: { total_interactions: 12 } });
+    expect((await analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' }, null)).kpis.total_interactions).toBe(12);
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock.mock.calls[0][0]).toContain('/admin/analytics/overview?');
+  });
+
+  it('rejects a late legacy summary after the session revision changes', async () => {
+    let resolve!: (data: unknown) => void;
+    apiFetchMock.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = analyticsService.getSummary({ tenantSlug: 'junin', scope: 'municipio' }, null);
+    advanceChatbocSessionRevision();
+    resolve({ totals: { total_interactions: 99 } });
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('normalizes totals.total_interactions when kpis are missing', async () => {
@@ -34,6 +64,63 @@ describe('analyticsService.getSummary', () => {
     expect(result.kpis.active_users).toBe(7);
     expect(result.volume_by_day).toEqual([]);
   });
+
+  const optionalMetrics = [
+    'conversion_rate', 'backlog_open', 'sla_breaches', 'voice_interactions_pct',
+    'video_avatar_interactions_pct', 'no_typing_completion_rate', 'accessibility_usage_rate',
+  ] as const;
+
+  it.each(['hub', 'legacy'] as const)('preserves missing optional metrics from a partial %s summary', async (source) => {
+    const payload = {
+      totals: { total_interactions: 1376, unique_users: 89, avg_response_time_s: 3.7 },
+      top_categories: [{ category: 'Reclamos', count: 61 }],
+      volume_by_day: [{ date: '2026-10-09', count: 95 }],
+    };
+    if (source === 'legacy') apiFetchMock.mockResolvedValueOnce(payload);
+    const result = await analyticsService.getSummary(
+      { tenant_profile_id: 22, tenantSlug: 'junin', scope: 'municipio', context: 'overview' },
+      source === 'hub' ? { sections: { general: payload } } : null,
+    );
+
+    expect(result.kpis).toMatchObject({ total_interactions: 1376, active_users: 89, avg_response_time_s: 3.7 });
+    for (const key of optionalMetrics) expect(result.kpis[key]).toBeUndefined();
+    expect(result.volume_by_day).toEqual(payload.volume_by_day);
+    expect(apiFetchMock).toHaveBeenCalledTimes(source === 'hub' ? 0 : 1);
+  });
+
+  it.each(['kpis', 'totals'] as const)('retains explicit optional zero values from %s', async (source) => {
+    apiFetchMock.mockResolvedValueOnce({
+      [source]: {
+        total_interactions: 17,
+        ...Object.fromEntries(optionalMetrics.map((key) => [key, 0])),
+      },
+    });
+    const result = await analyticsService.getSummary({ scope: 'municipio' }, null);
+    for (const key of optionalMetrics) expect(result.kpis[key]).toBe(0);
+  });
+
+  it.each([null, '', '   ', 'unknown', 'Infinity', Number.NaN, Number.POSITIVE_INFINITY, false])('does not turn invalid optional values %j into measured zero', async (value) => {
+    apiFetchMock.mockResolvedValueOnce({
+      kpis: { total_interactions: 17, ...Object.fromEntries(optionalMetrics.map((key) => [key, value])) },
+    });
+    const result = await analyticsService.getSummary({ scope: 'municipio' }, null);
+    expect(result.kpis.total_interactions).toBe(17);
+    for (const key of optionalMetrics) expect(result.kpis[key]).toBeUndefined();
+  });
+
+  it('keeps real finite optional values and numeric transport strings without changing primary metric fallbacks', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      kpis: { conversion_rate: '22.5', backlog_open: 14, sla_breaches: '6' },
+      totals: { voice_interactions_pct: '36.8', video_avatar_interactions_pct: 11.2, no_typing_completion_rate: 18.9, accessibility_usage_rate: 9.3 },
+    });
+    const result = await analyticsService.getSummary({ scope: 'municipio' }, null);
+    expect(result.kpis).toEqual({
+      total_interactions: 0, active_users: 0, avg_response_time_s: 0,
+      conversion_rate: 22.5, backlog_open: 14, sla_breaches: 6,
+      voice_interactions_pct: 36.8, video_avatar_interactions_pct: 11.2,
+      no_typing_completion_rate: 18.9, accessibility_usage_rate: 9.3,
+    });
+  });
 });
 
 
@@ -42,9 +129,33 @@ describe('analyticsService.getHub', () => {
     apiFetchMock.mockReset();
   });
 
+  it.each([401, 403])('never returns a cached hub or tries aliases after an access denial %s', async (status) => {
+    advanceChatbocSessionRevision();
+    const filters = { scope: 'municipio', tenantSlug: 'org-private' };
+    apiFetchMock.mockResolvedValueOnce({ sections: { general: { totals: { total_interactions: 99 } } } });
+    await analyticsService.getHub(filters);
+    apiFetchMock.mockReset().mockRejectedValue(new ApiError('denied', status));
+    await expect(analyticsService.getHub(filters)).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send the previous actor etag or reuse its cached snapshot without requiring logout', async () => {
+    advanceChatbocSessionRevision();
+    const filters = { scope: 'municipio', tenantSlug: 'org-private' };
+    apiFetchMock.mockImplementationOnce(async (_path, options) => {
+      options.onResponse(new Response(null, { headers: { ETag: 'session-a' } }));
+      return { sections: { general: { totals: { total_interactions: 99 } } } };
+    });
+    await analyticsService.getHub(filters);
+    usePanelSessionStore.getState().setUser({ id: 'second-actor', rol: 'tenant_admin', email: 'local@example.test' });
+    apiFetchMock.mockReset().mockRejectedValue(new ApiError('not found', 404));
+    expect(await analyticsService.getHub(filters)).toBeNull();
+    expect(apiFetchMock.mock.calls[0][1].headers['If-None-Match']).toBeUndefined();
+  });
+
   it('falls back across hub aliases and returns navigation when primary endpoint is unavailable', async () => {
     apiFetchMock
-      .mockRejectedValueOnce(new ApiError('forbidden', 403))
+      .mockRejectedValueOnce(new ApiError('not found', 404))
       .mockResolvedValueOnce({
         sections: {
           general: { totals: { total_interactions: 99 } },

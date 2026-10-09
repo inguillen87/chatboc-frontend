@@ -347,4 +347,34 @@ describe('ChatCustomizer runtime persistence', () => {
     expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)).not.toBeNull();
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
+
+  it.each(['resolved', 'rejected'])('retires a %s pending PUT on unmount without followup reads, notifications or draft deletion', async outcome => {
+    let resolveSave!: (value: unknown) => void;
+    let rejectSave!: (reason: Error) => void;
+    const pendingSave = new Promise((resolve, reject) => { resolveSave = resolve; rejectSave = reject; });
+    mocks.getRuntimeWidgetConfig.mockResolvedValue(buildTenantRuntimeWidgetUpdate(baseConfig));
+    mocks.updateRuntimeWidgetConfig.mockReturnValue(pendingSave);
+    const view = render(<ChatCustomizer />);
+    await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByTitle('Elegant'));
+    await waitFor(() => expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar y aplicar cambios' }));
+    await waitFor(() => expect(mocks.updateRuntimeWidgetConfig).toHaveBeenCalledOnce());
+    const storedDraft = readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig);
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    view.unmount();
+    await act(async () => {
+      if (outcome === 'resolved') resolveSave({ status: 'updated' });
+      else rejectSave(new Error('Late error from retired editor'));
+      await pendingSave.catch(() => undefined);
+    });
+    expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledOnce();
+    expect(mocks.getPublicRuntimeWidgetConfig).not.toHaveBeenCalled();
+    expect(mocks.apiGet).toHaveBeenCalledOnce();
+    expect(mocks.updateRuntimeWidgetConfig).toHaveBeenCalledOnce();
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+    expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)).toEqual(storedDraft);
+  });
 });

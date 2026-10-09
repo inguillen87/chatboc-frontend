@@ -4,6 +4,7 @@ import {
   fetchTenantProvisioningReadiness,
   parseTenantProvisioningReadiness,
 } from '@/api/v2/tenantProvisioningReadiness';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 const api = vi.hoisted(() => ({ fetch: vi.fn() }));
 
@@ -69,9 +70,9 @@ describe('tenant provisioning readiness API', () => {
     expect(api.fetch).toHaveBeenCalledWith(
       '/api/admin/tenants/gobierno-demo/provisioning-readiness',
       {
-        tenantSlug: 'gobierno-demo',
-        persistTenantSlug: false,
+        ...panelReadOptions('gobierno-demo'),
         cache: 'no-store',
+        isCurrent: expect.any(Function),
       },
     );
   });

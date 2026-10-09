@@ -14,7 +14,7 @@ export const getOperationsAIOpsQueueV2 = () => get('queue');
 export const getOperationsAIProviderStatusV2 = () => get('providers');
 export const getOperationsFreshnessV2 = () => get('freshness');
 export const getPublicMapConfigV1 = () => get('mapConfig');
-export const useTenant = () => ({ currentSlug: 'qa-operations' });
+export const useTenant = () => ({ currentSlug: 'qa-operations', tenant: { id: 7, slug: 'qa-operations', tipo: 'municipio' }, isLoadingTenant: false, tenantError: null });
 const listeners = new Map<string, Set<(payload?: unknown) => void>>();
 const socket = {
   on(name: string, listener: (payload?: unknown) => void) { const set = listeners.get(name) || new Set(); set.add(listener); listeners.set(name, set); },

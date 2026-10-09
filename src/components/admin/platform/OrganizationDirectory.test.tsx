@@ -14,6 +14,20 @@ const tenants: Tenant[] = [
 const props = () => ({ tenants, total: 103, loading: false, error: null, onRefresh: vi.fn(), onLoadMore: vi.fn(), onProfile: vi.fn(), onEdit: vi.fn(), onImpersonate: vi.fn(), onToggleStatus: vi.fn(), onPurge: vi.fn() });
 
 describe('OrganizationDirectory', () => {
+  it('shows the published descriptive types while filters and selected identities retain their technical values', () => {
+    const handlers = props();
+    const records = tenants.map((tenant, index) => ({ ...tenant, organization_type_label_contract: 'organization.type_label.v1', organization_type_label: ['Gobierno', 'Educación', 'Empresa'][index] }));
+    render(<OrganizationDirectory {...handlers} tenants={records} />);
+    expect(screen.getByText('Gobierno · rio')).toBeVisible();
+    expect(screen.getByText('Educación · colegio')).toBeVisible();
+    expect(screen.getByText('Empresa · tienda')).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Gobierno' })).toHaveValue('municipio');
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'colegio' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Colegio Norte' }));
+    expect(handlers.onProfile).toHaveBeenCalledWith('colegio');
+    expect(screen.queryByRole('button', { name: 'Municipio Río' })).not.toBeInTheDocument();
+    expect(records.map((tenant) => tenant.tipo)).toEqual(['municipio', 'colegio', 'pyme']);
+  });
   it('combines search, type, plan and status within the explicitly partial list', () => {
     render(<OrganizationDirectory {...props()} />);
     expect(screen.getByText('3 resultados · 3 organizaciones cargadas de 103')).toBeInTheDocument();
@@ -53,5 +67,26 @@ describe('OrganizationDirectory', () => {
     expect(screen.queryByText(/0 resultados/)).not.toBeInTheDocument();
     fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar' }));
     expect(handlers.onRefresh).toHaveBeenCalledOnce();
+  });
+  it('opens knowledge for the selected active organization without impersonation', () => {
+    const handlers = props();const onKnowledge = vi.fn();
+    render(<OrganizationDirectory {...handlers} onKnowledge={onKnowledge} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Fuentes de conocimiento de Municipio Río' }));
+    expect(onKnowledge).toHaveBeenCalledWith(tenants[0]);
+    expect(handlers.onImpersonate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Fuentes de conocimiento de Colegio Norte' })).not.toBeInTheDocument();
+  });
+  it('does not advertise knowledge without an authorized navigation action', () => {
+    render(<OrganizationDirectory {...props()} />);
+    expect(screen.queryByRole('button', { name: /Fuentes de conocimiento/ })).not.toBeInTheDocument();
+  });
+  it('opens the data editor for the exact active organization without impersonation or a plan change', () => {
+    const handlers = props(); const onInstitutionProfile = vi.fn();
+    render(<OrganizationDirectory {...handlers} onInstitutionProfile={onInstitutionProfile} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Datos institucionales de Municipio Río' }));
+    expect(onInstitutionProfile).toHaveBeenCalledWith(tenants[0]);
+    expect(handlers.onImpersonate).not.toHaveBeenCalled();
+    expect(handlers.onEdit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Datos institucionales de Colegio Norte' })).not.toBeInTheDocument();
   });
 });

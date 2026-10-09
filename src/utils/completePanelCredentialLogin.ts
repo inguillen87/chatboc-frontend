@@ -10,14 +10,18 @@ interface Input {
   isCurrent:()=>boolean; setUser:(user:PanelLoginUser)=>void;
 }
 export async function completePanelCredentialLogin(input:Input) {
+  const {email,password,pathname,search,isCurrent,setUser}=input;
   const revision=captureChatbocSessionRevision();
-  const ensureCurrent=()=>{if(!input.isCurrent()||!isChatbocSessionRevisionCurrent(revision))throw new ObsoletePanelLogin();};
+  const isCurrentAttempt=()=>isCurrent()&&isChatbocSessionRevisionCurrent(revision);
+  const ensureCurrent=()=>{if(!isCurrentAttempt())throw new ObsoletePanelLogin();};
   ensureCurrent();
-  const data=await loginPanelWithCredentials(input.email,input.password,input.pathname);
+  let data: Awaited<ReturnType<typeof loginPanelWithCredentials>>;
+  try { data=await loginPanelWithCredentials(email,password,pathname,isCurrentAttempt); }
+  catch(error){ensureCurrent();throw error;}
   ensureCurrent();
   const slug=data.user.tenant_slug||null;
-  const destination=panelLoginDestination(input.search,slug,data.user.rol||data.user.role||'');
-  const user=persistPanelLoginSession({token:data.token,user:data.user,entityToken:data.entityToken,
-    tipoChat:data.tipo_chat,tenantSlugHint:slug,replaceIdentity:true,setUser:input.setUser});
+  const destination=panelLoginDestination(search,slug,data.user.rol||data.user.role||'');
+  const user=persistPanelLoginSession({token:data.token,sessionRetirement:data.session_retirement,user:data.user,entityToken:data.entityToken,
+    tipoChat:data.tipo_chat,tenantSlugHint:slug,replaceIdentity:true,setUser});
   return {user,destination};
 }

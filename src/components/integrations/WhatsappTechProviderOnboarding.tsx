@@ -30,9 +30,23 @@ import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/utils/api";
 import { buildTenantPath } from "@/utils/tenantPaths";
 
+type OperationKey = "create_subaccount" | "create_messaging_service" | "register_sender" | "poll_sender_status" | "prepare_voice" | "live_whatsapp_message";
+type OperationAvailability = {
+  contract_version?: string | null;
+  operations?: Partial<Record<OperationKey, {
+    implemented?: boolean | null;
+    can_execute?: boolean | null;
+    dry_run_available?: boolean | null;
+    reason_code?: string | null;
+    message?: string | null;
+  }>> | null;
+};
+
 type TechProviderContract = {
   contract_version?: string | null;
+  tenant?: { id?: string | number; slug?: string } | null;
   provider?: string | null;
+  operation_availability?: OperationAvailability | null;
   state?: {
     twilio_account_sid?: string | null;
     messaging_service_sid?: string | null;
@@ -51,6 +65,13 @@ type TechProviderContract = {
     render_env_sync_enabled?: boolean | null;
     manual_twilio_console_allowed?: boolean | null;
     customer_sees_twilio_console?: boolean | null;
+    credential_storage?: {
+      ready?: boolean | null;
+      status?: string | null;
+      reason_code?: string | null;
+      blocked_operations?: string[] | null;
+      message?: string | null;
+    } | null;
     env?: {
       ready?: boolean | null;
       missing?: string[] | null;
@@ -79,6 +100,7 @@ type TechProviderContract = {
     total?: number | null;
     recommended_next_action?: string | null;
     blockers?: Array<Record<string, unknown>> | null;
+    operation_availability?: OperationAvailability | null;
   } | null;
   operator_checklist?: Array<Record<string, unknown>> | null;
   smoke_tests?: Record<string, string | null | undefined> | null;
@@ -181,12 +203,14 @@ const isReadyStatus = (value?: string | null) => {
     normalized === "online" ||
     normalized === "connected" ||
     normalized === "approved" ||
-    normalized === "sender_attached" ||
-    normalized.includes("ready") ||
-    normalized.includes("connected") ||
-    normalized.includes("active")
+    normalized === "sender_attached"
   );
 };
+
+// Match the provider platform's READY_SENDER_STATUSES; a plan or generic
+// workflow result is not an online sender.
+const isSenderReadyStatus = (value?: string | null) =>
+  ["online", "approved", "connected", "active"].includes(normalizeStatus(value));
 
 const isPendingStatus = (value?: string | null) => {
   const normalized = normalizeStatus(value);
@@ -217,6 +241,8 @@ const actionLabel = (value?: string | null) => {
     "review operations hub": "Revisar hub operativo",
     "fix whatsapp experience contract": "Corregir contrato WhatsApp",
     "wait for meta approval or poll again": "Esperar Meta o actualizar estado",
+    "wait for platform activation": "Esperar preparación de Chatboc",
+    "await live test support": "Esperar habilitación de la prueba real",
   };
   return labels[normalized] ?? normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
@@ -232,6 +258,9 @@ const statusDisplayLabel = (value?: string | null) => {
     online: "En linea",
     pending: "Pendiente",
     pending_meta_signup: "Falta autorizar Meta",
+    needs_secure_activation: "Preparación segura pendiente",
+    action_required: "Requiere preparación",
+    configuration_complete: "Configuración completa; prueba real pendiente",
     provisioning_plan_ready: "Plan de activacion listo",
     ready: "Listo",
     register_whatsapp_sender_via_senders_api: "Registro del numero en curso",
@@ -266,7 +295,8 @@ const qaTone = (status?: string | null, ok?: boolean) => {
 };
 
 const isExecutableSmokeTest = (item: Record<string, unknown>) =>
-  readBoolean(item.can_execute, false) && !normalizeStatus(readText(item.danger_level)).includes("real_message");
+  readBoolean(item.can_execute, false) && readText(item.id) !== "live_whatsapp_message" &&
+  !normalizeStatus(readText(item.danger_level)).includes("real_message");
 
 const isWhatsappFinalQaCheck = (check: TenantOpsQaCheckV2) => {
   const searchable = [
@@ -286,9 +316,11 @@ const isWhatsappFinalQaCheck = (check: TenantOpsQaCheckV2) => {
   );
 };
 
-const extractContract = (response: any): TechProviderContract | null => {
-  if (response?.contract?.contract_version) return response.contract as TechProviderContract;
-  if (response?.contract_version === "twilio.tech_provider.v1") return response as TechProviderContract;
+const extractContract = (response: any, tenantSlug?: string | null): TechProviderContract | null => {
+  const contract = response?.contract ?? response;
+  if (contract?.contract_version === 'twilio.tech_provider.v1' && tenantSlug &&
+    contract.tenant?.slug === tenantSlug && /^[1-9]\d*$/.test(String(contract.tenant?.id)) &&
+    (!response?.tenant?.slug || response.tenant.slug === tenantSlug)) return contract as TechProviderContract;
   return null;
 };
 
@@ -383,10 +415,21 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const [planLock, setPlanLock] = useState<IntegrationPlanLockPayload | null>(null);
   const phoneNumberInputRef = useRef<HTMLInputElement>(null);
   const primaryActionButtonRef = useRef<HTMLButtonElement>(null);
+  const activeTenantRef = useRef(tenantSlug);
+  const tenantGenerationRef = useRef(0);
+  if (activeTenantRef.current !== tenantSlug) {
+    activeTenantRef.current = tenantSlug;
+    tenantGenerationRef.current += 1;
+  }
+  const isCurrentTenantRequest = (slug: string, generation: number) =>
+    activeTenantRef.current === slug && tenantGenerationRef.current === generation;
 
   const load = async () => {
     if (!tenantSlug) return;
+    const requestGeneration = tenantGenerationRef.current;
     setLoading(true);
+    setContract(null);
+    setOpsQa(null);
     setError(null);
     setPlanLock(null);
     try {
@@ -394,18 +437,24 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         tenantService.getWhatsappTechProvider(tenantSlug),
         getTenantOpsQaPlaybookV2(tenantSlug),
       ]);
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       if (contractResult.status === "rejected") {
         throw contractResult.reason;
       }
-      setContract(extractContract(contractResult.value));
-      if (qaResult.status === "fulfilled") {
+      const validated = extractContract(contractResult.value, tenantSlug);
+      if (!validated) throw new Error('whatsapp_contract_unverified');
+      setContract(validated);
+      if (qaResult.status === "fulfilled" && qaResult.value?.tenant?.slug === tenantSlug) {
         setOpsQa(qaResult.value);
         setOpsQaError(null);
       } else {
         setOpsQa(null);
-        setOpsQaError(getErrorMessage(qaResult.reason, "No se pudo cargar el QA final del tenant."));
+        setOpsQaError(qaResult.status === 'rejected'
+          ? getErrorMessage(qaResult.reason, "No se pudo cargar el QA final del tenant.")
+          : 'No pudimos verificar la organización del QA.');
       }
     } catch (err) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       const lock = extractIntegrationPlanLock(err);
       setContract(null);
       if (lock) {
@@ -417,15 +466,43 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         setError(getErrorMessage(err, "No se pudo cargar el onboarding de WhatsApp."));
       }
     } finally {
-      setLoading(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setLoading(false);
     }
   };
 
   useEffect(() => {
+    setSmokeResults({});
+    setOpsQaResults({});
+    setOpsQaError(null);
+    setRequestedPhoneNumber("");
+    setProvisioning(false);
+    setRegisteringSender(false);
+    setPollingSender(false);
+    setProvisioningVoice(false);
+    setRunningSmokeTest(null);
+    setRunningOpsQaCheck(null);
     void load();
   }, [tenantSlug]);
 
-  const envReady = contract?.automation?.env?.ready !== false;
+  const contractVerified = contract?.contract_version === 'twilio.tech_provider.v1' && contract.tenant?.slug === tenantSlug;
+  const envReady = contractVerified && contract?.automation?.env?.ready === true;
+  const liveEnabled = envReady && contract?.automation?.live_enabled === true;
+  const hasTopLevelAvailability = Boolean(contract && Object.prototype.hasOwnProperty.call(contract, "operation_availability"));
+  const hasSetupAvailability = Boolean(contract?.setup_health && Object.prototype.hasOwnProperty.call(contract.setup_health, "operation_availability"));
+  const operationAvailabilityProvided = hasTopLevelAvailability || hasSetupAvailability;
+  const operationAvailability = hasTopLevelAvailability ? contract?.operation_availability : contract?.setup_health?.operation_availability;
+  const operationAvailable = (operation: OperationKey) => {
+    if (!operationAvailabilityProvided) return true;
+    if (operationAvailability?.contract_version !== "whatsapp.operation_availability.v1") return false;
+    const availability = operationAvailability?.operations?.[operation];
+    return availability?.can_execute === true && availability.implemented === true;
+  };
+  const credentialStorage = contract?.automation?.credential_storage;
+  const credentialStorageMessage = readText(credentialStorage?.message);
+  const provisioningBlocked = !operationAvailable("create_subaccount") || !operationAvailable("create_messaging_service") ||
+    (Array.isArray(credentialStorage?.blocked_operations) && credentialStorage.blocked_operations.some((operation) =>
+    operation === "create_subaccount" || operation === "create_messaging_service",
+  ));
   const missingEnv = Array.isArray(contract?.automation?.env?.missing)
     ? contract.automation.env.missing.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
@@ -434,7 +511,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     ? contract.limitations.map(limitationLabel).filter((item): item is string => Boolean(item))
     : [];
   const embeddedSignup = contract?.embedded_signup ?? null;
-  const state = contract?.state ?? null;
+  const state = contractVerified ? contract?.state ?? null : null;
   const normalizedPhoneNumber = normalizeE164(requestedPhoneNumber);
   const phoneNumberValid = isValidE164(normalizedPhoneNumber);
   const voice = contract?.voice ?? null;
@@ -478,9 +555,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const signupUrl = readText(embeddedSignup?.url, embeddedSignup?.start_url);
   const embeddedSignupEnabled = readBoolean(embeddedSignup?.enabled, false);
   const showPhoneChoice = contract?.frontend_contract?.show_phone_choice !== false;
-  const canStartSignup = envReady && embeddedSignupEnabled && Boolean(signupUrl) && phoneNumberValid;
-  const canRegisterSender = envReady && phoneNumberValid && Boolean(state?.waba_id && state?.phone_number_id);
-  const canPollSender = envReady && Boolean(state?.sender_sid);
+  const canStartSignup = liveEnabled && embeddedSignupEnabled && Boolean(signupUrl) && phoneNumberValid;
+  const canRegisterSender = liveEnabled && operationAvailable("register_sender") && phoneNumberValid && Boolean(state?.waba_id && state?.phone_number_id);
+  const canPollSender = liveEnabled && operationAvailable("poll_sender_status") && Boolean(state?.sender_sid);
+  const canPrepareVoice = liveEnabled && operationAvailable("prepare_voice");
   const showProgressSteps = contract?.frontend_contract?.show_progress_steps !== false;
   const templatesPath = useMemo(() => {
     const basePath = buildTenantPath("/perfil/plantillas-respuesta", tenantSlug);
@@ -544,12 +622,26 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     return status;
   }, [contract?.next_action, contract?.status]);
 
-  const primaryStatus = readText(state?.sender_status, statusLabel, contract?.status, "pending");
+  const readinessActions = [contract?.next_action, setupHealth?.recommended_next_action].map(normalizeStatus);
+  const platformActivationPending = readinessActions.includes("wait_for_platform_activation");
+  const configurationComplete = [contract?.status, setupHealth?.status].some((status) => normalizeStatus(status) === "configuration_complete");
+  const liveTestUnavailable = operationAvailabilityProvided && !operationAvailable("live_whatsapp_message");
+  const availabilityMessage = platformActivationPending
+    ? readText(operationAvailability?.operations?.register_sender?.message, credentialStorageMessage,
+        ...setupBlockers.map((blocker) => readText(blocker.message, blocker.detail)))
+    : liveTestUnavailable ? readText(operationAvailability?.operations?.live_whatsapp_message?.message) : null;
+  const primaryStatus = contractVerified
+    ? platformActivationPending ? "needs_secure_activation"
+      : configurationComplete ? "configuration_complete"
+        : readText(state?.sender_status, statusLabel, contract?.status, "pending")
+    : "pending";
 
   const hasMetaAccount = Boolean(state?.waba_id && state?.phone_number_id);
   const hasSender = Boolean(state?.sender_id || state?.sender_sid);
-  const senderReady = isReadyStatus(state?.sender_status);
-  const operationalReady = senderReady || normalizeStatus(contract?.status).includes("active");
+  const senderReady = isSenderReadyStatus(state?.sender_status);
+  const webhooksConfigured = operatorChecklist.some((item) => item.id === "webhooks" && item.done === true);
+  // tech_provider.v1 exposes configuration and sender status, but no receipt
+  // proving a real message's delivery and inbound reply. Keep those steps pending.
   const normalizedFocusAction = normalizeStatus(focusAction).replace(/_/g, "-");
   const normalizedNextAction = normalizeStatus(contract?.next_action || setupHealth?.recommended_next_action || contract?.status);
   const registerSenderIsPrimary =
@@ -591,17 +683,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     {
       id: "test",
       label: "Probar WhatsApp",
-      detail: "Se valida envío, lectura, webhook de estado y rutas de respuesta.",
-      done: senderReady,
-      active: hasSender && !senderReady,
+      detail: "Falta verificar un intercambio real autorizado, su entrega y la respuesta recibida.",
+      done: false,
+      active: senderReady,
       icon: MessageSquareText,
     },
     {
       id: "operate",
       label: "Operar y medir",
-      detail: "El tenant queda listo para usar WhatsApp Business Platform desde Chatboc.",
-      done: operationalReady,
-      active: senderReady && !operationalReady,
+      detail: "La operación y sus eventos quedan pendientes hasta verificar el intercambio real.",
+      done: false,
+      active: false,
       icon: Sparkles,
     },
   ];
@@ -609,7 +701,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const progressPercent = Math.round((completedSteps / activationSteps.length) * 100);
   const currentStep = activationSteps.find((step) => !step.done) ?? activationSteps[activationSteps.length - 1];
   const voiceReady = isReadyStatus(voice?.status);
-  const hasTemplateConfig = Boolean(contract?.frontend_contract?.primary_action || workflow.length);
+  const hasTemplateConfig = operatorChecklist.some((item) => item.id === "templates_webviews" && item.done === true);
   const capabilityCards = [
     {
       key: "messaging",
@@ -631,7 +723,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     {
       key: "sender",
       label: "Sender productivo",
-      detail: "Número aprobado, asociado y listo para mensajes reales.",
+      detail: "Identificador y número registrados; la operación real requiere su propia verificación.",
       done: hasSender,
       active: hasMetaAccount && !hasSender,
     },
@@ -651,19 +743,21 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     },
     {
       key: "webhooks",
-      label: "Webhooks y métricas",
-      detail: "Entrega, lectura, actividad y eventos conectados al panel.",
-      done: operationalReady,
-      active: senderReady && !operationalReady,
+      label: "Configuración de webhooks",
+      detail: "Rutas de callbacks configuradas; la entrega, lectura y los eventos reales siguen pendientes.",
+      done: webhooksConfigured,
+      active: senderReady && !webhooksConfigured,
     },
   ];
-  const primarySmokeTest =
-    smokePlaybookTests.find(isExecutableSmokeTest) ??
-    smokePlaybookTests.find((item) => readBoolean(item.can_execute, false)) ??
-    null;
+  const smokeOperationAvailable = (item: Record<string, unknown>) => {
+    const id = readText(item.id);
+    return id === "production_channel" ? operationAvailable("poll_sender_status")
+      : id === "live_whatsapp_message" ? liveEnabled && operationAvailable("live_whatsapp_message") : true;
+  };
+  const primarySmokeTest = smokePlaybookTests.find((item) => isExecutableSmokeTest(item) && smokeOperationAvailable(item)) ?? null;
   const primarySmokeTestId = readText(primarySmokeTest?.id);
   const primarySmokeResult = primarySmokeTestId ? smokeResults[primarySmokeTestId] : null;
-  const canRunPrimarySmokeTest = Boolean(primarySmokeTest && primarySmokeTestId && isExecutableSmokeTest(primarySmokeTest));
+  const canRunPrimarySmokeTest = envReady && Boolean(primarySmokeTest && primarySmokeTestId && isExecutableSmokeTest(primarySmokeTest));
   const missingConfigurationItems = Array.from(
     new Set(
       [
@@ -677,13 +771,20 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         hasSender && !senderReady ? `Actualizar aprobacion del sender (${state?.sender_status || "pendiente"})` : null,
         !hasTemplateConfig ? "Configurar plantillas, menu y webviews del tenant" : null,
         !voiceReady ? "Preparar voz y rutas de asistencia" : null,
-        senderReady && !operationalReady ? "Verificar webhooks de entrega, lectura y actividad" : null,
-        ...setupBlockers.map((blocker) => readText(blocker.label, blocker.code, blocker.detail)),
+        senderReady && !webhooksConfigured ? "Verificar la configuración de webhooks" : null,
+        ...setupBlockers.map((blocker) => readText(blocker.message, blocker.label, blocker.detail, blocker.code)),
+        senderReady ? "Verificar envío, entrega y respuesta con una prueba real autorizada" : null,
       ].filter((item): item is string => Boolean(item?.trim())),
     ),
   ).slice(0, 6);
-  const readinessLabel = !envReady
+  const readinessLabel = platformActivationPending
+    ? "Preparación segura pendiente"
+    : configurationComplete
+      ? "Configuración completa; prueba real pendiente"
+    : !envReady
     ? "Bloqueado por plataforma"
+    : !liveEnabled
+      ? "Preparación sin activar envío"
     : !hasMetaAccount
       ? "Falta autorizar Meta"
       : !hasSender
@@ -691,15 +792,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         : !senderReady
           ? "Sender en revision"
           : missingConfigurationItems.length
-            ? "Listo con pendientes"
-            : "Listo para operar";
+            ? "Configuración con pendientes"
+            : "Configuración completa; falta validar operación";
   const readinessTone = !envReady
     ? "border-red-500/35 bg-red-500/10 text-red-700"
-    : !hasMetaAccount || !hasSender || !senderReady || missingConfigurationItems.length
+    : platformActivationPending || configurationComplete || liveTestUnavailable || !liveEnabled || !hasMetaAccount || !hasSender || !senderReady || missingConfigurationItems.length
       ? "border-amber-500/35 bg-amber-500/10 text-amber-700"
       : "border-emerald-500/35 bg-emerald-500/10 text-emerald-700";
-  const readinessDetail = !envReady
+  const readinessDetail = availabilityMessage ?? (!envReady
     ? "No abras Meta hasta completar la configuracion base."
+    : !liveEnabled
+      ? "El backend no habilitó la operación real. Las pruebas de configuración sin envío no confirman funcionamiento con Meta."
     : !hasMetaAccount
       ? "Primero el cliente autoriza su cuenta desde el registro embebido."
       : !hasSender
@@ -707,16 +810,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         : !senderReady
           ? "El numero esta registrado, pero todavia no esta listo para operar."
           : missingConfigurationItems.length
-            ? "El canal base responde, pero quedan controles antes de produccion completa."
-            : "El canal tiene cuenta, sender y controles operativos listos.";
+            ? "Hay configuración disponible, pero quedan controles antes de la operación real."
+            : "Falta verificar un intercambio real y sus eventos antes de confirmar la operación.");
   const recommendedNextActionRaw = readText(setupHealth?.recommended_next_action, finalQaNextAction, contract?.next_action, currentStep.label);
   const recommendedNextActionLabel =
     recommendedNextActionRaw === currentStep.label ? currentStep.label : actionLabel(recommendedNextActionRaw);
-  const recommendedNextActionDetail = missingConfigurationItems[0]
+  const recommendedNextActionDetail = availabilityMessage ?? (provisioningBlocked && credentialStorageMessage
+    ? credentialStorageMessage
+    : missingConfigurationItems[0]
     ? `Cerrar pendiente: ${missingConfigurationItems[0]}`
-    : "Mantener QA final y monitoreo antes de abrir mas trafico.";
+    : "Mantener QA final y monitoreo antes de abrir mas trafico.");
   const connectionTestLabel = readText(primarySmokeTest?.label, primarySmokeTest?.id) ?? "Sin prueba ejecutable";
-  const connectionTestMode = readText(primarySmokeTest?.execution_mode, primarySmokeTest?.method) ?? "dry_run";
   const connectionResultStatus = primarySmokeResult
     ? readText(primarySmokeResult.status) ?? (readBoolean(primarySmokeResult.ok, false) ? "pass" : "warning")
     : null;
@@ -725,7 +829,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
     : `${progressPercent}% de ruta completada`;
 
   const handleProvision = async () => {
-    if (!tenantSlug || !phoneNumberValid) return;
+    if (!tenantSlug || !liveEnabled || !phoneNumberValid || provisioningBlocked) return;
+    const requestGeneration = tenantGenerationRef.current;
     setProvisioning(true);
     setError(null);
     try {
@@ -733,16 +838,19 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         source: "tenant_panel",
         phone_number: normalizedPhoneNumber,
       });
-      setContract(extractContract(response));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setContract(extractContract(response, tenantSlug));
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo preparar la activación."));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setError(getErrorMessage(err, "No pudimos confirmar la preparación de la activación. Actualiza el estado antes de intentarlo nuevamente."));
     } finally {
-      setProvisioning(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setProvisioning(false);
     }
   };
 
   const handleRegisterSender = async () => {
-    if (!tenantSlug || !phoneNumberValid) return;
+    if (!tenantSlug || !canRegisterSender) return;
+    const requestGeneration = tenantGenerationRef.current;
     setRegisteringSender(true);
     setError(null);
     try {
@@ -750,47 +858,57 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         source: "tenant_panel",
         sender_id: normalizedPhoneNumber,
       });
-      setContract(extractContract(response));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setContract(extractContract(response, tenantSlug));
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo registrar el sender de WhatsApp."));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setError(getErrorMessage(err, "No pudimos confirmar el registro del número. Actualiza el estado antes de intentarlo nuevamente."));
     } finally {
-      setRegisteringSender(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setRegisteringSender(false);
     }
   };
 
   const handleProvisionVoice = async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !canPrepareVoice) return;
+    const requestGeneration = tenantGenerationRef.current;
     setProvisioningVoice(true);
     setError(null);
     try {
       const response = await tenantService.provisionWhatsappVoiceApp(tenantSlug, {
         source: "tenant_panel",
       });
-      setContract(extractContract(response));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setContract(extractContract(response, tenantSlug));
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo preparar la app de voz."));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setError(getErrorMessage(err, "No pudimos confirmar la preparación de voz. Actualiza el estado antes de intentarlo nuevamente."));
     } finally {
-      setProvisioningVoice(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setProvisioningVoice(false);
     }
   };
 
   const handlePollSender = async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !canPollSender) return;
+    const requestGeneration = tenantGenerationRef.current;
     setPollingSender(true);
     setError(null);
     try {
       const response = await tenantService.refreshWhatsappSenderStatus(tenantSlug);
-      setContract(extractContract(response));
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
+      setContract(extractContract(response, tenantSlug));
     } catch (err) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setError(getErrorMessage(err, "No se pudo actualizar el estado del sender."));
     } finally {
-      setPollingSender(false);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setPollingSender(false);
     }
   };
 
   const handleRunSmokeTest = async (testId?: string | null) => {
     const id = readText(testId);
-    if (!tenantSlug || !id) return;
+    const test = smokePlaybookTests.find((item) => readText(item.id) === id);
+    if (!tenantSlug || !envReady || !id || !test || !isExecutableSmokeTest(test) || !smokeOperationAvailable(test)) return;
+    const requestGeneration = tenantGenerationRef.current;
     setRunningSmokeTest(id);
     setError(null);
     try {
@@ -798,8 +916,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         source: "tenant_panel",
         dry_run: true,
       });
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setSmokeResults((current) => ({ ...current, [id]: response }));
     } catch (err: any) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       const body = err?.body && typeof err.body === "object" ? err.body : null;
       if (body?.contract_version === "twilio.tech_provider.smoke_execution.v1") {
         setSmokeResults((current) => ({ ...current, [id]: body }));
@@ -807,31 +927,37 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         setError(getErrorMessage(err, "No se pudo ejecutar la prueba operativa."));
       }
     } finally {
-      setRunningSmokeTest(null);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setRunningSmokeTest(null);
     }
   };
 
   const handleRunFinalQaCheck = async () => {
     if (!tenantSlug || !primaryFinalQaCheck) return;
+    const requestGeneration = tenantGenerationRef.current;
     setRunningOpsQaCheck(primaryFinalQaCheck.id);
     setOpsQaError(null);
     try {
       const result = await runTenantOpsQaCheckV2(tenantSlug, primaryFinalQaCheck.id);
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setOpsQaResults((current) => ({ ...current, [primaryFinalQaCheck.id]: result }));
     } catch (err) {
+      if (!isCurrentTenantRequest(tenantSlug, requestGeneration)) return;
       setOpsQaError(getErrorMessage(err, "No se pudo ejecutar el QA final del tenant."));
     } finally {
-      setRunningOpsQaCheck(null);
+      if (isCurrentTenantRequest(tenantSlug, requestGeneration)) setRunningOpsQaCheck(null);
     }
   };
 
   const openEmbeddedSignup = () => {
-    if (signupUrl) window.open(signupUrl, "_self");
+    if (canStartSignup && signupUrl) window.open(signupUrl, "_self");
   };
 
   const openTemplates = () => window.open(templatesPath, "_self");
   const needsPhoneNumber = showPhoneChoice && !phoneNumberValid && (!hasMetaAccount || !hasSender);
-  const primaryAction = !envReady
+  const primaryAction = platformActivationPending || configurationComplete || readinessActions.includes("await_live_test_support")
+    ? { label: "Volver a comprobar habilitación", detail: availabilityMessage ?? readinessDetail,
+        disabled: loading, busy: loading, icon: RefreshCw, onClick: () => void load() }
+    : !envReady
     ? {
         label: "Volver a comprobar configuración",
         detail: "La plataforma debe completar sus credenciales antes de abrir Meta.",
@@ -840,6 +966,9 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         icon: RefreshCw,
         onClick: () => void load(),
       }
+    : !liveEnabled
+      ? { label: 'Volver a comprobar habilitación', detail: 'La configuración puede revisarse sin habilitar operaciones reales.',
+          disabled: loading, busy: loading, icon: RefreshCw, onClick: () => void load() }
     : needsPhoneNumber
       ? {
           label: "Ingresar número de WhatsApp",
@@ -859,7 +988,16 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
             onClick: openEmbeddedSignup,
           }
         : !hasMetaAccount
-          ? {
+          ? provisioningBlocked
+            ? {
+                label: "Volver a comprobar configuración",
+                detail: credentialStorageMessage ?? "Vuelve a consultar el contrato y los controles disponibles.",
+                disabled: loading,
+                busy: loading,
+                icon: RefreshCw,
+                onClick: () => void load(),
+              }
+            : {
               label: "Preparar activación",
               detail: "Guarda el número y solicita la URL segura de autorización.",
               disabled: !phoneNumberValid || provisioning,
@@ -1094,8 +1232,13 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
         </div>
       ) : null}
 
-      {contract ? (
+      {contractVerified ? (
         <div className="mt-4 space-y-4">
+          {credentialStorageMessage ? (
+            <div role="status" aria-live="polite" data-testid="whatsapp-credential-storage-status" className="rounded-lg border bg-muted/30 p-3 text-sm text-foreground">
+              {credentialStorageMessage}
+            </div>
+          ) : null}
           <div className="rounded-2xl border bg-background/85 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -1132,7 +1275,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 <p className="mt-3 text-sm font-semibold text-foreground">{connectionTestLabel}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {canRunPrimarySmokeTest
-                    ? `Ejecutable ahora en modo ${connectionTestMode}; no envia mensajes reales.`
+                    ? "Comprobación de configuración sin envío (dry run); no confirma entrega ni funcionamiento con Meta."
                     : "El backend todavia no informo una prueba segura ejecutable."}
                 </p>
                 <Button
@@ -1378,7 +1521,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 <div className="flex flex-wrap items-center gap-2">
                   {setupScore !== null ? (
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                      {setupScore}% listo
+                      {setupScore}% configurado
                     </span>
                   ) : null}
                   {setupCompleted !== null && setupTotal !== null ? (
@@ -1408,7 +1551,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                         <div>
                           <p className="text-xs font-semibold text-foreground">{readText(blocker.label, blocker.code) ?? "Bloqueo pendiente"}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{readText(blocker.detail, blocker.description) ?? "Revisar configuracion."}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{readText(blocker.message, blocker.detail, blocker.description) ?? "Revisar configuracion."}</p>
                         </div>
                       </div>
                     </div>
@@ -1494,9 +1637,10 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                   <div className="mt-3 grid gap-2 lg:grid-cols-2">
                     {smokePlaybookTests.map((item, index) => {
                       const testId = readText(item.id);
-                      const canExecute = readBoolean(item.can_execute, false);
+                      const canExecute = envReady && readBoolean(item.can_execute, false) && smokeOperationAvailable(item);
                       const danger = readText(item.danger_level);
-                      const realMessage = danger === "real_message";
+                      const realMessage = danger === "real_message" || testId === "live_whatsapp_message";
+                      const unavailableLive = realMessage && (!canExecute || liveTestUnavailable);
                       const result = testId ? smokeResults[testId] : null;
                       const resultOk = result ? readBoolean(result.ok, false) : false;
                       const isRunning = Boolean(testId && runningSmokeTest === testId);
@@ -1518,9 +1662,11 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-sm font-semibold text-foreground">{readText(item.label, item.id) ?? `Prueba ${index + 1}`}</p>
-                              <p className="mt-1 text-xs leading-5 text-muted-foreground">{readText(item.description) ?? "Validacion operativa del canal."}</p>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">{readText(item.message,
+                                unavailableLive ? operationAvailability?.operations?.live_whatsapp_message?.message : null,
+                                item.description) ?? "Validacion operativa del canal."}</p>
                             </div>
-                            <StatusPill value={canExecute ? "ejecutable" : realMessage ? "confirmar" : "pendiente"} />
+                            <StatusPill value={canExecute ? "ejecutable" : unavailableLive ? "no habilitada" : realMessage ? "confirmar" : "pendiente"} />
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                             <span className="rounded-full border bg-background px-2 py-0.5 font-mono text-foreground">{readText(item.method) ?? "GET"}</span>
@@ -1548,7 +1694,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                               onClick={() => void handleRunSmokeTest(testId)}
                             >
                               {isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                              {realMessage ? "Requiere confirmacion" : "Ejecutar prueba"}
+                              {unavailableLive ? "Prueba real no habilitada" : realMessage ? "Requiere confirmacion" : "Ejecutar prueba"}
                             </Button>
                             {result ? (
                               <span
@@ -1702,22 +1848,22 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
             <div className="rounded-xl border bg-card/60 p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estado operativo</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <StatusPill value={state?.sender_status || contract.status} />
+                <StatusPill value={primaryStatus} />
                 <StatusPill value={voice?.status} />
               </div>
               <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                Para la revisión se puede mostrar cuenta conectada, sender productivo, estado del canal, voz y webhooks operativos desde el panel.
+                La configuración registrada y el estado del sender se conservan; estos datos no confirman entrega ni respuesta de mensajes reales.
               </p>
             </div>
           </div>
 
           <div className="rounded-2xl border bg-background/70 p-3">
-            <p className="text-sm font-semibold text-foreground">Prueba productiva recomendada</p>
+            <p className="text-sm font-semibold text-foreground">Verificación real pendiente</p>
             <div className="mt-2 grid gap-2 text-xs leading-5 text-muted-foreground md:grid-cols-2">
               <p>1. Iniciar registro embebido y conectar una WABA autorizada.</p>
               <p>2. Registrar sender productivo con Twilio Senders API desde Chatboc.</p>
               <p>3. Crear o revisar plantillas oficiales desde el hub WhatsApp/Twilio Content.</p>
-              <p>4. Enviar y recibir un mensaje de prueba por WhatsApp.</p>
+              <p>{liveTestUnavailable ? availabilityMessage ?? "La prueba real está pendiente de habilitación." : "4. Enviar y recibir un mensaje de prueba por WhatsApp cuando el backend habilite esa operación."}</p>
               <p>5. Mostrar estado de entrega, lectura o actividad en el panel.</p>
               <p>6. Mostrar que el cliente nunca entra a Twilio Console.</p>
             </div>
@@ -1802,7 +1948,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
               </div>
             ) : null}
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button className="w-full sm:w-auto" type="button" onClick={handleProvision} disabled={!envReady || !phoneNumberValid || provisioning}>
+              <Button className="w-full sm:w-auto" type="button" onClick={handleProvision} disabled={!liveEnabled || !phoneNumberValid || provisioningBlocked || provisioning}>
                 {provisioning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar activación
               </Button>
@@ -1832,7 +1978,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 {pollingSender ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Actualizar estado
               </Button>
-              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={handleProvisionVoice} disabled={!envReady || provisioningVoice}>
+              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={handleProvisionVoice} disabled={!canPrepareVoice || provisioningVoice}>
                 {provisioningVoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Preparar voz
               </Button>
@@ -1848,7 +1994,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
           </div>
 
           <div className="rounded-2xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
-            <p className="font-medium text-foreground">Rutas conectadas</p>
+            <p className="font-medium text-foreground">Rutas de configuración</p>
+            <p>Estas rutas no confirman la activación del canal ni el envío de mensajes.</p>
             <p>Inbound: <span className="font-mono">/webhook/whatsapp</span></p>
             <p>Status: <span className="font-mono">/twilio/whatsapp/status</span></p>
             <p>Voz: <span className="font-mono">{voice?.voice_url || "/twilio/voice?tenant=..."}</span></p>

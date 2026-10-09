@@ -138,8 +138,7 @@ const readFirstString = (...values: unknown[]) => {
 
 const readPercent = (...values: unknown[]) => {
   const parsed = readFirstNumber(...values);
-  if (parsed === undefined) return undefined;
-  return parsed > 0 && parsed <= 1 ? Number((parsed * 100).toFixed(1)) : Number(parsed.toFixed(1));
+  return parsed !== undefined && parsed >= 0 && parsed <= 100 ? parsed : undefined;
 };
 
 export const resolveTerritoryMapReadiness = (
@@ -150,13 +149,13 @@ export const resolveTerritoryMapReadiness = (
   const summary = heatmap?.summary ?? {};
   const rawState = normalizeToken(readFirstString(quality?.state, summary.quality_state, summary.state, heatmap?.render_contract?.state));
   const renderState = normalizeToken(readFirstString(heatmap?.render_contract?.state));
+  const coverageRate = asNumber(quality?.coverage_rate);
   const coveragePercent = readPercent(
     heatmap?.location_quality?.coordinate_coverage_pct,
     quality?.coverage_percent,
     summary.coverage_percent,
     summary.coordinate_coverage_pct,
-    quality?.coverage_rate,
-  );
+  ) ?? (coverageRate !== undefined && coverageRate >= 0 && coverageRate <= 1 ? coverageRate * 100 : undefined);
   const visiblePoints = readFirstNumber(quality?.visible_points, summary.points, fallbackPointCount, heatmap?.points?.length);
   const pendingGeocode = readFirstNumber(quality?.pending_geocode, summary.pending_geocode);
   const contractPendingGeocode = readFirstNumber(
@@ -191,7 +190,7 @@ export const resolveTerritoryMapReadiness = (
 
   const label =
     state === 'empty' && canRenderHeatmap === false
-      ? 'Mapa sin datos suficientes'
+      ? (['empty', 'no_data'].includes(rawState) ? readFirstString(quality?.label) : undefined) ?? 'Mapa sin datos suficientes'
       : readFirstString(quality?.label) ??
         (state === 'ready'
           ? 'Cobertura lista'

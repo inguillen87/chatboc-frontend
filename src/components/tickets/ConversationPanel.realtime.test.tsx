@@ -234,6 +234,18 @@ const openComposerTools = async () => {
   return { trigger, menu };
 };
 
+const selectLegacyMunicipalTicket = () => {
+  harness.selectedTicket = { ...selectedTicket, source_model: 'MunicipioTicket' };
+  harness.getOmnichannelInboxDetailV2.mockResolvedValue({
+    item: {
+      ...tenantAuthoritativeItem,
+      source_model: 'MunicipioTicket',
+      reply_contract: { ...tenantAuthoritativeItem.reply_contract, source_model: 'MunicipioTicket' },
+    },
+    raw: {},
+  });
+};
+
 describe('ConversationPanel tenant invalidation', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -314,6 +326,63 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.socket?.off.mockClear();
     harness.socket?.on.mockClear();
     if (harness.socket) harness.socket.connected = true;
+  });
+
+  it('retries only contract verification after a failed read and preserves the draft', async () => {
+    harness.getOmnichannelInboxDetailV2
+      .mockResolvedValueOnce({ item: tenantAuthoritativeItem, raw: {} })
+      .mockRejectedValueOnce(new Error('synthetic startup timeout'));
+    render(renderConversation(true));
+    const draft = screen.getByRole('textbox', { name: 'Responder ticket' });
+    await waitFor(() => expect(draft).toBeEnabled());
+    fireEvent.change(draft, { target: { value: 'Borrador sintético conservado.' } });
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: ['ticket-composer-action-contract'] }); });
+    await screen.findByRole('button', { name: 'Reintentar verificación' });
+    expect(screen.getByTestId('ticket-reply-block-reason')).toHaveTextContent('No se pudo verificar el contrato backend');
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar verificación' }));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.queryByTestId('ticket-reply-block-reason')).not.toBeInTheDocument());
+    expect(draft).toHaveValue('Borrador sintético conservado.');
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+    expect(harness.getOmnichannelInboxDetailV2.mock.calls[0].slice(0, 3)).toEqual(
+      harness.getOmnichannelInboxDetailV2.mock.calls[2].slice(0, 3));
+  });
+
+  it('keeps replies blocked when a manual contract verification still fails', async () => {
+    harness.getOmnichannelInboxDetailV2.mockRejectedValue(new Error('synthetic denied read'));
+    render(renderConversation(true));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar verificación' }));
+    await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('button', { name: 'Reintentar verificación' })).toBeEnabled();
+    expect(screen.getByTestId('ticket-reply-block-reason')).toHaveTextContent('La acción permanece bloqueada');
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('retires contract recovery when the initiating conversation changes', async () => {
+    harness.getOmnichannelInboxDetailV2.mockRejectedValue(new Error('synthetic startup timeout'));
+    const view = render(renderConversation(true));
+    await screen.findByRole('button', { name: 'Reintentar verificación' });
+    const current = harness.getOmnichannelInboxDetailV2.mock.calls[0][3].isCurrent as () => boolean;
+    expect(current()).toBe(true);
+    harness.selectedTicket = { ...selectedTicket, id: 78 };
+    view.rerender(renderConversation(true));
+    expect(current()).toBe(false);
+    expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each(['chat_history:synthetic', 2])('shows display message id %s without issuing a legacy read acknowledgement', async id => {
+    selectLegacyMunicipalTicket();
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [{ id, author: 'user', content: 'Historial sintético visible', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    render(renderConversation());
+    await screen.findByText('Historial sintético visible');
+    await act(async () => { await Promise.resolve(); });
+    expect(harness.updateTicketReadState).not.toHaveBeenCalled();
   });
 
   it('shows the authoritative SLA summary in the visible conversation header', async () => {
@@ -693,6 +762,7 @@ describe('ConversationPanel tenant invalidation', () => {
       '419',
       'junin',
       '/api/v2/inbox/omnichannel/419?source_model=MunicipioTicket',
+      expect.objectContaining({ isCurrent: expect.any(Function) }),
     );
     expect(screen.getByTestId('ticket-handoff-internal-copy')).toHaveTextContent(
       'Derivación interna del CRM · no envía un mensaje por WhatsApp.',
@@ -1080,6 +1150,7 @@ describe('ConversationPanel tenant invalidation', () => {
       '420',
       'junin',
       '/api/v2/inbox/omnichannel/420?source_model=MunicipioTicket',
+      expect.objectContaining({ isCurrent: expect.any(Function) }),
     ));
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
     expect(harness.sendMessage).not.toHaveBeenCalled();
@@ -1484,6 +1555,7 @@ describe('ConversationPanel tenant invalidation', () => {
       '77',
       'junin',
       '/api/v2/inbox/omnichannel/77?source_model=MunicipioTicket',
+      expect.objectContaining({ isCurrent: expect.any(Function) }),
     );
     expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
       'municipio:77',
@@ -1969,6 +2041,7 @@ describe('ConversationPanel tenant invalidation', () => {
   });
 
   it('keeps the timeline and composer stable on an identical fallback poll without repeating read-state', async () => {
+    selectLegacyMunicipalTicket();
     if (harness.socket) harness.socket.connected = false;
     let pollingCallback: (() => void) | null = null;
     vi.spyOn(window, 'setInterval').mockImplementation((handler: TimerHandler, timeout?: number) => {
@@ -1978,7 +2051,7 @@ describe('ConversationPanel tenant invalidation', () => {
       return 321;
     });
     const durableMessage = {
-      id: 'message-stable-1',
+      id: 123, readCommentId: 123,
       author: 'user',
       content: 'Bache informado con ubicación',
       timestamp: '2026-08-20T12:05:00Z',
@@ -1998,7 +2071,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const composerBefore = screen.getByRole('textbox', { name: 'Responder ticket' });
     fireEvent.change(composerBefore, { target: { value: 'Borrador que no debe perderse' } });
 
-    harness.selectedTicket = { ...selectedTicket, asunto: 'Payload refrescado sin cambiar identidad' };
+    harness.selectedTicket = { ...harness.selectedTicket!, asunto: 'Payload refrescado sin cambiar identidad' };
     view.rerender(renderConversation());
     expect(screen.getByTestId('ticket-conversation-panel')).toBe(panelBefore);
     expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toBe(composerBefore);
@@ -2017,15 +2090,18 @@ describe('ConversationPanel tenant invalidation', () => {
   });
 
   it('clears and reloads the conversation when another tenant has the same source, type and ticket id', async () => {
+    selectLegacyMunicipalTicket();
     const otherTenantTicket: Ticket = {
       ...selectedTicket,
+      source_model: 'MunicipioTicket',
       nro_ticket: 'USH-77',
       asunto: 'Caso del segundo tenant',
       tenant_slug: 'ushuaia',
     };
     let resolveOtherTenantTimeline: ((value: {
       messages: Array<{
-        id: string;
+        id: number;
+        readCommentId?: number;
         author: string;
         content: string;
         timestamp: string;
@@ -2037,7 +2113,7 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.getTicketTimeline
       .mockResolvedValueOnce({
         messages: [{
-          id: 'tenant-junin-message-1',
+          id: 123, readCommentId: 123,
           author: 'user',
           content: 'Historial exclusivo de Junin',
           timestamp: '2026-08-20T12:05:00Z',
@@ -2055,7 +2131,8 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.updateTicketReadState).toHaveBeenLastCalledWith(
       selectedTicket.id,
       selectedTicket.tipo,
-      'tenant-junin-message-1',
+      123,
+      expect.objectContaining({ tenantSlug: 'junin', sourceModel: 'MunicipioTicket', isCurrent: expect.any(Function) }),
     );
 
     act(() => {
@@ -2081,7 +2158,7 @@ describe('ConversationPanel tenant invalidation', () => {
     await act(async () => {
       resolveOtherTenantTimeline?.({
         messages: [{
-          id: 'tenant-ushuaia-message-1',
+          id: 124, readCommentId: 124,
           author: 'user',
           content: 'Historial exclusivo de Ushuaia',
           timestamp: '2026-08-20T12:10:00Z',
@@ -2097,8 +2174,86 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.updateTicketReadState).toHaveBeenLastCalledWith(
       otherTenantTicket.id,
       otherTenantTicket.tipo,
-      'tenant-ushuaia-message-1',
+      124,
+      expect.objectContaining({ tenantSlug: 'ushuaia', sourceModel: 'MunicipioTicket', isCurrent: expect.any(Function) }),
     );
+  });
+
+  it('does not replay a failed acknowledgement when the same message and unread state are refreshed', async () => {
+    selectLegacyMunicipalTicket();
+    harness.selectedTicket = { ...harness.selectedTicket!, hasUnreadMessages: true };
+    harness.getTicketTimeline.mockResolvedValueOnce({
+      messages: [{ id: 123, readCommentId: 123, author: 'user', content: 'Mensaje municipal', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    harness.updateTicketReadState.mockRejectedValueOnce(Object.assign(new Error('application_initializing'), { status: 503 }));
+    const view = render(renderConversation());
+    await screen.findByText('Mensaje municipal');
+    await waitFor(() => expect(warning).toHaveBeenCalled());
+    harness.selectedTicket = { ...harness.selectedTicket!, hasUnreadMessages: false };
+    view.rerender(renderConversation());
+    harness.selectedTicket = { ...harness.selectedTicket!, hasUnreadMessages: true };
+    view.rerender(renderConversation());
+    await act(async () => { await Promise.resolve(); });
+    expect(harness.updateTicketReadState).toHaveBeenCalledOnce();
+  });
+
+  it('retires the read acknowledgement callback on unmount and ignores its late result', async () => {
+    selectLegacyMunicipalTicket();
+    harness.getTicketTimeline.mockResolvedValueOnce({
+      messages: [{ id: 123, readCommentId: 123, author: 'user', content: 'Mensaje municipal', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    let finishAcknowledgement!: (value: null) => void;
+    harness.updateTicketReadState.mockReturnValueOnce(new Promise(resolve => { finishAcknowledgement = resolve; }));
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledOnce());
+    const lifecycle = harness.updateTicketReadState.mock.calls[0][3];
+    expect(lifecycle.isCurrent()).toBe(true);
+    const updatesBeforeUnmount = harness.updateTicket.mock.calls.length;
+    view.unmount();
+    expect(lifecycle.isCurrent()).toBe(false);
+    await act(async () => finishAcknowledgement(null));
+    expect(harness.updateTicket.mock.calls.length).toBe(updatesBeforeUnmount);
+  });
+
+  it('does not mark a legacy municipal record while opening a colliding TenantTicket id', async () => {
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [{ id: 123, readCommentId: 123, author: 'user', content: 'Mensaje de TenantTicket', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    const view = render(renderConversation());
+    await screen.findByText('Mensaje de TenantTicket');
+    expect(harness.updateTicketReadState).not.toHaveBeenCalled();
+    selectLegacyMunicipalTicket();
+    view.rerender(renderConversation());
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledOnce());
+    expect(harness.updateTicketReadState).toHaveBeenCalledWith(77, 'municipio', 123,
+      expect.objectContaining({ sourceModel: 'MunicipioTicket', tenantSlug: 'junin' }));
+    await waitFor(() => expect(harness.updateTicket).toHaveBeenCalledWith(77,
+      expect.objectContaining({ hasUnreadMessages: false }), 'MunicipioTicket'));
+  });
+
+  it.each(['actor', 'organization'])('retires a pending acknowledgement when the %s changes', async change => {
+    selectLegacyMunicipalTicket();
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [{ id: 123, readCommentId: 123, author: 'user', content: 'Mensaje municipal', timestamp: '2026-08-20T12:05:00Z' }],
+      realtime_state: null, unified_conversation_stream: [],
+    });
+    let finishAcknowledgement!: (value: null) => void;
+    harness.updateTicketReadState.mockReturnValueOnce(new Promise(resolve => { finishAcknowledgement = resolve; }));
+    const view = render(renderConversation());
+    await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledOnce());
+    const lifecycle = harness.updateTicketReadState.mock.calls[0][3];
+    if (change === 'actor') harness.user = { ...harness.user, id: 11 };
+    else harness.selectedTicket = { ...harness.selectedTicket!, tenant_slug: 'ushuaia' };
+    view.rerender(renderConversation());
+    await waitFor(() => expect(lifecycle.isCurrent()).toBe(false));
+    await act(async () => { await Promise.resolve(); });
+    const updatesBeforeLateResult = harness.updateTicket.mock.calls.length;
+    await act(async () => finishAcknowledgement(null));
+    expect(harness.updateTicket.mock.calls.length).toBe(updatesBeforeLateResult);
   });
 
   it('scopes template list and suggestions from the authenticated user when a legacy ticket only has tenant_id', async () => {

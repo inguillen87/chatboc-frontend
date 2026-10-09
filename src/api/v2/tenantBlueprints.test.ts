@@ -8,6 +8,7 @@ import {
   previewTenantBlueprint,
 } from '@/api/v2/tenantBlueprints';
 import { apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 vi.mock('@/utils/api', () => ({ apiFetch: vi.fn() }));
 
@@ -63,8 +64,8 @@ describe('tenant blueprint API', () => {
     await expect(listTenantBlueprints()).resolves.toMatchObject({ blueprints: [{ id: 'government-core' }] });
     expect(apiFetch).toHaveBeenCalledWith('/api/v2/tenant-blueprints', {
       cache: 'no-store',
-      omitTenant: true,
-      persistTenantSlug: false,
+      ...panelReadOptions(),
+      isCurrent: expect.any(Function),
     });
   });
 

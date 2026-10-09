@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useSyncExternalStore } from 'react';
 import {activeSurveyListTenant,assertSurveyListPage,assertSurveyListCollection,isSurveyReadAuthorityFailure,reportedSurveyListTotal,type SurveyListReadState} from '@/utils/surveyListReadiness';
 
 import {
@@ -21,6 +21,10 @@ import type {
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
 import { useTenant } from '@/context/TenantContext';
+import { useUser } from '@/hooks/useUser';
+import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { queryKeys } from '@/lib/queryKeys';
 import { withExpectedSurveyStructureRevision } from '@/utils/surveyStructureGuard';
 import { publishSurveyV2 } from '@/features/surveys/surveysApi';
@@ -149,6 +153,8 @@ const mergeSurveyListPages = (pages?: SurveyListResponse[]): SurveyListResponse 
 export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAdminResult {
   const queryClient = useQueryClient();
   const { currentSlug } = useTenant();
+  const { user, hasVerifiedSession, organizationProfileVerified } = useUser();
+  const sessionRevision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
   const tenantSlug = useMemo(
     () => activeSurveyListTenant(currentSlug),
     [currentSlug],
@@ -159,31 +165,37 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     limit: options.listParams?.limit ?? 50,
   };
   const listParamsKey = buildListKey(listParams);
+  const readSubject = buildVerifiedSessionScopeKey({
+    hasVerifiedSession: hasVerifiedSession === true && organizationProfileVerified === true,
+    user, tenantSlug,
+  });
   const mounted=useRef(false);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const readInstance=useId();
-  const readScopeKey=JSON.stringify([tenantSlug,listParamsKey]);
+  const readScopeKey=JSON.stringify([tenantSlug,listParamsKey,readSubject,sessionRevision,user?.rol,user?.permissions,user?.capabilities]);
   const readScope=useRef({key:readScopeKey,generation:0});
   if(readScope.current.key!==readScopeKey)readScope.current={key:readScopeKey,generation:readScope.current.generation+1};
   const generation=readScope.current.generation;
   // Never reuse a former organization session (including A -> B -> A).
   // The existing adminLists prefix still invalidates active instances after writes.
   const listQueryKey=[...queryKeys.surveys.adminList(listParamsKey,tenantSlug),readInstance,generation] as const;
+  const surveyQueryKey=[...queryKeys.surveys.admin(normalizedId ?? 'missing',tenantSlug),readInstance,generation] as const;
   const operation=useRef<{generation:number}|null>(null);
 
   const tenantScopeError = tenantSlug
     ? null
     : 'Seleccioná una organización antes de administrar encuestas y votaciones.';
   const requireAdminRequestOptions = useCallback(() => {
-    if (!tenantSlug) {
+    if (!tenantSlug || !readSubject) {
       throw new Error('survey_admin_tenant_required');
     }
-    return { tenantSlug, sendAnonId: true };
-  }, [tenantSlug]);
+    return { ...panelReadOptions(tenantSlug), sendAnonId: true,
+      isCurrent: () => mounted.current && readScope.current.generation === generation && isChatbocSessionRevisionCurrent(sessionRevision) };
+  }, [tenantSlug, readSubject, generation, sessionRevision]);
 
   const surveyQuery = useQuery({
-    queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing', tenantSlug),
-    enabled: normalizedId !== null && Boolean(tenantSlug),
+    queryKey: surveyQueryKey,
+    enabled: normalizedId !== null && Boolean(readSubject),
     retry: false,
     queryFn: () =>
       normalizedId !== null
@@ -193,7 +205,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
 
   const listQuery = useInfiniteQuery({
     queryKey: listQueryKey,
-    enabled: Boolean(tenantSlug),
+    enabled: Boolean(readSubject),
     initialPageParam: null as string | null,
     queryFn: async ({pageParam}) => {
       const result=await adminListSurveys(pageParam ? {...listParams,cursor:pageParam,page:undefined} : listParams,requireAdminRequestOptions());
@@ -229,7 +241,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       if (normalizedId === null) throw new Error('No survey id provided');
       const guardedPayload = withExpectedSurveyStructureRevision(payload, surveyQuery.data);
       const updated = await adminUpdateSurvey(normalizedId, guardedPayload, requireAdminRequestOptions());
-      queryClient.setQueryData(queryKeys.surveys.admin(normalizedId, tenantSlug), updated);
+      queryClient.setQueryData(surveyQueryKey, updated);
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(normalizedId, tenantSlug) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return updated;
@@ -277,7 +289,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
       const closed = await adminCloseSurvey(targetId, requireAdminRequestOptions());
-      queryClient.setQueryData(queryKeys.surveys.admin(targetId, tenantSlug), closed);
+      queryClient.setQueryData([...queryKeys.surveys.admin(targetId, tenantSlug),readInstance,generation], closed);
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId, tenantSlug) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.adminLists(tenantSlug) });
       return closed;
@@ -338,12 +350,12 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     isSeeding: seedMutation.isPending,
     isDeleting: deleteMutation.isPending,
     refetchSurvey: async () => {
-      if (!tenantSlug) return undefined;
+      if (!tenantSlug || !readSubject) return undefined;
       const result = await surveyQuery.refetch();
       return result.data;
     },
     refetchList: async () => {
-      if(!mounted.current||!tenantSlug||readScope.current.generation!==generation||operation.current?.generation===generation||queryClient.isFetching({queryKey:listQueryKey,exact:true}))return undefined;
+      if(!mounted.current||!tenantSlug||!readSubject||readScope.current.generation!==generation||operation.current?.generation===generation||queryClient.isFetching({queryKey:listQueryKey,exact:true}))return undefined;
       const pending={generation};operation.current=pending;
       try {
         const result=await listQuery.refetch({cancelRefetch:false});

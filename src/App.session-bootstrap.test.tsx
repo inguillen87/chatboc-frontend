@@ -559,6 +559,32 @@ describe('App session bootstrap ordering', () => {
     expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
   });
 
+  it('keeps verified Clerk configuration pending beyond five seconds during a recoverable cold start', async () => {
+    vi.useFakeTimers();
+    const runtimeConfig = deferred<Record<string, unknown>>();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    bootstrapMocks.clerkConfig.mockReturnValue(runtimeConfig.promise);
+    window.history.replaceState({}, '', '/bootstrap-continuity');
+    try {
+      render(<App />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+      expect(screen.getByRole('heading', { name: 'Preparando Chatboc' })).toBeInTheDocument();
+      expect(bootstrapMocks.publicMounts).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+      await act(async () => {
+        runtimeConfig.resolve({ enabled: true, environment: 'development', production_ready: true,
+          ready_for_session_sync: true, publishable_key: 'pk_test_delayed', social_providers: [], configuration_warnings: [] });
+        await runtimeConfig.promise;
+      });
+      expect(clerkMocks.bridgeMounts).toHaveBeenCalledTimes(1);
+      expect(bootstrapMocks.publicMounts).toHaveBeenCalledTimes(1);
+      expect(bootstrapMocks.publicUnmounts).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('settles once on timeout and ignores a late Clerk response without remounting public state', async () => {
     vi.useFakeTimers();
     const runtimeConfig = deferred<Record<string, unknown>>();
@@ -648,13 +674,14 @@ describe('App session bootstrap ordering', () => {
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
   });
 
-  it('reaches /403 from a sessionless tenant inbox with zero tenant, cart or private calls', async () => {
+  it('reaches login preserving the sessionless tenant inbox with zero tenant, cart or private calls', async () => {
     safeLocalStorage.setItem('tenantSlug', 'junin');
     window.history.replaceState({}, '', '/t/junin/inbox');
 
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/403'));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(window.location.search).toBe('?next=%2Ft%2Fjunin%2Finbox');
     expectNoPrivateBootstrapCalls();
   });
 
@@ -689,6 +716,7 @@ describe('App session bootstrap ordering', () => {
 
     await waitFor(() => expect(bootstrapMocks.tenantInfo).toHaveBeenCalledWith('junin', null));
     await waitFor(() => expect(bootstrapMocks.cart).toHaveBeenCalled());
+    await waitFor(() => expect(bootstrapMocks.widgetMounts).toHaveBeenCalled());
     expect(window.location.pathname).toBe('/t/junin/market');
   });
 
@@ -729,6 +757,7 @@ describe('App session bootstrap ordering', () => {
 
     await waitFor(() => expect(bootstrapMocks.clerkConfig).toHaveBeenCalled());
     expect(window.location.pathname).toBe('/t/junin/inbox');
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
     expectNoPrivateBootstrapCalls();
 
     await act(async () => {
@@ -740,6 +769,7 @@ describe('App session bootstrap ordering', () => {
     });
 
     expect(window.location.pathname).toBe('/t/junin/inbox');
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
     expectNoPrivateBootstrapCalls();
 
     await act(async () => {
@@ -757,6 +787,7 @@ describe('App session bootstrap ordering', () => {
 
     await waitFor(() => expect(bootstrapMocks.tenantInfo).toHaveBeenCalledWith('junin', null));
     expect(window.location.pathname).toBe('/t/junin/inbox');
+    expect(bootstrapMocks.widgetMounts).not.toHaveBeenCalled();
   });
 
   it('does not trust a stale Clerk marker after Clerk confirms signed-out', async () => {
@@ -775,7 +806,8 @@ describe('App session bootstrap ordering', () => {
 
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/403'));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(window.location.search).toBe('?next=%2Ft%2Fjunin%2Finbox');
     expectNoPrivateBootstrapCalls();
   });
 
@@ -814,7 +846,8 @@ describe('App session bootstrap ordering', () => {
       await runtimeConfig.promise;
     });
 
-    await waitFor(() => expect(window.location.pathname).toBe('/403'));
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(window.location.search).toBe('?next=%2Ft%2Fjunin%2Finbox');
     expectNoPrivateBootstrapCalls();
   });
 

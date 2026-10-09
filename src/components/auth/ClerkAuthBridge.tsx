@@ -35,13 +35,16 @@ import { buildTenantPath } from '@/utils/tenantPaths';
 import { resolveTenantSlug } from '@/utils/api';
 import {
   captureChatbocSessionRevision,
+  hasAuthenticatedChatbocSession,
   hasPersistedClerkSession,
   isChatbocSessionRevisionCurrent,
   readPersistedClerkUserId,
-  registerClerkSignOut,
   resetChatbocSessionForIdentityTransition,
   logoutChatbocSession,
 } from '@/utils/sessionLogout';
+import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {registerActiveClerkIdentity,isClerkSessionRetired} from '@/utils/sessionRetirement';
+import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
 export { buildClerkProfile, persistChatbocSession } from '@/utils/clerkSession';
 
 const isAuthEntryPath = (pathname: string) =>
@@ -120,10 +123,14 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
   onSessionReset,
 }) => {
   const clerkRuntime = useClerkRuntime();
-  const { isLoaded, isSignedIn, getToken, signOut, sessionId } = useAuth();
+  const { isLoaded, isSignedIn, getToken, sessionId } = useAuth();
+  React.useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
   const { user: clerkUser } = useClerkUser();
+  const retiredClerkSession=isClerkSessionRetired(String(clerkUser?.id||''),sessionId);
+  const nativeImpersonation=hasSelectedNativePanelImpersonation();
   const { refreshUser } = useUser();
   const location = useLocation();
+  const authEntry = isAuthEntryPath(location.pathname);
   const navigate = useNavigate();
   const [onboardingOpen, setOnboardingOpen] = React.useState(false);
   const [onboardingRequired, setOnboardingRequired] = React.useState(false);
@@ -139,6 +146,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
   const syncKeyRef = React.useRef<string | null>(null);
   const previousSignedInRef = React.useRef<boolean | undefined>(undefined);
   const activeClerkUserIdRef = React.useRef<string | null | undefined>(undefined);
+  const activeClerkSessionIdRef = React.useRef<string | null | undefined>(undefined);
   const onboardingAuthContextRef = React.useRef<ClerkAuthContext | null>(null);
   const navigateRef = React.useRef(navigate);
   const locationRef = React.useRef(location);
@@ -161,9 +169,10 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     setSyncError(null);
   }, []);
 
-  React.useEffect(() => registerClerkSignOut(signOut), [signOut]);
+  React.useLayoutEffect(()=>{registerActiveClerkIdentity(String(clerkUser?.id||''),sessionId);},[clerkUser?.id,sessionId]);
 
   React.useEffect(() => {
+    if(nativeImpersonation){previousSignedInRef.current=isSignedIn;activeClerkUserIdRef.current=null;activeClerkSessionIdRef.current=null;resetBridgeState();return;}
     if (!isLoaded || typeof isSignedIn !== 'boolean') return;
 
     if (!isSignedIn) {
@@ -173,28 +182,38 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     const wasSignedIn = previousSignedInRef.current;
     previousSignedInRef.current = isSignedIn;
     const signedOutAfterTransition = wasSignedIn === true && isSignedIn === false;
-    const hasActiveClerkIdentity = Boolean(activeClerkUserIdRef.current);
     const persistedClerkSession = hasPersistedClerkSession();
     const loadedWithStaleClerkSession =
       wasSignedIn === undefined && isSignedIn === false && persistedClerkSession;
+    // A former SDK identity can report signout after a native login replaced it.
+    // Only the currently persisted Clerk session belongs to this transition.
     const signedOutFromChatbocClerkSession =
-      signedOutAfterTransition && (hasActiveClerkIdentity || persistedClerkSession);
+      signedOutAfterTransition && persistedClerkSession;
     if (!signedOutFromChatbocClerkSession && !loadedWithStaleClerkSession) return;
 
     const transition = resetChatbocSessionForIdentityTransition();
     void transition.completion;
     activeClerkUserIdRef.current = null;
     resetBridgeState();
-  }, [isLoaded, isSignedIn, onSessionReset, resetBridgeState]);
+  }, [isLoaded, isSignedIn, onSessionReset, resetBridgeState,nativeImpersonation]);
 
   React.useEffect(() => {
+    if(nativeImpersonation)return;
     if (!clerkRuntime.enabled || !isLoaded || !isSignedIn || !clerkUser) return;
 
     const currentClerkUserId = String(clerkUser.id || '').trim();
     if (!currentClerkUserId) return;
+    if(isClerkSessionRetired(currentClerkUserId,sessionId)){onSessionReset?.();resetBridgeState();return;}
     const currentSessionIdentity = `${currentClerkUserId}:${sessionId || ''}`;
 
     const persistedClerkSession = hasPersistedClerkSession();
+    // A signed-in SDK snapshot does not own a current native Chatboc session.
+    // Switching providers requires returning to an explicit authentication entry.
+    if (hasAuthenticatedChatbocSession() && !persistedClerkSession && !authEntry) {
+      onSessionReset?.();
+      resetBridgeState();
+      return;
+    }
     if (activeClerkUserIdRef.current === undefined) {
       activeClerkUserIdRef.current = persistedClerkSession
         ? readPersistedClerkUserId()
@@ -202,19 +221,20 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     }
 
     const previousClerkUserId = activeClerkUserIdRef.current;
+    const previousClerkSessionId=activeClerkSessionIdRef.current;
     const isIdentitySwitch = Boolean(
-      previousClerkUserId && previousClerkUserId !== currentClerkUserId,
+      previousClerkUserId && (previousClerkUserId !== currentClerkUserId||previousClerkSessionId!==undefined&&previousClerkSessionId!==sessionId),
     );
     const isUnattributedPersistedSession =
       persistedClerkSession && !previousClerkUserId;
-    let transitionCompletion: Promise<unknown> = Promise.resolve();
 
     if (isIdentitySwitch || isUnattributedPersistedSession) {
       const transition = resetChatbocSessionForIdentityTransition();
-      transitionCompletion = transition.completion;
+      void transition.completion;
       resetBridgeState();
     }
     activeClerkUserIdRef.current = currentClerkUserId;
+    activeClerkSessionIdRef.current=sessionId;
 
     const authContext = resolveBridgeAuthContext(locationRef.current);
     const syncKey = [
@@ -230,16 +250,16 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     onSessionPending?.(currentSessionIdentity);
 
     let cancelled = false;
+    const syncController = new AbortController();
     let sessionRevision: number | null = null;
     const hasCurrentIdentity = () =>
-      !cancelled && activeClerkUserIdRef.current === currentClerkUserId;
+      !cancelled && activeClerkUserIdRef.current === currentClerkUserId&&activeClerkSessionIdRef.current===sessionId&&!isClerkSessionRetired(currentClerkUserId,sessionId);
     const isCurrentSync = () =>
       hasCurrentIdentity() &&
       sessionRevision !== null &&
       isChatbocSessionRevisionCurrent(sessionRevision);
     const run = async () => {
       try {
-        await transitionCompletion;
         if (!hasCurrentIdentity()) return;
         sessionRevision = captureChatbocSessionRevision();
         const token = await getToken();
@@ -257,7 +277,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
         const session = await syncClerkSession(token, nextProfile, {
           intent: authContext.intent,
           tenant_slug: authContext.tenantSlug,
-        });
+        }, syncController.signal);
         if (!isCurrentSync()) return;
 
         if (session.onboarding?.required) {
@@ -284,7 +304,8 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
           return;
         }
 
-        persistChatbocSession(session, currentClerkUserId, authContext.intent);
+        persistChatbocSession(session, currentClerkUserId, authContext.intent,sessionId);
+        sessionRevision=captureChatbocSessionRevision();
         setSyncError(null);
         setProfile(nextProfile);
         setOnboardingContract(session.onboarding);
@@ -317,19 +338,21 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
     run();
     return () => {
       cancelled = true;
+      syncController.abort();
     };
-  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, onSessionPending, onSessionReady, refreshUser, resetBridgeState, sessionId, syncRetryNonce]);
+  }, [clerkRuntime.enabled, clerkUser, getToken, isLoaded, isSignedIn, onSessionPending, onSessionReady, onSessionReset, refreshUser, resetBridgeState, sessionId, syncRetryNonce,retiredClerkSession,nativeImpersonation,authEntry]);
 
-  if (!clerkRuntime.enabled || !isLoaded || !isSignedIn) return null;
+  if (nativeImpersonation||!clerkRuntime.enabled || !isLoaded || !isSignedIn||isClerkSessionRetired(String(clerkUser?.id||''),sessionId)) return null;
 
   const defaultTenantName = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ').trim();
 
   const handleOnboardingSubmit = async (payload: ClerkOnboardingPayload) => {
-    const submitRevision = captureChatbocSessionRevision();
+    let submitRevision = captureChatbocSessionRevision();
     const submitClerkUserId = String(clerkUser?.id || '').trim();
     const isCurrentSubmit = () =>
       Boolean(submitClerkUserId) &&
       activeClerkUserIdRef.current === submitClerkUserId &&
+      activeClerkSessionIdRef.current===sessionId&&!isClerkSessionRetired(submitClerkUserId,sessionId)&&
       isChatbocSessionRevisionCurrent(submitRevision);
     setOnboardingLoading(true);
     setOnboardingError(null);
@@ -348,7 +371,8 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
       if (session.onboarding?.required) {
         throw new Error(session.message || 'El backend no completo el alta del espacio.');
       }
-      persistChatbocSession(session, submitClerkUserId, 'tenant_owner');
+      persistChatbocSession(session, submitClerkUserId, 'tenant_owner',sessionId);
+      submitRevision=captureChatbocSessionRevision();
       setOnboardingContract(session.onboarding);
       await refreshUser();
       if (!isCurrentSubmit()) return;
@@ -432,7 +456,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
                   variant="outline"
                   className="gap-2"
                   onClick={() => {
-                    void logoutChatbocSession({ clerkEnabled: true }).then(() => navigate('/login', { replace: true }));
+                    void logoutChatbocSession({ clerkEnabled: true });navigate('/login', { replace: true });
                   }}
                 >
                   <LogOut className="h-4 w-4" aria-hidden="true" />

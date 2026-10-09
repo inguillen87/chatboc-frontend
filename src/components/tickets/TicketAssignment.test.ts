@@ -76,6 +76,24 @@ const routing = (overrides: Record<string, unknown> = {}) => normalizeEmployeeRo
 });
 
 describe('resolveTicketRoutingAuthority', () => {
+  it.each([
+    [{ contract_version: 'ticket.category_authority.v1', verified: true, conflict: false }, 'category_unverified'],
+    [{ contract_version: 'ticket.category_authority.v1', verified: true, conflict: false, authoritative_category: 'agua' }, 'conflicting_authority'],
+  ] as const)('no acepta una autoridad anidada ausente o contradictoria en snapshots de routing: %j', (descriptor, reason) => {
+    const snapshot = { source_model: 'MunicipioTicket', id: 403, category: 'luminarias', authoritative_category: 'luminarias', category_authority: descriptor };
+    expect(resolveTicketRoutingAuthority(routing({ queues: { open: [snapshot], unassigned: [] }, recommendations: [] }), selectedTicket()))
+      .toEqual({ ok: false, reason });
+  });
+  it('separa autoridad explícitamente ausente de contradicción sin habilitar elegibilidad', () => {
+    const snapshot = { source_model: 'MunicipioTicket', id: 403, category: 'General', authoritative_category: null,
+      category_authority: { contract_version: 'ticket.category_authority.v1', verified: false, conflict: false } };
+    const model = routing({ queues: { open: [snapshot], unassigned: [snapshot] }, recommendations: [] });
+    expect(resolveTicketRoutingAuthority(model, selectedTicket())).toEqual({ ok: false, reason: 'category_unverified' });
+    const conflicting = { ...snapshot, authoritative_category: 'luminarias', authoritativeCategory: 'bacheo' };
+    expect(resolveTicketRoutingAuthority(routing({ queues: { open: [conflicting], unassigned: [] }, recommendations: [] }), selectedTicket()))
+      .toEqual({ ok: false, reason: 'conflicting_authority' });
+  });
+
   it('usa la categoría autoritativa por source_model + id aunque la ficha visible diga General', () => {
     const resolution = resolveTicketRoutingAuthority(routing(), selectedTicket());
 

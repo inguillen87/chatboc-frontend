@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { privateBackendRead, type PrivateBackendReadLifecycle } from '@/utils/privateBackendRead';
 
 export const TENANT_PROVISIONING_READINESS_CONTRACT = 'tenant.provisioning_readiness.v1' as const;
 
@@ -248,15 +248,12 @@ export const parseTenantProvisioningReadiness = (
   return payload as unknown as TenantProvisioningReadiness;
 };
 
-export const fetchTenantProvisioningReadiness = async (tenantSlug: string) => {
+export const fetchTenantProvisioningReadiness = async (tenantSlug: string, lifecycle?: PrivateBackendReadLifecycle) => {
   const normalized = assertTenantSlug(tenantSlug);
-  const payload = await apiFetch<unknown>(
+  const payload = await privateBackendRead(
     `/api/admin/tenants/${encodeURIComponent(normalized)}/provisioning-readiness`,
-    {
-      tenantSlug: normalized,
-      persistTenantSlug: false,
-      cache: 'no-store',
-    },
+    normalized,
+    lifecycle,
   );
   return parseTenantProvisioningReadiness(payload, normalized);
 };

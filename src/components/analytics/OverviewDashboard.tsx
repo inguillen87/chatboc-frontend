@@ -6,7 +6,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
   Line,
   CartesianGrid,
   Area,
@@ -35,6 +34,11 @@ interface Props {
 }
 
 const formatMetric = (value: number | string, suffix = '') => `${value}${suffix}`;
+const isAvailableMetric = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const metricDisplay = (value: unknown, suffix?: string) => ({
+  value: isAvailableMetric(value) ? value : 'No disponible',
+  suffix: isAvailableMetric(value) ? suffix : undefined,
+});
 
 const tooltipStyle = {
   borderRadius: 16,
@@ -45,114 +49,88 @@ const tooltipStyle = {
 };
 
 const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) => {
-  const kpis = data?.kpis ?? {
-    total_interactions: 0,
-    active_users: 0,
-    avg_response_time_s: 0,
-    conversion_rate: 0,
-    backlog_open: 0,
-    sla_breaches: 0,
-  };
-  const volumeByDay = Array.isArray(data?.volume_by_day) ? data.volume_by_day : [];
-  const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
-  const totalVolume = useMemo(() => volumeByDay.reduce((acc, item) => acc + Number(item?.count || 0), 0), [volumeByDay]);
-  const peakDay = useMemo(() => volumeByDay.reduce((best, item) => Number(item?.count || 0) > Number(best?.count || 0) ? item : best, volumeByDay[0] || null as any), [volumeByDay]);
-  const categoryLeader = topCategories[0];
+  const kpis = data?.kpis;
+  const volumeByDay = useMemo(() => Array.isArray(data?.volume_by_day) ? data.volume_by_day : [], [data?.volume_by_day]);
+  const topCategories = useMemo(() => Array.isArray(data?.top_categories) ? data.top_categories : [], [data?.top_categories]);
+  const hasVolumeData = volumeByDay.length > 0 && volumeByDay.every((item) => isAvailableMetric(item?.count));
+  const hasCategoryData = topCategories.length > 0 && topCategories.every((item) => isAvailableMetric(item?.count));
+  const totalVolume = hasVolumeData ? volumeByDay.reduce((acc, item) => acc + item.count, 0) : null;
+  const peakDay = hasVolumeData ? volumeByDay.reduce((best, item) => item.count > best.count ? item : best) : null;
+  const categoryLeader = hasCategoryData ? topCategories.reduce((best, item) => item.count > best.count ? item : best) : null;
 
   const overviewCards = [
     {
       title: 'Interacciones',
-      value: kpis.total_interactions,
+      ...metricDisplay(kpis?.total_interactions),
       icon: BarChart3,
-      delta: { value: 12.4, label: 'Total del periodo', positive: true },
     },
     {
       title: 'Usuarios activos',
-      value: kpis.active_users,
+      ...metricDisplay(kpis?.active_users),
       icon: Users,
-      delta: { value: 8.1, label: 'Usuarios únicos', positive: true },
     },
     {
       title: 'Tiempo respuesta',
-      value: kpis.avg_response_time_s,
-      suffix: 's',
+      ...metricDisplay(kpis?.avg_response_time_s, 's'),
       icon: Clock,
-      delta: { value: 5.6, label: 'Promedio del periodo', positive: false },
     },
   ];
 
   if (showConversion) {
     overviewCards.push({
       title: 'Conversión',
-      value: kpis.conversion_rate || 0,
-      suffix: '%',
+      ...metricDisplay(kpis?.conversion_rate, '%'),
       icon: Zap,
-      delta: { value: 4.2, label: 'De chat a venta', positive: true },
     });
   }
 
   if (showSla) {
-    overviewCards.push({
-      title: 'Tickets abiertos',
-      value: kpis.backlog_open || 0,
-      icon: Zap,
-      delta: {
-        value: kpis.sla_breaches || 0,
-        label: `${kpis.sla_breaches || 0} fuera de SLA`,
-        positive: (kpis.sla_breaches || 0) === 0,
+    overviewCards.push(
+      {
+        title: 'Tickets abiertos',
+        ...metricDisplay(kpis?.backlog_open),
+        icon: Zap,
       },
-    });
+      {
+        title: 'Fuera de SLA',
+        ...metricDisplay(kpis?.sla_breaches),
+        icon: Clock,
+      },
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 shadow-sm">
-        <CardContent className="grid gap-4 p-5 md:grid-cols-3">
-          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Volumen total</p>
-            <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{totalVolume.toLocaleString('es-AR')}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Interacciones acumuladas durante el período seleccionado.</p>
-          </div>
-          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pico diario</p>
-            <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{Number(peakDay?.count || 0).toLocaleString('es-AR')}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{peakDay?.date ? `Mejor jornada: ${peakDay.date}` : 'Sin día pico disponible todavía.'}</p>
-          </div>
-          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Categoría líder</p>
-            <p className="mt-2 text-2xl font-black tracking-tight text-foreground">{categoryLeader?.category || '—'}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{categoryLeader ? `${Number(categoryLeader.count || 0).toLocaleString('es-AR')} tickets en la categoría más frecuente.` : 'Sin categorías destacadas para mostrar.'}</p>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-4">
+      <section aria-label="Indicadores del período" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {overviewCards.map((card) => (
           <KpiTile
             key={card.title}
             title={card.title}
             value={card.value}
             suffix={card.suffix}
-            delta={card.delta}
             icon={card.icon}
           />
         ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiTile title="Interacciones por voz" value={kpis.voice_interactions_pct || 0} suffix="%" icon={Mic} />
-        <KpiTile title="Video / avatar" value={kpis.video_avatar_interactions_pct || 0} suffix="%" icon={Video} />
-        <KpiTile title="Finalización sin escribir" value={kpis.no_typing_completion_rate || 0} suffix="%" icon={Keyboard} />
-        <KpiTile title="Uso de accesibilidad" value={kpis.accessibility_usage_rate || 0} suffix="%" icon={Captions} />
-      </div>
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur">
-          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
-            <CardTitle>Volumen diario</CardTitle>
+          <CardHeader className="border-b border-border/50 p-4">
+            <CardTitle className="text-lg">Volumen diario</CardTitle>
             <CardDescription>Evolución del tráfico conversacional durante el período seleccionado.</CardDescription>
+            <dl className="grid grid-cols-2 gap-3 pt-2 text-sm">
+              <div>
+                <dt className="text-muted-foreground">Volumen de la serie</dt>
+                <dd className="font-semibold">{totalVolume === null ? 'No disponible' : totalVolume.toLocaleString('es-AR')}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Pico diario</dt>
+                <dd className="font-semibold">{peakDay ? `${peakDay.count.toLocaleString('es-AR')} · ${peakDay.date}` : 'No disponible'}</dd>
+              </div>
+            </dl>
           </CardHeader>
-          <CardContent className="pt-6">
-            <MeasuredContainer className="h-[320px] min-w-0">
+          <CardContent className="p-4">
+            {hasVolumeData ? <MeasuredContainer className="h-[260px] min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <ComposedChart data={volumeByDay} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <defs>
@@ -170,16 +148,21 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 </ComposedChart>
               </ResponsiveContainer>
             </MeasuredContainer>
+            : <p className="py-10 text-center text-sm text-muted-foreground">No hay datos de volumen disponibles para este período.</p>}
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur">
-          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
-            <CardTitle>Top categorías</CardTitle>
+          <CardHeader className="border-b border-border/50 p-4">
+            <CardTitle className="text-lg">Top categorías</CardTitle>
             <CardDescription>Temas más frecuentes en el período.</CardDescription>
+            <dl className="pt-2 text-sm">
+              <dt className="text-muted-foreground">Categoría líder</dt>
+              <dd className="font-semibold">{categoryLeader ? `${categoryLeader.category} · ${categoryLeader.count.toLocaleString('es-AR')} tickets` : 'No disponible'}</dd>
+            </dl>
           </CardHeader>
-          <CardContent className="pt-6">
-            <MeasuredContainer className="h-[320px] min-w-0">
+          <CardContent className="p-4">
+            {hasCategoryData ? <MeasuredContainer className="h-[260px] min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 18, left: 24, bottom: 0 }}>
                   <defs>
@@ -196,9 +179,20 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 </BarChart>
               </ResponsiveContainer>
             </MeasuredContainer>
+            : <p className="py-10 text-center text-sm text-muted-foreground">No hay categorías disponibles para este período.</p>}
           </CardContent>
         </Card>
       </div>
+
+      <details className="rounded-lg border border-border/60 bg-background/80">
+        <summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Canales y accesibilidad</summary>
+        <div className="grid gap-3 border-t border-border/50 p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiTile title="Interacciones por voz" {...metricDisplay(kpis?.voice_interactions_pct, '%')} icon={Mic} />
+          <KpiTile title="Video / avatar" {...metricDisplay(kpis?.video_avatar_interactions_pct, '%')} icon={Video} />
+          <KpiTile title="Finalización sin escribir" {...metricDisplay(kpis?.no_typing_completion_rate, '%')} icon={Keyboard} />
+          <KpiTile title="Uso de accesibilidad" {...metricDisplay(kpis?.accessibility_usage_rate, '%')} icon={Captions} />
+        </div>
+      </details>
     </div>
   );
 };

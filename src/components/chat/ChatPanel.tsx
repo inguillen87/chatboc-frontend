@@ -191,24 +191,6 @@ const readFirstString = (...values: unknown[]) => {
   return "";
 };
 
-const readStoredLeadContact = () => {
-  try {
-    const storedUser = JSON.parse(safeLocalStorage.getItem("user") || "null");
-    return {
-      name: readFirstString(storedUser?.name, storedUser?.nombre),
-      email: readFirstString(storedUser?.email),
-      phone: readFirstString(
-        storedUser?.telefono,
-        storedUser?.phone,
-        storedUser?.whatsapp,
-        storedUser?.celular,
-      ),
-    };
-  } catch {
-    return { name: "", email: "", phone: "" };
-  }
-};
-
 const readFirstNumber = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -1182,6 +1164,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";
+  const isPublicWidget = mode !== undefined || Boolean(chatBootstrap);
   const liveChatMarkedAvailable = Boolean(
     supportChannels?.live_chat?.available ??
     supportChannels?.live_chat?.realtime,
@@ -1242,7 +1225,10 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [storedVisitorName, setStoredVisitorName] = useState(() => getVisitorName());
   const {
     messages,
+    visitorName: scopedVisitorName,
     isTyping,
+    institutionalBootstrapPending,
+    suppressLegacyInitialMenu,
     handleSend,
     activeTicketId,
     liveChatTicketId,
@@ -1605,29 +1591,81 @@ const ChatPanel = (props: ChatPanelProps) => {
     : [];
 
 
-  // Check for pending widget action from CTA bubble
+  const pendingActionScope = JSON.stringify([
+    tipoChat, tenantSlug ?? null, propEntityToken ?? null,
+    resolvedSelectedRubro, mode ?? null, chatBootstrap?.endpoint ?? null,
+    chatBootstrap?.session?.chat_session_id ?? null,
+    chatBootstrap?.session?.demo_session_id ?? null,
+  ]);
+  const pendingActionScopeRef = useRef(pendingActionScope);
+  pendingActionScopeRef.current = pendingActionScope;
+  const pendingActionRef = useRef<{
+    scope: string;
+    payload: Parameters<typeof handleSend>[0];
+  } | null>(null);
+  const pendingActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingActionSenderRef = useRef(handleSend);
+  useEffect(() => { pendingActionSenderRef.current = handleSend; }, [handleSend]);
+  useEffect(() => {
+    if (pendingActionRef.current?.scope !== pendingActionScope) {
+      pendingActionRef.current = null;
+    }
+    return () => {
+      if (pendingActionTimerRef.current !== null) {
+        clearTimeout(pendingActionTimerRef.current);
+        pendingActionTimerRef.current = null;
+      }
+    };
+  }, [pendingActionScope]);
+
+  // A queued CTA belongs to this mounted conversation. Tracking uses its own
+  // ticket/PIN dialog and must never enter the generic chat action dispatcher.
   useEffect(() => {
     const pendingAction = safeLocalStorage.getItem(PENDING_WIDGET_ACTION);
     if (pendingAction) {
       safeLocalStorage.removeItem(PENDING_WIDGET_ACTION);
       try {
         const actionData = JSON.parse(pendingAction);
+        const trackingActions = ["ticket_public_tracking", "ticket_live_or_offline_message"];
+        if ([actionData?.action, actionData?.action_id, actionData?.type,
+          actionData?.payload?.action, actionData?.payload?.action_id, actionData?.payload?.type]
+          .some((value) => trackingActions.includes(value))) {
+          addSystemMessage(
+            "Para escribir sobre tu reclamo, abrí su página de seguimiento con el número y el PIN.",
+            "info",
+          );
+          return;
+        }
         if (actionData && actionData.action) {
-          // Allow slight delay for component initialization
-          setTimeout(() => {
-            handleSend({
+          if (pendingActionTimerRef.current !== null) {
+            clearTimeout(pendingActionTimerRef.current);
+            pendingActionTimerRef.current = null;
+          }
+          pendingActionRef.current = {
+            scope: pendingActionScope,
+            payload: {
               text: actionData.text || actionData.action, // Fallback text if just action
               action: actionData.action,
               action_id: actionData.action_id,
               payload: actionData.payload,
-            });
-          }, 500);
+            },
+          };
         }
-      } catch (e) {
-        console.error("Error parsing pending widget action", e);
+      } catch {
+        // Parsing errors can contain pieces of the stored ticket/PIN payload.
+        console.warn("No se pudo leer la acción pendiente del chat.");
       }
     }
-  }, [handleSend]);
+    const pending = pendingActionRef.current;
+    if (pending?.scope === pendingActionScope && pendingActionTimerRef.current === null) {
+      pendingActionTimerRef.current = setTimeout(() => {
+        pendingActionTimerRef.current = null;
+        if (pendingActionScopeRef.current !== pending.scope || pendingActionRef.current !== pending) return;
+        pendingActionRef.current = null;
+        pendingActionSenderRef.current(pending.payload);
+      }, 500);
+    }
+  }, [handleSend, addSystemMessage, pendingActionScope]);
 
   const rubrosEnabled = tipoChat === "pyme" && !isPlatformOnboarding;
   const [rubros, setRubros] = useState<Rubro[]>([]);
@@ -3332,7 +3370,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const emptyStateDescription =
     readExperienceDescription(resolvedEmptyBlock) ||
     "Escribí tu consulta abajo o usá las opciones del menú.";
-  const visitorDisplayName = readFirstString(
+  const visitorDisplayName = isPublicWidget ? scopedVisitorName : readFirstString(
     user?.nombre,
     user?.name,
     user?.displayName,
@@ -3470,8 +3508,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     quickMenu,
   ]);
   const visibleDefaultMenuButtons = useMemo(
-    () => defaultMenuButtons.slice(0, defaultMenuMaxVisible),
-    [defaultMenuButtons, defaultMenuMaxVisible],
+    () => suppressLegacyInitialMenu?[]:defaultMenuButtons.slice(0, defaultMenuMaxVisible),
+    [defaultMenuButtons, defaultMenuMaxVisible,suppressLegacyInitialMenu],
   );
   const sendDefaultMenuButton = useCallback(
     (item: (typeof defaultMenuButtons)[number], placement: "empty" | "persistent") => {
@@ -3593,15 +3631,15 @@ const ChatPanel = (props: ChatPanelProps) => {
         (effectiveLeadCapture?.fields?.length ?? 0) === 0;
 
       if (shouldPostLead) {
-        const storedContact = readStoredLeadContact();
+        const visitorContact = contexto?.datos_reclamo;
         const actionPayload = action.payload ?? {};
-        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, storedContact.name);
-        const leadEmail = readFirstString(actionPayload.email, storedContact.email);
+        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, visitorContact?.nombre_ciudadano);
+        const leadEmail = readFirstString(actionPayload.email, visitorContact?.email_ciudadano);
         const leadPhone = readFirstString(
           actionPayload.telefono,
           actionPayload.phone,
           actionPayload.whatsapp,
-          storedContact.phone,
+          visitorContact?.telefono_ciudadano,
         );
 
         if (!leadName && !leadEmail && !leadPhone) {
@@ -3702,7 +3740,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [addSystemMessage, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
+    [addSystemMessage, contexto, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
   );
 
   const persistentLeadButton = [...messages]
@@ -4278,7 +4316,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       >
         <div className="hidden sm:block sm:flex-1" />
 
-        {visibleMessages.length === 0 ? (
+        {institutionalBootstrapPending&&visibleMessages.length===0?(
+          <div className="flex flex-1 items-center justify-center" role="status" aria-label="Cargando conversación">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          </div>
+        ):visibleMessages.length === 0 ? (
              <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
                    <MessageSquare className="w-8 h-8" />
@@ -4370,6 +4412,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
             message={msg}
+            publicVisitorName={isPublicWidget ? scopedVisitorName || null : undefined}
             isTyping={isTyping}
             onButtonClick={handleSend}
             onInternalAction={handleInternalAction}

@@ -6,7 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import {isClerkSessionRetired} from '@/utils/sessionRetirement';
+import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
+import {subscribeChatbocSessionRevision,captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import { BrowserRouter, Routes, Route, matchPath, useLocation, useNavigate } from "react-router-dom";
 
 // Páginas principales
 import Layout from "./components/layout/Layout";
@@ -429,6 +432,7 @@ function AppRoutes() {
     "/cuenta",
     '/chat',
     "/tracking",
+    "/pruebas/encuestas",
     "/integracion",
     "/admin",
     "/perfil",
@@ -443,10 +447,15 @@ function AppRoutes() {
     .toLowerCase()
     .split("/")
     .includes("integracion");
+  const isGuardedPrivateRoute = routes.some(
+    ({ path, roles, requiredCapabilities, requiredAllCapabilities }) =>
+      Boolean(roles?.length || requiredCapabilities?.length || requiredAllCapabilities?.length) &&
+      Boolean(matchPath({ path, end: true }, location.pathname)),
+  );
   const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
     (ruta) =>
       location.pathname === ruta || location.pathname.startsWith(ruta + "/")
-  ) || isIntegrationRoute;
+  ) || isIntegrationRoute || isGuardedPrivateRoute;
 
   // Evita que el widget global quede montado en rutas de integración
   React.useEffect(() => {
@@ -460,7 +469,7 @@ function AppRoutes() {
       <React.Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
         <Route element={<Layout />}>
-          {layoutRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities }) => (
+          {layoutRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities, enforceCapabilities }) => (
             <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
@@ -470,6 +479,7 @@ function AppRoutes() {
                     roles={roles}
                     requiredCapabilities={requiredCapabilities}
                     requiredAllCapabilities={requiredAllCapabilities}
+                    enforceCapabilities={enforceCapabilities}
                   >
                     {element}
                   </AccessRoute>
@@ -493,7 +503,7 @@ function AppRoutes() {
             ))}
           </Route>
         )}
-        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities }) => (
+        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities, enforceCapabilities }) => (
           <Route
             key={path}
             path={path}
@@ -503,6 +513,7 @@ function AppRoutes() {
                   roles={roles}
                   requiredCapabilities={requiredCapabilities}
                   requiredAllCapabilities={requiredAllCapabilities}
+                  enforceCapabilities={enforceCapabilities}
                 >
                   {element}
                 </AccessRoute>
@@ -562,8 +573,9 @@ const BearerSessionBootstrapBoundary = () => (
 );
 
 const ClerkSessionBootstrapBoundary = () => {
+  React.useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
   const { isLoaded, isSignedIn, userId, sessionId } = useAuth();
-  const identity = isLoaded && isSignedIn && userId
+  const identity = !hasSelectedNativePanelImpersonation()&&isLoaded && isSignedIn && userId&&!isClerkSessionRetired(userId,sessionId)
     ? `${userId}:${sessionId || ''}`
     : null;
   const identityRef = React.useRef(identity);

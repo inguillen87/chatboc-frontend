@@ -1151,6 +1151,7 @@ export const enterpriseService = {
   trackEvent: async (
     payload: {
       tenant_id?: number;
+      tenant_profile_id?: number;
       event_name?: string;
       event?: string;
       payload?: Record<string, unknown>;
@@ -1172,6 +1173,10 @@ export const enterpriseService = {
         typeof payload.tenant_id === "number" &&
         Number.isFinite(payload.tenant_id)
           ? payload.tenant_id
+          : undefined,
+      tenant_profile_id:
+        typeof payload.tenant_profile_id === "number" && Number.isFinite(payload.tenant_profile_id)
+          ? payload.tenant_profile_id
           : undefined,
       tenant_slug: tenantSlug || undefined,
       event_name: eventName,

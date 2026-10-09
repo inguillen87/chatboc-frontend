@@ -20,6 +20,8 @@ import type { Role } from '@/utils/roles';
 import ChartTooltip from '@/components/analytics/ChartTooltip';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { AnalyticsHeatmap } from '@/components/analytics/Heatmap';
+import { geoCoverage } from '@/features/analytics/heatmapWorkspaceModel';
+import { geoRecord } from '@/features/analytics/heatmapBoundary';
 import {
   getHeatmapDataset,
   getTicketStats,
@@ -112,7 +114,7 @@ const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
   value.toLocaleString('es-AR', options);
 
 const getResponseHours = (value: unknown): number | null =>
-  typeof value === 'number' && Number.isFinite(value) ? value : null;
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
 const getHeatPointWeight = (point: HeatPoint) => {
   const candidates = [
@@ -550,13 +552,13 @@ export default function MunicipalAnalytics() {
     () =>
       filteredMunicipalities
         .map((m) => m.averageResponseHours)
-        .filter((value): value is number => typeof value === 'number' && !Number.isNaN(value)),
+        .filter((value): value is number => getResponseHours(value) !== null),
     [filteredMunicipalities],
   );
 
   const averageResponseHours = responseValues.length
     ? responseValues.reduce((sum, value) => sum + value, 0) / responseValues.length
-    : 0;
+    : null;
 
   const categoryTotals = useMemo(
     () =>
@@ -953,9 +955,10 @@ export default function MunicipalAnalytics() {
   const slaCoverage = filteredMunicipalities.length
     ? Math.round((responseValues.length / filteredMunicipalities.length) * 100)
     : 0;
-  const geoCoverage = totalTickets > 0
-    ? Math.min(100, Math.round((heatmapWeight / totalTickets) * 100))
-    : 0;
+  const locationQuality = geoRecord(geoRecord(heatmapDetails?.raw).location_quality);
+  const geographicCoverage = geoCoverage({ location_quality: {
+    ...locationQuality, coverage_pct: locationQuality.coverage_pct ?? locationQuality.coordinate_coverage_pct,
+  } }).coverage;
   const executiveKpis = [
     {
       label: 'Tickets filtrados',
@@ -965,14 +968,14 @@ export default function MunicipalAnalytics() {
     },
     {
       label: 'Respuesta promedio',
-      value: Number.isFinite(averageResponseHours) ? `${averageResponseHours.toFixed(1)} h` : '0 h',
-      detail: `${slaCoverage}% con metrica SLA`,
+      value: averageResponseHours !== null ? `${averageResponseHours.toFixed(1)} h` : 'No disponible',
+      detail: `${slaCoverage}% de filas con dato de respuesta`,
       icon: Timer,
     },
     {
       label: 'Cobertura geo',
-      value: `${geoCoverage}%`,
-      detail: `${formatNumber(heatmapData.length)} puntos de mapa`,
+      value: geographicCoverage === null ? 'No informada' : `${formatNumber(geographicCoverage)}%`,
+      detail: geographicCoverage === null ? 'La fuente no informó cobertura verificable' : 'Cobertura informada por la fuente',
       icon: MapPinned,
     },
     {
@@ -1300,9 +1303,9 @@ export default function MunicipalAnalytics() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {Number.isFinite(averageResponseHours)
+              {averageResponseHours !== null
                 ? averageResponseHours.toFixed(2)
-                : '0.00'}
+                : 'No disponible'}
             </div>
           </CardContent>
         </Card>
@@ -1347,9 +1350,7 @@ export default function MunicipalAnalytics() {
                     ).toLocaleString('es-AR')}
                   </TableCell>
                   <TableCell>
-                    {typeof m.averageResponseHours === 'number' && !Number.isNaN(m.averageResponseHours)
-                      ? m.averageResponseHours.toFixed(2)
-                      : '—'}
+                    {getResponseHours(m.averageResponseHours)?.toFixed(2) ?? '—'}
                   </TableCell>
                   {statusKeys.map((status) => (
                     <TableCell key={status}>

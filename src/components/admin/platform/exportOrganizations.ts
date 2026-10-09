@@ -1,4 +1,5 @@
 import type { Tenant } from '@/types/superAdmin';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 
 const cell = (value: unknown): string => {
   const text = value == null ? '' : String(value);
@@ -12,7 +13,7 @@ export function buildOrganizationsCsv(organizations: Tenant[]): string {
   for (const org of organizations) {
     rows.push([
       org.nombre, org.slug,
-      ({ municipio: 'Gobierno', colegio: 'Educación', pyme: 'Empresa' })[org.tipo] || org.tipo,
+      organizationTypeLabel(org.tipo, org),
       org.plan,
       org.is_active === true ? 'Activa' : org.is_active === false ? 'Inactiva' : 'Sin informar',
       org.owner_email,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { apiClient } from "@/api/client";
 import { apiFetch } from "@/utils/api";
@@ -14,8 +14,7 @@ import type { Tenant } from "@/types/superAdmin";
 import type { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import { TenantModal } from "@/components/admin/TenantModal";
 import { WhatsappInventoryPanel } from "@/components/admin/WhatsappInventoryPanel";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { buildTenantPath } from "@/utils/tenantPaths";
+import {completeNativeImpersonation,impersonationErrorMessage} from '@/utils/completeNativeImpersonation';
 import { useSocket } from "@/context/SocketContext";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
 import SuperadminFollowUpQueue from "@/features/crm/followup/SuperadminFollowUpQueue";
@@ -24,6 +23,9 @@ import { enterpriseService } from "@/services/enterpriseService";
 import { OrganizationDirectory } from "@/components/admin/platform/OrganizationDirectory";
 import { PlatformOverview } from "@/components/admin/platform/PlatformOverview";
 import { buildPlatformOverview } from "@/components/admin/platform/data";
+import { useUser } from '@/hooks/useUser';
+import { useCapabilities } from '@/context/CapabilitiesContext';
+import { normalizeProfileTenantSlug } from '@/utils/profileTenantAuthority';
 import "@/components/admin/platform/platform.css";
 
 const sections = [
@@ -45,6 +47,20 @@ const leadSummary = (lead: any) => {
 
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
+  const navigate = useNavigate();
+  const { organizationProfileVerified, hasVerifiedSession } = useUser();
+  const { hasCapability } = useCapabilities();
+  const canOpenKnowledge = organizationProfileVerified && hasVerifiedSession && hasCapability('knowledge.read');
+  const openKnowledge = (tenant: Tenant) => {
+    const slug = normalizeProfileTenantSlug(tenant.slug);
+    if (canOpenKnowledge && tenant.is_active === true && slug) navigate(`/admin/knowledge?tenant_slug=${encodeURIComponent(slug)}`);
+  };
+  const openInstitutionProfile = (tenant: Tenant) => {
+    const slug = normalizeProfileTenantSlug(tenant.slug);
+    if (organizationProfileVerified && tenant.is_active === true && slug) {
+      navigate(`/perfil?section=general&tenant_slug=${encodeURIComponent(slug)}`);
+    }
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const section: Section = sections.some((item) => item.id === searchParams.get('section')) ? searchParams.get('section') as Section : 'overview';
   const reducedMotion = useReducedMotion();
@@ -81,6 +97,8 @@ export default function SuperAdminDashboard() {
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [purgeConfirmed, setPurgeConfirmed] = useState(false);
   const [purgeUsers, setPurgeUsers] = useState(true);
+  const impersonationAttempt=useRef(0),impersonationPending=useRef(false);
+  useEffect(()=>()=>{impersonationAttempt.current+=1;},[]);
 
   const sectionUrl = (id: Section, slug?: string) => {
     const next = new URLSearchParams(searchParams);
@@ -133,7 +151,10 @@ export default function SuperAdminDashboard() {
     const revision = ++crmRevision.current;
     setCrmLeadsLoading(true); setCrmError(null);
     try {
-      const response = await apiFetch<{ items?: any[]; summary?: Record<string, number> }>('/api/admin/crm/leads?limit=8', { omitTenant: true });
+      const response = await apiFetch<{ items?: any[]; summary?: Record<string, number> }>('/api/admin/crm/leads?limit=8', {
+        omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+        singleAttempt: true, allowStartupRecovery: true,
+      });
       if (revision !== crmRevision.current) return;
       if (!Array.isArray(response?.items)) throw new Error('Invalid CRM selection');
       setCrmLeads(response.items); setCrmLeadsSummary(response.summary || {});
@@ -247,25 +268,15 @@ export default function SuperAdminDashboard() {
   };
 
   const handleImpersonate = async (tenant: Tenant) => {
+    if(impersonationPending.current)return;
+    impersonationPending.current=true;const attempt=++impersonationAttempt.current;
     try {
-      const { token, redirect_url } = await apiClient.superAdminImpersonate(
-        tenant.slug,
-      );
-
-      safeLocalStorage.setItem("authToken", token);
-
-      const target = redirect_url || buildTenantPath("/", tenant.slug);
-
+      const {destination}=await completeNativeImpersonation(tenant.slug,()=>attempt===impersonationAttempt.current);
       toast.success(`Accediendo a ${tenant.nombre}...`);
-
-      const newTab = window.open(target, "_blank", "noopener,noreferrer");
-      if (!newTab) {
-        window.location.href = target;
-      }
+      navigate(destination,{replace:true});
     } catch (error) {
-      console.error(error);
-      toast.error("Falló el acceso como admin.");
-    }
+      if(attempt===impersonationAttempt.current)toast.error(impersonationErrorMessage(error));
+    }finally{if(attempt===impersonationAttempt.current)impersonationPending.current=false;}
   };
 
   const handleToggleStatus = async (tenant: Tenant) => {
@@ -319,9 +330,9 @@ export default function SuperAdminDashboard() {
       {section === 'overview' && <PlatformOverview data={overview} directoryLoading={loading} crmLoading={crmLeadsLoading} healthLoading={executiveLoading} onOrganizations={() => openSection('organizations')} onCrm={() => openSection('crm')} onProfile={openProfile} onRefresh={() => { void Promise.all([fetchTenants(), fetchExecutive(), fetchCrmLeads()]); }} />}
       {section === 'organizations' && <>
         {selectedProfileSlug && <section className="platform-panel order-first" aria-labelledby="platform-profile-title" data-testid="platform-organization-profile"><div className="platform-panel-heading"><div><h2 id="platform-profile-title" tabIndex={-1}>{profile?.nombre || selectedTenant?.nombre || selectedProfileSlug}</h2><p>Ficha de la organización · actividad de los últimos 30 días</p></div><Button variant="ghost" onClick={() => openSection('organizations')}>Cerrar ficha</Button></div>
-          {profileLoading ? <div className="platform-empty" role="status">Cargando ficha…</div> : profileError ? <div className="platform-empty" role="alert">{profileError}</div> : profile && <div className="platform-panel-body"><dl className="platform-profile-facts"><div><dt>Responsable</dt><dd>{owner?.name || owner?.nombre || owner?.email || 'No disponible'}</dd></div><div><dt>Correo de contacto</dt><dd>{owner?.email || 'No disponible'}</dd></div><div><dt>Plan</dt><dd>{profile.plan || 'No disponible'}</dd></div><div><dt>Estado</dt><dd>{profile.is_active === true ? 'Activa' : profile.is_active === false ? 'Inactiva' : 'No disponible'}</dd></div><div><dt>Última actualización informada</dt><dd>{dateLabel(updatedAt)}</dd></div></dl>{selectedTenant && <div className="mt-6 flex flex-wrap gap-2"><Button variant="outline" onClick={() => handleEdit(selectedTenant)}>Editar organización</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'users')}>Administrar acceso</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'integrations')}>Configurar canales</Button></div>}</div>}
+          {profileLoading ? <div className="platform-empty" role="status">Cargando ficha…</div> : profileError ? <div className="platform-empty" role="alert">{profileError}</div> : profile && <div className="platform-panel-body"><dl className="platform-profile-facts"><div><dt>Responsable</dt><dd>{owner?.name || owner?.nombre || owner?.email || 'No disponible'}</dd></div><div><dt>Correo de contacto</dt><dd>{owner?.email || 'No disponible'}</dd></div><div><dt>Plan</dt><dd>{profile.plan || 'No disponible'}</dd></div><div><dt>Estado</dt><dd>{profile.is_active === true ? 'Activa' : profile.is_active === false ? 'Inactiva' : 'No disponible'}</dd></div><div><dt>Última actualización informada</dt><dd>{dateLabel(updatedAt)}</dd></div></dl>{selectedTenant && <div className="mt-6 flex flex-wrap gap-2"><Button variant="outline" disabled={selectedTenant.is_active !== true || !organizationProfileVerified} onClick={() => openInstitutionProfile(selectedTenant)}>Editar datos institucionales</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant)}>Administrar plan y estado</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'users')}>Administrar acceso</Button><Button variant="outline" onClick={() => handleEdit(selectedTenant, 'integrations')}>Configurar canales</Button></div>}</div>}
         </section>}
-        <OrganizationDirectory tenants={tenants} total={total} loading={loading} error={error} onRefresh={() => void fetchTenants()} onLoadMore={() => void fetchTenants(page + 1)} onProfile={openProfile} onEdit={handleEdit} onImpersonate={handleImpersonate} onToggleStatus={handleToggleStatus} onPurge={handlePurge} />
+        <OrganizationDirectory tenants={tenants} total={total} loading={loading} error={error} onRefresh={() => void fetchTenants()} onLoadMore={() => void fetchTenants(page + 1)} onProfile={openProfile} onEdit={handleEdit} onImpersonate={handleImpersonate} onToggleStatus={handleToggleStatus} onPurge={handlePurge} onKnowledge={canOpenKnowledge ? openKnowledge : undefined} onInstitutionProfile={organizationProfileVerified ? openInstitutionProfile : undefined} />
         {directoryUpdatedAt && !error && <p className="text-xs text-muted-foreground">Directorio consultado: {dateLabel(directoryUpdatedAt)}.</p>}
 
       </>}
@@ -342,7 +353,7 @@ export default function SuperAdminDashboard() {
         { label: 'Inventario de WhatsApp', loading: whatsappLoading, failed: Boolean(whatsappError) },
       ].map((item) => <div className="platform-service-row" key={item.label}><span>{item.label}</span><span className="platform-plan">{item.loading ? 'Consultando…' : item.failed ? 'No disponible' : 'Consulta recibida'}</span></div>)}</div></section><section className="platform-panel"><details className="platform-technical-details"><summary>Ver comprobaciones técnicas de producción</summary><div><ProductionSmokeReport /></div></details></section></>}
     </motion.div>
-    <TenantModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={fetchTenants} tenantToEdit={editingTenant} initialTab={modalTab} />
+    <TenantModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={fetchTenants} tenantToEdit={editingTenant} initialTab={modalTab} onInstitutionProfile={organizationProfileVerified ? openInstitutionProfile : undefined} />
       <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

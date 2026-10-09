@@ -6,6 +6,7 @@ import {
   reviewGovernmentJurisdictionEvidence,
   submitGovernmentJurisdictionEvidence,
 } from '@/api/v2/governmentJurisdiction';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 const api = vi.hoisted(() => ({ fetch: vi.fn() }));
 
@@ -98,8 +99,8 @@ describe('government jurisdiction API', () => {
       '/api/v2/tenants/gobierno-demo/government-readiness/jurisdiction',
       {
         cache: 'no-store',
-        omitTenant: true,
-        persistTenantSlug: false,
+        ...panelReadOptions('gobierno-demo'),
+        isCurrent: expect.any(Function),
       },
     );
   });

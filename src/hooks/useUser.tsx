@@ -1,6 +1,7 @@
 import { usePanelSessionStore } from '@/stores';
 import React, { useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
@@ -11,6 +12,7 @@ import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { useSessionAuthority } from '@/components/access/SessionAuthorityContext';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
+import {registerSessionRetirement,validateSessionRetirementProof,readActiveClerkSessionId,type SessionRetirementBinding} from '@/utils/sessionRetirement';
 import {
   captureChatbocSessionRevision,
   clearLocalChatbocSession,
@@ -38,6 +40,7 @@ interface UserData {
   logo_url?: string;
   organization_profile?: unknown;
   organization_workspace?: unknown;
+  platform_workspace?: unknown;
   avatar_url?: string;
   avatar_source?: string;
   avatar_consent?: boolean | string | number | null;
@@ -197,12 +200,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const data = await apiFetch<any>('/api/me', {
+        ...panelReadOptions(),
         preserveAuthOn401: true,
         suppressPanel401Redirect: true,
-        omitEntityToken: true,
-        omitTenant: true,
+        isCurrent: isCurrentRequest,
       });
       if (!isCurrentRequest()) return;
+      const provider=hasPersistedClerkSession()?'clerk':'native';
+      const retirementBinding:SessionRetirementBinding={actorId:data.id,provider,clerkSessionId:provider==='clerk'?readActiveClerkSessionId():undefined};
+      if(data.session_retirement!==undefined&&!validateSessionRetirementProof(data.session_retirement,retirementBinding))throw new Error('El servicio no devolvió una sesión verificable.');
       const rubroNorm = parseRubro(data.rubro) || '';
       const resolvedRole = typeof data.rol === 'string' ? data.rol : typeof data.role === 'string' ? data.role : undefined;
       if (!data.tipo_chat) {
@@ -324,6 +330,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logo_url: data.logo_url,
         organization_profile: data.organization_profile,
         organization_workspace: data.organization_workspace,
+        platform_workspace: data.platform_workspace,
         avatar_url: resolvedProfileAvatar.avatarUrl,
         avatar_source: resolvedProfileAvatar.source,
         avatar_consent: resolvedProfileAvatar.consented,
@@ -364,6 +371,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rejectedAuthTokenRef.current = null;
       setVerifiedProfileKey(profileIdentityKey(sessionIdentity, requestRevision, updated));
       setUser(updated as any);
+      if(data.session_retirement)registerSessionRetirement(data.session_retirement,retirementBinding,requestRevision);
     } catch (e) {
       if (!isCurrentRequest()) return;
       const status = e instanceof ApiError ? e.status : (e as any)?.status;

@@ -35,10 +35,14 @@ import { cn } from '@/lib/utils';
 import type { Ticket, User } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
 import { ticketAssignmentActions } from './ticketAssignmentActions';
+import { resolveTicketPresentationCategory } from './ticketPresentationCategory';
 import {
   canSuperviseTicketAssignments,
   describeRoutingReason,
   employeeIsEligibleForRoutingTicket,
+  getTicketRoutingIdentity,
+  inspectTicketCategoryAuthority,
+  normalizeRoutingDimension,
   type TicketRoutingAuthority,
 } from './ticketRoutingAuthority';
 
@@ -172,6 +176,24 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
     [candidates, selectedAgentId],
   );
   const currentUserEligible = employeeIsEligibleForRoutingTicket(authority, user?.id);
+  const categoryPresentation = selectedTicket
+    ? resolveTicketPresentationCategory({
+      ticket: selectedTicket,
+      routingResolution: routingState.resolution,
+      routingLoading: routingState.loading,
+    })
+    : null;
+  const detailAuthority = selectedTicket?.category_authority;
+  const categoryRecovery = inspectTicketCategoryAuthority(selectedTicket).recoveryText ||
+    (routingState.resolution?.ok === false ? routingState.resolution.recoveryText : null);
+  const categoryVerified = categoryPresentation?.state === 'verified' &&
+    detailAuthority?.conflict !== true &&
+    authority?.identity === getTicketRoutingIdentity(selectedTicket) &&
+    Boolean(authority?.category) &&
+    normalizeRoutingDimension(categoryPresentation.label) === normalizeRoutingDimension(authority?.category);
+  const candidateContractPublished = Boolean(authority?.recommendation && [
+    'candidate_ids', 'eligible_assignees', 'eligible_employees', 'candidates', 'candidate_assignees',
+  ].some((key) => Array.isArray(authority.recommendation?.raw[key])));
   const assignedToMe = Boolean(
     authority?.currentAssigneeId && String(authority.currentAssigneeId) === String(user?.id),
   );
@@ -234,7 +256,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
   };
 
   const handleAssignment = async (employee: EmployeeRoutingEmployee | null) => {
-    if (!canAssign || !authority || !employee || assigning) return;
+    if (!canAssign || !categoryVerified || !authority || !employee || assigning) return;
     if (!candidates.some((candidate) => String(candidate.id) === String(employee.id))) {
       toast.error('La persona ya no figura como compatible en la matriz operativa.');
       return;
@@ -260,7 +282,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
   };
 
   const handleClaim = async () => {
-    if (!canClaim || !authority || authority.currentAssigneeId || !currentUserEligible || !user?.id || assigning) return;
+    if (!canClaim || !categoryVerified || !authority || authority.currentAssigneeId || !currentUserEligible || !user?.id || assigning) return;
     const currentEmployee = candidates.find(
       (candidate) => String(candidate.id) === String(user.id),
     );
@@ -293,8 +315,9 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
     }
   };
 
-  if (routingState.loading || routingState.error || !routingState.resolution?.ok) {
-    const reason = routingState.resolution?.ok === false
+  const categoryUnverified = routingState.resolution?.ok === false && routingState.resolution.reason === 'category_unverified';
+  if (routingState.loading || routingState.error || categoryPresentation?.state === 'conflict' || (!routingState.resolution?.ok && !categoryUnverified)) {
+    const reason = categoryPresentation?.state === 'conflict' ? 'conflicting_authority' : routingState.resolution?.ok === false
       ? routingState.resolution.reason
       : undefined;
     return (
@@ -316,10 +339,29 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           <div>
             <p className="text-sm font-semibold">Asignación protegida</p>
             <p className="mt-1 text-xs">
-              {authorityFailureMessage(routingState.loading, routingState.error, reason)}
+              {!routingState.loading && !routingState.error && categoryRecovery && reason === 'conflicting_authority' ? categoryRecovery : authorityFailureMessage(routingState.loading, routingState.error, reason)}
             </p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (categoryUnverified || !categoryVerified) {
+    return (
+      <div
+        className={cn('space-y-2 rounded-lg border border-amber-300/70 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100', className)}
+        role="status"
+        data-testid="ticket-assignment-category-pending"
+      >
+        <p className="text-sm font-semibold">Categoría pendiente de verificación</p>
+        <p className="text-xs">
+          {categoryRecovery || 'No pudimos confirmar la categoría y la cobertura de asignación de este caso. Actualizá la bandeja; si continúa, avisá a supervisión.'}
+        </p>
+        <Button type="button" size="sm" variant="outline" onClick={() => void routingState.refresh()}>
+          <RefreshCcw className="mr-2 h-3.5 w-3.5" />
+          Actualizar matriz
+        </Button>
       </div>
     );
   }
@@ -339,7 +381,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           <div>
             <p className="text-sm font-semibold">Responsable del caso</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Cobertura verificada por categoría{authority.category ? ` · ${authority.category}` : ''}.
+              Categoría verificada{authority.category ? ` · ${authority.category}` : ''}.
             </p>
           </div>
           <Badge variant={authority.currentAssigneeId ? 'secondary' : 'outline'}>
@@ -366,7 +408,11 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           <p className="rounded-lg border border-dashed p-2 text-xs text-muted-foreground">
             {authority.currentAssigneeId
               ? 'El caso ya tiene una persona responsable.'
-              : 'Este caso está fuera de las categorías habilitadas para tu usuario.'}
+              : candidateContractPublished && user?.id && !currentUserEligible
+                ? 'El servidor no habilitó tu usuario entre las personas que pueden tomar este caso.'
+                : !canClaim
+                  ? 'La acción de tomar este caso no está habilitada para tu usuario.'
+                  : 'No pudimos confirmar la cobertura de asignación para tu usuario. Actualizá la bandeja; si continúa, avisá a supervisión.'}
           </p>
         )}
       </div>
@@ -396,8 +442,8 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {authority.category
-                ? `Cobertura validada para ${authority.category}.`
-                : 'Cobertura validada por employee.routing.v1.'}
+                ? `Categoría verificada · ${authority.category}.`
+                : 'Categoría verificada para este caso.'}
             </p>
           </div>
           <Badge variant={authority.currentAssigneeId ? 'secondary' : 'outline'}>

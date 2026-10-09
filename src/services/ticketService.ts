@@ -1,4 +1,6 @@
 import { apiFetch, ApiError, isLikelyHtmlErrorBody } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import {
   Ticket,
   Message,
@@ -382,6 +384,7 @@ const normalizeTicketMessages = (rawMsgs: any[] | undefined | null): Message[] =
 
         return {
             id: m.id ?? m.comentario_id ?? m.comment_id ?? idx,
+            readCommentId: normalizeTicketReadCommentId(m.comment_id ?? m.comentario_id ?? m.id),
             author: isAgentMessage ? 'agent' : 'user',
             agentName: m.nombre_agente || m.agentName || m.autor_nombre || m.author_name,
             content: m.content || m.body || m.texto || m.mensaje || m.comentario || '',
@@ -744,11 +747,8 @@ export const getTickets = async (
         summary?: Record<string, unknown>;
         facets?: TicketInboxFacets | null;
       }>(ticketApiPath(`/tickets?${params.toString()}`), {
-      tenantSlug,
-      omitTenant: false,
+      ...panelReadOptions(tenantSlug),
       suppressPanel401Redirect: true,
-      omitCredentials: true,
-      omitChatSessionId: true,
       // Algunos despliegues requieren el tenant para filtrar los tickets
       // correctamente y evitar errores 500 en el backend.
     });
@@ -1768,6 +1768,7 @@ export const getTicketTimeline = async (
       );
       return {
         id,
+        readCommentId: normalizeTicketReadCommentId(raw.comment_id ?? raw.comentario_id ?? raw.id),
         author: isAgent ? 'agent' : 'user',
         content: normalizedContent,
         timestamp,
@@ -1933,12 +1934,25 @@ export const updateTicketPresence = async (
     return normalizeRealtimeState((response as any).realtime_state);
 };
 
+/** Accept only identifiers representable by the native TicketComentario integer key. */
+export const normalizeTicketReadCommentId = (value: unknown): number | undefined => {
+    if (typeof value !== 'number' && !(typeof value === 'string' && /^[1-9]\d*$/.test(value))) return undefined;
+    const id = Number(value);
+    return Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : undefined;
+};
+
 export const updateTicketReadState = async (
     ticketId: number,
     tipo: 'municipio' | 'pyme',
     lastReadCommentId: string | number,
-    opts?: { public?: boolean; pin?: string }
+    opts?: { public?: boolean; pin?: string; tenantSlug?: string | null; sourceModel?: string | null; isCurrent?: () => boolean }
 ): Promise<TicketRealtimeState | null> => {
+    const nativeCommentId = normalizeTicketReadCommentId(lastReadCommentId);
+    if (nativeCommentId === undefined) throw new ApiError('No se pudo verificar el comentario para registrar la lectura.', 400);
+    const expectedSource = tipo === 'municipio' ? 'MunicipioTicket' : 'PymeTicket';
+    if (!opts?.public && opts?.sourceModel !== expectedSource) {
+        throw new ApiError('No se pudo verificar la fuente para registrar la lectura.', 400);
+    }
     const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/read-state`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
@@ -1946,12 +1960,20 @@ export const updateTicketReadState = async (
         : opts?.pin
             ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
             : endpointBase;
-    const fetchOptions = publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
+    const sessionRevision = captureChatbocSessionRevision();
+    const isCurrent = () => isChatbocSessionRevisionCurrent(sessionRevision) && opts?.isCurrent?.() !== false;
+    const fetchOptions = publicAccess?.fetchOptions ?? {
+        ...panelReadOptions(opts?.tenantSlug),
+        singleAttempt: true,
+        allowStartupRecovery: false,
+        isCurrent,
+    };
     const response = await apiFetch<{ realtime_state?: any }>(endpoint, {
         method: 'POST',
-        body: { last_read_comment_id: lastReadCommentId },
+        body: { last_read_comment_id: nativeCommentId },
         ...fetchOptions,
     });
+    if (!opts?.public && !isCurrent()) throw new DOMException('Read acknowledgement scope expired', 'AbortError');
     return normalizeRealtimeState((response as any).realtime_state);
 };
 

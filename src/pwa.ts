@@ -68,6 +68,12 @@ const dismissRefreshToast = () => {
   refreshToastId = undefined;
 };
 
+const clearRefreshToastHandle = (closedToast: { id: string | number }) => {
+  if (refreshToastId === closedToast.id) {
+    refreshToastId = undefined;
+  }
+};
+
 export const shouldAutoApplyPublicRefresh = () => {
   if (typeof window === 'undefined') return false;
 
@@ -109,7 +115,11 @@ const isLocalPwaLifecycleVerification = () => {
 
 export const shouldDisablePwaForHost = (hostname?: string | null) => {
   const normalized = String(hostname || '').trim().toLowerCase();
-  return LOCAL_PREVIEW_HOSTS.has(normalized) || normalized.endsWith('.vercel.app');
+  return (
+    LOCAL_PREVIEW_HOSTS.has(normalized) ||
+    normalized === 'preview.chatboc.ar' ||
+    normalized.endsWith('.vercel.app')
+  );
 };
 
 const cleanupEphemeralPwaRuntime = async () => {
@@ -259,6 +269,9 @@ const registerPwaWorker = () => {
 
             refreshToastId = toast('Nueva version disponible', {
               description: 'Actualiza para recibir las ultimas mejoras.',
+              duration: Infinity,
+              onDismiss: clearRefreshToastHandle,
+              onAutoClose: clearRefreshToastHandle,
               action: {
                 label: 'Actualizar',
                 onClick: () => {

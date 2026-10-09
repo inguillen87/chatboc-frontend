@@ -480,6 +480,14 @@ describe('SurveyAnalytics territory command center', () => {
     expect(screen.queryByText(/focos detectados/i)).not.toBeInTheDocument();
   });
 
+  it('labels completion as complete received responses and preserves an authoritative 100 percent', () => {
+    render(<SurveyAnalytics summary={{ ...summaryFixture(), total_respuestas: 1, tasa_completitud: 100 }} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const card = screen.getByText('Completitud de respuestas recibidas').closest('[class*="rounded"]');
+    expect(card).toHaveTextContent('Respuestas completas sobre respuestas recibidas');
+    expect(card).toHaveTextContent('No mide formularios iniciados ni población convocada');
+    expect(card).toHaveTextContent('100.0%');
+  });
+
   it('uses authoritative backend geographic coverage when supplied', () => {
     render(
       <SurveyAnalytics

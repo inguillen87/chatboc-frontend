@@ -1,6 +1,7 @@
 import {normalizeRole} from './roles';
 import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
 import type {PanelLoginResponse} from '@/api/panelLogin';
+import {validateSessionRetirementProof} from './sessionRetirement';
 
 export class PanelLoginBoundaryError extends Error {
   constructor(public readonly code: 'invalid_response' | 'organization_mismatch' | 'invalid_route') {
@@ -36,5 +37,6 @@ export function validatePanelLoginResponse(raw: unknown, email: string, requeste
   const slug=slugs[0]||null;
   if (requestedTenant && slug!==requestedTenant) throw new PanelLoginBoundaryError('organization_mismatch');
   if (data.entityToken!=null && (typeof data.entityToken!=='string'||/\s/.test(data.entityToken))) reject();
+  if(data.session_retirement!==undefined&&!validateSessionRetirementProof(data.session_retirement,{actorId:user.id as number,provider:'native'}))reject();
   return {...data,user:{...user,rol:roles[0],...(slug?{tenant_slug:slug}:{})}} as unknown as PanelLoginResponse;
 }

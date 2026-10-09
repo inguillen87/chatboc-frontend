@@ -206,7 +206,7 @@ export default function WhatsappEmbeddedSignupPage() {
       } catch (err) {
         completedRef.current = false;
         setError(getErrorMessage(err, "No se pudo guardar el registro de WhatsApp Business."));
-        setStatus("No se guardaron los cambios. Revisa el error e intenta nuevamente.");
+        setStatus("No pudimos confirmar el resultado. Vuelve a integraciones y actualiza el estado antes de intentarlo nuevamente.");
       } finally {
         setSaving(false);
       }

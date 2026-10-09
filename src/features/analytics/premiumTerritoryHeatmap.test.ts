@@ -42,6 +42,28 @@ const buildPoints = (count: number, overrides?: Partial<OperationsHeatmapPoint>)
   }));
 
 describe('premium territory heatmap aggregation', () => {
+  it.each([0, 0.5, 1, 100])('preserves coverage percentage points %s without ratio scaling', (coverage) => {
+    expect(resolveTerritoryMapReadiness({
+      points: buildPoints(1), summary: {},
+      location_quality: { coordinate_coverage_pct: coverage },
+    }, 1).coveragePercent).toBe(coverage);
+    expect(resolveTerritoryMapReadiness({
+      points: buildPoints(1), summary: {}, quality: { coverage_percent: coverage },
+    }, 1).coveragePercent).toBe(coverage);
+  });
+
+  it('scales only the coverage rate and rejects invalid percentages and rates', () => {
+    expect(resolveTerritoryMapReadiness({ points: buildPoints(1), summary: {}, quality: { coverage_rate: 0.5 } }, 1).coveragePercent).toBe(50);
+    expect(resolveTerritoryMapReadiness({ points: buildPoints(1), summary: {}, quality: { coverage_percent: 101, coverage_rate: 2 } }, 1).coveragePercent).toBeUndefined();
+  });
+
+  it('keeps the backend outside-jurisdiction diagnosis and label when no coordinate can render', () => {
+    expect(resolveTerritoryMapReadiness({
+      points: [], summary: {}, render_contract: { state: 'empty', can_render_heatmap: false },
+      quality: { state: 'empty', reason_code: 'coordinates_outside_jurisdiction', label: 'Coordenadas fuera de la jurisdicción', visible_points: 0 },
+    })).toMatchObject({ state: 'empty', label: 'Coordenadas fuera de la jurisdicción', reasonCode: 'coordinates_outside_jurisdiction', visiblePoints: 0 });
+  });
+
   it('derives map provenance without treating missing or untrusted metadata as real', () => {
     expect(resolveTerritoryDataProvenance(undefined)).toMatchObject({
       state: 'unvalidated',
@@ -391,7 +413,7 @@ describe('premium territory heatmap aggregation', () => {
 
     expect(readiness).toMatchObject({
       state: 'low',
-      coveragePercent: 33.3,
+      coveragePercent: 33.33,
       visiblePoints: 2,
       pendingGeocode: 3,
     });

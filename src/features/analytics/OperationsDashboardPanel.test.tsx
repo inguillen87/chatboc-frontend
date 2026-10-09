@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  OperationsBucketItem,
   OperationsAIOpsQueueV1,
   OperationsAIProviderStatusV1,
   OperationsOpenAISuiteReadiness,
@@ -13,8 +14,14 @@ import type {
   PublicMapConfigV1,
 } from './analyticsTypes';
 import { OperationsDashboardPanel } from './OperationsDashboardPanel';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+
+// Exercise actual internal navigation rather than the global test Link stub.
+vi.mock('react-router-dom', () => vi.importActual('react-router-dom'));
 
 const mocks = vi.hoisted(() => ({
+  ensureReady: vi.fn(),
   getOperationsDashboardV2: vi.fn(),
   getOperationsHeatmapV2: vi.fn(),
   getOperationsActionCenterV2: vi.fn(),
@@ -24,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   getOperationsFreshnessV2: vi.fn(),
   getPublicMapConfigV1: vi.fn(),
 }));
+vi.mock('@/utils/backendBootstrapGate', () => ({ ensureBackendRuntimeReady: mocks.ensureReady }));
 
 const socketMocks = vi.hoisted(() => {
   const handlers = new Map<string, Set<(payload?: unknown) => void>>();
@@ -50,8 +58,15 @@ const socketMocks = vi.hoisted(() => {
 });
 
 const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
+const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true, role: 'admin_municipio', kind: 'municipio' as string | null }));
+vi.mock('@/hooks/useUser', () => ({
+  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: panelAuthority.role, tenant_slug: panelAuthority.privateSlug, tipo_chat: panelAuthority.kind } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
+}));
+vi.mock('@/context/CapabilitiesContext', () => ({
+  useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'market.orders.read' && panelAuthority.ordersRead }),
+}));
 vi.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({ currentSlug: tenantContext.slug }),
+  useTenant: () => ({ currentSlug: tenantContext.slug, tenant: { id: 22, slug: tenantContext.slug, tipo: 'municipio' }, isLoadingTenant: false, tenantError: null }),
 }));
 
 vi.mock('@/context/SocketContext', () => ({
@@ -101,6 +116,7 @@ vi.mock('./analyticsApi', () => ({
 
 const dashboardFixture = (): OperationsDashboardV1 => ({
   contract_version: 'operations.dashboard.v1',
+  tenant: { slug: 'junin', id: 22 },
   summary: {
     open_tickets: 12,
     survey_responses: 44,
@@ -275,7 +291,26 @@ const heatmapFixture = (overrides: Partial<OperationsHeatmapV1> = {}): Operation
       method: 'PATCH',
       endpoint: '/api/tickets/{record_id}/ubicacion',
     },
+    guidance: {
+      recommended_actions: [{
+        id: 'open_geocoding_queue', label: 'Revisar cola', enabled: true,
+        tenant_slug: 'junin', action_type: 'open_queue', writes_enabled: false,
+        ui_hint: 'open_geocoding_queue',
+        href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue',
+      }],
+    },
   },
+  ui: { labels: {
+    geocoding_queue: 'Cola de geocodificación',
+    pending_geocode: 'Ubicaciones pendientes de revisión',
+    geocoding_queue_description: 'Revisá las direcciones antes de completar o confirmar su ubicación. Abrir la cola no cambia los casos.',
+    geocoding_queue_empty: 'No hay direcciones pendientes para los filtros actuales.',
+    geocoding_technical_details: 'Detalles de la actualización de ubicación',
+    reason_address_without_coordinates: 'Dirección sin coordenadas guardadas.',
+    reason_addresses_need_geocoding: 'Hay direcciones que requieren revisión y coordenadas.',
+    realtime: 'Actualización por consulta', realtime_polling_status: 'Consulta periódica',
+    realtime_poll_description: 'Consulta cada 20 segundos mientras esta vista está activa. No indica una conexión en vivo.',
+  } },
   facets: [
     {
       key: 'categoria',
@@ -559,7 +594,12 @@ const mapConfigFixture = (): PublicMapConfigV1 => ({
   available_providers: ['maplibre'],
 });
 
-const renderPanel = () => {
+const LocationObserver = () => {
+  const location = useLocation();
+  return <output data-testid="navigation-location">{location.pathname}{location.search}</output>;
+};
+
+const renderPanel = (observeLocation = false, initialEntry = '/') => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -570,17 +610,75 @@ const renderPanel = () => {
   });
 
   return render(
-    <QueryClientProvider client={queryClient}>
+    <MemoryRouter initialEntries={[initialEntry]}><QueryClientProvider client={queryClient}>
       <OperationsDashboardPanel />
-    </QueryClientProvider>,
+      {observeLocation ? <LocationObserver /> : null}
+    </QueryClientProvider></MemoryRouter>,
   );
 };
+
+const receivingMonitorFixture = (overrides: Record<string, unknown> = {}): OperationsBucketItem => ({
+  id: '634', title: 'Votación verificada', slug: 'votacion-verificada', status: 'publicada',
+  phase: 'live_voting', state: 'live_collecting', published: true,
+  accepts_responses: true, can_share: true, show_live_results: true,
+  public_access: { contract_version: 'surveys.public_access.v1', allowed: true },
+  public_url: '/e/votacion-verificada',
+  live_results_endpoint: '/api/v2/public/surveys/votacion-verificada/live-results',
+  admin_url: '/admin/encuestas/634/analytics?focus=live', responses: 1,
+  ...overrides,
+});
+
+const surveyRoomFixture = (monitors: OperationsBucketItem[], summary: Record<string, unknown> = {}): OperationsDashboardV1 => ({
+  ...dashboardFixture(),
+  surveys: {
+    summary: { responses: 1, accepting_responses: 0 },
+    live_control_room: {
+      enabled: true, state: 'live',
+      summary: { live_surveys: 3, responses: 1, ...summary },
+      monitors,
+      actions: [
+        { id: 'open_surveys_admin', label: 'Abrir encuestas' },
+        { id: 'suggest_whatsapp', label: 'Invitar por WhatsApp', template_id: 'survey_invite' },
+        { id: 'public_qr', label: 'Compartir QR', endpoint: '/api/v2/public/surveys/votacion-verificada/qr' },
+      ],
+    },
+  },
+});
+
+// Synthetic contract fixture: categories remain measurable without GPS points.
+const zeroGpsCategoryFixture = (): OperationsHeatmapV1 => heatmapFixture({
+  tenant: { slug: 'junin', id: 22 }, points: [], facets: [], segments: {}, category_layers: [],
+  summary: { points: 0 }, render_contract: { state: 'empty', layers: ['tickets'] },
+  quality: { state: 'empty', visible_points: 0, total_ticket_records: 56, coverage_percent: 0, pending_geocode: 56 },
+  privacy: { mode: 'privileged_exact' },
+  territorial_facets: {
+    contract_version: 'operations.heatmap.territorial_facets.v1',
+    categories: [
+      ['luminarias', 'Luminarias', 35], ['arbol', 'Árbol / Poda', 9], ['limpieza', 'Limpieza', 4],
+      ['agua', 'Agua', 3], ['bache', 'Bache', 2], ['transito', 'Tránsito', 2], ['otros', 'Otros', 1],
+    ].map(([key, label, count]) => ({
+      key: String(key), label: String(label), count: Number(count), mapped_count: 0,
+      pending_geocode_count: Number(count), outside_jurisdiction_count: 0,
+      category_provenance: {
+        contract_version: 'operations.category_provenance.v1',
+        methods: [{ key: 'identity', count: Number(count) }], fuzzy_matching: false, writes_performed: false,
+      },
+    })),
+  },
+});
 
 describe('OperationsDashboardPanel territory UX', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     socketMocks.reset();
     tenantContext.slug = 'junin';
+    panelAuthority.verified = true;
+    panelAuthority.privateSlug = 'junin';
+    panelAuthority.session = true;
+    panelAuthority.ordersRead = true;
+    panelAuthority.role = 'admin_municipio';
+    panelAuthority.kind = 'municipio';
+    mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
     mocks.getOperationsActionCenterV2.mockResolvedValue(actionCenterFixture());
@@ -591,17 +689,374 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
   });
 
+  it('separates configured voting from reception and preserves private historical analytics for blocked surveys', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture({ id: '631', title: 'Votación cerrada', status: 'cerrada', phase: 'closed', accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false }, admin_url: '/admin/encuestas/631/analytics?focus=live' }),
+      receivingMonitorFixture({ id: '632', title: 'Votación borrador', status: 'borrador', phase: 'draft', accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false }, admin_url: '/admin/encuestas/632/analytics?focus=live' }),
+      receivingMonitorFixture({ accepts_responses: false, can_share: false, public_access: { contract_version: 'surveys.public_access.v1', allowed: false, reason_code: 'survey_tenant_jurisdiction_unverified' } }),
+    ], { accepting_responses: 0, configured_monitors: 3 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('0');
+    expect(within(room).getByText('Votaciones configuradas').parentElement).toHaveTextContent('3');
+    expect(room).toHaveTextContent('Participación finalizada');
+    expect(room).toHaveTextContent('Borrador');
+    expect(room).toHaveTextContent('Participación pendiente de habilitación');
+    expect(room).not.toHaveTextContent('recolectando');
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
+    expect(room).not.toHaveTextContent('Invitar por WhatsApp');
+    expect(room).not.toHaveTextContent('Compartir QR');
+    expect(within(room).getAllByRole('link', { name: 'Analítica' }).map(link => link.getAttribute('href'))).toEqual([
+      '/admin/encuestas/631/analytics?focus=live&tenant=junin',
+      '/admin/encuestas/632/analytics?focus=live&tenant=junin',
+      '/admin/encuestas/634/analytics?focus=live&tenant=junin',
+    ]);
+    expect(screen.getByRole('link', { name: /Ver encuestas/i })).toHaveAttribute('href', '/admin/encuestas?tenant=junin');
+  });
+
+  it.each([
+    { name: 'legacy metadata absent', fields: { accepts_responses: undefined, can_share: undefined, public_access: undefined, phase: undefined } },
+    { name: 'public access veto', fields: { public_access: { contract_version: 'surveys.public_access.v1', allowed: false } } },
+    { name: 'sharing veto', fields: { can_share: false } },
+    { name: 'reception veto', fields: { accepts_responses: false } },
+    { name: 'closed status with contradictory flags', fields: { status: 'cerrada' } },
+    { name: 'draft phase with contradictory flags', fields: { phase: 'draft' } },
+    { name: 'string booleans', fields: { accepts_responses: 'true', can_share: 'true' } },
+  ])('fails closed for $name despite legacy live state and public URLs', async ({ fields }) => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([receivingMonitorFixture(fields)]));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
+    expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('No informadas');
+    expect(room).not.toHaveTextContent('recolectando');
+    expect(room).not.toHaveTextContent('Invitar por WhatsApp');
+  });
+
+  it('shows public reception only with authoritative permission and keeps hidden live results closed', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture(),
+      receivingMonitorFixture({ id: '635', title: 'Encuesta sin resultados públicos', phase: 'collecting', show_live_results: false, public_url: '/e/otra', admin_url: '/admin/encuestas/635/analytics' }),
+    ], { accepting_responses: 2, configured_monitors: 2 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).getAllByRole('link', { name: 'Abrir pública' })).toHaveLength(2);
+    expect(within(room).getAllByRole('link', { name: 'Resultados API' })).toHaveLength(1);
+    expect(room).toHaveTextContent('Recibiendo votos');
+    expect(room).toHaveTextContent('Recibiendo respuestas');
+  });
+
+  it('rejects private analytics links carrying a different tenant or survey identity', async () => {
+    mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([
+      receivingMonitorFixture({ admin_url: '/admin/encuestas/634/analytics?tenant=otro-tenant' }),
+      receivingMonitorFixture({ id: '635', admin_url: '/admin/encuestas/634/analytics' }),
+    ], { accepting_responses: 2, configured_monitors: 2 }));
+    renderPanel();
+    const room = await screen.findByTestId('operations-survey-control-room');
+    expect(within(room).queryByRole('link', { name: 'Analítica' })).toBeNull();
+  });
+
+  it('offers all seven trusted categories without GPS and sends the exact canonical key to the backend', async () => {
+    const fixture = zeroGpsCategoryFixture();
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    const category = await screen.findByLabelText('Categoría');
+    expect(within(category).getAllByRole('option')).toHaveLength(8);
+    expect(within(category).getByRole('option', { name: 'Árbol / Poda (9)' })).toHaveAttribute('value', 'arbol');
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+    expect(screen.queryByText(/Los filtros aparecen cuando/)).toBeNull();
+    expect(screen.queryByLabelText('Barrio')).toBeNull();
+    fireEvent.change(category, { target: { value: 'luminarias' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'junin', categoria: 'luminarias' })));
+    expect(fixture.territorial_facets?.categories?.[0].category_provenance).toEqual({
+      contract_version: 'operations.category_provenance.v1', methods: [{ key: 'identity', count: 35 }], fuzzy_matching: false, writes_performed: false,
+    });
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+  });
+
+  it.each(['wrong contract', 'wrong facet tenant', 'privacy suppressed'])('does not promote territorial category metadata with %s', async (reason) => {
+    const fixture = zeroGpsCategoryFixture();
+    if (reason === 'wrong contract') fixture.territorial_facets!.contract_version = 'operations.heatmap.territorial_facets.untrusted';
+    if (reason === 'wrong facet tenant') fixture.territorial_facets!.tenant_slug = 'otro-tenant';
+    if (reason === 'privacy suppressed') fixture.privacy!.suppressed = { categories: true };
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByText('Centro territorial');
+    expect(screen.queryByLabelText('Categoría')).toBeNull();
+    expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
+  });
+
+  it('waits through ten seconds of startup before dispatching and accepting the eight private reads', async () => {
+    vi.useFakeTimers();
+    try {
+      let finishStartup!: () => void;
+      const startup = new Promise<void>(resolve => { finishStartup = resolve; });
+      mocks.ensureReady.mockReturnValue(startup);
+      renderPanel();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+      expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+      expect(screen.queryByText('operations_heatmap_timeout')).not.toBeInTheDocument();
+      await act(async () => { finishStartup(); await vi.advanceTimersByTimeAsync(10); });
+      expect(mocks.getOperationsDashboardV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsActionCenterV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIBriefV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIOpsQueueV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsAIProviderStatusV2).toHaveBeenCalledOnce();
+      expect(mocks.getOperationsFreshnessV2).toHaveBeenCalledOnce();
+      expect(mocks.getPublicMapConfigV1).toHaveBeenCalledOnce();
+      expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 2 puntos');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not dispatch pending private reads after the dashboard unmounts during startup', async () => {
+    let finishStartup!: () => void;
+    mocks.ensureReady.mockReturnValue(new Promise<void>(resolve => { finishStartup = resolve; }));
+    const view = renderPanel();
+    view.unmount();
+    await act(async () => { finishStartup(); });
+    expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsActionCenterV2).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch pending private reads after the authentication generation changes', async () => {
+    let finishStartup!: () => void;
+    mocks.ensureReady.mockReturnValue(new Promise<void>(resolve => { finishStartup = resolve; }));
+    renderPanel();
+    advanceChatbocSessionRevision();
+    await act(async () => { finishStartup(); });
+    expect(mocks.getOperationsDashboardV2).not.toHaveBeenCalled();
+    expect(mocks.getOperationsHeatmapV2).not.toHaveBeenCalled();
+    expect(mocks.getPublicMapConfigV1).not.toHaveBeenCalled();
+  });
+
+  it('opens the authorized location queue with current category and zone without refetching', async () => {
+    const fixture = heatmapFixture();
+    fixture.facets?.push({ key: 'zona', query_param: 'zona', label: 'Zona', items: [{ key: 'Centro', label: 'Centro', count: 1 }] });
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel(true);
+    await screen.findByTestId('operations-heatmap');
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    fireEvent.change(await screen.findByLabelText('Zona declarada'), { target: { value: 'Centro' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado', barrio: 'Centro' })));
+    const link = await screen.findByRole('link', { name: 'Revisar cola' });
+    const destination = '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&categoria=alumbrado&zona=Centro';
+    expect(link).toHaveAttribute('href', destination);
+    const reads = mocks.getOperationsHeatmapV2.mock.calls.length;
+    fireEvent.click(link);
+    expect(screen.getByTestId('navigation-location')).toHaveTextContent(destination);
+    expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(reads);
+    expect(screen.getByText('Actualización por consulta')).toBeVisible();
+    expect(screen.getByText('Consulta periódica')).toBeVisible();
+    expect(screen.queryByText(/^activo$/i)).not.toBeInTheDocument();
+    const details = screen.getByText('Detalles de la actualización de ubicación').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent('/api/tickets/{record_id}/ubicacion');
+  });
+
+  it('preserves the verified SuperAdmin selection when opening the executive claim queue', async () => {
+    panelAuthority.role = 'superadmin';
+    panelAuthority.privateSlug = 'actor-home';
+    const fixture = dashboardFixture();
+    fixture.queue_truth = { queue_snapshot: { links: { open: '/perfil?tab=tickets&focus=open_queue' } } };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel(true, '/perfil?tenant_slug=junin');
+    const link = await screen.findByRole('link', { name: 'Abrir bandeja de reclamos' });
+    const destination = '/perfil?tab=tickets&focus=open_queue&tenant_slug=junin';
+    expect(link).toHaveAttribute('href', destination);
+    const reads = mocks.getOperationsDashboardV2.mock.calls.length;
+    fireEvent.click(link);
+    expect(screen.getByTestId('navigation-location')).toHaveTextContent(destination);
+    expect(mocks.getOperationsDashboardV2).toHaveBeenCalledTimes(reads);
+    expect(mocks.getOperationsDashboardV2.mock.calls.every(([options]) => options.tenantSlug === 'junin')).toBe(true);
+  });
+
+  it.each([
+    'https://foreign.invalid/perfil?tab=tickets', '//foreign.invalid/perfil?tab=tickets',
+    '/perfil?tab=tickets&tenant_slug=foreign-org', '/perfil?tab=tickets&tenant=foreign-org',
+    '/perfil?tab=tickets&tenantSlug=foreign-org', '/perfil?tab=tickets&tenant_id=99',
+    '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=foreign-org',
+    '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=junin',
+    '/perfil?tab=tickets&tab=chat', '/perfil?tab=tickets&focus=other_queue',
+    '/perfil?tab=tickets#foreign', '/perfil?tab=tickets\\foreign', '/otra?tab=tickets', '',
+  ])('does not substitute a fallback for an invalid supplied executive queue link %j', async (href) => {
+    const fixture = dashboardFixture();
+    fixture.queue_truth = { queue_snapshot: { links: { open: href } } };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: 'Abrir bandeja de reclamos' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the executive queue unavailable without a confirmed response origin', async () => {
+    const fixture = dashboardFixture();
+    delete fixture.tenant;
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: 'Abrir bandeja de reclamos' })).not.toBeInTheDocument();
+  });
+
+  it('associates the backend period label with the selector and preserves category filters when changing it', async () => {
+    const fixture = heatmapFixture();
+    fixture.ui = { labels: { period_filter: 'Período de consulta' } };
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    const selector = await screen.findByRole('combobox', { name: 'Período de consulta' });
+    expect(screen.getByLabelText('Período de consulta')).toBe(selector);
+    expect(selector).toHaveAttribute('id');
+    expect(screen.getByText('Período de consulta').closest('label')).toHaveAttribute('for', selector.id);
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
+    fireEvent.change(selector, { target: { value: '7' } });
+    await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'junin', categoria: 'alumbrado', days: '7' })));
+  });
+
+  it.each([
+    { enabled: false }, { enabled: 'true' }, { writes_enabled: true }, { action_type: 'api' },
+    { tenant_slug: 'tierra-del-fuego' },
+    { tenantSlug: 'tierra-del-fuego' },
+    { href: 'https://foreign.invalid/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue' },
+    { href: '//foreign.invalid/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=tierra-del-fuego&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&tenant=tierra-del-fuego' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue&tenant_id=46' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&tenant_slug=tierra-del-fuego&focus=open_geocoding_queue' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue#foreign' },
+    { href: '/perfil?tab=tickets&tenant_slug=junin&focus=open_geocoding_queue\\foreign' },
+  ])('does not offer queue navigation for an unauthorized or conflicting action %j', async (override) => {
+    const fixture = heatmapFixture();
+    Object.assign(fixture.geocoding!.guidance!.recommended_actions![0], override);
+    mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
+    renderPanel();
+    await screen.findByTestId('operations-heatmap');
+    expect(screen.queryByRole('link', { name: 'Revisar cola' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revisar cola' })).not.toBeInTheDocument();
+  });
+
+  it.each(['municipio', 'pyme'] as const)('prioritizes the verified %s contract and keeps commerce available without changing read scope', async (kind) => {
+    panelAuthority.kind = kind;
+    const fixture = dashboardFixture();
+    fixture.frontend_contract!.labels = { commerce_secondary_title: 'Actividad publicada adicional', commerce: 'Pedidos publicados', assisted_orders: 'Solicitudes asistidas' };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    const metrics = await screen.findByTestId('operations-cockpit-metrics');
+    const commerce = screen.getByTestId('operations-commerce');
+    expect(screen.getByTestId('operations-heatmap')).toBeVisible();
+    expect(screen.getByTestId('operations-ai-queue')).toBeVisible();
+    expect(document.getElementById('operations-actions')).toBeVisible();
+    if (kind === 'municipio') {
+      expect(metrics).not.toHaveTextContent('Solicitudes asistidas');
+      expect(commerce).not.toBeVisible();
+      expect(commerce.closest('details')).not.toHaveAttribute('open');
+      expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/ })).not.toBeVisible();
+      fireEvent.click(screen.getByText('Actividad publicada adicional'));
+      expect(commerce).toBeVisible();
+    } else {
+      expect(metrics).toHaveTextContent('Solicitudes asistidas');
+      expect(commerce).toBeVisible();
+      expect(commerce.closest('details')).toBeNull();
+      expect(screen.queryByText('Actividad publicada adicional')).not.toBeInTheDocument();
+    }
+    expect(commerce).toHaveTextContent('Pedidos publicados');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/ })).toHaveAttribute('href', '/pedidos?focus=assisted&tenant_slug=junin');
+    for (const [name, read] of Object.entries(mocks)) {
+      if (name === 'ensureReady') continue;
+      expect(read).toHaveBeenCalledOnce();
+      expect(read.mock.calls[0][0]).toMatchObject({ tenantSlug: 'junin' });
+      expect(read.mock.calls[0][0]).not.toHaveProperty('organizationKind');
+      expect(read.mock.calls[0][0]).not.toHaveProperty('kind');
+    }
+  });
+
+  it('does not advertise commerce in a municipal workspace without published activity', async () => {
+    const fixture = dashboardFixture();
+    fixture.summary = { ...fixture.summary, assisted_orders: 0, orders_needing_review: 0, unmatched_order_items: 0 };
+    fixture.commerce = {
+      summary: { orders: 0, source_records: 0, assisted_orders: 0, orders_needing_review: 0, unmatched_items: 0, total_monetary: 0, currencies: 1 },
+      review_items: [], by_origin: [{ key: 'widget', count: 0 }], by_source_model: [], by_request_kind: [],
+      totals_by_currency: [{ key: 'ARS', count: 0, amount: 0 }],
+    };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    const metrics = await screen.findByTestId('operations-cockpit-metrics');
+    expect(metrics).not.toHaveTextContent('Pedidos');
+    expect(screen.queryByTestId('operations-commerce')).not.toBeInTheDocument();
+    expect(screen.queryByText('Actividad adicional')).not.toBeInTheDocument();
+  });
+
+  it('reveals secondary anchors without dispatching new reads and retains provider recovery', async () => {
+    const fixture = dashboardFixture();
+    fixture.employees = { summary: { coverage_rate: 80 }, items: [{ label: 'Equipo publicado', count: 6 }] };
+    fixture.trends = { items: [{ label: 'Tendencia publicada', current: 12, previous: 10 }] };
+    fixture.chats = { by_channel: [{ label: 'Canal publicado', count: 9 }] };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    mocks.getOperationsAIProviderStatusV2.mockRejectedValueOnce(new Error('operations_ai_provider_status_timeout')).mockResolvedValue(aiProviderStatusFixture());
+    renderPanel();
+    const provider = await screen.findByTestId('operations-ai-provider-status');
+    const details = provider.closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    expect(provider).not.toBeVisible();
+    expect(screen.getByText('Equipo publicado')).not.toBeVisible();
+    expect(screen.getByText('Tendencia publicada')).not.toBeVisible();
+    expect(screen.getByText('Canal publicado')).not.toBeVisible();
+    const reads = Object.entries(mocks).filter(([name]) => name !== 'ensureReady').map(([name, read]) => [name, read.mock.calls.length] as const);
+    fireEvent.click(screen.getByRole('link', { name: 'Equipo' }));
+    expect(screen.getByText('Equipo publicado')).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: 'Encuestas y canales' }));
+    expect(screen.getByText('Canal publicado')).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: 'Integraciones IA' }));
+    expect(details).toHaveAttribute('open');
+    expect(provider).toBeVisible();
+    expect(provider).toHaveTextContent('Estado IA no disponible');
+    for (const [name, calls] of reads) expect(mocks[name as keyof typeof mocks]).toHaveBeenCalledTimes(calls);
+    fireEvent.click(within(provider).getByRole('button', { name: 'Actualizar integraciones IA' }));
+    await waitFor(() => expect(provider).toHaveTextContent('Gemini'));
+    expect(mocks.getOperationsAIProviderStatusV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('operations-heatmap')).toBeVisible();
+    expect(screen.getByTestId('operations-ai-queue')).toBeVisible();
+    fireEvent.click(details.querySelector('summary')!);
+    expect(details).not.toHaveAttribute('open');
+    expect(provider).not.toBeVisible();
+  });
+
+  it('restores a direct secondary anchor once and respects a later manual collapse', async () => {
+    const originalUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.replaceState(null, '', '#operations-ai-provider-status');
+    try {
+      renderPanel();
+      const provider = await screen.findByTestId('operations-ai-provider-status');
+      const details = provider.closest('details')!;
+      expect(details).toHaveAttribute('open');
+      expect(provider).toBeVisible();
+      fireEvent.click(details.querySelector('summary')!);
+      expect(details).not.toHaveAttribute('open');
+      fireEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+      await waitFor(() => expect(mocks.getOperationsDashboardV2).toHaveBeenCalledTimes(2));
+      expect(details).not.toHaveAttribute('open');
+      expect(provider).not.toBeVisible();
+    } finally {
+      window.history.replaceState(null, '', originalUrl);
+    }
+  });
+
   it('surfaces territorial quality, layers, filters and geocoding queue around the premium map', async () => {
     renderPanel();
 
     expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
     expect(screen.getByText('Cabina de mando')).toBeTruthy();
     expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets');
-    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/perfil?tab=orders&focus=assisted');
+    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets&tenant_slug=junin');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeVisible();
+    fireEvent.click(screen.getByText('Actividad adicional'));
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
-    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/perfil?tab=analytics&focus=surveys');
+    expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/admin/encuestas?tenant=junin');
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     const commercePanel = screen.getByTestId('operations-commerce');
@@ -659,6 +1114,19 @@ describe('OperationsDashboardPanel territory UX', () => {
       );
     });
     expect(await screen.findByRole('button', { name: /Quitar filtro Categoría Alumbrado/i })).toBeTruthy();
+  });
+
+  it.each(['permission', 'profile', 'tenant'] as const)('does not offer the orders link without verified %s authority', async (missing) => {
+    panelAuthority.kind = 'pyme';
+    if (missing === 'permission') panelAuthority.ordersRead = false;
+    else if (missing === 'profile') panelAuthority.verified = false;
+    else mocks.getOperationsDashboardV2.mockResolvedValue({ ...dashboardFixture(), tenant: undefined });
+    renderPanel();
+    if (missing === 'profile') {
+      expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+      Object.values(mocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
+    } else await screen.findByTestId('operations-command-cockpit');
+    expect(screen.queryByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeInTheDocument();
   });
 
   it('exposes backend segments.zone as a declared-zone filter', async () => {
@@ -882,7 +1350,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText(/2 vencidos confirmados/)).toBeTruthy();
     expect(screen.queryByText('Bandeja operativa sin vencidos publicados')).toBeNull();
     expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe(
-      '/perfil?tab=tickets&focus=open_queue',
+      '/perfil?tab=tickets&focus=open_queue&tenant_slug=junin',
     );
     expect(mocks.getOperationsDashboardV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));
     expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));
@@ -1188,6 +1656,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
   it('does not request operations from an unconfirmed context or a stored organization', () => {
     tenantContext.slug = null;
+    panelAuthority.privateSlug = null;
     renderPanel();
     expect(screen.getByText('Seleccioná una organización')).toBeVisible();
     Object.values(mocks).forEach((mock) => expect(mock).not.toHaveBeenCalled());
@@ -1225,12 +1694,13 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
   it('resets geographic filters and selected scope when the organization changes', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const view = render(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    const view = render(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
     await screen.findByText('Centro territorial');
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
     tenantContext.slug = 'tierra-del-fuego';
-    view.rerender(<QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider>);
+    panelAuthority.privateSlug = 'tierra-del-fuego';
+    view.rerender(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ tenantSlug: 'tierra-del-fuego' })));
     const latest = mocks.getOperationsHeatmapV2.mock.calls.at(-1)![0];
     expect(latest.categoria).toBeUndefined();
@@ -1243,6 +1713,21 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getAllByText('GLOBAL OUTSIDE FILTER').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(screen.queryByText('GLOBAL OUTSIDE FILTER')).not.toBeInTheDocument());
+  });
+  it('reads all private operations only from the verified actor after a public visit', async () => {
+    tenantContext.slug = 'tierra-del-fuego';
+    renderPanel(); await screen.findByText('Centro territorial');
+    for (const [name, read] of Object.entries(mocks)) {
+      if (name === 'ensureReady') continue;
+      expect(read.mock.calls.length).toBeGreaterThan(0);
+      expect(read.mock.calls.every(([options]) => options.tenantSlug === 'junin')).toBe(true);
+    }
+  });
+  it('does not dispatch private operations without a verified session', () => {
+    panelAuthority.session = false;
+    renderPanel();
+    expect(screen.getByText('Seleccioná una organización')).toBeVisible();
+    Object.values(mocks).forEach(mock => expect(mock).not.toHaveBeenCalled());
   });
 
 });

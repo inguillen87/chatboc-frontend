@@ -50,12 +50,14 @@ describe('ephemeral deployment PWA policy', () => {
   it.each([
     'chatboc-r2-preview.vercel.app',
     'chatboc-frontend-b24v67fai-marcelos-projects-c26aa499.vercel.app',
+    'preview.chatboc.ar',
+    ' PREVIEW.CHATBOC.AR ',
     'localhost',
   ])('disables persistent workers on %s', (hostname) => {
     expect(shouldDisablePwaForHost(hostname)).toBe(true);
   });
 
-  it.each(['chatboc.ar', 'www.chatboc.ar', 'gobierno.example.ar'])(
+  it.each(['chatboc.ar', 'www.chatboc.ar', 'gobierno.example.ar', 'other-preview.chatboc.ar'])(
     'keeps PWA support on durable custom host %s',
     (hostname) => {
       expect(shouldDisablePwaForHost(hostname)).toBe(false);

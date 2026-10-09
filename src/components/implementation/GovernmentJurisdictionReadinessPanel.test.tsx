@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ClerkRuntimeProvider, type ClerkRuntimeValue } from '@/components/auth/ClerkRuntimeContext';
 import GovernmentJurisdictionReadinessPanel from '@/components/implementation/GovernmentJurisdictionReadinessPanel';
-import { NetworkError } from '@/utils/api';
+import { ApiError, NetworkError } from '@/utils/api';
 
 const jurisdictionApi = vi.hoisted(() => ({
   getGovernmentJurisdictionReadiness: vi.fn(),
@@ -324,7 +324,29 @@ describe('GovernmentJurisdictionReadinessPanel', () => {
     expect(await screen.findByText('Acreditar el alcance institucional')).toBeInTheDocument();
     await act(async () => { delayed.resolve(readiness({ tenantSlug: 'organizacion-a' })); });
 
-    expect(jurisdictionApi.getGovernmentJurisdictionReadiness).toHaveBeenLastCalledWith('organizacion-b');
+    expect(jurisdictionApi.getGovernmentJurisdictionReadiness).toHaveBeenLastCalledWith('organizacion-b', { isCurrent: expect.any(Function) });
     expect(screen.getByTestId('government-jurisdiction-readiness')).toHaveAttribute('data-state', 'unverified');
+  });
+
+  it('does not restart a readiness GET when a pending review conflicts after unmount', async () => {
+    jurisdictionApi.getGovernmentJurisdictionReadiness.mockResolvedValueOnce(
+      readiness({ state: 'evidence_submitted' }),
+    );
+    let rejectReview!: (reason: unknown) => void;
+    jurisdictionApi.reviewGovernmentJurisdictionEvidence.mockReturnValueOnce(
+      new Promise((_, reject) => { rejectReview = reject; }),
+    );
+    const view = renderPanel({ canSubmitEvidence: false, canReview: true });
+    await screen.findByTestId('government-jurisdiction-platform-review');
+    fireEvent.click(screen.getByRole('button', { name: /verificar evidencia/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar verificación/i }));
+    await waitFor(() => expect(jurisdictionApi.reviewGovernmentJurisdictionEvidence).toHaveBeenCalledOnce());
+    view.unmount();
+
+    await act(async () => rejectReview(new ApiError('submission changed', 409)));
+
+    expect(jurisdictionApi.getGovernmentJurisdictionReadiness).toHaveBeenCalledOnce();
+    expect(jurisdictionApi.reviewGovernmentJurisdictionEvidence).toHaveBeenCalledOnce();
+    expect(jurisdictionApi.submitGovernmentJurisdictionEvidence).not.toHaveBeenCalled();
   });
 });

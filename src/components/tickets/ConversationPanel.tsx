@@ -30,6 +30,7 @@ import {
   summarizeTicketFetchError,
   updateTicketStatus,
   updateTicketReadState,
+  normalizeTicketReadCommentId,
   normalizeTicketReplyDelivery,
   type TicketReplyDeliveryStatus,
 } from '@/services/ticketService';
@@ -40,6 +41,7 @@ import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { cn } from '@/lib/utils';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import {
@@ -1151,6 +1153,7 @@ const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): Ch
 
   return {
     id: msg.id,
+    readCommentId: msg.readCommentId,
     text: msg.content,
     isBot: msg.author === 'agent',
     timestamp: new Date(msg.timestamp),
@@ -1382,6 +1385,7 @@ const normalizeTicketMessageFromPayload = (raw: any): TicketMessage | null => {
 
   return {
     id,
+    readCommentId: normalizeTicketReadCommentId(source.comment_id ?? source.comentario_id ?? source.id),
     content: String(content || ''),
     timestamp: source.fecha || source.timestamp || source.created_at || new Date().toISOString(),
     author: isAdmin ? 'agent' : 'user',
@@ -1522,6 +1526,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     : null;
   const activeConversationScopeRef = useRef<string | null>(activeConversationScopeKey);
   activeConversationScopeRef.current = activeConversationScopeKey;
+  const readStateSessionRevision = captureChatbocSessionRevision();
   const draftStorageKeyRef = useRef<string | null>(conversationDraftStorageKey);
   const previousConversationScopeRef = useRef<string | null>(null);
   const attachmentPreviewRef = useRef<{ file: File; previewUrl: string } | null>(null);
@@ -1553,14 +1558,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
   const latestReadableMessageId = useMemo(
     () => messages
-      .map((item) => item.id)
-      .filter((id): id is string | number => typeof id === 'string' || typeof id === 'number')
-      .filter((id) => {
-        const value = String(id);
-        if (!value || value.startsWith('sent-') || value.startsWith('temp-')) return false;
-        if (typeof id === 'number' && id > 1_000_000_000_000) return false;
-        return true;
-      })
+      .map((item) => normalizeTicketReadCommentId(item.readCommentId))
+      .filter((id): id is number => id !== undefined)
       .at(-1),
     [messages],
   );
@@ -1674,7 +1673,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     [selectedTicket?.detail_endpoint, selectedTicket?.id, selectedTicket?.source_model],
   );
   const composerActionSelectedTicketId = String(selectedTicket?.id ?? '');
-  const composerActionScopeKey = `${selectedConversationKey || 'no-ticket'}|${composerActionDetailEndpoint || 'no-detail'}`;
+  const composerActionScopeKey = `${activeConversationScopeKey || 'no-ticket'}|session:${readStateSessionRevision}|${composerActionDetailEndpoint || 'no-detail'}`;
   const composerActionQueryKey = useMemo(
     () => composerActionContractQueryKey(composerActionScopeKey, composerActionDetailEndpoint),
     [composerActionDetailEndpoint, composerActionScopeKey],
@@ -1687,6 +1686,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       composerActionSelectedTicketId,
       responseTemplateTenantSlug,
       composerActionDetailEndpoint,
+      { isCurrent: () => activeComposerActionScopeRef.current === composerActionScopeKey &&
+        activeConversationScopeRef.current === activeConversationScopeKey &&
+        isChatbocSessionRevisionCurrent(readStateSessionRevision) },
     ),
     enabled: Boolean(selectedTicket && composerActionDetailEndpoint),
     retry: 0,
@@ -2354,7 +2356,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   useEffect(() => {
     pollingFailureCountRef.current = 0;
     pollingPausedUntilRef.current = 0;
-    lastReadStateSyncRef.current = null;
     composerSelectionRef.current = null;
     composerActionAttemptRef.current = null;
     replyActionAttemptRef.current = null;
@@ -2369,6 +2370,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [composerActionScopeKey]);
 
   useEffect(() => {
+    lastReadStateSyncRef.current = null;
+  }, [activeConversationScopeKey, readStateSessionRevision]);
+
+  useEffect(() => {
     if (
       selectedTicketId === null ||
       !selectedTicketType ||
@@ -2376,8 +2381,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       loadedConversationKeyRef.current !== selectedConversationKey ||
       latestReadableMessageId === undefined
     ) return;
+    const sourceModel = selectedTicket?.source_model;
+    if (
+      (selectedTicketType === 'municipio' && sourceModel !== 'MunicipioTicket')
+      || (selectedTicketType === 'pyme' && sourceModel !== 'PymeTicket')
+    ) return;
 
-    const syncKey = `${selectedConversationKey}:${latestReadableMessageId}`;
+    const readScope = activeConversationScopeKey;
+    if (!readScope) return;
+    let active = true;
+    const isCurrent = () => active
+      && activeConversationScopeRef.current === readScope
+      && isChatbocSessionRevisionCurrent(readStateSessionRevision);
+    const syncKey = `${readScope}:${readStateSessionRevision}:${latestReadableMessageId}`;
     if (lastReadStateSyncRef.current === syncKey) return;
 
     // Opening a conversation may produce one read acknowledgement. Afterwards
@@ -2386,8 +2402,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     if (lastReadStateSyncRef.current !== null && !selectedTicketHasUnread) return;
     lastReadStateSyncRef.current = syncKey;
 
-    updateTicketReadState(selectedTicketId, selectedTicketType, latestReadableMessageId)
+    const readTenantSlug = selectedTicket?.tenant_slug?.trim().toLowerCase()
+      || user?.tenant_slug?.trim().toLowerCase()
+      || user?.tenantSlug?.trim().toLowerCase()
+      || null;
+    updateTicketReadState(selectedTicketId, selectedTicketType, latestReadableMessageId, {
+      tenantSlug: readTenantSlug,
+      sourceModel,
+      isCurrent,
+    })
       .then((state) => {
+        if (!isCurrent()) return;
         const activeTicket = selectedTicketRef.current;
         if (!activeTicket || selectedConversationKey !== `${
           activeTicket.tenant_slug?.trim().toLowerCase() ||
@@ -2405,12 +2430,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             unread_count: 0,
             unread_viewer_count: 0,
           },
-        } as Partial<Ticket>);
+        } as Partial<Ticket>, sourceModel);
       })
       .catch((error) => {
-        if (lastReadStateSyncRef.current === syncKey) {
-          lastReadStateSyncRef.current = null;
-        }
+        if (!isCurrent()) return;
+        // A failed or uncertain mutation still consumed this attempt. Ordinary
+        // refreshes cannot resubmit the same actor/ticket/message acknowledgement.
         if (!isLegacyHtmlGatewayError(error)) {
           console.warn('No se pudo sincronizar lectura del ticket.', {
             ticketId: selectedTicketId,
@@ -2418,7 +2443,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           });
         }
       });
+    return () => { active = false; };
   }, [
+    activeConversationScopeKey,
+    readStateSessionRevision,
     latestReadableMessageId,
     selectedConversationKey,
     selectedTicketHasUnread,
@@ -3479,6 +3507,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           >
             <span className="font-semibold">Respuesta bloqueada. </span>
             {replyBlockReason}
+            {composerActionContractQuery.isError && composerActionDetailEndpoint ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-2 h-7"
+                disabled={composerActionContractQuery.isFetching || isSending || composerActionMutation.isPending}
+                onClick={() => {
+                  if (activeComposerActionScopeRef.current !== composerActionScopeKey ||
+                      !isChatbocSessionRevisionCurrent(readStateSessionRevision)) return;
+                  void composerActionContractQuery.refetch();
+                }}
+              >
+                {composerActionContractQuery.isFetching ? 'Verificando…' : 'Reintentar verificación'}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 

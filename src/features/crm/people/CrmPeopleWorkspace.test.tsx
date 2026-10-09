@@ -7,6 +7,9 @@ import CrmPeopleWorkspace, { type CrmPeopleRecord } from "./CrmPeopleWorkspace";
 import { CRM_CONTACT_CASES_CONTRACT_VERSION } from "./useCrmContactHistory";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
+const useUserMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/useUser", () => ({ useUser: useUserMock }));
 
 vi.mock("@/utils/api", () => ({
   apiFetch: apiFetchMock,
@@ -62,6 +65,8 @@ const Harness = ({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [queueView, setQueueView] = React.useState<"all" | "review" | "whatsapp" | "complete">("all");
   const [peopleSort, setPeopleSort] = React.useState<"recent" | "name" | "score-desc" | "score-asc">("recent");
+  const [marketingOnly, setMarketingOnly] = React.useState(false);
+  const [channelFilter, setChannelFilter] = React.useState<"all" | "whatsapp" | "email" | "web" | "widget" | "voice" | "unknown">("all");
   const [queryClient] = React.useState(() => new QueryClient({
     defaultOptions: { queries: { retry: false } },
   }));
@@ -95,8 +100,10 @@ const Harness = ({
         onPeopleSortChange={setPeopleSort}
         search=""
         onSearchChange={vi.fn()}
-        marketingOnly={false}
-        onMarketingOnlyChange={vi.fn()}
+        marketingOnly={marketingOnly}
+        onMarketingOnlyChange={setMarketingOnly}
+        channelFilter={channelFilter}
+        onChannelFilterChange={setChannelFilter}
         peopleTotal={peopleTotal}
         hasMore={hasMore}
         onLoadMore={onLoadMore}
@@ -124,6 +131,68 @@ describe("CrmPeopleWorkspace", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
     apiFetchMock.mockResolvedValue({ contact:{id:"42"}, interactions: [] });
+    useUserMock.mockReturnValue({ user: null, hasVerifiedSession: false, organizationProfileVerified: false, loading: false });
+  });
+
+  it.each([
+    ["municipio", "Gobierno"],
+    ["empresa", "Empresa"],
+    ["colegio", "Educación"],
+  ])("presents the verified %s organization without inheriting an old municipal label", (organizationType, label) => {
+    useUserMock.mockReturnValue({
+      user: {
+        tenant_slug: "junin",
+        tipo_chat: "municipio",
+        organization_profile: {
+          contract_version: "organization.profile_settings.v1",
+          tenant: { id: 22, slug: "junin" },
+          values: { nombre_empresa: "Organización actual" },
+        },
+        organization_workspace: {
+          contract_version: "organization.profile_workspace.v1",
+          tenant: { id: 22, slug: "junin" },
+          organization_type: organizationType,
+        },
+      },
+      hasVerifiedSession: true,
+      organizationProfileVerified: true,
+      loading: false,
+    });
+
+    render(<Harness embedded />);
+
+    expect(screen.getByTestId("crm-organization-label")).toHaveTextContent(`CRM · ${label}`);
+    expect(screen.queryByText("CRM municipal")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { hasVerifiedSession: false, organizationProfileVerified: true, tenantSlug: "junin" },
+    { hasVerifiedSession: true, organizationProfileVerified: false, tenantSlug: "junin" },
+    { hasVerifiedSession: true, organizationProfileVerified: true, tenantSlug: "foreign" },
+  ])("does not infer an organization label from an unverified or foreign profile $tenantSlug", ({ hasVerifiedSession, organizationProfileVerified, tenantSlug }) => {
+    useUserMock.mockReturnValue({
+      user: {
+        tenant_slug: tenantSlug,
+        tipo_chat: "municipio",
+        organization_profile: {
+          contract_version: "organization.profile_settings.v1",
+          tenant: { id: 22, slug: tenantSlug },
+          values: { nombre_empresa: "Otra organización" },
+        },
+        organization_workspace: {
+          contract_version: "organization.profile_workspace.v1",
+          tenant: { id: 22, slug: tenantSlug },
+          organization_type: "municipio",
+        },
+      },
+      hasVerifiedSession,
+      organizationProfileVerified,
+      loading: false,
+    });
+
+    render(<Harness embedded />);
+
+    expect(screen.getByTestId("crm-organization-label")).toHaveTextContent(/^CRM$/);
   });
 
   it("keeps the document main landmark owned by the application layout", () => {
@@ -150,7 +219,7 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByTestId("crm-overview-metrics-popover")).toHaveTextContent("2");
   });
 
-  it("keeps the embedded mobile record controls compact and reachable", () => {
+  it("keeps embedded filters reachable and their applied view visible after closing", async () => {
     render(<Harness embedded />);
 
     expect(screen.getByTestId("crm-area-navigation")).toHaveClass("grid", "grid-cols-4", "overflow-hidden");
@@ -158,6 +227,11 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByTestId("crm-person-scroll")).toHaveClass("min-h-0", "flex-1");
     expect(screen.getByRole("button", { name: "Sin caso exacto" })).toBeDisabled();
     expect(screen.queryByText("Deslizá la lista desde el selector de persona.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Vista operativa de personas" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Buscar personas" })).toBeVisible();
+
+    const trigger = screen.getByRole("button", { name: "Filtros y vistas de personas" });
+    fireEvent.click(trigger);
 
     fireEvent.change(screen.getByRole("combobox", { name: "Vista operativa de personas" }), {
       target: { value: "whatsapp" },
@@ -165,6 +239,41 @@ describe("CrmPeopleWorkspace", () => {
 
     expect(screen.getByRole("heading", { name: "Vecina Junín" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Vista operativa de personas" })).toHaveValue("whatsapp");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("combobox", { name: "Vista operativa de personas" })).not.toBeInTheDocument());
+    expect(screen.getByRole("status", { name: "Filtros activos de personas" })).toHaveTextContent("Vista: WhatsApp");
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole("combobox", { name: "Vista operativa de personas" })).toHaveValue("whatsapp");
+  });
+
+  it("preserves loaded totals, selection and opt-in filters through the embedded disclosure", async () => {
+    const onLoadMore = vi.fn();
+    render(<Harness embedded peopleTotal={50} hasMore onLoadMore={onLoadMore} />);
+
+    const toolbar = screen.getByTestId("crm-people-search-toolbar");
+    expect(toolbar).toHaveTextContent("2 de 50");
+    fireEvent.click(screen.getByRole("button", { name: "Filtros y vistas de personas" }));
+    const filters = screen.getByRole("dialog", { name: "Filtros y vistas del directorio" });
+    expect(filters).toHaveTextContent("Vistas sobre 2 cargadas");
+    expect(within(filters).getByRole("combobox", { name: /Orden backend por actividad reciente/ })).toBeDisabled();
+
+    fireEvent.change(within(filters).getByRole("combobox", { name: "Vista operativa de personas" }), { target: { value: "whatsapp" } });
+    fireEvent.click(within(filters).getByRole("checkbox", { name: "Con opt-in" }));
+    fireEvent.click(within(filters).getByRole("checkbox", { name: "Seleccionar personas visibles" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros y vistas del directorio" })).not.toBeInTheDocument());
+
+    expect(toolbar).toHaveTextContent("1 visibles · 2 cargadas");
+    expect(screen.getByRole("status", { name: "Filtros activos de personas" })).toHaveTextContent("Con opt-in");
+    expect(screen.getByRole("region", { name: "Acciones sobre personas seleccionadas" })).toHaveTextContent("1personas seleccionadas");
+    fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filtros y vistas de personas, 2 activos" }));
+    expect(screen.getByRole("checkbox", { name: "Con opt-in" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Seleccionar personas visibles" })).toBeChecked();
   });
 
   it("preserves the standalone directory controls outside Perfil", () => {
@@ -377,7 +486,7 @@ describe("CrmPeopleWorkspace", () => {
     expect(onOpenTicketDesk).not.toHaveBeenCalled();
   });
 
-  it("expands the selected record into a reversible focus mode", () => {
+  it("expands the selected record into a reversible focus mode", async () => {
     render(<Harness embedded />);
 
     const grid = screen.getByTestId("crm-people-grid");
@@ -385,7 +494,10 @@ describe("CrmPeopleWorkspace", () => {
     expect(screen.getByRole("complementary", { name: "Lista de personas" })).toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Panel contextual" })).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Filtros y vistas de personas" }));
     fireEvent.click(screen.getByRole("button", { name: "Mostrar panel contextual" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros y vistas del directorio" })).not.toBeInTheDocument());
     expect(screen.getByRole("complementary", { name: "Panel contextual" })).toBeInTheDocument();
 
     const expandButton = screen.getByRole("button", { name: "Ampliar ficha de la persona" });

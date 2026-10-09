@@ -9,7 +9,7 @@ import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
-import type { TicketSlaContract } from '@/types/tickets';
+import type { TicketCategoryAuthority, TicketSlaContract } from '@/types/tickets';
 import { normalizeTicketSla } from '@/utils/ticketSla';
 
 type UnknownRecord = Record<string, unknown>;
@@ -240,6 +240,9 @@ export interface OmnichannelInboxItem {
   priority?: string;
   channel?: string;
   category?: string;
+  authoritative_category?: string | null;
+  authoritativeCategory?: string | null;
+  category_authority?: TicketCategoryAuthority | null;
   intent?: string;
   sensitivity?: string;
   lastMessageAt: string;
@@ -1628,6 +1631,15 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     priority: asString(getFirst(value, ['priority', 'prioridad'])),
     channel: asString(getFirst(value, ['channel', 'canal', 'canal_ingreso'])),
     category: asString(getFirst(value, ['category', 'categoria'])),
+    ...(Object.prototype.hasOwnProperty.call(value, 'authoritative_category') ? {
+      authoritative_category: typeof value.authoritative_category === 'string' ? value.authoritative_category : null,
+    } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'authoritativeCategory') ? {
+      authoritativeCategory: typeof value.authoritativeCategory === 'string' ? value.authoritativeCategory : null,
+    } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'category_authority') ? {
+      category_authority: isRecord(value.category_authority) ? value.category_authority as unknown as TicketCategoryAuthority : null,
+    } : {}),
     intent: asString(getFirst(value, ['intent', 'intencion', 'intent_id'])),
     sensitivity: asString(getFirst(value, ['sensitivity', 'priority', 'prioridad'])),
     lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? '',
@@ -1804,21 +1816,21 @@ export const normalizeOmnichannelInboxActionV2 = (
   };
 };
 
-export const getEmployeeCoverageV2 = async (tenantSlug?: string | null) => {
+export const getEmployeeCoverageV2 = async (tenantSlug?: string | null, lifecycle: { isCurrent?: () => boolean } = {}) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/employee-coverage` : '/api/v2/employee-coverage',
-      { tenantSlug },
+      { tenantSlug, ...lifecycle },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
     try {
-      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug });
+      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug, ...lifecycle });
     } catch (fallbackError) {
       if (!shouldFallbackEndpoint(fallbackError)) throw fallbackError;
-      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug });
+      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug, ...lifecycle });
     }
   }
   return normalizeEmployeeCoverageV2(response);
@@ -2292,17 +2304,17 @@ export const normalizeEmployeeRoutingV2 = (response: unknown): EmployeeRoutingV2
   };
 };
 
-export const getEmployeeRoutingV2 = async (tenantSlug?: string | null) => {
+export const getEmployeeRoutingV2 = async (tenantSlug?: string | null, lifecycle: { isCurrent?: () => boolean } = {}) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/employee-routing` : '/api/v2/employee-routing',
-      { tenantSlug },
+      { tenantSlug, ...lifecycle },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
-    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug });
+    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug, ...lifecycle });
   }
   return normalizeEmployeeRoutingV2(response);
 };
@@ -2342,10 +2354,31 @@ export const getOmnichannelInboxV2 = async (tenantSlug?: string | null) => {
   return normalizeOmnichannelInboxV2(response);
 };
 
+const isExactMunicipalLegacyDetail = (
+  detail: OmnichannelInboxDetailV2,
+  ticketId: string,
+  tenantSlug: string | null | undefined,
+  endpoint: string,
+) => {
+  // A municipal claim has a numeric legacy route and a namespaced inbox identity.
+  // Accept this one server contract only when every identity and scope agrees.
+  const expectedEndpoint = `/api/v2/inbox/omnichannel/${ticketId}?source_model=MunicipioTicket`;
+  const item = detail.item;
+  const envelopeTenant = asRecord(asRecord(detail.raw).tenant);
+  return /^[1-9]\d*$/.test(ticketId) && Boolean(tenantSlug) &&
+    detail.contract_version === 'inbox.omnichannel.detail.v1' &&
+    envelopeTenant.slug === tenantSlug && /^[1-9]\d*$/.test(String(envelopeTenant.id)) &&
+    endpoint === expectedEndpoint && item.detail_endpoint === expectedEndpoint &&
+    item.id === `municipio:${ticketId}` && item.ticket_id === ticketId && item.legacy_id === ticketId &&
+    item.source_model === 'MunicipioTicket' && item.legacy_kind === 'claim' &&
+    (item.tenant_slug === undefined || item.tenant_slug === tenantSlug);
+};
+
 export const getOmnichannelInboxDetailV2 = async (
   ticketId: string | number,
   tenantSlug?: string | null,
   detailEndpoint?: string | null,
+  options?: { isCurrent?: () => boolean },
 ) => {
   const encodedTicketId = encodeURIComponent(String(ticketId));
   if (detailEndpoint) {
@@ -2354,10 +2387,12 @@ export const getOmnichannelInboxDetailV2 = async (
     if (!decoded.startsWith('/api/') || /[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.split(/[/?#]/).includes('..')) throw new ApiError('Ruta de detalle inválida.', 400);
   }
   const endpoint = detailEndpoint || `/api/v2/inbox/omnichannel/${encodedTicketId}`;
-  const response = await panelApi.get<unknown>(endpoint, { tenantSlug });
+  const response = await panelApi.get<unknown>(endpoint, { tenantSlug, isCurrent: options?.isCurrent });
   assertInboxTenantEnvelope(response, tenantSlug);
   const result = normalizeOmnichannelInboxDetailV2(response);
-  if (result.item.id !== String(ticketId)) throw new ApiError("El detalle no corresponde a esta conversación.", 502);
+  if (result.item.id !== String(ticketId) && !isExactMunicipalLegacyDetail(result, String(ticketId), tenantSlug, endpoint)) {
+    throw new ApiError("El detalle no corresponde a esta conversación.", 502);
+  }
   return result;
 };
 

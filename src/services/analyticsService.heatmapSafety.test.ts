@@ -39,6 +39,46 @@ describe('heatmap transport authority',()=>{
     await expect(analyticsService.getHeatmap(own)).rejects.toMatchObject({status:403});
     expect(mock.fetch).toHaveBeenCalledTimes(2);
   });
+  it('passes the abort signal and current attempt guard through primary, hub and legacy reads',async()=>{
+    const controller=new AbortController();
+    mock.fetch.mockRejectedValueOnce(new ApiError('missing',404))
+      .mockResolvedValueOnce({tenant_slug:filters.tenantSlug,sections:{}})
+      .mockResolvedValueOnce({tenant_slug:filters.tenantSlug,points:[]});
+    await analyticsService.getHeatmap(filters,undefined,{signal:controller.signal,isCurrent:()=>true});
+    expect(mock.fetch).toHaveBeenCalledTimes(3);
+    for(const [,options] of mock.fetch.mock.calls){
+      expect(options.signal).toBe(controller.signal);
+      expect(options.isCurrent()).toBe(true);
+    }
+    controller.abort();
+    for(const [,options] of mock.fetch.mock.calls) expect(options.isCurrent()).toBe(false);
+  });
+  it('does not dispatch an already aborted attempt',async()=>{
+    const controller=new AbortController();controller.abort();
+    await expect(analyticsService.getHeatmap(filters,undefined,{signal:controller.signal})).rejects.toMatchObject({name:'AbortError'});
+    expect(mock.fetch).not.toHaveBeenCalled();
+  });
+  it('rejects a late transport body after cancellation even if transport ignores abort',async()=>{
+    const controller=new AbortController();
+    let resolve!:(value:unknown)=>void;
+    mock.fetch.mockReturnValueOnce(new Promise(r=>{resolve=r;}));
+    const request=analyticsService.getHeatmap(filters,undefined,{signal:controller.signal});
+    const rejection=expect(request).rejects.toMatchObject({name:'AbortError'});
+    controller.abort();
+    resolve({tenant_slug:filters.tenantSlug,points:[{lat:-33,lng:-68}]});
+    await rejection;
+    expect(mock.fetch).toHaveBeenCalledTimes(1);
+  });
+  it('does not start an alias after an expired attempt produces a late compatibility error',async()=>{
+    let current=true;
+    let reject!:(reason:unknown)=>void;
+    mock.fetch.mockReturnValueOnce(new Promise((_,r)=>{reject=r;}));
+    const request=analyticsService.getHeatmap(filters,undefined,{isCurrent:()=>current});
+    const rejection=expect(request).rejects.toMatchObject({name:'AbortError'});
+    current=false;reject(new ApiError('missing',404));
+    await rejection;
+    expect(mock.fetch).toHaveBeenCalledTimes(1);
+  });
 });
 describe('geographic case identities',()=>{
   it('preserves exact source and ticket identity without using display numbers',async()=>{

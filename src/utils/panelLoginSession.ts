@@ -1,6 +1,8 @@
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { advanceChatbocSessionRevision } from "@/utils/sessionLogout";
 import { usePanelSessionStore } from '@/stores';
+import {registerSessionRetirement,validateSessionRetirementProof,type SessionRetirementProof} from './sessionRetirement';
+import {clearNativePanelSelection,selectNativePanelImpersonation} from './nativePanelSelection';
 
 export interface PanelLoginUser {
   id?: string | number;
@@ -20,6 +22,8 @@ export interface PanelLoginUser {
 
 export interface PersistPanelLoginSessionInput {
   token?: string | null;
+  sessionRetirement?:SessionRetirementProof;
+  nativeImpersonation?:{initiatedByActorId:string};
   user?: PanelLoginUser | null;
   entityToken?: string | null;
   tipoChat?: "pyme" | "municipio" | string | null;
@@ -53,6 +57,8 @@ const firstText = (...values: unknown[]): string | undefined => {
 
 export const persistPanelLoginSession = ({
   token,
+  sessionRetirement,
+  nativeImpersonation,
   user,
   entityToken,
   tipoChat,
@@ -60,6 +66,9 @@ export const persistPanelLoginSession = ({
   replaceIdentity = false,
   setUser,
 }: PersistPanelLoginSessionInput): PanelLoginUser | null => {
+  if(sessionRetirement&&(!user?.id||!validateSessionRetirementProof(sessionRetirement,{actorId:user.id,provider:'native'})))throw new Error('El servicio no devolvió una sesión verificable.');
+  clearNativePanelSelection();
+  if(nativeImpersonation&&sessionRetirement&&user?.id)selectNativePanelImpersonation({actorId:String(user.id),lineageId:sessionRetirement.lineage_id,initiatedByActorId:nativeImpersonation.initiatedByActorId});
   safeLocalStorage.removeItem("authProvider");
   safeLocalStorage.removeItem("clerkUserId");
   if (token) {
@@ -76,6 +85,7 @@ export const persistPanelLoginSession = ({
   delete storedUser.clerkUserId;
   delete storedUser.organization_profile;
   delete storedUser.organization_workspace;
+  delete storedUser.session_retirement;
   const resolvedTenantSlug = firstText(
     user?.tenant_slug,
     user?.tenantSlug,
@@ -126,10 +136,12 @@ export const persistPanelLoginSession = ({
       nextUser.tenantSlug ||
       nextUser.tipo_chat,
   );
+  delete nextUser.session_retirement;
 
   if (!hasUsefulIdentity) return null;
 
   safeLocalStorage.setItem("user", JSON.stringify(nextUser));
   setUser?.(nextUser);
+  if(sessionRetirement&&nextUser.id)registerSessionRetirement(sessionRetirement,{actorId:nextUser.id,provider:'native'});
   return nextUser;
 };

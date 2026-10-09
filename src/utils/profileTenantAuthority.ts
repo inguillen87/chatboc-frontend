@@ -1,5 +1,5 @@
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
-import { normalizeOperationalTenantSlug } from '@/utils/tenantIdentity';
+import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 
 const GENERIC_AUTHENTICATED_TENANT_SLUGS = new Set([
   'municipio',
@@ -19,15 +19,20 @@ export interface ExplicitTenantRequest {
 export const normalizeProfileTenantSlug = (
   value?: string | number | null,
 ): string | null => {
-  const normalized = normalizeOperationalTenantSlug(value);
-  if (!normalized || GENERIC_AUTHENTICATED_TENANT_SLUGS.has(normalized)) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  // Private resolution is an exact backend slug lookup, not a display-name
+  // normalizer: preserve separators and reject invalid identities. Admin slug
+  // resolution already compares case-insensitively in the backend.
+  if (!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(normalized) ||
+    TENANT_PLACEHOLDER_SLUGS.has(normalized) || GENERIC_AUTHENTICATED_TENANT_SLUGS.has(normalized)) {
     return null;
   }
   return normalized;
 };
 
 export const readExplicitTenantRequest = (
-  searchParams: Pick<URLSearchParams, 'has' | 'get'>,
+  searchParams: Pick<URLSearchParams, 'has' | 'getAll'>,
 ): ExplicitTenantRequest => {
   const hasTenant = searchParams.has('tenant');
   const hasTenantSlug = searchParams.has('tenant_slug');
@@ -37,23 +42,16 @@ export const readExplicitTenantRequest = (
     return { present: false, valid: true, slug: null };
   }
 
-  const tenant = hasTenant ? normalizeProfileTenantSlug(searchParams.get('tenant')) : null;
-  const tenantSlug = hasTenantSlug
-    ? normalizeProfileTenantSlug(searchParams.get('tenant_slug'))
-    : null;
-
-  if ((hasTenant && !tenant) || (hasTenantSlug && !tenantSlug)) {
-    return { present: true, valid: false, slug: null };
-  }
-
-  if (tenant && tenantSlug && tenant !== tenantSlug) {
+  const values = [...searchParams.getAll('tenant'), ...searchParams.getAll('tenant_slug')]
+    .map(normalizeProfileTenantSlug);
+  if (!values.length || values.some(value => !value) || new Set(values).size !== 1) {
     return { present: true, valid: false, slug: null };
   }
 
   return {
     present: true,
     valid: true,
-    slug: tenantSlug || tenant,
+    slug: values[0],
   };
 };
 

@@ -4,6 +4,7 @@ import {act,cleanup,renderHook,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 const mock=vi.hoisted(()=>({slug:'org-a' as string|null,list:vi.fn(),detail:vi.fn(),storage:vi.fn()}));
 vi.mock('@/context/TenantContext',()=>({useTenant:()=>({currentSlug:mock.slug})}));
+vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:{id:4,rol:'superadmin'},hasVerifiedSession:true,organizationProfileVerified:true})}));
 vi.mock('@/utils/safeLocalStorage',()=>({safeLocalStorage:{getItem:mock.storage}}));
 vi.mock('@/api/encuestas',()=>({adminListSurveys:mock.list,adminGetSurvey:mock.detail,
   adminCreateSurvey:vi.fn(),adminCloseSurvey:vi.fn(),adminDeleteSurvey:vi.fn(),adminDuplicateSurvey:vi.fn(),adminSeedSurvey:vi.fn(),adminUpdateSurvey:vi.fn()}));

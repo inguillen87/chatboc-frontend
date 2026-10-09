@@ -7,6 +7,12 @@ vi.unmock('papaparse');
 const org = (fields: Partial<Tenant>): Tenant => ({ id: 1, slug: 'sur', nombre: 'Gobierno del Sur', tipo: 'municipio', plan: 'pro', status: 'active', is_active: true, created_at: '', ...fields });
 
 describe('organization CSV export', () => {
+  it('uses the same descriptive labels as the directory without changing technical records', () => {
+    const records = [org({ tipo: 'municipio' }), org({ tipo: 'colegio' }), org({ tipo: 'pyme' }), org({ tipo: 'unknown' as Tenant['tipo'], organization_type_label_contract: 'organization.type_label.v1', organization_type_label: null })];
+    const result = Papa.parse<Record<string, string>>(buildOrganizationsCsv(records), { header: true });
+    expect(result.data.map((row) => row.Tipo)).toEqual(['Gobierno', 'Educación', 'Empresa', 'Organización']);
+    expect(records.map((record) => record.tipo)).toEqual(['municipio', 'colegio', 'pyme', 'unknown']);
+  });
   it('round-trips Spanish names, quotes and line breaks using a real CSV parser', () => {
     const csv = buildOrganizationsCsv([org({ nombre: 'Área "A", Río\nGrande' })]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);

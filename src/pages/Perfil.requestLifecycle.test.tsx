@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
+import AccessRoute from '@/components/access/AccessRoute';
 
 const runtime = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -11,16 +14,33 @@ const runtime = vi.hoisted(() => ({
   setUser: vi.fn(),
   toast: vi.fn(),
   ticketMounts: 0,
+  realTicketPanel: false,
   hasSession: true,
+  sessionVerified: true,
+  userLoading: false,
+  profileVerified: true,
+  realNavigation: false,
   user: null as Record<string, any> | null,
 }));
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return {
+    ...actual,
+    useNavigate: () => runtime.realNavigation
+      ? actual.useNavigate()
+      : vi.fn((path: string) => console.log(`Mocked navigate to: ${path}`)),
+  };
+});
 
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({
     user: runtime.user,
     setUser: runtime.setUser,
     refreshUser: runtime.refreshUser,
-    loading: false,
+    loading: runtime.userLoading,
+    organizationProfileVerified: runtime.profileVerified,
+    hasVerifiedSession: runtime.hasSession && runtime.sessionVerified,
   }),
 }));
 
@@ -66,7 +86,7 @@ vi.mock('@/components/admin/EventForm', () => ({ EventForm: () => null }));
 vi.mock('@/components/admin/PromotionForm', () => ({ PromotionForm: () => null }));
 vi.mock('@/components/admin/AgendaPasteForm', () => ({ AgendaPasteForm: () => null }));
 vi.mock('@/components/ui/MunicipioIcon', () => ({ default: () => <span /> }));
-vi.mock('@/components/backoffice/BackofficeCommandCenter', () => ({ default: () => <div /> }));
+vi.mock('@/components/backoffice/BackofficeCommandCenter', () => ({ default: ({scope}: {scope?: string}) => <div data-testid="mock-command-center" data-scope={scope} /> }));
 vi.mock('@/components/profile/ChannelActivationChecklist', () => ({
   default: ({ tenantSlug, initialData }: { tenantSlug?: string | null; initialData?: any }) => (
     <div
@@ -83,12 +103,22 @@ vi.mock('@/components/identity/IdentityAvatar', () => ({ default: () => <div /> 
 vi.mock('@/components/LazyMapLibreMap', () => ({ default: () => <div /> }));
 vi.mock('@/components/catalog/ImportWizard', () => ({ default: () => <div /> }));
 
-vi.mock('@/pages/TicketsPanel', () => ({
-  default: () => {
+vi.mock('@/pages/TicketsPanel', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/pages/TicketsPanel')>();
+  return { default: (props: React.ComponentProps<typeof actual.default>) => {
     runtime.ticketMounts += 1;
+    if (runtime.realTicketPanel) return <actual.default {...props} />;
     return <div data-testid="mock-tickets" />;
-  },
-}));
+  } };
+});
+vi.mock('@/hooks/useTicketUpdates', () => ({ default: () => undefined }));
+vi.mock('@/components/tickets/NewTicketsPanel', async () => {
+  const { useTickets } = await import('@/context/TicketContext');
+  return { default: () => {
+    const { loading, tickets } = useTickets();
+    return <div data-testid="ticket-inbox-probe" data-loading={String(loading)} data-count={tickets.length} />;
+  } };
+});
 vi.mock('@/pages/EstadisticasPage', () => ({ default: () => <div data-testid="mock-stats" /> }));
 vi.mock('@/pages/analytics/AnalyticsPage', () => ({ default: () => <div data-testid="mock-analytics" /> }));
 vi.mock('@/pages/UsuariosPage', () => ({
@@ -140,6 +170,7 @@ const verifiedUser = (tenantSlug = 'junin') => ({
   tenantSlug,
   tenant_slug: tenantSlug,
   tenant: { slug: tenantSlug, tenant_slug: tenantSlug },
+  capabilities: ['orders.read'],
 });
 
 const profileResponse = (tenantSlug: string) => ({
@@ -164,6 +195,42 @@ const profileResponse = (tenantSlug: string) => ({
   slug: tenantSlug,
   horario_json: [],
 });
+
+const organizationProfileResponse = (tenantSlug = 'selected-organization', canEdit = true) => ({
+  contract_version: 'organization.profile_settings.v1',
+  tenant: { id: 909, slug: tenantSlug },
+  revision: 'a'.repeat(64),
+  can_edit: canEdit,
+  editability: { mode: canEdit ? 'editable' : 'read_only' },
+  values: {
+    nombre_empresa: 'Organización seleccionada', telefono: '+542900123456',
+    direccion: 'Domicilio de la organización', ciudad: 'Ciudad seleccionada',
+    provincia: 'Tierra del Fuego', pais: 'Argentina', latitud: null, longitud: null,
+    link_web: 'https://organization.example.test', logo_url: '', horario_json: [],
+  },
+});
+
+const wireSelectedOrganization = (loadProfile: () => any, saveProfile?: (body: any) => any, tenantSlug = 'selected-organization') => {
+  runtime.user = { ...verifiedUser('junin'), rol: 'superadmin', nombre_empresa: 'Mi cuenta personal' };
+  runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+    if (path === `/api/v2/tenants/${tenantSlug}/activation/channels`) {
+      return {
+        contract_version: 'tenant.channel_activation.v1',
+        tenant: { id: 909, slug: tenantSlug, plan: 'full' },
+        integration_access: { enabled: true, status: 'enabled', current_plan: 'full' }, channels: [],
+      };
+    }
+    if (path === `/api/admin/tenants/${tenantSlug}/config`) {
+      if (options?.method === 'PUT') return saveProfile?.(options.body);
+      return { tenant: { slug: tenantSlug, tipo: 'municipio', plan: 'full' }, organization_profile: await loadProfile() };
+    }
+    if (path === '/api/me') return { ...profileResponse('junin'), nombre_empresa: 'Mi cuenta personal' };
+    if (path.startsWith('/api/app/backoffice/navigation')) {
+      return { contract_version: 'backoffice.navigation.v1', modules: [] };
+    }
+    return {};
+  });
+};
 
 const countApiCalls = (path: string) =>
   runtime.apiFetch.mock.calls.filter(([calledPath]) => calledPath === path).length;
@@ -212,10 +279,66 @@ const updateBrowserLocation = (nextPath: string) => {
   window.dispatchEvent(new PopStateEvent('popstate'));
 };
 
+
+const canonicalOrganizationUser = (kind = 'municipio', slug = 'civic-workspace', canEdit = true) => ({
+  id: 9001, name: 'Personal operator', email: 'operator@example.test',
+  rol: 'admin_municipio', tipo_chat: 'pyme', rubro: 'medico', plan: 'full',
+  tenant_slug: slug, tenantSlug: slug,
+  avatar_url: 'https://cdn.example.test/personal.png', avatar_consent: true,
+  capabilities: ['tickets.read', 'orders.read'],
+  organization_profile: {
+    contract_version: 'organization.profile_settings.v1', tenant: { id: 303, slug },
+    revision: 'a'.repeat(64), can_edit: canEdit,
+    editability: { mode: canEdit ? 'editable' : 'read_only' },
+    values: {
+      nombre_empresa: 'Verified institution', telefono: '+541112345678', actividad: 'Public services',
+      direccion: 'Institutional address', ciudad: 'Institutional city', provincia: 'Province', pais: 'Argentina',
+      latitud: null, longitud: null, link_web: 'https://institution.example.test',
+      logo_url: 'https://cdn.example.test/institution.png', horario_json: [],
+    },
+    ui: { organization_type_label_contract: 'organization.type_label.v1',
+      organization_type_label: kind === 'municipio' ? 'Gobierno' : kind === 'colegio' ? 'Educación' : 'Empresa' },
+  },
+  organization_workspace: {
+    contract_version: 'organization.profile_workspace.v1', tenant: { id: 303, slug },
+    organization_type: kind,
+  },
+});
+
+const wireBoundOrganization = (canEdit = true, save?: (body: any) => any) => {
+  const baseFetch = runtime.apiFetch.getMockImplementation()!;
+  const user = canonicalOrganizationUser('municipio', 'civic-workspace', canEdit);
+  runtime.user = user;
+  let profile = user.organization_profile;
+  runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+    if (path === '/api/me') return {...profileResponse('civic-workspace'),
+      id: user.id, nombre_empresa: undefined, rubro: 'medico', tipo_chat: 'pyme',
+      organization_profile: profile, organization_workspace: user.organization_workspace};
+    if (path === '/api/v2/tenants/civic-workspace/activation/channels') return {
+      contract_version: 'tenant.channel_activation.v1', tenant: {id: 303, slug: 'civic-workspace', plan: 'full'},
+      integration_access: {enabled: true, current_plan: 'full'}, channels: [],
+    };
+    if (path === '/api/admin/tenants/civic-workspace/config') {
+      if (options?.method === 'PUT') {
+        if (save) return save(options.body);
+        profile = {...profile, revision: 'b'.repeat(64), values: {...profile.values, ...options.body.organization_profile}};
+        return {contract_version: 'organization.profile_save.v1', ok: true, tenant: profile.tenant, profile};
+      }
+      return {tenant: {id: 303, slug: 'civic-workspace', tipo: 'municipio', plan: 'full'}, organization_profile: profile};
+    }
+    return baseFetch(path, options);
+  });
+  return user;
+};
+
 describe('Perfil request lifecycle', () => {
   beforeEach(() => {
     localStorage.clear();
     runtime.hasSession = true;
+    runtime.sessionVerified = true;
+    runtime.userLoading = false;
+    runtime.profileVerified = true;
+    runtime.realNavigation = false;
     runtime.user = verifiedUser('junin');
     runtime.apiFetch.mockReset();
     runtime.getTicketStats.mockReset().mockResolvedValue({ heatmap: [], heatmapDataset: { points: [] } });
@@ -224,6 +347,7 @@ describe('Perfil request lifecycle', () => {
     runtime.setUser.mockReset();
     runtime.toast.mockReset();
     runtime.ticketMounts = 0;
+    runtime.realTicketPanel = false;
     runtime.apiFetch.mockImplementation(async (path: string, options?: { tenantSlug?: string | null }) => {
       const tenantSlug = options?.tenantSlug || runtime.user?.tenantSlug || 'junin';
       if (path === '/api/me') return profileResponse(tenantSlug);
@@ -244,6 +368,148 @@ describe('Perfil request lifecycle', () => {
       if (path === '/municipal/categorias') return { categorias: [] };
       return {};
     });
+  });
+
+  it('never presents the personal company as the platform workspace or an unselected institutional editor', async () => {
+    runtime.user = { ...verifiedUser('junin'), rol: 'super_admin', nombre_empresa: 'MyB Store',
+      platform_workspace: { contract_version: 'platform.workspace.v1', heading: 'Chatboc · Plataforma',
+        organization_label: 'Administración de plataforma', role_label: 'SuperAdmin',
+        organization_action: { label: 'Organizaciones', href: '/superadmin?section=organizations' } } };
+    runtime.apiFetch.mockImplementation(async (path: string) => path === '/api/me'
+      ? { ...profileResponse('junin'), nombre_empresa: 'MyB Store' } : {});
+    renderProfile('/perfil?section=general');
+    await screen.findByText('Elegí una organización');
+    expect(screen.queryByText('MyB Store')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+    expect(screen.getAllByRole('link', { name: 'Organizaciones' }).every(link => link.getAttribute('href') === '/superadmin?section=organizations')).toBe(true);
+  });
+
+  it('saves name, contact and activity only in the verified organization without replaying the write', async () => {
+    let profile = { ...organizationProfileResponse(), ui: { activity_label: 'Rubro o actividad', activity_description: 'Descripción institucional' },
+      values: { ...organizationProfileResponse().values, actividad: 'Servicios públicos' } };
+    wireSelectedOrganization(() => profile, body => {
+      profile = { ...profile, revision: 'b'.repeat(64), values: { ...profile.values, ...body.organization_profile } };
+      return { contract_version: 'organization.profile_save.v1', ok: true, tenant: profile.tenant, profile };
+    });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    const activity = await screen.findByRole('textbox', { name: 'Rubro o actividad' });
+    expect(activity).toHaveValue('Servicios públicos');
+    fireEvent.change(activity, { target: { value: 'Asistencia y accesibilidad' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre legal o institucional' }), { target: { value: 'Organización actualizada' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /Teléfono institucional o de contacto/ }), { target: { value: '+54929015550101' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+    const writes = runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual(['/api/admin/tenants/selected-organization/config', expect.objectContaining({
+      tenantSlug: 'selected-organization', singleAttempt: true, allowStartupRecovery: false, isCurrent: expect.any(Function),
+      body: { expected_revision: 'a'.repeat(64), organization_profile: { nombre_empresa: 'Organización actualizada',
+        telefono: '+54929015550101', actividad: 'Asistencia y accesibilidad' } },
+    })]);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(runtime.user?.nombre_empresa).toBe('Mi cuenta personal');
+  });
+
+  it('uses the scoped organization editor even when SuperAdmin explicitly selects the home organization', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse());
+    runtime.user = { ...runtime.user, tenantSlug: 'selected-organization', tenant_slug: 'selected-organization' };
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(countApiCalls('/api/admin/tenants/selected-organization/config')).toBe(1);
+    expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    'tenant_slug=', 'tenant_slug=../otro', 'tenant_slug=selected-organization&tenant=junin',
+    'tenant_slug=selected-organization&tenant_slug=junin',
+    'tenant=selected-organization&tenant=junin',
+    'tenant_slug=selected-organization&tenant_slug=',
+    'tenant_slug=organismo_norte&tenant=organismo-norte',
+    'tenant_slug=organismo.norte', 'tenant_slug=organismo%2Fnorte',
+  ])('never falls back to personal fields for an invalid explicit SuperAdmin selector: %s', async (query) => {
+    wireSelectedOrganization(() => organizationProfileResponse());
+    renderProfile(`/perfil?section=general&${query}`);
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.includes('/activation/channels') || path.endsWith('/config'))).toBe(false);
+    expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it('preserves an underscore organization through activation and the scoped profile editor', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse('organismo_norte'), undefined, 'organismo_norte');
+    renderProfile('/perfil?section=general&tenant_slug=organismo_norte&tenant=organismo_norte&tenant_slug=organismo_norte');
+    await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    expect(countApiCalls('/api/v2/tenants/organismo_norte/activation/channels')).toBe(1);
+    expect(countApiCalls('/api/admin/tenants/organismo_norte/config')).toBe(1);
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.includes('organismo-norte'))).toBe(false);
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it('cannot authorize an underscore organization with a different hyphen activation identity', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse('organismo_norte'), undefined, 'organismo_norte');
+    const originalTransport = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      const response = await originalTransport(path, options);
+      return path === '/api/v2/tenants/organismo_norte/activation/channels'
+        ? { ...response, tenant: { ...response.tenant, slug: 'organismo-norte' } }
+        : response;
+    });
+    renderProfile('/perfil?section=general&tenant_slug=organismo_norte');
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(countApiCalls('/api/v2/tenants/organismo_norte/activation/channels')).toBe(1);
+    expect(countApiCalls('/api/admin/tenants/organismo_norte/config')).toBe(0);
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it('retires the institutional save readback after leaving the editor', async () => {
+    let finishSave!: (value: unknown) => void;
+    const profile = organizationProfileResponse();
+    wireSelectedOrganization(() => profile, () => new Promise(resolve => { finishSave = resolve; }));
+    const view = renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    fireEvent.change(name, { target: { value: 'Edición pendiente' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1));
+    view.unmount();
+    await act(async () => finishSave({ contract_version: 'organization.profile_save.v1', ok: true, tenant: profile.tenant, profile }));
+    expect(runtime.apiFetch.mock.calls.filter(([path, options]) => path.endsWith('/config') && options?.method !== 'PUT')).toHaveLength(1);
+  });
+
+  it.each(['orders', 'pedidos'])('resolves the legacy %s link into the guarded orders route with filters and verified organization', async (tab) => {
+    window.history.replaceState({}, '', `/perfil?tab=${tab}&order_id=72&focus=assisted&channel=marketplace&q=consulta`);
+    render(<BrowserRouter><Routes>
+      <Route path="/perfil" element={<ProfileHarness />} />
+      <Route path="/pedidos" element={<div>Pedidos verificados</div>} />
+      <Route path="/403" element={<div>Acceso denegado</div>} />
+    </Routes></BrowserRouter>);
+    await screen.findByText('Pedidos verificados');
+    expect(window.location.pathname).toBe('/pedidos');
+    expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    expect(new URLSearchParams(window.location.search).get('order_id')).toBe('72');
+    expect(new URLSearchParams(window.location.search).get('focus')).toBe('assisted');
+    expect(new URLSearchParams(window.location.search).get('channel')).toBe('marketplace');
+    expect(new URLSearchParams(window.location.search).get('q')).toBe('consulta');
+    expect(new URLSearchParams(window.location.search).has('tab')).toBe(false);
+  });
+
+  it.each(['orders', 'pedidos'])('denies the legacy %s link when a verified actor lacks an orders read grant', async (tab) => {
+    runtime.user = { ...verifiedUser(), capabilities: ['tickets.read'] };
+    window.history.replaceState({}, '', `/perfil?tab=${tab}&focus=assisted`);
+    render(<BrowserRouter><Routes>
+      <Route path="/perfil" element={<ProfileHarness />} />
+      <Route path="/pedidos" element={<div>Pedidos verificados</div>} />
+      <Route path="/403" element={<div>Acceso denegado</div>} />
+    </Routes></BrowserRouter>);
+    await screen.findByText('Acceso denegado');
+    expect(screen.queryByText('Pedidos verificados')).not.toBeInTheDocument();
   });
 
   it('does not reload identity or request territorial datasets from the institutional profile', async () => {
@@ -333,6 +599,17 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByText('Espacio de trabajo')).not.toBeInTheDocument();
   });
 
+  it.each([['mapas', 'mock-map'], ['tickets', 'mock-tickets'], ['usuarios', 'mock-users']])(
+    'returns from %s to Inicio without restoring the previous tab', async (tab, probe) => {
+      renderProfile(`/perfil?tab=${tab}`);
+      await waitFor(() => expect(screen.getByTestId(probe)).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: 'Abrir Inicio' }));
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'Trabajo de hoy' })).toBeInTheDocument());
+      expect(screen.queryByTestId(probe)).not.toBeInTheDocument();
+      expect(window.location.search).not.toContain('tab=');
+    },
+  );
+
   it('restores an institutional section from the URL and keeps contact phone separate from WhatsApp', async () => {
     renderProfile('/perfil?tab=perfil&section=channels');
 
@@ -350,6 +627,175 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).not.toContain('section=channels');
     expect(window.location.search).toContain('section=general');
   });
+
+  it.each([
+    ['general', 'section=general', 9002],
+    ['channels', 'section=channels&setup=channels', 9003],
+  ] as const)('leaves the native institutional %s editor for the scoped ticket inbox with concurrent URL commits', async (section, query, actorId) => {
+    wireBoundOrganization();
+    runtime.user = { ...runtime.user, id: actorId, tipo_chat: 'municipio', rubro: 'municipio', auth_provider: 'native' };
+    runtime.realTicketPanel = true;
+    const read = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if (path.startsWith('/api/tickets?')) return { tickets: [] };
+      const payload = await read(path, options);
+      return path === '/api/me' ? { ...payload, id: actorId } : payload;
+    });
+    window.history.replaceState({}, '', `/perfil?tab=perfil&${query}&tenant_slug=civic-workspace&source=channels&return_to=%2Fimplementacion%3Ftenant_slug%3Dcivic-workspace`);
+    render(<BrowserRouter future={{ v7_startTransition: true }}><CapabilitiesProvider><ProfileHarness /></CapabilitiesProvider></BrowserRouter>);
+
+    await screen.findByTestId(`institution-profile-panel-${section}`);
+    await screen.findByRole('button', { name: 'Abrir menú Atención' });
+    expect(runtime.ticketMounts).toBe(0);
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.startsWith('/api/tickets?'))).toBe(false);
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Abrir menú Atención' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /Reclamos/i }));
+
+    await screen.findByTestId('tickets-panel-root');
+    await waitFor(() => expect(screen.getByTestId('ticket-inbox-probe')).toHaveAttribute('data-loading', 'false'));
+    const inboxReads = runtime.apiFetch.mock.calls.filter(([path]) => path.startsWith('/api/tickets?'));
+    expect(inboxReads).toHaveLength(1);
+    expect(inboxReads[0][1]).toEqual(expect.objectContaining({ tenantSlug: 'civic-workspace',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, persistTenantSlug: false }));
+    const queryAfter = new URLSearchParams(window.location.search);
+    expect(queryAfter.get('tab')).toBe('tickets');
+    expect(queryAfter.has('section')).toBe(false);
+    expect(queryAfter.has('setup')).toBe(false);
+    expect(queryAfter.get('tenant_slug')).toBe('civic-workspace');
+    expect(queryAfter.get('source')).toBe('channels');
+    expect(queryAfter.get('return_to')).toBe('/implementacion?tenant_slug=civic-workspace');
+    expect(screen.queryByTestId('institution-profile-workspace')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT' || options?.method === 'POST')).toBe(false);
+  });
+
+  it('opens the existing tenant integration workspace for a municipal Full administrator with a settings grant', async () => {
+    runtime.realNavigation = true;
+    runtime.user = { ...verifiedUser(), rol: 'admin_municipio', plan: 'full', capabilities: ['settings.tenant.write'] };
+    const read = runtime.apiFetch.getMockImplementation();
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      const payload = await read?.(path, options);
+      return path === '/api/me' ? { ...payload, plan: 'full' } : payload;
+    });
+    localStorage.setItem('tenantSlug', 'another-organization');
+    window.history.replaceState({}, '', '/perfil?section=channels');
+    render(<CapabilitiesProvider><BrowserRouter><Routes>
+      <Route path="/perfil" element={<ProfileHarness />} />
+      <Route path="/t/:tenant/integracion" element={
+        <AccessRoute roles={['tenant_admin', 'superadmin']} requiredAllCapabilities={['settings.tenant.write']}>
+          <div>Integraciones de la organización</div>
+        </AccessRoute>
+      } />
+      <Route path="/municipal/integrations" element={<div>Placeholder municipal</div>} />
+    </Routes></BrowserRouter></CapabilitiesProvider>);
+
+    const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
+    expect(entry).toBeEnabled();
+    fireEvent.click(entry);
+    await screen.findByText('Integraciones de la organización');
+    expect(window.location.pathname).toBe('/t/junin/integracion');
+    expect(screen.queryByText('Placeholder municipal')).not.toBeInTheDocument();
+  });
+
+  it.each(['junin', 'mendoza'])(
+    'opens institutional WhatsApp in the verified %s integration workspace instead of the legacy municipal page', async (tenantSlug) => {
+      runtime.realNavigation = true;
+      wireSelectedOrganization(() => organizationProfileResponse(tenantSlug), undefined, tenantSlug);
+      runtime.user = { ...runtime.user, capabilities: ['settings.tenant.write'] };
+      localStorage.setItem('tenantSlug', 'another-organization');
+      window.history.replaceState({}, '', `/perfil?section=channels&tenant_slug=${tenantSlug}`);
+      render(<CapabilitiesProvider><BrowserRouter><Routes>
+        <Route path="/perfil" element={<ProfileHarness />} />
+        <Route path="/t/:tenant/integracion" element={
+          <AccessRoute roles={['tenant_admin', 'superadmin']} requiredAllCapabilities={['settings.tenant.write']}>
+            <div>Integraciones de WhatsApp verificadas</div>
+          </AccessRoute>
+        } />
+        <Route path="/municipal/whatsapp" element={<div>WhatsApp municipal legacy</div>} />
+      </Routes></BrowserRouter></CapabilitiesProvider>);
+
+      const entry = await screen.findByRole('button', { name: /Administrar WhatsApp institucional/ });
+      await waitFor(() => expect(entry).toBeEnabled());
+      fireEvent.click(entry);
+      expect(window.location.pathname).toBe(`/t/${tenantSlug}/integracion`);
+      expect(window.location.search).toBe('?channel=whatsapp');
+      await screen.findByText('Integraciones de WhatsApp verificadas');
+      expect(screen.queryByText('WhatsApp municipal legacy')).not.toBeInTheDocument();
+      expect(runtime.apiFetch.mock.calls.some(([path]) => path === '/municipal/whatsapp')).toBe(false);
+      expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT' || options?.method === 'POST')).toBe(false);
+    },
+  );
+
+  it('keeps institutional WhatsApp closed when only legacy actor and persisted tenant hints exist', async () => {
+    runtime.user = { ...verifiedUser(), rol: 'admin_municipio', plan: 'full', capabilities: ['settings.tenant.write'] };
+    localStorage.setItem('tenantSlug', 'another-organization');
+    window.history.replaceState({}, '', '/perfil?section=channels');
+    render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+
+    const entry = await screen.findByRole('button', { name: /Administrar WhatsApp institucional/ });
+    expect(entry).toBeDisabled();
+    fireEvent.click(entry);
+    expect(window.location.pathname).toBe('/perfil');
+    expect(window.location.search).not.toContain('channel=whatsapp');
+  });
+
+  it.each(['unverified-session', 'loading-session'] as const)(
+    'closes a previously verified institutional WhatsApp action during %s', async (reason) => {
+      runtime.realNavigation = true;
+      wireSelectedOrganization(() => organizationProfileResponse());
+      runtime.user = { ...runtime.user, capabilities: ['settings.tenant.write'] };
+      window.history.replaceState({}, '', '/perfil?section=channels&tenant_slug=selected-organization');
+      const view = render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+      const entry = await screen.findByRole('button', { name: /Administrar WhatsApp institucional/ });
+      await waitFor(() => expect(entry).toBeEnabled());
+
+      if (reason === 'unverified-session') runtime.sessionVerified = false;
+      else runtime.userLoading = true;
+      view.rerender(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+
+      expect(entry).toBeDisabled();
+      fireEvent.click(entry);
+      expect(window.location.pathname).toBe('/perfil');
+      expect(window.location.search).not.toContain('channel=whatsapp');
+    },
+  );
+
+  it.each(['missing-tenant', 'missing-capability'] as const)(
+    'keeps municipal integration navigation closed with %s and gives a recovery action', async (reason) => {
+      runtime.realNavigation = true;
+      runtime.user = {
+        ...verifiedUser(reason === 'missing-tenant' ? '' : 'junin'), rol: 'admin_municipio', plan: 'full',
+        capabilities: reason === 'missing-capability' ? ['knowledge.write'] : ['settings.tenant.write'],
+      };
+      if (reason === 'missing-tenant') {
+        runtime.apiFetch.mockImplementation(async (path: string) => path === '/api/me' ? { ...profileResponse(''), plan: 'full' } : {});
+      } else {
+        const read = runtime.apiFetch.getMockImplementation();
+        runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+          const payload = await read?.(path, options);
+          return path === '/api/me' ? { ...payload, plan: 'full' } : payload;
+        });
+      }
+      localStorage.setItem('tenantSlug', 'another-organization');
+      window.history.replaceState({}, '', '/perfil?section=channels');
+      render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
+
+      const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
+      expect(entry).toBeDisabled();
+      const whatsappEntry = screen.getByRole('button', { name: /Administrar WhatsApp institucional/ });
+      expect(whatsappEntry).toBeDisabled();
+      fireEvent.click(whatsappEntry);
+      fireEvent.click(entry);
+      expect(window.location.pathname).toBe('/perfil');
+      if (reason === 'missing-tenant') {
+        fireEvent.click(screen.getByRole('button', { name: 'Reintentar verificación de organización' }));
+        expect(runtime.refreshUser).toHaveBeenCalledTimes(1);
+      } else {
+        expect(screen.getByText(/Necesitás permiso para configurar los canales/)).toBeInTheDocument();
+        expect(runtime.refreshUser).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it('canonicalizes an institutional deep link without dropping section or setup', async () => {
     renderProfile('/perfil?tab=tickets&section=channels&setup=channels');
@@ -406,7 +852,9 @@ describe('Perfil request lifecycle', () => {
         'full',
       );
     });
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(localStorage.getItem('tenantSlug')).toBe('junin');
 
     await act(async () => {
@@ -458,9 +906,11 @@ describe('Perfil request lifecycle', () => {
     );
     expect(runtime.apiFetch).toHaveBeenCalledWith(
       '/api/v2/tenants/mendoza/activation/channels',
-      { tenantSlug: 'mendoza', persistTenantSlug: false, cache: 'no-store' },
+      expect.objectContaining({ ...panelReadOptions('mendoza'), cache: 'no-store', isCurrent: expect.any(Function) }),
     );
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=mendoza')).toBe(0);
     expect(localStorage.getItem('tenantSlug')).not.toBe('mendoza');
     expect(
@@ -495,7 +945,9 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
     expect(screen.queryByTestId('mock-users')).not.toBeInTheDocument();
     expect(localStorage.getItem('tenantSlug')).toBe('junin');
-    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', { tenantSlug: 'junin' });
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
     expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=junin')).toBe(1);
   });
 
@@ -563,6 +1015,119 @@ describe('Perfil request lifecycle', () => {
 
     await waitFor(() => expect(screen.getByText('Administración habilitada')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+  });
+
+  it('loads and saves the selected organization through its revisioned contract without changing the actor', async () => {
+    let latestProfile = organizationProfileResponse();
+    wireSelectedOrganization(() => latestProfile, (body) => {
+      latestProfile = { ...latestProfile, revision: 'b'.repeat(64), values: { ...latestProfile.values, ...body.organization_profile } };
+      return { contract_version: 'organization.profile_save.v1', ok: true, tenant: latestProfile.tenant, profile: latestProfile };
+    });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    expect(name).toHaveValue('Organización seleccionada');
+    expect(name).toHaveAccessibleDescription('Se muestra en el encabezado del espacio de trabajo y en las comunicaciones oficiales.');
+    expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveValue('+542900123456');
+    expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveAttribute('type', 'tel');
+    expect(screen.getByRole('textbox', { name: /Teléfono institucional/ })).toHaveAccessibleDescription('Es un dato de contacto del perfil. El número oficial de WhatsApp se vincula y verifica en Canales.');
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/admin/tenants/selected-organization/config', expect.objectContaining({
+      tenantSlug: 'selected-organization', persistTenantSlug: false,
+      omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+    }));
+
+    fireEvent.change(name, { target: { value: 'Nombre actualizado de la organización' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+
+    const saves = runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+    expect(saves).toHaveLength(1);
+    expect(saves[0]).toEqual(['/api/admin/tenants/selected-organization/config', expect.objectContaining({
+      tenantSlug: 'selected-organization', omitEntityToken: true, omitChatSessionId: true,
+      isWidgetRequest: false, persistTenantSlug: false,
+      body: { expected_revision: 'a'.repeat(64), organization_profile: { nombre_empresa: 'Nombre actualizado de la organización' } },
+    })]);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(runtime.user?.tenant_slug).toBe('junin');
+    expect(runtime.user?.nombre_empresa).toBe('Mi cuenta personal');
+    expect(countApiCalls('/perfil')).toBe(0);
+
+    fireEvent.click(screen.getByTestId('institution-profile-section-hours'));
+    await screen.findByText('Horarios sin configurar');
+    fireEvent.click(screen.getByTestId('institution-profile-section-identity'));
+    await screen.findByRole('textbox', { name: 'Logo institucional' });
+    expect(screen.queryByRole('textbox', { name: 'Imagen personal autorizada' })).not.toBeInTheDocument();
+  });
+
+  it('keeps an authorized selected organization read only when the server disables edits', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse('selected-organization', false));
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    await screen.findByText('Perfil en modo consulta');
+    expect(screen.getByRole('textbox', { name: 'Nombre legal o institucional' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Actualizar perfil' })).toBeEnabled();
+    expect(runtime.apiFetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false);
+  });
+
+  it.each(['slug', 'id', 'revision'])('hides institutional fields when the selected profile has an invalid %s', async (invalidField) => {
+    const profile = organizationProfileResponse();
+    if (invalidField === 'slug') profile.tenant.slug = 'junin';
+    if (invalidField === 'id') profile.tenant.id = 910;
+    if (invalidField === 'revision') profile.revision = '';
+    wireSelectedOrganization(() => profile);
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    await screen.findByText('No pudimos verificar el perfil institucional');
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Mi cuenta personal')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar perfil' })).toBeInTheDocument();
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('shows a safe denial and never falls back to actor fields after a selected profile 403', async () => {
+    wireSelectedOrganization(() => { throw new ApiError('Private response body must stay hidden', 403); });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(screen.queryByText('Private response body must stay hidden')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Nombre legal o institucional' })).not.toBeInTheDocument();
+    expect(countApiCalls('/api/me')).toBe(0);
+  });
+
+  it('preserves a selected organization draft on revision conflict without replaying the write', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse(), () => { throw new ApiError('Conflict', 412); });
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    const name = await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+    fireEvent.change(name, { target: { value: 'Edición pendiente' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    await screen.findByText(/Otra persona actualizó este perfil. Conservamos tus cambios:/);
+    expect(name).toHaveValue('Edición pendiente');
+    expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1);
+    expect(runtime.apiFetch.mock.calls.filter(([path, options]) => path.endsWith('/config') && options?.method !== 'PUT')).toHaveLength(1);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('returns to the personal profile without carrying the selected organization into the actor', async () => {
+    const navigateLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    wireSelectedOrganization(() => organizationProfileResponse());
+    renderProfile('/perfil?section=general&tenant_slug=selected-organization');
+    await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mi perfil' }));
+    expect(navigateLog).toHaveBeenCalledWith('Mocked navigate to: /perfil');
+    await act(async () => { updateBrowserLocation('/perfil'); });
+    await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/me', expect.objectContaining({ tenantSlug: 'junin',
+      isWidgetRequest: false, omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      persistTenantSlug: false, singleAttempt: true, allowStartupRecovery: true, isCurrent: expect.any(Function) }));
+    expect(window.location.search).not.toContain('tenant_slug');
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(runtime.user?.tenant_slug).toBe('junin');
+    navigateLog.mockRestore();
   });
 
   it('validates the complete institutional record before saving from another section', async () => {
@@ -717,4 +1282,258 @@ describe('Perfil request lifecycle', () => {
     expect(window.location.search).toContain('tab=mapas');
     expect(window.location.search).not.toContain('tab=estadisticas');
   });
+
+  it('keeps the ordinary heading and institutional navigation own-scoped despite a rejected foreign query', async () => {
+    runtime.realNavigation = true;
+    const user = wireBoundOrganization(), before = JSON.stringify(user);
+    renderProfile('/perfil?tab=perfil&tenant_slug=foreign-workspace');
+    await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
+    expect(screen.queryByRole('heading', {level: 1, name: 'foreign-workspace'})).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([path]) => typeof path === 'string' && path.includes('/tenants/foreign-workspace/'))).toBe(false);
+    fireEvent.click(screen.getByRole('button', {name: 'Perfil institucional'}));
+    expect(await screen.findByRole('textbox', {name: 'Nombre legal o institucional'})).toHaveValue('Verified institution');
+    expect(window.location.search).toContain('tenant_slug=civic-workspace');
+    expect(window.location.search).toContain('section=general');
+    expect(runtime.apiFetch.mock.calls.some(([path, options]) => typeof path === 'string' && (path.includes('/tenants/foreign-workspace/') || options?.method === 'PUT'))).toBe(false);
+    expect(JSON.stringify(user)).toBe(before);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('uses the verified organization name and municipal workspace while leaving the actor unchanged', async () => {
+    const user = wireBoundOrganization();
+    renderProfile('/perfil');
+    await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
+    expect(screen.getByText('Gobierno')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /CRM ciudadano/})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: /CRM comercial/})).not.toBeInTheDocument();
+    expect(user.id).toBe(9001);
+    expect(user.name).toBe('Personal operator');
+    expect(user.tipo_chat).toBe('pyme');
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('opens the bound institutional editor from the home with the canonical slug', async () => {
+    wireBoundOrganization();
+    renderProfile('/perfil');
+    await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
+    fireEvent.click(screen.getByRole('button', {name: 'Perfil institucional'}));
+    const name = await screen.findByRole('textbox', {name: 'Nombre legal o institucional'});
+    expect(name).toHaveValue('Verified institution');
+    expect(window.location.search).toContain('tenant_slug=civic-workspace');
+    expect(window.location.search).toContain('section=general');
+    expect(screen.queryByRole('button', {name: 'Directorio de organizaciones'})).not.toBeInTheDocument();
+    expect(runtime.apiFetch).toHaveBeenCalledWith('/api/admin/tenants/civic-workspace/config', expect.objectContaining({
+      tenantSlug: 'civic-workspace', omitEntityToken: true, omitChatSessionId: true, persistTenantSlug: false,
+    }));
+  });
+
+  it('canonicalizes an institutional deep link before exposing legacy actor fields', async () => {
+    runtime.realNavigation = true;
+    wireBoundOrganization();
+    renderProfile('/perfil?tab=perfil&section=channels&setup=channels');
+    await waitFor(() => expect(window.location.search).toContain('tenant_slug=civic-workspace'));
+    expect(window.location.search).toContain('section=channels');
+    expect(window.location.search).toContain('setup=channels');
+    await screen.findByTestId('institution-profile-workspace');
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(countApiCalls('/perfil')).toBe(0);
+  });
+
+  it('saves the bound organization with CAS and readback instead of editing the member actor', async () => {
+    const user = wireBoundOrganization();
+    renderProfile('/perfil?tab=perfil&tenant_slug=civic-workspace&section=general');
+    const name = await screen.findByRole('textbox', {name: 'Nombre legal o institucional'});
+    expect(name).toHaveValue('Verified institution');
+    fireEvent.change(name, {target: {value: 'Revised institution'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Guardar'}));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+    const writes = runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual(['/api/admin/tenants/civic-workspace/config', expect.objectContaining({
+      singleAttempt: true, allowStartupRecovery: false, tenantSlug: 'civic-workspace',
+      body: {expected_revision: 'a'.repeat(64), organization_profile: {nombre_empresa: 'Revised institution'}},
+    })]);
+    expect(countApiCalls('/api/admin/tenants/civic-workspace/config')).toBe(3);
+    expect(countApiCalls('/perfil')).toBe(0);
+    expect(countApiCalls('/api/me')).toBe(0);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+    expect(user.name).toBe('Personal operator');
+    expect(user.organization_profile.values.nombre_empresa).toBe('Verified institution');
+    expect(user.avatar_url).toBe('https://cdn.example.test/personal.png');
+  });
+
+  it('keeps a normal member read only when the bound server contract disables editing', async () => {
+    wireBoundOrganization(false);
+    renderProfile('/perfil?tenant_slug=civic-workspace&section=general');
+    expect(await screen.findByRole('textbox', {name: 'Nombre legal o institucional'})).toHaveValue('Verified institution');
+    expect(screen.getByRole('button', {name: 'Guardar'})).toBeDisabled();
+    expect(screen.getByText('Perfil en modo consulta')).toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('never loads an explicit different organization for a normal member with a bound contract', async () => {
+    wireBoundOrganization();
+    renderProfile('/perfil?tenant_slug=another-workspace&section=general');
+    await screen.findByText('Perfil institucional no habilitado');
+    expect(screen.queryByRole('textbox', {name: 'Nombre legal o institucional'})).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.includes('another-workspace'))).toBe(false);
+    expect(countApiCalls('/api/me')).toBe(0);
+  });
+
+  it('does not expose institutional fields from a persisted contract before fresh profile verification', async () => {
+    wireBoundOrganization();
+    runtime.profileVerified = false;
+    renderProfile('/perfil?section=general');
+    await screen.findByText('Verificando la organización');
+    expect(screen.queryByRole('textbox', {name: 'Nombre legal o institucional'})).not.toBeInTheDocument();
+    expect(screen.queryByText('Verified institution')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.some(([path]) => path.startsWith('/api/admin/tenants/'))).toBe(false);
+  });
+
+  it.each([{id: 404, slug: 'civic-workspace'}, {id: 303, slug: 'another-workspace'}])(
+    'rejects a foreign config wrapper even when its nested profile matches: %j', async tenant => {
+      wireBoundOrganization();
+      const baseFetch = runtime.apiFetch.getMockImplementation()!;
+      runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+        const response = await baseFetch(path, options);
+        return path === '/api/admin/tenants/civic-workspace/config' ? {...response, tenant} : response;
+      });
+      renderProfile('/perfil?tenant_slug=civic-workspace&section=general');
+      await screen.findByText('No pudimos verificar el perfil institucional');
+      expect(screen.queryByRole('textbox', {name: 'Nombre legal o institucional'})).not.toBeInTheDocument();
+      expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(0);
+    });
+
+  it('preserves the institutional draft and rejects stale readback instead of confirming a save', async () => {
+    wireBoundOrganization(true, body => ({
+      contract_version: 'organization.profile_save.v1', ok: true,
+      tenant: {id: 303, slug: 'civic-workspace'},
+      profile: {...runtime.user!.organization_profile, revision: 'b'.repeat(64),
+        values: {...runtime.user!.organization_profile.values, ...body.organization_profile}},
+    }));
+    renderProfile('/perfil?tenant_slug=civic-workspace&section=general');
+    const name = await screen.findByRole('textbox', {name: 'Nombre legal o institucional'});
+    fireEvent.change(name, {target: {value: 'Preserved institutional draft'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Guardar'}));
+    await screen.findByText('No pudimos verificar el perfil de tu organización. Reintentá o volvé al inicio.');
+    expect(screen.getByRole('textbox', {name: 'Nombre legal o institucional'})).toHaveValue('Preserved institutional draft');
+    expect(screen.queryByText('Cambios de la organización guardados correctamente.')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it('preserves the selected organization type for SuperAdmin instead of using the actor home contract', async () => {
+    wireSelectedOrganization(() => organizationProfileResponse());
+    const own = canonicalOrganizationUser('empresa', 'junin');
+    runtime.user = {...runtime.user, organization_profile: own.organization_profile,
+      organization_workspace: own.organization_workspace};
+    renderProfile('/perfil?tenant_slug=selected-organization');
+    await screen.findByRole('heading', {level: 1, name: 'Organización seleccionada'});
+    expect(screen.getByText('Gestión municipal')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('mock-command-center')).toHaveAttribute('data-scope', 'municipio'));
+  });
+
+  describe('verified survey workspace navigation', () => {
+    const wireSurveyOrganization = (
+      loadProfile: () => any = () => organizationProfileResponse('junin'),
+      route = '/admin/encuestas',
+    ) => {
+      wireSelectedOrganization(loadProfile, undefined, 'junin');
+      runtime.user = { ...canonicalOrganizationUser('municipio', 'tierra-del-fuego'), rol: 'superadmin' };
+      const read = runtime.apiFetch.getMockImplementation()!;
+      runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+        if (path === '/api/app/backoffice/navigation?tenant_slug=junin') return {
+          contract_version: 'backoffice.navigation.v1',
+          modules: [{ id: 'surveys', label: 'Instrumento seleccionado', route, enabled: true }],
+        };
+        return read(path, options);
+      });
+      runtime.realNavigation = true;
+      localStorage.setItem('tenantSlug', 'tierra-del-fuego');
+    };
+
+    const renderSurveyProfile = (query = 'section=general&tenant_slug=junin') => {
+      window.history.replaceState({}, '', `/perfil?${query}`);
+      return render(<BrowserRouter><Routes>
+        <Route path="/perfil" element={<ProfileHarness />} />
+        <Route path="/admin/encuestas/*" element={<div data-testid="survey-destination" />} />
+      </Routes></BrowserRouter>);
+    };
+
+    const openSurveyMenu = async () => {
+      const menu = await screen.findByRole('button', { name: 'Abrir menú Participación' });
+      fireEvent.keyDown(menu, { key: 'Enter' });
+      fireEvent.click(screen.getByRole('menuitem', { name: /Encuestas, sondeos y votaciones/ }));
+      await screen.findByTestId('survey-destination');
+    };
+
+    it('opens the verified selected Junin from the institutional menu while the actor and stored preference are TDF', async () => {
+      wireSurveyOrganization();
+      renderSurveyProfile();
+      await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+      await openSurveyMenu();
+      expect(window.location.pathname).toBe('/admin/encuestas');
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+      expect(runtime.user?.organization_profile.tenant.slug).toBe('tierra-del-fuego');
+      expect(runtime.setUser).not.toHaveBeenCalled();
+    });
+
+    it('opens the enabled backend survey home card with the verified selected organization', async () => {
+      wireSurveyOrganization();
+      renderSurveyProfile('tenant_slug=junin');
+      fireEvent.click(await screen.findByRole('button', { name: /Instrumento seleccionado.*Abrir/ }));
+      await screen.findByTestId('survey-destination');
+      expect(window.location.pathname).toBe('/admin/encuestas');
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    });
+
+    it('preserves an explicit backend survey detail, filter and fragment while replacing its obsolete tenant hints', async () => {
+      wireSurveyOrganization(undefined, '/admin/encuestas/632/analytics?focus=live&tenant_slug=tierra-del-fuego&tenant=tierra-del-fuego#results');
+      renderSurveyProfile('tenant_slug=junin');
+      fireEvent.click(await screen.findByRole('button', { name: /Instrumento seleccionado.*Abrir/ }));
+      await screen.findByTestId('survey-destination');
+      expect(window.location.pathname).toBe('/admin/encuestas/632/analytics');
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+      expect(new URLSearchParams(window.location.search).get('focus')).toBe('live');
+      expect(new URLSearchParams(window.location.search).has('tenant')).toBe(false);
+      expect(window.location.hash).toBe('#results');
+    });
+
+    it('does not expose a survey destination until the selected organization profile is verified', async () => {
+      let resolveProfile!: (value: any) => void;
+      wireSurveyOrganization(() => new Promise(resolve => { resolveProfile = resolve; }));
+      renderSurveyProfile();
+      await waitFor(() => expect(countApiCalls('/api/admin/tenants/junin/config')).toBe(1));
+      expect(screen.queryByRole('button', { name: 'Abrir menú Participación' })).not.toBeInTheDocument();
+      expect(window.location.pathname).toBe('/perfil');
+      await act(async () => resolveProfile(organizationProfileResponse('junin')));
+      await openSurveyMenu();
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('junin');
+    });
+
+    it.each(['mismatched_profile', 'denied_selection', 'unverified_session', 'session_loading'])(
+      'never enables a survey destination through the actor or stored preference for %s', async (failure) => {
+        wireSurveyOrganization(() => failure === 'mismatched_profile'
+          ? organizationProfileResponse('tierra-del-fuego') : organizationProfileResponse('junin'));
+        if (failure === 'denied_selection') runtime.apiFetch.mockImplementation(async () => { throw new ApiError('Denied', 403); });
+        if (failure === 'unverified_session') runtime.sessionVerified = false;
+        if (failure === 'session_loading') runtime.userLoading = true;
+        renderSurveyProfile();
+        await act(async () => { await Promise.resolve(); });
+        expect(screen.queryByRole('button', { name: 'Abrir menú Participación' })).not.toBeInTheDocument();
+        expect(screen.queryByTestId('survey-destination')).not.toBeInTheDocument();
+        expect(window.location.pathname).toBe('/perfil');
+      },
+    );
+
+    it('opens the verified own organization for an ordinary member without a requested selector', async () => {
+      wireBoundOrganization();
+      runtime.realNavigation = true;
+      renderSurveyProfile('section=general');
+      await screen.findByRole('textbox', { name: 'Nombre legal o institucional' });
+      await openSurveyMenu();
+      expect(new URLSearchParams(window.location.search).get('tenant_slug')).toBe('civic-workspace');
+    });
+  });
+
 });

@@ -1740,8 +1740,8 @@ export const SurveyAnalytics = ({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Tasa de completitud</CardTitle>
-            <CardDescription>Porcentaje de formularios finalizados.</CardDescription>
+            <CardTitle>Completitud de respuestas recibidas</CardTitle>
+            <CardDescription>Respuestas completas sobre respuestas recibidas. No mide formularios iniciados ni población convocada.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
             {completionRateLabel}
