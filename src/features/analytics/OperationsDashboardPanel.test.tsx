@@ -58,9 +58,9 @@ const socketMocks = vi.hoisted(() => {
 });
 
 const tenantContext = vi.hoisted(() => ({ slug: 'junin' as string | null }));
-const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true, role: 'admin_municipio' }));
+const panelAuthority = vi.hoisted(() => ({ verified: true, ordersRead: true, privateSlug: 'junin' as string | null, session: true, role: 'admin_municipio', kind: 'municipio' as string | null }));
 vi.mock('@/hooks/useUser', () => ({
-  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: panelAuthority.role, tenant_slug: panelAuthority.privateSlug, tipo_chat: 'municipio' } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
+  useUser: () => ({ user: panelAuthority.privateSlug ? { id: 4, rol: panelAuthority.role, tenant_slug: panelAuthority.privateSlug, tipo_chat: panelAuthority.kind } : null, hasVerifiedSession: panelAuthority.session, loading: false, organizationProfileVerified: panelAuthority.verified }),
 }));
 vi.mock('@/context/CapabilitiesContext', () => ({
   useCapabilities: () => ({ hasCapability: (capability: string) => capability === 'market.orders.read' && panelAuthority.ordersRead }),
@@ -677,6 +677,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     panelAuthority.session = true;
     panelAuthority.ordersRead = true;
     panelAuthority.role = 'admin_municipio';
+    panelAuthority.kind = 'municipio';
     mocks.ensureReady.mockResolvedValue(undefined);
     mocks.getOperationsDashboardV2.mockResolvedValue(dashboardFixture());
     mocks.getOperationsHeatmapV2.mockResolvedValue(heatmapFixture());
@@ -937,6 +938,112 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.queryByRole('button', { name: 'Revisar cola' })).not.toBeInTheDocument();
   });
 
+  it.each(['municipio', 'pyme'] as const)('prioritizes the verified %s contract and keeps commerce available without changing read scope', async (kind) => {
+    panelAuthority.kind = kind;
+    const fixture = dashboardFixture();
+    fixture.frontend_contract!.labels = { commerce_secondary_title: 'Actividad publicada adicional', commerce: 'Pedidos publicados', assisted_orders: 'Solicitudes asistidas' };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    const metrics = await screen.findByTestId('operations-cockpit-metrics');
+    const commerce = screen.getByTestId('operations-commerce');
+    expect(screen.getByTestId('operations-heatmap')).toBeVisible();
+    expect(screen.getByTestId('operations-ai-queue')).toBeVisible();
+    expect(document.getElementById('operations-actions')).toBeVisible();
+    if (kind === 'municipio') {
+      expect(metrics).not.toHaveTextContent('Solicitudes asistidas');
+      expect(commerce).not.toBeVisible();
+      expect(commerce.closest('details')).not.toHaveAttribute('open');
+      expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/ })).not.toBeVisible();
+      fireEvent.click(screen.getByText('Actividad publicada adicional'));
+      expect(commerce).toBeVisible();
+    } else {
+      expect(metrics).toHaveTextContent('Solicitudes asistidas');
+      expect(commerce).toBeVisible();
+      expect(commerce.closest('details')).toBeNull();
+      expect(screen.queryByText('Actividad publicada adicional')).not.toBeInTheDocument();
+    }
+    expect(commerce).toHaveTextContent('Pedidos publicados');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/ })).toHaveAttribute('href', '/pedidos?focus=assisted&tenant_slug=junin');
+    for (const [name, read] of Object.entries(mocks)) {
+      if (name === 'ensureReady') continue;
+      expect(read).toHaveBeenCalledOnce();
+      expect(read.mock.calls[0][0]).toMatchObject({ tenantSlug: 'junin' });
+      expect(read.mock.calls[0][0]).not.toHaveProperty('organizationKind');
+      expect(read.mock.calls[0][0]).not.toHaveProperty('kind');
+    }
+  });
+
+  it('does not advertise commerce in a municipal workspace without published activity', async () => {
+    const fixture = dashboardFixture();
+    fixture.summary = { ...fixture.summary, assisted_orders: 0, orders_needing_review: 0, unmatched_order_items: 0 };
+    fixture.commerce = {
+      summary: { orders: 0, source_records: 0, assisted_orders: 0, orders_needing_review: 0, unmatched_items: 0, total_monetary: 0, currencies: 1 },
+      review_items: [], by_origin: [{ key: 'widget', count: 0 }], by_source_model: [], by_request_kind: [],
+      totals_by_currency: [{ key: 'ARS', count: 0, amount: 0 }],
+    };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    renderPanel();
+    const metrics = await screen.findByTestId('operations-cockpit-metrics');
+    expect(metrics).not.toHaveTextContent('Pedidos');
+    expect(screen.queryByTestId('operations-commerce')).not.toBeInTheDocument();
+    expect(screen.queryByText('Actividad adicional')).not.toBeInTheDocument();
+  });
+
+  it('reveals secondary anchors without dispatching new reads and retains provider recovery', async () => {
+    const fixture = dashboardFixture();
+    fixture.employees = { summary: { coverage_rate: 80 }, items: [{ label: 'Equipo publicado', count: 6 }] };
+    fixture.trends = { items: [{ label: 'Tendencia publicada', current: 12, previous: 10 }] };
+    fixture.chats = { by_channel: [{ label: 'Canal publicado', count: 9 }] };
+    mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
+    mocks.getOperationsAIProviderStatusV2.mockRejectedValueOnce(new Error('operations_ai_provider_status_timeout')).mockResolvedValue(aiProviderStatusFixture());
+    renderPanel();
+    const provider = await screen.findByTestId('operations-ai-provider-status');
+    const details = provider.closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    expect(provider).not.toBeVisible();
+    expect(screen.getByText('Equipo publicado')).not.toBeVisible();
+    expect(screen.getByText('Tendencia publicada')).not.toBeVisible();
+    expect(screen.getByText('Canal publicado')).not.toBeVisible();
+    const reads = Object.entries(mocks).filter(([name]) => name !== 'ensureReady').map(([name, read]) => [name, read.mock.calls.length] as const);
+    fireEvent.click(screen.getByRole('link', { name: 'Equipo' }));
+    expect(screen.getByText('Equipo publicado')).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: 'Encuestas y canales' }));
+    expect(screen.getByText('Canal publicado')).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: 'Integraciones IA' }));
+    expect(details).toHaveAttribute('open');
+    expect(provider).toBeVisible();
+    expect(provider).toHaveTextContent('Estado IA no disponible');
+    for (const [name, calls] of reads) expect(mocks[name as keyof typeof mocks]).toHaveBeenCalledTimes(calls);
+    fireEvent.click(within(provider).getByRole('button', { name: 'Actualizar integraciones IA' }));
+    await waitFor(() => expect(provider).toHaveTextContent('Gemini'));
+    expect(mocks.getOperationsAIProviderStatusV2).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('operations-heatmap')).toBeVisible();
+    expect(screen.getByTestId('operations-ai-queue')).toBeVisible();
+    fireEvent.click(details.querySelector('summary')!);
+    expect(details).not.toHaveAttribute('open');
+    expect(provider).not.toBeVisible();
+  });
+
+  it('restores a direct secondary anchor once and respects a later manual collapse', async () => {
+    const originalUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.replaceState(null, '', '#operations-ai-provider-status');
+    try {
+      renderPanel();
+      const provider = await screen.findByTestId('operations-ai-provider-status');
+      const details = provider.closest('details')!;
+      expect(details).toHaveAttribute('open');
+      expect(provider).toBeVisible();
+      fireEvent.click(details.querySelector('summary')!);
+      expect(details).not.toHaveAttribute('open');
+      fireEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+      await waitFor(() => expect(mocks.getOperationsDashboardV2).toHaveBeenCalledTimes(2));
+      expect(details).not.toHaveAttribute('open');
+      expect(provider).not.toBeVisible();
+    } finally {
+      window.history.replaceState(null, '', originalUrl);
+    }
+  });
+
   it('surfaces territorial quality, layers, filters and geocoding queue around the premium map', async () => {
     renderPanel();
 
@@ -944,6 +1051,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Cabina de mando')).toBeTruthy();
     expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets&tenant_slug=junin');
+    expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeVisible();
+    fireEvent.click(screen.getByText('Actividad adicional'));
     expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
     expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
@@ -1008,6 +1117,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   });
 
   it.each(['permission', 'profile', 'tenant'] as const)('does not offer the orders link without verified %s authority', async (missing) => {
+    panelAuthority.kind = 'pyme';
     if (missing === 'permission') panelAuthority.ordersRead = false;
     else if (missing === 'profile') panelAuthority.verified = false;
     else mocks.getOperationsDashboardV2.mockResolvedValue({ ...dashboardFixture(), tenant: undefined });

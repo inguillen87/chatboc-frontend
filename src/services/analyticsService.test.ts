@@ -64,6 +64,63 @@ describe('analyticsService.getSummary', () => {
     expect(result.kpis.active_users).toBe(7);
     expect(result.volume_by_day).toEqual([]);
   });
+
+  const optionalMetrics = [
+    'conversion_rate', 'backlog_open', 'sla_breaches', 'voice_interactions_pct',
+    'video_avatar_interactions_pct', 'no_typing_completion_rate', 'accessibility_usage_rate',
+  ] as const;
+
+  it.each(['hub', 'legacy'] as const)('preserves missing optional metrics from a partial %s summary', async (source) => {
+    const payload = {
+      totals: { total_interactions: 1376, unique_users: 89, avg_response_time_s: 3.7 },
+      top_categories: [{ category: 'Reclamos', count: 61 }],
+      volume_by_day: [{ date: '2026-10-09', count: 95 }],
+    };
+    if (source === 'legacy') apiFetchMock.mockResolvedValueOnce(payload);
+    const result = await analyticsService.getSummary(
+      { tenant_profile_id: 22, tenantSlug: 'junin', scope: 'municipio', context: 'overview' },
+      source === 'hub' ? { sections: { general: payload } } : null,
+    );
+
+    expect(result.kpis).toMatchObject({ total_interactions: 1376, active_users: 89, avg_response_time_s: 3.7 });
+    for (const key of optionalMetrics) expect(result.kpis[key]).toBeUndefined();
+    expect(result.volume_by_day).toEqual(payload.volume_by_day);
+    expect(apiFetchMock).toHaveBeenCalledTimes(source === 'hub' ? 0 : 1);
+  });
+
+  it.each(['kpis', 'totals'] as const)('retains explicit optional zero values from %s', async (source) => {
+    apiFetchMock.mockResolvedValueOnce({
+      [source]: {
+        total_interactions: 17,
+        ...Object.fromEntries(optionalMetrics.map((key) => [key, 0])),
+      },
+    });
+    const result = await analyticsService.getSummary({ scope: 'municipio' }, null);
+    for (const key of optionalMetrics) expect(result.kpis[key]).toBe(0);
+  });
+
+  it.each([null, '', '   ', 'unknown', 'Infinity', Number.NaN, Number.POSITIVE_INFINITY, false])('does not turn invalid optional values %j into measured zero', async (value) => {
+    apiFetchMock.mockResolvedValueOnce({
+      kpis: { total_interactions: 17, ...Object.fromEntries(optionalMetrics.map((key) => [key, value])) },
+    });
+    const result = await analyticsService.getSummary({ scope: 'municipio' }, null);
+    expect(result.kpis.total_interactions).toBe(17);
+    for (const key of optionalMetrics) expect(result.kpis[key]).toBeUndefined();
+  });
+
+  it('keeps real finite optional values and numeric transport strings without changing primary metric fallbacks', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      kpis: { conversion_rate: '22.5', backlog_open: 14, sla_breaches: '6' },
+      totals: { voice_interactions_pct: '36.8', video_avatar_interactions_pct: 11.2, no_typing_completion_rate: 18.9, accessibility_usage_rate: 9.3 },
+    });
+    const result = await analyticsService.getSummary({ scope: 'municipio' }, null);
+    expect(result.kpis).toEqual({
+      total_interactions: 0, active_users: 0, avg_response_time_s: 0,
+      conversion_rate: 22.5, backlog_open: 14, sla_breaches: 6,
+      voice_interactions_pct: 36.8, video_avatar_interactions_pct: 11.2,
+      no_typing_completion_rate: 18.9, accessibility_usage_rate: 9.3,
+    });
+  });
 });
 
 

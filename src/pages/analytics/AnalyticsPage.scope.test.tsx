@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AnalyticsPage, { ANALYTICS_RESPONSE_TIMEOUT_MS, ANALYTICS_TOTAL_TIMEOUT_MS } from './AnalyticsPage';
@@ -13,6 +13,9 @@ import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 const useUserMock = vi.hoisted(() => vi.fn<() => any>());
 const useTenantMock = vi.hoisted(() => vi.fn<() => any>());
 const readiness = vi.hoisted(() => vi.fn<() => Promise<void>>());
+
+// Exercise navigation rather than the shared no-op useNavigate test stub.
+vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 
 vi.mock('@/utils/backendBootstrapGate', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/utils/backendBootstrapGate')>(),
@@ -58,7 +61,7 @@ vi.mock('@/services/analyticsService', () => ({
   },
 }));
 
-vi.mock('@/components/analytics/OverviewDashboard', () => ({ default: ({ data }: any) => <div>overview<span data-testid="overview-count">{data.kpis.total_interactions}</span></div> }));
+vi.mock('@/components/analytics/OverviewDashboard', () => ({ default: ({ data, showSla, showConversion }: any) => <div>overview<span data-testid="overview-count">{data.kpis.total_interactions}</span><span data-testid="overview-kind">{showSla ? 'service' : showConversion ? 'commercial' : 'general'}</span></div> }));
 vi.mock('@/components/analytics/IdentityCoverageBanner', () => ({ default: () => <div>identity</div> }));
 vi.mock('@/components/analytics/HeatmapDashboard', () => ({ default: () => <div>heatmap</div> }));
 vi.mock('@/components/analytics/InsightsDashboard', () => ({ default: ({ recommendations, recommendationsLoading }: any) => <div>insights{!recommendationsLoading ? recommendations?.map((text: string) => <p key={text}>{text}</p>) : null}</div> }));
@@ -83,6 +86,57 @@ describe('AnalyticsPage scope routing', () => {
   });
 
   afterEach(() => { cleanup(); vi.useRealTimers(); });
+
+  it('excludes sales from a verified municipal profile even when the hub exposes both kinds', async () => {
+    vi.mocked(analyticsService.getHub).mockResolvedValueOnce({ sections: { general: {}, municipio: {}, ventas: {} } } as any);
+    render(<MemoryRouter initialEntries={['/analytics?tenant_profile_id=22&focus=ventas']}><AnalyticsPage /></MemoryRouter>);
+    expect(await screen.findByTestId('overview-kind')).toHaveTextContent('service');
+    expect(screen.queryByRole('tab', { name: 'Ventas' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Municipio' })).toBeInTheDocument();
+    expect(analyticsService.getHub).not.toHaveBeenCalledWith(expect.objectContaining({ context: 'pyme' }), expect.anything());
+  });
+
+  it('keeps the no-section fallback specific to a verified commercial organization', async () => {
+    useUserMock.mockReturnValue({ user: { id: 99, rol: 'admin', tipo_chat: 'pyme', tenant_slug: 'bodega', organization_profile: { tenant: { id: 333, slug: 'bodega' } } } });
+    render(<MemoryRouter initialEntries={['/analytics?tenant_profile_id=333&focus=municipio']}><AnalyticsPage /></MemoryRouter>);
+    expect(await screen.findByTestId('overview-kind')).toHaveTextContent('commercial');
+    expect(screen.getByRole('tab', { name: 'Ventas' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Municipio' })).not.toBeInTheDocument();
+    expect(analyticsService.getHub).not.toHaveBeenCalledWith(expect.objectContaining({ context: 'municipio' }), expect.anything());
+  });
+
+  it('resets incompatible active context after a same-tenant verified organization type refresh', async () => {
+    const initialUser = useUserMock().user;
+    const view = render(<MemoryRouter initialEntries={['/analytics?focus=municipio']}><AnalyticsPage /></MemoryRouter>);
+    await waitFor(() => expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ context: 'municipio', scope: 'municipio' }), expect.anything()));
+    vi.mocked(analyticsService.getHub).mockClear();
+    vi.mocked(analyticsService.getSummary).mockClear();
+    useUserMock.mockReturnValue({ user: { ...initialUser, tipo_chat: 'pyme' } });
+    view.rerender(<MemoryRouter initialEntries={['/analytics?focus=municipio']}><AnalyticsPage /></MemoryRouter>);
+    await waitFor(() => expect(analyticsService.getHub).toHaveBeenCalledWith(expect.objectContaining({ context: 'overview', scope: 'pyme' }), expect.anything()));
+    expect(analyticsService.getHub).not.toHaveBeenCalledWith(expect.objectContaining({ context: 'municipio' }), expect.anything());
+    expect(analyticsService.getSummary).not.toHaveBeenCalledWith(expect.objectContaining({ context: 'municipio' }), expect.anything());
+    expect(screen.queryByRole('tab', { name: 'Municipio' })).not.toBeInTheDocument();
+  });
+
+  it('updates canonical focus after deliberate tab navigation without losing summary filters or tenant scope', async () => {
+    const LocationProbe = () => <output data-testid="location">{useLocation().search}</output>;
+    render(<MemoryRouter initialEntries={['/perfil?tab=analytics&tenant_slug=junin&focus=overview&view=overview&section=overview&range=30d&categoria=luminarias']}><AnalyticsPage /><LocationProbe /></MemoryRouter>);
+    await screen.findByTestId('overview-count');
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Operaciones' }), { button: 0, ctrlKey: false });
+    expect(await screen.findByText('operations')).toBeInTheDocument();
+    const params = new URLSearchParams(screen.getByTestId('location').textContent || '');
+    expect(params.get('focus')).toBe('operations');
+    expect(params.has('view')).toBe(false);
+    expect(params.has('section')).toBe(false);
+    expect(params.get('tenant_slug')).toBe('junin');
+    expect(params.get('range')).toBe('30d');
+    expect(params.get('categoria')).toBe('luminarias');
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'General' }), { button: 0, ctrlKey: false });
+    expect(await screen.findByTestId('overview-count')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
+    expect(analyticsService.getSummary).toHaveBeenLastCalledWith(expect.objectContaining({ tenant_profile_id: 22, tenantSlug: 'junin', scope: 'municipio', categoria: 'luminarias' }), expect.anything());
+  });
 
   it('keeps Mauricio profile 22 in the explicit namespace and skips platform leads', async () => {
     render(<MemoryRouter initialEntries={['/perfil?tab=analytics']}><AnalyticsPage /></MemoryRouter>);

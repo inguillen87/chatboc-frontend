@@ -8,6 +8,7 @@ import {
   Bell,
   Brain,
   CheckCircle2,
+  ChevronDown,
   DatabaseZap,
   ExternalLink,
   Gauge,
@@ -30,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSocket } from '@/context/SocketContext';
 import { usePrivateAnalyticsScope } from './usePrivateAnalyticsScope';
+import type { PrivateAnalyticsScope } from './privateAnalyticsScope';
 import { useCapabilities } from '@/context/CapabilitiesContext';
 import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
@@ -657,13 +659,47 @@ interface OperationsDashboardPanelProps {
   className?: string;
 }
 
+function OperationsDisclosure({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
+  return (
+    <details id={id} className="operations-secondary-details rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold text-foreground">
+        <span>{label}</span>
+        <ChevronDown className="operations-secondary-chevron h-4 w-4 shrink-0" aria-hidden="true" />
+      </summary>
+      <div className="mt-4 space-y-4">{children}</div>
+    </details>
+  );
+}
+
+const revealOperationsTarget = (id: string) => {
+  if (!id.startsWith('operations-')) return;
+  let disclosure = document.getElementById(id)?.closest('details');
+  while (disclosure) {
+    disclosure.open = true;
+    disclosure = disclosure.parentElement?.closest('details') ?? null;
+  }
+};
+
+const hasCommerceActivity = (data: OperationsDashboardV1) => {
+  const commerce = data.commerce;
+  const summary = commerce?.summary ?? {};
+  return [
+    summary.orders, summary.source_records, summary.assisted_orders, summary.orders_needing_review,
+    summary.unmatched_items, summary.total_monetary,
+    data.summary.assisted_orders, data.summary.orders_needing_review, data.summary.unmatched_order_items,
+  ].some((value) => (asNumber(value) ?? 0) > 0)
+    || Boolean(commerce?.review_items?.length)
+    || [commerce?.by_origin, commerce?.by_source_model, commerce?.by_request_kind, commerce?.totals_by_currency]
+      .some((items) => items?.some((item) => (itemValue(item) ?? 0) > 0 || (asNumber(item.amount) ?? 0) > 0));
+};
+
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { scope, pending, sessionRevision, key } = usePrivateAnalyticsScope();
   if (pending) return <ViewState status="loading" title="Validando acceso" className={className} />;
   if (!scope) return <ViewState status="empty" title="Seleccioná una organización" description="El centro de decisiones necesita un perfil y una organización verificados." className={className} />;
-  return <ScopedOperationsDashboard key={key} tenantSlug={scope.tenantSlug} sessionScopeKey={scope.scopeKey} sessionRevision={sessionRevision} className={className} />;
+  return <ScopedOperationsDashboard key={key} tenantSlug={scope.tenantSlug} organizationKind={scope.kind} sessionScopeKey={scope.scopeKey} sessionRevision={sessionRevision} className={className} />;
 }
-function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevision, className }: OperationsDashboardPanelProps & { tenantSlug: string; sessionScopeKey: string; sessionRevision: number }) {
+function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeKey, sessionRevision, className }: OperationsDashboardPanelProps & { tenantSlug: string; organizationKind: PrivateAnalyticsScope['kind']; sessionScopeKey: string; sessionRevision: number }) {
   const { socket, isConnected: socketConnected } = useSocket();
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
   const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
@@ -812,6 +848,12 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
     ? operationsDashboardErrorMessage(dashboardQuery.error)
     : undefined;
   const data = dashboardData ?? OPERATIONS_DASHBOARD_FALLBACK;
+  useEffect(() => {
+    const revealHashTarget = () => revealOperationsTarget(window.location.hash.slice(1));
+    revealHashTarget();
+    window.addEventListener('hashchange', revealHashTarget);
+    return () => window.removeEventListener('hashchange', revealHashTarget);
+  }, [dashboardQuery.isLoading]);
   const actionCenter = actionCenterQuery.data;
   const aiBrief = aiBriefQuery.data ?? (data?.ai_brief as OperationsAIBriefV1 | undefined);
   const aiOpsQueue = aiOpsQueueQuery.data;
@@ -896,7 +938,10 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
   }
 
   return (
-    <section className={cn('operations-live-workspace space-y-5', className)}>
+    <section className={cn('operations-live-workspace space-y-5', className)} onClickCapture={(event) => {
+      const anchor = (event.target as Element).closest('a[href^="#operations-"]');
+      if (anchor) revealOperationsTarget(anchor.getAttribute('href')!.slice(1));
+    }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -929,7 +974,6 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
       </div>
 
       <OperationsWorkspaceStatus tenantSlug={tenantSlug} sources={readSources} paused={liveRefresh.paused} mapFilterCount={mapFilterCount} labels={data.frontend_contract?.labels} />
-      {freshness ? <FreshnessBanner freshness={freshness} /> : null}
       {aiBrief ? <AIBriefBanner brief={aiBrief} /> : null}
       {dashboardFallbackActive ? (
         <div
@@ -955,6 +999,7 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
       <div id="operations-overview">
       <OperationsCommandCockpit
         tenantSlug={tenantSlug}
+        organizationKind={organizationKind}
         data={data}
         heatmap={heatmapQuery.data}
         freshness={freshness}
@@ -965,26 +1010,6 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
       />
 
       <QueueTruthPanel data={data} />
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        {focusCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div key={card.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', focusCardToneClass[card.tone])}>
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Prioridad</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">{card.title}</p>
-                  <p className="mt-1 text-sm leading-5 text-muted-foreground">{card.description}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {canRenderDashboard === false ? (
@@ -998,14 +1023,8 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
 
       {alerts.length ? <AlertsStrip alerts={alerts} /> : null}
 
-      <KpiGrid data={data} heatmap={heatmapQuery.data} alertsCount={alerts.length} />
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+      <div data-testid="operations-primary-workspace" className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <div className="space-y-5">
-          <TrendsPanel data={data} />
-          <div id="operations-tickets"><TicketBreakdowns data={data} /></div>
-          <div id="operations-engagement"><EngagementPanel data={data} tenantSlug={tenantSlug} /></div>
-          <div id="operations-team"><EmployeePanel data={data} /></div>
           <OperationsHeatmapPanel
             tenantSlug={tenantSlug}
             heatmap={heatmapQuery.data}
@@ -1020,19 +1039,6 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
           />
         </div>
         <div className="space-y-5">
-          <AIOpsQueuePanel
-            queue={aiOpsQueue}
-            loading={aiOpsQueueQuery.isLoading}
-            error={aiOpsQueueQuery.error}
-            refetch={() => void refetchAIOpsQueue()}
-          />
-          <CommerceOpsPanel data={data} />
-          <AIProviderStatusPanel
-            status={aiProviderStatus}
-            loading={aiProviderStatusQuery.isLoading}
-            error={aiProviderStatusQuery.error}
-            refetch={() => void refetchAIProviderStatus()}
-          />
           <div id="operations-actions">
           <ActionCenterPanel
             items={actions}
@@ -1042,9 +1048,53 @@ function ScopedOperationsDashboard({ tenantSlug, sessionScopeKey, sessionRevisio
             refetch={() => void refetchActionCenter()}
           />
           </div>
+          <AIOpsQueuePanel
+            queue={aiOpsQueue}
+            loading={aiOpsQueueQuery.isLoading}
+            error={aiOpsQueueQuery.error}
+            refetch={() => void refetchAIOpsQueue()}
+          />
+          {organizationKind === 'pyme' ? <CommerceOpsPanel data={data} /> : null}
           <HotspotsPanel data={data} heatmap={heatmapQuery.data} mapFiltered={mapFilterCount > 0} />
         </div>
       </div>
+
+      <EngagementPanel data={data} tenantSlug={tenantSlug} />
+      <KpiGrid data={data} heatmap={heatmapQuery.data} alertsCount={alerts.length} />
+      <OperationsDisclosure label={resolveLabel(data, 'activity_details', 'Desgloses y equipo')}>
+        <TrendsPanel data={data} />
+        <div id="operations-tickets"><TicketBreakdowns data={data} /></div>
+        <div id="operations-team"><EmployeePanel data={data} /></div>
+      </OperationsDisclosure>
+      <OperationsDisclosure label={resolveLabel(data, 'ai_provider_details', 'Configuración e integraciones IA')}>
+          <AIProviderStatusPanel
+            status={aiProviderStatus}
+            loading={aiProviderStatusQuery.isLoading}
+            error={aiProviderStatusQuery.error}
+            refetch={() => void refetchAIProviderStatus()}
+          />
+      </OperationsDisclosure>
+      <OperationsDisclosure label={resolveLabel(data, 'priority_details', 'Estado y prioridades')}>
+        {freshness ? <FreshnessBanner freshness={freshness} /> : null}
+        <div className="grid gap-3 lg:grid-cols-3">
+          {focusCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', focusCardToneClass[card.tone])}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{card.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">{card.description}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </OperationsDisclosure>
     </section>
   );
 }
@@ -1243,6 +1293,7 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
 
 function OperationsCommandCockpit({
   tenantSlug,
+  organizationKind,
   data,
   heatmap,
   freshness,
@@ -1252,6 +1303,7 @@ function OperationsCommandCockpit({
   alertsCount,
 }: {
   tenantSlug: string;
+  organizationKind: PrivateAnalyticsScope['kind'];
   data: OperationsDashboardV1;
   heatmap?: OperationsHeatmapV1;
   freshness?: OperationsFreshnessV1;
@@ -1328,7 +1380,7 @@ function OperationsCommandCockpit({
     {
       key: 'tickets',
       eyebrow: 'Resolucion',
-      title: 'Reclamos abiertos',
+      title: resolveLabel(data, 'open_tickets', 'Reclamos abiertos'),
       value: formatNumber(openTickets),
       detail: ticketDetail,
       icon: Ticket,
@@ -1339,11 +1391,11 @@ function OperationsCommandCockpit({
     {
       key: 'commerce',
       eyebrow: 'Marketplace',
-      title: 'Pedidos asistidos',
+      title: resolveLabel(data, 'assisted_orders', 'Pedidos asistidos'),
       value: formatNumber(assistedOrders),
       detail: ordersNeedingReview
         ? `${formatNumber(ordersNeedingReview)} a revisar · ${formatNumber(unmatchedItems)} items sin resolver`
-        : 'Notas, fotos y PDFs listos para operar',
+        : resolveLabel(data, 'orders_review_empty', 'Sin pedidos publicados para revisar'),
       icon: ShoppingCart,
       tone: ordersNeedingReview ? 'warning' : 'success',
       href: ordersHref,
@@ -1387,6 +1439,7 @@ function OperationsCommandCockpit({
       action: 'Ver encuestas',
     },
   ] as const;
+  const primaryCards = cards.filter((card) => card.key !== 'commerce' || organizationKind === 'pyme');
 
   return (
     <div
@@ -1395,8 +1448,8 @@ function OperationsCommandCockpit({
     >
       <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cabina de mando</p>
-          <h3 className="mt-1 text-xl font-semibold tracking-tight">Vista ejecutiva para operar ahora</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{resolveLabel(data, 'cockpit_title', 'Cabina de mando')}</p>
+          <h3 className="mt-1 text-xl font-semibold tracking-tight">{resolveLabel(data, 'cockpit_headline', 'Vista ejecutiva para operar ahora')}</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Reclamos, mapa, IA y participación unidos en una sola lectura. Cada bloque abre el módulo donde se resuelve.
           </p>
@@ -1407,8 +1460,8 @@ function OperationsCommandCockpit({
           {alertsCount ? <Badge variant="destructive">{formatNumber(alertsCount)} alertas</Badge> : null}
         </div>
       </div>
-      <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
-        {cards.map((card) => {
+      <div data-testid="operations-cockpit-metrics" className={cn('grid gap-0 md:grid-cols-2', organizationKind === 'pyme' ? 'xl:grid-cols-5' : 'xl:grid-cols-4')}>
+        {primaryCards.map((card) => {
           const Icon = card.icon;
           const toneClass =
             card.tone === 'warning'
@@ -1444,6 +1497,18 @@ function OperationsCommandCockpit({
           );
         })}
       </div>
+      {organizationKind !== 'pyme' && hasCommerceActivity(data) ? (
+        <div className="border-t border-border/60 p-3">
+          <OperationsDisclosure label={resolveLabel(data, 'commerce_secondary_title', 'Actividad adicional')}>
+            {ordersHref ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to={ordersHref}>{resolveLabel(data, 'open_assisted_orders', 'Abrir pedidos asistidos')}</Link>
+              </Button>
+            ) : null}
+            <CommerceOpsPanel data={data} />
+          </OperationsDisclosure>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1673,7 +1738,7 @@ function AIProviderStatusPanel({
               Estado seguro de proveedores para analytics, mapas, reclamos y automatizacion.
             </CardDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} className="h-8 shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} aria-label={status?.frontend_contract?.labels?.refresh_ai_providers || 'Actualizar integraciones IA'} className="h-8 shrink-0">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
@@ -1828,10 +1893,10 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShoppingCart className="h-4 w-4 text-primary" />
-              Pedidos y ventas
+              {resolveLabel(data, 'commerce', 'Pedidos y ventas')}
             </CardTitle>
             <CardDescription>
-              Pipeline unificado de WhatsApp, widget, marketplace e integraciones, con cola asistida y deduplicacion.
+              {resolveLabel(data, 'commerce_description', 'Actividad publicada de pedidos, importes y pendientes de revisión.')}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -2164,12 +2229,15 @@ function AIBriefBanner({ brief }: { brief: OperationsAIBriefV1 }) {
               </div>
             ))}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
+          {primaryProvider || providerOrder || hfMode || hfConfigured ? <details className="operations-secondary-details mt-4 text-xs text-slate-300">
+            <summary className="cursor-pointer font-semibold">{brief.frontend_contract?.labels?.ai_technical_details || 'Detalles de la lectura IA'}</summary>
+          <div className="mt-2 flex flex-wrap gap-2">
             {primaryProvider ? <span className="rounded-full border border-white/10 px-2 py-1">IA {primaryProvider}</span> : null}
             {providerOrder ? <span className="rounded-full border border-white/10 px-2 py-1">{providerOrder}</span> : null}
             {hfMode ? <span className="rounded-full border border-white/10 px-2 py-1">HF {hfMode}</span> : null}
             {hfConfigured ? <span className="rounded-full border border-emerald-400/30 px-2 py-1 text-emerald-200">HF activo</span> : null}
           </div>
+          </details> : null}
         </div>
       </div>
     </div>
@@ -2376,7 +2444,7 @@ function TrendsPanel({ data }: { data: OperationsDashboardV1 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Tendencias</CardTitle>
+        <CardTitle className="text-lg">{resolveLabel(data, 'trends', 'Tendencias')}</CardTitle>
         <CardDescription>Comparacion contra el periodo anterior.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -2599,13 +2667,16 @@ function EngagementPanel({ data, tenantSlug }: { data: OperationsDashboardV1; te
   const liveChatItems = data.live_chat?.items ?? [];
   const surveyRows = [...liveItems, ...surveyItems].slice(0, 8);
   const channelRows = [...channelItems, ...liveChatItems].slice(0, 8);
+  const hasDetails = Boolean(surveyRows.length || channelRows.length || data.live_chat?.active_viewers !== undefined);
   const hasSignal = surveyItems.length || liveItems.length || channelItems.length || liveChatItems.length || data.live_chat?.active_viewers !== undefined || Boolean(data.surveys?.live_control_room?.enabled);
 
-  if (!hasSignal) return null;
+  if (!hasSignal) return <div id="operations-engagement" />;
 
   return (
-    <div className="space-y-4">
+    <div id={hasDetails ? undefined : 'operations-engagement'} className="space-y-4">
       <SurveyLiveControlRoom data={data} tenantSlug={tenantSlug} />
+      {hasDetails ? (
+      <OperationsDisclosure id="operations-engagement" label={resolveLabel(data, 'engagement_details', 'Detalle de participación y canales')}>
       <div className="grid gap-4 lg:grid-cols-2">
         {surveyRows.length ? (
           <BreakdownCard title={resolveLabel(data, 'surveys', 'Encuestas y votaciones')} items={surveyRows} />
@@ -2632,6 +2703,8 @@ function EngagementPanel({ data, tenantSlug }: { data: OperationsDashboardV1; te
           </Card>
         ) : null}
       </div>
+      </OperationsDisclosure>
+      ) : null}
     </div>
   );
 }
@@ -3477,6 +3550,7 @@ function OperationsHeatmapPanel({
         </div>
 
         {hasAiCockpit ? (
+          <OperationsDisclosure label={uiLabels.ai_technical_details || 'Detalles de la lectura territorial IA'}>
           <div
             data-testid="territorial-ai-cockpit"
             className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,rgba(37,99,235,0.09),hsl(var(--background)),rgba(20,184,166,0.08))] shadow-sm"
@@ -3551,6 +3625,7 @@ function OperationsHeatmapPanel({
               </div>
             ) : null}
           </div>
+          </OperationsDisclosure>
         ) : null}
 
         <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">

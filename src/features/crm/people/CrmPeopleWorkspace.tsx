@@ -63,6 +63,8 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/hooks/useUser";
+import { readVerifiedOrganizationIdentity } from "@/utils/verifiedOrganizationIdentity";
 
 import type {
   CrmPeopleQueueView,
@@ -473,6 +475,15 @@ export default function CrmPeopleWorkspace({
   campaignsPanel,
   activityPanel,
 }: CrmPeopleWorkspaceProps) {
+  const { user, hasVerifiedSession, organizationProfileVerified, loading } = useUser();
+  const organizationIdentity = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession,
+    profileVerified: organizationProfileVerified,
+    loading,
+  });
+  const organizationLabel = organizationIdentity && organizationIdentity.tenantSlug === tenantSlug
+    ? organizationIdentity.organizationTypeLabel
+    : null;
   const [contextOpen, setContextOpen] = React.useState(false);
   const [mobileContextOpen, setMobileContextOpen] = React.useState(false);
   const [detailFocusMode, setDetailFocusMode] = React.useState(false);
@@ -714,6 +725,123 @@ export default function CrmPeopleWorkspace({
         ? campaignsPanel
         : activityPanel;
 
+  const activeFilters = [
+    queueView !== "all" ? `Vista: ${queueViewItems.find((item) => item.value === queueView)?.label}` : null,
+    marketingOnly ? "Con opt-in" : null,
+    channelFilter !== "all" ? `Canal: ${channelLabel(channelFilter)}` : null,
+  ].filter((label): label is string => Boolean(label));
+  const consentAndChannelControls = (
+    <>
+      <label className={cn("flex items-center gap-2 rounded-lg border border-border/70", embedded ? "min-h-9 px-3 text-sm" : "h-9 px-3 text-sm")}>
+        <Checkbox checked={marketingOnly} onCheckedChange={(value) => onMarketingOnlyChange(Boolean(value))} />
+        Con opt-in
+      </label>
+      <Select
+        value={channelFilter}
+        onValueChange={(value) => onChannelFilterChange?.(value as CrmPeopleChannelFilter)}
+        disabled={!onChannelFilterChange}
+      >
+        <SelectTrigger className={cn("h-9 bg-background", embedded ? "w-full" : "w-[160px]")} aria-label="Filtrar personas por canal">
+          <SelectValue placeholder="Todos los canales" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los canales</SelectItem>
+          <SelectItem value="whatsapp">WhatsApp</SelectItem>
+          <SelectItem value="email">Email</SelectItem>
+          <SelectItem value="web">Web</SelectItem>
+          <SelectItem value="widget">Widget</SelectItem>
+          <SelectItem value="voice">Voz</SelectItem>
+          <SelectItem value="unknown">Sin canal</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  );
+  const contextControl = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="hidden gap-2 xl:inline-flex"
+      onClick={() => setContextOpen((current) => !current)}
+      aria-label={contextOpen ? "Ocultar panel contextual" : "Mostrar panel contextual"}
+    >
+      {contextOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+      Contexto
+    </Button>
+  );
+  const directoryViewControls = (
+    <div
+      className={cn(
+        "flex flex-col",
+        embedded
+          ? "gap-3"
+          : "gap-2 border-b border-border/70 bg-muted/15 px-3 py-2 lg:flex-row lg:items-center lg:justify-between",
+      )}
+      data-testid="crm-queue-controls"
+    >
+      {embedded ? (
+        <label className="grid gap-1.5 text-sm font-medium">
+          Vista operativa
+          <select
+            value={queueView}
+            onChange={(event) => onQueueViewChange(event.target.value as CrmPeopleQueueView)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Vista operativa de personas"
+          >
+            {queueViewItems.map((item) => (
+              <option key={item.value} value={item.value}>{item.label} ({queueViewCounts[item.value]})</option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label={hasMore ? `Vistas operativas sobre ${people.length} personas cargadas` : "Vistas operativas de personas"}>
+          <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Vista</span>
+          {queueViewItems.map((item) => (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={queueView === item.value ? "secondary" : "ghost"}
+              className={cn("h-8 shrink-0 gap-1.5 px-2.5 text-xs", queueView === item.value && "bg-background text-foreground shadow-sm")}
+              aria-pressed={queueView === item.value}
+              onClick={() => onQueueViewChange(item.value)}
+            >
+              {item.label}
+              <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px]">{queueViewCounts[item.value]}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+      {hasMore ? <Badge variant="outline" className="shrink-0">Vistas sobre {people.length} cargadas</Badge> : null}
+      <div className={cn("gap-2", embedded ? "grid" : "flex flex-wrap items-center")}>
+        <label className={cn("flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs", embedded ? "min-h-9" : "h-8")}>
+          <Checkbox
+            checked={allVisibleSelected ? true : selectedVisibleCount > 0 ? "indeterminate" : false}
+            onCheckedChange={(checked) => onSetSelected(visibleIds, Boolean(checked))}
+            aria-label="Seleccionar personas visibles"
+            disabled={visibleIds.length === 0}
+          />
+          Seleccionar vista
+        </label>
+        <Select value={effectivePeopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)} disabled={hasMore}>
+          <SelectTrigger
+            className={cn("bg-background text-xs", embedded ? "h-9 w-full" : "h-8 w-[178px]")}
+            aria-label={hasMore ? `Orden backend por actividad reciente sobre ${people.length} personas cargadas` : "Ordenar personas"}
+            title={hasMore ? "Nombre y calidad se habilitan al completar la carga del directorio." : undefined}
+          >
+            <SelectValue placeholder="Ordenar" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">Actividad reciente</SelectItem>
+            <SelectItem value="name">Nombre A–Z</SelectItem>
+            <SelectItem value="score-desc">Mayor calidad de datos</SelectItem>
+            <SelectItem value="score-asc">Menor calidad de datos</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
   return (
     <div
       className={cn(
@@ -737,7 +865,9 @@ export default function CrmPeopleWorkspace({
         >
           <div className={cn("min-w-0", embedded && "shrink-0")}>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">CRM municipal</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary" data-testid="crm-organization-label">
+                CRM{organizationLabel ? ` · ${organizationLabel}` : ""}
+              </p>
               <Badge
                 variant={isConnected ? "default" : "outline"}
                 className={cn("gap-1.5", embedded && "px-1.5 sm:px-2.5")}
@@ -865,7 +995,7 @@ export default function CrmPeopleWorkspace({
             )}
             data-testid="crm-people-search-toolbar"
           >
-            <div className={cn("flex w-full min-w-0 flex-col sm:flex-row lg:max-w-2xl", embedded ? "gap-1 sm:gap-2" : "gap-2")}>
+            <div className={cn("flex w-full min-w-0 flex-col sm:flex-row", embedded ? "gap-1 sm:gap-2 lg:flex-1" : "gap-2 lg:max-w-2xl")}>
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -892,28 +1022,25 @@ export default function CrmPeopleWorkspace({
               </select>
             </div>
             <div className={cn("flex flex-wrap items-center", embedded ? "gap-1 sm:gap-2" : "gap-2")}>
-              <label className={cn("flex items-center gap-2 rounded-lg border border-border/70", embedded ? "h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm" : "h-9 px-3 text-sm")}>
-                <Checkbox checked={marketingOnly} onCheckedChange={(value) => onMarketingOnlyChange(Boolean(value))} />
-                Con opt-in
-              </label>
-              <Select
-                value={channelFilter}
-                onValueChange={(value) => onChannelFilterChange?.(value as CrmPeopleChannelFilter)}
-                disabled={!onChannelFilterChange}
-              >
-                <SelectTrigger className={cn("bg-background", embedded ? "h-8 w-[132px] text-xs sm:h-9" : "h-9 w-[160px]")} aria-label="Filtrar personas por canal">
-                  <SelectValue placeholder="Todos los canales" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los canales</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="web">Web</SelectItem>
-                  <SelectItem value="widget">Widget</SelectItem>
-                  <SelectItem value="voice">Voz</SelectItem>
-                  <SelectItem value="unknown">Sin canal</SelectItem>
-                </SelectContent>
-              </Select>
+              {!embedded ? consentAndChannelControls : (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="h-9 gap-2" aria-label={`Filtros y vistas de personas${activeFilters.length ? `, ${activeFilters.length} activos` : ""}`}>
+                      <Filter className="h-4 w-4" />
+                      Filtros y vistas
+                      {activeFilters.length ? <span className="rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">{activeFilters.length}</span> : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="max-h-[min(32rem,70dvh)] w-[min(22rem,calc(100vw-1rem))] overflow-y-auto p-3" aria-label="Filtros y vistas del directorio">
+                    <div className="grid gap-3">
+                      <p className="text-sm font-semibold">Filtros y vistas</p>
+                      {consentAndChannelControls}
+                      {directoryViewControls}
+                      {contextControl}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
               <Badge variant="outline">
                 {visiblePeople.length === people.length
                   ? !hasMore && peopleTotal === people.length
@@ -937,89 +1064,16 @@ export default function CrmPeopleWorkspace({
                   {isLoadingMore ? "Cargando" : "Cargar más"}
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="hidden gap-2 xl:inline-flex"
-                onClick={() => setContextOpen((current) => !current)}
-                aria-label={contextOpen ? "Ocultar panel contextual" : "Mostrar panel contextual"}
-              >
-                {contextOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                Contexto
-              </Button>
+              {!embedded ? contextControl : null}
             </div>
           </div>
 
-          <div
-            className={cn(
-              "flex flex-col border-b border-border/70 bg-muted/15 lg:flex-row lg:items-center lg:justify-between",
-              embedded ? "gap-1 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2" : "gap-2 px-3 py-2",
-            )}
-            data-testid="crm-queue-controls"
-          >
-            {embedded ? (
-              <select
-                value={queueView}
-                onChange={(event) => onQueueViewChange(event.target.value as CrmPeopleQueueView)}
-                className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs sm:hidden"
-                aria-label="Vista operativa de personas"
-              >
-                {queueViewItems.map((item) => (
-                  <option key={item.value} value={item.value}>{item.label} ({queueViewCounts[item.value]})</option>
-                ))}
-              </select>
-            ) : null}
-            <div className={cn("min-w-0 items-center gap-1 overflow-x-auto", embedded ? "hidden sm:flex" : "flex")} role="group" aria-label={hasMore ? `Vistas operativas sobre ${people.length} personas cargadas` : "Vistas operativas de personas"}>
-              <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Vista</span>
-              {queueViewItems.map((item) => (
-                <Button
-                  key={item.value}
-                  type="button"
-                  size="sm"
-                  variant={queueView === item.value ? "secondary" : "ghost"}
-                  className={cn(
-                    "h-8 shrink-0 gap-1.5 px-2.5 text-xs",
-                    queueView === item.value && "bg-background text-foreground shadow-sm",
-                  )}
-                  aria-pressed={queueView === item.value}
-                  onClick={() => onQueueViewChange(item.value)}
-                >
-                  {item.label}
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-                    {queueViewCounts[item.value]}
-                  </span>
-                </Button>
-              ))}
+          {embedded && activeFilters.length ? (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 bg-muted/15 px-2 py-1.5 sm:px-3" role="status" aria-label="Filtros activos de personas">
+              {activeFilters.map((label) => <Badge key={label} variant="secondary" className="text-xs">{label}</Badge>)}
             </div>
-            {hasMore ? <Badge variant="outline" className="shrink-0">Vistas sobre {people.length} cargadas</Badge> : null}
-            <div className={cn("items-center gap-2", embedded ? "grid grid-cols-2 sm:flex" : "flex flex-wrap")}>
-              <label className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 text-xs">
-                <Checkbox
-                  checked={allVisibleSelected ? true : selectedVisibleCount > 0 ? "indeterminate" : false}
-                  onCheckedChange={(checked) => onSetSelected(visibleIds, Boolean(checked))}
-                  aria-label="Seleccionar personas visibles"
-                  disabled={visibleIds.length === 0}
-                />
-                Seleccionar vista
-              </label>
-              <Select value={effectivePeopleSort} onValueChange={(value) => onPeopleSortChange(value as CrmPeopleSort)} disabled={hasMore}>
-                <SelectTrigger
-                  className={cn("h-8 bg-background text-xs", embedded ? "w-full sm:w-[178px]" : "w-[178px]")}
-                  aria-label={hasMore ? `Orden backend por actividad reciente sobre ${people.length} personas cargadas` : "Ordenar personas"}
-                  title={hasMore ? "Nombre y calidad se habilitan al completar la carga del directorio." : undefined}
-                >
-                  <SelectValue placeholder="Ordenar" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recent">Actividad reciente</SelectItem>
-                  <SelectItem value="name">Nombre A–Z</SelectItem>
-                  <SelectItem value="score-desc">Mayor calidad de datos</SelectItem>
-                  <SelectItem value="score-asc">Menor calidad de datos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          ) : null}
+          {!embedded ? directoryViewControls : null}
 
           {selectedIds.size > 0 ? (
             <div className="flex flex-col gap-2 border-b border-primary/20 bg-primary/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between" role="region" aria-label="Acciones sobre personas seleccionadas">
