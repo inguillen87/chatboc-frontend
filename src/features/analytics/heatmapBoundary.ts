@@ -48,7 +48,7 @@ export function mergeHeatmapHubPayload(hubValue: unknown, geoValue: unknown, exp
   if (expected.tenant_profile_id !== undefined) {
     return { ...geo, ...(hub.tenant_slug !== undefined ? { tenant_slug: hub.tenant_slug } : {}),
       ...(hub.tenant_profile_id !== undefined ? { tenant_profile_id: hub.tenant_profile_id } : {}),
-      ...(hub.tenant_id !== undefined ? { tenant_owner_id: hub.tenant_id } : {}),
+      ...(hub.contract_version === '2026-analytics-hub-v2' && hub.tenant_id !== undefined ? { tenant_owner_id: hub.tenant_id } : {}),
       ...(isHeatmapRedacted(hub) ? { raw_points_redacted: true } : {}) };
   }
   return { ...geo, ...(hub.tenant_slug !== undefined ? { tenant_slug: hub.tenant_slug } : {}),

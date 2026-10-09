@@ -20,6 +20,12 @@ describe('profile and owner identities in map payloads', () => {
     expect(() => assertHeatmapScope(merged, { tenant_id: 4, tenantSlug: 'junin' })).not.toThrow();
   });
 
+  it('does not relabel a v2 profile identifier as an owner', () => {
+    const merged = mergeHeatmapHubPayload({ contract_version: 'operations.heatmap.v1', tenant_id: 22 }, { tenant_profile_id: 22, points: [] }, expected);
+    expect(merged.tenant_profile_id).toBe(22);
+    expect(merged.tenant_owner_id).toBeUndefined();
+  });
+
   it.each([{ tenant: { id: 46 } }, { tenant_profile_id: 46 }, { tenant_id: 46 }, { tenant_slug: 'foreign' }])('rejects explicit foreign geographic identity %j', foreign => {
     expect(() => assertHeatmapScope(foreign, expected)).toThrow();
   });
