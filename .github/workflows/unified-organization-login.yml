@@ -50,6 +50,8 @@ name: Unified organization login
       - src/features/chat/institutionalChatMessage*
       - src/components/chat/ChatHeader*
       - src/components/chat/ChatPanel*
+      - src/components/chat/OwnerRealtimeVoicePanel*
+      - src/utils/ownerRealtimeVoice*
       - src/components/chat/ChatHumanSupportBar*
       - src/components/chat/ChatWidgetInner*
       - src/utils/widgetTheme*
