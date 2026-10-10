@@ -4,6 +4,7 @@ import {institutionalChoiceLabel,institutionalChatActions,type InstitutionalChat
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
 import {InstitutionalTextBlocks} from '@/components/knowledge/InstitutionalTextBlocks';
 import {InstitutionalChoices} from '@/components/knowledge/InstitutionalChoices';
+import {InstitutionalResponseAudio,stopInstitutionalReading} from '@/components/knowledge/InstitutionalResponseAudio';
 import {knowledgeSourceExternalUrl} from '@/components/knowledge/institutionalAssistantContract';
 import './institutionalChatMessage.css';
 
@@ -12,6 +13,7 @@ const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:Instituti
  ({answer,onButtonClick},ref)=>{
   const [large,setLarge]=useState(false),heading=useRef<HTMLHeadingElement>(null);
   useEffect(()=>{
+   stopInstitutionalReading();
    // Continue keyboard navigation from the preceding menu without taking focus
    // away from someone who is typing or reading elsewhere on the host page.
    if(document.activeElement?.hasAttribute('data-institutional-choice'))heading.current?.focus({preventScroll:true});
@@ -28,10 +30,11 @@ const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:Instituti
      {knowledgeSourceExternalUrl(source,'public')?<a href={knowledgeSourceExternalUrl(source,'public')!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
     </section>)}</details>
    </article>)}
+   {answer.audioReading?<InstitutionalResponseAudio scope={{tenant:answer.tenant,revision:answer.revision,nodeIds:answer.nodes.map(node=>node.id)}} copy={answer.audioReading}/>:null}
    <InstitutionalChoices actions={actions} navigation={answer.ui??null} responseIdentity={answer} className="institutional-chat-message__choices" renderChoice={action=>{
     const label=institutionalChoiceLabel(action.label),actionId=`knowledge:${answer.revision.slice(0,16)}:${action.target}`;
     return <button key={`${action.target}:${action.label}`} type="button" data-institutional-choice aria-label={label.words}
-     onClick={()=>onButtonClick({text:action.label,action:actionId,action_id:actionId,source:'button'})}>
+     onClick={()=>{stopInstitutionalReading();onButtonClick({text:action.label,action:actionId,action_id:actionId,source:'button'});}}>
      {label.emoji?<span aria-hidden="true">{label.emoji}</span>:null}<span>{label.words}</span>
     </button>;
    }}/>

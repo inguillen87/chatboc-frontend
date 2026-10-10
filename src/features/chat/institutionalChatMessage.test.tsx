@@ -13,6 +13,7 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import InstitutionalChatMessage from '@/components/chat/InstitutionalChatMessage';
 import AccessibilityToggle,{readAccessibilityPrefs} from '@/components/chat/AccessibilityToggle';
 import {ApiError} from '@/utils/api';
+import type {InstitutionalAudioReading} from '@/components/knowledge/institutionalAssistantAudio';
 
 function payload(){
  const w=structuredClone(workspace({visibility:'public',can_edit:false})),initial=node();
@@ -27,6 +28,14 @@ beforeEach(()=>{mocks.fetch.mockReset();mocks.workspace.mockReset();mocks.worksp
 afterEach(cleanup);
 
 describe('institutional responder boundary',()=>{
+ it('exposes reading only when the backend supplies its complete audio capability, independently of choice paging',()=>{
+  const copy:InstitutionalAudioReading={contract_version:'chatboc.institutional_audio.v1',listen:'Escuchar',pause:'Pausar',resume:'Continuar audio',stop:'Detener',loading:'Preparando audio…',error:'La información sigue disponible en texto.',disclosure:'Voz generada por IA.'};
+  const w=workspace({visibility:'public',can_edit:false,audio_reading:copy});
+  const initial=institutionalChatBootstrapPayload(w,w.tenant.slug);
+  expect(initial.knowledge_audio_reading).toEqual(copy);expect(parseInstitutionalChatMessage(initial,w.tenant.slug)?.audioReading).toEqual(copy);
+  expect(parseInstitutionalChatMessage({...payload(),knowledge_audio_reading:{...copy,disclosure:''}},'qa-knowledge')).toBeNull();
+  expect(parseInstitutionalChatMessage(payload(),'qa-knowledge')?.audioReading).toBeUndefined();
+ });
  it('propagates backend navigation copy through the ordinary public bootstrap without inventing copy for older workspaces',()=>{
   const w=workspace({visibility:'public',can_edit:false});
   const ui={more_options:'Otras consultas',previous_options:'Consultas previas',options_page:'Grupo {current}/{total}'};

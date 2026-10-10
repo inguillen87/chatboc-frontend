@@ -4,6 +4,7 @@ import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,ty
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
+import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
@@ -166,6 +167,8 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
                <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
           </article>)}
+          {mode==='public'&&!busy&&!error&&!showSources&&workspace.audio_reading&&workspace.revision&&nodes.length>0?
+            <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading}/>:null}
           {!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={nodes}
             disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
             renderChoice={action=><button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={()=>navigate(action.target)}><span>{action.label}</span><ChevronRight size={16}/></button>}/>:null}

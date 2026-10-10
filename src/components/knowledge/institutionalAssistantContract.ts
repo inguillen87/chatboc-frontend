@@ -1,5 +1,15 @@
 import { apiFetch } from '@/utils/api';
 import { sanitizePublicInternalNavigationPath } from '@/utils/tenantPaths';
+export interface InstitutionalAudioReading {
+  contract_version:'chatboc.institutional_audio.v1';
+  listen:string;pause:string;resume:string;stop:string;loading:string;error:string;disclosure:string;
+}
+export function readInstitutionalAudioReading(value:unknown):InstitutionalAudioReading|null {
+  const keys=['listen','pause','resume','stop','loading','error','disclosure'] as const;
+  return record(value)&&value.contract_version==='chatboc.institutional_audio.v1'&&keys.every(key=>
+    typeof value[key]==='string'&&value[key].trim().length>0&&value[key].length<=500)
+    ?value as unknown as InstitutionalAudioReading:null;
+}
 export type KnowledgeSourceFormat = 'pdf'|'jpeg'|'text';
 export interface KnowledgeSourceDelivery {
   contract_version:'chatboc.knowledge_source_delivery.v1'; format:KnowledgeSourceFormat;
@@ -22,6 +32,7 @@ export interface KnowledgeWorkspace {
   contract_version:'chatboc.institutional_assistant.v1';
   tenant:{id:number;slug:string;name:string}; revision:string|null; visibility:'empty'|'private'|'public'; can_edit:boolean;
   ui:Record<string,string>;
+  audio_reading?:InstitutionalAudioReading;
   knowledge:null|{start:string;node_count:number;version:string;topics:Array<{id:string;label:string}>;sources:KnowledgeSource[];initial:KnowledgeNode};
 }
 export interface KnowledgeAnswer { tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; text:string; business_writes_performed:false }
@@ -93,6 +104,7 @@ export function parseWorkspace(value:unknown,slug:string,mode:'admin'|'public'):
   if(!record(value)||value.contract_version!=='chatboc.institutional_assistant.v1'||!record(value.tenant)||value.tenant.slug!==slug||
     !Number.isSafeInteger(value.tenant.id)||value.tenant.id<1||!string(value.tenant.name,250)||!record(value.ui)||!uiKeys.every(k=>string(value.ui[k],1000))||
     !['empty','private','public'].includes(value.visibility)||typeof value.can_edit!=='boolean'||(mode==='public'&&(value.visibility!=='public'||value.can_edit!==false)))throw new Error('knowledge_response_invalid');
+  if(value.audio_reading!==undefined&&!readInstitutionalAudioReading(value.audio_reading))throw new Error('knowledge_response_invalid');
   if(value.knowledge===null){if(value.revision!==null||value.visibility!=='empty')throw new Error('knowledge_response_invalid');}
   else if(!record(value.knowledge)||!hash(value.revision)||!isKnowledgeNode(value.knowledge.initial)||value.knowledge.initial.id!==value.knowledge.start||
     !Number.isSafeInteger(value.knowledge.node_count)||value.knowledge.node_count<1||!string(value.knowledge.version,60)||
