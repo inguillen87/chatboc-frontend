@@ -214,6 +214,8 @@ const startUsingKeyboard = async () => {
   expect(disclosure).toHaveFocus();
   await user.keyboard('[Space]');
   await user.tab();
+  expect(screen.getByRole('group', { name: ui.title })).toHaveFocus();
+  await user.tab();
   expect(screen.getByRole('checkbox', { name: 'Activar mi micrófono' })).toHaveFocus();
   await user.keyboard('[Space]');
   await user.tab();
@@ -246,11 +248,37 @@ it.each(['ended', 'error'] as const)('restores start focus after %s removes the 
   const { user, options } = await startUsingKeyboard();
   act(() => options.state('live'));
   await user.tab();
+  expect(screen.getByRole('group', { name: ui.title })).toHaveFocus();
+  await user.tab();
   expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toHaveFocus();
   act(() => options.state(state));
   expect(screen.getByRole('button', { name: 'Iniciar voz' })).toHaveFocus();
   expect(screen.getByRole('status')).toHaveTextContent(ui[state]);
   expect(start).toHaveBeenCalledOnce();
+});
+
+it('lets keyboard users focus the expanded voice details without activating the microphone and removes that focus stop on collapse', async () => {
+  render(<><OwnerRealtimeVoicePanel tenantSlug="a" /><button>Continuar por texto</button></>);
+  const user = userEvent.setup();
+  const disclosure = await screen.findByRole('button', { name: 'Probar conversación por voz' });
+  await act(async () => { await user.tab(); });
+  expect(disclosure).toHaveFocus();
+  await act(async () => { await user.keyboard('[Enter]'); });
+  await act(async () => { await user.tab(); });
+  const details = screen.getByRole('group', { name: ui.title });
+  expect(details).toHaveFocus();
+  expect(details).toHaveTextContent(ui.consent);
+  expect(screen.getByRole('button', { name: 'Iniciar voz' })).toBeDisabled();
+  await act(async () => { await user.tab(); });
+  expect(screen.getByRole('checkbox', { name: 'Activar mi micrófono' })).toHaveFocus();
+  await act(async () => { await user.tab({ shift: true }); });
+  await act(async () => { await user.tab({ shift: true }); });
+  await act(async () => { await user.keyboard('[Space]'); });
+  expect(disclosure).toHaveFocus();
+  expect(screen.queryByRole('group', { name: ui.title })).not.toBeInTheDocument();
+  await act(async () => { await user.tab(); });
+  expect(screen.getByRole('button', { name: 'Continuar por texto' })).toHaveFocus();
+  expect(start).not.toHaveBeenCalled(); expect(createOwnerVoiceTransport).not.toHaveBeenCalled();
 });
 
 it('returns focus to the compact disclosure when a close remains unconfirmed', async () => {
