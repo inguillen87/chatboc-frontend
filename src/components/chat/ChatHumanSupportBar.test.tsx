@@ -1,10 +1,18 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import postcss from 'postcss';
+import tailwindcss from 'tailwindcss';
 
 import ChatHumanSupportBar from "./ChatHumanSupportBar";
 
 describe("ChatHumanSupportBar", () => {
+  it('emits the support background opacity as real Tailwind CSS',async()=>{
+    const view=render(<ChatHumanSupportBar onLiveChat={vi.fn()}/>);
+    const result=await postcss([tailwindcss({content:[{raw:view.container.innerHTML,extension:'html'}],theme:{extend:{colors:{background:'hsl(var(--background))'}}}})])
+      .process('@tailwind utilities;',{from:undefined});
+    expect(result.css).toContain('background-color: hsl(var(--background) / .94)');
+  });
   it("keeps the human handoff visible with a truthful availability state", () => {
     const onLiveChat = vi.fn();
 

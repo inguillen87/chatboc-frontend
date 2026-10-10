@@ -1,10 +1,12 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "@/utils/api";
 import ChatPanel, { scrollIntoViewIfSupported } from "./ChatPanel";
 import type {Message} from '@/types/chat';
+import {workspace} from '../../../tests/fixtures/institutional-assistant.synthetic';
+import {institutionalChatBootstrapPayload, parseInstitutionalChatMessage} from '@/features/chat/institutionalChatMessage';
 
 const chatLogic = {
   messages: [] as Message[],
@@ -30,6 +32,69 @@ const chatLogic = {
 const profile = vi.hoisted(() => ({ user: null as {
   name: string; email: string; avatar_url: string; avatar_source: string; avatar_consent: boolean;
 } | null }));
+
+describe('initial canonical institutional menu reading position',()=>{
+  const canonicalMessage=(slug='qa-knowledge'):Message=>{
+    const value=workspace({visibility:'public',can_edit:false});value.tenant.slug=slug;
+    const payload=institutionalChatBootstrapPayload(value,slug);
+    return {id:'initial-published-menu',text:payload.message_body,isBot:true,timestamp:new Date(),institutional:parseInstitutionalChatMessage(payload,slug)!};
+  };
+  const panel=(slug='qa-knowledge')=><ChatPanel tipoChat="municipio" tenantSlug={slug} mode="script"/>;
+  const prepare=(container:HTMLElement)=>{
+    const area=container.querySelector<HTMLElement>('.chatboc-chat-scrollarea')!;
+    Object.defineProperties(area,{scrollHeight:{configurable:true,value:900},clientHeight:{configurable:true,value:200}});
+    return area;
+  };
+  beforeEach(()=>{
+    vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
+    chatLogic.messages=[];chatLogic.suppressLegacyInitialMenu=true;chatLogic.institutionalBootstrapPending=false;
+    chatLogic.contexto={};chatLogic.uxContext={};profile.user=null;
+    vi.spyOn(HTMLElement.prototype,'getBoundingClientRect').mockImplementation(function(){
+      const top=this.classList.contains('institutional-chat-message')?140:this.classList.contains('chatboc-chat-scrollarea')?100:0;
+      return {top,left:0,right:400,bottom:top+200,width:400,height:200,x:0,y:top,toJSON:()=>({})} as DOMRect;
+    });
+  });
+  afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();});
+
+  it('opens the first published menu from its beginning without scrolling the host or moving focus',async()=>{
+    chatLogic.messages=[canonicalMessage()];
+    const external=document.createElement('input');document.body.append(external);external.focus();
+    const hostScroll=vi.spyOn(window,'scrollTo').mockImplementation(()=>{});
+    const view=render(panel()),area=prepare(view.container);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
+    expect(area.scrollTop).toBe(40);
+    expect(hostScroll).not.toHaveBeenCalled();expect(document.activeElement).toBe(external);
+    external.remove();
+  });
+
+  it('keeps a manual reading position when the same menu rerenders',async()=>{
+    chatLogic.messages=[canonicalMessage()];const view=render(panel()),area=prepare(view.container);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
+    area.scrollTop=250;fireEvent.scroll(area);
+    chatLogic.messages=[...chatLogic.messages];view.rerender(panel());
+    await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
+    expect(area.scrollTop).toBe(250);
+  });
+
+  it.each(['ordinary','wrong tenant','error','later conversation'] as const)('retains ordinary conversation scrolling for %s',async kind=>{
+    const initial=canonicalMessage(kind==='wrong tenant'?'qa-other':'qa-knowledge');
+    if(kind==='ordinary')initial.institutional=undefined;
+    if(kind==='error')initial.isError=true;
+    chatLogic.messages=kind==='later conversation'?[{id:'visitor-input',isBot:false,text:'Consulta',timestamp:new Date()},initial]:[initial];
+    const view=render(panel()),area=prepare(view.container);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
+    expect(area.scrollTop).toBe(900);
+  });
+
+  it('anchors the new organization only after a scoped replacement',async()=>{
+    chatLogic.messages=[canonicalMessage()];const view=render(panel()),area=prepare(view.container);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
+    area.scrollTop=250;
+    chatLogic.messages=[canonicalMessage('qa-other')];view.rerender(panel('qa-other'));
+    await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
+    expect(area.scrollTop).toBe(290);
+  });
+});
 vi.mock('@/hooks/useUser', () => ({ useUser: () => profile }));
 
 const provisionedSession = {

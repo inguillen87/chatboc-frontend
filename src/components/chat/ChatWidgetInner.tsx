@@ -24,7 +24,8 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
-import { hexToHsl, getContrastColorHsl } from "@/utils/color";
+import { accessibleForegroundHsl, normalizeColorHsl } from "@/utils/color";
+import { applyWidgetThemeVariables, widgetThemeVariables } from "@/utils/widgetTheme";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import {
@@ -1493,58 +1494,24 @@ function ChatWidgetInner({
     // This prevents the widget from polluting the host page's global styles (like dark mode background).
     const target = mode === 'iframe' ? root : widgetContainerRef.current;
 
-    // First, apply the base theme from entity config (if available) to ensure background/text are correct
-    if (entityInfo?.theme_config) {
-      try {
-        const modeTheme = entityInfo.theme_config.mode;
-        const isDark = modeTheme === 'dark' || (modeTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        const theme = isDark ? entityInfo.theme_config.dark : entityInfo.theme_config.light;
-
-        if (theme) {
-          Object.entries(theme).forEach(([key, value]) => {
-            // Apply only to the widget container if standalone, or global root if iframe
-             if (target) {
-                if (key === 'primary') {
-                    target.style.setProperty('--primary', value as string);
-                    // Assume value is HSL or can be converted. If from theme config, it might already be HSL?
-                    // Usually theme config has raw colors. Assuming HSL for now as per ShadCN convention.
-                }
-                if (key === 'secondary') target.style.setProperty('--secondary', value as string);
-                if (key === 'background') target.style.setProperty('--background', value as string);
-                if (key === 'text') target.style.setProperty('--foreground', value as string);
-             }
-          });
-        }
-      } catch (e) {
-        console.warn("Error applying theme config:", e);
-      }
-    }
-
-    // Then, override primary/secondary colors if explicitly passed via props (URL/Iframe)
-    // Note: We avoid setting these on 'root' globally if we are in standalone mode on the main landing page,
-    // to prevent breaking the landing page styles. The widget container itself will handle scoped styles via inline styles or class isolation if needed.
-    // However, ShadCN components rely on CSS variables.
-    // If we are in 'iframe' mode, it's safe to set on root.
-    if (primaryColor && target) {
-        target.style.setProperty('--primary', hexToHsl(primaryColor));
-        target.style.setProperty('--primary-foreground', getContrastColorHsl(primaryColor));
-    }
-    if (accentColor && target) {
-        target.style.setProperty('--secondary', hexToHsl(accentColor));
-        target.style.setProperty('--secondary-foreground', getContrastColorHsl(accentColor));
-    }
+    if (!target) return;
+    const modeTheme = entityInfo?.theme_config?.mode;
+    const isDark = modeTheme === 'dark' || (modeTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const theme = isDark ? entityInfo?.theme_config?.dark : entityInfo?.theme_config?.light;
+    const variables = widgetThemeVariables(theme, {primary: primaryColor, secondary: accentColor});
 
     // Additional Customizations
     if (target) {
-        if (userMsgColor) {
-             target.style.setProperty('--user-msg-bg', userMsgColor);
-             target.style.setProperty('--user-msg-fg', getContrastColorHsl(userMsgColor));
+        const userMessageColor = normalizeColorHsl(userMsgColor);
+        if (userMessageColor) {
+             variables['--user-msg-bg'] = `hsl(${userMessageColor})`;
+             variables['--user-msg-fg'] = `hsl(${accessibleForegroundHsl(userMessageColor)})`;
         }
         if (chatBackground) {
-             target.style.setProperty('--chat-bg', chatBackground);
+             variables['--chat-bg'] = chatBackground;
         }
         if (borderRadius !== undefined) {
-             target.style.setProperty('--radius', `${borderRadius}px`);
+             variables['--radius'] = `${borderRadius}px`;
         }
         if (fontFamily) {
              // Basic font mapping or direct usage
@@ -1553,11 +1520,13 @@ function ChatWidgetInner({
              if (fontFamily === 'Montserrat') fontStack = 'Montserrat, sans-serif';
              if (fontFamily === 'Open Sans') fontStack = '"Open Sans", sans-serif';
 
-             target.style.setProperty('--font-sans', fontStack);
-             // Also force on body/container just in case
-             target.style.fontFamily = fontStack;
+             variables['--font-sans'] = fontStack;
         }
     }
+    const previousFont = target.style.fontFamily;
+    const restore = applyWidgetThemeVariables(target, variables);
+    if (variables['--font-sans']) target.style.fontFamily = variables['--font-sans'];
+    return () => { restore(); target.style.fontFamily = previousFont; };
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
 

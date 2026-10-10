@@ -2,6 +2,7 @@ import {isKnowledgeNode,isKnowledgeSource,sameKnowledgeSourceIdentity,parseWorks
 import {ApiError} from '@/utils/api';
 import {readInstitutionalChoiceNavigation,type InstitutionalChoiceNavigation} from '@/components/knowledge/InstitutionalChoices';
 import {readInstitutionalAudioReading,type InstitutionalAudioReading} from '@/components/knowledge/institutionalAssistantAudio';
+import type {Message} from '@/types/chat';
 
 export interface InstitutionalChatMessage {
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
@@ -13,6 +14,16 @@ export const isInstitutionalChatPayload=(value:unknown):boolean=>record(value)&&
 
 export const institutionalChatActions=(nodes:KnowledgeNode[])=>nodes.flatMap(node=>node.actions)
   .filter((action,index,list)=>list.findIndex(other=>other.target===action.target&&other.label===action.label)===index);
+
+/** Only the first validated institutional menu can change the initial reading anchor. */
+export function initialInstitutionalMenuMessage(messages: Message[], tenantSlug: string|null|undefined): Message|null {
+  if (messages.length !== 1) return null;
+  const message = messages[0], answer = message.institutional;
+  return message.isBot && !message.isError && answer && tenantSlug && answer.tenant?.slug === tenantSlug &&
+    Number.isSafeInteger(answer.tenant.id) && answer.tenant.id > 0 && /^[a-f0-9]{64}$/.test(answer.revision) &&
+    Array.isArray(answer.nodes) && answer.nodes.length > 0 && answer.nodes.length <= 3 && answer.nodes.every(isKnowledgeNode) &&
+    institutionalChatActions(answer.nodes).length > 0 ? message : null;
+}
 
 /** A typed code can select only an action advertised by this current answer. */
 export function institutionalNumericChatAction(text:string,answer:InstitutionalChatMessage|null|undefined,tenantSlug:string|null|undefined):string|null {

@@ -68,6 +68,53 @@ afterEach(() => {
 });
 
 describe('shared widget public assistant appearance', () => {
+  it('normalizes public HEX branding in the widget scope and restores it without changing the host page', async () => {
+    window.history.replaceState({}, '', '/t/qa-theme');
+    const before = document.documentElement.style.getPropertyValue('--primary');
+    vi.spyOn(tenantService,'getPublicWidgetConfig').mockResolvedValue({...publicConfig('qa-theme','Asistente de prueba'),
+      theme_config:{mode:'light',light:{primary:'#000000',secondary:'#FFFFFF',background:'#ffffff',text:'#000000'}}});
+    const view = renderWidget(<MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen tenantSlug="qa-theme"/></MemoryRouter>);
+    await waitFor(()=>expect(view.container.querySelector<HTMLElement>('.chatboc-container')?.style.getPropertyValue('--primary')).toBe('0 0% 0%'));
+    const target = view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    expect(target.style.getPropertyValue('--primary-foreground')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--card')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 0%');
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe(before);
+    view.unmount();
+    expect(target.style.getPropertyValue('--primary')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe(before);
+  });
+
+  it('replaces tenant colors and contrast instead of retaining the preceding organization theme', async () => {
+    window.history.replaceState({}, '', '/t/qa-first');
+    vi.spyOn(tenantService,'getPublicWidgetConfig').mockImplementation(async slug => ({...publicConfig(slug,'Asistente de '+slug),
+      theme_config:{mode:'light',light:slug==='qa-first'?{primary:'#000',background:'#fff',text:'#000'}:{primary:'#fff',background:'#000',text:'#fff'}}}));
+    const element=(slug:string)=><MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen tenantSlug={slug}/></MemoryRouter>;
+    const view=renderWidget(element('qa-first'));
+    const target=view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    await waitFor(()=>expect(target.style.getPropertyValue('--primary-foreground')).toBe('0 0% 100%'));
+    view.rerender(<React.Suspense fallback={null}>{element('qa-second')}</React.Suspense>);
+    await waitFor(()=>expect(target.style.getPropertyValue('--primary')).toBe('0 0% 100%'));
+    expect(target.style.getPropertyValue('--primary-foreground')).toBe('0 0% 0%');
+    expect(target.style.getPropertyValue('--card')).toBe('0 0% 0%');
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 100%');
+  });
+
+  it('keeps custom message color variables as full CSS colors and gives explicit props readable contrast', async () => {
+    window.history.replaceState({}, '', '/iframe');
+    const before=document.documentElement.style.getPropertyValue('--primary');
+    vi.spyOn(tenantService,'getPublicWidgetConfig').mockResolvedValue({...publicConfig('qa-theme','Asistente de prueba'),
+      theme_config:{mode:'light',light:{primary:'#fff'}}});
+    const view=renderWidget(<MemoryRouter><ChatWidgetInner mode="iframe" defaultOpen tenantSlug="qa-theme" primaryColor="#000" userMsgColor="#777777"/></MemoryRouter>);
+    await waitFor(()=>expect(document.documentElement.style.getPropertyValue('--user-msg-fg')).toBe('hsl(0 0% 0%)'));
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('0 0% 0%');
+    expect(document.documentElement.style.getPropertyValue('--primary-foreground')).toBe('0 0% 100%');
+    expect(document.documentElement.style.getPropertyValue('--user-msg-bg')).toBe('hsl(0 0% 47%)');
+    view.unmount();
+    expect(document.documentElement.style.getPropertyValue('--user-msg-fg')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe(before);
+  });
+
   it('renders the public launcher and header after the unrelated private panel refreshes during the real API read', async () => {
     window.history.replaceState({}, '', '/t/tierra-del-fuego');
     usePanelSessionStore.setState({ authToken: 'synthetic-private-session', user: { id: 4, rol: 'admin_municipio', tenant_slug: 'junin' } as any });

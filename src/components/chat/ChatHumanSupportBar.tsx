@@ -41,7 +41,7 @@ const ChatHumanSupportBar: React.FC<ChatHumanSupportBarProps> = ({
     <section
       aria-label="Opciones de atención humana"
       className={cn(
-        "shrink-0 border-b border-border/60 bg-background/94 px-2.5 py-2 shadow-[0_1px_0_hsl(var(--border)/0.35)] sm:px-4",
+        "shrink-0 border-b border-border/60 bg-background/[.94] px-2.5 py-2 shadow-[0_1px_0_hsl(var(--border)/0.35)] sm:px-4",
         className,
       )}
     >

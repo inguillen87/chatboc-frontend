@@ -131,6 +131,7 @@ import {
 import { isBackofficeRole } from "@/utils/roles";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 import type { WidgetCommerceHistory, WidgetCommerceSession } from "@/types/widgetCommerce";
+import {initialInstitutionalMenuMessage} from '@/features/chat/institutionalChatMessage';
 
 export const scrollIntoViewIfSupported = (
   element: Element | null,
@@ -1142,6 +1143,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     "Seleccioná un rubro para personalizar la experiencia automáticamente.";
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialInstitutionalMenuRef = useRef<HTMLDivElement>(null);
+  const anchoredInitialMenuRef = useRef<string|null>(null);
   const chatInputTextRef = useRef<HTMLInputElement>(null);
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -3173,6 +3176,18 @@ const ChatPanel = (props: ChatPanelProps) => {
     // Use a small timeout to allow layout to settle (e.g. images loading)
     const timer = setTimeout(() => {
       if (chatContainerRef.current) {
+        const initialMenu = initialInstitutionalMenuMessage(visibleMessages, tenantSlug);
+        if (initialMenu && initialInstitutionalMenuRef.current) {
+          const identity = `${tenantSlug}:${mode}:${initialMenu.id}:${initialMenu.institutional!.revision}`;
+          if (anchoredInitialMenuRef.current !== identity) {
+            const container = chatContainerRef.current, anchor = initialInstitutionalMenuRef.current;
+            // Scroll only the widget; scrollIntoView would also move the host page.
+            container.scrollTop += anchor.getBoundingClientRect().top - container.getBoundingClientRect().top;
+            anchoredInitialMenuRef.current = identity;
+          }
+          // Do not undo a visitor's manual scroll on same-menu re-renders.
+          return;
+        }
         const { scrollHeight, scrollTop, clientHeight } =
           chatContainerRef.current;
 
@@ -3211,7 +3226,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       }
     }, 100);
     return () => clearTimeout(timer);
-  }, [messages]);
+  }, [messages, visibleMessages, tenantSlug, mode]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -4412,6 +4427,7 @@ const ChatPanel = (props: ChatPanelProps) => {
 
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
+            ref={initialInstitutionalMenuMessage(visibleMessages, tenantSlug)?.id === msg.id ? initialInstitutionalMenuRef : undefined}
             message={msg}
             publicVisitorName={isPublicWidget ? scopedVisitorName || null : undefined}
             isTyping={isTyping}
