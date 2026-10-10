@@ -33,8 +33,9 @@ const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:Instituti
    {answer.audioReading?<InstitutionalResponseAudio scope={{tenant:answer.tenant,revision:answer.revision,nodeIds:answer.nodes.map(node=>node.id)}} copy={answer.audioReading}/>:null}
    <InstitutionalChoices actions={actions} navigation={answer.ui??null} responseIdentity={answer} className="institutional-chat-message__choices" renderChoice={action=>{
     const label=institutionalChoiceLabel(action.label),actionId=`knowledge:${answer.revision.slice(0,16)}:${action.target}`;
-    return <button key={`${action.target}:${action.label}`} type="button" data-institutional-choice aria-label={label.words}
+    return <button key={`${action.target}:${action.label}`} type="button" data-institutional-choice
      onClick={()=>{stopInstitutionalReading();onButtonClick({text:action.label,action:actionId,action_id:actionId,source:'button'});}}>
+     <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
      {label.emoji?<span aria-hidden="true">{label.emoji}</span>:null}<span>{label.words}</span>
     </button>;
    }}/>

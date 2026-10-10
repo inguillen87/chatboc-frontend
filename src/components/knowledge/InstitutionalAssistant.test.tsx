@@ -12,7 +12,7 @@ describe('institutional workspace inside the application',()=>{
  it('uses the verified organization, canonical answer and source labels',async()=>{
   render(view());await screen.findByRole('heading',{name:'Información y orientación'});
   expect(screen.getByText('Institución de prueba')).toBeVisible();expect(screen.getByText(node().text)).toBeVisible();
-  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));
+  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
   expect(await screen.findByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
   expect(screen.getByRole('link',{name:'Referencia institucional'})).toHaveAttribute('href','https://example.org/informacion');
   expect(screen.queryByText(node().text)).not.toBeInTheDocument();
@@ -26,13 +26,13 @@ describe('institutional workspace inside the application',()=>{
  });
  it('removes answers after rejection and recovers only by a fresh read',async()=>{
   render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce(new Error('PRIVATE BODY'));
-  fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');
   expect(screen.queryByText(node().text)).not.toBeInTheDocument();expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();
   mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
  });
  it('preserves canonical content after a cold node read and retries that same revision only on a click',async()=>{
   render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503,body:{detail:'PRIVATE BODY'}});
-  fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');
   expect(screen.getByText(node().text)).toBeVisible();expect(screen.getByText('Institución de prueba')).toBeVisible();
   expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();expect(mocks.fetch).toHaveBeenCalledTimes(2);
   const failed=mocks.fetch.mock.calls[1];mocks.fetch.mockResolvedValueOnce(reply());
@@ -60,7 +60,7 @@ describe('institutional workspace inside the application',()=>{
  });
  it.each([401,403,412])('requires a fresh read after answer HTTP %s instead of retrying its revision',async status=>{
   render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status});
-  fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');
   expect(screen.queryByText(node().text)).not.toBeInTheDocument();mocks.fetch.mockResolvedValueOnce(workspace());
   fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
   expect(mocks.fetch.mock.calls[2][0]).toBe('/api/admin/tenants/qa-knowledge/institutional-assistant');
@@ -109,6 +109,18 @@ describe('institutional workspace inside the application',()=>{
  });
 });
 describe('source evidence and inclusive navigation',()=>{
+ it('shows the supplied choice codes once, keeps emoji decorative and preserves canonical navigation',async()=>{
+  const value=workspace({visibility:'public',can_edit:false});
+  value.knowledge!.initial.actions=[{code:'5',label:'🚗 Oblea del auto',target:'requirements'},{code:'9',label:'🏠 Volver al menú',target:'start'}];
+  mocks.fetch.mockResolvedValueOnce(value);render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
+  const car=await screen.findByRole('button',{name:'5 Oblea del auto'}),home=screen.getByRole('button',{name:'9 Volver al menú'});
+  expect(car).toBeVisible();expect(home).toBeVisible();expect(car).not.toHaveAttribute('aria-label');
+  expect(car.querySelector('[aria-hidden=true]')).toHaveTextContent('🚗');
+  mocks.fetch.mockResolvedValueOnce(reply('requirements',value));fireEvent.click(car);
+  await screen.findByRole('heading',{name:'Requisitos de la consulta'});
+  expect(mocks.fetch.mock.calls[1][0]).toBe(`/api/public/tenants/qa-knowledge/institutional-assistant/nodes/requirements?revision=${value.revision}`);
+  expect(mocks.fetch.mock.calls[1][1].method).toBe('GET');
+ });
  it('paginates a three-node answer locally and sends only the selected canonical destination',async()=>{
   const value=workspace({ui:{...workspace().ui,more_options:'Más opciones',previous_options:'Opciones anteriores',options_page:'Opciones: grupo {current} de {total}'}});
   mocks.fetch.mockResolvedValue(value);render(view());await screen.findByText(node().text);
@@ -117,10 +129,10 @@ describe('source evidence and inclusive navigation',()=>{
   mocks.fetch.mockResolvedValueOnce({...reply(),nodes});const input=screen.getByLabelText('Escribí tu consulta');
   fireEvent.change(input,{target:{value:'Consulta sobre tres temas'}});fireEvent.submit(input.closest('form')!);await screen.findByRole('heading',{name:'Último tema'});
   expect(screen.getByRole('status')).toHaveTextContent('grupo 1 de 3');fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
-  expect(screen.getByRole('button',{name:'Consulta 5'})).toHaveFocus();fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
+  expect(screen.getByRole('button',{name:'0 Consulta 5'})).toHaveFocus();fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
   expect(screen.getByRole('heading',{name:'Otro tema'})).toBeVisible();expect(mocks.fetch).toHaveBeenCalledTimes(2);
   const final=reply('target-10');final.nodes[0].title='Destino elegido';
-  mocks.fetch.mockResolvedValueOnce(final);fireEvent.click(screen.getByRole('button',{name:'Consulta 11'}));await screen.findByRole('heading',{name:'Destino elegido'});
+  mocks.fetch.mockResolvedValueOnce(final);fireEvent.click(screen.getByRole('button',{name:'2 Consulta 11'}));await screen.findByRole('heading',{name:'Destino elegido'});
   expect(mocks.fetch.mock.calls[2][0]).toContain('/nodes/target-10?revision=');expect(screen.queryByRole('button',{name:'Más opciones'})).not.toBeInTheDocument();
  });
  it('presents supplied lists as reading lists without changing the source citation',async()=>{
@@ -134,7 +146,7 @@ describe('source evidence and inclusive navigation',()=>{
  it('keeps distinct options even when they lead to the same next menu',async()=>{
   const value=workspace();value.knowledge!.initial.actions=[{code:'1',label:'Para mí',target:'requirements'},{code:'2',label:'Para una persona que acompaño',target:'requirements'}];
   mocks.fetch.mockResolvedValue(value);render(view());
-  expect(await screen.findByRole('button',{name:'Para mí'})).toBeVisible();expect(screen.getByRole('button',{name:'Para una persona que acompaño'})).toBeVisible();
+  expect(await screen.findByRole('button',{name:'1 Para mí'})).toBeVisible();expect(screen.getByRole('button',{name:'2 Para una persona que acompaño'})).toBeVisible();
  });
  it('renders supplied evidence text as text, not active HTML',async()=>{
   const value=workspace();value.knowledge!.initial.sources[0].excerpts=[{page:1,text:'<script>source</script> Texto de la fuente.'}];

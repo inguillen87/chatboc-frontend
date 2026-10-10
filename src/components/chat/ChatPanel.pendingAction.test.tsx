@@ -238,7 +238,7 @@ describe('typed institutional choices in the mounted widget',()=>{
     });
     const view=render(panel());await settle();await advance(200);await settle();
     view.rerender(panel('qa-other'));await settle();await advance(200);await settle();
-    expect(screen.getByRole('button',{name:'Nueva consulta'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'1 Nueva consulta'})).toBeInTheDocument();
     await sendTyped('1️⃣');
     expect(chatPosts()).toHaveLength(1);
     expect(lastBody()).toMatchObject({action:'knowledge:bbbbbbbbbbbbbbbb:other-topic',tenant_slug:'qa-other'});

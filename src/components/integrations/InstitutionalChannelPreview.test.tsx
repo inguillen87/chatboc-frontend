@@ -109,12 +109,12 @@ describe('public institutional preview — local synthetic fixtures', () => {
     render(fixture());
     expect(await screen.findByText('Institución sintética local')).toBeVisible();
     expect(screen.getByText('64 nodos · 10 fuentes')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Tema sintético 4' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '4 Tema sintético 4' })).toBeVisible();
     fireEvent.click(screen.getByText('Fuentes y revisión'));
     expect(screen.getByText(source.title)).toBeVisible();
     expect(screen.getByText(/Revisión pendiente · Vigencia no verificada/)).toBeVisible();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Consultar requisitos' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 Consultar requisitos' }));
     expect(screen.queryByTestId('institutional-chat-message')).not.toBeInTheDocument();
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     const url = new URL(String(vi.mocked(global.fetch).mock.calls[1][0]), window.location.origin);
@@ -194,11 +194,11 @@ describe('public institutional preview — local synthetic fixtures', () => {
     const status = /^\d/.test(invalid) ? Number(invalid) : 200;
     global.fetch = vi.fn().mockResolvedValueOnce(json(data)).mockResolvedValueOnce(json(status === 200 ? answer : { reason_code: 'knowledge_not_available' }, status));
     render(fixture()); await screen.findByText('Institución sintética local');
-    fireEvent.click(screen.getByRole('button', { name: 'Consultar requisitos' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 Consultar requisitos' }));
     expect(await screen.findByRole('alert')).toBeVisible();
     expect(screen.queryByTestId('institutional-chat-message')).not.toBeInTheDocument();
     expect(screen.queryByText(source.title)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Consultar requisitos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '1 Consultar requisitos' })).not.toBeInTheDocument();
     expect(screen.queryByText(/usa la configuración anterior/)).not.toBeInTheDocument(); assertPublicReads();
   });
 
@@ -219,7 +219,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
     const pending = deferred<Response>();
     global.fetch = vi.fn().mockResolvedValueOnce(json(model())).mockReturnValueOnce(pending.promise)
       .mockResolvedValueOnce(json(model('qa-other', 'B vigente'))).mockResolvedValueOnce(json(model('qa-office', 'A vigente')));
-    render(fixture()); const oldChoice = await screen.findByRole('button', { name: 'Consultar requisitos' });
+    render(fixture()); const oldChoice = await screen.findByRole('button', { name: '1 Consultar requisitos' });
     fireEvent.click(oldChoice); await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     act(() => switchTenant('qa-other')); expect(await screen.findByText('B vigente')).toBeVisible();
     act(() => switchTenant('qa-office')); expect(await screen.findByText('A vigente')).toBeVisible();
@@ -272,7 +272,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
   it('retires batched panel-token A→B→A without an epoch change and blocks a detached action before rerender', async () => {
     const pending = deferred<Response>();
     global.fetch = vi.fn().mockResolvedValueOnce(json(model())).mockReturnValueOnce(pending.promise).mockResolvedValueOnce(json(model('qa-office', 'Panel vigente')));
-    render(fixture()); const oldChoice = await screen.findByRole('button', { name: 'Consultar requisitos' });
+    render(fixture()); const oldChoice = await screen.findByRole('button', { name: '1 Consultar requisitos' });
     fireEvent.click(oldChoice); await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     act(() => {
       usePanelSessionStore.setState({ authToken: 'synthetic-rotated-session' });
@@ -302,13 +302,13 @@ describe('public institutional preview — local synthetic fixtures', () => {
   it('continues keyboard navigation at the new answer heading without stealing focus moved elsewhere', async () => {
     const pending = deferred<Response>();
     global.fetch = vi.fn().mockResolvedValueOnce(json(model())).mockReturnValueOnce(pending.promise);
-    render(fixture()); const choice = await screen.findByRole('button', { name: 'Consultar requisitos' });
+    render(fixture()); const choice = await screen.findByRole('button', { name: '1 Consultar requisitos' });
     choice.focus(); fireEvent.click(choice, { detail: 0 });
     expect(screen.getByRole('status')).toHaveFocus();
     await act(async () => pending.resolve(json(reply('requirements', model()))));
     expect(screen.getByRole('heading', { name: 'Requisitos de la consulta' })).toHaveFocus();
     const next = deferred<Response>(); vi.mocked(global.fetch).mockReturnValueOnce(next.promise);
-    const home = screen.getByRole('button', { name: 'Volver al menú' }); home.focus(); fireEvent.click(home, { detail: 0 });
+    const home = screen.getByRole('button', { name: '9 Volver al menú' }); home.focus(); fireEvent.click(home, { detail: 0 });
     const heading = screen.getByRole('heading', { name: 'Contenido del agente público' });
     heading.tabIndex = -1; heading.focus();
     await act(async () => next.resolve(json(reply('start', model()))));
@@ -316,7 +316,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
   });
 
   it('removes ready content immediately when route/context identity conflicts and cannot invoke an old action', async () => {
-    render(fixture()); const choice = await screen.findByRole('button', { name: 'Consultar requisitos' });
+    render(fixture()); const choice = await screen.findByRole('button', { name: '1 Consultar requisitos' });
     act(() => navigate('/t/qa-office/integracion?tenant_slug=qa-other'));
     expect(screen.getByRole('alert')).toHaveTextContent('organización de la dirección no coincide');
     expect(screen.queryByTestId('institutional-chat-message')).not.toBeInTheDocument();
@@ -344,7 +344,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
       <Route path="/t/:tenant/integracion" element={<IntegracionesPage />} />
     </Routes></MemoryRouter>);
     const publicHeading = await screen.findByRole('heading', { name: 'Contenido del agente público' });
-    await screen.findByRole('button', { name: 'Consultar requisitos' });
+    await screen.findByRole('button', { name: '1 Consultar requisitos' });
     const profile = await screen.findByRole('link', { name: 'Perfil institucional' });
     expect(profile).toHaveAttribute('href', '/perfil?section=general&tenant_slug=qa-office');
     const summary = screen.getByText('Simulación de WhatsApp');
@@ -356,11 +356,11 @@ describe('public institutional preview — local synthetic fixtures', () => {
     const draft = screen.getByPlaceholderText('Mensaje que querés mandar para iniciar la demo.');
     expect(draft).toHaveValue(''); fireEvent.change(draft, { target: { value: 'Borrador sintético sin enviar' } });
     fireEvent.click(summary); expect(within(summary.closest('details')!).getByText('Borrador sintético sin enviar')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Consultar requisitos' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 Consultar requisitos' }));
     await screen.findByRole('button', { name: 'Reintentar contenido público' });
     expect(draft).toHaveValue('Borrador sintético sin enviar');
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar contenido público' }));
-    await screen.findByRole('button', { name: 'Consultar requisitos' }); fireEvent.click(profile);
+    await screen.findByRole('button', { name: '1 Consultar requisitos' }); fireEvent.click(profile);
     expect(draft).toHaveValue('Borrador sintético sin enviar');
     expect(api.put).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled();
     expect(api.adminConnectIntegration).not.toHaveBeenCalled(); expect(tenantService.updateTenantConfig).not.toHaveBeenCalled(); assertPublicReads();

@@ -205,7 +205,7 @@ describe('explicit workspace recovery focus',()=>{
   try{
    mocks.fetch.mockRejectedValueOnce(new Error('read failed'));render(<><button type="button">Control externo</button>{view()}</>);
    fireEvent.click(await screen.findByRole('button',{name:'Reintentar'}));await screen.findByRole('heading',{name:node().title});const recoveryFrame=frames.at(-1)!;
-   const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));
+   const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
    const outside=screen.getByRole('button',{name:'Control externo'});outside.focus();act(()=>recoveryFrame(0));expect(outside).toHaveFocus();
    await act(async()=>{pending.resolve(reply());await pending.promise;});await screen.findByRole('heading',{name:'Requisitos de la consulta'});
    act(()=>recoveryFrame(0));expect(outside).toHaveFocus();expect(mocks.fetch.mock.calls.map(call=>call[1].method)).toEqual(['GET','GET','GET']);

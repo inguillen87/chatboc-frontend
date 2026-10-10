@@ -95,6 +95,16 @@ describe('institutional responder boundary',()=>{
 });
 
 describe('actual embedded chat normalization and renderer',()=>{
+ it('shows each canonical code once in the accessible name without renumbering choices or changing the original action label',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,onButtonClick=vi.fn();
+  answer.nodes[0].actions=[{code:'5',label:'🚗 Oblea del auto',target:'car'},{code:'9',label:'🏠 Volver al menú',target:'start'}];
+  render(<InstitutionalChatMessage answer={answer} onButtonClick={onButtonClick}/>);
+  const car=screen.getByRole('button',{name:'5 Oblea del auto'}),home=screen.getByRole('button',{name:'9 Volver al menú'});
+  expect(car.firstElementChild).toHaveTextContent('5');expect(home.firstElementChild).toHaveTextContent('9');
+  expect(car).not.toHaveAttribute('aria-label');expect(car.querySelector('[aria-hidden=true]')).toHaveTextContent('🚗');
+  fireEvent.click(car);
+  expect(onButtonClick).toHaveBeenCalledWith({text:'🚗 Oblea del auto',action:'knowledge:bbbbbbbbbbbbbbbb:car',action_id:'knowledge:bbbbbbbbbbbbbbbb:car',source:'button'});
+ });
  it('reaches all eleven options through backend-labelled pages and sends the exact final advertised action',()=>{
   const data=payload(),actions=Array.from({length:11},(_,i)=>({code:String(i),label:`📄 Consulta ${i+1}`,target:`topic-${i}`}));
   data.knowledge_nodes=[0,1,2].map(i=>({...data.knowledge_nodes[0],id:`node-${i}`,title:`Tema ${i+1}`,actions:actions.slice(i*4,i*4+4)}));
@@ -102,12 +112,12 @@ describe('actual embedded chat normalization and renderer',()=>{
   const ui={more_options:'Más opciones',previous_options:'Opciones anteriores',options_page:'Grupo {current} de {total}',large_text:'Lectura ampliada',source_details:'Consultar documentos'};
   const answer=parseInstitutionalChatMessage({...data,knowledge_ui:ui},'qa-knowledge')!,onButtonClick=vi.fn(),mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={onButtonClick}/>);
   expect(screen.getByRole('button',{name:'Lectura ampliada'})).toBeVisible();expect(screen.getAllByText('Consultar documentos')).toHaveLength(3);
-  fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));expect(screen.getByRole('button',{name:'Consulta 5'})).toHaveFocus();
+  fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));expect(screen.getByRole('button',{name:'4 Consulta 5'})).toHaveFocus();
   expect(screen.getAllByText(node().text)).toHaveLength(3);expect(screen.getAllByText('Información institucional de prueba')).toHaveLength(3);
   fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));expect(onButtonClick).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button',{name:'Consulta 11'}));expect(onButtonClick).toHaveBeenCalledWith({text:data.botones[10].texto,action:data.botones[10].action_id,action_id:data.botones[10].action_id,source:'button'});
+  fireEvent.click(screen.getByRole('button',{name:'10 Consulta 11'}));expect(onButtonClick).toHaveBeenCalledWith({text:data.botones[10].texto,action:data.botones[10].action_id,action_id:data.botones[10].action_id,source:'button'});
   mounted.rerender(<InstitutionalChatMessage answer={{...answer,revision:'d'.repeat(64),tenant:{id:702,slug:'other-organization'}}} onButtonClick={onButtonClick}/>);
-  expect(screen.getByRole('status')).toHaveTextContent('Grupo 1 de 3');expect(screen.getByRole('button',{name:'Consulta 1'})).toBeVisible();
+  expect(screen.getByRole('status')).toHaveTextContent('Grupo 1 de 3');expect(screen.getByRole('button',{name:'0 Consulta 1'})).toBeVisible();
   expect(screen.queryByRole('button',{name:'Opciones anteriores'})).not.toBeInTheDocument();
  });
  it('uses the same semantic reading blocks in the widget and preserves source metadata and choices',()=>{
@@ -117,7 +127,7 @@ describe('actual embedded chat normalization and renderer',()=>{
   const prose=mounted.container.querySelector('.institutional-chat-message__prose')!;
   expect(Array.from(prose.children,element=>element.tagName)).toEqual(['P','UL','P','OL']);
   expect(prose.querySelectorAll('li')).toHaveLength(4);expect(prose).toHaveTextContent('<script>literal</script>');expect(prose.querySelector('script')).toBeNull();
-  expect(screen.getByText('Información institucional de prueba')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Documentación'})).toBeVisible();
+  expect(screen.getByText('Información institucional de prueba')).toBeInTheDocument();expect(screen.getByRole('button',{name:'1 Documentación'})).toBeVisible();
   expect(screen.queryByRole('link')).not.toBeInTheDocument();expect(mounted.container.textContent).not.toContain('reserved-');expect(onButtonClick).not.toHaveBeenCalled();
  });
  it('preserves the institutional envelope over legacy messages, renders all six choices and sends the exact action through the existing chat',async()=>{
@@ -130,10 +140,10 @@ describe('actual embedded chat normalization and renderer',()=>{
   const reader=screen.getByTestId('institutional-chat-message');expect(reader.querySelector('pre')).toBeNull();
   expect(screen.getByText('Elegí un tema o escribí una pregunta.').tagName).toBe('P');
   expect(screen.queryByText('LEGACY_FORMATTED_BODY')).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:/Mostrar.*opciones/})).not.toBeInTheDocument();
-  for(const action of data.knowledge_nodes[0].actions){const label=institutionalChoiceLabel(action.label);const choice=screen.getByRole('button',{name:label.words});expect(choice).toBeVisible();expect(choice).toHaveAttribute('type','button');expect(choice.querySelector('[aria-hidden=true]')).toHaveTextContent(label.emoji!);}
+  for(const action of data.knowledge_nodes[0].actions){const label=institutionalChoiceLabel(action.label);const choice=screen.getByRole('button',{name:`${action.code} ${label.words}`});expect(choice).toBeVisible();expect(choice).toHaveAttribute('type','button');expect(choice.querySelector('[aria-hidden=true]')).toHaveTextContent(label.emoji!);expect(choice).not.toHaveAttribute('aria-label');}
   const next=payload();next.knowledge_nodes[0].id='topic-5';next.knowledge_nodes[0].title='Contacto y ayuda';next.knowledge_nodes[0].text='Consultá los canales informados por el equipo.';
   next.message_body='Consultá los canales informados por el equipo.';next.messages[0].content=next.message_body;mocks.fetch.mockResolvedValueOnce(next);
-  await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Contacto y ayuda'}));});
+  await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'6 Contacto y ayuda'}));});
   expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(mocks.fetch.mock.calls[1][1].body).toMatchObject({action_id:data.botones[5].action_id,pregunta:data.botones[5].texto,tenant_slug:'qa-knowledge'});
   expect(mocks.fetch.mock.calls[1][1].headers['Idempotency-Key']).toBeTruthy();
   expect(screen.queryByRole('link')).not.toBeInTheDocument();expect(reader.textContent).not.toContain('reserved-');
@@ -164,11 +174,11 @@ describe('actual embedded chat normalization and renderer',()=>{
   render(<InstitutionalChatMessage answer={answer} onButtonClick={onButtonClick}/>);
   const toggle=screen.getByRole('button',{name:'Texto más grande'});fireEvent.click(toggle);
   expect(toggle).toHaveAttribute('aria-pressed','true');expect(screen.getByTestId('institutional-chat-message')).toHaveClass('institutional-chat-message--large');
-  expect(screen.getByRole('button',{name:'Documentación'})).toBeVisible();expect(onButtonClick).not.toHaveBeenCalled();
+  expect(screen.getByRole('button',{name:'1 Documentación'})).toBeVisible();expect(onButtonClick).not.toHaveBeenCalled();
  });
  it('moves focus from an activated menu to the next heading while preserving focus for typing elsewhere',()=>{
   const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
-  screen.getByRole('button',{name:'Documentación'}).focus();
+  screen.getByRole('button',{name:'1 Documentación'}).focus();
   mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'requirements',title:'Documentación necesaria'}]}} onButtonClick={()=>{}}/>);
   expect(screen.getByRole('heading',{name:'Documentación necesaria'})).toHaveFocus();
   const input=document.createElement('input');document.body.append(input);input.focus();

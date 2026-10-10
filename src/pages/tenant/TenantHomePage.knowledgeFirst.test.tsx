@@ -126,7 +126,7 @@ describe('published institutional reading comes before the generic public overvi
     await waitFor(() => expect(screen.queryByText(genericDescription)).not.toBeInTheDocument());
     const reader = screen.getByTestId('institutional-assistant');
     fireEvent.change(input, { target: { value: 'Borrador explícito del visitante sintético' } });
-    const topic = screen.getByRole('button', { name: 'Consultar requisitos' });
+    const topic = screen.getByRole('button', { name: '1 Consultar requisitos' });
     topic.focus();
     fireEvent.click(topic);
     const result = await screen.findByRole('heading', { name: node('requirements').title });

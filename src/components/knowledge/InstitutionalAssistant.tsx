@@ -6,6 +6,7 @@ import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
+import {institutionalChoiceLabel} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
@@ -171,7 +172,15 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
             <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading}/>:null}
           {!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={nodes}
             disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
-            renderChoice={action=><button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={()=>navigate(action.target)}><span>{action.label}</span><ChevronRight size={16}/></button>}/>:null}
+            renderChoice={action=>{
+              const label=institutionalChoiceLabel(action.label);
+              return <button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={()=>navigate(action.target)}>
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
+                  {label.emoji?<span aria-hidden="true" className="shrink-0">{label.emoji}</span>:null}<span>{label.words}</span>
+                </span><ChevronRight size={16} aria-hidden="true"/>
+              </button>;
+            }}/>:null}
         </div>
         {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{event.preventDefault();if(question.trim())void navigate(current,question.trim());}}>
           <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19}/><textarea id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}

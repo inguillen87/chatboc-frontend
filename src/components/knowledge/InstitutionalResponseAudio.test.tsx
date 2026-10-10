@@ -25,7 +25,7 @@ describe('institutional voice controls',()=>{
     render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);await screen.findByRole('button',{name:copy.listen});
     const input=screen.getByLabelText(w.ui.question);fireEvent.change(input,{target:{value:'Consulta que estoy preparando'}});expect(mocks.read).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button',{name:copy.listen}));await screen.findByRole('button',{name:copy.pause});
-    mocks.fetch.mockResolvedValueOnce(reply('requirements',w));fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));
+    mocks.fetch.mockResolvedValueOnce(reply('requirements',w));fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
     await screen.findByRole('heading',{name:'Requisitos de la consulta'});expect(revoke).toHaveBeenCalledWith('blob:synthetic-audio');expect(input).toHaveValue('Consulta que estoy preparando');expect(screen.getByRole('button',{name:copy.listen})).toBeEnabled();
   });
   it('does not fetch or autoplay on rendering and supports explicit listening, pausing, resuming and stopping',async()=>{
@@ -55,13 +55,13 @@ describe('institutional voice controls',()=>{
     render(<InstitutionalChatMessage answer={{tenant:scope.tenant,revision:scope.revision,nodes:[node()],sources:node().sources,audioReading:copy}} onButtonClick={()=>{}}/>);
     expect(pending.signal.aborted).toBe(true);await act(async()=>{resolve(new Blob(['retired']));});expect(create).not.toHaveBeenCalled();
     first.unmount();fireEvent.click(screen.getByRole('button',{name:copy.listen}));await screen.findByRole('button',{name:copy.pause});
-    fireEvent.click(screen.getByRole('button',{name:'Consultar requisitos'}));expect(revoke).toHaveBeenCalledWith('blob:synthetic-audio');expect(screen.getByRole('button',{name:copy.listen})).toBeEnabled();
+    fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));expect(revoke).toHaveBeenCalledWith('blob:synthetic-audio');expect(screen.getByRole('button',{name:copy.listen})).toBeEnabled();
   });
   it('keeps canonical text, sources and choices after an audio failure, without provider detail',async()=>{
     mocks.read.mockRejectedValue(new Error('PRIVATE_PROVIDER_FAILURE'));
     render(<InstitutionalChatMessage answer={{tenant:scope.tenant,revision:scope.revision,nodes:[node()],sources:node().sources,audioReading:copy}} onButtonClick={()=>{}}/>);
     fireEvent.click(screen.getByRole('button',{name:copy.listen}));await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent(copy.error));
-    expect(screen.getByText(node().text)).toBeVisible();expect(screen.getByRole('button',{name:'Consultar requisitos'})).toBeEnabled();expect(screen.queryByText('PRIVATE_PROVIDER_FAILURE')).not.toBeInTheDocument();
+    expect(screen.getByText(node().text)).toBeVisible();expect(screen.getByRole('button',{name:'1 Consultar requisitos'})).toBeEnabled();expect(screen.queryByText('PRIVATE_PROVIDER_FAILURE')).not.toBeInTheDocument();
   });
   it('does not expose voice for an answer without a backend capability',()=>{
     render(<InstitutionalChatMessage answer={{tenant:scope.tenant,revision:scope.revision,nodes:[node()],sources:node().sources}} onButtonClick={()=>{}}/>);

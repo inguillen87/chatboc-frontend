@@ -49,7 +49,7 @@ describe('shared institutional bootstrap',()=>{
   expect(message.institutional?.tenant).toEqual({id:value.tenant.id,slug:value.tenant.slug});
   render(<ChatMessage message={message} isTyping={false} onButtonClick={()=>{}}/>);
   expect(screen.getByTestId('institutional-chat-message')).toBeVisible();
-  expect(screen.getByRole('button',{name:'Consultar requisitos'})).toBeVisible();
+  expect(screen.getByRole('button',{name:'1 Consultar requisitos'})).toBeVisible();
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
   expect(hook.result.current.suppressLegacyInitialMenu).toBe(true);
  });
