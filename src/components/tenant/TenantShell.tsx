@@ -14,6 +14,7 @@ import { getErrorMessage } from '@/utils/api';
 import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
+import { tenantHostNavigationTarget } from '@/utils/tenantHostBinding';
 import { TenantSwitcher } from './TenantSwitcher';
 
 interface TenantShellProps {
@@ -43,6 +44,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
     unfollowCurrentTenant,
     followedTenantsError,
     refreshFollowedTenants,
+    hostBinding,
   } = useTenant();
   const [updatingFollow, setUpdatingFollow] = useState(false);
 
@@ -178,7 +180,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
           >
             {isCurrentTenantFollowed ? 'Dejar de seguir' : 'Seguir espacio'}
           </Button>
-          <TenantSwitcher className="w-full sm:w-60" />
+          {!hostBinding ? <TenantSwitcher className="w-full sm:w-60" /> : null}
         </div>
       </div>
     );
@@ -192,7 +194,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
         {navigationItems.map((item) => {
           const key = item.id || item.route || item.label;
           const enabled = item.enabled !== false;
-          const to = resolveTenantPublicNavigationTarget(item, basePath);
+          const to = tenantHostNavigationTarget(hostBinding, resolveTenantPublicNavigationTarget(item, basePath));
           const label = item.label;
 
           if (!enabled || !to) {
@@ -212,7 +214,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
             <NavLink
               key={key}
               to={to}
-              end={to === basePath}
+              end={to === basePath || to === '/'}
               className={({ isActive }) =>
                 cn(
                   'rounded-full px-3 py-2 text-sm font-medium transition-colors',

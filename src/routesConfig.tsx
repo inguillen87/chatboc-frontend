@@ -5,6 +5,7 @@ import { Navigate, useLocation, useParams } from 'react-router-dom';
 // ... (importaciones existentes) ...
 import { EDUCATION_FEATURE_FLAGS, FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import Index from '@/pages/Index';
+import { TenantHostHomeRoute } from '@/components/tenant/TenantHostHomeRoute';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import UserLogin from '@/pages/UserLogin';
@@ -497,7 +498,7 @@ const routes: RouteConfig[] = [
 
   // --- GENERIC / FALLBACK ROUTES ---
 
-  { path: '/', element: <Index /> },
+  { path: '/', element: <TenantHostHomeRoute><Index /></TenantHostHomeRoute> },
 
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.

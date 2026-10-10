@@ -16,6 +16,7 @@ import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
+import OwnerRealtimeVoicePanel from "./OwnerRealtimeVoicePanel";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
@@ -1135,7 +1136,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     experienceBlueprint,
   } = props;
   const isMobile = useIsMobile();
-  const { user } = useUser();
+  const { user, hasVerifiedSession } = useUser();
   const isBackofficeUser = isBackofficeRole(user?.rol);
   const fallbackRubroTitle = welcomeTitle || "Chatboc";
   const fallbackRubroSubtitle =
@@ -3981,6 +3982,9 @@ const ChatPanel = (props: ChatPanelProps) => {
           whatsappLabel={showWhatsAppSupport ? whatsappButtonLabel : null}
           onWhatsApp={showWhatsAppSupport ? handleWhatsAppBridge : undefined}
         />
+      ) : null}
+      {hasVerifiedSession && user && tenantSlug && channelMode === "chat" ? (
+        <OwnerRealtimeVoicePanel tenantSlug={tenantSlug} logoUrl={headerLogoUrl || undefined} reducedMotion={Boolean(a11yPrefs?.reducedMotion)} />
       ) : null}
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">

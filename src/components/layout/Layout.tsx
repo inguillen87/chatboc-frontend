@@ -4,9 +4,11 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
 import DemoModeBanner from './DemoModeBanner';
+import { useTenant } from '@/context/TenantContext';
 
 const Layout = () => {
   const location = useLocation();
+  const { hostBinding } = useTenant();
   const [searchParams] = useSearchParams();
   const isEmbed = searchParams.get('mode') === 'embed';
   const profileTab = searchParams.get('tab');
@@ -28,7 +30,7 @@ const Layout = () => {
   const isPlatformWorkspace = normalizedPath === '/superadmin' || normalizedPath === '/admin/tenants';
   const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
   const isDemoExperience = normalizedPath === '/demo';
-  const isLandingExperience = normalizedPath === '/';
+  const isLandingExperience = normalizedPath === '/' && !hostBinding;
   const isFocusedPublicExperience = isDemoExperience || isPublicSurveyExperience;
   const isFooterlessWorkspace = isTicketWorkspace || isProfileWorkspace || isPlatformWorkspace || isFocusedPublicExperience;
 
@@ -95,7 +97,7 @@ const Layout = () => {
           {'[data-workspace-shell] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
         </style>
       ) : null}
-      {!isViewportWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
+      {!hostBinding && !isViewportWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
       {!isFocusedPublicExperience ? <Navbar /> : null}
       {isViewportWorkspace ? (
         <div className="mt-14 shrink-0">

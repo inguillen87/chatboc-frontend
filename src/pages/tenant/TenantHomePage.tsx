@@ -27,6 +27,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { getErrorMessage } from '@/utils/api';
 import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
 import type { TenantEventItem, TenantNewsItem, TenantPublicNavigationItem } from '@/types/tenant';
+import { tenantHostNavigationTarget } from '@/utils/tenantHostBinding';
 
 const normalizeText = (value: unknown) =>
   String(value ?? '')
@@ -130,7 +131,7 @@ const LandingSectionShell = ({
 
 const TenantPublicLanding = () => {
   const params = useParams<{ tenant: string }>();
-  const { tenant, currentSlug } = useTenant();
+  const { tenant, currentSlug, hostBinding } = useTenant();
 
   const slug = useMemo(() => {
     const fromRoute = params.tenant?.trim();
@@ -208,13 +209,13 @@ const TenantPublicLanding = () => {
 
   const tenantName = tenant?.nombre?.trim() || slug;
   const ticketTarget = ticketNavItem
-    ? resolveNavTarget(ticketNavItem, basePath)
+    ? tenantHostNavigationTarget(hostBinding, resolveNavTarget(ticketNavItem, basePath))
     : null;
   const surveysTarget = shouldLoadSurveys && surveysNavItem
-    ? resolveNavTarget(surveysNavItem, basePath)
+    ? tenantHostNavigationTarget(hostBinding, resolveNavTarget(surveysNavItem, basePath))
     : null;
-  const newsTarget = newsNavItem ? resolveNavTarget(newsNavItem, basePath) : null;
-  const eventsTarget = eventsNavItem ? resolveNavTarget(eventsNavItem, basePath) : null;
+  const newsTarget = newsNavItem ? tenantHostNavigationTarget(hostBinding, resolveNavTarget(newsNavItem, basePath)) : null;
+  const eventsTarget = eventsNavItem ? tenantHostNavigationTarget(hostBinding, resolveNavTarget(eventsNavItem, basePath)) : null;
 
   const statCards = [
     newsNavItem ? { label: newsNavItem.label, value: String(newsItems.length), icon: Newspaper } : null,

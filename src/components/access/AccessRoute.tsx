@@ -7,6 +7,7 @@ import { hasRequiredRole, normalizeRole } from '@/utils/roles';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Button } from '@/components/ui/button';
+import { TenantHostPrivateScope } from '@/components/tenant/TenantHostPrivateScope';
 
 interface AccessRouteProps {
   children: React.ReactElement;
@@ -105,7 +106,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
   }
 
   if (isSuperadmin && !enforceCapabilities) {
-    return children;
+    return <TenantHostPrivateScope>{children}</TenantHostPrivateScope>;
   }
 
   const hasDeclaredCapabilities = capabilities.length > 0;
@@ -149,7 +150,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     );
   }
 
-  return children;
+  return <TenantHostPrivateScope>{children}</TenantHostPrivateScope>;
 };
 
 export default AccessRoute;

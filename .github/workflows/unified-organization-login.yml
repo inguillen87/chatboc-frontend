@@ -5,6 +5,18 @@ name: Unified organization login
       - src/pages/Login.tsx
       - src/api/tenant*
       - src/types/tenant.ts
+      - src/types/tenantHost.ts
+      - src/context/TenantContext*
+      - src/hooks/useTenantHostBinding*
+      - src/utils/tenantHostBinding*
+      - src/utils/api.hostBinding.test.ts
+      - src/components/tenant/TenantHost*
+      - src/components/tenant/TenantDomainSettings*
+      - src/components/tenant/TenantShell*
+      - src/components/layout/Layout.tsx
+      - src/pages/Integracion*
+      - src/test/fixtures/tenantHost.ts
+      - src/test/fixtures/tenantDomain.ts
       - src/utils/publishedTenantIdentity*
       - src/components/layout/Navbar*
       - src/components/layout/Footer*
@@ -38,6 +50,8 @@ name: Unified organization login
       - src/features/chat/institutionalChatMessage*
       - src/components/chat/ChatHeader*
       - src/components/chat/ChatPanel*
+      - src/components/chat/OwnerRealtimeVoicePanel*
+      - src/utils/ownerRealtimeVoice*
       - src/components/chat/ChatHumanSupportBar*
       - src/components/chat/ChatWidgetInner*
       - src/utils/widgetTheme*

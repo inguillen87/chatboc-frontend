@@ -102,6 +102,7 @@ export interface ChannelActivationContract {
   };
   preferred_channels?: string[];
   counts?: Record<string, number>;
+  whatsapp_connection?: WhatsappConnectionSummary;
   channels?: ChannelActivationChannel[];
   implementation_journey?: TenantImplementationJourneyContract | null;
   organization_setup?: unknown;
@@ -126,6 +127,19 @@ export interface ChannelActivationContract {
     widget_tokens_exposed?: boolean;
     provider_credentials_exposed?: boolean;
   };
+}
+
+export interface WhatsappConnectionSummary {
+  contract_version: 'tenant.whatsapp_connection_summary.v1';
+  provider: 'meta' | 'twilio' | null;
+  environment: 'sandbox' | 'production' | 'historical' | null;
+  display_phone_number: string | null;
+  configuration_status: 'unconfigured' | 'unverified' | 'configured' | 'expired' | 'pending';
+  reason_code: string | null;
+  expires_at: number | null;
+  counts: { sandbox_registered: number; production_registered: number };
+  production_ready: boolean;
+  conversation_verified: boolean;
 }
 
 const normalizeTenantSlug = (value?: string | null) => {
@@ -349,6 +363,21 @@ export const parseTenantChannelActivation = (
 
   if (payload.tenant !== undefined && payload.tenant !== null && !isRecord(payload.tenant)) {
     throw new Error('channel_activation_contract_invalid');
+  }
+  if (payload.whatsapp_connection !== undefined) {
+    const row = payload.whatsapp_connection;
+    if (!isRecord(row) || row.contract_version !== 'tenant.whatsapp_connection_summary.v1'
+      || !(row.provider === null || row.provider === 'meta' || row.provider === 'twilio')
+      || ![null, 'sandbox', 'production', 'historical'].includes(row.environment as null | string)
+      || !(row.display_phone_number === null || (typeof row.display_phone_number === 'string' && /^\+[1-9][0-9]{6,14}$/.test(row.display_phone_number)))
+      || !['unconfigured', 'unverified', 'configured', 'expired', 'pending'].includes(row.configuration_status as string)
+      || !isOptionalString(row.reason_code)
+      || !(row.expires_at === null || (Number.isSafeInteger(row.expires_at) && Number(row.expires_at) > 0 && Number(row.expires_at) < 253402300800))
+      || !isRecord(row.counts) || !isValidCount(row.counts.sandbox_registered) || !isValidCount(row.counts.production_registered)
+      || typeof row.production_ready !== 'boolean' || typeof row.conversation_verified !== 'boolean'
+      || (row.environment !== 'production' && row.production_ready)) {
+      throw new Error('whatsapp_connection_contract_invalid');
+    }
   }
 
   const requested = normalizeTenantSlug(requestedTenantSlug);

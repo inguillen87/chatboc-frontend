@@ -9,6 +9,7 @@ import { tenantService } from '@/services/tenantService';
 import type { TenantConfigBundle, TenantOrganizationProfile } from '@/types/TenantConfig';
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
 
 const readAuthorizedProfile = (bundle: TenantConfigBundle, slug: string): TenantOrganizationProfile | null => {
   const profile = bundle?.organization_profile;
@@ -25,7 +26,7 @@ type ProfileRead = { context: RequestContext; status: 'ready'; name: string; pro
   { context: RequestContext; status: 'error' };
 
 /** Read-only entry to the existing editor. This link grants no write authority. */
-export default function InstitutionalProfileAccess() {
+export default function InstitutionalProfileAccess({ includeDomainSettings = false }: { includeDomainSettings?: boolean }) {
   const { tenant: routeTenant } = useParams();
   const [searchParams] = useSearchParams();
   const { currentSlug, tenant: publicTenant, isLoadingTenant, tenantError } = useTenant();
@@ -90,7 +91,7 @@ export default function InstitutionalProfileAccess() {
     </div>;
   }
   const href = `/perfil?${new URLSearchParams({ section: 'general', tenant_slug: context.slug }).toString()}`;
-  return <div className="mt-4 max-w-xl space-y-2">
+  return <div className="mt-4 space-y-2">
     <p className="break-words text-sm font-medium text-foreground">{matching.name}</p>
     <Button asChild variant="outline" className="min-h-11 h-auto max-w-full whitespace-normal text-left">
       <a href={href} target="_blank" rel="noopener noreferrer" aria-describedby={descriptionId}
@@ -104,5 +105,6 @@ export default function InstitutionalProfileAccess() {
       Se abre en una nueva pestaña de Chatboc; tus borradores de integraciones se conservan.
     </p>
     {matching.profile.editability.message ? <p className="text-sm text-muted-foreground">{matching.profile.editability.message}</p> : null}
+    {includeDomainSettings ? <TenantDomainSettings key={context.scopeKey} tenant={matching.profile.tenant} scopeKey={context.scopeKey} /> : null}
   </div>;
 }
