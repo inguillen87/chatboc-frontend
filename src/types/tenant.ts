@@ -1,3 +1,4 @@
+import type {PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
 import type { RealtimeVoiceCapabilities } from './realtimeVoice';
 
 export interface TenantThemeConfig {
@@ -25,6 +26,8 @@ export interface CtaMessage {
 }
 
 export interface TenantPublicInfo {
+  /** Explicit public identity validated before a requested slug can override it. */
+  publishedIdentity?: PublishedTenantIdentity | null;
   slug: string;
   nombre: string;
   logo_url?: string | null;

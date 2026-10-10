@@ -1,4 +1,5 @@
-import { useMemo, type ElementType, type ReactNode } from 'react';
+import InstitutionalAssistant, { type PublicKnowledgeAvailability } from '@/components/knowledge/InstitutionalAssistant';
+import { useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -132,13 +133,16 @@ const TenantPublicLanding = () => {
   const { tenant, currentSlug } = useTenant();
 
   const slug = useMemo(() => {
+    const fromRoute = params.tenant?.trim();
+    if (fromRoute) return fromRoute.toLowerCase() === 'default' ? '' : fromRoute;
     const fromContext = tenant?.slug ?? currentSlug;
-    if (fromContext?.trim()) return fromContext.trim();
-    if (params.tenant?.trim()) return params.tenant.trim();
+    if (fromContext?.trim() && fromContext.trim().toLowerCase() !== 'default') return fromContext.trim();
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 
   const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
+  const [publicKnowledge, setPublicKnowledge] = useState<PublicKnowledgeAvailability | null>(null);
+  const hasPublishedKnowledge = Boolean(publicKnowledge && publicKnowledge.tenantSlug === slug);
 
   const navigationQuery = useQuery({
     queryKey: ['tenant-public-navigation-home', slug],
@@ -235,7 +239,7 @@ const TenantPublicLanding = () => {
   };
 
   return (
-    <TenantShell>
+    <TenantShell compactHeader={hasPublishedKnowledge}>
       {!slug ? (
         <Card className="border-2 border-dashed">
           <CardHeader>
@@ -246,13 +250,11 @@ const TenantPublicLanding = () => {
           </CardContent>
         </Card>
       ) : (
-        <motion.div className="grid gap-10" variants={container} initial="hidden" animate="show">
-          <motion.section
+        <motion.div className={hasPublishedKnowledge ? 'grid gap-6' : 'grid gap-10'} variants={container} initial="hidden" animate="show">
+          {!hasPublishedKnowledge ? <motion.section
             variants={itemAnim}
-            className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-8 shadow-sm"
+            className="relative overflow-hidden rounded-[32px] border border-border/60 bg-card p-8 shadow-sm"
           >
-            <div className="absolute -right-10 top-0 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-            <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-sky-500/10 blur-3xl" />
             <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
               <div className="space-y-5">
                 <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
@@ -260,7 +262,7 @@ const TenantPublicLanding = () => {
                   Espacio publico
                 </Badge>
                 <div className="space-y-3">
-                  <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
+                  <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
                     {tenantName}
                   </h1>
                   <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
@@ -292,7 +294,9 @@ const TenantPublicLanding = () => {
                 </div>
               ) : null}
             </div>
-          </motion.section>
+          </motion.section> : null}
+
+          <InstitutionalAssistant tenantSlug={slug} mode="public" publicIdentity={tenant?.publishedIdentity} onPublicKnowledgeAvailability={setPublicKnowledge} />
 
           {!navigationLoaded ? (
             <div className="flex min-h-[160px] items-center justify-center rounded-3xl border bg-muted/30">

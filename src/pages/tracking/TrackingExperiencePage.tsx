@@ -1161,7 +1161,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <span className="inline-flex items-center rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
-                      Ticket #{support.ticketId || code}
+                      {support.ticketId && String(support.ticketId) !== code ? 'Referencia interna' : 'Ticket'} #{support.ticketId || code}
                     </span>
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${

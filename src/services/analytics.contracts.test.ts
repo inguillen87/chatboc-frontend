@@ -98,6 +98,8 @@ describe('parseAnalyticsEventIngestAckV1', () => {
       ok: true,
       contract_version: 'analytics.event_ingest.v1',
       request_id: 'req-ingest-1',
+      accepted: true,
+      ignored: false,
       tenant_id: 42,
       event_name: 'ticket_created',
       contact_key: 'ck-1',
@@ -109,12 +111,73 @@ describe('parseAnalyticsEventIngestAckV1', () => {
       ok: true,
       contract_version: 'analytics.event_ingest.v1',
       request_id: 'req-ingest-1',
+      accepted: true,
+      ignored: false,
       tenant_id: 42,
       event_name: 'ticket_created',
       contact_key: 'ck-1',
       conversation_id: 'conv-1',
       identity_source: 'conversation_id',
     });
+  });
+
+  it('parses a fail-closed ignored ack without turning HTTP 202 into a synthetic 502', () => {
+    const parsed = parseAnalyticsEventIngestAckV1({
+      accepted: false,
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ignored: true,
+      ok: true,
+      reason: 'access_denied',
+      request_id: 'req-ingest-ignored',
+      success: true,
+      tenant_id: 142,
+    });
+
+    expect(parsed).toEqual({
+      accepted: false,
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ignored: true,
+      ok: true,
+      reason: 'access_denied',
+      request_id: 'req-ingest-ignored',
+      tenant_id: 142,
+    });
+  });
+
+  it('accepts tenant-unresolved as an explicit ignored ack with null tenant_id', () => {
+    const parsed = parseAnalyticsEventIngestAckV1({
+      accepted: false,
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ignored: true,
+      ok: true,
+      reason: 'tenant_unresolved',
+      request_id: 'req-ingest-no-tenant',
+      tenant_id: null,
+    });
+
+    expect(parsed).toMatchObject({
+      accepted: false,
+      ignored: true,
+      reason: 'tenant_unresolved',
+      tenant_id: null,
+    });
+  });
+
+  it.each([
+    { accepted: false, ignored: false, reason: 'access_denied', tenant_id: 142 },
+    { accepted: true, ignored: true, tenant_id: 142 },
+    { accepted: false, ignored: true, reason: '', tenant_id: 142 },
+  ])('rejects contradictory or incomplete ingest decisions: %o', (decision) => {
+    expect(parseAnalyticsEventIngestAckV1({
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ok: true,
+      request_id: 'req-invalid-decision',
+      ...decision,
+    })).toBeNull();
   });
 });
 

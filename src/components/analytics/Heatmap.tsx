@@ -31,6 +31,57 @@ interface HeatmapProps {
   onSelect?: (lat: number, lon: number, address?: string) => void;
 }
 
+const nonNegative = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+const pointWeight = (point: HeatPoint) => nonNegative(point.totalWeight) ?? nonNegative(point.weight) ?? 1;
+const representedCount = (point: HeatPoint): number | undefined => {
+  const count = nonNegative(point.pointCount) ?? nonNegative(point.clusterSize);
+  if (count !== undefined) return Number.isSafeInteger(count) ? count : undefined;
+  return point.cellId || point.clusterId || point.sampleTickets?.length || point.aggregatedCategorias?.length || point.aggregatedBarrios?.length || point.aggregatedTipos?.length ? undefined : 1;
+};
+type LocalHeatmapFilters = { categories: string[]; barrios: string[]; tipos: string[] };
+/** Marginal breakdowns do not establish an intersection between two dimensions. */
+export function filterHeatmapLocations(points: HeatPoint[], filters: LocalHeatmapFilters) {
+  let unavailableGroups = 0;
+  const filtered = points.flatMap(point => {
+    const dimensions = [
+      { selected: filters.categories, value: point.categoria, breakdown: point.aggregatedCategorias, field: 'categoria', aggregate: 'aggregatedCategorias' },
+      { selected: filters.barrios, value: point.barrio, breakdown: point.aggregatedBarrios, field: 'barrio', aggregate: 'aggregatedBarrios' },
+      { selected: filters.tipos, value: point.tipo_ticket, breakdown: point.aggregatedTipos, field: 'tipo_ticket', aggregate: 'aggregatedTipos' },
+    ];
+    const subsets: Array<{ field: string; aggregate: string; rows: HeatmapBreakdownItem[] }> = [];
+    for (const dimension of dimensions) {
+      if (!dimension.selected.length) continue;
+      if (dimension.breakdown?.length) {
+        const rows = dimension.breakdown.filter(row => dimension.selected.includes(row.label));
+        if (!rows.length) return [];
+        if (rows.length !== dimension.breakdown.length) subsets.push({ ...dimension, rows });
+      } else if (!dimension.value || !dimension.selected.includes(dimension.value)) return [];
+    }
+    if (!subsets.length) return [point];
+    const subset = subsets[0];
+    if (subsets.length > 1 || subset.rows.some(row => nonNegative(row.weight) === undefined || !Number.isSafeInteger(row.count) || row.count < 0)) {
+      unavailableGroups += 1;
+      return [];
+    }
+    const count = subset.rows.reduce((sum, row) => sum + row.count, 0);
+    const weight = subset.rows.reduce((sum, row) => sum + row.weight, 0);
+    if (!count) return [];
+    return [{ ...point, weight, totalWeight: weight, intensity: weight, pointCount: count, clusterSize: count,
+      averageWeight: weight / count, last_ticket_at: null,
+      sampleTickets: undefined, id: undefined, ticket: undefined, ticketId: undefined, recordId: undefined,
+      sourceModel: undefined, ticketHref: undefined, ticketIdentityStatus: 'missing',
+      aggregatedCategorias: undefined, aggregatedBarrios: undefined, aggregatedTipos: undefined,
+      aggregatedEstados: undefined, aggregatedSeveridades: undefined,
+      aggregatedCanales: undefined, aggregatedFuentes: undefined, dominantValues: undefined, feature: undefined, total: undefined,
+      categoria: undefined, barrio: undefined, tipo_ticket: undefined, estado: undefined, severidad: undefined,
+      [subset.field]: subset.rows.length === 1 ? subset.rows[0].label : undefined,
+      [subset.aggregate]: subset.rows,
+    } as HeatPoint];
+  });
+  return { points: filtered, unavailableGroups };
+}
+
 export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   initialHeatmapData,
   adminLocation,
@@ -100,48 +151,11 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     [setProvider],
   );
 
-  const matchesWithAggregated = useCallback(
-    (
-      selected: string[],
-      directValue: string | undefined | null,
-      aggregated?: HeatmapBreakdownItem[] | null,
-    ) => {
-      if (selected.length === 0) {
-        return true;
-      }
-
-      if (directValue && selected.includes(directValue)) {
-        return true;
-      }
-
-      if (Array.isArray(aggregated)) {
-        return aggregated.some((item) => item?.label && selected.includes(item.label));
-      }
-
-      return false;
-    },
-    [],
-  );
-
-  const heatmapData = useMemo(() => {
-    return initialHeatmapData.filter((t) => {
-      const matchesTipo = matchesWithAggregated(selectedTipos, t.tipo_ticket, t.aggregatedTipos);
-      const matchesCategoria = matchesWithAggregated(
-        selectedCategories,
-        t.categoria,
-        t.aggregatedCategorias,
-      );
-      const matchesBarrio = matchesWithAggregated(selectedBarrios, t.barrio, t.aggregatedBarrios);
-
-      return matchesTipo && matchesCategoria && matchesBarrio;
-    });
-  }, [
-    initialHeatmapData,
-    matchesWithAggregated,
-    selectedTipos,
-    selectedCategories,
-    selectedBarrios,
-  ]);
+  const localFiltersActive = Boolean(selectedTipos.length || selectedCategories.length || selectedBarrios.length);
+  const filteredLocations = useMemo(() => filterHeatmapLocations(initialHeatmapData, {
+    categories: selectedCategories, barrios: selectedBarrios, tipos: selectedTipos,
+  }), [initialHeatmapData, selectedTipos, selectedCategories, selectedBarrios]);
+  const heatmapData = filteredLocations.points;
 
   const disableClustering = useMemo(() => {
     if (heatmapData.length === 0) {
@@ -180,7 +194,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     return false;
   }, [heatmapData, metadata]);
 
-  type InsightItem = { label: string; count: number; weight: number; percentage: number };
+  type InsightItem = { label: string; count: number | null; weight: number; percentage: number };
   type HeatmapInsights = {
     totalPoints: number;
     totalWeight: number;
@@ -201,43 +215,36 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
       return null;
     }
 
-    const metadataSummary = metadata ?? null;
-
-    const totalPoints =
-      metadataSummary?.pointCount !== undefined
-        ? metadataSummary.pointCount
-        : heatmapData.length;
+    const totalPoints = heatmapData.length;
 
     const computedTotalWeight = heatmapData.reduce(
-      (sum, point) => sum + (point.weight ?? 1),
+      (sum, point) => sum + pointWeight(point),
       0,
     );
-    const totalWeight =
-      metadataSummary?.totalWeight !== undefined
-        ? metadataSummary.totalWeight
-        : Number(computedTotalWeight.toFixed(2));
+    const totalWeight = Number(computedTotalWeight.toFixed(2));
 
     const averageWeight =
       totalPoints > 0 ? Number((totalWeight / totalPoints).toFixed(2)) : 0;
 
     const computedMaxPointWeight = heatmapData.reduce(
-      (max, point) => Math.max(max, point.weight ?? 1),
+      (max, point) => Math.max(max, pointWeight(point)),
       0,
     );
-    const maxPointWeight =
-      metadataSummary?.maxPointWeight !== undefined
-        ? metadataSummary.maxPointWeight
-        : Number(computedMaxPointWeight.toFixed(2));
+    const maxPointWeight = Number(computedMaxPointWeight.toFixed(2));
 
-    const buildBreakdown = (getter: (point: HeatPoint) => string | null | undefined): InsightItem[] => {
-      const acc = new Map<string, { count: number; weight: number }>();
+    const buildBreakdown = (getter: (point: HeatPoint) => string | null | undefined, aggregate: (point: HeatPoint) => HeatmapBreakdownItem[] | undefined): InsightItem[] => {
+      const acc = new Map<string, { count: number | null; weight: number }>();
       heatmapData.forEach((point) => {
-        const label = getter(point);
-        if (!label) return;
-        const current = acc.get(label) ?? { count: 0, weight: 0 };
-        current.count += 1;
-        current.weight += point.weight ?? 1;
-        acc.set(label, current);
+        const rows = aggregate(point);
+        const entries = rows?.length ? rows : [{ label: getter(point), count: representedCount(point), weight: pointWeight(point) }];
+        entries.forEach(row => {
+          if (!row.label || nonNegative(row.weight) === undefined) return;
+          const current = acc.get(row.label) ?? { count: 0, weight: 0 };
+          const count = nonNegative(row.count);
+          current.count = current.count !== null && count !== undefined && Number.isSafeInteger(count) ? current.count + count : null;
+          current.weight += row.weight;
+          acc.set(row.label, current);
+        });
       });
       return Array.from(acc.entries())
         .map(([label, value]) => ({
@@ -287,17 +294,16 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
       totalPoints,
       totalWeight: Number(totalWeight.toFixed(2)),
       averageWeight,
-      categories: buildBreakdown((point) => point.categoria),
-      barrios: buildBreakdown((point) => point.barrio),
-      tipos: buildBreakdown((point) => point.tipo_ticket),
-      estados: buildBreakdown((point) => point.estado),
-      severidades: buildBreakdown((point) => point.severidad),
+      categories: buildBreakdown((point) => point.categoria, (point) => point.aggregatedCategorias),
+      barrios: buildBreakdown((point) => point.barrio, (point) => point.aggregatedBarrios),
+      tipos: buildBreakdown((point) => point.tipo_ticket, (point) => point.aggregatedTipos),
+      estados: buildBreakdown((point) => point.estado, (point) => point.aggregatedEstados),
+      severidades: buildBreakdown((point) => point.severidad, (point) => point.aggregatedSeveridades),
       recency,
-      cellCount: metadataSummary?.cellCount,
+      cellCount: heatmapData.some(point => point.cellId || point.clusterId) ? heatmapData.filter(point => point.cellId || point.clusterId).length : undefined,
       maxPointWeight,
-      maxCellCount: metadataSummary?.maxCellCount,
     };
-  }, [heatmapData, metadata]);
+  }, [heatmapData]);
 
   const metadataCenter = useMemo(() => {
     if (!metadata?.centroid) return null;
@@ -310,20 +316,20 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
 
   const mapCenter = useMemo(() => {
     if (adminLocation) return adminLocation;
-    if (metadataCenter) return metadataCenter;
+    if (metadataCenter && !localFiltersActive) return metadataCenter;
 
-    if (initialHeatmapData.length > 0) {
-      const totalWeight = initialHeatmapData.reduce((sum, t) => sum + (t.weight || 1), 0);
+    if (heatmapData.length > 0) {
+      const totalWeight = heatmapData.reduce((sum, t) => sum + pointWeight(t), 0);
       if (totalWeight > 0) {
-        const avgLat = initialHeatmapData.reduce((sum, t) => sum + t.lat * (t.weight || 1), 0) / totalWeight;
-        const avgLng = initialHeatmapData.reduce((sum, t) => sum + t.lng * (t.weight || 1), 0) / totalWeight;
+        const avgLat = heatmapData.reduce((sum, t) => sum + t.lat * pointWeight(t), 0) / totalWeight;
+        const avgLng = heatmapData.reduce((sum, t) => sum + t.lng * pointWeight(t), 0) / totalWeight;
         if (Number.isFinite(avgLat) && Number.isFinite(avgLng)) {
             return [avgLng, avgLat] as [number, number];
         }
       }
     }
     return [-64.5, -34.5] as [number, number]; // Default to center of Argentina
-  }, [initialHeatmapData, adminLocation, metadataCenter]);
+  }, [heatmapData, adminLocation, metadataCenter, localFiltersActive]);
 
   const metadataBoundsCoordinates = useMemo(() => {
     if (!metadata?.bounds || metadata.bounds.length < 4) {
@@ -358,12 +364,12 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
       coords.push(adminLocation);
     }
 
-    if (metadataBoundsCoordinates) {
+    if (metadataBoundsCoordinates && !localFiltersActive) {
       coords.push(...metadataBoundsCoordinates);
     }
 
     return coords;
-  }, [heatmapData, adminLocation, metadataBoundsCoordinates]);
+  }, [heatmapData, adminLocation, metadataBoundsCoordinates, localFiltersActive]);
 
   const initialZoom = adminLocation || heatmapData.length > 0 ? 12 : 4;
 
@@ -377,7 +383,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
             <li key={item.label} className="flex items-center justify-between gap-2">
               <span className="truncate text-foreground">{item.label}</span>
               <span className="flex items-center gap-2 font-mono text-muted-foreground">
-                <span>{item.count.toLocaleString('es-AR')}</span>
+                <span>{item.count === null ? 'No informado' : item.count.toLocaleString('es-AR')}</span>
                 <span>{item.percentage.toFixed(2)}%</span>
               </span>
             </li>
@@ -419,22 +425,23 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     if (!insights) return [] as { key: string; label: string; value: string }[];
 
     const last7d = insights.recency.find((item) => item.label === 'last7d');
+    const datedLocations = insights.recency.filter(item => item.label !== 'sinDato').reduce((sum, item) => sum + (item.count ?? 0), 0);
     const cards: ({ key: string; label: string; value: string })[] = [
       {
         key: 'points',
-        label: 'Puntos geolocalizados',
+        label: 'Ubicaciones visibles',
         value: insights.totalPoints.toLocaleString('es-AR'),
       },
       insights.cellCount !== undefined && insights.cellCount !== null
         ? {
             key: 'cells',
-            label: 'Celdas agregadas',
+            label: 'Celdas visibles',
             value: insights.cellCount.toLocaleString('es-AR'),
           }
         : null,
       {
         key: 'total-weight',
-        label: 'Intensidad acumulada',
+        label: 'Intensidad visible',
         value: insights.totalWeight.toLocaleString('es-AR', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2,
@@ -442,7 +449,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
       },
       {
         key: 'average',
-        label: 'Promedio por punto',
+        label: 'Intensidad por ubicación',
         value: insights.averageWeight.toFixed(2),
       },
       {
@@ -455,8 +462,8 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
       },
       {
         key: 'recency',
-        label: 'Recencia (≤7d)',
-        value: `${last7d?.percentage.toFixed(2) ?? '0.00'}%`,
+        label: 'Actividad ≤7d con fecha conocida',
+        value: datedLocations > 0 ? `${(100 * (last7d?.count ?? 0) / datedLocations).toFixed(2)}%` : 'No informada',
       },
     ].filter((card): card is { key: string; label: string; value: string } => Boolean(card));
 
@@ -595,6 +602,8 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
             <FilterGroup title="Categorías" items={availableCategories} selected={selectedCategories} onSelectedChange={setSelectedCategories} />
             <FilterGroup title="Barrios" items={availableBarrios} selected={selectedBarrios} onSelectedChange={setSelectedBarrios} />
         </div>
+        <p className="text-xs text-muted-foreground">Los indicadores describen las ubicaciones visibles y sus pesos; no representan personas únicas. La recencia usa sólo ubicaciones con fecha conocida. La última actividad de una celda no informa la fecha de todos sus registros.</p>
+        {filteredLocations.unavailableGroups > 0 && <Alert role="status"><AlertTitle>Desglose parcial</AlertTitle><AlertDescription>{filteredLocations.unavailableGroups} grupos no informan el detalle necesario para combinar estos filtros. Permanecen fuera de los indicadores y del mapa.</AlertDescription></Alert>}
 
         {insights ? (
           <div className="space-y-4 rounded-xl border border-dashed border-border/70 bg-muted/40 p-4">

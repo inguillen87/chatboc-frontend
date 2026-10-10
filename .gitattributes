@@ -1,3 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 *.pdf binary
+tests/e2e/fixtures/junin-department.geojson text eol=lf

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import {
   Activity,
@@ -8,12 +8,14 @@ import {
   Compass,
   DatabaseZap,
   Eye,
+  Filter,
   Gauge,
   Globe2,
   Layers,
   ListChecks,
   MapPin,
   Radar,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -34,17 +36,30 @@ import type {
 import type { MapLibreMapProps } from '@/components/MapLibreMap';
 import type { HeatPoint } from '@/services/statsService';
 import {
+  TerritorialMapAccessibleSheet,
+  type TerritorialCoverageDimension,
+} from './TerritorialMapAccessibleSheet';
+import {
+  buildTerritorialTicketHref,
+  isTerritorialTenantScopeCompatible,
+  resolveTerritorialTicketIdentity,
+} from '@/utils/territorialTicketIdentity';
+import {
   aggregateTerritoryHeatmap,
   DEVELOPMENT_TERRITORY_ZONES,
   getDemoTerritoryHeatmapPoints,
+  isValidWgs84Position,
   isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   resolveOfficialTerritoryZones,
+  resolvePointZone,
+  resolveTerritoryDataProvenance,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
   territoryCentroid,
   territoryZoneToPath,
   type TerritoryLayerDescriptor,
+  type TerritoryZone,
   type TerritoryZoneMetric,
 } from './premiumTerritoryHeatmap';
 
@@ -58,6 +73,7 @@ type ActiveFilterSummary = {
 };
 
 type MapFocusMode = 'territory' | 'quality' | 'telemetry';
+type MapDisplayMode = 'hybrid' | 'clusters' | 'heat';
 
 type BackendActionSummary = {
   label: string;
@@ -80,10 +96,284 @@ type PremiumTerritoryHeatmapProps = {
   minSampleSize?: number;
   allowDemoFallback?: boolean;
   demoProfile?: DemoProfile;
+  tenantSlug?: string | null;
   className?: string;
 };
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const EMPTY_TERRITORY_POINTS: HeatPoint[] = [];
+
+const MAP_CATEGORY_COLORS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#e11d48', '#0891b2'];
+
+const normalizedFacetValue = (value: string | undefined) => value?.trim().toLocaleLowerCase('es-AR') ?? '';
+
+const isNamedFacetValue = (value: string | undefined) => {
+  const normalized = normalizedFacetValue(value).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  return Boolean(
+    normalized &&
+      ![
+        'sin zona',
+        'sin barrio',
+        'sin categoria',
+        'sin categoría',
+        'no informado',
+        'no informada',
+        'desconocido',
+        'desconocida',
+        'unknown',
+        'none',
+        'null',
+        'n/a',
+      ].includes(normalized),
+  );
+};
+
+const categoryColorFor = (value: string | undefined) => {
+  const normalized = normalizedFacetValue(value) || 'sin-categoria';
+  const hash = Array.from(normalized).reduce((total, character) => (total * 31 + character.charCodeAt(0)) >>> 0, 0);
+  return MAP_CATEGORY_COLORS[hash % MAP_CATEGORY_COLORS.length];
+};
+
+type SafeLocationFacet = {
+  key: string;
+  label: string;
+  kind: 'cell' | 'street';
+};
+
+type TerritoryMapFacet = {
+  key: string;
+  label: string;
+  total: number;
+  mappedCount: number;
+  pendingGeocodeCount: number;
+  outsideJurisdictionCount: number;
+  matchKeys: string[];
+  color?: string;
+  volume?: number;
+};
+
+type ReconciledTerritorialCounts = {
+  total: number;
+  mappedCount: number;
+  pendingGeocodeCount: number;
+  outsideJurisdictionCount: number;
+};
+
+type ScopedTerritoryView = {
+  mode: 'global' | 'single' | 'combined';
+  label: string;
+  visiblePointCount: number;
+  total?: number;
+  mappedCount: number;
+  pendingGeocodeCount?: number;
+  outsideJurisdictionCount?: number;
+  coveragePercent?: number;
+  selectedFacet?: TerritoryMapFacet;
+  globalInsightsCompatible: boolean;
+};
+
+const compactWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const withoutDiacritics = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const MAX_ADDRESS_CORRIDOR_FACETS = 6;
+
+const NARRATIVE_LOCATION_PATTERN =
+  /^(?:justamente|luminaria|la\s+luminaria|hay\s+(?:un|una)|se\s+encuentra|quiero|necesito|solicito|reclamo|bache|el\s+bache|arbol\s+caido|basura|por\s+favor|frente\s+a|al\s+lado)\b|\b(?:apagada|apagado|no\s+funciona|sin\s+luz|roto|rota|caido|caida|desbordado|desbordada)\b/i;
+
+const normalizedStreetKeyPart = (value: string) =>
+  withoutDiacritics(value)
+    .toLocaleLowerCase('es-AR')
+    .replace(/^(?:avenida|av(?:da)?)\s*[.:]?\s+/, 'av ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const streetCorridorFacetKey = (value: string) => {
+  const normalizedParts = value
+    .split(/\s*\/\s*/)
+    .map(normalizedStreetKeyPart)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, 'es'));
+  return normalizedFacetValue(`street:${normalizedParts.join(':intersection:')}`);
+};
+
+const streetCorridorLabel = (corridor: string) =>
+  corridor.includes(' / ') ? `Intersección ${corridor}` : `Corredor ${corridor}`;
+
+const stableLocationCode = (value: string) => {
+  const hash = Array.from(value).reduce((total, character) => (total * 33 + character.charCodeAt(0)) >>> 0, 5381);
+  return String((hash % 97) + 1).padStart(2, '0');
+};
+
+/**
+ * Executive maps must never turn a heat-point tooltip or filter into a list of
+ * household addresses. Exact locations remain available from the authorized
+ * ticket workspace; this view only keeps a street corridor or backend-issued
+ * aggregated cell label.
+ */
+const safeStreetCorridor = (value: string | undefined) => {
+  if (!value) return undefined;
+  const compactValue = compactWhitespace(value)
+    .replace(/^(?:ubicaci[oó]n|direcci[oó]n|domicilio)\s*[:\-]\s*/i, '')
+    .split(/[\n\r|;]/, 1)[0]
+    .trim();
+  const narrativeCandidate = withoutDiacritics(compactValue).toLocaleLowerCase('es-AR');
+  if (!compactValue || compactValue.length > 96 || /[!?]/.test(compactValue) || NARRATIVE_LOCATION_PATTERN.test(narrativeCandidate)) {
+    return undefined;
+  }
+
+  const withoutCoordinates = compactValue.replace(/-?\d{1,3}[.,]\d{3,}\s*[,;/]\s*-?\d{1,3}[.,]\d{3,}/g, '');
+  const withoutUnit = withoutCoordinates.replace(
+    /\b(?:piso|depto\.?|departamento|unidad|lote|casa|oficina)\b.*$/i,
+    '',
+  );
+  const withoutGeographicSuffix = withoutUnit
+    .replace(/\b(?:c\.?p\.?|c[oó]digo\s+postal)\s*:?\s*[a-z]?\d{4,8}[a-z]{0,3}\b.*$/i, '')
+    .replace(/\s*,\s*[a-z]\d{4}[a-z]{0,3}\s*,\s*(?:mz|mza|mendoza)\s*,\s*(?:ar|argentina)\b.*$/i, '')
+    .replace(/\s*,\s*[a-z]\d{4}[a-z]{0,3}\b.*$/i, '')
+    .replace(/\s*[,\-]\s*[a-z]?\d{4}\s*[,\-]\s*(?:jun[ií]n|mendoza|argentina)\b.*$/i, '')
+    .replace(/\s*[,\-]\s*(?:jun[ií]n|mendoza|buenos\s+aires|argentina)\b.*$/i, '')
+    .replace(/\s+(?:en\s+)?jun[ií]n(?:\s+centro)?(?:\s*,?\s*(?:mendoza|buenos\s+aires|argentina))?\s*$/i, '')
+    .replace(/\s+(?:jun[ií]n(?:\s*,?\s*mendoza)?|mendoza|argentina)\s*$/i, '');
+  const normalizeStreetSegment = (segment: string) =>
+    compactWhitespace(
+      segment
+        .replace(/\b(?:altura|nro\.?|n[°º]|numero|número)\s*\d+[a-z]?\b/gi, '')
+        // Preserve official numeric street names such as "25 de Mayo" or
+        // "9 de Julio" while still removing household numbers.
+        .replace(/(?:^|[\s,])#?\d{1,6}[a-z]?(?:\s+bis)?(?=$|[\s,])(?!\s+de\b)/gi, ' ')
+        .replace(/^(?:avenida|av(?:da)?)\s*[.:]?\s+/i, 'Av. ')
+        .replace(/\s+([,;:])/g, '$1')
+        .replace(/([,;:])\s*/g, '$1 ')
+        .replace(/\s*[,;:\-]+\s*$/g, '')
+        .replace(/^[,;:\s]+|[,;:\s]+$/g, ''),
+    );
+  const intersectionParts = withoutGeographicSuffix
+    .split(/\s+(?:esquina(?:\s+con)?|y)\s+|\s*\/\s*/i)
+    .map(normalizeStreetSegment)
+    .filter(Boolean);
+  const normalized =
+    intersectionParts.length === 2 && normalizedStreetKeyPart(intersectionParts[0]) !== normalizedStreetKeyPart(intersectionParts[1])
+      ? intersectionParts
+          .slice()
+          .sort((left, right) => normalizedStreetKeyPart(left).localeCompare(normalizedStreetKeyPart(right), 'es'))
+          .join(' / ')
+      : normalizeStreetSegment(withoutGeographicSuffix);
+  const normalizedForValidation = withoutDiacritics(normalized).toLocaleLowerCase('es-AR');
+  if (
+    !isNamedFacetValue(normalized) ||
+    normalized.length < 3 ||
+    normalized.length > 64 ||
+    normalized.split(/\s+/).length > 9 ||
+    NARRATIVE_LOCATION_PATTERN.test(normalizedForValidation) ||
+    !/[a-záéíóúüñ]/i.test(normalized)
+  ) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const safeAggregateCellLabel = (value: string | undefined) => {
+  if (!value) return undefined;
+  const normalized = compactWhitespace(value);
+  const normalizedForValidation = withoutDiacritics(normalized).toLocaleLowerCase('es-AR');
+  if (!isNamedFacetValue(normalized) || normalized.length > 64 || NARRATIVE_LOCATION_PATTERN.test(normalizedForValidation)) {
+    return undefined;
+  }
+  if (/^(?:celda|sector|zona|barrio|distrito|cuadr[ií]cula|tramo|corredor)\b/i.test(normalized)) {
+    return compactWhitespace(normalized.replace(/\b([a-záéíóúüñ]{3,})\s+#?\d{2,6}[a-z]?(?:\s+bis)?\b/gi, '$1'));
+  }
+  return safeStreetCorridor(normalized);
+};
+
+const safeLocationFacetForPoint = (point: OperationsHeatmapPoint): SafeLocationFacet | undefined => {
+  const location = asRecord(point.location);
+  const explicitCellLabel = safeAggregateCellLabel(
+    readString(
+      point.address_cell_label,
+      point.cell_label,
+      point.address_cell,
+      point.street_segment,
+      point.block_label,
+      point.location_bucket_label,
+      location?.address_cell_label,
+      location?.cell_label,
+      location?.street_segment,
+    ),
+  );
+  const cellId = readString(point.cell_id, point.cellId, point.location_cell_id, location?.cell_id, location?.cellId);
+  if (explicitCellLabel) {
+    return {
+      key: normalizedFacetValue(cellId ? `cell:${cellId}` : `label:${explicitCellLabel}`),
+      label: explicitCellLabel,
+      kind: 'cell',
+    };
+  }
+
+  const corridor = safeStreetCorridor(
+    readString(point.direccion, point.address, location?.direccion, location?.address),
+  );
+  if (corridor) {
+    return {
+      key: streetCorridorFacetKey(corridor),
+      label: streetCorridorLabel(corridor),
+      kind: 'street',
+    };
+  }
+
+  if (cellId) {
+    return {
+      key: normalizedFacetValue(`cell:${cellId}`),
+      label: `Sector territorial ${stableLocationCode(cellId)}`,
+      kind: 'cell',
+    };
+  }
+  return undefined;
+};
+
+const presentExecutiveText = (value: string | undefined) =>
+  value
+    ?.replace(/\bGeoJSON\b/gi, 'archivo oficial de límites territoriales')
+    .replace(/\bbackend\b/gi, 'sistema')
+    .replace(/\bAPI\b/g, 'sistema')
+    .replace(/\bhotspots\b/gi, 'zonas prioritarias')
+    .replace(/\bhotspot\b/gi, 'zona prioritaria')
+    .replace(/\brealtime\b/gi, 'actualización continua')
+    .replace(/\bAI\b/g, 'IA')
+    .replace(/\bmedium\b/gi, 'medio')
+    .replace(/\b1 zonas\b/gi, '1 zona')
+    .replace(/\b1 zona activas\b/gi, '1 zona activa')
+    .replace(/\b1 zona prioritarias\b/gi, '1 zona prioritaria')
+    .replace(/\b1 zona críticas\b/gi, '1 zona crítica')
+    .replace(/\blos zonas\b/gi, 'las zonas')
+    .replace(/\bsenales\b/gi, 'señales')
+    .replace(/\bsenal\b/gi, 'señal')
+    .replace(/\bdecision\b/gi, 'decisión')
+    .replace(/\bacciones\b/gi, 'acciones')
+    .replace(/\baccion\b/gi, 'acción')
+    .replace(/\bproximas\b/gi, 'próximas')
+    .replace(/\bproxima\b/gi, 'próxima')
+    .replace(/\bpreparacion\b/gi, 'preparación')
+    .replace(/\bubicaciones\b/gi, 'ubicaciones')
+    .replace(/\bubicacion\b/gi, 'ubicación')
+    .replace(/\bcomparacion\b/gi, 'comparación')
+    .replace(/\basignacion\b/gi, 'asignación')
+    .replace(/\bconcentracion\b/gi, 'concentración')
+    .replace(/\bcategorias\b/gi, 'categorías')
+    .replace(/\bcategoria\b/gi, 'categoría')
+    .replace(/\bcriticos\b/gi, 'críticos')
+    .replace(/\bcritico\b/gi, 'crítico')
+    .replace(/\bestatica\b/gi, 'estática')
+    .replace(/\bestatico\b/gi, 'estático')
+    .replace(/\bprediccion\b/gi, 'predicción')
+    .replace(/\bconfirmacion\b/gi, 'confirmación')
+    .replace(/\bminima\b/gi, 'mínima')
+    .replace(/\bminimo\b/gi, 'mínimo')
+    .replace(/\butil\b/gi, 'útil')
+    .replace(/\bgeocodificacion\b/gi, 'localización')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const NO_TERRITORY_ZONE_METRIC: TerritoryZoneMetric = {
   zone: {
@@ -99,19 +389,42 @@ const NO_TERRITORY_ZONE_METRIC: TerritoryZoneMetric = {
   suppressed: false,
   confidence: 'insufficient',
   topCategories: [],
-  recommendation: 'Cargá un GeoJSON oficial de barrios, distritos o circuitos para habilitar métricas por zona.',
+  recommendation: 'Cargá un archivo oficial de límites de barrios, distritos o circuitos para habilitar métricas por zona.',
 };
 
 const labelFor = (labels: Record<string, string> | undefined, key: string, fallback: string) => {
   const candidate = labels?.[key];
-  return typeof candidate === 'string' && candidate.trim() ? candidate : fallback;
+  return presentExecutiveText(typeof candidate === 'string' && candidate.trim() ? candidate : fallback) ?? fallback;
 };
 
 const formatNumber = (value: number | undefined, fallback = '--') =>
   value === undefined || Number.isNaN(value) ? fallback : numberFormatter.format(value);
 
+const formatCountLabel = (value: number, singular: string, plural: string, fallback = '0') =>
+  `${formatNumber(value, fallback)} ${Math.abs(value) === 1 ? singular : plural}`;
+
+const TerritoryFacetCounts = ({
+  facet: { total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount },
+}: {
+  facet: {
+    total?: number;
+    mappedCount?: number;
+    pendingGeocodeCount?: number;
+    outsideJurisdictionCount?: number;
+  };
+}) => (
+  <span className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-normal leading-4 text-current/70">
+    <span>Total {formatNumber(total)}</span>
+    <span>Mapeados {formatNumber(mappedCount)}</span>
+    <span>Pendientes {formatNumber(pendingGeocodeCount)}</span>
+    <span className={(outsideJurisdictionCount ?? 0) > 0 ? 'text-amber-700 dark:text-amber-200' : undefined}>
+      Revisar {formatNumber(outsideJurisdictionCount)}
+    </span>
+  </span>
+);
+
 const formatVariation = (value: number | undefined) => {
-  if (value === undefined) return 'sin comparacion';
+  if (value === undefined) return 'sin comparación';
   const prefix = value > 0 ? '+' : '';
   return `${prefix}${numberFormatter.format(value)}%`;
 };
@@ -142,51 +455,424 @@ const readNumber = (...values: unknown[]) => {
   return undefined;
 };
 
-const safeCssColor = (value: string | undefined) => {
-  if (!value) return undefined;
-  const color = value.trim();
+/**
+ * Territorial totals are decision-support data, so an internally impossible
+ * contract is rejected rather than normalized into a plausible-looking KPI.
+ */
+const reconcileTerritorialCounts = (
+  totalValue: unknown,
+  mappedValue: unknown,
+  pendingValue: unknown,
+  outsideValue: unknown,
+): ReconciledTerritorialCounts | null => {
+  const total = readNumber(totalValue);
+  const mappedCount = readNumber(mappedValue) ?? 0;
+  const pendingGeocodeCount = readNumber(pendingValue) ?? 0;
+  const outsideJurisdictionCount = readNumber(outsideValue) ?? 0;
+  const values = [total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount];
+
+  if (total === undefined || values.some((value) => value === undefined || value < 0)) return null;
   if (
-    /^#[0-9a-f]{3,8}$/i.test(color) ||
-    /^rgba?\([\d\s.,%+-]+\)$/i.test(color) ||
-    /^hsla?\([\d\s.,%+-]+\)$/i.test(color) ||
-    /^var\(--[a-z0-9-_]+\)$/i.test(color)
+    mappedCount > total ||
+    pendingGeocodeCount > total ||
+    outsideJurisdictionCount > total ||
+    mappedCount + pendingGeocodeCount + outsideJurisdictionCount > total
   ) {
-    return color;
+    return null;
   }
-  return undefined;
+
+  return { total, mappedCount, pendingGeocodeCount, outsideJurisdictionCount };
 };
 
-const toLiveHeatPoint = (point: OperationsHeatmapPoint): HeatPoint | null => {
+const territorialCountsAgree = (
+  left: ReconciledTerritorialCounts,
+  right: ReconciledTerritorialCounts,
+) =>
+  left.total === right.total &&
+  left.mappedCount === right.mappedCount &&
+  left.pendingGeocodeCount === right.pendingGeocodeCount &&
+  left.outsideJurisdictionCount === right.outsideJurisdictionCount;
+
+const validCoveragePercent = (value: number | undefined) =>
+  value !== undefined && Number.isFinite(value) && value >= 0 && value <= 100 ? value : undefined;
+
+const isOutsideJurisdictionRecord = (value: unknown) => {
+  const record = asRecord(value);
+  if (!record) return false;
+  if (record.outside_jurisdiction === true || record.is_outside_jurisdiction === true) return true;
+  const status = normalizedFacetValue(
+    readString(
+      record.coordinate_jurisdiction_status,
+      record.jurisdiction_status,
+      record.location_jurisdiction_status,
+    ),
+  );
+  const reasonCode = normalizedFacetValue(readString(record.reason_code, record.location_reason_code));
+  return status === 'outside' || reasonCode === 'coordinates_outside_configured_jurisdiction';
+};
+
+type JurisdictionBounds = { west: number; south: number; east: number; north: number };
+type PointTerritorialDisposition = 'mapped' | 'missing_coordinates' | 'review' | 'unverified_scope';
+
+const resolveJurisdictionBounds = (value: unknown): JurisdictionBounds | null => {
+  const bounds = asRecord(value);
+  if (!bounds) return null;
+  const west = readNumber(bounds.west, bounds.min_lng, bounds.min_lon);
+  const south = readNumber(bounds.south, bounds.min_lat);
+  const east = readNumber(bounds.east, bounds.max_lng, bounds.max_lon);
+  const north = readNumber(bounds.north, bounds.max_lat);
+  if (
+    west === undefined ||
+    south === undefined ||
+    east === undefined ||
+    north === undefined ||
+    !isValidWgs84Position(south, west) ||
+    !isValidWgs84Position(north, east) ||
+    west > east ||
+    south > north
+  ) {
+    return null;
+  }
+  return { west, south, east, north };
+};
+
+const isExplicitlyInsideJurisdiction = (value: unknown) => {
+  const record = asRecord(value);
+  const status = normalizedFacetValue(
+    readString(
+      record?.coordinate_jurisdiction_status,
+      record?.jurisdiction_status,
+      record?.location_jurisdiction_status,
+    ),
+  );
+  return ['within', 'inside', 'in scope'].includes(status.replace(/[_-]+/g, ' '));
+};
+
+const normalizedBoundaryReference = (value: unknown) =>
+  readString(value)?.trim().replace(/\/+$/, '').toLowerCase();
+
+const normalizedBoundarySnapshot = (value: unknown) => {
+  const snapshot = readString(value)?.trim().toLowerCase();
+  return snapshot && /^[a-f0-9]{64}$/.test(snapshot) ? snapshot : undefined;
+};
+
+const boundaryEvidenceMatchesJurisdiction = (heatmap: OperationsHeatmapV1 | undefined) => {
+  const collection = heatmap?.geo_layers?.boundaries;
+  if (!collection) return true;
+
+  const jurisdiction = asRecord(heatmap?.jurisdiction);
+  const authority = asRecord(jurisdiction?.boundary_authority);
+  // Public/non-government boundary layers may exist without an enforced
+  // containment contract. The identity binding becomes mandatory only when the
+  // backend claims an authority for that same collection.
+  if (!authority) return true;
+  const metadata = asRecord(collection.metadata);
+  const provenance = asRecord(metadata?.provenance);
+  const authoritySource = normalizedBoundaryReference(authority?.source_ref ?? authority?.source_url ?? authority?.url);
+  const boundarySource = normalizedBoundaryReference(
+    provenance?.source_ref ?? provenance?.source_url ?? metadata?.source_ref ?? metadata?.source_url,
+  );
+  const authoritySnapshot = normalizedBoundarySnapshot(authority?.snapshot_sha256 ?? authority?.sha256);
+  const boundarySnapshot = normalizedBoundarySnapshot(
+    provenance?.snapshot_sha256 ?? provenance?.sha256 ?? metadata?.snapshot_sha256 ?? metadata?.sha256,
+  );
+
+  return Boolean(
+    authoritySource &&
+      boundarySource &&
+      authoritySource === boundarySource &&
+      authoritySnapshot &&
+      boundarySnapshot &&
+      authoritySnapshot === boundarySnapshot,
+  );
+};
+
+const hasAuthoritativePointContainmentContract = (value: unknown) => {
+  const jurisdiction = asRecord(value);
+  if (
+    !jurisdiction ||
+    jurisdiction.enforced !== true ||
+    jurisdiction.containment_verified !== true
+  ) return false;
+  const authority = asRecord(jurisdiction.boundary_authority);
+  const authorityKind = normalizedFacetValue(readString(authority?.kind, authority?.type));
+  const sourceReference = readString(authority?.source_ref, authority?.ref, authority?.url);
+  const snapshot = normalizedBoundarySnapshot(authority?.snapshot_sha256 ?? authority?.sha256);
+  const containmentMethod = normalizedFacetValue(
+    readString(jurisdiction.containment_method, jurisdiction.membership_method),
+  ).replace(/[_-]+/g, ' ');
+  return (
+    ['official', 'authoritative'].includes(authorityKind) &&
+    Boolean(sourceReference) &&
+    Boolean(snapshot) &&
+    ['point in polygon', 'official polygon'].includes(containmentMethod)
+  );
+};
+
+const territorialDispositionForPoint = ({
+  point,
+  officialZones,
+  jurisdictionBounds,
+  jurisdictionEnforced,
+  requiresVerifiedScope,
+  authoritativePointContainment,
+}: {
+  point: OperationsHeatmapPoint;
+  officialZones: TerritoryZone[];
+  jurisdictionBounds: JurisdictionBounds | null;
+  jurisdictionEnforced: boolean;
+  requiresVerifiedScope: boolean;
+  authoritativePointContainment: boolean;
+}): PointTerritorialDisposition => {
+  const location = asRecord(point.location);
+  const lat = readNumber(point.lat, location?.lat, point.latitude);
+  const lng = readNumber(point.lng, location?.lng, location?.lon, point.lon, point.longitude);
+  if (lat === undefined || lng === undefined) return 'missing_coordinates';
+  if (!isValidWgs84Position(lat, lng) || isOutsideJurisdictionRecord(point)) return 'review';
+  if (requiresVerifiedScope) {
+    if (!authoritativePointContainment) return 'unverified_scope';
+    if (officialZones.length > 0) return resolvePointZone(point, officialZones) ? 'mapped' : 'review';
+    // A rectangular operational envelope is never a substitute for an official
+    // government boundary. Without the polygon, trust only the backend's
+    // explicit per-point result from the verified point-in-polygon contract.
+    return isExplicitlyInsideJurisdiction(point) ? 'mapped' : 'review';
+  }
+  if (officialZones.length > 0) return resolvePointZone(point, officialZones) ? 'mapped' : 'review';
+  if (jurisdictionBounds) {
+    return lng >= jurisdictionBounds.west &&
+      lng <= jurisdictionBounds.east &&
+      lat >= jurisdictionBounds.south &&
+      lat <= jurisdictionBounds.north
+      ? 'mapped'
+      : 'review';
+  }
+  if (jurisdictionEnforced && !isExplicitlyInsideJurisdiction(point)) return 'review';
+  return 'mapped';
+};
+
+const privacySafeDensityPoints = ({
+  points,
+  canShowExactPointMarkers,
+  minimumSampleSize,
+}: {
+  points: HeatPoint[];
+  canShowExactPointMarkers: boolean;
+  minimumSampleSize: number;
+}) => {
+  if (canShowExactPointMarkers) return points;
+  return points.filter(
+    (point) =>
+      normalizedFacetValue(point.fuente) === 'heatmap_cell' &&
+      (readNumber(point.weight, point.total) ?? 0) >= minimumSampleSize,
+  );
+};
+
+const toLiveHeatPoint = (
+  point: OperationsHeatmapPoint,
+  tenantSlug?: string | null,
+): HeatPoint | null => {
   const location = asRecord(point.location);
   const lat = readNumber(point.lat, location?.lat, point.latitude);
   const lng = readNumber(point.lng, location?.lng, location?.lon, point.lon, point.longitude);
   if (lat === undefined || lng === undefined) return null;
+  if (!isTerritorialTenantScopeCompatible(point, tenantSlug)) return null;
 
-  const id = readNumber(point.id, point.ticket_id, point.record_id);
+  const id = readStringOrNumber(point.id, point.ticket_id, point.record_id);
+  const ticketIdentity = resolveTerritorialTicketIdentity(point, tenantSlug);
+  const canonicalTicketIdentity = ticketIdentity.status === 'valid' ? ticketIdentity.identity : null;
+  const locationFacet = safeLocationFacetForPoint(point);
+  const addressCorridor = safeStreetCorridor(
+    readString(point.direccion, point.address, location?.direccion, location?.address),
+  );
   return {
     lat,
     lng,
     ...(id !== undefined ? { id } : {}),
     weight: readNumber(point.weight, point.total, point.count, point.value) ?? 1,
     total: readNumber(point.total, point.count, point.value),
-    ticket: readString(point.ticket, point.ticket_id, point.record_id),
+    ticket: canonicalTicketIdentity?.ticketId ?? readString(point.ticket, point.ticket_id, point.record_id),
+    ticketId: canonicalTicketIdentity?.ticketId,
+    sourceModel: canonicalTicketIdentity?.sourceModel,
+    recordId: readStringOrNumber(point.record_id, point.ticket_id),
+    recordSource: readString(point.record_source),
+    ticketIdentityStatus: ticketIdentity.status,
+    ticketHref: buildTerritorialTicketHref(canonicalTicketIdentity, tenantSlug),
+    tenantSlug: canonicalTicketIdentity?.tenantSlug ?? undefined,
     categoria: readString(point.categoria, point.category, point.type, point.layer),
     canal: readString(point.canal, point.channel),
-    barrio: readString(point.barrio, point.district, point.distrito),
+    barrio: readString(point.zone, point.zona, point.barrio, point.district, point.distrito),
     estado: readString(point.estado, point.status),
     severidad: readString(point.severidad, point.severity),
     fuente: readString(point.fuente, point.source),
-    direccion: readString(point.direccion, point.address, point.label),
+    // Never forward a household address into the executive map popup.
+    direccion: locationFacet?.label,
+    addressCellLabel: locationFacet?.label,
+    addressCellKey: locationFacet?.key,
+    addressCorridorKey: addressCorridor
+      ? streetCorridorFacetKey(addressCorridor)
+      : undefined,
+    cellId: readString(point.cell_id, point.cellId, point.location_cell_id, location?.cell_id),
+    locationQuality: readString(point.location_quality, point.locationQuality, point.geocode_quality),
+    locationProvenance: readString(
+      point.location_provenance,
+      point.locationProvenance,
+      point.address_source,
+      point.coordinate_source,
+    ),
     last_ticket_at: readString(point.last_ticket_at, point.updated_at, point.created_at) ?? null,
     feature: { raw: point },
   };
 };
 
+const exactTicketHrefForPoint = (
+  point: HeatPoint | null | undefined,
+  tenantSlug?: string | null,
+) => {
+  if (!point || Number(point.clusterSize ?? 1) > 1) return null;
+  const expectedTenantSlug = point.tenantSlug ?? tenantSlug;
+  const resolution = resolveTerritorialTicketIdentity(point, expectedTenantSlug);
+  return buildTerritorialTicketHref(
+    resolution.status === 'valid' ? resolution.identity : null,
+    expectedTenantSlug,
+  );
+};
+
 const formatPercent = (value: number | undefined) =>
   value === undefined || Number.isNaN(value) ? '--' : `${numberFormatter.format(value)}%`;
 
-const humanizeContractValue = (value: string | undefined, fallback: string) =>
-  value ? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() : fallback;
+const CONTRACT_VALUE_LABELS: Record<string, string> = {
+  nuevo: 'Nuevo',
+  en_proceso: 'En proceso',
+  pending: 'Pendiente',
+  queued: 'En revisión',
+  ready: 'Disponible',
+  online: 'Conectividad no verificada',
+  connected: 'Conectividad no verificada',
+  disconnected: 'Sin conexión confirmada',
+  stale: 'Actualización pendiente',
+  unknown: 'Estado no confirmado',
+  active: 'Activo',
+  inactive: 'Inactivo',
+  enabled: 'Habilitado',
+  disabled: 'Deshabilitado',
+  manual: 'Actualización manual',
+  critical: 'Crítica',
+  healthy: 'Operación estable',
+  degraded: 'Operación parcial',
+  client_filter: 'Filtro operativo',
+  interactive_globe_heatmap: 'Mapa territorial interactivo',
+  show_geocoding_queue_and_ai_summary: 'Mostrar ubicaciones pendientes y resumen operativo',
+  local_fallback: 'Análisis local seguro',
+  municipal_risk_detection: 'Detección municipal de riesgos',
+  deterministic_lightweight_dashboard: 'Análisis local verificable',
+  webgl_heatmap: 'Mapa de calor acelerado',
+  fly_to: 'Encuadre automático',
+  open_geocoding_queue: 'Abrir ubicaciones pendientes',
+  open_ai_risk_layers: 'Revisar riesgos sugeridos',
+  open_template_or_live_chat: 'Abrir respuesta o conversación',
+  focus_map_cell_and_filter_tickets: 'Priorizar zona y filtrar reclamos',
+  open_ticket: 'Abrir reclamo',
+  operations_heatmap_updated: 'Mapa territorial actualizado',
+  ticket_updated: 'Reclamo actualizado',
+  base_heatmap: 'Mapa de calor',
+  hotspot_cells: 'Zonas de mayor intensidad',
+  category_layers: 'Capas por categoría',
+  ai_risk_layers: 'Riesgo sugerido por IA',
+  survey_participation: 'Participación en encuestas',
+  whatsapp_activity: 'Actividad de WhatsApp',
+  risk_pulses: 'Alertas de riesgo',
+  priority_forecast: 'Prioridad sugerida',
+  geocoding_queue: 'Ubicaciones pendientes',
+  realtime_telemetry: 'Actividad en tiempo real',
+  coverage_quality: 'Calidad de cobertura',
+  privileged_exact: 'Acceso institucional protegido',
+  employee_aggregated: 'Datos agregados del equipo',
+  tenant_aggregated: 'Datos agregados del municipio',
+  public_aggregated: 'Datos públicos agregados',
+  default: 'Predeterminada',
+  fit_bounds: 'Encuadre automático',
+  high: 'Alta',
+  medium: 'Media',
+  low: 'Baja',
+  open_queue: 'Abrir cola operativa',
+  open_panel: 'Abrir panel operativo',
+  open_heatmap_cell: 'Abrir zona prioritaria',
+  inspect_hotspot: 'Revisar zona prioritaria',
+  inspeccionar_hotspot: 'Revisar zona prioritaria',
+  ai_risk_pulses: 'Alertas de riesgo',
+  tickets: 'Reclamos',
+  surveys: 'Encuestas',
+  analytics_events: 'Eventos operativos',
+  whatsapp: 'WhatsApp',
+  points: 'Puntos mapeados',
+  cells: 'Zonas agregadas',
+  layers: 'Capas de análisis',
+};
+
+const TECHNICAL_VALUE_PATTERN =
+  /(?:^https?:\/\/|^\/api\/|\b(?:api|backend|frontend|webgl|maplibre|geojson|socket|endpoint|renderer|contract)\b|(?:^|[._-])v\d+(?:$|[._-]))/i;
+const OPAQUE_CONTRACT_TOKEN_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/i;
+
+const humanizeContractValue = (value: string | undefined, fallback: string) => {
+  if (!value) return presentExecutiveText(fallback) ?? fallback;
+  const readable = value.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = readable.toLowerCase().replace(/\s+/g, '_');
+  const knownLabel = CONTRACT_VALUE_LABELS[normalized];
+  if (knownLabel) return knownLabel;
+  if (TECHNICAL_VALUE_PATTERN.test(value) || OPAQUE_CONTRACT_TOKEN_PATTERN.test(value)) {
+    return presentExecutiveText(fallback) ?? fallback;
+  }
+  return presentExecutiveText(readable) ?? presentExecutiveText(fallback) ?? fallback;
+};
+
+const humanizeCategoryValue = (value: string | undefined, fallback = 'Sin categoría') => {
+  if (!value) return fallback;
+  const readable = value.replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (TECHNICAL_VALUE_PATTERN.test(value)) return fallback;
+  return presentExecutiveText(readable) ?? fallback;
+};
+
+const resolveRealtimeFreshness = (latestEventAt: string | undefined, pollSeconds: number | undefined) => {
+  if (!latestEventAt) {
+    return {
+      isFresh: false,
+      label: 'Conectividad no verificada',
+      detail: 'Sin confirmación reciente del canal de actualización.',
+    };
+  }
+
+  const timestamp = Date.parse(latestEventAt);
+  if (!Number.isFinite(timestamp)) {
+    return {
+      isFresh: false,
+      label: 'Conectividad no verificada',
+      detail: 'La última actualización informada no tiene una fecha válida.',
+    };
+  }
+
+  const ageMs = Date.now() - timestamp;
+  const allowedAgeMs = Math.max(5 * 60_000, Math.max(0, pollSeconds ?? 0) * 3_000);
+  const formattedTimestamp = new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+    .format(new Date(timestamp))
+    .replace(/\.+$/, '');
+
+  if (ageMs >= -60_000 && ageMs <= allowedAgeMs) {
+    return {
+      isFresh: true,
+      label: 'Actualizado recientemente',
+      detail: `Última actualización confirmada: ${formattedTimestamp}.`,
+    };
+  }
+
+  return {
+    isFresh: false,
+    label: 'Actualización pendiente',
+    detail: `Último dato recibido: ${formattedTimestamp}. La conectividad actual no está verificada.`,
+  };
+};
 
 const privacyModeLabel = (value: string | undefined) => {
   const normalized = value?.trim().toLowerCase();
@@ -194,6 +880,8 @@ const privacyModeLabel = (value: string | undefined) => {
     return 'privacidad agregada';
   }
   if (normalized === 'coordinates_without_customer_pii') return 'sin datos personales';
+  if (normalized === 'privileged_exact') return 'acceso institucional protegido';
+  if (normalized === 'employee_aggregated') return 'datos agregados del equipo';
   return humanizeContractValue(value, 'privacidad protegida');
 };
 
@@ -225,6 +913,16 @@ const readinessToneClass = {
   empty: 'border-destructive/35 bg-destructive/10 text-destructive',
 };
 
+const provenanceToneClass: Record<
+  ReturnType<typeof resolveTerritoryDataProvenance>['state'],
+  string
+> = {
+  real: 'border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-200',
+  synthetic: 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+  demo: 'border-violet-500/35 bg-violet-500/10 text-violet-700 dark:text-violet-200',
+  unvalidated: 'border-slate-500/35 bg-slate-500/10 text-slate-700 dark:text-slate-200',
+};
+
 const badgeVariantForReadiness = (state: ReturnType<typeof resolveTerritoryMapReadiness>['state']) => {
   if (state === 'ready') return 'default';
   if (state === 'empty') return 'destructive';
@@ -239,10 +937,10 @@ const readinessCopy = (
     return labelFor(labels, 'premium_map_quality_ready', 'Mapa listo para operar con cobertura suficiente.');
   }
   if (state === 'degraded') {
-    return labelFor(labels, 'premium_map_quality_degraded', 'La lectura es util, pero conviene resolver coordenadas pendientes.');
+    return labelFor(labels, 'premium_map_quality_degraded', 'La lectura es útil, pero conviene resolver coordenadas pendientes.');
   }
   if (state === 'low') {
-    return labelFor(labels, 'premium_map_quality_low', 'Muestra territorial baja: usar como senal, no como decision final.');
+    return labelFor(labels, 'premium_map_quality_low', 'Muestra territorial baja: usar como señal, no como decisión final.');
   }
   return labelFor(labels, 'premium_map_quality_empty', 'Faltan coordenadas para construir inteligencia territorial confiable.');
 };
@@ -262,7 +960,14 @@ const readStringOrNumber = (...values: unknown[]) => {
 
 const buildTicketDeskHref = (record: Record<string, unknown>) => {
   const frontendPath = readString(record.frontend_path, record.route, record.href);
-  if (frontendPath?.startsWith('/')) return frontendPath;
+  const isSafeSameOriginPath = Boolean(
+    frontendPath
+      && frontendPath.startsWith('/')
+      && !frontendPath.startsWith('//')
+      && !frontendPath.includes('\\')
+      && !/[\r\n]/.test(frontendPath),
+  );
+  if (isSafeSameOriginPath) return frontendPath;
 
   const endpoint = readString(record.endpoint, record.endpoint_template);
   const target = asRecord(record.target);
@@ -275,6 +980,20 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
   const ticketId =
     readStringOrNumber(record.ticket_id, record.record_id, target?.ticket_id, target?.record_id) ??
     extractTicketIdFromEndpoint(endpoint);
+  const inferredSourceModel = readString(
+    record.source_model,
+    record.sourceModel,
+    record.record_source,
+    target?.source_model,
+    target?.sourceModel,
+    target?.record_source,
+  ) ?? (endpoint?.includes('/api/v2/tickets/') ? 'TenantTicket' : undefined);
+  const exactIdentity = ticketId
+    ? resolveTerritorialTicketIdentity({
+        source_model: inferredSourceModel,
+        ticket_id: ticketId,
+      })
+    : null;
   const category = readString(record.categoria, record.category, target?.categoria, target?.category, filters?.category, filters?.categoria);
   const status = readString(record.estado, record.status, target?.estado, target?.status);
   const channel = readString(record.canal, record.channel, target?.canal, target?.channel, filters?.channel, filters?.canal);
@@ -282,7 +1001,10 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
 
   if (uiHint) params.set('focus', uiHint);
   else if (actionType) params.set('focus', actionType);
-  if (ticketId) params.set('ticket_id', ticketId);
+  if (exactIdentity?.status === 'valid') {
+    params.set('source_model', exactIdentity.identity.sourceModel);
+    params.set('ticket_id', exactIdentity.identity.ticketId);
+  }
   if (category) params.set('categoria', category);
   if (status) params.set('estado', status);
   if (channel) params.set('canal', channel);
@@ -295,23 +1017,26 @@ const buildTicketDeskHref = (record: Record<string, unknown>) => {
 const summarizeBackendAction = (action: unknown): BackendActionSummary | undefined => {
   const record = asRecord(action);
   if (!record) return undefined;
-  const label = readString(record.title, record.label, record.name);
+  const rawLabel = readString(record.title, record.label, record.name);
+  const label = rawLabel ? humanizeContractValue(rawLabel, 'Acción disponible') : undefined;
   const contextLabel = readString(record.context_label, record.contextLabel);
-  const method = readString(record.method);
-  const endpoint = readString(record.endpoint, record.endpoint_template);
   const target = asRecord(record.target);
   const targetType = readString(target?.type, target?.kind);
   const numericTargetId = readNumber(target?.record_id, target?.ticket_id, target?.lat, target?.lng);
   const targetId = readString(target?.cell_id, target?.record_id, target?.ticket_id) ?? (numericTargetId !== undefined ? String(numericTargetId) : undefined);
   const targetLabel = targetType || targetId ? [targetType, targetId].filter(Boolean).join(' ') : undefined;
-  const endpointDetail = [method, endpoint].filter(Boolean).join(' ') || undefined;
-  const humanDetail = readString(record.description, record.reason_code, record.action_type, record.ui_hint);
+  const rawHumanDetail = readString(record.description, record.reason_code, record.action_type, record.ui_hint);
+  const humanDetail = rawHumanDetail
+    ? humanizeContractValue(rawHumanDetail, 'Detalle operativo')
+    : undefined;
   const href = buildTicketDeskHref(record);
-  const detail = contextLabel ?? humanDetail ?? targetLabel ?? (href ? undefined : endpointDetail);
+  const detail = contextLabel
+    ? humanizeCategoryValue(contextLabel, 'Contexto operativo')
+    : humanDetail ?? (targetLabel ? humanizeContractValue(targetLabel, 'Contexto operativo') : undefined);
   if (!label && !detail) return undefined;
   return {
-    label: label ?? 'Accion disponible',
-    detail: detail || readString(record.description, record.reason_code),
+    label: label ?? 'Acción disponible',
+    detail,
     priority: readString(record.priority),
     uiHint: readString(record.ui_hint),
     actionType: readString(record.action_type),
@@ -385,6 +1110,28 @@ const operationsPointsFromFeatureCollection = (
       categoria: readString(properties.categoria, properties.category),
       channel: readString(properties.channel, properties.canal),
       canal: readString(properties.canal, properties.channel),
+      zone: readString(properties.zone, properties.zona),
+      zona: readString(properties.zona, properties.zone),
+      barrio: readString(properties.barrio, properties.neighborhood, properties.zone, properties.zona),
+      distrito: readString(properties.distrito, properties.district),
+      address: readString(properties.address, properties.direccion),
+      direccion: readString(properties.direccion, properties.address),
+      address_cell: readString(properties.address_cell, properties.addressCell, properties.street_segment),
+      address_cell_label: readString(
+        properties.address_cell_label,
+        properties.addressCellLabel,
+        properties.cell_label,
+        properties.location_bucket_label,
+      ),
+      cell_id: readString(properties.cell_id, properties.cellId, properties.location_cell_id),
+      cell_label: readString(properties.cell_label, properties.cellLabel, properties.address_cell_label),
+      location_quality: readString(properties.location_quality, properties.locationQuality, properties.geocode_quality),
+      location_provenance: readString(
+        properties.location_provenance,
+        properties.locationProvenance,
+        properties.address_source,
+        properties.coordinate_source,
+      ),
       status: readString(properties.status, properties.estado),
       estado: readString(properties.estado, properties.status),
       source: readString(properties.source, properties.fuente),
@@ -472,8 +1219,19 @@ const buildOperationsGeoLayerConfig = ({
         properties: {
           id: pointId,
           ticket: readString(point.ticket, rawPoint?.ticket, rawPoint?.ticket_id, rawPoint?.record_id),
+          ticketId: point.ticketId,
+          ticket_id: point.ticketId,
+          sourceModel: point.sourceModel,
+          source_model: point.sourceModel,
+          recordId: point.recordId,
+          record_id: point.recordId,
+          recordSource: point.recordSource,
+          record_source: point.recordSource,
+          ticketIdentityStatus: point.ticketIdentityStatus,
+          ticketHref: point.ticketHref,
           categoria: category,
           category,
+          categoryColor: point.categoryColor ?? categoryColorFor(category),
           canal: channel,
           channel,
           estado: status,
@@ -481,9 +1239,24 @@ const buildOperationsGeoLayerConfig = ({
           weight,
           intensity: readNumber(point.intensity, rawPoint?.intensity, weight) ?? weight,
           totalWeight: readNumber(point.totalWeight, rawPoint?.total_weight, weight) ?? weight,
-          direccion: readString(point.direccion, rawPoint?.direccion, rawPoint?.address, rawPoint?.label),
-          barrio: readString(point.barrio, rawPoint?.barrio, rawPoint?.district, rawPoint?.distrito),
+          // The executive map only receives the aggregated/corridor label.
+          direccion: readString(point.addressCellLabel, point.direccion),
+          address_cell_label: readString(point.addressCellLabel),
+          barrio: readString(
+            point.barrio,
+            rawPoint?.zone,
+            rawPoint?.zona,
+            rawPoint?.barrio,
+            rawPoint?.district,
+            rawPoint?.distrito,
+          ),
           cell_id: readString(point.cellId, rawPoint?.cell_id),
+          location_quality: readString(point.locationQuality, rawPoint?.location_quality, rawPoint?.quality_state),
+          location_provenance: readString(
+            point.locationProvenance,
+            rawPoint?.location_provenance,
+            rawPoint?.address_source,
+          ),
           fuente: readString(point.fuente, point.source, rawPoint?.fuente, rawPoint?.source) ?? 'operations',
           latest_event_at: latestEventAt,
           operational_score: readNumber(rawPoint?.operational_score),
@@ -496,8 +1269,12 @@ const buildOperationsGeoLayerConfig = ({
       };
     });
 
-  const features = (geoLayerSource?.features ?? localFeatures).filter((feature) => {
+  // Always rebuild the rendered source from privacy-sanitized points. Falling
+  // back to the raw backend FeatureCollection here would bypass active facets
+  // when their mapped result is empty and could reintroduce exact addresses.
+  const features = localFeatures.filter((feature) => {
     const properties = asRecord(feature.properties);
+    if (isOutsideJurisdictionRecord(properties)) return false;
     const source = readString(properties?.source, properties?.fuente);
     return source !== 'commerce' || showCommerceLayer;
   });
@@ -606,6 +1383,111 @@ const MetricLine = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
+function TerritoryMapEmptyState({
+  heatmap,
+  officialZones,
+  scopeBlocked,
+  mapConfig,
+  tenantSlug,
+  className,
+  children,
+}: {
+  heatmap?: OperationsHeatmapV1;
+  officialZones: TerritoryZone[];
+  scopeBlocked: boolean;
+  mapConfig?: PublicMapConfigV1;
+  tenantSlug?: string | null;
+  className?: string;
+  children: ReactNode;
+}) {
+  const canShowBoundary = !scopeBlocked && officialZones.length > 0;
+  const polygons = useMemo(() => canShowBoundary ? {
+    type: 'FeatureCollection' as const,
+    features: (heatmap?.geo_layers?.boundaries?.features ?? [])
+      .filter((feature) => ['Polygon', 'MultiPolygon'].includes(readString(asRecord(feature.geometry)?.type) ?? ''))
+      .map((feature) => ({
+        type: 'Feature',
+        geometry: feature.geometry,
+        // A neutral boundary is geography, never an activity/density estimate.
+        properties: { fill: '#dbeafe' },
+      })),
+  } : undefined, [canShowBoundary, heatmap?.geo_layers?.boundaries?.features]);
+  const bounds = useMemo(
+    () => canShowBoundary ? officialZones.flatMap((zone) => zone.geoPolygons?.flat() ?? []) : [],
+    [canShowBoundary, officialZones],
+  );
+  const declaredCount = (...values: unknown[]) => values.find(
+    (value): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
+  );
+  // The backend assigns each rejected coordinate exactly one of these states.
+  // candidate_count is not a review total; never add alternate source counts.
+  const reviewParts = [
+    heatmap?.jurisdiction_review?.outside_jurisdiction_count,
+    heatmap?.jurisdiction_review?.invalid_coordinate_count,
+    heatmap?.jurisdiction_review?.unverified_jurisdiction_count,
+  ].map((value) => declaredCount(value));
+  const reviewCount = scopeBlocked || reviewParts.some((value) => value === undefined)
+    ? undefined
+    : declaredCount(reviewParts.reduce((total, value) => total + (value ?? 0), 0));
+  const outsideCount = scopeBlocked ? undefined : declaredCount(
+    heatmap?.jurisdiction_review?.outside_jurisdiction_count,
+    heatmap?.location_quality?.ticket_records_outside_jurisdiction,
+  );
+  const pendingCount = scopeBlocked ? undefined : declaredCount(
+    heatmap?.location_quality?.ticket_records_pending_geocode,
+    heatmap?.quality?.pending_geocode,
+    heatmap?.geocoding?.candidate_count,
+  );
+  const pendingSummary = [
+    reviewCount !== undefined
+      ? formatCountLabel(reviewCount, 'ubicación para revisar', 'ubicaciones para revisar')
+      : outsideCount !== undefined
+        ? formatCountLabel(outsideCount, 'ubicación fuera de jurisdicción', 'ubicaciones fuera de jurisdicción')
+        : undefined,
+    pendingCount !== undefined ? formatCountLabel(pendingCount, 'dirección pendiente', 'direcciones pendientes') : undefined,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <section className={cn('space-y-2', className)} data-testid="territory-empty-workspace">
+      <div role="status" className="rounded-xl border border-border bg-card px-3 py-2" data-testid="territory-empty-summary">
+        <h3 className="text-sm font-semibold">
+          {scopeBlocked ? 'Alcance territorial no validado' : canShowBoundary ? 'Sin ubicaciones verificadas para mostrar' : 'Sin delimitación territorial oficial'}
+        </h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {scopeBlocked ? 'Validá el alcance municipal para habilitar el mapa.' : pendingSummary || 'No hay actividad territorial mapeada para esta vista.'}
+        </p>
+      </div>
+      {canShowBoundary ? (
+        <div data-testid="territory-official-empty-map" className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="h-[380px] sm:h-[480px]">
+            <LazyMapLibreMap
+              className="h-full min-h-0 w-full rounded-none border-0"
+              ariaLabel="Mapa de límites oficiales sin actividad mapeada"
+              tenantSlug={tenantSlug}
+              heatmapData={EMPTY_TERRITORY_POINTS}
+              showHeatmap={false}
+              showPoints={false}
+              showPolygons
+              polygons={polygons}
+              fitToBounds={bounds}
+              provider={mapConfig?.provider === 'google' ? 'google' : 'maplibre'}
+              mapStyleUrl={mapConfig?.style_url}
+              maptilerKey={mapConfig?.maptiler_key}
+              googleMapsKey={mapConfig?.google_maps_key}
+              showEvidenceBadge={false}
+            />
+          </div>
+          <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">Límite oficial · Sin puntos ni calor</p>
+        </div>
+      ) : null}
+      <details data-testid="territory-empty-details" className="rounded-xl border border-border bg-card">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Ver calidad y auditoría territorial</summary>
+        <div className="border-t border-border p-3">{children}</div>
+      </details>
+    </section>
+  );
+}
+
 export function PremiumTerritoryHeatmap({
   points,
   heatmap,
@@ -615,14 +1497,48 @@ export function PremiumTerritoryHeatmap({
   minSampleSize = PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   allowDemoFallback = false,
   demoProfile = 'general',
+  tenantSlug,
   className,
 }: PremiumTerritoryHeatmapProps) {
   const svgId = useId().replace(/:/g, '');
+  const mapInstructionsId = `${svgId}-map-instructions`;
   const shouldReduceMotion = useReducedMotion();
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [comparisonEnabled, setComparisonEnabled] = useState(false);
   const [focusMode, setFocusMode] = useState<MapFocusMode>('territory');
   const [layerSelection, setLayerSelection] = useState<string[] | null>(null);
+  const [mapCategoryFilter, setMapCategoryFilter] = useState<string | null>(null);
+  const [mapZoneFilter, setMapZoneFilter] = useState<string | null>(null);
+  const [mapAddressCellFilter, setMapAddressCellFilter] = useState<string | null>(null);
+  const [selectedMapPoint, setSelectedMapPoint] = useState<HeatPoint | null>(null);
+  const selectedTicketHref = exactTicketHrefForPoint(selectedMapPoint, tenantSlug);
+  const jurisdictionCityLabel = readString(heatmap?.jurisdiction?.city);
+  const jurisdictionLabel = [
+    jurisdictionCityLabel,
+    readString(heatmap?.jurisdiction?.state_name),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(', ');
+  const jurisdictionEnforced = heatmap?.jurisdiction?.enforced === true;
+  const jurisdictionBounds = useMemo(
+    () => resolveJurisdictionBounds(heatmap?.jurisdiction?.bounds),
+    [heatmap?.jurisdiction?.bounds],
+  );
+  const boundaryAuthorityLinked = useMemo(() => boundaryEvidenceMatchesJurisdiction(heatmap), [heatmap]);
+  const officialTerritoryZones = useMemo(
+    () => boundaryAuthorityLinked ? resolveOfficialTerritoryZones(heatmap) : [],
+    [boundaryAuthorityLinked, heatmap],
+  );
+  const tenantType = normalizedFacetValue(readString(heatmap?.tenant?.tipo, heatmap?.tenant?.type));
+  const requiresVerifiedTerritorialScope =
+    jurisdictionEnforced ||
+    demoProfile === 'gobierno' ||
+    ['municipio', 'municipalidad', 'gobierno', 'government', 'provincia', 'province', 'ente publico', 'public sector'].includes(
+      tenantType.replace(/[_-]+/g, ' '),
+    );
+  const authoritativePointContainment =
+    hasAuthoritativePointContainmentContract(heatmap?.jurisdiction) && boundaryAuthorityLinked;
 
   const backendGeoLayerPoints = useMemo(
     () => operationsPointsFromFeatureCollection(featureCollectionFromHeatmap(heatmap)),
@@ -652,7 +1568,16 @@ export function PremiumTerritoryHeatmap({
             estado: readString(risk?.level, record.estado, record.status),
             severidad: readString(risk?.label, risk?.level, record.severidad, record.severity),
             fuente: 'heatmap_cell',
-            cell_id: record.cell_id,
+            cell_id: readString(record.cell_id, record.id),
+            cell_label: readString(record.cell_label, record.address_cell_label, record.location_bucket_label),
+            address_cell: readString(record.address_cell, record.street_segment),
+            address_cell_label: readString(record.address_cell_label, record.cell_label, record.location_bucket_label),
+            location_quality: readString(record.location_quality, record.quality_state),
+            location_provenance: readString(record.location_provenance, record.source),
+            coordinate_jurisdiction_status: readString(
+              record.coordinate_jurisdiction_status,
+              record.jurisdiction_status,
+            ),
           };
         })
         .filter((point): point is OperationsHeatmapPoint => Boolean(point)),
@@ -666,7 +1591,7 @@ export function PremiumTerritoryHeatmap({
     points.length === 0 &&
     !usesBackendGeoLayerPoints &&
     !usesBackendCellPoints;
-  const sourcePoints = useMemo(
+  const rawSourcePoints = useMemo(
     () =>
       usesDemoData
         ? getDemoTerritoryHeatmapPoints(demoProfile)
@@ -677,18 +1602,461 @@ export function PremiumTerritoryHeatmap({
             : points,
     [backendCellPoints, backendGeoLayerPoints, demoProfile, points, usesBackendCellPoints, usesBackendGeoLayerPoints, usesDemoData],
   );
-  const liveMapPoints = useMemo(
-    () => sourcePoints.map(toLiveHeatPoint).filter((point): point is HeatPoint => Boolean(point)),
-    [sourcePoints],
+  const pointTerritorialDispositions = useMemo(
+    () =>
+      rawSourcePoints.map((point) => ({
+        point,
+        disposition: territorialDispositionForPoint({
+          point,
+          officialZones: officialTerritoryZones,
+          jurisdictionBounds,
+          jurisdictionEnforced,
+          requiresVerifiedScope: requiresVerifiedTerritorialScope,
+          authoritativePointContainment,
+        }),
+      })),
+    [
+      authoritativePointContainment,
+      jurisdictionBounds,
+      jurisdictionEnforced,
+      officialTerritoryZones,
+      rawSourcePoints,
+      requiresVerifiedTerritorialScope,
+    ],
   );
-  const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
-  const showLiveMap = liveMapPoints.length > 0 && !usesDemoData;
-  const officialTerritoryZones = useMemo(() => resolveOfficialTerritoryZones(heatmap), [heatmap]);
-  const territoryZones = usesDemoData ? DEVELOPMENT_TERRITORY_ZONES : officialTerritoryZones;
+  const outsidePointsRejectedByFrontend = useMemo(
+    () => pointTerritorialDispositions.filter(({ disposition }) => disposition === 'review').length,
+    [pointTerritorialDispositions],
+  );
+  const unverifiedScopePointsRejectedByFrontend = useMemo(
+    () => pointTerritorialDispositions.filter(({ disposition }) => disposition === 'unverified_scope').length,
+    [pointTerritorialDispositions],
+  );
+  const territorialScopeBlocked =
+    requiresVerifiedTerritorialScope &&
+    !authoritativePointContainment;
+  const sourcePoints = useMemo(
+    () =>
+      pointTerritorialDispositions
+        .filter(({ disposition }) => disposition === 'mapped')
+        .map(({ point }) => point),
+    [pointTerritorialDispositions],
+  );
+  const declaredOutsideJurisdictionCount = Math.max(
+    0,
+    readNumber(
+      heatmap?.jurisdiction_review?.outside_jurisdiction_count,
+      heatmap?.location_quality?.ticket_records_outside_jurisdiction,
+      heatmap?.territorial_facets?.summary?.records_outside_jurisdiction,
+      heatmap?.jurisdiction?.excluded_coordinate_records,
+      heatmap?.summary?.outside_jurisdiction,
+    ) ?? 0,
+  );
+  const outsideJurisdictionCount = Math.max(
+    declaredOutsideJurisdictionCount,
+    outsidePointsRejectedByFrontend,
+  );
   const effectiveMinSampleSize = Math.max(
     minSampleSize,
-    heatmap?.privacy?.minimum_sample_size ?? PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
+    heatmap?.privacy?.minimum_sample_size ?? 0,
+    heatmap?.privacy?.k_min ?? 0,
+    PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
   );
+  const privacyMode = normalizedFacetValue(heatmap?.privacy?.mode).replace(/[_-]+/g, ' ');
+  const hasPrivacyContract = Boolean(heatmap?.privacy);
+  const privilegedExactAccess = ['privileged exact', 'admin exact', 'operator exact', 'institutional exact'].includes(
+    privacyMode,
+  );
+  const exactPrivacyMode = privilegedExactAccess || privacyMode.includes('exact');
+  const aggregatedPrivacyMode = privacyMode.includes('aggregated') || privacyMode.includes('anonymous');
+  const suppressedPrivacy = asRecord(heatmap?.privacy?.suppressed);
+  const allTerritoryFacetsSuppressed = heatmap?.privacy?.suppressed === true;
+  const exactPointsSuppressed =
+    allTerritoryFacetsSuppressed ||
+    heatmap?.privacy?.raw_points_redacted === true ||
+    suppressedPrivacy?.exact_points === true ||
+    suppressedPrivacy?.points === true;
+  const categoryFacetsSuppressed =
+    allTerritoryFacetsSuppressed ||
+    suppressedPrivacy?.categories === true ||
+    suppressedPrivacy?.category === true;
+  const zoneFacetsSuppressed =
+    allTerritoryFacetsSuppressed ||
+    suppressedPrivacy?.zones === true ||
+    suppressedPrivacy?.zone === true ||
+    suppressedPrivacy?.neighborhoods === true;
+  const addressCellFacetsSuppressed =
+    allTerritoryFacetsSuppressed ||
+    suppressedPrivacy?.addresses === true ||
+    suppressedPrivacy?.address === true ||
+    suppressedPrivacy?.exact_addresses === true ||
+    suppressedPrivacy?.cells === true ||
+    suppressedPrivacy?.location_cells === true;
+  const canShowExactPointMarkers =
+    !exactPointsSuppressed && !aggregatedPrivacyMode && (!hasPrivacyContract || exactPrivacyMode);
+  const liveMapPoints = useMemo(
+    () =>
+      sourcePoints
+        .map((point) => toLiveHeatPoint(point, tenantSlug))
+        .filter((point): point is HeatPoint => Boolean(point))
+        .map((point) => ({
+          ...point,
+          categoryColor: point.categoryColor ?? categoryColorFor(point.categoria),
+        })),
+    [sourcePoints, tenantSlug],
+  );
+  const canonicalCategoryFacets = territorialScopeBlocked ? [] : (heatmap?.territorial_facets?.categories ?? []);
+  const canonicalZoneFacets = territorialScopeBlocked ? [] : (heatmap?.territorial_facets?.explicit_zones ?? []);
+  const canonicalAddressFacets = territorialScopeBlocked ? [] : (heatmap?.territorial_facets?.addresses ?? []);
+  const hasNamedMapCategories =
+    canonicalCategoryFacets.some((facet) => isNamedFacetValue(readString(facet.label, facet.key))) ||
+    liveMapPoints.some((point) => isNamedFacetValue(point.categoria));
+  const hasNamedMapZones =
+    canonicalZoneFacets.some((facet) => isNamedFacetValue(readString(facet.label, facet.key))) ||
+    liveMapPoints.some((point) => isNamedFacetValue(point.barrio?.trim() || point.distrito?.trim()));
+  const hasNamedMapAddressCells =
+    canonicalAddressFacets.some((facet) => Boolean(safeStreetCorridor(readString(facet.label, facet.key)))) ||
+    liveMapPoints.some((point) => isNamedFacetValue(point.addressCellLabel));
+  const mapCategoryFacets = useMemo<TerritoryMapFacet[]>(() => {
+    if (categoryFacetsSuppressed) return [];
+
+    const canonicalCategoryContractInvalid = canonicalCategoryFacets.some((facet) => {
+      if (!isNamedFacetValue(readString(facet.label, facet.key))) return false;
+      return !reconcileTerritorialCounts(
+        readNumber(facet.count, facet.total, facet.value),
+        facet.mapped_count,
+        facet.pending_geocode_count,
+        facet.outside_jurisdiction_count,
+      );
+    });
+
+    const canonical = canonicalCategoryFacets
+      .map((facet): TerritoryMapFacet | null => {
+        const rawLabel = readString(facet.label, facet.key);
+        const rawKey = readString(facet.key, facet.label);
+        if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
+        const key = normalizedFacetValue(rawKey);
+        const counts = reconcileTerritorialCounts(
+          readNumber(facet.count, facet.total, facet.value),
+          facet.mapped_count,
+          facet.pending_geocode_count,
+          facet.outside_jurisdiction_count,
+        );
+        if (!counts) return null;
+        const rawCategoryMatchKeys = Array.isArray(facet.raw_categories)
+          ? facet.raw_categories.flatMap((item) => {
+              const rawCategory = asRecord(item);
+              const value = readString(rawCategory?.key, rawCategory?.label);
+              return value ? [normalizedFacetValue(value)] : [];
+            })
+          : [];
+        return {
+          key,
+          label: humanizeCategoryValue(rawLabel),
+          ...counts,
+          matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel), ...rawCategoryMatchKeys])),
+          color: categoryColorFor(rawKey),
+        };
+      })
+      .filter((facet): facet is TerritoryMapFacet => Boolean(facet));
+
+    const fallback = new Map<string, TerritoryMapFacet>();
+    liveMapPoints.forEach((point) => {
+      const rawLabel = point.categoria?.trim();
+      if (!isNamedFacetValue(rawLabel)) return;
+      const key = normalizedFacetValue(rawLabel);
+      const current = fallback.get(key);
+      fallback.set(key, {
+        key,
+        label: current?.label ?? humanizeCategoryValue(rawLabel),
+        total: (current?.total ?? 0) + 1,
+        mappedCount: (current?.mappedCount ?? 0) + 1,
+        pendingGeocodeCount: 0,
+        outsideJurisdictionCount: 0,
+        matchKeys: [key],
+        color: current?.color ?? point.categoryColor ?? categoryColorFor(rawLabel),
+      });
+    });
+
+    const canonicalMatchKeys = new Set(canonical.flatMap((facet) => facet.matchKeys));
+    const mappedCategoriesMissingFromContract = Array.from(fallback.values()).filter(
+      (facet) => !facet.matchKeys.some((matchKey) => canonicalMatchKeys.has(matchKey)),
+    );
+    const candidates = canonicalCategoryContractInvalid
+      ? canonical
+      : canonicalCategoryFacets.length > 0
+        ? [...canonical, ...mappedCategoriesMissingFromContract]
+        : Array.from(fallback.values());
+
+    return candidates
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
+      .sort((left, right) => right.total - left.total || left.label.localeCompare(right.label, 'es'));
+  }, [canonicalCategoryFacets, categoryFacetsSuppressed, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+  const categoryColorByMatchKey = useMemo(() => {
+    const colors = new Map<string, string>();
+    mapCategoryFacets.forEach((facet) => {
+      if (!facet.color) return;
+      facet.matchKeys.forEach((matchKey) => colors.set(matchKey, facet.color!));
+    });
+    return colors;
+  }, [mapCategoryFacets]);
+  const mapZoneFacets = useMemo<TerritoryMapFacet[]>(() => {
+    if (zoneFacetsSuppressed) return [];
+
+    const canonical = canonicalZoneFacets
+      .map((facet): TerritoryMapFacet | null => {
+        const rawLabel = readString(facet.label, facet.key);
+        const rawKey = readString(facet.key, facet.label);
+        if (!isNamedFacetValue(rawLabel) || !rawKey) return null;
+        const key = normalizedFacetValue(rawKey);
+        const counts = reconcileTerritorialCounts(
+          readNumber(facet.count, facet.total, facet.value),
+          facet.mapped_count,
+          facet.pending_geocode_count,
+          facet.outside_jurisdiction_count,
+        );
+        if (!counts) return null;
+        return {
+          key,
+          label: compactWhitespace(rawLabel),
+          ...counts,
+          matchKeys: Array.from(new Set([key, normalizedFacetValue(rawLabel)])),
+        };
+      })
+      .filter((facet): facet is TerritoryMapFacet => Boolean(facet));
+
+    const fallback = new Map<string, TerritoryMapFacet>();
+    liveMapPoints.forEach((point) => {
+      const rawLabel = point.barrio?.trim() || point.distrito?.trim();
+      if (!isNamedFacetValue(rawLabel)) return;
+      const key = normalizedFacetValue(rawLabel);
+      const current = fallback.get(key);
+      fallback.set(key, {
+        key,
+        label: current?.label ?? rawLabel,
+        total: (current?.total ?? 0) + 1,
+        mappedCount: (current?.mappedCount ?? 0) + 1,
+        pendingGeocodeCount: 0,
+        outsideJurisdictionCount: 0,
+        matchKeys: [key],
+      });
+    });
+
+    return (canonicalZoneFacets.length > 0 ? canonical : Array.from(fallback.values()))
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
+      .sort((left, right) => right.total - left.total || left.label.localeCompare(right.label, 'es'));
+  }, [canonicalZoneFacets, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints, zoneFacetsSuppressed]);
+  const mapAddressCellFacets = useMemo<TerritoryMapFacet[]>(() => {
+    if (addressCellFacetsSuppressed) return [];
+
+    const canonical = new Map<string, TerritoryMapFacet>();
+    canonicalAddressFacets.forEach((facet) => {
+      const corridor = safeStreetCorridor(readString(facet.label, facet.key));
+      if (!corridor) return;
+      const counts = reconcileTerritorialCounts(
+        readNumber(facet.count, facet.total, facet.value),
+        facet.mapped_count,
+        facet.pending_geocode_count,
+        facet.outside_jurisdiction_count,
+      );
+      if (!counts) return;
+      const key = streetCorridorFacetKey(corridor);
+      const current = canonical.get(key);
+      canonical.set(key, {
+        key,
+        label: current?.label ?? streetCorridorLabel(corridor),
+        total: (current?.total ?? 0) + counts.total,
+        mappedCount: (current?.mappedCount ?? 0) + counts.mappedCount,
+        pendingGeocodeCount: (current?.pendingGeocodeCount ?? 0) + counts.pendingGeocodeCount,
+        outsideJurisdictionCount: (current?.outsideJurisdictionCount ?? 0) + counts.outsideJurisdictionCount,
+        matchKeys: [key],
+        volume: (current?.volume ?? 0) + counts.total,
+      });
+    });
+
+    const fallback = new Map<string, TerritoryMapFacet>();
+    liveMapPoints.forEach((point) => {
+      const key = point.addressCellKey;
+      const label = point.addressCellLabel?.trim();
+      if (!key || !isNamedFacetValue(label)) return;
+      const current = fallback.get(key);
+      const pointVolume = Math.max(1, readNumber(point.totalWeight, point.total, point.weight) ?? 1);
+      fallback.set(key, {
+        key,
+        label: current?.label ?? label,
+        total: (current?.total ?? 0) + 1,
+        mappedCount: (current?.mappedCount ?? 0) + 1,
+        pendingGeocodeCount: 0,
+        outsideJurisdictionCount: 0,
+        matchKeys: [key],
+        volume: (current?.volume ?? 0) + pointVolume,
+      });
+    });
+
+    return (canonicalAddressFacets.length > 0 ? Array.from(canonical.values()) : Array.from(fallback.values()))
+      .filter((facet) => !hasPrivacyContract || exactPrivacyMode || facet.total >= effectiveMinSampleSize)
+      .sort((left, right) => (right.volume ?? right.total) - (left.volume ?? left.total) || left.label.localeCompare(right.label, 'es'))
+      .slice(0, MAX_ADDRESS_CORRIDOR_FACETS);
+  }, [addressCellFacetsSuppressed, canonicalAddressFacets, effectiveMinSampleSize, exactPrivacyMode, hasPrivacyContract, liveMapPoints]);
+  const canonicalFacetContractInvalid = useMemo(() => {
+    const namedFacets = [
+      ...canonicalCategoryFacets.filter((facet) => isNamedFacetValue(readString(facet.label, facet.key))),
+      ...canonicalZoneFacets.filter((facet) => isNamedFacetValue(readString(facet.label, facet.key))),
+      ...canonicalAddressFacets.filter((facet) => Boolean(safeStreetCorridor(readString(facet.label, facet.key)))),
+    ];
+    return namedFacets.some(
+      (facet) =>
+        !reconcileTerritorialCounts(
+          readNumber(facet.count, facet.total, facet.value),
+          facet.mapped_count,
+          facet.pending_geocode_count,
+          facet.outside_jurisdiction_count,
+        ),
+    );
+  }, [canonicalAddressFacets, canonicalCategoryFacets, canonicalZoneFacets]);
+  const canonicalCategoryCounts = useMemo(() => {
+    const facets = canonicalCategoryFacets.filter((facet) => isNamedFacetValue(readString(facet.label, facet.key)));
+    if (!facets.length) return null;
+    const countSets = facets.map((facet) =>
+      reconcileTerritorialCounts(
+        readNumber(facet.count, facet.total, facet.value),
+        facet.mapped_count,
+        facet.pending_geocode_count,
+        facet.outside_jurisdiction_count,
+      ),
+    );
+    if (countSets.some((counts) => !counts)) return null;
+    return countSets.reduce<ReconciledTerritorialCounts>(
+      (summary, counts) => ({
+        total: summary.total + (counts?.total ?? 0),
+        mappedCount: summary.mappedCount + (counts?.mappedCount ?? 0),
+        pendingGeocodeCount: summary.pendingGeocodeCount + (counts?.pendingGeocodeCount ?? 0),
+        outsideJurisdictionCount: summary.outsideJurisdictionCount + (counts?.outsideJurisdictionCount ?? 0),
+      }),
+      { total: 0, mappedCount: 0, pendingGeocodeCount: 0, outsideJurisdictionCount: 0 },
+    );
+  }, [canonicalCategoryFacets]);
+  const territorialRecordCounts = useMemo(() => {
+    if (territorialScopeBlocked) {
+      return {
+        total: undefined,
+        mappedCount: 0,
+        pendingGeocodeCount: undefined,
+        outsideJurisdictionCount: 0,
+        coherent: false,
+        invalidContract: false,
+      };
+    }
+    const summary = heatmap?.territorial_facets?.summary;
+    const summaryHasCounts = Boolean(
+      summary &&
+        [summary.ticket_records, summary.mapped_records, summary.pending_geocode_records, summary.records_outside_jurisdiction]
+          .some((value) => readNumber(value) !== undefined),
+    );
+    const locationQuality = heatmap?.location_quality;
+    const locationQualityHasCounts = Boolean(
+      locationQuality &&
+        [
+          locationQuality.total_ticket_records,
+          locationQuality.ticket_records_with_coordinates,
+          locationQuality.ticket_records_pending_geocode,
+          locationQuality.ticket_records_outside_jurisdiction,
+        ].some((value) => readNumber(value) !== undefined),
+    );
+    const summaryCounts = summaryHasCounts
+      ? reconcileTerritorialCounts(
+          summary?.ticket_records,
+          summary?.mapped_records,
+          summary?.pending_geocode_records,
+          Math.max(readNumber(summary?.records_outside_jurisdiction) ?? 0, outsideJurisdictionCount),
+        )
+      : null;
+    const locationQualityCounts = locationQualityHasCounts
+      ? reconcileTerritorialCounts(
+          locationQuality?.total_ticket_records,
+          locationQuality?.ticket_records_with_coordinates,
+          locationQuality?.ticket_records_pending_geocode,
+          Math.max(readNumber(locationQuality?.ticket_records_outside_jurisdiction) ?? 0, outsideJurisdictionCount),
+        )
+      : null;
+    const categoryCounts = canonicalCategoryCounts
+      ? reconcileTerritorialCounts(
+          canonicalCategoryCounts.total,
+          canonicalCategoryCounts.mappedCount,
+          canonicalCategoryCounts.pendingGeocodeCount,
+          Math.max(canonicalCategoryCounts.outsideJurisdictionCount, outsideJurisdictionCount),
+        )
+      : null;
+    const globalCanonicalContracts = [summaryCounts, locationQualityCounts].filter(
+      (counts): counts is ReconciledTerritorialCounts => Boolean(counts),
+    );
+    const globalCanonicalContractsAgree =
+      globalCanonicalContracts.length < 2 ||
+      globalCanonicalContracts.slice(1).every((counts) =>
+        territorialCountsAgree(globalCanonicalContracts[0], counts),
+      );
+    const globalCounts = globalCanonicalContractsAgree ? globalCanonicalContracts[0] ?? null : null;
+    // Category facets may be a bounded/top-N list. Compare them with the global
+    // universe only when their declared total proves that the list is exhaustive.
+    const categoryContractIsComparable = Boolean(
+      categoryCounts && globalCounts && categoryCounts.total === globalCounts.total,
+    );
+    const categoryContractAgrees =
+      !categoryContractIsComparable || territorialCountsAgree(globalCounts!, categoryCounts!);
+    const canonicalContractsAgree = globalCanonicalContractsAgree && categoryContractAgrees;
+    const coherentCounts = canonicalContractsAgree ? globalCounts ?? categoryCounts : null;
+    return {
+      total: coherentCounts?.total,
+      mappedCount: coherentCounts?.mappedCount ?? liveMapPoints.length,
+      pendingGeocodeCount: coherentCounts?.pendingGeocodeCount,
+      outsideJurisdictionCount,
+      coherent: Boolean(coherentCounts),
+      invalidContract:
+        canonicalFacetContractInvalid ||
+        (summaryHasCounts && !summaryCounts) ||
+        (locationQualityHasCounts && !locationQualityCounts) ||
+        Boolean(canonicalCategoryFacets.length && !canonicalCategoryCounts) ||
+        !canonicalContractsAgree,
+    };
+  }, [
+    canonicalCategoryCounts,
+    canonicalCategoryFacets.length,
+    canonicalFacetContractInvalid,
+    heatmap?.location_quality,
+    heatmap?.territorial_facets?.summary,
+    liveMapPoints.length,
+    outsideJurisdictionCount,
+    territorialScopeBlocked,
+  ]);
+  const categoryBreakdownProtected =
+    categoryFacetsSuppressed ||
+    (hasPrivacyContract && !exactPrivacyMode && hasNamedMapCategories && mapCategoryFacets.length === 0);
+  const zoneBreakdownProtected =
+    zoneFacetsSuppressed ||
+    (hasPrivacyContract && !exactPrivacyMode && hasNamedMapZones && mapZoneFacets.length === 0);
+  const addressCellBreakdownProtected =
+    addressCellFacetsSuppressed ||
+    (hasPrivacyContract && !exactPrivacyMode && hasNamedMapAddressCells && mapAddressCellFacets.length === 0);
+
+  useEffect(() => {
+    if (mapCategoryFilter && !mapCategoryFacets.some((facet) => facet.key === mapCategoryFilter)) {
+      setMapCategoryFilter(null);
+    }
+  }, [mapCategoryFacets, mapCategoryFilter]);
+
+  useEffect(() => {
+    if (mapZoneFilter && !mapZoneFacets.some((facet) => facet.key === mapZoneFilter)) {
+      setMapZoneFilter(null);
+    }
+  }, [mapZoneFacets, mapZoneFilter]);
+
+  useEffect(() => {
+    if (mapAddressCellFilter && !mapAddressCellFacets.some((facet) => facet.key === mapAddressCellFilter)) {
+      setMapAddressCellFilter(null);
+    }
+  }, [mapAddressCellFacets, mapAddressCellFilter]);
+  const liveMapProvider = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
+  const territoryZones = usesDemoData ? DEVELOPMENT_TERRITORY_ZONES : officialTerritoryZones;
 
   const aggregate = useMemo(
     () =>
@@ -701,11 +2069,44 @@ export function PremiumTerritoryHeatmap({
   );
   const hasTerritoryBoundaries = aggregate.hasBoundaries;
 
-  const readiness = useMemo(
-    () => resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
-    [heatmap, sourcePoints.length],
+  const readiness = useMemo<ReturnType<typeof resolveTerritoryMapReadiness>>(
+    () => territorialScopeBlocked
+      ? {
+          state: 'empty' as const,
+          label: 'Alcance territorial no validado',
+          reasonCode: 'territorial_scope_unverified',
+          visiblePoints: 0,
+          canRenderHeatmap: false,
+        }
+      : resolveTerritoryMapReadiness(heatmap, sourcePoints.length),
+    [heatmap, sourcePoints.length, territorialScopeBlocked],
   );
-  const displayLayers = useMemo(() => resolveTerritoryLayerDescriptors(heatmap), [heatmap]);
+  const territorialContractInvalid =
+    territorialRecordCounts.invalidContract ||
+    (readiness.coveragePercent !== undefined && validCoveragePercent(readiness.coveragePercent) === undefined);
+  const dataProvenance = useMemo(
+    () => territorialScopeBlocked
+      ? {
+          state: 'unvalidated' as const,
+          label: 'Alcance territorial no validado',
+          shortLabel: 'sin validar',
+          detail: 'La procedencia puede existir, pero la jurisdicción todavía no permite una lectura territorial confiable.',
+        }
+      : resolveTerritoryDataProvenance(heatmap, usesDemoData, sourcePoints),
+    [heatmap, sourcePoints, territorialScopeBlocked, usesDemoData],
+  );
+  const executiveReadinessLabel =
+    dataProvenance.state === 'real' || readiness.state !== 'ready'
+      ? readiness.label
+      : 'Cobertura técnica disponible';
+  const executiveReadinessDetail =
+    dataProvenance.state === 'real' || readiness.state !== 'ready'
+      ? readinessCopy(readiness.state, labels)
+      : 'La cobertura permite visualizar patrones, pero la procedencia debe validarse antes de tomar decisiones.';
+  const displayLayers = useMemo(
+    () => territorialScopeBlocked ? [] : resolveTerritoryLayerDescriptors(heatmap),
+    [heatmap, territorialScopeBlocked],
+  );
   const displayLayerKey = displayLayers.map((layer) => layer.id).join('|');
   const defaultEnabledLayerIds = useMemo(
     () =>
@@ -740,30 +2141,66 @@ export function PremiumTerritoryHeatmap({
     'Volumen, demanda y riesgo por zona con privacidad por muestra minima.',
   );
   const hasWarning = Boolean(mapConfig?.style_url_warning);
-  const preferredVisualization = humanizeContractValue(
-    readString(heatmap?.map_experience?.preferred_visualization),
-    'Globo territorial interactivo',
-  );
-  const emptyStateBehavior = humanizeContractValue(readString(heatmap?.map_experience?.empty_state_behavior), '');
-  const geocodingStatus = readString(heatmap?.geocoding?.status, heatmap?.geocoding?.reason_code);
-  const geocodingCandidates = heatmap?.geocoding?.candidates?.slice(0, 3) ?? [];
-  const qualityAction = summarizeBackendAction(heatmap?.quality?.empty_state_action);
-  const geocodingAction = summarizeBackendAction(heatmap?.geocoding?.recommended_action);
+  const preferredVisualizationValue = readString(heatmap?.map_experience?.preferred_visualization);
+  const preferredVisualization = preferredVisualizationValue
+    ? humanizeContractValue(preferredVisualizationValue, 'Mapa territorial')
+    : undefined;
+  const geocodingStatus = territorialScopeBlocked
+    ? undefined
+    : readString(heatmap?.geocoding?.status, heatmap?.geocoding?.reason_code);
+  const geocodingCandidates = territorialScopeBlocked ? [] : (heatmap?.geocoding?.candidates?.slice(0, 3) ?? []);
+  const geocodingQueueItems = geocodingCandidates.map((candidate, index) => {
+    const safeCorridor = safeStreetCorridor(candidate.address);
+    const category = readString(candidate.category);
+    return {
+      key: String(candidate.record_id ?? candidate.ticket_id ?? `pending-${index}`),
+      label: category ? humanizeCategoryValue(category) : 'Ubicación pendiente',
+      area: safeCorridor ? streetCorridorLabel(safeCorridor) : 'Zona todavía no validada',
+    };
+  });
+  const qualityAction = territorialScopeBlocked
+    ? undefined
+    : summarizeBackendAction(heatmap?.quality?.empty_state_action);
+  const geocodingAction = territorialScopeBlocked
+    ? undefined
+    : summarizeBackendAction(heatmap?.geocoding?.recommended_action);
   const activeAction = readiness.state === 'empty' || readiness.state === 'low' ? qualityAction ?? geocodingAction : geocodingAction;
-  const realtimeSources = heatmap?.realtime?.sources ?? [];
-  const realtimeEvents = heatmap?.realtime?.socket_events ?? [];
-  const latestRealtime = readString(heatmap?.realtime?.latest_event_at);
-  const narrativeTitle = readString(
-    heatmap?.map_narrative?.headline,
-    heatmap?.map_narrative?.title,
-    readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_title : undefined,
+  const realtimeSources = territorialScopeBlocked ? [] : (heatmap?.realtime?.sources ?? []);
+  const realtimeEvents = territorialScopeBlocked ? [] : (heatmap?.realtime?.socket_events ?? []);
+  const latestRealtime = territorialScopeBlocked ? undefined : readString(heatmap?.realtime?.latest_event_at);
+  const realtimeFreshness = resolveRealtimeFreshness(
+    latestRealtime,
+    territorialScopeBlocked ? undefined : heatmap?.realtime?.poll_seconds,
   );
-  const narrativeBody = readString(
-    heatmap?.map_narrative?.operator_summary,
-    heatmap?.map_narrative?.body,
-    heatmap?.map_narrative?.description,
-    readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_description : undefined,
+  const executiveProvenanceLabel =
+    dataProvenance.state === 'real' ? 'Datos territoriales verificados' : dataProvenance.label;
+  const narrativeTitle = presentExecutiveText(
+    readString(
+      heatmap?.map_narrative?.headline,
+      heatmap?.map_narrative?.title,
+      readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_title : undefined,
+    ),
   );
+  const narrativeBody = presentExecutiveText(
+    readString(
+      heatmap?.map_narrative?.operator_summary,
+      heatmap?.map_narrative?.body,
+      heatmap?.map_narrative?.description,
+      readiness.state === 'empty' ? heatmap?.map_narrative?.empty_state_description : undefined,
+    ),
+  );
+  const operationalNarrativeTitle =
+    dataProvenance.state === 'real'
+      ? narrativeTitle || 'Mapa territorial para la acción'
+      : dataProvenance.state === 'demo'
+        ? 'Escenario territorial de demostración'
+        : dataProvenance.state === 'synthetic'
+          ? 'Mapa territorial con datos sintéticos'
+          : dataProvenance.label === 'Procedencia parcial'
+            ? 'Mapa territorial con validación parcial'
+            : 'Mapa territorial pendiente de validación';
+  const operationalNarrativeBody =
+    dataProvenance.state === 'real' ? narrativeBody : dataProvenance.detail;
   const narrativeAction = summarizeBackendAction(heatmap?.map_narrative?.primary_cta);
   const viewportPresets = heatmap?.viewport_presets?.presets?.slice(0, 3) ?? [];
   const defaultViewportId = heatmap?.viewport_presets?.default_preset_id;
@@ -772,7 +2209,7 @@ export function PremiumTerritoryHeatmap({
   const defaultViewportRadius = readNumber(defaultViewport?.radius_km);
   const defaultViewportDetail = defaultViewport
     ? [
-        humanizeContractValue(readString(defaultViewport.mode), ''),
+        humanizeContractValue(readString(defaultViewport.mode), 'Vista territorial'),
         defaultViewportZoom !== undefined ? `zoom ${formatNumber(defaultViewportZoom)}` : undefined,
         defaultViewportRadius !== undefined ? `${formatNumber(defaultViewportRadius)} km` : undefined,
       ]
@@ -782,8 +2219,10 @@ export function PremiumTerritoryHeatmap({
   const aiStatus = heatmap?.ai_status;
   const aiStatusLabel = humanizeContractValue(readString(aiStatus?.status, heatmap?.ai_layers?.status), 'sin estado IA');
   const aiModeLabel = humanizeContractValue(readString(aiStatus?.mode, heatmap?.ai_layers?.mode), 'capas operativas');
-  const aiHintLabels = (Array.isArray(aiStatus?.map_layer_hints) ? aiStatus.map_layer_hints : []).map((hint) => humanizeContractValue(hint, hint)).slice(0, 3);
-  const mapLayers = asRecord(heatmap?.map_layers);
+  const aiHintLabels = (Array.isArray(aiStatus?.map_layer_hints) ? aiStatus.map_layer_hints : [])
+    .map((hint) => humanizeContractValue(hint, 'Capa operativa'))
+    .slice(0, 3);
+  const mapLayers = territorialScopeBlocked ? undefined : asRecord(heatmap?.map_layers);
   const mapLayerHotspots = asRecord(mapLayers?.hotspots);
   const mapLayerFocus = asRecord(mapLayerHotspots?.focus);
   const mapLayerFocusRisk = asRecord(mapLayerFocus?.risk);
@@ -791,8 +2230,12 @@ export function PremiumTerritoryHeatmap({
   const mapLayerVisualSystem = asRecord(mapLayers?.visual_system);
   const mapLayerAnimations = asRecord(mapLayerVisualSystem?.animations);
   const mapLayerOperatorMetrics = asRecord(mapLayers?.operator_metrics);
-  const heatmapSummary = asRecord(heatmap?.summary);
-  const operationalHotspots = heatmap?.operational_hotspots?.slice(0, 4) ?? [];
+  const heatmapSummary = territorialScopeBlocked ? undefined : asRecord(heatmap?.summary);
+  // Government maps fail closed as a whole: an unverified jurisdiction must not
+  // leak derived hotspot priorities or suggested actions after raw points were hidden.
+  const operationalHotspots = territorialScopeBlocked
+    ? []
+    : (heatmap?.operational_hotspots?.slice(0, 4) ?? []);
   const topOperationalHotspot = operationalHotspots[0];
   const topOperationalSignals = asRecord(topOperationalHotspot?.signals);
   const operationalHotspotCount = readNumber(heatmapSummary?.operational_hotspots) ?? operationalHotspots.length;
@@ -810,41 +2253,57 @@ export function PremiumTerritoryHeatmap({
   const hasBackendMapContract = Boolean(
     mapLayers?.contract_version || backendTopCategory || backendTotalCases !== undefined || backendVisibleLayers !== undefined,
   );
-  const hotspotActionSummaries = uniqueActionSummaries([
-    ...(heatmap?.hotspot_actions?.actions ?? []),
-    ...(heatmap?.hotspot_actions?.playbook ?? []),
-    ...(heatmap?.hotspot_playbook ?? []),
-    ...(heatmap?.operator_playbook ?? []),
-  ]).slice(0, 4);
+  const territoryScopeBadgeLabel = territorialScopeBlocked
+    ? 'Alcance territorial no validado'
+    : hasTerritoryBoundaries
+      ? confidenceLabel(aggregate.confidence)
+      : jurisdictionEnforced
+        ? `Alcance configurado${jurisdictionCityLabel ? ` · ${jurisdictionCityLabel}` : ''}`
+        : 'Sin límites oficiales';
+  const hotspotActionSummaries = territorialScopeBlocked
+    ? []
+    : uniqueActionSummaries([
+        ...(heatmap?.hotspot_actions?.actions ?? []),
+        ...(heatmap?.hotspot_actions?.playbook ?? []),
+        ...(heatmap?.hotspot_playbook ?? []),
+        ...(heatmap?.operator_playbook ?? []),
+      ]).slice(0, 4);
   const geocodingCandidateActions = geocodingCandidates.flatMap((candidate) => {
-    const contextLabel = readString(candidate.address, candidate.label, candidate.category);
+    const safeCandidateCorridor = safeStreetCorridor(candidate.address);
+    const contextLabel = readString(
+      safeCandidateCorridor ? streetCorridorLabel(safeCandidateCorridor) : undefined,
+      candidate.label,
+      candidate.category,
+    );
     return (Array.isArray(candidate.actions) ? candidate.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const pointActions = sourcePoints.flatMap((point) => {
     const contextLabel = readString(point.label, point.categoria, point.category, point.barrio, point.distrito);
     return (Array.isArray(point.actions) ? point.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
-  const cellActions = (heatmap?.cells ?? []).flatMap((cell) => {
+  const cellActions = (territorialScopeBlocked ? [] : (heatmap?.cells ?? [])).flatMap((cell) => {
     const contextLabel = readString(cell.label, cell.title, cell.key, cell.id);
     return (Array.isArray(cell.actions) ? cell.actions : []).map((action) => actionWithContext(action, contextLabel));
   });
   const operationalHotspotActions = operationalHotspots
     .map((hotspot) => actionWithContext(hotspot.recommended_action, readString(hotspot.top_category, hotspot.id)))
     .filter(Boolean);
-  const operationalActionSummaries = uniqueActionSummaries([
-    heatmap?.map_narrative?.primary_cta,
-    ...operationalHotspotActions,
-    ...(heatmap?.hotspot_actions?.actions ?? []),
-    ...(heatmap?.hotspot_actions?.playbook ?? []),
-    ...(heatmap?.hotspot_playbook ?? []),
-    ...(heatmap?.operator_playbook ?? []),
-    ...(heatmap?.geocoding?.guidance?.recommended_actions ?? []),
-    heatmap?.geocoding?.recommended_action,
-    ...(heatmap?.ai_layers?.recommendations ?? []),
-    ...geocodingCandidateActions,
-    ...pointActions,
-    ...cellActions,
-  ]).slice(0, 8);
+  const operationalActionSummaries = territorialScopeBlocked
+    ? []
+    : uniqueActionSummaries([
+        heatmap?.map_narrative?.primary_cta,
+        ...operationalHotspotActions,
+        ...(heatmap?.hotspot_actions?.actions ?? []),
+        ...(heatmap?.hotspot_actions?.playbook ?? []),
+        ...(heatmap?.hotspot_playbook ?? []),
+        ...(heatmap?.operator_playbook ?? []),
+        ...(heatmap?.geocoding?.guidance?.recommended_actions ?? []),
+        heatmap?.geocoding?.recommended_action,
+        ...(heatmap?.ai_layers?.recommendations ?? []),
+        ...geocodingCandidateActions,
+        ...pointActions,
+        ...cellActions,
+      ]).slice(0, 8);
   const hasOperationalBrief = Boolean(
     narrativeTitle ||
       narrativeBody ||
@@ -856,30 +2315,320 @@ export function PremiumTerritoryHeatmap({
       hasBackendMapContract,
   );
   const showHeatLayer = layerIsEnabled(enabledLayerIds, ['heat', 'hotspot', 'base']) || !displayLayers.length;
+  const hasCategoryLayerControl = displayLayers.some((layer) =>
+    ['category', 'categoria'].some((fragment) => layer.id.includes(fragment)),
+  );
+  const showCategoryLayer = hasCategoryLayerControl
+    ? canShowExactPointMarkers && layerIsEnabled(enabledLayerIds, ['category', 'categoria'])
+    : canShowExactPointMarkers && mapCategoryFacets.length > 0;
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>(() =>
+    showCategoryLayer && showHeatLayer ? 'hybrid' : showCategoryLayer ? 'clusters' : 'heat',
+  );
+  const displayModeManuallySelectedRef = useRef(false);
+  const temporarilyHiddenPointModeRef = useRef<Exclude<MapDisplayMode, 'heat'> | null>(null);
+
+  useEffect(() => {
+    if (!canShowExactPointMarkers) {
+      temporarilyHiddenPointModeRef.current = null;
+      if (mapDisplayMode !== 'heat') {
+        setSelectedMapPoint(null);
+        setMapDisplayMode('heat');
+      }
+      return;
+    }
+
+    const recommendedMode: MapDisplayMode = showCategoryLayer && showHeatLayer
+      ? 'hybrid'
+      : showCategoryLayer
+        ? 'clusters'
+        : 'heat';
+    if (!displayModeManuallySelectedRef.current && mapDisplayMode !== recommendedMode) {
+      setSelectedMapPoint(null);
+      setMapDisplayMode(recommendedMode);
+      return;
+    }
+
+    if (mapDisplayMode === 'heat' && !showHeatLayer && showCategoryLayer) {
+      const restoredMode = temporarilyHiddenPointModeRef.current ?? 'hybrid';
+      temporarilyHiddenPointModeRef.current = null;
+      setSelectedMapPoint(null);
+      setMapDisplayMode(restoredMode);
+      return;
+    }
+
+    if (mapDisplayMode === 'hybrid' && !showHeatLayer && showCategoryLayer) {
+      temporarilyHiddenPointModeRef.current = 'hybrid';
+      setSelectedMapPoint(null);
+      setMapDisplayMode('clusters');
+      return;
+    }
+
+    if (!showCategoryLayer) {
+      if (mapDisplayMode !== 'heat' && showHeatLayer) {
+        temporarilyHiddenPointModeRef.current = mapDisplayMode;
+        setSelectedMapPoint(null);
+        setMapDisplayMode('heat');
+      }
+      return;
+    }
+
+    if (temporarilyHiddenPointModeRef.current && showHeatLayer) {
+      const restoredMode = temporarilyHiddenPointModeRef.current;
+      temporarilyHiddenPointModeRef.current = null;
+      setMapDisplayMode(restoredMode);
+    }
+  }, [canShowExactPointMarkers, mapDisplayMode, showCategoryLayer, showHeatLayer]);
+
   const showAiLayer = layerIsEnabled(enabledLayerIds, ['ai', 'risk', 'prior']);
   const showQualityLayer = layerIsEnabled(enabledLayerIds, ['quality', 'coverage', 'geo']);
   const showRealtimeLayer = layerIsEnabled(enabledLayerIds, ['realtime', 'live', 'whatsapp', 'socket']);
   const hasCommerceLayer = displayLayers.some((layer) => layer.tone === 'commerce');
   const showCommerceLayer = hasCommerceLayer && layerIsEnabled(enabledLayerIds, ['commerce', 'order', 'pedido', 'venta']);
+  const selectedCategoryFacet = mapCategoryFacets.find((facet) => facet.key === mapCategoryFilter);
+  const selectedZoneFacet = mapZoneFacets.find((facet) => facet.key === mapZoneFilter);
+  const selectedAddressCellFacet = mapAddressCellFacets.find((facet) => facet.key === mapAddressCellFilter);
+  const activeTerritorialFilterCount = [mapCategoryFilter, mapZoneFilter, mapAddressCellFilter].filter(Boolean).length;
+  const accessibleCoverageDimensions = useMemo<TerritorialCoverageDimension[]>(
+    () => {
+      const toRows = (facets: TerritoryMapFacet[], selectedKey: string | null) =>
+        facets.map((facet) => ({
+          key: facet.key,
+          label: facet.label,
+          total: facet.total,
+          mappedCount: facet.mappedCount,
+          pendingGeocodeCount: facet.pendingGeocodeCount,
+          outsideJurisdictionCount: facet.outsideJurisdictionCount,
+          selected: selectedKey === facet.key,
+        }));
+
+      return [
+        {
+          id: 'categories',
+          label: 'Categorías',
+          rows: toRows(mapCategoryFacets, mapCategoryFilter),
+          protected: categoryBreakdownProtected,
+        },
+        {
+          id: 'zones',
+          label: 'Zonas/barrios',
+          rows: toRows(mapZoneFacets, mapZoneFilter),
+          protected: zoneBreakdownProtected,
+        },
+        {
+          id: 'locations',
+          label: 'Corredores/celdas',
+          rows: toRows(mapAddressCellFacets, mapAddressCellFilter),
+          protected: addressCellBreakdownProtected,
+        },
+      ];
+    },
+    [
+      addressCellBreakdownProtected,
+      categoryBreakdownProtected,
+      mapAddressCellFacets,
+      mapAddressCellFilter,
+      mapCategoryFacets,
+      mapCategoryFilter,
+      mapZoneFacets,
+      mapZoneFilter,
+      zoneBreakdownProtected,
+    ],
+  );
   const visibleLiveMapPoints = useMemo(
     () =>
-      showCommerceLayer
-        ? liveMapPoints
-        : liveMapPoints.filter((point) => readString(point.fuente) !== 'commerce'),
-    [liveMapPoints, showCommerceLayer],
+      liveMapPoints
+        .filter((point) => {
+          if (!showCommerceLayer && readString(point.fuente) === 'commerce') return false;
+          if (
+            mapCategoryFilter &&
+            !(
+              selectedCategoryFacet?.matchKeys.includes(normalizedFacetValue(point.categoria)) ??
+              normalizedFacetValue(point.categoria) === mapCategoryFilter
+            )
+          ) {
+            return false;
+          }
+          if (
+            mapZoneFilter &&
+            !(
+              selectedZoneFacet?.matchKeys.includes(
+                normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()),
+              ) ?? normalizedFacetValue(point.barrio?.trim() || point.distrito?.trim()) === mapZoneFilter
+            )
+          ) {
+            return false;
+          }
+          if (
+            mapAddressCellFilter &&
+            point.addressCellKey !== mapAddressCellFilter &&
+            point.addressCorridorKey !== mapAddressCellFilter
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((point) => ({
+          ...point,
+          categoryColor:
+            categoryColorByMatchKey.get(normalizedFacetValue(point.categoria)) ??
+            point.categoryColor ??
+            categoryColorFor(point.categoria),
+        })),
+    [
+      categoryColorByMatchKey,
+      liveMapPoints,
+      mapAddressCellFilter,
+      mapCategoryFilter,
+      mapZoneFilter,
+      selectedCategoryFacet,
+      selectedZoneFacet,
+      showCommerceLayer,
+    ],
   );
+  const globalPrivacySafeLiveMapPoints = useMemo(
+    () =>
+      privacySafeDensityPoints({
+        points: liveMapPoints,
+        canShowExactPointMarkers,
+        minimumSampleSize: effectiveMinSampleSize,
+      }),
+    [
+      canShowExactPointMarkers,
+      effectiveMinSampleSize,
+      liveMapPoints,
+    ],
+  );
+  const privacySafeLiveMapPoints = useMemo(
+    () =>
+      privacySafeDensityPoints({
+        points: visibleLiveMapPoints,
+        canShowExactPointMarkers,
+        minimumSampleSize: effectiveMinSampleSize,
+      }),
+    [
+      canShowExactPointMarkers,
+      effectiveMinSampleSize,
+      visibleLiveMapPoints,
+    ],
+  );
+  const privacyDensitySuppressed =
+    visibleLiveMapPoints.length > 0 && privacySafeLiveMapPoints.length === 0 && !canShowExactPointMarkers;
+  const showLiveMap = globalPrivacySafeLiveMapPoints.length > 0 && !usesDemoData;
+  const hasMappedTerritorialActivity = aggregate.totalRecords > 0 && !privacyDensitySuppressed;
+  const selectedTerritorialFacets = useMemo(
+    () =>
+      [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].filter(
+        (facet): facet is TerritoryMapFacet => Boolean(facet),
+      ),
+    [selectedAddressCellFacet, selectedCategoryFacet, selectedZoneFacet],
+  );
+  const hasCanonicalTerritorialSummary = territorialRecordCounts.coherent;
+  const scopedTerritoryView = useMemo<ScopedTerritoryView>(() => {
+    if (selectedTerritorialFacets.length === 1) {
+      const facet = selectedTerritorialFacets[0];
+      return {
+        mode: 'single',
+        label: facet.label,
+        visiblePointCount: visibleLiveMapPoints.length,
+        total: facet.total,
+        mappedCount: facet.mappedCount,
+        pendingGeocodeCount: facet.pendingGeocodeCount,
+        outsideJurisdictionCount: facet.outsideJurisdictionCount,
+        coveragePercent: facet.total > 0 ? validCoveragePercent((facet.mappedCount / facet.total) * 100) : undefined,
+        selectedFacet: facet,
+        globalInsightsCompatible: false,
+      };
+    }
+    if (selectedTerritorialFacets.length > 1) {
+      return {
+        mode: 'combined',
+        label: 'Combinación de filtros',
+        visiblePointCount: visibleLiveMapPoints.length,
+        mappedCount: visibleLiveMapPoints.length,
+        globalInsightsCompatible: false,
+      };
+    }
+    const total = territorialRecordCounts.total;
+    const mappedCount = territorialRecordCounts.mappedCount;
+    return {
+      mode: 'global',
+      label: 'Vista general',
+      visiblePointCount: visibleLiveMapPoints.length,
+      total,
+      mappedCount,
+      pendingGeocodeCount: territorialContractInvalid
+        ? undefined
+        : hasCanonicalTerritorialSummary
+          ? territorialRecordCounts.pendingGeocodeCount
+          : readiness.pendingGeocode,
+      outsideJurisdictionCount: territorialRecordCounts.outsideJurisdictionCount,
+      coveragePercent:
+        territorialContractInvalid
+          ? undefined
+          : hasCanonicalTerritorialSummary && total !== undefined && total > 0
+            ? validCoveragePercent((mappedCount / total) * 100)
+            : validCoveragePercent(readiness.coveragePercent),
+      globalInsightsCompatible: !territorialScopeBlocked,
+    };
+  }, [
+    hasCanonicalTerritorialSummary,
+    readiness.coveragePercent,
+    readiness.pendingGeocode,
+    selectedTerritorialFacets,
+    territorialContractInvalid,
+    territorialRecordCounts,
+    territorialScopeBlocked,
+    visibleLiveMapPoints.length,
+  ]);
+  const activeZeroMappedFacet = [selectedCategoryFacet, selectedZoneFacet, selectedAddressCellFacet].find(
+    (facet): facet is TerritoryMapFacet => Boolean(facet && facet.mappedCount === 0),
+  );
+  const hasActiveTerritorialFacet = Boolean(mapCategoryFilter || mapZoneFilter || mapAddressCellFilter);
+  const filteredMapEmpty = hasActiveTerritorialFacet && visibleLiveMapPoints.length === 0;
+  const renderHeatLayer = mapDisplayMode !== 'clusters' && showHeatLayer && !privacyDensitySuppressed;
+  const renderPointLayer = mapDisplayMode !== 'heat' && showCategoryLayer;
+  const clusteredPointDisplayMode = mapDisplayMode !== 'heat';
+  const noBaseMapLayerAvailable = !showHeatLayer && !showCategoryLayer;
+  const selectedDisplayModeUnavailable = mapDisplayMode === 'heat' ? !showHeatLayer : !showCategoryLayer;
+  const mapDisplayStatus = territorialScopeBlocked
+    ? 'Alcance territorial no validado. No se muestran puntos, densidad, facetas ni métricas hasta verificar la contención oficial.'
+    : privacyDensitySuppressed
+    ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos ni densidad territorial.`
+    : noBaseMapLayerAvailable
+    ? 'No hay una capa territorial activa. Activá Calor territorial o Capas por categoría para visualizar los registros.'
+    : selectedDisplayModeUnavailable
+      ? 'La visualización seleccionada está desactivada. Elegí uno de los modos disponibles.'
+      : filteredMapEmpty
+    ? 'La selección no tiene coordenadas mapeadas. No se agregan puntos estimados.'
+    : mapDisplayMode === 'hybrid'
+      ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada visible', 'ubicaciones mapeadas visibles')}. El calor conserva la densidad y las coordenadas superpuestas o próximas se agrupan con contador, sin separar puntos artificialmente.`
+      : mapDisplayMode === 'clusters'
+        ? visibleLiveMapPoints.length > 1
+          ? `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada agrupada', 'ubicaciones mapeadas agrupadas')} por proximidad, sin alterar los filtros.`
+          : 'Sólo hay una ubicación mapeada en esta selección; no se genera una agrupación artificial.'
+        : `${formatCountLabel(visibleLiveMapPoints.length, 'ubicación mapeada', 'ubicaciones mapeadas')} alimentan la densidad territorial.`;
+  const visiblePointCountProtected =
+    hasPrivacyContract && !exactPrivacyMode && visibleLiveMapPoints.length < effectiveMinSampleSize;
+  const liveHeatmapRadiusScale =
+    privacySafeLiveMapPoints.length <= 2
+      ? 2.8
+      : privacySafeLiveMapPoints.length <= 5
+        ? 2.35
+        : privacySafeLiveMapPoints.length <= 12
+          ? 1.9
+          : 1.55;
   const liveMapBounds = useMemo(
-    () => visibleLiveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
-    [visibleLiveMapPoints],
+    () => privacySafeLiveMapPoints.map((point) => [point.lng, point.lat] as [number, number]),
+    [privacySafeLiveMapPoints],
   );
   const geoLayerConfig = useMemo(
     () =>
       buildOperationsGeoLayerConfig({
         heatmap,
-        points: liveMapPoints,
+        points: privacySafeLiveMapPoints,
         enabledLayerIds,
         mapStyleUrl: mapConfig?.style_url,
-        showHeatLayer,
+        showHeatLayer: renderHeatLayer,
         showAiLayer,
         showQualityLayer,
         showRealtimeLayer,
@@ -887,357 +2636,354 @@ export function PremiumTerritoryHeatmap({
       }),
     [
       heatmap,
-      liveMapPoints,
+      privacySafeLiveMapPoints,
       enabledLayerIds,
       mapConfig?.style_url,
       showAiLayer,
-      showHeatLayer,
+      renderHeatLayer,
       showQualityLayer,
       showRealtimeLayer,
       showCommerceLayer,
     ],
   );
-  const liveMapEvidence = useMemo(
-    () => {
-      const heatmapRecord = asRecord(heatmap);
-      return {
-        source: usesDemoData ? 'demo_fallback' : usesBackendGeoLayerPoints ? 'backend_geo_layers' : usesBackendCellPoints ? 'backend_cells' : 'operations_heatmap',
-        provider: liveMapProvider,
-        contractVersion: readString(heatmap?.contract_version, geoLayerConfig?.contract_version),
-        usingSyntheticPoints: usesDemoData,
-        pointCount: liveMapPoints.length,
-        featureCount:
-          geoLayerConfig?.source && Array.isArray((geoLayerConfig.source as { features?: unknown[] }).features)
-            ? (geoLayerConfig.source as { features?: unknown[] }).features?.length ?? 0
-            : 0,
-        coveragePct: readNumber(
-          heatmap?.quality?.coverage_pct,
-          heatmap?.quality?.coverage,
-          heatmap?.summary?.coverage_pct,
-        ),
-        updatedAt: readString(
-          heatmap?.realtime?.latest_event_at,
-          heatmapRecord?.generated_at,
-          heatmapRecord?.updated_at,
-        ),
-        metadata: {
-          privacy: heatmap?.privacy,
-          official_boundaries: hasTerritoryBoundaries,
-        },
-      };
-    },
-    [
-      geoLayerConfig?.contract_version,
-      geoLayerConfig?.source,
-      heatmap,
-      heatmap?.contract_version,
-      heatmap?.quality?.coverage,
-      heatmap?.quality?.coverage_pct,
-      heatmap?.realtime?.latest_event_at,
-      heatmap?.summary?.coverage_pct,
-      hasTerritoryBoundaries,
-      liveMapPoints.length,
-      liveMapProvider,
-      usesBackendCellPoints,
-      usesBackendGeoLayerPoints,
-      usesDemoData,
-    ],
-  );
-  const hasLowQualityOverlay = readiness.state === 'empty' || readiness.state === 'low' || readiness.state === 'degraded';
-  const visiblePointCount = readiness.visiblePoints ?? sourcePoints.length;
-  const overallEventTotal = hasTerritoryBoundaries
-    ? aggregate.totalEvents
-    : sourcePoints.reduce((total, point) => total + Math.max(0, readNumber(point.weight, point.count, point.total, point.value) ?? 1), 0);
+  const visiblePointCount = scopedTerritoryView.visiblePointCount;
+  const overallEventTotal = scopedTerritoryView.total ?? scopedTerritoryView.mappedCount;
+  const scopedCoverageLabel = scopedTerritoryView.coveragePercent === undefined ? '—' : formatPercent(scopedTerritoryView.coveragePercent);
+  const scopedPendingLabel =
+    scopedTerritoryView.pendingGeocodeCount === undefined ? '—' : formatNumber(scopedTerritoryView.pendingGeocodeCount, '0');
+  const scopedOutsideJurisdictionCount = scopedTerritoryView.outsideJurisdictionCount;
+  const scopedVisiblePointLabel = visiblePointCountProtected ? '—' : formatNumber(visiblePointCount, '0');
+  const scopedMetricsUnavailable = scopedTerritoryView.mode === 'combined';
+  const scopedMetricsDetail = territorialScopeBlocked
+    ? 'Alcance territorial no validado; las métricas permanecen ocultas.'
+    : scopedMetricsUnavailable
+      ? 'La intersección no tiene denominador canónico; sólo se muestran puntos mapeados.'
+      : `${scopedCoverageLabel} de cobertura del alcance`;
   const decisionZone = selectedZone.records > 0 ? selectedZone : topZones[0] ?? selectedZone;
-  const decisionAction = narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction;
+  const decisionAction = scopedTerritoryView.globalInsightsCompatible
+    ? narrativeAction ?? operationalActionSummaries[0] ?? hotspotActionSummaries[0] ?? activeAction
+    : undefined;
   const decisionActionLabel =
     decisionAction?.label ??
-    (readiness.pendingGeocode > 0
-      ? 'Resolver geocoding pendiente'
+    (scopedTerritoryView.mode === 'single'
+      ? (scopedTerritoryView.pendingGeocodeCount ?? 0) > 0
+        ? `Revisar pendientes de ${scopedTerritoryView.label}`
+        : `Revisar ${scopedTerritoryView.label}`
+      : scopedTerritoryView.mode === 'combined'
+        ? 'Revisar combinación filtrada'
+      : readiness.pendingGeocode > 0
+      ? 'Resolver ubicaciones pendientes'
       : readiness.state === 'ready'
         ? 'Monitorear territorio'
         : 'Completar datos territoriales');
-  const decisionActionDetail =
-    decisionAction?.detail ??
-    (hasTerritoryBoundaries
+  const decisionActionDetail = territorialScopeBlocked
+    ? 'No se calculan prioridades ni acciones territoriales hasta validar el límite oficial y la contención de las coordenadas.'
+    : decisionAction?.detail ??
+    (scopedTerritoryView.mode === 'single'
+      ? `${formatCountLabel(scopedTerritoryView.mappedCount, 'registro mapeado', 'registros mapeados')} de ${formatNumber(scopedTerritoryView.total, '0')} en el segmento.`
+      : scopedTerritoryView.mode === 'combined'
+        ? scopedMetricsDetail
+      : hasTerritoryBoundaries
       ? decisionZone.recommendation
       : 'La actividad puntual sigue disponible; las comparaciones por zona requieren límites oficiales.');
-  const commandLoopHref = decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href;
-  const commandPrimaryCategory = backendTopCategory
-    ? humanizeContractValue(backendTopCategory, backendTopCategory)
+  const commandLoopHref =
+    scopedTerritoryView.mode === 'single' && (scopedTerritoryView.pendingGeocodeCount ?? 0) > 0
+      ? `/perfil?tab=tickets&focus=open_geocoding_queue&facet=${encodeURIComponent(scopedTerritoryView.selectedFacet?.key ?? '')}`
+      : scopedTerritoryView.globalInsightsCompatible
+        ? decisionAction?.href ?? operationalActionSummaries.find((action) => action.href)?.href
+        : undefined;
+  const commandPrimaryCategory = territorialScopeBlocked
+    ? 'Sin alcance validado'
+    : !scopedTerritoryView.globalInsightsCompatible
+    ? scopedTerritoryView.label
+    : backendTopCategory
+    ? humanizeCategoryValue(backendTopCategory)
     : decisionZone.topCategories[0]?.label ??
       aggregate.topCategories[0]?.label ??
-      (hasTerritoryBoundaries ? 'sin categoria dominante' : 'sin delimitación oficial');
-  const commandRealtimeDetail =
-    realtimeEvents.length > 0
-      ? humanizeContractValue(realtimeEvents[0], realtimeEvents[0])
-      : realtimeSources.length > 0
-        ? humanizeContractValue(realtimeSources[0], realtimeSources[0])
-        : latestRealtime
-          ? `ultimo evento ${latestRealtime}`
-          : 'sin socket visible';
+      (hasTerritoryBoundaries ? 'sin categoría dominante' : 'sin delimitación oficial');
+  const commandRealtimeDetail = realtimeFreshness.detail;
   const [decisionCx, decisionCy] = territoryCentroid(decisionZone.zone.polygon);
   const [selectedCx, selectedCy] = territoryCentroid(selectedZone.zone.polygon);
   const decisionRadarRadius = Math.min(14, Math.max(7, 8 + decisionZone.intensity * 6));
-  const telemetryRouteZones = topZones.length >= 2 ? topZones : aggregate.zones.slice(0, 4);
-  const telemetryRoutes = telemetryRouteZones.slice(0, -1).map((metric, index) => {
-    const nextMetric = telemetryRouteZones[index + 1];
-    const [startX, startY] = territoryCentroid(metric.zone.polygon);
-    const [endX, endY] = territoryCentroid(nextMetric.zone.polygon);
-    const controlX = (startX + endX) / 2;
-    const controlY = (startY + endY) / 2 + (index % 2 === 0 ? -5.5 : 4.5);
-    const routeId = `${svgId}-telemetry-route-${metric.zone.id}-${nextMetric.zone.id}`.replace(/[^a-zA-Z0-9_-]/g, '-');
-    return {
-      id: routeId,
-      d: `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`,
-      delay: `${index * 0.9}s`,
-      duration: `${5.4 + index * 0.8}s`,
-      tone:
-        index === 0
-          ? 'rgba(34,211,238,0.9)'
-          : index === 1
-            ? 'rgba(168,85,247,0.82)'
-            : 'rgba(245,158,11,0.86)',
-    };
-  });
-  const hudBars = [
-    { id: 'visible', label: 'visibles', value: visiblePointCount || 0, tone: 'rgba(34,211,238,0.86)' },
-    { id: 'hotspots', label: 'hotspots', value: backendCriticalHotspots ?? aggregate.alerts ?? 0, tone: 'rgba(168,85,247,0.78)' },
-    { id: 'pend', label: 'pend.', value: readiness.pendingGeocode ?? 0, tone: 'rgba(245,158,11,0.86)' },
-  ];
-  const hudMax = Math.max(1, ...hudBars.map((bar) => bar.value));
-  const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
+  const executiveSummaryCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2; testId: string }> = [
     {
       label: 'Puntos visibles',
-      value: formatNumber(visiblePointCount, '0'),
-      detail: `${formatPercent(readiness.coveragePercent)} de cobertura territorial`,
+      value: scopedVisiblePointLabel,
+      detail: visiblePointCountProtected ? `Muestra protegida · mínimo ${effectiveMinSampleSize}` : scopedMetricsDetail,
       icon: Eye,
+      testId: 'territory-summary-visible',
     },
     {
       label: 'Pendientes',
-      value: formatNumber(readiness.pendingGeocode, '0'),
-      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola de geocoding',
+      value: scopedPendingLabel,
+      detail: territorialScopeBlocked
+        ? 'Alcance territorial no validado'
+        : scopedMetricsUnavailable
+        ? 'No disponible para filtros combinados'
+        : geocodingStatus
+          ? humanizeContractValue(geocodingStatus, 'Estado no confirmado')
+          : 'sin ubicaciones pendientes',
       icon: DatabaseZap,
+      testId: 'territory-summary-pending',
     },
     {
-      label: 'Foco territorial',
+      label: scopedTerritoryView.globalInsightsCompatible ? 'Foco territorial' : 'Segmento activo',
       value: commandPrimaryCategory,
       detail:
-        backendFocusCount !== undefined
-          ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
+        scopedTerritoryView.mode === 'single'
+          ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
+          : scopedTerritoryView.mode === 'combined'
+            ? 'Sin ranking global para esta intersección'
+        : backendFocusCount !== undefined
+          ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
             ? 'sin ranking zonal'
             : decisionZone.suppressed
             ? 'muestra insuficiente'
-            : decisionZone.zone.label,
+             : decisionZone.zone.label,
       icon: Compass,
+      testId: 'territory-summary-focus',
     },
     {
-      label: 'Proxima accion',
+      label: 'Próxima acción',
       value: decisionActionLabel,
-      detail: decisionActionDetail || 'sin accion automatica pendiente',
+      detail: decisionActionDetail || 'sin acción automática pendiente',
       icon: ListChecks,
+      testId: 'territory-summary-action',
     },
   ];
-  const commandLoopCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2 }> = [
+  const commandLoopCards: Array<{ label: string; value: string; detail: string; icon: typeof Globe2; testId: string }> = [
     {
-      label: 'Foco critico',
+      label: scopedTerritoryView.globalInsightsCompatible ? 'Foco crítico' : 'Alcance filtrado',
       value:
-        backendCriticalHotspots !== undefined
-          ? `${formatNumber(backendCriticalHotspots, '0')} hotspots`
-          : `${formatNumber(aggregate.alerts, '0')} alertas`,
-      detail: commandPrimaryCategory,
+        territorialScopeBlocked
+          ? '—'
+          : scopedTerritoryView.mode === 'single'
+          ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
+          : scopedTerritoryView.mode === 'combined'
+            ? formatCountLabel(visiblePointCount, 'punto mapeado', 'puntos mapeados')
+        : backendCriticalHotspots !== undefined
+          ? formatCountLabel(backendCriticalHotspots, 'zona crítica', 'zonas críticas')
+          : formatCountLabel(aggregate.alerts, 'alerta', 'alertas'),
+      detail: territorialScopeBlocked ? 'Alcance territorial no validado' : commandPrimaryCategory,
       icon: ShieldAlert,
+      testId: 'territory-command-scope',
     },
     {
-      label: 'Accion siguiente',
+      label: 'Acción siguiente',
       value: decisionActionLabel,
-      detail: decisionActionDetail || 'sin accion automatica pendiente',
+      detail: decisionActionDetail || 'sin acción automática pendiente',
       icon: ListChecks,
+      testId: 'territory-command-action',
     },
     {
-      label: 'Cobertura GPS',
-      value: formatPercent(readiness.coveragePercent),
-      detail: `${formatNumber(visiblePointCount, '0')} puntos visibles`,
+      label: 'Cobertura territorial',
+      value: scopedCoverageLabel,
+      detail: visiblePointCountProtected
+        ? `Muestra protegida · mínimo ${effectiveMinSampleSize}`
+        : formatCountLabel(visiblePointCount, 'punto visible', 'puntos visibles'),
       icon: Gauge,
+      testId: 'territory-command-coverage',
     },
     {
-      label: 'Tiempo real',
-      value: heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : 'manual',
+      label: 'Actualización',
+      value: realtimeFreshness.label,
       detail: commandRealtimeDetail,
       icon: Activity,
+      testId: 'territory-command-freshness',
     },
   ];
   const commandSignals = [
     {
-      label: backendTopCategory ? 'Foco backend' : 'Zona foco',
-      value: backendTopCategory
-        ? humanizeContractValue(backendTopCategory, backendTopCategory)
+      label: scopedTerritoryView.globalInsightsCompatible ? (backendTopCategory ? 'Motivo prioritario' : 'Zona foco') : 'Segmento activo',
+      value: !scopedTerritoryView.globalInsightsCompatible
+        ? scopedTerritoryView.label
+        : backendTopCategory
+        ? humanizeCategoryValue(backendTopCategory)
         : hasTerritoryBoundaries
           ? decisionZone.zone.label
           : 'Sin delimitación oficial',
       detail:
-        backendFocusCount !== undefined
-          ? `${formatNumber(backendFocusCount)} casos - ${backendFocusRiskLabel}`
+        scopedTerritoryView.mode === 'single'
+          ? `${formatNumber(scopedTerritoryView.mappedCount)} de ${formatNumber(scopedTerritoryView.total)} mapeados`
+          : scopedTerritoryView.mode === 'combined'
+            ? 'Sin ranking global para filtros combinados'
+        : backendFocusCount !== undefined
+          ? `${formatCountLabel(backendFocusCount, 'caso', 'casos')} - ${backendFocusRiskLabel}`
           : !hasTerritoryBoundaries
-            ? `${formatNumber(visiblePointCount, '0')} puntos reales sin agregación zonal`
+            ? `${formatCountLabel(visiblePointCount, 'punto', 'puntos')} · ${dataProvenance.shortLabel} · sin agregación zonal`
             : decisionZone.suppressed
             ? 'muestra insuficiente'
-            : `${formatNumber(decisionZone.total)} eventos`,
+          : formatCountLabel(decisionZone.total, 'evento', 'eventos'),
       icon: MapPin,
+      testId: 'territory-radar-scope',
     },
     {
       label: 'Cobertura',
-      value: formatPercent(readiness.coveragePercent),
-      detail: readiness.label,
+      value: scopedCoverageLabel,
+      detail: scopedMetricsUnavailable ? 'No disponible para filtros combinados' : executiveReadinessLabel,
       icon: Gauge,
+      testId: 'territory-radar-coverage',
     },
     {
       label: 'Capas activas',
       value:
-        backendVisibleLayers !== undefined
+        territorialScopeBlocked
+          ? '—'
+          : backendVisibleLayers !== undefined
           ? formatNumber(backendVisibleLayers)
           : `${formatNumber(enabledLayerIds.length)}/${formatNumber(displayLayers.length || enabledLayerIds.length)}`,
-      detail: hasBackendMapContract ? backendRenderer : aiModeLabel,
+      detail: territorialScopeBlocked
+        ? 'Alcance territorial no validado'
+        : hasBackendMapContract
+          ? backendRenderer
+          : aiModeLabel,
       icon: Layers,
+      testId: 'territory-radar-layers',
     },
     {
       label: 'Datos pendientes',
-      value: formatNumber(readiness.pendingGeocode, '0'),
-      detail: geocodingStatus ? humanizeContractValue(geocodingStatus, geocodingStatus) : 'sin cola visible',
+      value: scopedPendingLabel,
+      detail: territorialScopeBlocked
+        ? 'Alcance territorial no validado'
+        : scopedMetricsUnavailable
+        ? 'No disponible para filtros combinados'
+        : geocodingStatus
+          ? humanizeContractValue(geocodingStatus, 'Estado no confirmado')
+          : 'sin cola visible',
       icon: DatabaseZap,
+      testId: 'territory-radar-pending',
     },
-  ];
-  const legendContract = asRecord(heatmap?.legend);
-  const layerStyleContract = asRecord(heatmap?.layer_style_contract);
-  const legendPalette = readStringArray(layerStyleContract?.palette, legendContract?.palette);
-  const fallbackLegendColors = ['#3b82f6', '#14b8a6', '#f59e0b', '#94a3b8'];
-  const liveLegendItems = [
-    ...asRecordArray(legendContract?.legend_items),
-    ...asRecordArray(layerStyleContract?.legend_items),
-    ...asRecordArray(layerStyleContract?.styles),
-    ...asRecordArray(layerStyleContract?.layers),
-  ]
-    .map((item, index) => ({
-      label: humanizeContractValue(
-        readString(item.label, item.name, item.title, item.key, item.id),
-        `Capa ${index + 1}`,
-      ),
-      detail: humanizeContractValue(readString(item.description, item.metric, item.source, item.bucket), ''),
-      color:
-        safeCssColor(readString(item.color, item.hex, item.fill, item.stroke, item.token)) ||
-        safeCssColor(legendPalette[index]) ||
-        fallbackLegendColors[index % fallbackLegendColors.length],
-    }))
-    .slice(0, 4);
-  const visibleLegendItems = liveLegendItems.length
-    ? liveLegendItems
-    : [
-        { label: 'Bajo', detail: 'demanda inicial', color: fallbackLegendColors[0] },
-        { label: 'Medio', detail: 'actividad sostenida', color: fallbackLegendColors[1] },
-        { label: 'Alto', detail: 'prioridad operativa', color: fallbackLegendColors[2] },
-        { label: 'Muestra insuficiente', detail: 'privacidad activa', color: fallbackLegendColors[3] },
-      ];
-  const liveSignalValue = latestRealtime
-    ? 'online'
-    : showRealtimeLayer || realtimeEvents.length || realtimeSources.length
-      ? 'escuchando'
-      : 'sin pulso';
-  const liveSignalDetail =
-    latestRealtime ||
-    realtimeEvents.map((event) => humanizeContractValue(event, event)).join(' / ') ||
-    realtimeSources.map((source) => humanizeContractValue(source, source)).join(' / ') ||
-    'sin evento realtime';
-  const focusDetail =
-    backendFocusCount !== undefined
-      ? `${formatNumber(backendFocusCount, '0')} casos - ${backendFocusRiskLabel}`
-      : operationalHotspotCount
-        ? `${formatNumber(operationalHotspotCount, '0')} hotspots`
-        : `${formatNumber(visiblePointCount, '0')} puntos`;
-  const visualSystemDetail = [
-    backendRadarEnabled ? 'radar activo' : null,
-    showHeatLayer ? 'calor' : null,
-    showAiLayer ? 'IA' : null,
-    showRealtimeLayer ? 'realtime' : null,
-    showCommerceLayer ? 'comercio' : null,
-  ].filter(Boolean).join(' - ');
-  const liveLegendCards = [
-    { label: 'Señal viva', value: liveSignalValue, detail: liveSignalDetail, icon: Activity },
-    { label: 'Foco', value: commandPrimaryCategory, detail: focusDetail, icon: Compass },
-    { label: 'Accion siguiente', value: decisionActionLabel, detail: decisionActionDetail || 'sin accion pendiente', icon: ListChecks },
-    { label: 'Sistema visual', value: backendRenderer, detail: visualSystemDetail || preferredVisualization, icon: Radar },
   ];
   const focusModes: Array<{ id: MapFocusMode; label: string; icon: typeof Globe2 }> = [
     { id: 'territory', label: labelFor(labels, 'premium_map_mode_territory', 'Territorio'), icon: Globe2 },
     { id: 'quality', label: labelFor(labels, 'premium_map_mode_quality', 'Calidad'), icon: Gauge },
-    { id: 'telemetry', label: labelFor(labels, 'premium_map_mode_telemetry', 'Telemetria'), icon: Activity },
+    { id: 'telemetry', label: labelFor(labels, 'premium_map_mode_telemetry', 'Actualización'), icon: Activity },
   ];
+  const resetTerritoryFilters = () => {
+    setMapCategoryFilter(null);
+    setMapZoneFilter(null);
+    setMapAddressCellFilter(null);
+    setSelectedMapPoint(null);
+  };
+  const clearMostSpecificTerritoryFilter = () => {
+    setSelectedMapPoint(null);
+    if (mapAddressCellFilter) {
+      setMapAddressCellFilter(null);
+      return;
+    }
+    if (mapZoneFilter) {
+      setMapZoneFilter(null);
+      return;
+    }
+    setMapCategoryFilter(null);
+  };
 
-  return (
-    <section className={cn('space-y-4', className)}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
+  const detailedTerritoryView = (
+    <section className={cn('flex flex-col gap-2', className)}>
+      <div className="order-1 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div>
+            <h3 className="text-lg font-semibold tracking-normal text-foreground">{title}</h3>
+            <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm lg:line-clamp-1">{description}</p>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="gap-1">
               <Layers className="h-3.5 w-3.5" />
-              {usesDemoData
-                ? 'modo demo local'
-                : usesBackendCellPoints
-                  ? 'heatmap backend'
-                  : heatmap?.contract_version ?? 'operations.heatmap.v1'}
+              {executiveProvenanceLabel}
             </Badge>
-            <Badge variant="outline" className="gap-1 capitalize">
-              <Globe2 className="h-3.5 w-3.5" />
-              {preferredVisualization}
-            </Badge>
+            {preferredVisualization ? (
+              <Badge variant="outline" className="gap-1 capitalize">
+                <Globe2 className="h-3.5 w-3.5" />
+                {preferredVisualization}
+              </Badge>
+            ) : null}
             <Badge variant={badgeVariantForReadiness(readiness.state)} className="gap-1">
               {readiness.state === 'ready' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-              {readiness.label}
+              {executiveReadinessLabel}
             </Badge>
-            <Badge variant="outline" className="gap-1">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              mínimo {effectiveMinSampleSize}
-            </Badge>
-            {heatmap?.privacy?.mode ? (
-              <Badge variant="outline" className="gap-1 capitalize">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {privacyModeLabel(heatmap.privacy.mode)}
+            {territorialContractInvalid ? (
+              <Badge
+                data-testid="territory-contract-integrity-warning"
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Métricas territoriales en revisión
+              </Badge>
+            ) : null}
+            {jurisdictionEnforced && jurisdictionLabel ? (
+              <Badge data-testid="territory-jurisdiction" variant="outline" className="gap-1">
+                <MapPin className="h-3.5 w-3.5" />
+                Alcance · {jurisdictionLabel}
+              </Badge>
+            ) : null}
+            {scopedOutsideJurisdictionCount !== undefined && scopedOutsideJurisdictionCount > 0 ? (
+              <Badge
+                data-testid="territory-outside-jurisdiction"
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                aria-label={`${formatCountLabel(scopedOutsideJurisdictionCount, 'coordenada', 'coordenadas')} fuera de jurisdicción, excluidas del mapa y pendientes de revisión`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Fuera de jurisdicción / revisar · {formatNumber(scopedOutsideJurisdictionCount)}
+              </Badge>
+            ) : null}
+            {territorialScopeBlocked ? (
+              <Badge
+                data-testid="territory-unverified-scope"
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                aria-label={`${formatCountLabel(unverifiedScopePointsRejectedByFrontend, 'coordenada ocultada', 'coordenadas ocultadas')} hasta validar el alcance territorial`}
+              >
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Alcance sin validar · {formatNumber(unverifiedScopePointsRejectedByFrontend)} ocultas
               </Badge>
             ) : null}
             {hasWarning ? (
               <Badge variant="outline" className="gap-1">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                fallback mapa
+                Vista alternativa activa
               </Badge>
             ) : null}
           </div>
-          <div>
-            <h3 className="text-xl font-semibold tracking-normal text-foreground">{title}</h3>
-            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
-          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-right sm:min-w-[430px] sm:grid-cols-4">
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Eventos</p>
-            <p className="text-lg font-semibold">{formatNumber(overallEventTotal)}</p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Cobertura</p>
-            <p className="text-lg font-semibold">{formatPercent(readiness.coveragePercent)}</p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Geocoding</p>
-            <p className="text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-            <p className="text-xs text-muted-foreground">Telemetria</p>
-            <p className="text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
-          </div>
-        </div>
+        <p
+          data-testid="territory-primary-summary"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground lg:max-w-[420px] lg:justify-end lg:text-right"
+          aria-label="Resumen de cobertura territorial"
+        >
+          <span>
+            {scopedTerritoryView.mode === 'single'
+              ? 'Registros del segmento'
+              : scopedTerritoryView.mode === 'combined'
+                ? 'Puntos mapeados'
+                : scopedTerritoryView.total === undefined
+                  ? 'Puntos mapeados'
+                  : 'Registros territoriales'}{' '}
+            <strong data-testid="territory-header-volume" className="font-semibold text-foreground">
+              {formatNumber(overallEventTotal)}
+            </strong>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Cobertura{' '}
+            <strong data-testid="territory-header-coverage" className="font-semibold text-foreground">
+              {scopedCoverageLabel}
+            </strong>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Pendientes{' '}
+            <strong data-testid="territory-header-pending" className="font-semibold text-foreground">
+              {scopedPendingLabel}
+            </strong>
+          </span>
+        </p>
       </div>
 
       {activeFilters.length ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="order-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Segmentos activos:</span>
           {activeFilters.map((filter) => (
             <Button
@@ -1257,7 +3003,7 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-executive-strip"
-        className="overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm"
+        className="order-5 overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm"
       >
         <div className="flex flex-col gap-2 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -1267,27 +3013,23 @@ export function PremiumTerritoryHeatmap({
                 Lectura ejecutiva
               </Badge>
               <Badge variant="outline" className="capitalize">
-                {readiness.label}
+                {executiveReadinessLabel}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Resumen operativo para leer demanda, calidad de datos y accion siguiente sin abrir paneles internos.
+              Resumen operativo para leer demanda, calidad de datos y acción siguiente sin abrir paneles internos.
             </p>
           </div>
           <Badge variant="outline" className="w-fit gap-1">
             <Activity className="h-3.5 w-3.5" />
-            {hasBackendMapContract
-              ? 'contrato backend activo'
-              : hasTerritoryBoundaries
-                ? 'límites oficiales activos'
-                : 'sin límites oficiales'}
+            {territoryScopeBadgeLabel}
           </Badge>
         </div>
         <div className="grid divide-y divide-border/70 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
           {executiveSummaryCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="min-w-0 p-4">
+              <div key={card.label} data-testid={card.testId} className="min-w-0 p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{card.label}</span>
@@ -1302,28 +3044,28 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-command-loop"
-        className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.08))] shadow-sm"
+        className="order-7 overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.08))] shadow-sm"
       >
         <div className="flex flex-col gap-4 border-b border-border/70 p-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="gap-1">
                 <Radar className="h-3.5 w-3.5" />
-                Command loop IA
+                Ciclo de decisión asistido
               </Badge>
               <Badge variant={readiness.state === 'ready' ? 'outline' : 'secondary'} className="capitalize">
-                {readiness.label}
+                {executiveReadinessLabel}
               </Badge>
             </div>
             <h4 className="mt-2 text-lg font-semibold leading-tight">Pulso operativo territorial</h4>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Priorizacion del mapa para convertir heatmaps, encuestas, tickets y WhatsApp en una cola de trabajo clara para el equipo.
+              Priorización territorial para convertir reclamos, encuestas y WhatsApp en una cola de trabajo clara para el equipo.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Badge variant="outline" className="gap-1">
               <Activity className="h-3.5 w-3.5" />
-              {realtimeSources.length || realtimeEvents.length ? 'senal viva' : 'modo operativo'}
+              {realtimeFreshness.isFresh ? 'actualización reciente' : 'conectividad no verificada'}
             </Badge>
             {commandLoopHref ? (
               <a
@@ -1339,7 +3081,12 @@ export function PremiumTerritoryHeatmap({
           {commandLoopCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} data-testid="territory-command-card" className="min-w-0 p-4">
+              <div
+                key={card.label}
+                data-testid="territory-command-card"
+                data-metric={card.testId}
+                className="min-w-0 p-4"
+              >
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{card.label}</span>
@@ -1354,7 +3101,7 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-decision-radar"
-        className="overflow-hidden rounded-xl border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.04),hsl(var(--background)),rgba(20,184,166,0.06))] shadow-sm"
+        className="order-8 overflow-hidden rounded-xl border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.04),hsl(var(--background)),rgba(20,184,166,0.06))] shadow-sm"
       >
         <div className="grid gap-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
           <div className="border-b border-border/70 p-4 lg:border-b-0 lg:border-r">
@@ -1364,7 +3111,7 @@ export function PremiumTerritoryHeatmap({
                 <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-teal-400 shadow-[0_0_0_4px_rgba(45,212,191,0.18)]" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Radar de decision</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Radar de decisión</p>
                 <h4 className="mt-1 text-base font-semibold leading-snug">{decisionActionLabel}</h4>
                 <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{decisionActionDetail}</p>
               </div>
@@ -1374,7 +3121,7 @@ export function PremiumTerritoryHeatmap({
             {commandSignals.map((signal) => {
               const Icon = signal.icon;
               return (
-                <div key={signal.label} className="min-w-0 p-4">
+                <div key={signal.label} data-testid={signal.testId} className="min-w-0 p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="truncate">{signal.label}</span>
@@ -1388,7 +3135,7 @@ export function PremiumTerritoryHeatmap({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="order-2 flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/20 p-1.5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Modo de lectura del mapa">
           {focusModes.map((mode) => {
             const Icon = mode.icon;
@@ -1408,63 +3155,378 @@ export function PremiumTerritoryHeatmap({
             );
           })}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2" role="group" aria-label="Capas visibles">
-          {displayLayers.map((layer) => {
-            const active = enabledLayerIds.includes(layer.id);
-            return (
-              <Button
-                key={layer.id}
-                type="button"
-                size="sm"
-                variant={active ? 'secondary' : 'outline'}
-                className={cn('h-auto min-h-9 max-w-full justify-start px-3 py-2 text-left', active && layerToneClass[layer.tone])}
-                onClick={() =>
-                  setLayerSelection((current) => {
-                    const base = current ?? defaultEnabledLayerIds;
-                    return base.includes(layer.id) ? base.filter((item) => item !== layer.id) : [...base, layer.id];
-                  })
-                }
-                aria-pressed={active}
-                title={layer.description}
-              >
-                <span className="truncate">{layer.label}</span>
-              </Button>
-            );
-          })}
+        <div className="flex min-w-0 flex-col items-start gap-1 lg:items-end">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+            <div
+              data-testid="territory-display-mode-control"
+              className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg border bg-background p-1"
+              role="radiogroup"
+              aria-label="Visualización del mapa"
+            >
+              {([
+                { id: 'hybrid', label: 'Mapa operativo' },
+                { id: 'clusters', label: 'Clústeres' },
+                { id: 'heat', label: 'Solo calor' },
+              ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
+                <Button
+                  key={mode.id}
+                  type="button"
+                  role="radio"
+                  size="sm"
+                  variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
+                  className="h-8 px-3"
+                  onClick={() => {
+                    displayModeManuallySelectedRef.current = true;
+                    temporarilyHiddenPointModeRef.current = null;
+                    setSelectedMapPoint(null);
+                    setMapDisplayMode(mode.id);
+                  }}
+                  aria-checked={mapDisplayMode === mode.id}
+                  aria-pressed={mapDisplayMode === mode.id}
+                  disabled={
+                    mode.id === 'heat'
+                      ? !showHeatLayer
+                      : !canShowExactPointMarkers || !showCategoryLayer
+                  }
+                  title={
+                    mode.id === 'heat' && !showHeatLayer
+                      ? 'La capa Calor territorial está desactivada'
+                      : mode.id !== 'heat' && !canShowExactPointMarkers
+                      ? 'La política territorial protege el detalle puntual'
+                      : mode.id !== 'heat' && !showCategoryLayer
+                        ? 'La capa por categoría está desactivada'
+                        : undefined
+                  }
+                >
+                  {mode.label}
+                </Button>
+              ))}
+            </div>
+            <TerritorialMapAccessibleSheet
+              points={visibleLiveMapPoints}
+              canShowExactPointMarkers={canShowExactPointMarkers}
+              tenantSlug={tenantSlug}
+              coverageDimensions={accessibleCoverageDimensions}
+              coverageScope={{
+                label: scopedTerritoryView.label,
+                mode: scopedTerritoryView.mode,
+                total: scopedTerritoryView.total,
+                mappedCount: scopedTerritoryView.mappedCount,
+                pendingGeocodeCount: scopedTerritoryView.pendingGeocodeCount,
+                outsideJurisdictionCount: scopedTerritoryView.outsideJurisdictionCount,
+              }}
+              activeFilterCount={activeTerritorialFilterCount}
+              provenance={{ label: dataProvenance.label, detail: dataProvenance.detail }}
+              freshness={{ label: realtimeFreshness.label, detail: realtimeFreshness.detail }}
+              summaries={[
+                { id: 'coverage', label: 'Cobertura', value: scopedCoverageLabel },
+                { id: 'mapped', label: 'Puntos mapeados', value: scopedVisiblePointLabel },
+                { id: 'pending', label: 'Pendientes de geocodificar', value: scopedPendingLabel },
+                { id: 'scope', label: 'Alcance', value: scopedTerritoryView.label },
+              ]}
+            />
+          </div>
+          <p
+            data-testid="territory-display-mode-status"
+            className="sr-only"
+            role="status"
+            aria-live="polite"
+          >
+            {mapDisplayStatus}
+            {(scopedTerritoryView.pendingGeocodeCount ?? 0) > 0
+              ? ` ${formatCountLabel(scopedTerritoryView.pendingGeocodeCount ?? 0, 'registro permanece pendiente de geocodificar', 'registros permanecen pendientes de geocodificar')}.`
+              : ''}
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <details
+        data-testid="territory-filter-toolbar"
+        className="group order-3 rounded-xl border border-border/70 bg-background/95 shadow-sm"
+      >
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-foreground">
+            <Filter className="h-4 w-4 shrink-0 text-primary" />
+            Filtros territoriales
+            {hasActiveTerritorialFacet ? (
+              <Badge variant="secondary" className="shrink-0">
+                {[mapCategoryFilter, mapZoneFilter, mapAddressCellFilter].filter(Boolean).length} activos
+              </Badge>
+            ) : null}
+          </span>
+          <span
+            data-testid="territory-filter-disclosure-summary"
+            className="hidden min-w-0 truncate text-xs font-medium text-muted-foreground sm:block"
+          >
+            {scopedVisiblePointLabel} mapeados · {scopedPendingLabel} pendientes ·{' '}
+            {formatNumber(scopedOutsideJurisdictionCount ?? 0)} para revisar
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">Abrir</span>
+          <span className="hidden shrink-0 text-xs font-semibold text-primary group-open:inline">Cerrar</span>
+        </summary>
+        <div className="border-t border-border/70 p-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 shrink-0 text-primary" />
+              <h4 className="text-sm font-semibold">Explorar demanda territorial</h4>
+              {hasActiveTerritorialFacet ? (
+                <Badge variant="secondary" className="shrink-0">
+                  {[mapCategoryFilter, mapZoneFilter, mapAddressCellFilter].filter(Boolean).length} activos
+                </Badge>
+              ) : null}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Elegí una categoría, zona o corredor. El mapa y todos los indicadores responden a la misma selección.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-fit shrink-0 gap-2"
+            onClick={resetTerritoryFilters}
+            disabled={!hasActiveTerritorialFacet}
+            aria-label="Limpiar filtros territoriales"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Restablecer mapa
+          </Button>
+        </div>
+
+        <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-2">
+          <label htmlFor={`${svgId}-category-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
+            <span className="text-xs font-semibold text-foreground">Categoría de reclamo</span>
+            <select
+              id={`${svgId}-category-filter`}
+              aria-label="Filtrar mapa por categoría"
+              aria-describedby={`${svgId}-category-filter-counts`}
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              value={mapCategoryFilter ?? ''}
+              onChange={(event) => {
+                setSelectedMapPoint(null);
+                setMapCategoryFilter(event.target.value || null);
+              }}
+              disabled={!mapCategoryFacets.length}
+            >
+              <option value="">Todas las categorías</option>
+              {mapCategoryFacets.map((facet) => (
+                <option key={facet.key} value={facet.key}>
+                  {facet.label}
+                </option>
+              ))}
+            </select>
+            <span id={`${svgId}-category-filter-counts`} className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
+              {mapCategoryFacets.length ? (
+                <TerritoryFacetCounts facet={selectedCategoryFacet ?? territorialRecordCounts} />
+              ) : categoryBreakdownProtected ? (
+                `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros`
+              ) : (
+                'Sin categorías verificadas'
+              )}
+            </span>
+          </label>
+
+          <label htmlFor={`${svgId}-zone-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
+            <span className="text-xs font-semibold text-foreground">Zona o barrio</span>
+            <select
+              id={`${svgId}-zone-filter`}
+              aria-label="Filtrar mapa por zona o barrio"
+              aria-describedby={`${svgId}-zone-filter-counts`}
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              value={mapZoneFilter ?? ''}
+              onChange={(event) => {
+                setSelectedMapPoint(null);
+                setMapZoneFilter(event.target.value || null);
+              }}
+              disabled={!mapZoneFacets.length}
+            >
+              <option value="">{mapZoneFacets.length ? 'Todas las zonas' : 'Sin zonas verificadas'}</option>
+              {mapZoneFacets.map((facet) => (
+                <option key={facet.key} value={facet.key}>
+                  {facet.label}
+                </option>
+              ))}
+            </select>
+            <span id={`${svgId}-zone-filter-counts`} className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
+              {selectedZoneFacet ? (
+                <TerritoryFacetCounts facet={selectedZoneFacet} />
+              ) : zoneBreakdownProtected ? (
+                `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros`
+              ) : mapZoneFacets.length ? (
+                `${formatNumber(mapZoneFacets.length)} zonas disponibles`
+              ) : (
+                `${formatCountLabel(readiness.pendingGeocode, 'ubicación pendiente', 'ubicaciones pendientes')} de validación`
+              )}
+            </span>
+          </label>
+
+          <label htmlFor={`${svgId}-location-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
+            <span className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
+              Corredor o celda
+              <span className="font-normal text-muted-foreground">Sin domicilio exacto</span>
+            </span>
+            <select
+              id={`${svgId}-location-filter`}
+              aria-label="Filtrar mapa por corredor o celda"
+              aria-describedby={`${svgId}-location-filter-counts`}
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              value={mapAddressCellFilter ?? ''}
+              onChange={(event) => {
+                setSelectedMapPoint(null);
+                setMapAddressCellFilter(event.target.value || null);
+              }}
+              disabled={!mapAddressCellFacets.length}
+            >
+              <option value="">Todas las ubicaciones</option>
+              {mapAddressCellFacets.map((facet) => (
+                <option key={facet.key} value={facet.key}>
+                  {facet.label}
+                </option>
+              ))}
+            </select>
+            <span id={`${svgId}-location-filter-counts`} className="mt-1 block min-h-4 text-[11px] leading-4 text-muted-foreground">
+              {selectedAddressCellFacet ? (
+                <TerritoryFacetCounts facet={selectedAddressCellFacet} />
+              ) : addressCellBreakdownProtected ? (
+                `Segmentación protegida · mínimo ${effectiveMinSampleSize} registros`
+              ) : mapAddressCellFacets.length ? (
+                `${formatNumber(mapAddressCellFacets.length)} agrupaciones seguras disponibles`
+              ) : (
+                'Sin corredores ni celdas verificadas'
+              )}
+            </span>
+          </label>
+        </div>
+
+        {hasActiveTerritorialFacet ? (
+          <div data-testid="territory-active-filter-chips" className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Aplicados</span>
+            {selectedCategoryFacet ? (
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de categoría ${selectedCategoryFacet.label}`} onClick={() => {
+                setSelectedMapPoint(null);
+                setMapCategoryFilter(null);
+              }}>
+                Categoría · {selectedCategoryFacet.label} ×
+              </Button>
+            ) : null}
+            {selectedZoneFacet ? (
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de zona ${selectedZoneFacet.label}`} onClick={() => {
+                setSelectedMapPoint(null);
+                setMapZoneFilter(null);
+              }}>
+                Zona · {selectedZoneFacet.label} ×
+              </Button>
+            ) : null}
+            {selectedAddressCellFacet ? (
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de corredor ${selectedAddressCellFacet.label}`} onClick={() => {
+                setSelectedMapPoint(null);
+                setMapAddressCellFilter(null);
+              }}>
+                Corredor · {selectedAddressCellFacet.label} ×
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        </div>
+      </details>
+
+      {geocodingQueueItems.length ? (
+        <details
+          data-testid="territory-geocoding-queue"
+          className="group order-3 rounded-xl border border-amber-300/70 bg-amber-50/50 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/10"
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
+              <DatabaseZap className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+              Cola de ubicaciones pendientes
+              <Badge variant="outline" className="shrink-0 border-amber-400/70">
+                {geocodingQueueItems.length}
+              </Badge>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">Ver cola</span>
+            <span className="hidden shrink-0 text-xs font-semibold text-primary group-open:inline">Ocultar</span>
+          </summary>
+          <div className="border-t border-amber-300/60 p-3 dark:border-amber-900/60">
+            <p className="text-xs leading-5 text-muted-foreground">
+              Estos registros todavía no tienen coordenadas verificadas y por eso no se dibujan en el mapa.
+            </p>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Ubicaciones pendientes de geocodificar">
+              {geocodingQueueItems.map((item) => (
+                <li key={item.key} className="rounded-lg border bg-background p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">Sin coordenadas</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.area}</p>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="/perfil?tab=tickets&focus=open_geocoding_queue"
+              className="mt-3 inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Abrir cola en CRM
+            </a>
+          </div>
+        </details>
+      ) : null}
+
+      <div
+        data-testid="territory-map-layout"
+        className="order-4 grid min-w-0 grid-cols-1 items-start gap-4"
+      >
         <div
-          className="relative min-h-[500px] overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
+          data-testid="territory-map-shell"
+          className="relative self-start overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
           style={{ perspective: '1200px' }}
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
           <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
           <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
+          <p id={mapInstructionsId} className="sr-only">
+            El mapa es una visualización. Para consultar cobertura y puntos con teclado o lector de pantalla,
+            usá el botón Ver datos accesibles.
+          </p>
           {showLiveMap ? (
-            <div data-testid="live-territory-map" className="relative z-10 h-[450px] w-full overflow-hidden sm:h-[540px]">
+            <div data-testid="live-territory-map" className="relative z-10 h-[520px] w-full overflow-hidden sm:h-[620px] 2xl:h-[680px]">
               <LazyMapLibreMap
                 className="h-full min-h-0 w-full rounded-none border-0"
-                heatmapData={visibleLiveMapPoints}
-                showHeatmap={showHeatLayer}
+                ariaLabel="Mapa territorial interactivo de reclamos, encuestas y actividad agregada"
+                ariaDescribedBy={mapInstructionsId}
+                tenantSlug={tenantSlug}
+                heatmapData={privacySafeLiveMapPoints}
+                showHeatmap={renderHeatLayer}
+                showPoints={renderPointLayer}
+                showPointLabels={renderPointLayer && clusteredPointDisplayMode}
+                pointLabelMode="count"
+                pointMinZoom={7}
+                pointLabelMinZoom={clusteredPointDisplayMode ? 7 : 10}
+                heatmapRadiusScale={liveHeatmapRadiusScale}
+                // In aggregate privacy, only k-anonymous density or validated
+                // aggregate cells reach the renderer.
+                heatmapPalette={canShowExactPointMarkers ? 'faro' : 'default'}
+                adaptiveZoomMode={false}
+                onFeatureSelect={setSelectedMapPoint}
+                popupContext="territory"
                 provider={liveMapProvider}
                 mapStyleUrl={mapConfig?.style_url}
                 maptilerKey={mapConfig?.maptiler_key}
                 googleMapsKey={mapConfig?.google_maps_key}
                 geoLayerConfig={geoLayerConfig}
                 fitToBounds={liveMapBounds}
-                boundsPadding={{ top: 96, right: 48, bottom: 112, left: 48 }}
-                disableClientClustering
-                evidence={liveMapEvidence}
+                fitBoundsRequestKey={`${mapCategoryFilter ?? 'all'}:${mapZoneFilter ?? 'all'}:${mapAddressCellFilter ?? 'all'}`}
+                boundsPadding={{ top: 40, right: 40, bottom: 40, left: 40 }}
+                disableClientClustering={!clusteredPointDisplayMode}
+                showEvidenceBadge={false}
               />
             </div>
-          ) : hasTerritoryBoundaries ? (
+          ) : hasTerritoryBoundaries && hasMappedTerritorialActivity ? (
           <svg
             role="img"
             aria-label={title}
             viewBox="0 0 100 68"
-            className="relative z-10 h-[450px] w-full touch-pan-y select-none sm:h-[540px]"
+              className="relative z-10 h-[520px] w-full touch-pan-y select-none sm:h-[620px] 2xl:h-[680px]"
             preserveAspectRatio="xMidYMid meet"
           >
             <defs>
@@ -1488,11 +3550,6 @@ export function PremiumTerritoryHeatmap({
                 <stop offset="46%" stopColor="rgba(59,130,246,0.2)" />
                 <stop offset="100%" stopColor="rgba(34,211,238,0)" />
               </radialGradient>
-              <linearGradient id={`${svgId}-telemetry-line`} x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0%" stopColor="rgba(34,211,238,0.06)" />
-                <stop offset="52%" stopColor="rgba(255,255,255,0.62)" />
-                <stop offset="100%" stopColor="rgba(168,85,247,0.12)" />
-              </linearGradient>
               <filter id={`${svgId}-zone-shadow`} x="-20%" y="-20%" width="140%" height="150%">
                 <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="rgba(15,23,42,0.32)" />
               </filter>
@@ -1538,78 +3595,22 @@ export function PremiumTerritoryHeatmap({
                 />
               ))}
             </g>
-            <path
-              d="M8 59 C24 52 34 58 50 51 C66 44 72 50 94 41"
-              fill="none"
-              stroke="rgba(255,255,255,0.38)"
-              strokeWidth="0.28"
-              strokeDasharray="1.4 2.2"
-            />
-            <path
-              d="M6 15 C23 22 38 13 51 21 C65 30 77 20 95 28"
-              fill="none"
-              stroke="rgba(20,184,166,0.22)"
-              strokeWidth="0.24"
-              strokeDasharray="1 2"
-            />
-            <g data-testid="territory-hud-overlay" aria-hidden="true" opacity="0.94">
-              <rect x="5.5" y="6" width="27.5" height="13.6" rx="2.2" fill="rgba(15,23,42,0.58)" stroke="rgba(148,163,184,0.36)" strokeWidth="0.18" />
-              <text x="8" y="10.2" className="fill-white text-[2.05px] font-semibold tracking-[0.18em]">
-                HEATMAP OPERATIVO
-              </text>
-              <text x="8" y="13.7" className="fill-cyan-100 text-[1.85px] font-medium">
-                {preferredVisualization.slice(0, 27)}
-              </text>
-              <text x="8" y="17" className="fill-slate-200 text-[1.75px]">
-                foco: {decisionZone.zone.label.slice(0, 20)}
-              </text>
-              {hudBars.map((bar, index) => {
-                const y = 22.8 + index * 2.9;
-                const width = 4 + (bar.value / hudMax) * 16;
-                return (
-                  <g key={bar.id}>
-                    <text x="7" y={y + 0.7} className="fill-slate-200 text-[1.45px] uppercase">
-                      {bar.label}
-                    </text>
-                    <rect x="15.8" y={y - 0.85} width="17.6" height="1.25" rx="0.62" fill="rgba(148,163,184,0.2)" />
-                    <rect x="15.8" y={y - 0.85} width={width} height="1.25" rx="0.62" fill={bar.tone}>
-                      {!shouldReduceMotion ? (
-                        <animate attributeName="opacity" values="0.72;1;0.72" dur={`${3.4 + index * 0.45}s`} repeatCount="indefinite" />
-                      ) : null}
-                    </rect>
-                  </g>
-                );
-              })}
-            </g>
-            <g data-testid="territory-radar-sweep" aria-hidden="true" transform={`translate(${decisionCx} ${decisionCy})`} opacity="0.78">
-              <circle r={decisionRadarRadius} fill="none" stroke="rgba(34,211,238,0.28)" strokeWidth="0.24" strokeDasharray="1.4 1.6" />
-              <circle r={decisionRadarRadius * 0.58} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.18" />
-              <path
-                d={`M 0 0 L ${decisionRadarRadius} 0 A ${decisionRadarRadius} ${decisionRadarRadius} 0 0 1 ${decisionRadarRadius * 0.42} ${decisionRadarRadius * 0.91} Z`}
-                fill={`url(#${svgId}-radar-wedge)`}
-              >
-                {!shouldReduceMotion ? (
-                  <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite" />
-                ) : null}
-              </path>
-              <line x1={-decisionRadarRadius} x2={decisionRadarRadius} y1="0" y2="0" stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
-              <line x1="0" x2="0" y1={-decisionRadarRadius} y2={decisionRadarRadius} stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
-            </g>
-            <g data-testid="territory-comet-network" aria-hidden="true" opacity={showRealtimeLayer || focusMode === 'telemetry' ? 0.82 : 0.5}>
-              {telemetryRoutes.map((route, index) => (
-                <g key={route.id} data-testid="territory-comet-route">
-                  <path id={route.id} d={route.d} fill="none" stroke={`url(#${svgId}-telemetry-line)`} strokeWidth="0.34" strokeLinecap="round" strokeDasharray="0.8 1.4" />
+            {scopedTerritoryView.globalInsightsCompatible ? (
+              <g data-testid="territory-radar-sweep" aria-hidden="true" transform={`translate(${decisionCx} ${decisionCy})`} opacity="0.78">
+                <circle r={decisionRadarRadius} fill="none" stroke="rgba(34,211,238,0.28)" strokeWidth="0.24" strokeDasharray="1.4 1.6" />
+                <circle r={decisionRadarRadius * 0.58} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.18" />
+                <path
+                  d={`M 0 0 L ${decisionRadarRadius} 0 A ${decisionRadarRadius} ${decisionRadarRadius} 0 0 1 ${decisionRadarRadius * 0.42} ${decisionRadarRadius * 0.91} Z`}
+                  fill={`url(#${svgId}-radar-wedge)`}
+                >
                   {!shouldReduceMotion ? (
-                    <circle r={index === 0 ? 0.74 : 0.58} fill={route.tone} stroke="rgba(255,255,255,0.76)" strokeWidth="0.12">
-                      <animateMotion dur={route.duration} begin={route.delay} repeatCount="indefinite" rotate="auto">
-                        <mpath href={`#${route.id}`} />
-                      </animateMotion>
-                      <animate attributeName="opacity" values="0;1;0" dur={route.duration} begin={route.delay} repeatCount="indefinite" />
-                    </circle>
+                    <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite" />
                   ) : null}
-                </g>
-              ))}
-            </g>
+                </path>
+                <line x1={-decisionRadarRadius} x2={decisionRadarRadius} y1="0" y2="0" stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
+                <line x1="0" x2="0" y1={-decisionRadarRadius} y2={decisionRadarRadius} stroke="rgba(255,255,255,0.22)" strokeWidth="0.12" />
+              </g>
+            ) : null}
             {aggregate.zones.map((metric) => {
               const [cx, cy] = territoryCentroid(metric.zone.polygon);
               if (!showHeatLayer || !metric.records || metric.suppressed) return null;
@@ -1663,14 +3664,16 @@ export function PremiumTerritoryHeatmap({
                     const radius = 3.2 + metric.intensity * 4.8;
                     return (
                       <g key={`${metric.zone.id}-ai-layer`}>
-                        <path
-                          d={`M ${cx - radius} ${cy - radius * 0.18} C ${cx - radius * 0.2} ${cy - radius} ${cx + radius * 0.78} ${cy - radius * 0.34} ${cx + radius} ${cy + radius * 0.5}`}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={radius}
                           fill="none"
                           stroke={index === 0 ? 'rgba(168,85,247,0.78)' : 'rgba(99,102,241,0.52)'}
                           strokeWidth={index === 0 ? 0.52 : 0.34}
                           strokeDasharray="1.2 1.3"
                         />
-                        <circle cx={cx + radius * 0.9} cy={cy + radius * 0.48} r="0.72" fill="rgba(168,85,247,0.92)" />
+                        <circle cx={cx} cy={cy} r="0.72" fill="rgba(168,85,247,0.92)" />
                       </g>
                     );
                   })}
@@ -1713,7 +3716,7 @@ export function PremiumTerritoryHeatmap({
                     filter={selected ? `url(#${svgId}-selected-glow)` : `url(#${svgId}-zone-shadow)`}
                     tabIndex={0}
                     role="button"
-                    aria-label={`${metric.zone.label}: ${metric.suppressed ? 'muestra insuficiente' : `${formatNumber(metric.total)} eventos`}`}
+                    aria-label={`${metric.zone.label}: ${metric.suppressed ? 'muestra insuficiente' : formatCountLabel(metric.total, 'evento', 'eventos')}`}
                     className="cursor-pointer outline-none transition duration-200 hover:brightness-110 focus-visible:brightness-125"
                     onMouseEnter={() => setSelectedZoneId(metric.zone.id)}
                     onFocus={() => setSelectedZoneId(metric.zone.id)}
@@ -1811,23 +3814,14 @@ export function PremiumTerritoryHeatmap({
                   strokeWidth="1"
                   strokeLinecap="round"
                   pathLength="100"
-                  strokeDasharray={coverageArc(readiness.coveragePercent)}
+                  strokeDasharray={coverageArc(scopedTerritoryView.coveragePercent)}
                   transform="rotate(-90 84 12)"
                 />
                 <text x="84" y="12.8" textAnchor="middle" className="fill-slate-950 text-[2.8px] font-semibold dark:fill-white">
-                  {readiness.coveragePercent !== undefined ? Math.round(readiness.coveragePercent) : 0}%
+                  {scopedTerritoryView.coveragePercent !== undefined
+                    ? `${Math.round(scopedTerritoryView.coveragePercent)}%`
+                    : '—'}
                 </text>
-                {geocodingCandidates.map((candidate, index) => {
-                  const x = 12 + index * 4.2;
-                  const y = 58 - index * 1.6;
-                  const key = String(candidate.record_id ?? candidate.ticket_id ?? candidate.address ?? index);
-                  return (
-                    <g key={`${key}-geocode-dot`}>
-                      <circle cx={x} cy={y} r="1.15" fill="rgba(245,158,11,0.92)" stroke="rgba(255,255,255,0.8)" strokeWidth="0.32" />
-                      <path d={`M ${x} ${y + 1.2} L ${x - 0.9} ${y + 3.2} L ${x + 0.9} ${y + 3.2} Z`} fill="rgba(245,158,11,0.4)" />
-                    </g>
-                  );
-                })}
               </g>
             ) : null}
             {showRealtimeLayer || focusMode === 'telemetry' ? (
@@ -1846,19 +3840,18 @@ export function PremiumTerritoryHeatmap({
                     <animate attributeName="stroke-dashoffset" values="0;-18" dur="4.6s" repeatCount="indefinite" />
                   ) : null}
                 </ellipse>
-                <path
-                  d="M11 38 C28 26 41 48 57 33 C70 20 82 30 90 21"
-                  fill="none"
-                  stroke="rgba(34,211,238,0.46)"
-                  strokeWidth="0.42"
-                  strokeLinecap="round"
-                />
               </g>
             ) : null}
           </svg>
           ) : (
             <div
-              data-testid="territory-boundary-empty-state"
+              data-testid={
+                territorialScopeBlocked
+                  ? 'territory-scope-unverified-state'
+                  : hasTerritoryBoundaries
+                    ? 'territory-activity-empty-state'
+                    : 'territory-boundary-empty-state'
+              }
               role="status"
               className="relative z-10 flex h-[450px] items-center justify-center px-6 pb-28 pt-24 text-center sm:h-[540px]"
             >
@@ -1866,153 +3859,279 @@ export function PremiumTerritoryHeatmap({
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <MapPin className="h-5 w-5" />
                 </div>
-                <h4 className="mt-3 text-lg font-semibold">Sin delimitación territorial oficial</h4>
+                <h4 className="mt-3 text-lg font-semibold">
+                  {territorialScopeBlocked
+                    ? 'Alcance territorial no validado'
+                    : hasTerritoryBoundaries
+                    ? privacyDensitySuppressed
+                      ? 'Muestra territorial protegida'
+                      : 'Sin actividad territorial mapeada'
+                    : 'Sin delimitación territorial oficial'}
+                </h4>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un GeoJSON oficial para habilitar
-                  agregaciones, rankings y tasas por zona.
+                  {territorialScopeBlocked
+                    ? `El contrato municipal no acredita pertenencia mediante un polígono o método de contención autoritativo. Se ocultaron ${formatCountLabel(unverifiedScopePointsRejectedByFrontend, 'coordenada', 'coordenadas')}; no se dibujan puntos, calor, celdas ni focos hasta validar el alcance.`
+                    : hasTerritoryBoundaries
+                    ? privacyDensitySuppressed
+                      ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos, densidad ni focos territoriales.`
+                      : 'Los límites oficiales están disponibles, pero no hay coordenadas verificadas para esta selección. No se dibujan actividad, focos ni recorridos estimados.'
+                    : 'No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un archivo oficial de límites territoriales para habilitar agregaciones, rankings y tasas por zona.'}
                 </p>
               </div>
             </div>
           )}
 
-          {showLiveMap && !hasTerritoryBoundaries ? (
+          {showLiveMap ? (
             <div
-              data-testid="territory-boundary-empty-state"
-              role="status"
-              className="pointer-events-none absolute left-3 right-3 top-24 z-20 sm:left-auto sm:right-3 sm:max-w-sm"
+              data-testid="territory-live-legend"
+              className="relative z-20 border-t border-border/80 bg-background p-3 sm:p-4"
             >
-              <div className="rounded-lg border border-amber-500/30 bg-background/95 p-3 shadow-sm backdrop-blur">
-                <p className="text-sm font-semibold">Sin delimitación territorial oficial</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Los puntos son reales. Rankings, tasas y comparaciones zonales permanecen desactivados.
-                </p>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Lectura territorial</p>
+                    <Badge variant="outline" className="gap-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {visiblePointCountProtected
+                        ? `Muestra protegida · mínimo ${effectiveMinSampleSize}`
+                        : formatCountLabel(visibleLiveMapPoints.length, 'punto visible', 'puntos visibles')}
+                    </Badge>
+                    <Badge
+                      data-testid="territory-data-provenance"
+                      variant="outline"
+                      className={cn('gap-1', provenanceToneClass[dataProvenance.state])}
+                      title={dataProvenance.detail}
+                    >
+                      {dataProvenance.state === 'real' ? <ShieldCheck className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                      {dataProvenance.label}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Baja</span>
+                    <span
+                      className="h-2 w-28 rounded-full bg-gradient-to-r from-blue-400 via-teal-500 via-55% to-amber-500"
+                      aria-hidden="true"
+                    />
+                    <span>Alta intensidad</span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      {renderPointLayer
+                        ? 'círculos por categoría'
+                        : exactPointsSuppressed || aggregatedPrivacyMode
+                          ? 'detalle puntual protegido'
+                          : 'capa categórica oculta'}
+                    </span>
+                  </div>
+                  {mapCategoryFacets.some((facet) => facet.mappedCount > 0) ? (
+                    <div
+                      data-testid="territory-category-legend"
+                      className="mt-3 flex flex-wrap items-center gap-2"
+                      aria-label="Leyenda interactiva por categoría"
+                    >
+                      {mapCategoryFacets
+                        .filter((facet) => facet.mappedCount > 0)
+                        .slice(0, 6)
+                        .map((facet) => {
+                          const active = selectedCategoryFacet?.key === facet.key;
+                          return (
+                            <Button
+                              key={facet.key}
+                              type="button"
+                              size="sm"
+                              variant={active ? 'default' : 'outline'}
+                              className="h-8 gap-2 rounded-full px-3 text-xs"
+                              aria-pressed={active}
+                              onClick={() => {
+                                setSelectedMapPoint(null);
+                                setMapCategoryFilter(active ? null : facet.key);
+                              }}
+                            >
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/80 shadow-sm"
+                                style={{ backgroundColor: facet.color ?? categoryColorFor(facet.key) }}
+                                aria-hidden="true"
+                              />
+                              {facet.label}
+                              <span className={cn('tabular-nums', active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                                {formatNumber(facet.mappedCount)}
+                              </span>
+                            </Button>
+                          );
+                        })}
+                    </div>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={comparisonEnabled ? 'default' : 'outline'}
+                  className="shrink-0 gap-2 rounded-lg"
+                  onClick={() => setComparisonEnabled((value) => !value)}
+                  disabled={!hasTerritoryBoundaries}
+                  title={!hasTerritoryBoundaries ? 'Requiere delimitaciones territoriales oficiales' : undefined}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  Comparar zonas
+                </Button>
               </div>
-            </div>
-          ) : null}
 
-          <div className="pointer-events-none absolute left-3 right-3 top-3 z-20 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-            <div className={cn('pointer-events-auto max-w-md rounded-lg border px-3 py-2 shadow-sm backdrop-blur', readinessToneClass[readiness.state])}>
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                {readiness.state === 'ready' ? <CheckCircle2 className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
-                <span>{readiness.label}</span>
-              </div>
-              {hasLowQualityOverlay ? (
-                <p className="mt-1 text-xs leading-5 text-current/80">
-                  {readinessCopy(readiness.state, labels)}
-                  {emptyStateBehavior ? ` ${emptyStateBehavior}.` : ''}
-                </p>
-              ) : null}
-              {activeAction ? (
-                <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-md border border-current/20 bg-background/50 px-2 py-1 text-xs">
-                  <DatabaseZap className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{activeAction.label}</span>
-                  {activeAction.detail ? <span className="hidden text-current/70 sm:inline">{activeAction.detail}</span> : null}
+              {filteredMapEmpty ? (
+                <div
+                  data-testid="territory-filter-empty"
+                  role="status"
+                  className="mt-3 flex flex-col gap-3 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/20 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">
+                      {activeZeroMappedFacet
+                        ? `Sin puntos mapeados para ${activeZeroMappedFacet.label}`
+                        : 'La combinación seleccionada no tiene puntos mapeados'}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {activeZeroMappedFacet
+                        ? 'La categoría sigue disponible porque existen reclamos en la cola territorial; el mapa no inventa coordenadas.'
+                        : 'Quitá un filtro para ampliar la lectura. Los reclamos sin coordenadas permanecen en su cola operativa.'}
+                    </p>
+                    {activeZeroMappedFacet ? (
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                        <Badge variant="outline">Total · {formatNumber(activeZeroMappedFacet.total)}</Badge>
+                        <Badge variant="outline">Mapeados · {formatNumber(activeZeroMappedFacet.mappedCount)}</Badge>
+                        <Badge variant="outline">
+                          Pendientes de geocodificar · {formatNumber(activeZeroMappedFacet.pendingGeocodeCount)}
+                        </Badge>
+                        <Badge variant="outline" className="border-amber-400/70 text-amber-800 dark:text-amber-200">
+                          Fuera de jurisdicción / revisar · {formatNumber(activeZeroMappedFacet.outsideJurisdictionCount)}
+                        </Badge>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={clearMostSpecificTerritoryFilter}>
+                      Quitar último filtro
+                    </Button>
+                    <Button type="button" size="sm" variant="default" onClick={resetTerritoryFilters}>
+                      Restablecer mapa
+                    </Button>
+                    {Math.max(
+                      scopedTerritoryView.pendingGeocodeCount ?? 0,
+                      activeZeroMappedFacet?.pendingGeocodeCount ?? 0,
+                    ) > 0 ? (
+                      <a
+                        href={`/perfil?tab=tickets&focus=open_geocoding_queue${
+                          activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
+                        }`}
+                        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Abrir cola pendiente
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
-            </div>
-            <div className="pointer-events-auto flex flex-wrap gap-2 lg:max-w-[360px] lg:justify-end">
-              <Badge variant="outline" className="gap-1 bg-background/80 backdrop-blur">
-                <MapPin className="h-3.5 w-3.5" />
-                {formatNumber(visiblePointCount)} visibles
-              </Badge>
-              {geocodingStatus ? (
-                <Badge variant="outline" className="gap-1 bg-background/80 capitalize backdrop-blur">
-                  <DatabaseZap className="h-3.5 w-3.5" />
-                  {humanizeContractValue(geocodingStatus, geocodingStatus)}
-                </Badge>
-              ) : null}
-              {latestRealtime ? (
-                <Badge variant="outline" className="gap-1 bg-background/80 backdrop-blur">
-                  <Activity className="h-3.5 w-3.5" />
-                  {latestRealtime}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
 
-          <div
-            data-testid="territory-live-legend"
-            className="absolute bottom-3 left-3 right-3 z-20 rounded-lg border border-border/80 bg-background/95 p-3 shadow-sm backdrop-blur xl:pr-32"
-          >
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {liveLegendCards.map((card) => {
-                  const Icon = card.icon;
-                  return (
-                    <div key={card.label} className="min-w-0 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-2">
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                        <Icon className="h-3.5 w-3.5 text-primary" />
-                        <span className="truncate">{card.label}</span>
-                      </div>
-                      <p className="mt-1 truncate text-sm font-semibold text-foreground">{card.value}</p>
-                      <p className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground">{card.detail}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex shrink-0 flex-col gap-2 xl:max-w-[280px]">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {visibleLegendItems.map((item) => (
-                    <span key={`${item.label}-${item.color}`} className="inline-flex max-w-[12rem] items-center gap-1">
+              {selectedMapPoint ? (
+                <div
+                  data-testid="territory-selected-point"
+                  className="mt-3 flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/[0.04] p-3 sm:flex-row sm:items-center sm:justify-between"
+                  role="status"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: item.color }}
+                        className="h-3 w-3 shrink-0 rounded-full border-2 border-white shadow-sm"
+                        style={{ backgroundColor: selectedMapPoint.categoryColor ?? categoryColorFor(selectedMapPoint.categoria) }}
                         aria-hidden="true"
                       />
-                      <span className="truncate">{item.label}</span>
-                    </span>
-                  ))}
+                      <p className="font-semibold text-foreground">
+                        {humanizeCategoryValue(selectedMapPoint.categoria ?? 'Reclamo territorial')}
+                      </p>
+                      {selectedMapPoint.estado ? (
+                        <Badge variant="secondary">
+                          Estado · {humanizeContractValue(selectedMapPoint.estado, 'Estado registrado')}
+                        </Badge>
+                      ) : null}
+                      {selectedMapPoint.canal ? (
+                        <Badge variant="outline">
+                          Canal · {humanizeContractValue(selectedMapPoint.canal, 'Canal registrado')}
+                        </Badge>
+                      ) : null}
+                      {selectedMapPoint.barrio || selectedMapPoint.distrito ? (
+                        <Badge variant="outline">
+                          Zona · {humanizeCategoryValue(selectedMapPoint.barrio ?? selectedMapPoint.distrito ?? '')}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedMapPoint.addressCellLabel ??
+                        selectedMapPoint.barrio ??
+                        selectedMapPoint.distrito ??
+                        'Ubicación validada sin zona pública'}
+                      {' · '}Coordenada disponible para operación autorizada
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {selectedTicketHref ? (
+                      <Button asChild type="button" size="sm" variant="default">
+                        <a href={selectedTicketHref}>
+                          Abrir reclamo
+                        </a>
+                      </Button>
+                    ) : (
+                      <Badge variant="outline">Sin vínculo CRM verificable</Badge>
+                    )}
+                    <Button type="button" size="sm" variant="outline" onClick={() => setSelectedMapPoint(null)}>
+                      Cerrar detalle
+                    </Button>
+                  </div>
                 </div>
-                {visibleLegendItems.some((item) => item.detail) ? (
-                  <p className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">
-                    {visibleLegendItems
-                      .filter((item) => item.detail)
-                      .map((item) => `${item.label}: ${item.detail}`)
-                      .join(' - ')}
-                  </p>
-                ) : null}
-              </div>
+              ) : null}
+
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={comparisonEnabled ? 'default' : 'outline'}
-              className="mt-3 w-full justify-center gap-2 rounded-lg xl:absolute xl:right-3 xl:top-3 xl:mt-0 xl:w-auto"
-              onClick={() => setComparisonEnabled((value) => !value)}
-              disabled={!hasTerritoryBoundaries}
-              title={!hasTerritoryBoundaries ? 'Requiere delimitaciones territoriales oficiales' : undefined}
-            >
-              <TrendingUp className="h-4 w-4" />
-              Comparar zonas
-            </Button>
-          </div>
+          ) : null}
         </div>
 
-        <aside className="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
-          <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
+        <aside data-testid="territory-executive-rail" className="w-full self-start">
+          <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 text-sm font-semibold">
+                Inspector territorial
+                <span data-testid="territory-inspector-summary" className="ml-2 hidden font-normal text-muted-foreground sm:inline">
+                  {scopedVisiblePointLabel} puntos · {scopedCoverageLabel} cobertura · {scopedPendingLabel} pendientes
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <Badge data-testid="territory-boundary-status" variant={badgeVariantForReadiness(readiness.state)}>
+                  {territoryScopeBadgeLabel}
+                </Badge>
+                <span className="text-xs font-medium text-primary group-open:hidden">Ver detalle</span>
+                <span className="hidden text-xs font-medium text-primary group-open:inline">Ocultar</span>
+              </span>
+            </summary>
+            <div className="mt-4 border-t border-border/60 pt-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Estado del mapa</p>
-                <h4 className="mt-1 text-lg font-semibold">{readiness.label}</h4>
+                <h4 className="mt-1 text-lg font-semibold">{executiveReadinessLabel}</h4>
               </div>
-              <Badge variant={badgeVariantForReadiness(readiness.state)}>
-                {hasTerritoryBoundaries ? confidenceLabel(aggregate.confidence) : 'sin límites'}
-              </Badge>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Gauge className="h-3.5 w-3.5" />
                   Cobertura
                 </div>
-                <p className="mt-1 text-lg font-semibold">{formatPercent(readiness.coveragePercent)}</p>
+                <p data-testid="territory-rail-coverage" className="mt-1 text-lg font-semibold">
+                  {scopedCoverageLabel}
+                </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <DatabaseZap className="h-3.5 w-3.5" />
-                  Geocoding
+                  Ubicaciones pendientes
                 </div>
-                <p className="mt-1 text-lg font-semibold">{formatNumber(readiness.pendingGeocode, '0')}</p>
+                <p data-testid="territory-rail-pending" className="mt-1 text-lg font-semibold">
+                  {scopedPendingLabel}
+                </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -2020,30 +4139,108 @@ export function PremiumTerritoryHeatmap({
                   Alertas
                 </div>
                 <p className="mt-1 text-lg font-semibold">
-                  {hasTerritoryBoundaries ? formatNumber(aggregate.alerts) : '--'}
+                  {scopedTerritoryView.globalInsightsCompatible && hasTerritoryBoundaries
+                    ? formatNumber(aggregate.alerts)
+                    : '--'}
                 </p>
               </div>
               <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />
-                  Polling
+                  Frecuencia configurada
                 </div>
-                <p className="mt-1 text-lg font-semibold">{heatmap?.realtime?.poll_seconds ? `${formatNumber(heatmap.realtime.poll_seconds)}s` : '--'}</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {!territorialScopeBlocked && heatmap?.realtime?.poll_seconds
+                    ? `${formatNumber(heatmap.realtime.poll_seconds)}s`
+                    : '--'}
+                </p>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{readinessCopy(readiness.state, labels)}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              {scopedTerritoryView.globalInsightsCompatible ? executiveReadinessDetail : scopedMetricsDetail}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline" className="gap-1">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                mínimo {effectiveMinSampleSize}
+              </Badge>
+              {heatmap?.privacy?.mode ? (
+                <Badge variant="outline" className="gap-1 capitalize">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {privacyModeLabel(heatmap.privacy.mode)}
+                </Badge>
+              ) : null}
+            </div>
             {realtimeSources.length || realtimeEvents.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {[...realtimeSources, ...realtimeEvents].slice(0, 4).map((item) => (
                   <Badge key={item} variant="outline" className="capitalize">
-                    {humanizeContractValue(item, item)}
+                    {humanizeContractValue(item, 'Canal configurado')}
                   </Badge>
                 ))}
               </div>
             ) : null}
-          </div>
+            </div>
+          </details>
 
-          {hasBackendMapContract ? (
+        </aside>
+      </div>
+
+      <details
+        data-testid="territory-intelligence-details"
+        className="group order-6 rounded-xl border border-border/80 bg-background shadow-sm"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Layers className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Análisis y acciones territoriales</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                Capas, prioridades y evidencia secundaria
+              </span>
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-medium text-primary group-open:hidden">Mostrar</span>
+          <span className="hidden shrink-0 text-xs font-medium text-primary group-open:inline">Ocultar</span>
+        </summary>
+
+        <section
+          data-testid="territory-intelligence-workspace"
+          aria-labelledby={`${svgId}-territory-intelligence-title`}
+          className="grid items-start gap-4 border-t border-border/70 p-4 lg:grid-cols-2"
+        >
+        <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inteligencia territorial</p>
+            <h4 id={`${svgId}-territory-intelligence-title`} className="mt-1 text-lg font-semibold">
+              Prioridades, capas y acciones en un solo espacio
+            </h4>
+          </div>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground lg:text-right">
+            El mapa conserva el foco visual; la evidencia secundaria se organiza debajo para comparar y actuar sin una columna interminable.
+          </p>
+        </div>
+
+          {!scopedTerritoryView.globalInsightsCompatible ? (
+            <div
+              data-testid="territory-scoped-insights-note"
+              className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-4 lg:col-span-2"
+            >
+              <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div>
+                <p className="text-sm font-semibold">Lectura acotada · {scopedTerritoryView.label}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {scopedTerritoryView.mode === 'single'
+                    ? 'Totales, cobertura y pendientes provienen de la faceta territorial canónica. Los rankings globales quedan ocultos mientras este segmento está activo.'
+                    : 'Se muestran sólo los puntos que cumplen todos los filtros. Cobertura y pendientes no están disponibles porque el contrato no informa el denominador de esta intersección.'}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {hasBackendMapContract && scopedTerritoryView.globalInsightsCompatible ? (
             <div data-testid="backend-map-contract-card" className="rounded-xl border border-cyan-500/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.08),hsl(var(--background)),rgba(124,58,237,0.07))] p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2052,7 +4249,7 @@ export function PremiumTerritoryHeatmap({
                 </div>
                 <Badge variant="outline" className="shrink-0 gap-1">
                   <Radar className="h-3.5 w-3.5" />
-                  {backendRadarEnabled ? 'radar activo' : 'capa estatica'}
+                  {backendRadarEnabled ? 'radar activo' : 'capa estática'}
                 </Badge>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2061,7 +4258,7 @@ export function PremiumTerritoryHeatmap({
                   <p className="mt-1 text-lg font-semibold">{formatNumber(backendTotalCases)}</p>
                 </div>
                 <div className="rounded-lg border bg-background/65 p-3">
-                  <p className="text-xs text-muted-foreground">Hotspots criticos</p>
+                  <p className="text-xs text-muted-foreground">Zonas críticas</p>
                   <p className="mt-1 text-lg font-semibold">{formatNumber(backendCriticalHotspots, '0')}</p>
                 </div>
               </div>
@@ -2070,29 +4267,31 @@ export function PremiumTerritoryHeatmap({
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Foco principal</p>
-                      <p className="mt-1 truncate text-sm font-medium">{humanizeContractValue(backendTopCategory, backendTopCategory)}</p>
+                      <p className="mt-1 truncate text-sm font-medium">{humanizeCategoryValue(backendTopCategory)}</p>
                     </div>
                     <Badge variant="secondary" className="shrink-0 capitalize">
                       {backendFocusRiskLabel}
                     </Badge>
                   </div>
                   {backendFocusCount !== undefined ? (
-                    <p className="mt-2 text-xs text-muted-foreground">{formatNumber(backendFocusCount)} casos agrupados en el foco operativo.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {formatCountLabel(backendFocusCount, 'caso agrupado', 'casos agrupados')} en el foco operativo.
+                    </p>
                   ) : null}
                 </div>
               ) : null}
             </div>
           ) : null}
 
-          {operationalHotspots.length ? (
+          {operationalHotspots.length && scopedTerritoryView.globalInsightsCompatible ? (
             <div
               data-testid="operational-hotspots-panel"
-              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm"
+              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm lg:col-span-2"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
-                    Hotspots operativos
+                    Prioridades territoriales
                   </p>
                   <h4 className="mt-1 text-lg font-semibold leading-tight">Focos para actuar primero</h4>
                 </div>
@@ -2115,10 +4314,10 @@ export function PremiumTerritoryHeatmap({
                   <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.recent_24h), '0')}</p>
                 </div>
               </div>
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {operationalHotspots.slice(0, 3).map((hotspot, index) => {
                   const signals = asRecord(hotspot.signals);
-                  const category = humanizeContractValue(readString(hotspot.top_category, hotspot.key, hotspot.label), 'sin categoria');
+                  const category = humanizeCategoryValue(readString(hotspot.top_category, hotspot.key, hotspot.label));
                   const channel = humanizeContractValue(readString(hotspot.top_channel), 'sin canal');
                   const signalChips = [
                     { label: 'SLA', value: readNumber(signals?.breached_sla) },
@@ -2166,37 +4365,60 @@ export function PremiumTerritoryHeatmap({
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
+          <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Brain className="h-4 w-4 text-primary" />
-              Capas del contrato
+              Capas de análisis
             </div>
-            <div className="mt-3 space-y-2">
-              {displayLayers.slice(0, 5).map((layer) => (
-                <div key={`${layer.id}-summary`} className="rounded-lg border bg-muted/20 px-3 py-2">
+              <Badge variant="outline" className="shrink-0">
+                {displayLayers.slice(0, 5).length} configuradas
+              </Badge>
+            </summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {displayLayers.slice(0, 5).map((layer) => {
+                const isCategoryControl = ['category', 'categoria'].some((fragment) => layer.id.includes(fragment));
+                const protectedByPrivacy = isCategoryControl && !canShowExactPointMarkers;
+                const active = !protectedByPrivacy && enabledLayerIds.includes(layer.id);
+                return (
+                <Button
+                  key={`${layer.id}-summary`}
+                  type="button"
+                  variant="outline"
+                  className={cn('h-auto min-h-16 w-full flex-col items-stretch rounded-lg px-3 py-2 text-left', active && layerToneClass[layer.tone])}
+                  disabled={protectedByPrivacy}
+                  aria-pressed={active}
+                  title={protectedByPrivacy ? 'La política de privacidad protege el detalle puntual' : layer.description}
+                  onClick={() =>
+                    setLayerSelection((current) => {
+                      const base = current ?? defaultEnabledLayerIds;
+                      return base.includes(layer.id) ? base.filter((item) => item !== layer.id) : [...base, layer.id];
+                    })
+                  }
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium">{layer.label}</span>
                     <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full border', layerToneClass[layer.tone])} />
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">{layer.description}</p>
-                </div>
-              ))}
+                </Button>
+              )})}
             </div>
-          </div>
+          </details>
 
-          {hasOperationalBrief ? (
-            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm">
+          {hasOperationalBrief && scopedTerritoryView.globalInsightsCompatible ? (
+            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm lg:col-span-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    Brief operativo IA
+                    Resumen operativo asistido
                   </div>
                   <h4 className="mt-2 text-base font-semibold leading-snug">
-                    {narrativeTitle || 'Mapa territorial accionable'}
+                    {operationalNarrativeTitle}
                   </h4>
-                  {narrativeBody ? (
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{narrativeBody}</p>
+                  {operationalNarrativeBody ? (
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{operationalNarrativeBody}</p>
                   ) : null}
                 </div>
                 <Badge variant={aiStatus?.requires_human_attention ? 'secondary' : 'outline'} className="shrink-0 capitalize">
@@ -2229,7 +4451,7 @@ export function PremiumTerritoryHeatmap({
                         <Compass className="h-3.5 w-3.5" />
                         Vista sugerida
                       </div>
-                      {defaultViewport.default ? <Badge variant="outline">default</Badge> : null}
+                      {defaultViewport.default ? <Badge variant="outline">Predeterminada</Badge> : null}
                     </div>
                     <p className="mt-1 truncate text-sm font-medium">
                       {defaultViewport.label || defaultViewport.id || 'Foco territorial'}
@@ -2244,11 +4466,11 @@ export function PremiumTerritoryHeatmap({
                   <div data-testid="heatmap-action-loop" className="rounded-lg border bg-background/65 p-3">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       <ListChecks className="h-3.5 w-3.5" />
-                      Proximas acciones
+                       Próximas acciones
                     </div>
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       {operationalActionSummaries
-                        .slice(0, 8)
+                        .slice(0, 6)
                         .map((action) => (
                           <div
                             key={`${action.label}-${action.detail ?? action.uiHint ?? ''}`}
@@ -2259,7 +4481,7 @@ export function PremiumTerritoryHeatmap({
                               <p className="min-w-0 text-sm font-medium">{action.label}</p>
                               {action.priority || action.actionType ? (
                                 <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
-                                  {humanizeContractValue(action.priority ?? action.actionType, 'accion')}
+                                  {humanizeContractValue(action.priority ?? action.actionType, 'Prioridad operativa')}
                                 </Badge>
                               ) : null}
                             </div>
@@ -2269,11 +4491,11 @@ export function PremiumTerritoryHeatmap({
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               {action.uiHint ? (
                                 <Badge variant="secondary" className="text-[10px] capitalize">
-                                  {humanizeContractValue(action.uiHint, action.uiHint)}
+                                  {humanizeContractValue(action.uiHint, 'Acción operativa')}
                                 </Badge>
                               ) : null}
                               <Badge variant={action.writesEnabled ? 'outline' : 'secondary'} className="text-[10px]">
-                                {action.writesEnabled ? 'requiere confirmacion' : 'preparacion segura'}
+                                {action.writesEnabled ? 'requiere confirmación' : 'preparación segura'}
                               </Badge>
                               {action.href ? (
                                 <a
@@ -2289,8 +4511,8 @@ export function PremiumTerritoryHeatmap({
                     </div>
                     {heatmap?.hotspot_actions ? (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {heatmap.hotspot_actions.safe_by_default ? 'Safe by default' : 'Revisar permisos'} -{' '}
-                        {heatmap.hotspot_actions.writes_enabled ? 'acciones con escritura' : 'solo preparacion operativa'}
+                        {heatmap.hotspot_actions.safe_by_default ? 'Acciones protegidas' : 'Revisar permisos'} -{' '}
+                        {heatmap.hotspot_actions.writes_enabled ? 'requiere confirmación' : 'solo preparación operativa'}
                       </p>
                     ) : null}
                   </div>
@@ -2314,7 +4536,7 @@ export function PremiumTerritoryHeatmap({
 
             {selectedZone.suppressed ? (
               <div className="mt-4 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                Muestra insuficiente. Se ocultan totales y categorias para evitar reidentificacion por segmentos.
+                Muestra insuficiente. Se ocultan totales y categorías para evitar la reidentificación por segmentos.
               </div>
             ) : (
               <div className="mt-4">
@@ -2340,7 +4562,7 @@ export function PremiumTerritoryHeatmap({
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <MapPin className="h-4 w-4 text-primary" />
-              Hotspots por zona
+              Intensidad por zona
             </div>
             <div className="mt-3 space-y-3">
               {topZones.length ? (
@@ -2373,7 +4595,7 @@ export function PremiumTerritoryHeatmap({
 
           {aggregate.topCategories.length ? (
             <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
-              <p className="text-sm font-semibold">Categorias dominantes</p>
+              <p className="text-sm font-semibold">Categorías dominantes</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {aggregate.topCategories.map((category) => (
                   <Badge key={category.key} variant="secondary">
@@ -2387,20 +4609,35 @@ export function PremiumTerritoryHeatmap({
           ) : (
             <div
               data-testid="territory-zone-analytics-unavailable"
-              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm"
+              className="rounded-xl border border-dashed border-border bg-background p-4 shadow-sm lg:col-span-2"
             >
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <MapPin className="h-4 w-4 text-primary" />
-                Sin delimitación territorial oficial
+                {territorialScopeBlocked ? 'Alcance territorial no validado' : 'Sin delimitación territorial oficial'}
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                El mapa conserva los puntos y celdas reales, pero no calcula rankings, tasas por población ni
-                comparaciones entre zonas hasta recibir límites oficiales.
+                {territorialScopeBlocked
+                  ? 'No se exponen puntos, celdas, facetas, cobertura ni prioridades hasta validar el límite oficial y la contención de cada coordenada.'
+                  : <>El mapa conserva los puntos y celdas disponibles. {dataProvenance.detail} No calcula rankings,
+                      tasas por población ni comparaciones entre zonas hasta recibir límites oficiales.</>}
               </p>
             </div>
           )}
-        </aside>
-      </div>
+        </section>
+      </details>
     </section>
   );
+
+  return !usesDemoData && sourcePoints.length === 0 ? (
+    <TerritoryMapEmptyState
+      heatmap={heatmap}
+      officialZones={officialTerritoryZones}
+      scopeBlocked={territorialScopeBlocked}
+      mapConfig={mapConfig}
+      tenantSlug={tenantSlug}
+      className={className}
+    >
+      {detailedTerritoryView}
+    </TerritoryMapEmptyState>
+  ) : detailedTerritoryView;
 }

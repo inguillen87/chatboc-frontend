@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAnalyticsFilters } from '@/context/AnalyticsFiltersContext';
 import { analyticsService, type AnalyticsContext } from '@/services/analyticsService';
 import type { DashboardData } from '@/types/analyticsDashboard';
-import { buildAnalyticsDemoDataset, hasDashboardData } from '@/utils/analyticsDemo';
+import { hasDashboardData } from '@/utils/analyticsDemo';
 
 const EMPTY_DATA: DashboardData = {
   summary: null,
@@ -139,10 +139,11 @@ export function useAnalyticsDashboard(view: AnalyticsContext) {
             : null;
 
         if (!hasData) {
-          const demo = buildAnalyticsDemoDataset(view);
-          setData(demo.data);
+          setData({ ...EMPTY_DATA });
           setError(null);
-          setWarning(baseWarning ? `${baseWarning} ${demo.message}` : demo.message);
+          const emptyMessage =
+            'No hay actividad real para este periodo. Ajusta los filtros o espera nuevos registros; no se muestran datos de ejemplo en el tablero operativo.';
+          setWarning(baseWarning ? `${baseWarning} ${emptyMessage}` : emptyMessage);
         } else {
           setData(nextData);
           setError(null);

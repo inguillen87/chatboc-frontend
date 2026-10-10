@@ -7,6 +7,7 @@ import type { MapProvider } from "@/hooks/useMapProvider";
 type MapProviderToggleProps = {
   value: MapProvider;
   onChange: (provider: MapProvider) => void;
+  ariaLabel?: string;
   className?: string;
   orientation?: "horizontal" | "vertical";
   size?: "default" | "sm";
@@ -17,6 +18,7 @@ type MapProviderToggleProps = {
 export function MapProviderToggle({
   value,
   onChange,
+  ariaLabel = "Proveedor cartográfico",
   className,
   orientation = "horizontal",
   size = "default",
@@ -42,11 +44,12 @@ export function MapProviderToggle({
       value={value}
       onValueChange={(next) => onChange(next as MapProvider)}
       className={groupClass}
+      aria-label={ariaLabel}
     >
       <div className="flex items-center gap-2">
         <RadioGroupItem value="maplibre" id={mapLibreId} />
         <Label htmlFor={mapLibreId} className={labelClass}>
-          MapLibre
+          Mapa estándar
         </Label>
       </div>
       {showGoogleOption ? (
@@ -56,7 +59,7 @@ export function MapProviderToggle({
             htmlFor={googleId}
             className={cn(labelClass, !googleAvailable && "text-muted-foreground/60")}
           >
-            Google
+            Mapa Google
           </Label>
         </div>
       ) : null}

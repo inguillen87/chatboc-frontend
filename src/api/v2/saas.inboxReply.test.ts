@@ -15,7 +15,10 @@ vi.mock('@/api/v2/client', () => ({
 }));
 
 import {
+  createOmnichannelActionClientMessageId,
+  normalizeOmnichannelInboxDetailV2,
   normalizeOmnichannelInboxActionV2,
+  normalizeSaasActions,
   postOmnichannelInboxActionV2,
 } from './saas';
 
@@ -86,6 +89,80 @@ describe('omnichannel inbox reply v2 transport', () => {
     expect(panelPostMock.mock.calls[0][1]).not.toHaveProperty('payload');
   });
 
+  it('keeps approved-template fields on the idempotent v2 reply request', async () => {
+    const clientMessageId = 'crm-reply:template-identity-0001';
+    panelPostMock.mockResolvedValue({
+      ...responseWithDelivery(),
+      ticket: {
+        ...responseWithDelivery().ticket,
+        id: '77',
+        ticket_id: 77,
+        source_model: 'TenantTicket',
+      },
+    });
+
+    await postOmnichannelInboxActionV2(
+      '77',
+      {
+        action: 'reply',
+        endpoint: '/api/v2/inbox/omnichannel/77/actions',
+        payload: {
+          source_model: 'TenantTicket',
+          ticket_id: 77,
+          message: 'Reclamo M-419: cuadrilla asignada.',
+          template_registry_id: 31,
+          template_variables: { 1: 'M-419', 2: 'cuadrilla asignada' },
+          client_message_id: clientMessageId,
+        },
+      },
+      'junin',
+    );
+
+    expect(panelPostMock).toHaveBeenCalledWith(
+      '/api/v2/inbox/omnichannel/77/actions',
+      expect.objectContaining({
+        action: 'reply',
+        body: 'Reclamo M-419: cuadrilla asignada.',
+        message: 'Reclamo M-419: cuadrilla asignada.',
+        template_registry_id: 31,
+        template_variables: { 1: 'M-419', 2: 'cuadrilla asignada' },
+        client_message_id: clientMessageId,
+      }),
+      { tenantSlug: 'junin', headers: { 'Idempotency-Key': clientMessageId } },
+    );
+  });
+
+  it('keeps Idempotency-Key equal to client_message_id when retrying a 2xx response without delivery', async () => {
+    const clientMessageId = 'crm-reply:missing-delivery-0001';
+    panelPostMock.mockResolvedValue({
+      action: 'reply',
+      ticket: {
+        id: '77',
+        ticket_id: 77,
+        source_model: 'TenantTicket',
+        title: 'Caso 77',
+        status: 'en_proceso',
+      },
+    });
+    const request = {
+      action: 'reply' as const,
+      endpoint: '/api/v2/inbox/omnichannel/77/actions',
+      source_model: 'TenantTicket' as const,
+      ticket_id: 77,
+      message: 'Respuesta pendiente de evidencia.',
+      client_message_id: clientMessageId,
+    };
+
+    await postOmnichannelInboxActionV2('77', request, 'junin');
+    await postOmnichannelInboxActionV2('77', request, 'junin');
+
+    expect(panelPostMock).toHaveBeenCalledTimes(2);
+    for (const call of panelPostMock.mock.calls) {
+      expect(call[1].client_message_id).toBe(clientMessageId);
+      expect(call[2]).toMatchObject({ headers: { 'Idempotency-Key': clientMessageId } });
+    }
+  });
+
   it('preserves the same identity across the compatibility endpoint fallback', async () => {
     const clientMessageId = 'crm-reply:fallback-identity-0001';
     panelPostMock
@@ -96,6 +173,8 @@ describe('omnichannel inbox reply v2 transport', () => {
       'municipio:42',
       {
         action: 'reply',
+        source_model: 'MunicipioTicket',
+        ticket_id: 42,
         message: 'Seguimos el caso.',
         client_message_id: clientMessageId,
       },
@@ -106,6 +185,65 @@ describe('omnichannel inbox reply v2 transport', () => {
     expect(panelPostMock.mock.calls[0][1].client_message_id).toBe(clientMessageId);
     expect(panelPostMock.mock.calls[1][1].client_message_id).toBe(clientMessageId);
     expect(panelPostMock.mock.calls[0][2]).toEqual(panelPostMock.mock.calls[1][2]);
+  });
+
+  it('posts a location action with one stable identity and no reply or external-channel fields', async () => {
+    const clientMessageId = 'crm-share_location:m419-location-0001';
+    panelPostMock.mockResolvedValue({
+      ...responseWithDelivery({
+        mode: 'internal_event',
+        delivery_mode: 'internal_event',
+        status: 'recorded_in_crm',
+        external_dispatch: false,
+        final_delivery: {
+          status: 'not_dispatched',
+          authoritative_source: 'not_applicable',
+        },
+      }),
+      action: 'share_location',
+      ticket: {
+        id: 'municipio:419', ticket_id: 419, source_model: 'MunicipioTicket',
+        title: 'Luminaria apagada', status: 'en_proceso',
+      },
+    });
+
+    await postOmnichannelInboxActionV2(
+      'municipio:419',
+      {
+        action: 'share_location',
+        endpoint: '/api/v2/inbox/omnichannel/actions',
+        payload: {
+          source_model: 'MunicipioTicket',
+          legacy_id: 419,
+          ticket_id: 419,
+          lat: -34.593,
+          lng: -60.946,
+          client_message_id: clientMessageId,
+        },
+      },
+      'junin',
+    );
+
+    expect(panelPostMock).toHaveBeenCalledTimes(1);
+    expect(panelPostMock).toHaveBeenCalledWith(
+      '/api/v2/inbox/omnichannel/actions',
+      expect.objectContaining({
+        action: 'share_location',
+        source_model: 'MunicipioTicket',
+        legacy_id: 419,
+        ticket_id: 419,
+        lat: -34.593,
+        lng: -60.946,
+        client_message_id: clientMessageId,
+      }),
+      {
+        tenantSlug: 'junin',
+        headers: { 'Idempotency-Key': clientMessageId },
+      },
+    );
+    expect(panelPostMock.mock.calls[0][1]).not.toHaveProperty('body');
+    expect(panelPostMock.mock.calls[0][1]).not.toHaveProperty('message');
+    expect(panelPostMock.mock.calls[0][1]).not.toHaveProperty('visibility');
   });
 
   it('fails closed when a reply has no stable identity or carries conflicting identities', async () => {
@@ -127,6 +265,65 @@ describe('omnichannel inbox reply v2 transport', () => {
     ).rejects.toMatchObject({ status: 400 });
 
     expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it('requires exact source_model and ticket_id for reply before transport', async () => {
+    const clientMessageId = 'crm-reply:strict-request-identity';
+    await expect(postOmnichannelInboxActionV2('77', {
+      action: 'reply',
+      source_model: 'TenantTicket',
+      message: 'Falta el ticket.',
+      client_message_id: clientMessageId,
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    await expect(postOmnichannelInboxActionV2('77', {
+      action: 'reply',
+      ticket_id: 77,
+      message: 'Falta el origen.',
+      client_message_id: clientMessageId,
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    await expect(postOmnichannelInboxActionV2('tenant:77', {
+      action: 'reply',
+      source_model: 'MunicipioTicket',
+      ticket_id: 77,
+      message: 'Origen cruzado.',
+      client_message_id: clientMessageId,
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing ticket', { ticket_id: undefined }],
+    ['missing source', { source_model: undefined }],
+    ['ticket', { ticket_id: 78 }],
+    ['source', { source_model: 'MunicipioTicket' }],
+    ['tenant slug', { tenant_slug: 'otro-tenant' }],
+    ['tenant id', { tenant_id: 99 }],
+  ])('rejects a crossed reply response by %s at the API boundary', async (_label, crossedIdentity) => {
+    panelPostMock.mockResolvedValue({
+      action: 'reply',
+      delivery: responseWithDelivery().delivery,
+      ticket: {
+        id: '77',
+        ticket_id: 77,
+        source_model: 'TenantTicket',
+        tenant_slug: 'junin',
+        tenant_id: 17,
+        title: 'Caso 77',
+        status: 'en_proceso',
+        ...crossedIdentity,
+      },
+    });
+
+    await expect(postOmnichannelInboxActionV2('77', {
+      action: 'reply',
+      source_model: 'TenantTicket',
+      ticket_id: 77,
+      message: 'Respuesta con identidad controlada.',
+      client_message_id: 'crm-reply:response-identity-check',
+    }, 'junin', 17)).rejects.toMatchObject({
+      status: 502,
+      body: { code: 'reply_response_identity_mismatch' },
+    });
   });
 
   it('preserves delivery, idempotency and outbox evidence from inbox.action_delivery.v2', () => {
@@ -187,5 +384,280 @@ describe('omnichannel inbox reply v2 transport', () => {
       requested_channels: ['email', 'sms', 'whatsapp', 'realtime'],
       delivery_skipped: { email: 'recipient_missing' },
     });
+  });
+
+  it('preserves truthful CRM-only artifact evidence and replay state', () => {
+    const normalized = normalizeOmnichannelInboxActionV2(responseWithDelivery({
+      mode: 'crm_only', status: 'already_recorded', saved_in_crm: true,
+      external_dispatch: false, dispatch_attempted: false, provider_accepted: false,
+      delivered: false, failed: false, receipt_persisted: true, idempotent_replay: true,
+    }));
+    expect(normalized.delivery).toMatchObject({
+      saved_in_crm: true, external_dispatch: false, dispatch_attempted: false,
+      provider_accepted: false, delivered: false, failed: false,
+      receipt_persisted: true, idempotent_replay: true,
+    });
+  });
+
+  it('requires exact source_model and stable identity for attachment actions', async () => {
+    await expect(postOmnichannelInboxActionV2('419', {
+      action: 'attach_file', attachment_id: 17, client_message_id: 'crm-attach_file:attempt-0001',
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['send_attachment', 'share_attachment'])('keeps the %s alias tenant-bound and idempotent', async (action) => {
+    const clientMessageId = createOmnichannelActionClientMessageId(action);
+    panelPostMock.mockResolvedValue({
+      contract_version: 'inbox.omnichannel.action.v1',
+      action,
+      delivery: {
+        contract_version: 'inbox.action_delivery.v2',
+        mode: 'crm_only',
+        status: 'recorded',
+        saved_in_crm: true,
+        external_dispatch: false,
+      },
+      ticket: {
+        id: 'municipio:419',
+        ticket_id: 419,
+        source_model: 'MunicipioTicket',
+        tenant_slug: 'junin',
+      },
+    });
+
+    await postOmnichannelInboxActionV2('municipio:419', {
+      action,
+      source_model: 'MunicipioTicket',
+      ticket_id: 419,
+      attachment_id: 17,
+      client_message_id: clientMessageId,
+    }, 'junin');
+
+    expect(clientMessageId).toMatch(new RegExp(`^crm-${action}:`));
+    expect(panelPostMock).toHaveBeenCalledWith(
+      '/api/v2/inbox/omnichannel/municipio%3A419/actions',
+      expect.objectContaining({
+        action,
+        source_model: 'MunicipioTicket',
+        ticket_id: 419,
+        attachment_id: 17,
+        client_message_id: clientMessageId,
+      }),
+      { tenantSlug: 'junin', headers: { 'Idempotency-Key': clientMessageId } },
+    );
+  });
+
+  it('rejects crossed artifact route, body and source identities before transport', async () => {
+    await expect(postOmnichannelInboxActionV2('municipio:419', {
+      action: 'share_location',
+      payload: { source_model: 'MunicipioTicket', ticket_id: 420, lat: -34.5, lng: -60.9, client_message_id: 'crm-share_location:attempt-0001' },
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    await expect(postOmnichannelInboxActionV2('municipio:419', {
+      action: 'share_location',
+      payload: { source_model: 'TenantTicket', ticket_id: 419, lat: -34.5, lng: -60.9, client_message_id: 'crm-share_location:attempt-0002' },
+    }, 'junin')).rejects.toMatchObject({ status: 400 });
+    expect(panelPostMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a crossed artifact response instead of accepting stale cache data', async () => {
+    panelPostMock.mockResolvedValue(responseWithDelivery());
+    await expect(postOmnichannelInboxActionV2('municipio:419', {
+      action: 'share_location',
+      payload: { source_model: 'MunicipioTicket', ticket_id: 419, lat: -34.5, lng: -60.9, client_message_id: 'crm-share_location:attempt-0003' },
+    }, 'junin')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('normalizes authoritative reply evidence without treating provider acceptance as delivery', () => {
+    const normalized = normalizeOmnichannelInboxActionV2(responseWithDelivery({
+      evidence: {
+        contract_version: 'inbox.reply_delivery_evidence.v1',
+        saved_in_crm: true,
+        dispatch_attempted: true,
+        provider_accepted: true,
+        delivered: false,
+        failed: false,
+        delivered_requires: 'provider_status_callback',
+      },
+    }));
+
+    expect(normalized.delivery?.evidence).toMatchObject({
+      contract_version: 'inbox.reply_delivery_evidence.v1',
+      saved_in_crm: true,
+      dispatch_attempted: true,
+      provider_accepted: true,
+      delivered: false,
+      failed: false,
+      delivered_requires: 'provider_status_callback',
+    });
+  });
+
+  it('normalizes reply_contract.v1 capabilities and disabled allowed actions', () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      item: {
+        id: 'municipio:419',
+        source_model: 'MunicipioTicket',
+        title: 'Alumbrado público',
+        allowed_actions: [{
+          id: 'attach_file',
+          label: 'Adjuntar archivo',
+          enabled: false,
+          disabled: true,
+          reason_code: 'attachment_reply_not_supported',
+        }],
+        reply_contract: {
+          contract_version: 'inbox.reply_contract.v1',
+          source_model: 'MunicipioTicket',
+          ticket_id: '419',
+          channel: 'web_demo_widget',
+          endpoint: '/api/v2/inbox/omnichannel/actions',
+          method: 'POST',
+          enabled: true,
+          supported_message_types: {
+            text: { enabled: true },
+            attachment: { enabled: false, reason_code: 'attachment_reply_not_supported' },
+            location: { enabled: false, reason_code: 'location_reply_not_supported' },
+            form: { enabled: false, reason_code: 'form_reply_not_supported' },
+          },
+          delivery_channels: [
+            { id: 'crm', enabled: true },
+            { id: 'whatsapp', enabled: false, reason_code: 'ticket_channel_not_whatsapp' },
+          ],
+          delivery_state_machine: {
+            contract_version: 'inbox.reply_delivery_evidence.v1',
+            states: ['saved_in_crm', 'dispatch_attempted', 'provider_accepted', 'delivered', 'failed'],
+            delivered_requires: 'provider_status_callback',
+            latest_evidence: {
+              contract_version: 'inbox.reply_delivery_evidence.v1',
+              saved_in_crm: true,
+              delivered: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(normalized.item.allowed_actions[0]).toMatchObject({
+      id: 'attach_file',
+      enabled: false,
+      disabled: true,
+      reason_code: 'attachment_reply_not_supported',
+    });
+    expect(normalized.item.reply_contract).toMatchObject({
+      contract_version: 'inbox.reply_contract.v1',
+      source_model: 'MunicipioTicket',
+      supported_message_types: {
+        text: { enabled: true },
+        attachment: { enabled: false, reason_code: 'attachment_reply_not_supported' },
+      },
+      delivery_channels: [
+        { id: 'crm', enabled: true },
+        { id: 'whatsapp', enabled: false, reason_code: 'ticket_channel_not_whatsapp' },
+      ],
+      delivery_state_machine: {
+        delivered_requires: 'provider_status_callback',
+        latest_evidence: { saved_in_crm: true, delivered: false },
+      },
+    });
+  });
+
+  it('normalizes backend-driven action schemas and the item-level reply contract', () => {
+    const actionFixture = {
+      id: 'share_form',
+      label: 'Compartir formulario',
+      endpoint: '/api/v2/inbox/omnichannel/actions',
+      method: 'POST',
+      requires: ['form_slug'],
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      input_schema: {
+        type: 'object',
+        required: ['form_slug'],
+        properties: {
+          form_slug: {
+            type: 'string',
+            enum: ['reclamo-alumbrado'],
+            'x-options-source': 'reply_contract.form_selection.options',
+          },
+        },
+      },
+      idempotency: {
+        preferred_header: 'Idempotency-Key',
+        body_field: 'client_message_id',
+        retry_rule: 'reuse_same_value',
+      },
+    };
+    const replyContract = {
+      form_selection: {
+        options: [{
+          id: 'survey-12',
+          form_slug: 'reclamo-alumbrado',
+          label: 'Reclamo de alumbrado',
+          href: '/e/reclamo-alumbrado',
+          kind: 'survey',
+        }],
+      },
+    };
+
+    expect(normalizeSaasActions([actionFixture])[0]).toMatchObject({
+      id: 'share_form',
+      delivery_mode: 'runtime_preflight',
+      delivery_modes: ['durable_queue', 'internal_event'],
+      external_dispatch: false,
+      direct_external_dispatch: false,
+      may_queue_external_delivery: true,
+      action_response_delivery_authoritative: true,
+      final_delivery_authority: 'provider_status_callback',
+      input_schema: actionFixture.input_schema,
+      idempotency: actionFixture.idempotency,
+    });
+
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      item: {
+        id: 'municipio:419',
+        legacy_id: 419,
+        source_model: 'MunicipioTicket',
+        title: 'Demo reclamo - Alumbrado público',
+        allowed_actions: [actionFixture],
+        reply_contract: replyContract,
+        reply_deliveries: [{
+          event_id: 'evt_reply_419',
+          channel: 'whatsapp',
+          delivery: {
+            contract_version: 'tenant_ticket.reply_delivery.v1',
+            status: 'provider_accepted',
+            authoritative_source: 'domain_effect_outbox',
+            provider_message_id: 'wamid.demo',
+            provider_status: 'accepted',
+            error_code: null,
+            updated_at: '2026-09-04T15:00:00Z',
+          },
+        }],
+      },
+    });
+    expect(normalized.item.reply_contract).toMatchObject(replyContract);
+    expect(normalized.item.allowed_actions[0]).toMatchObject({
+      id: 'share_form',
+      delivery_mode: 'runtime_preflight',
+      may_queue_external_delivery: true,
+      external_dispatch: false,
+      input_schema: actionFixture.input_schema,
+    });
+    expect(normalized.item.reply_deliveries).toEqual([
+      expect.objectContaining({
+        event_id: 'evt_reply_419',
+        channel: 'whatsapp',
+        delivery: expect.objectContaining({
+          status: 'provider_accepted',
+          authoritative_source: 'domain_effect_outbox',
+          provider_message_id: 'wamid.demo',
+        }),
+      }),
+    ]);
   });
 });

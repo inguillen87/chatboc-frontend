@@ -2,10 +2,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { persistPanelLoginSession } from "./panelLoginSession";
 import { safeLocalStorage } from "./safeLocalStorage";
+import { usePanelSessionStore } from '@/stores';
 
 describe("persistPanelLoginSession", () => {
   beforeEach(() => {
     safeLocalStorage.clear();
+    usePanelSessionStore.setState({ authToken: null, user: null });
+  });
+
+  it('replaces the previous identity and organization contracts after a credential login', () => {
+    usePanelSessionStore.getState().setAuthToken('previous-session');
+    safeLocalStorage.setItem('tenantSlug', 'old-tenant');
+    safeLocalStorage.setItem('entityToken', 'old-entity');
+    safeLocalStorage.setItem('user', JSON.stringify({ id: 2, name: 'Old operator', tenant_slug: 'old-tenant',
+      organization_profile: { private: 'old-profile' }, organization_workspace: { private: 'old-workspace' } }));
+    const user = persistPanelLoginSession({ token: 'new-token', user: { id: 3, email: 'new@example.test', rol: 'tenant_admin', tenant_slug: 'new-tenant' }, replaceIdentity: true });
+    expect(user).toMatchObject({ id: 3, tenant_slug: 'new-tenant' });
+    expect(user).not.toHaveProperty('organization_profile');
+    expect(user).not.toHaveProperty('name');
+    expect(safeLocalStorage.getItem('entityToken')).toBeNull();
+    expect(usePanelSessionStore.getState().authToken).toBe('new-token');
+  });
+
+  it('does not infer a new credential identity tenant from old local storage', () => {
+    safeLocalStorage.setItem('tenantSlug', 'old-tenant');
+    const user = persistPanelLoginSession({ token: 'new-token', user: { id: 3 }, replaceIdentity: true });
+    expect(user).not.toHaveProperty('tenant_slug');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
   });
 
   it("stores a minimal tenant admin identity immediately after login", () => {

@@ -21,6 +21,16 @@ describe('ChatComposer attachment validation', () => {
     vi.mocked(uploadChatAttachment).mockReset();
   });
 
+  it('uses explicit accessible foreground and background colors for the message field', () => {
+    render(<ChatComposer onSend={vi.fn()} />);
+
+    expect(screen.getByLabelText('Mensaje')).toHaveClass(
+      'bg-background',
+      'text-foreground',
+      'placeholder:text-muted-foreground',
+    );
+  });
+
   it('blocks unsupported public widget files before upload', async () => {
     render(
       <ChatComposer
@@ -61,6 +71,9 @@ describe('ChatComposer attachment validation', () => {
     render(
       <ChatComposer
         onSend={onSend}
+        tenantSlug="municipio"
+        demoSessionId="signed-demo-session"
+        chatSessionId="sid_demo_session"
         mediaCapabilities={{
           composer: {
             actions: [{ id: 'file', type: 'file', label: 'Adjuntar archivo' }],
@@ -87,6 +100,15 @@ describe('ChatComposer attachment validation', () => {
     await waitFor(() => {
       expect(uploadChatAttachment).toHaveBeenCalled();
     });
+    expect(uploadChatAttachment).toHaveBeenCalledWith(
+      '/archivos/upload/chat_attachment',
+      expect.any(Function),
+      {
+        tenantSlug: 'municipio',
+        demoSessionId: 'signed-demo-session',
+        chatSessionId: 'sid_demo_session',
+      },
+    );
     expect(onSend).toHaveBeenCalledWith(
       expect.objectContaining({
         attachmentInfo: { url: 'https://cdn.example.com/boleta.pdf', name: 'boleta.pdf' },

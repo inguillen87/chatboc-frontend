@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Card,
@@ -20,6 +20,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import { getEmployeeRoutingV2 } from "@/api/v2/saas";
+import LeadAutoAssignmentButton, { type LeadAssignmentRoutingSnapshot } from "./LeadAutoAssignmentButton";
 
 type LeadStage =
   | "nuevo"
@@ -155,6 +157,10 @@ const getStageBadgeVariant = (
   }
 };
 
+const metricCount = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value.toLocaleString('es-AR') : 'No disponible';
+const metricPercent = (value: unknown, ratio = false) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= (ratio ? 1 : 100) ? `${(value * (ratio ? 100 : 1)).toFixed(1)}%` : 'No disponible';
+const metricScore = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100 ? `${value.toFixed(0)} / 100` : 'No disponible';
+
 const SuperadminLeadsPipeline: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -188,6 +194,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [playbookPreview, setPlaybookPreview] = useState<any[]>([]);
   const [tenantBoardSlug, setTenantBoardSlug] = useState("");
   const [tenantLeads, setTenantLeads] = useState<any[]>([]);
+  const [tenantAssignmentRouting, setTenantAssignmentRouting] = useState<LeadAssignmentRoutingSnapshot | null>(null);
+  const tenantLeadsVersion = useRef(0);
+  const currentTenantBoardSlug = useRef(tenantBoardSlug);
+  currentTenantBoardSlug.current = tenantBoardSlug;
   const [tenantStageFilter, setTenantStageFilter] = useState("");
   const [tenantBulkStage, setTenantBulkStage] =
     useState<LeadStage>("contactado");
@@ -341,7 +351,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const next = new URLSearchParams();
+    const next = new URLSearchParams(searchParams);
+    next.delete("tenant_slug");
+    next.delete("sla_only");
+    next.delete("q");
     if (tenantSlug) next.set("tenant_slug", tenantSlug);
     next.set("since_days", String(sinceDays));
     next.set("sort", sortBy);
@@ -545,31 +558,6 @@ const SuperadminLeadsPipeline: React.FC = () => {
     handleOpenTimeline(selectedTimelineLead);
   };
 
-  const handleAutoAssign = async (lead: any) => {
-    const slug = tenantBoardSlug.trim() || lead.tenant_slug;
-    const ticketType = lead.ticket_type || "municipio";
-    const ticketId = lead.nro_ticket || lead.ticket_id;
-    if (!slug || !ticketId)
-      return toast.error("Faltan datos para autoasignar.");
-    try {
-      const resp = await enterpriseService.autoAssignTenantTicket(
-        slug,
-        ticketType,
-        ticketId,
-        { required_permission: requiredPermission || undefined },
-      );
-      const employee =
-        resp?.employee?.name ||
-        resp?.employee?.nombre ||
-        "Responsable asignado";
-      toast.success(
-        `${employee} (score ${resp?.score ?? "—"} · carga ${resp?.workload_open_tickets ?? "—"})`,
-      );
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo autoasignar.");
-    }
-  };
   const handleRunPlaybook = async (dryRun: boolean) => {
     if (!dryRun) {
       const confirmed = window.confirm(
@@ -594,13 +582,18 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const fetchTenantLeads = async () => {
     if (!tenantBoardSlug.trim()) return;
+    const version = ++tenantLeadsVersion.current;
+    setTenantAssignmentRouting(null);
     try {
       const slug = tenantBoardSlug.trim();
-      const response = await enterpriseService.getTenantLeads(slug, {
-        stage: tenantStageFilter || undefined,
-        limit: 100,
-      });
+      const [response, routing] = await Promise.all([
+        enterpriseService.getTenantLeads(slug, { stage: tenantStageFilter || undefined, limit: 100 }),
+        getEmployeeRoutingV2(slug).catch(() => null),
+      ]);
+      if (version !== tenantLeadsVersion.current || slug !== currentTenantBoardSlug.current.trim()) return;
+      if (response.tenant_slug !== slug) throw new Error("La lista no corresponde a la organización seleccionada.");
       setTenantLeads(response?.items || response?.leads || []);
+      setTenantAssignmentRouting(routing ? { tenantSlug: slug, raw: routing.raw } : null);
       const tenantSurveys =
         await enterpriseService.getTenantEncuestasOverview(slug);
       setTenantEncuestas(tenantSurveys?.items || []);
@@ -688,22 +681,24 @@ const SuperadminLeadsPipeline: React.FC = () => {
     <section className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>CRM Superadmin · Leads multitenant</CardTitle>
+          <CardTitle>Seguimiento comercial</CardTitle>
           <CardDescription>
-            Pipeline consolidado, funnel, bulk stage, timeline y playbooks.
+            Oportunidades, etapas, historial y acciones comerciales por organización.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end gap-2">
             <input
               className="h-10 rounded border px-3 text-sm"
-              placeholder="tenant_slug"
+              aria-label="Filtrar CRM por organización"
+              placeholder="Identificador de organización"
               value={tenantSlug}
               onChange={(e) => setTenantSlug(e.target.value)}
             />
             <input
               className="h-10 min-w-[220px] rounded border px-3 text-sm"
-              placeholder="Buscar lead, tenant, email, teléfono o ticket"
+              aria-label="Buscar oportunidades"
+              placeholder="Contacto, organización, correo o caso"
               value={leadSearch}
               onChange={(e) => setLeadSearch(e.target.value)}
             />
@@ -735,82 +730,26 @@ const SuperadminLeadsPipeline: React.FC = () => {
             </Button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">
-                  {strategicOverview?.total_leads ?? data.total ?? 0}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">Open</p>
-                <p className="text-2xl font-bold">
-                  {strategicOverview?.open_leads ?? "—"}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">SLA</p>
-                <p className="text-2xl font-bold">
-                  {strategicOverview?.sla_breached ?? 0}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">Win rate</p>
-                <p className="text-2xl font-bold">
-                  {typeof strategicOverview?.win_rate === "number"
-                    ? `${(strategicOverview.win_rate * 100).toFixed(1)}%`
-                    : "—"}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">Conv.</p>
-                <p className="text-2xl font-bold">
-                  {((data.conversion_rate || 0) * 100).toFixed(1)}%
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">Avg resp</p>
-                <p className="text-2xl font-bold">
-                  {data.avg_first_response_seconds
-                    ? `${Math.round(data.avg_first_response_seconds)}s`
-                    : "—"}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">
-                  Realtime sesiones
-                </p>
-                <p className="text-2xl font-bold">
-                  {realtimeAi?.active_sessions ?? "—"}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-xs text-muted-foreground">
-                  Cobertura asignación
-                </p>
-                <p className="text-2xl font-bold">
-                  {typeof realtimeAi?.coverage_ratio === "number"
-                    ? `${(realtimeAi.coverage_ratio * 100).toFixed(0)}%`
-                    : "—"}
-                </p>
-              </CardContent>
-            </Card>
+          <div className="space-y-3" aria-label="Métricas de la selección comercial">
+            <p className="text-xs text-muted-foreground">Selección devuelta por el servicio para el período y la organización elegidos. Puede estar limitada; no representa todo el CRM.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Casos en la selección</p><p className="text-2xl font-bold">{loading ? 'Cargando…' : metricCount(data.total)}</p></CardContent></Card>
+              <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Conversión en la selección</p><p className="text-2xl font-bold">{loading ? 'Cargando…' : typeof data.total === 'number' && data.total > 0 ? metricPercent(data.conversion_rate, true) : 'No disponible'}</p></CardContent></Card>
+              <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Primera respuesta promedio</p><p className="text-2xl font-bold">{loading ? 'Cargando…' : typeof data.avg_first_response_seconds === 'number' && Number.isFinite(data.avg_first_response_seconds) && data.avg_first_response_seconds >= 0 ? `${Math.round(data.avg_first_response_seconds)} s` : 'No disponible'}</p></CardContent></Card>
+            </div>
           </div>
+          <details className="rounded-lg border p-4">
+            <summary className="cursor-pointer text-sm font-medium">Resumen comercial de toda la plataforma</summary>
+            <p className="my-3 text-xs text-muted-foreground">Datos globales de los últimos {sinceDays} días. El filtro de organización del listado no se aplica a este resumen.</p>
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div><dt className="text-xs text-muted-foreground">Casos globales</dt><dd>{loading ? 'Cargando…' : metricCount(strategicOverview?.totals?.total_leads)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Casos abiertos globales</dt><dd>{loading ? 'Cargando…' : metricCount(strategicOverview?.totals?.open_leads)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">SLA vencido global</dt><dd>{loading ? 'Cargando…' : metricCount(strategicOverview?.totals?.sla_breached)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Tasa de ganados global</dt><dd>{loading ? 'Cargando…' : typeof strategicOverview?.totals?.total_leads === 'number' && strategicOverview.totals.total_leads > 0 ? metricPercent(strategicOverview?.totals?.win_rate) : 'No disponible'}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Sesiones en tiempo real</dt><dd>{loading ? 'Cargando…' : metricCount(realtimeAi?.active_sessions)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Cobertura de asignación</dt><dd>{loading ? 'Cargando…' : metricPercent(realtimeAi?.coverage_ratio, true)}</dd></div>
+            </dl>
+          </details>
 
           <Card>
             <CardHeader>
@@ -1583,13 +1522,13 @@ const SuperadminLeadsPipeline: React.FC = () => {
                           </Button>
                         </td>
                         <td className="p-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAutoAssign(lead)}
-                          >
-                            Autoasignar empleado
-                          </Button>
+                          <LeadAutoAssignmentButton
+                            lead={lead}
+                            tenantSlug={tenantBoardSlug.trim()}
+                            routingSnapshot={tenantAssignmentRouting}
+                            requiredPermission={requiredPermission}
+                            onConfirmed={fetchTenantLeads}
+                          />
                         </td>
                         <td className="p-2">
                           <div className="flex flex-wrap gap-1">
@@ -1730,9 +1669,9 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tenant Health (CEO)</CardTitle>
+              <CardTitle>Evaluación operativa por organización</CardTitle>
               <CardDescription>
-                Ranking por health_score, win_rate, SLA y encuestas.
+                Índice operativo en escala de 0 a 100. No representa disponibilidad del servicio.
               </CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
@@ -1740,7 +1679,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
                     <th className="p-2">Tenant</th>
-                    <th className="p-2">Health</th>
+                    <th className="p-2">Índice operativo</th>
                     <th className="p-2">Win rate</th>
                     <th className="p-2">SLA breached</th>
                     <th className="p-2">Encuestas</th>
@@ -1757,20 +1696,16 @@ const SuperadminLeadsPipeline: React.FC = () => {
                         <td className="p-2">{row?.tenant_slug || "—"}</td>
                         <td className="p-2">
                           <span
-                            className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${(row?.health_score || 0) >= 0.8 ? "bg-emerald-100 text-emerald-700" : (row?.health_score || 0) >= 0.6 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}
+                            className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${typeof row?.health_score !== 'number' ? 'bg-muted text-muted-foreground' : row.health_score >= 80 ? "bg-emerald-100 text-emerald-700" : row.health_score >= 60 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}
                           >
-                            {typeof row?.health_score === "number"
-                              ? `${(row.health_score * 100).toFixed(0)}%`
-                              : "—"}
+                            {metricScore(row?.health_score)}
                           </span>
                         </td>
                         <td className="p-2">
-                          {typeof row?.win_rate === "number"
-                            ? `${(row.win_rate * 100).toFixed(1)}%`
-                            : "—"}
+                          {metricPercent(row?.win_rate)}
                         </td>
-                        <td className="p-2">{row?.sla_breached ?? 0}</td>
-                        <td className="p-2">{row?.survey_responses ?? 0}</td>
+                        <td className="p-2">{metricCount(row?.sla_breached)}</td>
+                        <td className="p-2">{metricCount(row?.survey_responses)}</td>
                       </tr>
                     ))}
                 </tbody>

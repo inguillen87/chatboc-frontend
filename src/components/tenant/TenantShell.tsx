@@ -12,11 +12,13 @@ import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { TenantSwitcher } from './TenantSwitcher';
 
 interface TenantShellProps {
   children: ReactNode;
+  compactHeader?: boolean;
 }
 
 const TENANT_SHELL_TITLE_ID = 'tenant-shell-title';
@@ -29,7 +31,7 @@ const sanitizePublicMessage = (message?: string | null) => {
   return message;
 };
 
-export const TenantShell = ({ children }: TenantShellProps) => {
+export const TenantShell = ({ children, compactHeader = false }: TenantShellProps) => {
   const {
     tenant,
     currentSlug,
@@ -140,7 +142,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     }
 
     return (
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+      <div className={cn('flex flex-col md:flex-row md:items-center md:justify-between', compactHeader ? 'gap-4' : 'gap-6')}>
         <div className="flex flex-1 items-start gap-4">
           {resolvedTenant.logo_url ? (
             <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-white/80 shadow-sm sm:block">
@@ -155,13 +157,13 @@ export const TenantShell = ({ children }: TenantShellProps) => {
             <div className="flex flex-wrap items-center gap-2">
               {resolvedTenant.tipo ? (
                 <Badge variant="secondary" className="uppercase tracking-wide">
-                  {resolvedTenant.tipo}
+                  {organizationTypeLabel(resolvedTenant.tipo)}
                 </Badge>
               ) : null}
               {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
-              <h1 id={TENANT_SHELL_TITLE_ID} className="text-3xl font-semibold leading-tight">{resolvedTenant.nombre}</h1>
+              <h1 id={TENANT_SHELL_TITLE_ID} className={cn('font-semibold leading-tight', compactHeader ? 'text-2xl' : 'text-3xl')}>{resolvedTenant.nombre}</h1>
               {resolvedTenant.descripcion ? (
                 <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{resolvedTenant.descripcion}</p>
               ) : null}
@@ -186,7 +188,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     if (!basePath || !navigationItems.length) return null;
 
     return (
-      <nav className="mt-8 flex flex-wrap items-center gap-2">
+      <nav className={cn('flex flex-wrap items-center gap-2', compactHeader ? 'mt-4' : 'mt-8')}>
         {navigationItems.map((item) => {
           const key = item.id || item.route || item.label;
           const enabled = item.enabled !== false;
@@ -229,9 +231,9 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8 py-10">
+    <div className={cn('mx-auto w-full max-w-5xl', compactHeader ? 'space-y-5 py-6' : 'space-y-8 py-10')}>
       <section
-        className="rounded-3xl border bg-background/80 p-6 shadow-sm backdrop-blur"
+        className={cn('rounded-3xl border bg-background/80 shadow-sm backdrop-blur', compactHeader ? 'p-4 sm:p-5' : 'p-6')}
         aria-labelledby={TENANT_SHELL_TITLE_ID}
       >
         {renderHeaderContent()}

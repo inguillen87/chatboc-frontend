@@ -516,6 +516,8 @@ describe("TrackingExperiencePage support contract", () => {
     const { container } = renderTrackingPage();
 
     expect(await screen.findByText("Mesa de ayuda offline")).toBeInTheDocument();
+    expect(screen.getByText("Referencia interna #42")).toBeInTheDocument();
+    expect(screen.queryByText("Ticket #42")).not.toBeInTheDocument();
     const summaryHeader = screen.getByTestId("tracking-summary-header");
     expect(within(summaryHeader).getByText("Estado actual")).toBeInTheDocument();
     expect(within(summaryHeader).getByText("Proxima etapa")).toBeInTheDocument();

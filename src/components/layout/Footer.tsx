@@ -1,3 +1,5 @@
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
+import {PrivateWorkspaceFooter} from '@/components/brand/PrivateWorkspaceBrand';
 // src/components/Footer.tsx
 
 import { useState } from "react";
@@ -22,7 +24,7 @@ const afipDataFiscalHref = "https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
 const afipDataFiscalImage = "https://www.afip.gob.ar/images/f960/DATAWEB.jpg";
 const mipymeCertificateHref = "/certificados/certificado-mipyme-intellitech.pdf";
 
-const Footer = () => {
+const MarketingFooter = () => {
   const scrollToSection = useScrollToSection();
   const [copied, setCopied] = useState(false);
   const email = "info@chatboc.ar";
@@ -66,7 +68,7 @@ const Footer = () => {
                 <button
                   type="button"
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
-                  onClick={() => scrollToSection("solution")}
+                  onClick={() => scrollToSection("solucion")}
                 >
                   Que hace
                 </button>
@@ -75,7 +77,7 @@ const Footer = () => {
                 <button
                   type="button"
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
-                  onClick={() => scrollToSection("pricing")}
+                  onClick={() => scrollToSection("precios")}
                 >
                   Planes
                 </button>
@@ -242,4 +244,8 @@ const Footer = () => {
   );
 };
 
+const Footer=()=>{
+  const presentation=usePrivateWorkspacePresentation();
+  return presentation.active?<PrivateWorkspaceFooter identity={presentation.identity}/>:<MarketingFooter/>;
+};
 export default Footer;

@@ -43,7 +43,7 @@ describe('ChatUserPanel avatar policy', () => {
       return null;
     });
     apiFetchMock.mockImplementation((endpoint: string) => {
-      if (endpoint === '/me') {
+      if (endpoint === '/api/me') {
         return Promise.resolve({
           name: 'Marcelo Guillen',
           email: 'marcelo@chatboc.test',

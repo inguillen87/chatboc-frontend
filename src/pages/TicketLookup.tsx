@@ -888,25 +888,6 @@ export default function TicketLookup() {
   const handleOpenChat = async () => {
     if (!ticket) return;
     const tenantSlug = ticket?.tenant_slug || "municipio";
-    const chatContext = {
-      ticketId: ticket?.id,
-      ticketNumber: publicTicketNumber,
-      action: "ticket_live_or_offline_message",
-      consulta_pin: currentPin,
-      pin: currentPin,
-    };
-
-    safeLocalStorage.setItem(
-      "pending_widget_action",
-      JSON.stringify({
-        action: "ticket_public_tracking",
-        payload: chatContext,
-        text: publicTicketNumber
-          ? `Seguimiento de reclamo #${publicTicketNumber}`
-          : undefined,
-      }),
-    );
-
     let status = liveChatStatus;
     try {
       status = status || await getLiveChatScheduleStatus(tenantSlug);

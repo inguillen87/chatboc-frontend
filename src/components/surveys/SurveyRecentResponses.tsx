@@ -233,7 +233,7 @@ export const SurveyRecentResponses = ({
           ) : emptyHintUrl ? (
             <>
               Todavía no recibimos respuestas. Compartí el enlace{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">{emptyHintUrl}</code> o el código QR para sumar
+              <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">{emptyHintUrl}</code> o el código QR para sumar
               participación.
             </>
           ) : (

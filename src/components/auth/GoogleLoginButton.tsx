@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 import { broadcastAuthTokenToHost } from '@/utils/postMessage';
 import { GOOGLE_CLIENT_ID } from '@/env';
 import { useClerkRuntime } from '@/components/auth/ClerkRuntimeContext';
+import {persistPanelLoginSession} from '@/utils/panelLoginSession';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
+import {usePanelSessionStore,useWidgetSessionStore} from '@/stores';
 
 interface LoginResponse {
   id: number;
@@ -37,8 +40,21 @@ const GoogleLoginButton: React.FC<Props> = ({
   const { refreshUser } = useUser();
   const navigate = useNavigate();
   const clerkRuntime = useClerkRuntime();
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const active=React.useRef(true);React.useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
+  const clerkOwnsGoogleLogin =
+    clerkRuntime.enabled ||
+    Boolean(
+      clerkRuntime.configurationWarnings?.some(
+        (warning) => warning.code === 'production_origin_mismatch',
+      ),
+    );
 
-  if (hideWhenClerkEnabled && clerkRuntime.enabled) {
+  // A live Clerk instance intentionally refuses non-canonical Preview hosts.
+  // Do not silently replace it there with an unrelated legacy OAuth client:
+  // that produces a broken Google button and can cross authentication realms.
+  if (hideWhenClerkEnabled && clerkOwnsGoogleLogin) {
     return null;
   }
 
@@ -48,15 +64,20 @@ const GoogleLoginButton: React.FC<Props> = ({
   }
 
   const handleSuccess = async (cred: CredentialResponse) => {
-    if (disabled) return;
-    console.log('Google login success:', cred);
+    if (disabled || isSubmitting) return;
     if (!cred || !cred.credential) return;
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    const revision=captureChatbocSessionRevision();
     try {
       const data = await loginWithGoogle({ id_token: cred.credential });
-      safeLocalStorage.setItem('authToken', data.token);
-      safeLocalStorage.setItem('chatAuthToken', data.token);
+      if(!active.current||!isChatbocSessionRevisionCurrent(revision))return;
+      persistPanelLoginSession({token:data.token,user:{id:data.id,name:data.name,email:data.email},sessionRetirement:data.session_retirement,replaceIdentity:true,setUser:user=>usePanelSessionStore.getState().setUser(user as any)});
+      useWidgetSessionStore.getState().setChatAuthToken(data.token);
+      const committedRevision=captureChatbocSessionRevision();
       broadcastAuthTokenToHost(data.token, resolveTenantSlug(), 'google-login');
       await refreshUser();
+      if(!active.current||!isChatbocSessionRevisionCurrent(committedRevision))return;
       if (onLoggedIn) onLoggedIn(); else navigate('/perfil');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -64,23 +85,35 @@ const GoogleLoginButton: React.FC<Props> = ({
       } else {
         console.error('Google login error');
       }
+      setErrorMessage('No pudimos completar el acceso con Google. Probá nuevamente o ingresá con email.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div
-      className={cn('flex justify-center', disabled && 'pointer-events-none opacity-50', className)}
-      aria-disabled={disabled || undefined}
+      className={cn('grid justify-items-center gap-2', (disabled || isSubmitting) && 'pointer-events-none opacity-50', className)}
+      aria-disabled={disabled || isSubmitting || undefined}
+      aria-busy={isSubmitting || undefined}
       {...props}
     >
       <GoogleLogin
         onSuccess={handleSuccess}
-        onError={() => console.error('Google OAuth error')}
+        onError={() => {
+          console.error('Google OAuth error');
+          setErrorMessage('Google no pudo iniciar la sesión. Probá nuevamente o ingresá con email.');
+        }}
         useOneTap={false}
         locale="es"
         width={300}
         text="continue_with"
       />
+      {errorMessage ? (
+        <p role="alert" className="max-w-sm text-center text-xs text-destructive">
+          {errorMessage}
+        </p>
+      ) : null}
     </div>
   );
 };

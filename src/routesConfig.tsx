@@ -11,8 +11,11 @@ import UserLogin from '@/pages/UserLogin';
 import UserRegister from '@/pages/UserRegister';
 const ClerkSsoCallbackPage = React.lazy(() => import('@/pages/ClerkSsoCallbackPage'));
 const Demo = React.lazy(() => import('@/pages/Demo'));
+const DisabilityAIAgentDemoPage = React.lazy(
+  () => import('@/pages/public/DisabilityAIAgentDemoPage'),
+);
 const DemoCatalogDownloadPage = React.lazy(() => import('@/pages/DemoCatalogDownloadPage'));
-const Perfil = React.lazy(() => import('@/pages/Perfil'));
+const Perfil = React.lazy(() => import('@/components/access/ProfileEntry'));
 const UserAccount = React.lazy(() => import('@/pages/UserAccount'));
 const ChatPage = React.lazy(() => import('@/pages/ChatPage'));
 const Checkout = React.lazy(() => import('@/pages/Checkout'));
@@ -34,6 +37,7 @@ import { buildTenantPath, TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getReservedPublicSlugRedirect } from '@/utils/publicRoutes';
 import { TICKET_READ_CAPABILITIES } from '@/utils/moduleCapabilities';
+import { DISABILITY_AI_AGENT_DEMO_PATH } from '@/config/publicPresentationRoutes';
 const ProductCatalog = React.lazy(() => import('@/pages/ProductCatalog'));
 const MunicipalMessageMetrics = React.lazy(() => import('@/pages/MunicipalMessageMetrics'));
 const NotificationSettings = React.lazy(() => import('@/pages/NotificationSettings'));
@@ -69,6 +73,7 @@ const MarketCartPage = React.lazy(() => import('@/pages/market/MarketCartPage'))
 const MarketplaceBlueprintPage = React.lazy(() => import('@/pages/market/MarketplaceBlueprintPage'));
 const PublicSurveysIndex = React.lazy(() => import('@/pages/encuestas'));
 const PublicSurveyPage = React.lazy(() => import('@/pages/e/[slug]'));
+const RehearsalPage = React.lazy(() => import('@/pages/encuestas/RehearsalPage'));
 const SurveyQrPage = React.lazy(() => import('@/pages/encuestas/QrPage'));
 const AdminSurveysIndex = React.lazy(() => import('@/pages/admin/encuestas/index'));
 const NewSurveyPage = React.lazy(() => import('@/pages/admin/encuestas/new'));
@@ -96,6 +101,10 @@ const AdminOrderDetailPage = React.lazy(() => import('@/pages/admin/AdminOrderDe
 const ClientsPage = React.lazy(() => import('@/pages/pyme/crm/ClientsPage'));
 const ClientDetailPage = React.lazy(() => import('@/pages/pyme/crm/ClientDetailPage'));
 const EnterpriseOpsPage = React.lazy(() => import('@/pages/EnterpriseOpsPage'));
+const KnowledgeSourcesPage = React.lazy(() => import('@/pages/admin/knowledge/KnowledgeSourcesPage').then(module => ({ default: module.KnowledgeSourcesPage })));
+const TenantImplementationCenterPage = React.lazy(
+  () => import('@/pages/TenantImplementationCenterPage'),
+);
 const EducationPublicPage = React.lazy(() => import('@/pages/education/EducationPublicPage'));
 const EducationFamilyHomePage = React.lazy(() => import('@/pages/education/EducationFamilyHomePage'));
 const EducationStaffInboxPage = React.lazy(() => import('@/pages/education/EducationStaffInboxPage'));
@@ -130,6 +139,7 @@ export interface RouteConfig {
   roles?: string[]; // Roles para admin/empleado de Chatboc
   requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
   requiredAllCapabilities?: string[]; // Capacidades obligatorias para integraciones/configuración sensible
+  enforceCapabilities?: boolean; // Exige permisos de /api/me verificado sin atajos por rol
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
@@ -402,6 +412,7 @@ const routes: RouteConfig[] = [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
         { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
         { path: '/e/:slug', element: <PublicSurveyPage /> },
+        { path: '/pruebas/encuestas/:tenantSlug/:runId', element: <RehearsalPage />, allowGuest: true },
         ...withTenantPrefixes('/:tenant/encuestas', { element: <TenantSurveyListPage /> }),
         ...withTenantPrefixes('/:tenant/encuestas/:slug', { element: <TenantSurveyDetailPage /> }),
       ]
@@ -532,6 +543,11 @@ const routes: RouteConfig[] = [
   { path: '/demo', element: <Demo /> },
   { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
+  {
+    path: DISABILITY_AI_AGENT_DEMO_PATH,
+    element: <DisabilityAIAgentDemoPage />,
+    allowGuest: true,
+  },
   { path: '/demo/:slug', element: <DemoLandingPage /> },
   { path: '/casos', element: <Navigate to="/demo" replace /> },
   { path: '/casos-de-uso', element: <Navigate to="/demo" replace /> },
@@ -545,6 +561,20 @@ const routes: RouteConfig[] = [
   { path: '/soluciones/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
   { path: '/perfil', element: <Perfil />, requiresSession: true },
   { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  {
+    path: '/admin/knowledge',
+    element: <KnowledgeSourcesPage />,
+    requiresSession: true,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['knowledge.read'],
+    enforceCapabilities: true,
+  },
+  {
+    path: '/implementacion',
+    element: <TenantImplementationCenterPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  },
   { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
   { path: '/perfil/pedidos', element: <Navigate to="/pedidos" replace />, requiresSession: true },
   { path: '/chat', element: <ChatPage /> },

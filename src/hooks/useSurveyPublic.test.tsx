@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,6 +42,22 @@ describe('useSurveyPublic submission conflicts', () => {
   beforeEach(() => {
     apiMocks.getPublicSurvey.mockReset().mockResolvedValue(survey);
     apiMocks.postPublicResponse.mockReset();
+  });
+
+  it.each([403, 404, 503])('does not replay an authoritative %s denial on focus or remount', async (status) => {
+    apiMocks.getPublicSurvey.mockRejectedValue(new ApiError('Encuesta no disponible', status, { reason_code: 'survey_not_found', retryable: false }));
+    const wrapper = createWrapper();
+    const first = renderHook(() => useSurveyPublic('unavailable', { tenantSlug: 'tenant' }), { wrapper });
+    await waitFor(() => expect(first.result.current.errorStatus).toBe(status));
+    expect(first.result.current.isTransientError).toBe(false);
+    await act(async () => { focusManager.setFocused(false); focusManager.setFocused(true); });
+    expect(apiMocks.getPublicSurvey).toHaveBeenCalledTimes(1);
+    first.unmount();
+    const second = renderHook(() => useSurveyPublic('unavailable', { tenantSlug: 'tenant' }), { wrapper });
+    await act(async () => {});
+    expect(apiMocks.getPublicSurvey).toHaveBeenCalledTimes(1);
+    second.unmount();
+    focusManager.setFocused(undefined);
   });
 
   it.each([
@@ -92,12 +108,14 @@ describe('useSurveyPublic submission conflicts', () => {
       submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394911',
       respuestas: [{ pregunta_id: 101, opcion_ids: [1] }],
     };
-    apiMocks.postPublicResponse.mockResolvedValueOnce({ id: 99 });
+    const expectedAck = { ok: true, ack_kind: 'durable_response' as const, id: 99 };
+    apiMocks.postPublicResponse.mockResolvedValueOnce(expectedAck);
     const { result } = renderHook(() => useSurveyPublic('consulta-segura'), { wrapper });
     await waitFor(() => expect(result.current.survey).toEqual(survey));
 
+    let returnedAck: unknown;
     await act(async () => {
-      await result.current.submit(payload, {
+      returnedAck = await result.current.submit(payload, {
         eligibilityCredential: credential,
         eligibilityExpectation: {
           contractVersion: 'surveys.public_eligibility.v1',
@@ -108,6 +126,7 @@ describe('useSurveyPublic submission conflicts', () => {
       });
     });
 
+    expect(returnedAck).toBe(expectedAck);
     expect(apiMocks.postPublicResponse).toHaveBeenCalledWith(
       'consulta-segura',
       payload,
@@ -140,15 +159,15 @@ describe('useSurveyPublic submission conflicts', () => {
     });
     apiMocks.postPublicResponse.mockImplementation(async () => {
       await requestGate;
-      return { id: 99 };
+      return { ok: true, ack_kind: 'durable_response' as const, id: 99 };
     });
     const { result } = renderHook(() => useSurveyPublic('consulta-segura'), {
       wrapper: createWrapper(),
     });
     await waitFor(() => expect(result.current.survey).toEqual(survey));
 
-    let firstRequest!: Promise<void>;
-    let secondRequest!: Promise<void>;
+    let firstRequest!: Promise<unknown>;
+    let secondRequest!: Promise<unknown>;
     act(() => {
       firstRequest = result.current.submit(firstPayload, {
         eligibilityCredential: 'sec1_first-credential',

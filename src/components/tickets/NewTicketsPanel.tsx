@@ -5,27 +5,46 @@ import Sidebar from './Sidebar';
 import TicketFilterPopover from './TicketFilterPopover';
 import ConversationPanel from './ConversationPanel';
 import DetailsPanel from './DetailsPanel';
-import { Toaster } from '@/components/ui/sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, LogIn, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
-import OperationalContinuityBar from '@/components/operations/OperationalContinuityBar';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Filter,
+  GripVertical,
+  Info,
+  ListChecks,
+  LogIn,
+  MessageSquare,
+  Maximize2,
+  Minimize2,
+  PanelLeft,
+  Radio,
+  RefreshCw,
+  Settings2,
+  UserRound,
+} from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Ticket } from '@/types/tickets';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { getNextOperationalTicket, isUnassignedQueueTicket } from '@/utils/ticketOperationalQueue';
 import { useTenant } from '@/context/TenantContext';
+import { useUser } from '@/hooks/useUser';
 import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
 import { resolveTenantSlug } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   isTicketInboxSourceModel,
   type TicketInboxSourceModel,
 } from '@/services/ticketService';
+import TerritorialPendingLocationsInbox from '@/features/analytics/TerritorialPendingLocationsInbox';
+import { isTicketSlaOverdue, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -35,16 +54,82 @@ const getMobileTabId = (view: MobileView) => `tickets-mobile-tab-${view}`;
 const getMobilePanelId = (view: MobileView) => `tickets-mobile-panel-${view}`;
 const TICKET_LOADING_GRACE_MS = 12000;
 const INBOX_SUMMARY_DEFER_MS = 1600;
-const DESKTOP_DETAIL_MIN_WIDTH = 1536;
-const EMBEDDED_DETAIL_MIN_WIDTH = 1440;
-const DESKTOP_TICKET_LIST_COLUMN = 'minmax(340px, 420px)';
-const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(310px, 320px)';
-const DESKTOP_DETAIL_COLUMN = 'minmax(300px, 360px)';
-const EMBEDDED_DETAIL_COLUMN = 'minmax(300px, 310px)';
+const DESKTOP_DETAIL_MIN_WIDTH = 1180;
+const EMBEDDED_DETAIL_MIN_WIDTH = 1180;
+const DETAILS_DRAWER_MAX_WIDTH = 1179;
+const DETAILS_WITH_SIDEBAR_MIN_WIDTH = 1440;
+const DESKTOP_TICKET_LIST_COLUMN = 'minmax(300px, 320px)';
+const EMBEDDED_TICKET_LIST_COLUMN = 'minmax(300px, 320px)';
+const DETAIL_MIN_WIDTH = 340;
+const DETAIL_MAX_WIDTH = 520;
+const DETAIL_DEFAULT_WIDTH = 420;
+const DETAIL_KEYBOARD_STEP = 20;
+const DETAIL_DOCK_WIDTH = 52;
+const TICKET_WORKSPACE_FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const readViewportWidth = () =>
+  typeof window === 'undefined' ? Number.POSITIVE_INFINITY : window.innerWidth;
 
 const shouldShowDesktopDetailsByDefault = (embedded: boolean) =>
   typeof window === 'undefined' ||
   window.innerWidth >= (embedded ? EMBEDDED_DETAIL_MIN_WIDTH : DESKTOP_DETAIL_MIN_WIDTH);
+
+const clampDetailWidth = (value: number, maxWidth = DETAIL_MAX_WIDTH) => {
+  const effectiveMax = Math.max(DETAIL_MIN_WIDTH, Math.min(DETAIL_MAX_WIDTH, Math.round(maxWidth)));
+  return Math.min(effectiveMax, Math.max(DETAIL_MIN_WIDTH, Math.round(value)));
+};
+
+type PersistedTicketInspectorLayout = {
+  open: boolean;
+  width: number;
+};
+
+const readPersistedTicketInspectorLayout = (storageKey: string): PersistedTicketInspectorLayout | null => {
+  try {
+    const value = JSON.parse(safeLocalStorage.getItem(storageKey) || 'null') as Partial<PersistedTicketInspectorLayout> | null;
+    if (!value || typeof value !== 'object') return null;
+    return {
+      open: value.open !== false,
+      width: clampDetailWidth(Number(value.width) || DETAIL_DEFAULT_WIDTH),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const useTicketWorkspaceWidth = (ref: React.RefObject<HTMLElement | null>) => {
+  const [width, setWidth] = React.useState(readViewportWidth);
+
+  React.useEffect(() => {
+    const element = ref.current;
+    const measure = () => {
+      const measuredWidth = element?.getBoundingClientRect().width ?? 0;
+      setWidth(measuredWidth > 0 ? measuredWidth : readViewportWidth());
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+
+    const observer = element && typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(measure)
+      : null;
+    observer?.observe(element);
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, [ref]);
+
+  return width;
+};
 
 const getDirectionBetweenViews = (
   from: MobileView,
@@ -69,11 +154,9 @@ const normalizeQueryValue = (value: string | null) => {
   return trimmed || null;
 };
 
-const normalizeTicketQueryNumber = (value: string | null): number | null => {
-  const normalized = normalizeQueryValue(value);
-  if (!normalized) return null;
-  const parsed = Number(normalized.replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, ''));
-  return Number.isFinite(parsed) ? parsed : null;
+const normalizeTicketQueryId = (value: string | null): string | null => {
+  if (!value || value !== value.trim()) return null;
+  return value;
 };
 
 const formatDeskDeepLinkFocus = (value: string | null) =>
@@ -85,7 +168,7 @@ const readTicketDeskQuery = (searchParams: URLSearchParams) => {
     searchParams.get('source_model') ?? searchParams.get('sourceModel'),
   );
   const sourceModel = isTicketInboxSourceModel(rawSourceModel) ? rawSourceModel : null;
-  const ticketId = normalizeTicketQueryNumber(
+  const ticketId = normalizeTicketQueryId(
     searchParams.get('ticket_id') ??
       searchParams.get('ticketId') ??
       searchParams.get('record_id') ??
@@ -99,7 +182,10 @@ const readTicketDeskQuery = (searchParams: URLSearchParams) => {
     ticketId,
     sourceModel,
     invalidSourceModel: rawSourceModel !== null && sourceModel === null,
+    territorialFacet: normalizeQueryValue(searchParams.get('facet') ?? searchParams.get('categoria') ?? searchParams.get('category')),
+    territorialZone: normalizeQueryValue(searchParams.get('zona') ?? searchParams.get('zone') ?? searchParams.get('barrio')),
     filters: {
+      search: normalizeQueryValue(searchParams.get('q') ?? searchParams.get('search')),
       channel: normalizeQueryValue(searchParams.get('canal') ?? searchParams.get('channel')),
       status: normalizeQueryValue(searchParams.get('estado') ?? searchParams.get('status')),
       area: normalizeQueryValue(searchParams.get('area') ?? searchParams.get('categoria') ?? searchParams.get('category')),
@@ -144,14 +230,14 @@ const isResolvedTicket = (ticket: Ticket) => {
   return status === 'resuelto' || String(ticket.estado).toLowerCase() === 'cerrado';
 };
 
-const isRiskTicket = (ticket: Ticket) => {
-  const sla = String(ticket.sla_status || '').toLowerCase();
+const isRiskTicket = (ticket: Ticket) =>
+  isTicketSlaOverdue(resolveTicketSlaSource(ticket));
+
+const isHighPriorityTicket = (ticket: Ticket) => {
   const priority = String(ticket.priority || '').toLowerCase();
   return (
-    sla.includes('breach') ||
-    sla.includes('venc') ||
-    sla.includes('overdue') ||
     priority.includes('alta') ||
+    priority.includes('high') ||
     priority.includes('urgent') ||
     priority.includes('urgente')
   );
@@ -181,23 +267,51 @@ const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
 
   const unread = hasUnreadTicket(ticket);
   const risk = isRiskTicket(ticket);
+  const highPriority = isHighPriorityTicket(ticket);
   const unassigned = isUnassignedQueueTicket(ticket);
-  const state = unread ? 'customer_waiting' : risk ? 'sla_attention' : unassigned ? 'unassigned' : 'ready';
+  const state = unread
+    ? 'customer_waiting'
+    : risk
+      ? 'sla_attention'
+      : highPriority
+        ? 'priority_attention'
+        : unassigned
+          ? 'unassigned'
+          : 'ready';
   return {
     state,
-    score: (unread ? 100 : 0) + (risk ? 50 : 0) + (unassigned ? 25 : 0),
-    label: unread ? 'Responder ahora' : risk ? 'Revisar SLA' : unassigned ? 'Asignar responsable' : 'Mesa al dia',
+    score: (unread ? 100 : 0) + (risk ? 50 : 0) + (highPriority ? 35 : 0) + (unassigned ? 25 : 0),
+    label: unread
+      ? 'Responder ahora'
+      : risk
+        ? 'Revisar SLA vencido'
+        : highPriority
+          ? 'Atender prioridad alta'
+          : unassigned
+            ? 'Asignar responsable'
+            : 'Mesa al dia',
     reason: unread
       ? 'Hay actividad ciudadana o de cliente sin lectura completa del equipo.'
       : risk
-        ? 'El caso esta vencido, por vencer o marcado como prioridad alta.'
-        : unassigned
-          ? 'El caso esta abierto y necesita un operador responsable.'
-          : 'No hay senales criticas activas para este caso.',
-    next_team_action: unread ? 'reply_from_crm' : risk ? 'review_sla_and_update' : unassigned ? 'assign_owner' : 'monitor_ticket',
+        ? 'Al menos un compromiso de atención está vencido según el contrato SLA.'
+        : highPriority
+          ? 'El caso tiene prioridad alta, sin asumir por eso un incumplimiento SLA.'
+          : unassigned
+            ? 'El caso esta abierto y necesita un operador responsable.'
+            : 'No hay senales criticas activas para este caso.',
+    next_team_action: unread
+      ? 'reply_from_crm'
+      : risk
+        ? 'review_sla_and_update'
+        : highPriority
+          ? 'prioritize_case'
+          : unassigned
+            ? 'assign_owner'
+            : 'monitor_ticket',
     badges: [
       unread ? { id: 'unread', label: 'Sin leer', tone: 'live' } : null,
-      risk ? { id: 'sla_risk', label: 'SLA riesgo', tone: 'warning' } : null,
+      risk ? { id: 'sla_risk', label: 'SLA vencido', tone: 'warning' } : null,
+      highPriority ? { id: 'priority_high', label: 'Prioridad alta', tone: 'warning' } : null,
       unassigned ? { id: 'unassigned', label: 'Sin responsable', tone: 'warning' } : null,
     ].filter(Boolean) as Array<{ id?: string; label?: string; tone?: string }>,
   };
@@ -259,12 +373,155 @@ const TicketOpsStat = ({
   );
 };
 
+const TicketPanelState = ({
+  testId,
+  title,
+  description,
+  icon: Icon,
+  tone = 'default',
+  role = 'status',
+  children,
+}: {
+  testId: string;
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  tone?: 'default' | 'warning' | 'destructive';
+  role?: 'status' | 'alert';
+  children?: React.ReactNode;
+}) => {
+  const toneClass = {
+    default: 'border-primary/25 bg-primary/10 text-primary',
+    warning: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+    destructive: 'border-destructive/30 bg-destructive/10 text-destructive',
+  }[tone];
+
+  return (
+    <Card
+      data-testid={testId}
+      className="w-full border border-border/70 bg-card/95 p-4 shadow-sm"
+      role={role}
+      aria-live="polite"
+      aria-label={title}
+    >
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">{title}</h2>
+            <p className={cn('mt-1 max-w-2xl text-sm leading-5', tone === 'destructive' ? 'text-destructive' : 'text-muted-foreground')}>
+              {description}
+            </p>
+          </div>
+        </div>
+        {children ? <div className="min-w-0 shrink-0 sm:max-w-[60%]">{children}</div> : null}
+      </div>
+    </Card>
+  );
+};
+
+const TicketWorkspaceColumnHeader = ({
+  id,
+  step,
+  title,
+  description,
+}: {
+  id: string;
+  step: number;
+  title: string;
+  description: string;
+}) => (
+  <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/35 px-3">
+    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+      {step}
+    </span>
+    <div className="min-w-0">
+      <h3 id={id} className="truncate text-xs font-semibold text-foreground">
+        {title}
+      </h3>
+      <p className="sr-only">{description}</p>
+    </div>
+  </div>
+);
+
+const TicketInspectorResizeHandle = ({
+  width,
+  maxWidth,
+  onPointerDown,
+  onKeyDown,
+}: {
+  width: number;
+  maxWidth: number;
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+}) => (
+  <div
+    role="separator"
+    aria-label="Ajustar ancho del inspector"
+    aria-orientation="vertical"
+    aria-valuemin={DETAIL_MIN_WIDTH}
+    aria-valuemax={maxWidth}
+    aria-valuenow={width}
+    aria-valuetext={`${width} píxeles`}
+    tabIndex={0}
+    onPointerDown={onPointerDown}
+    onKeyDown={onKeyDown}
+    className="group absolute inset-y-0 -left-2 z-40 flex w-4 touch-none cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+    title="Arrastrá o usá las flechas para ajustar el inspector"
+  >
+    <span className="flex h-14 w-2 items-center justify-center rounded-full border border-border/80 bg-background text-muted-foreground shadow-sm transition group-hover:border-primary/50 group-hover:text-primary group-focus-visible:border-primary">
+      <GripVertical className="h-4 w-4" aria-hidden="true" />
+    </span>
+  </div>
+);
+
+const TicketInspectorDock = ({
+  onOpen,
+  buttonRef,
+}: {
+  onOpen: () => void;
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+}) => (
+  <aside
+    className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70 bg-muted/20"
+    data-testid="tickets-detail-dock"
+    aria-label="Resolución guiada contraída"
+  >
+    <button
+      ref={buttonRef}
+      type="button"
+      className="group flex h-full min-h-0 w-full flex-col items-center gap-3 px-1.5 py-3 text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/70"
+      onClick={onOpen}
+      aria-label="Abrir resolución guiada"
+      aria-expanded="false"
+      aria-controls="tickets-resolution-panel"
+      title="Abrir resolución guiada"
+    >
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+        3
+      </span>
+      <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+      <span className="min-h-0 flex-1 overflow-hidden text-[11px] font-semibold tracking-wide [writing-mode:vertical-rl] [text-orientation:mixed]">
+        Resolución guiada
+      </span>
+      <span className="sr-only">
+        Abrir siguiente paso, responsable y herramientas para resolver el caso.
+      </span>
+    </button>
+  </aside>
+);
+
 interface NewTicketsPanelProps {
   embedded?: boolean;
 }
 
 const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) => {
   const isMobile = useIsMobile();
+  const workspaceRef = React.useRef<HTMLDivElement>(null);
+  const workspaceWidth = useTicketWorkspaceWidth(workspaceRef);
+  const shouldUseDetailsDrawer = !isMobile && workspaceWidth <= DETAILS_DRAWER_MAX_WIDTH;
   const [searchParams] = useSearchParams();
   const {
     loading,
@@ -284,6 +541,18 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     clearRealtimeActivity,
   } = useTickets();
   const { currentSlug, tenant } = useTenant();
+  const { user } = useUser();
+  const inspectorStorageKey = React.useMemo(() => {
+    const tenantIdentity = String(currentSlug || tenant?.slug || '').trim();
+    const userIdentity = String(user?.id ?? user?.email ?? '').trim();
+    if (!tenantIdentity || tenantIdentity.toLowerCase() === 'default' || !userIdentity) return null;
+
+    const tenantScope = tenantIdentity
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-');
+    const userScope = userIdentity.replace(/[^a-z0-9_-]+/gi, '-');
+    return `chatboc:tickets:inspector-layout:${tenantScope}:${userScope}`;
+  }, [currentSlug, tenant?.slug, user?.email, user?.id]);
   const [inboxSummary, setInboxSummary] = React.useState<BackofficeInboxSummaryResponse | null>(null);
   const [loadingTimedOut, setLoadingTimedOut] = React.useState(false);
 
@@ -317,8 +586,77 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(
     () => !isMobile && shouldShowDesktopDetailsByDefault(embedded),
   );
-  const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
+  const [detailsWidth, setDetailsWidth] = React.useState(DETAIL_DEFAULT_WIDTH);
+  const [hydratedInspectorStorageKey, setHydratedInspectorStorageKey] = React.useState<string | null>(null);
   const [deepLinkFocus, setDeepLinkFocus] = React.useState<string | null>(null);
+  const [conversationFocusMode, setConversationFocusMode] = React.useState(false);
+  const [focusInspectorOpen, setFocusInspectorOpen] = React.useState(false);
+  const focusInspectorOpenRef = React.useRef(false);
+  const conversationFocusButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const sidebarVisibilityBeforeDrawerRef = React.useRef<boolean | null>(null);
+  const previousConstrainedDetailsRef = React.useRef(false);
+  const resizeCleanupRef = React.useRef<(() => void) | null>(null);
+  const detailsDrawerRef = React.useRef<HTMLElement | null>(null);
+  const detailsTriggerRef = React.useRef<HTMLElement | null>(null);
+  const detailsDockButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const activeDesktopDetailsVisible = conversationFocusMode ? focusInspectorOpen : isDetailsVisible;
+
+  const restoreDetailsTriggerFocus = React.useCallback(() => {
+    const trigger = detailsTriggerRef.current;
+    detailsTriggerRef.current = null;
+    window.requestAnimationFrame(() => {
+      if (trigger?.isConnected) {
+        trigger.focus();
+        return;
+      }
+      detailsDockButtonRef.current?.focus();
+    });
+  }, []);
+
+  const closeConversationFocusMode = React.useCallback(() => {
+    setFocusInspectorOpen(false);
+    setConversationFocusMode(false);
+    window.requestAnimationFrame(() => conversationFocusButtonRef.current?.focus());
+  }, []);
+
+  const toggleConversationFocusMode = React.useCallback(() => {
+    if (conversationFocusMode) {
+      closeConversationFocusMode();
+      return;
+    }
+
+    setFocusInspectorOpen(false);
+    setConversationFocusMode(true);
+  }, [closeConversationFocusMode, conversationFocusMode]);
+
+  const handleConversationFocusKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!conversationFocusMode || event.key !== 'Tab') return;
+
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+
+    const focusableElements = (
+      Array.from(workspace.querySelectorAll(TICKET_WORKSPACE_FOCUSABLE_SELECTOR)) as HTMLElement[]
+    ).filter((element) => element.getAttribute('aria-hidden') !== 'true');
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements.at(-1);
+    if (!firstFocusable || !lastFocusable) {
+      event.preventDefault();
+      workspace.focus();
+      return;
+    }
+
+    if (event.shiftKey && (document.activeElement === firstFocusable || !workspace.contains(document.activeElement))) {
+      event.preventDefault();
+      lastFocusable.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === lastFocusable) {
+      event.preventDefault();
+      firstFocusable.focus();
+    }
+  }, [conversationFocusMode]);
 
   const lastMobileTicketId = React.useRef<string | number | null>(null);
   const appliedDeskQueryKeyRef = React.useRef<string>('');
@@ -329,15 +667,145 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }, [mobileView]);
 
   React.useEffect(() => {
+    focusInspectorOpenRef.current = focusInspectorOpen;
+  }, [focusInspectorOpen]);
+
+  React.useEffect(() => {
+    setHydratedInspectorStorageKey(null);
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+    sidebarVisibilityBeforeDrawerRef.current = null;
+    previousConstrainedDetailsRef.current = false;
+
     if (isMobile) {
       setIsSidebarVisible(false);
       setIsDetailsVisible(false);
+      setHydratedInspectorStorageKey(inspectorStorageKey);
       return;
     }
 
+    const persistedLayout = inspectorStorageKey
+      ? readPersistedTicketInspectorLayout(inspectorStorageKey)
+      : null;
+    setDetailsWidth(persistedLayout?.width ?? DETAIL_DEFAULT_WIDTH);
     setIsSidebarVisible(true);
-    setIsDetailsVisible(shouldShowDesktopDetailsByDefault(embedded));
-  }, [embedded, isMobile]);
+    setIsDetailsVisible(
+      persistedLayout?.open ?? shouldShowDesktopDetailsByDefault(embedded),
+    );
+    setHydratedInspectorStorageKey(inspectorStorageKey);
+  }, [embedded, inspectorStorageKey, isMobile]);
+
+  React.useEffect(() => {
+    if (!inspectorStorageKey || hydratedInspectorStorageKey !== inspectorStorageKey || isMobile) return;
+    const timer = window.setTimeout(() => {
+      safeLocalStorage.setItem(
+        inspectorStorageKey,
+        JSON.stringify({ open: isDetailsVisible, width: detailsWidth }),
+      );
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [detailsWidth, hydratedInspectorStorageKey, inspectorStorageKey, isDetailsVisible, isMobile]);
+
+  const shouldPrioritizeConversation =
+    !isMobile && !conversationFocusMode && isDetailsVisible && workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH;
+
+  React.useEffect(() => {
+    const wasConstrained = previousConstrainedDetailsRef.current;
+    previousConstrainedDetailsRef.current = shouldPrioritizeConversation;
+
+    if (isMobile) return;
+
+    if (shouldPrioritizeConversation && !wasConstrained) {
+      if (sidebarVisibilityBeforeDrawerRef.current === null) {
+        sidebarVisibilityBeforeDrawerRef.current = isSidebarVisible;
+      }
+      if (isSidebarVisible) setIsSidebarVisible(false);
+      return;
+    }
+
+    if (!shouldPrioritizeConversation && wasConstrained) {
+      if (sidebarVisibilityBeforeDrawerRef.current) setIsSidebarVisible(true);
+      sidebarVisibilityBeforeDrawerRef.current = null;
+    }
+  }, [isMobile, isSidebarVisible, shouldPrioritizeConversation]);
+
+  const closeDesktopDetails = React.useCallback(() => {
+    setIsDetailsVisible(false);
+    if (sidebarVisibilityBeforeDrawerRef.current) {
+      setIsSidebarVisible(true);
+    }
+    sidebarVisibilityBeforeDrawerRef.current = null;
+
+    restoreDetailsTriggerFocus();
+  }, [restoreDetailsTriggerFocus]);
+
+  const closeFocusedDetails = React.useCallback(() => {
+    setFocusInspectorOpen(false);
+    restoreDetailsTriggerFocus();
+  }, [restoreDetailsTriggerFocus]);
+
+  React.useEffect(() => {
+    if (
+      isMobile ||
+      conversationFocusMode ||
+      !activeDesktopDetailsVisible ||
+      !shouldUseDetailsDrawer
+    ) return;
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      const closeButton = detailsDrawerRef.current?.querySelector<HTMLElement>(
+        '[aria-label="Cerrar detalles del ticket"]',
+      );
+      closeButton?.focus();
+    });
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeDesktopDetails();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [activeDesktopDetailsVisible, closeDesktopDetails, conversationFocusMode, isMobile, shouldUseDetailsDrawer]);
+
+  React.useEffect(
+    () => () => {
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    if (!conversationFocusMode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusFrame = window.requestAnimationFrame(() => conversationFocusButtonRef.current?.focus());
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (focusInspectorOpenRef.current) {
+        closeFocusedDetails();
+        return;
+      }
+      closeConversationFocusMode();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [closeConversationFocusMode, closeFocusedDetails, conversationFocusMode]);
+
+  React.useEffect(() => {
+    if (selectedTicket) return;
+    setConversationFocusMode(false);
+    setFocusInspectorOpen(false);
+  }, [selectedTicket]);
 
   React.useEffect(() => {
     if (!loading) {
@@ -457,7 +925,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
   const ticketDeskQuery = React.useMemo(() => readTicketDeskQuery(searchParams), [searchParams]);
   const resolveDeskTicketTarget = React.useCallback((
-    ticketId: number,
+    ticketId: string,
     sourceModel: TicketInboxSourceModel | null,
   ) => sourceModel
     ? resolveTicketTarget(ticketId, sourceModel)
@@ -465,6 +933,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
   React.useEffect(() => {
     if (!ticketDeskQuery.key || appliedDeskQueryKeyRef.current === ticketDeskQuery.key) return;
+
+    if (ticketDeskQuery.focus === 'open_geocoding_queue') {
+      appliedDeskQueryKeyRef.current = ticketDeskQuery.key;
+      return;
+    }
 
     const nextFilters = Object.entries(ticketDeskQuery.filters).reduce<Partial<typeof filters>>((acc, [key, value]) => {
       if (typeof value !== 'string' || !value) return acc;
@@ -475,10 +948,6 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       acc[key as keyof typeof filters] = value;
       return acc;
     }, {});
-
-    if (ticketDeskQuery.focus === 'open_geocoding_queue' && !nextFilters.sla) {
-      nextFilters.sla = 'risk';
-    }
 
     if (Object.keys(nextFilters).length > 0) {
       setFilters((current) => {
@@ -492,6 +961,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   }, [setFilters, ticketDeskQuery, filters]);
 
   React.useEffect(() => {
+    if (ticketDeskQuery.focus === 'open_geocoding_queue') {
+      selectedDeskQueryTicketRef.current = '';
+      clearTicketTarget();
+      return;
+    }
+
     if (!ticketDeskQuery.ticketId) {
       selectedDeskQueryTicketRef.current = '';
       clearTicketTarget();
@@ -510,7 +985,6 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     void resolveDeskTicketTarget(ticketDeskQuery.ticketId, ticketDeskQuery.sourceModel).then((ticket) => {
       if (!ticket) return;
       if (isMobile) setActiveMobileView('chat');
-      else setDesktopView('chat');
     });
   }, [clearTicketTarget, isMobile, resolveDeskTicketTarget, setActiveMobileView, ticketDeskQuery]);
 
@@ -578,83 +1052,48 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const hasLoadedInboxData = tickets.length > 0 || filteredTickets.length > 0 || selectedTicket !== null;
   const showInitialLoading = loading && !hasLoadedInboxData;
 
+  if (ticketDeskQuery.focus === 'open_geocoding_queue') {
+    return (
+      <TerritorialPendingLocationsInbox
+        tenantSlug={currentSlug || tenant?.slug}
+        initialFacet={ticketDeskQuery.territorialFacet}
+        initialZone={ticketDeskQuery.territorialZone}
+        embedded={embedded}
+      />
+    );
+  }
+
   if (showInitialLoading && loadingTimedOut) {
     return (
-      <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-amber-500/30 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
-        <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-500">
-          <AlertTriangle className="h-5 w-5" />
-        </span>
-        <h2 className="text-lg font-semibold text-foreground">La bandeja tarda mas de lo esperado</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          El backend todavia no respondio con la lista completa. Podes reintentar ahora o seguir esperando sin perder la vista del CRM.
-        </p>
-        <Button type="button" className="mt-5 gap-2 rounded-full" onClick={() => void refreshTickets()}>
+      <TicketPanelState
+        testId="tickets-loading-timeout-state"
+        title="La bandeja tarda más de lo esperado"
+        description="Todavia no recibimos la cola completa. Podes reintentar sin salir del centro de reclamos."
+        icon={AlertTriangle}
+        tone="warning"
+      >
+        <Button type="button" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
           <RefreshCw className="h-4 w-4" />
           Reintentar carga
         </Button>
-      </Card>
+      </TicketPanelState>
     );
   }
 
   if (showInitialLoading) {
     return (
-        <div
-          className="flex h-full min-h-[520px] w-full bg-background text-foreground overflow-hidden"
-          role="status"
-          aria-live="polite"
-          aria-label="Cargando bandeja de reclamos"
-        >
-            {/* Skeleton for Desktop */}
-            <div className="hidden md:flex w-full">
-              <div className="w-80 border-r border-border p-4 space-y-4">
-                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                      Cargando bandeja de reclamos
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      Sincronizando tickets, chats en vivo, filtros y métricas operativas.
-                    </p>
-                  </div>
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <div className="space-y-4 mt-4">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-24 w-full" />
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-24 w-full" />
-                  </div>
-              </div>
-              <div className="flex-1 p-4 space-y-4">
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                  </div>
-                  <Skeleton className="h-16 w-full" />
-                  <div className="flex-1 space-y-4 mt-4">
-                      <Skeleton className="h-20 w-full" />
-                      <Skeleton className="h-20 w-2/3 ml-auto" />
-                      <Skeleton className="h-20 w-full" />
-                  </div>
-              </div>
-            </div>
-             {/* Skeleton for Mobile */}
-            <div className="md:hidden w-full p-4 space-y-4">
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                  Cargando reclamos
-                </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  Preparando la mesa operativa.
-                </p>
-              </div>
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-[420px] w-full" />
-            </div>
-        </div>
-    )
+      <TicketPanelState
+        testId="tickets-loading-state"
+        title="Preparando el centro de reclamos"
+        description="Ordenando la cola y recuperando las conversaciones disponibles."
+        icon={RefreshCw}
+      >
+        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Reintentar
+        </Button>
+      </TicketPanelState>
+    );
   }
 
   if (error) {
@@ -681,74 +1120,83 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     };
 
     return (
-      <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
-        <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive">
-          <AlertTriangle className="h-5 w-5" />
-        </span>
-        <h2 className="text-lg font-semibold text-foreground">No pudimos cargar la bandeja</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-destructive">{error}</p>
-        {isTicketScopeError ? (
-          <div
-            data-testid="tickets-access-contract"
-            className="mt-4 w-full max-w-2xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-left"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-amber-500/40 bg-background/70 text-amber-700 dark:text-amber-200">
-                Reparar acceso
-              </Badge>
-              {errorDetails?.reasonCode ? (
-                <Badge variant="secondary" className="font-mono text-[11px]">
-                  {errorDetails.reasonCode}
-                </Badge>
-              ) : null}
-              {errorDetails?.requestId ? (
-                <button
-                  type="button"
-                  onClick={() => void copyRequestId()}
-                  className="inline-flex min-h-7 items-center rounded-full border border-border bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  request_id: {errorDetails.requestId}
-                </button>
-              ) : null}
-            </div>
-            <p className="mt-3 text-sm leading-6 text-foreground">
-              El usuario tiene que quedar vinculado al tenant correcto y a un municipio o empresa antes de operar reclamos.
-            </p>
-            {scopeSummary.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {scopeSummary.map(([label, value]) => (
-                  <div key={label} className="rounded-lg border border-border/70 bg-background/75 px-3 py-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-                    <p className="mt-1 truncate text-sm font-medium text-foreground">{String(value)}</p>
-                  </div>
-                ))}
-              </div>
+      <TicketPanelState
+        testId="tickets-error-state"
+        title="No pudimos cargar la bandeja"
+        description={error}
+        icon={AlertTriangle}
+        tone="destructive"
+        role="alert"
+      >
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {isSessionError ? (
+              <Button type="button" size="sm" className="gap-2" onClick={goToLogin}>
+                <LogIn className="h-4 w-4" />
+                Iniciar sesión
+              </Button>
             ) : null}
-            {errorDetails?.requiredCapabilities?.length ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {errorDetails.requiredCapabilities.slice(0, 4).map((capability) => (
-                  <Badge key={capability} variant="secondary" className="font-mono text-[10px]">
-                    {capability}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {isSessionError ? (
-            <Button type="button" className="gap-2 rounded-full" onClick={goToLogin}>
-              <LogIn className="h-4 w-4" />
-              Iniciar sesión
+            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+              <RefreshCw className="h-4 w-4" />
+              Reintentar
             </Button>
+          </div>
+          {isTicketScopeError ? (
+            <details
+              data-testid="tickets-access-contract"
+              className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 text-left"
+            >
+              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-amber-800 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:text-amber-200">
+                Revisar datos de acceso
+              </summary>
+              <div className="border-t border-amber-500/20 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="border-amber-500/40 bg-background/70 text-amber-700 dark:text-amber-200">
+                    Reparar acceso
+                  </Badge>
+                  {errorDetails?.reasonCode ? (
+                    <Badge variant="secondary" className="font-mono text-[11px]">
+                      {errorDetails.reasonCode}
+                    </Badge>
+                  ) : null}
+                  {errorDetails?.requestId ? (
+                    <button
+                      type="button"
+                      onClick={() => void copyRequestId()}
+                      className="inline-flex min-h-7 items-center rounded-full border border-border bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      request_id: {errorDetails.requestId}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-foreground">
+                  El usuario debe estar vinculado al tenant correcto y a un municipio o empresa antes de operar reclamos.
+                </p>
+                {scopeSummary.length ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {scopeSummary.map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-border/70 bg-background/75 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+                        <p className="mt-1 truncate text-xs font-medium text-foreground">{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {errorDetails?.requiredCapabilities?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {errorDetails.requiredCapabilities.slice(0, 4).map((capability) => (
+                      <Badge key={capability} variant="secondary" className="font-mono text-[10px]">
+                        {capability}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </details>
           ) : null}
-          <Button type="button" variant="outline" className="gap-2 rounded-full" onClick={() => void refreshTickets()}>
-            <RefreshCw className="h-4 w-4" />
-            Reintentar
-          </Button>
         </div>
-      </Card>
-    )
+      </TicketPanelState>
+    );
   }
 
   const requestedTicketId = ticketDeskQuery.ticketId;
@@ -785,40 +1233,31 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     const message = hasInvalidRequestedSource
       ? 'El origen indicado no pertenece al contrato de tickets. Volve a abrir el caso desde la bandeja operativa.'
       : isResolving
-        ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversacion.'
+        ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversación.'
         : ticketTargetResolution.message || 'Reintenta en unos segundos.';
 
     return (
-      <Card
-        data-testid="tickets-target-resolution"
-        className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md"
+      <TicketPanelState
+        testId="tickets-target-resolution"
+        title={title}
+        description={message}
+        icon={isResolving ? RefreshCw : AlertTriangle}
+        tone={isResolving ? 'default' : 'warning'}
         role={isResolving ? 'status' : 'alert'}
-        aria-live="polite"
       >
-        <span
-          className={cn(
-            'mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg border',
-            isResolving
-              ? 'border-primary/30 bg-primary/10 text-primary'
-              : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
-          )}
-        >
-          {isResolving ? <RefreshCw className="h-5 w-5 animate-spin" /> : <AlertTriangle className="h-5 w-5" />}
-        </span>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{message}</p>
         {!isResolving && !hasInvalidRequestedSource ? (
           <Button
             type="button"
             variant="outline"
-            className="mt-5 gap-2 rounded-lg"
+            size="sm"
+            className="gap-2"
             onClick={() => void resolveDeskTicketTarget(requestedTicketId, requestedSourceModel)}
           >
             <RefreshCw className="h-4 w-4" />
             Reintentar apertura
           </Button>
         ) : null}
-      </Card>
+      </TicketPanelState>
     );
   }
 
@@ -826,6 +1265,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     'relative flex h-full max-h-full min-h-0 w-full flex-1 flex-col overflow-hidden border border-border/70 bg-card/90 backdrop-blur-md',
     embedded ? 'rounded-none border-x-0 border-b-0 bg-transparent shadow-none' : 'rounded-lg shadow-2xl',
     isMobile && !embedded && 'h-[calc(100dvh-8rem)]',
+    conversationFocusMode && !isMobile && 'fixed inset-3 z-50 h-auto max-h-none w-auto rounded-xl border bg-background shadow-[0_24px_90px_rgba(15,23,42,0.45)]',
   );
 
   const localOpenTickets = tickets.filter((ticket) => !isResolvedTicket(ticket)).length;
@@ -860,16 +1300,35 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       : operationalFilterBadges.length === 1
         ? operationalFilterBadges[0]
         : `${operationalFilterBadges[0]} +${operationalFilterBadges.length - 1}`;
-  const desktopGridTemplate = isSidebarVisible && isDetailsVisible
-    ? embedded
-      ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr) ${EMBEDDED_DETAIL_COLUMN}`
-      : `${DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr) ${DESKTOP_DETAIL_COLUMN}`
-    : isSidebarVisible
-      ? embedded
-        ? `${EMBEDDED_TICKET_LIST_COLUMN} minmax(0, 1fr)`
-        : `${DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
-      : isDetailsVisible
-        ? `minmax(0, 1fr) ${DESKTOP_DETAIL_COLUMN}`
+  const effectiveSidebarVisible = isSidebarVisible && !conversationFocusMode;
+  const effectiveDetailsVisible = activeDesktopDetailsVisible;
+  const showDetailsAsDrawer = effectiveDetailsVisible && shouldUseDetailsDrawer;
+  const showDetailsAsColumn = effectiveDetailsVisible && !shouldUseDetailsDrawer;
+  const showDetailsDock = Boolean(
+    selectedTicket &&
+      !conversationFocusMode &&
+      !effectiveDetailsVisible &&
+      workspaceWidth >= DETAILS_WITH_SIDEBAR_MIN_WIDTH,
+  );
+  const drawerDetailMaxWidth = Math.max(
+    DETAIL_MIN_WIDTH,
+    Math.min(DETAIL_MAX_WIDTH, Math.floor(workspaceWidth - 560)),
+  );
+  const renderedDetailsWidth = showDetailsAsDrawer
+    ? clampDetailWidth(detailsWidth, drawerDetailMaxWidth)
+    : detailsWidth;
+  const activeDetailMaxWidth = showDetailsAsDrawer ? drawerDetailMaxWidth : DETAIL_MAX_WIDTH;
+  const detailColumn = `${renderedDetailsWidth}px`;
+  const desktopGridTemplate = effectiveSidebarVisible && showDetailsAsColumn
+    ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(560px, 1fr) ${detailColumn}`
+    : effectiveSidebarVisible && showDetailsDock
+      ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(560px, 1fr) ${DETAIL_DOCK_WIDTH}px`
+    : effectiveSidebarVisible
+      ? `${embedded ? EMBEDDED_TICKET_LIST_COLUMN : DESKTOP_TICKET_LIST_COLUMN} minmax(0, 1fr)`
+      : showDetailsAsColumn
+        ? `minmax(560px, 1fr) ${detailColumn}`
+        : showDetailsDock
+          ? `minmax(0, 1fr) ${DETAIL_DOCK_WIDTH}px`
         : 'minmax(0, 1fr)';
   const nextPriorityTicket = getNextOperationalTicket(filteredTickets);
   const isNextPrioritySelected = Boolean(
@@ -877,33 +1336,136 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   );
   const nextPriorityLabel = nextPriorityTicket ? resolveTicketQueueLabel(nextPriorityTicket) : '';
   const nextPriorityCrmQueue = resolveTicketCrmQueue(nextPriorityTicket);
-  const selectedTicketCrmQueue = resolveTicketCrmQueue(selectedTicket);
-  const selectedTicketReference = selectedTicket?.nro_ticket || selectedTicket?.id || null;
-  const selectedTicketStatus = selectedTicket ? formatTicketStatusLabel(selectedTicket.estado) : null;
-  const selectedTicketChannel = selectedTicket?.channel || 'whatsapp';
-  const selectedTicketSla = selectedTicket?.sla_status ? `SLA ${selectedTicket.sla_status}` : null;
-  const selectedTicketHasUnread = selectedTicket ? hasUnreadTicket(selectedTicket) : false;
-  const selectedTicketNextAction =
-    selectedTicket?.recommended_next_action ||
-    selectedTicketCrmQueue?.label ||
-    (selectedTicketHasUnread ? 'Responder conversacion' : null) ||
-    (nextPriorityTicket ? `Proximo: ${nextPriorityLabel}` : 'Mesa actualizada');
-  const continuityTone = riskTickets > 0 ? 'warning' : unreadTickets > 0 ? 'live' : 'default';
+  const primaryOperationalActionLabel =
+    nextPriorityTicket && !isNextPrioritySelected
+      ? 'Atender prioridad'
+      : selectedTicket
+        ? 'Responder'
+        : 'Actualizar cola';
   const handlePrimaryOperationalAction = () => {
     if (nextPriorityTicket && !isNextPrioritySelected) {
       selectTicket(nextPriorityTicket.id);
+      if (isMobile) setActiveMobileView('chat');
       return;
     }
     if (!selectedTicket) {
       void refreshTickets();
       return;
     }
-    setDesktopView('chat');
     if (isMobile) setActiveMobileView('chat');
   };
 
+  const handleToggleDesktopDetails = () => {
+    if (conversationFocusMode) {
+      if (focusInspectorOpen) {
+        closeFocusedDetails();
+        return;
+      }
+
+      detailsTriggerRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      setFocusInspectorOpen(true);
+      return;
+    }
+
+    if (isDetailsVisible) {
+      closeDesktopDetails();
+      return;
+    }
+
+    detailsTriggerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    if (workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH) {
+      sidebarVisibilityBeforeDrawerRef.current = isSidebarVisible;
+      if (isSidebarVisible) setIsSidebarVisible(false);
+    }
+    setIsDetailsVisible(true);
+  };
+
+  const handleToggleDesktopSidebar = () => {
+    if (!isSidebarVisible && isDetailsVisible && workspaceWidth < DETAILS_WITH_SIDEBAR_MIN_WIDTH) {
+      setIsDetailsVisible(false);
+      sidebarVisibilityBeforeDrawerRef.current = null;
+      detailsTriggerRef.current = null;
+      setIsSidebarVisible(true);
+      return;
+    }
+
+    setIsSidebarVisible((visible) => !visible);
+  };
+
+  const stopInspectorResize = () => {
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+  };
+
+  const handleInspectorResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    stopInspectorResize();
+
+    const startX = event.clientX;
+    const startWidth = renderedDetailsWidth;
+    const resizeHandle = event.currentTarget;
+    const pointerId = event.pointerId;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    const handlePointerMove = (pointerEvent: PointerEvent) => {
+      setDetailsWidth(clampDetailWidth(startWidth + startX - pointerEvent.clientX, activeDetailMaxWidth));
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', cleanup);
+      window.removeEventListener('pointercancel', cleanup);
+      window.removeEventListener('blur', cleanup);
+      resizeHandle.removeEventListener('lostpointercapture', cleanup);
+      if (resizeHandle.hasPointerCapture?.(pointerId)) {
+        resizeHandle.releasePointerCapture(pointerId);
+      }
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      if (resizeCleanupRef.current === cleanup) resizeCleanupRef.current = null;
+    };
+
+    resizeHandle.setPointerCapture?.(pointerId);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', cleanup);
+    window.addEventListener('pointercancel', cleanup);
+    window.addEventListener('blur', cleanup);
+    resizeHandle.addEventListener('lostpointercapture', cleanup);
+    resizeCleanupRef.current = cleanup;
+  };
+
+  const handleInspectorResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    let nextWidth: number | null = null;
+
+    if (event.key === 'ArrowLeft') nextWidth = renderedDetailsWidth + DETAIL_KEYBOARD_STEP;
+    if (event.key === 'ArrowRight') nextWidth = renderedDetailsWidth - DETAIL_KEYBOARD_STEP;
+    if (event.key === 'Home') nextWidth = DETAIL_MIN_WIDTH;
+    if (event.key === 'End') nextWidth = activeDetailMaxWidth;
+    if (nextWidth === null) return;
+
+    event.preventDefault();
+    setDetailsWidth(clampDetailWidth(nextWidth, activeDetailMaxWidth));
+  };
+
   return (
-    <Card className={panelCardClass}>
+    <>
+    <Card
+      ref={workspaceRef}
+      className={panelCardClass}
+      data-testid="tickets-workspace-card"
+      data-viewport-mode={conversationFocusMode ? 'focus' : 'standard'}
+      role={conversationFocusMode ? 'dialog' : undefined}
+      aria-modal={conversationFocusMode ? true : undefined}
+      aria-labelledby={conversationFocusMode ? 'tickets-focus-dialog-title' : undefined}
+      tabIndex={conversationFocusMode ? -1 : undefined}
+      onKeyDown={handleConversationFocusKeyDown}
+    >
       <div
         data-testid={embedded ? 'tickets-embedded-ops-header' : 'tickets-ops-header'}
         className={cn(
@@ -911,326 +1473,277 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           embedded ? 'px-2 py-0 sm:px-3 sm:py-1' : 'px-3 py-2 sm:px-4',
         )}
       >
-        <div
-          className={cn(
-            'flex gap-2',
-            embedded
-              ? 'min-h-8 items-center justify-between overflow-x-auto sm:min-h-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-              : 'flex-col min-[1080px]:flex-row min-[1080px]:items-center min-[1080px]:justify-between',
-          )}
-        >
-          <div className={cn('min-w-0', embedded && 'shrink-0')}>
-            <div className={cn('flex items-center gap-2', embedded ? 'flex-nowrap' : 'flex-wrap')}>
-              <h2 className="text-base font-semibold tracking-tight text-foreground">
-                {embedded ? (tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets') : 'Mesa operativa'}
-              </h2>
-              <Badge variant="outline" className="shrink-0 rounded-full">
-                {filteredTickets.length.toLocaleString('es-AR')} visibles
-              </Badge>
-              {selectedTicket ? (
-                <Badge variant="secondary" className="shrink-0 rounded-full">
-                  #{selectedTicket.nro_ticket || selectedTicket.id}
-                </Badge>
-              ) : null}
-              {deepLinkFocus ? (
-                <Badge data-testid="tickets-deeplink-focus" variant="secondary" className="shrink-0 rounded-full capitalize">
-                  Desde {formatDeskDeepLinkFocus(deepLinkFocus)}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="sr-only">
-              Priorización, conversación y detalle en una sola vista.
-              {inboxSummary?.request_id ? ` Ref. ${inboxSummary.request_id}` : null}
-            </p>
-            {!embedded && recommendedViews.length ? (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {recommendedViews.slice(0, 2).map((view, index) => (
-                  <button
-                    key={view.id || `recommended_${index}`}
-                    type="button"
-                    onClick={() => applyRecommendedView(view.query)}
-                    className="inline-flex max-w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  >
-                    <Badge variant="secondary" className="max-w-full rounded-full text-[11px]">
-                      <span className="truncate">
-                        {view.label}
-                        {view.description ? `: ${view.description}` : ''}
-                      </span>
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2">
-            <CuadrillaFieldModal />
-          </div>
-          {!embedded ? (
-            <div
-              data-testid="ticket-ops-stat-strip"
-              className={cn(
-                'flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                embedded ? 'w-full min-[920px]:w-auto min-[920px]:justify-end' : 'min-[1080px]:justify-end',
-              )}
-            >
-            <TicketOpsStat
-              label="Abiertos"
-              value={openTickets}
-              helper="Casos por resolver"
-              tone="blue"
-              icon={Clock}
-              onClick={() => applyQuickFilter({ status: 'all', unread: 'all', sla: 'all' })}
-              compact={embedded}
-            />
-            <TicketOpsStat
-              label="Riesgo"
-              value={riskTickets}
-              helper="SLA o prioridad alta"
-              tone="amber"
-              icon={AlertTriangle}
-              onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
-              compact={embedded}
-            />
-            <TicketOpsStat
-              label="No leídos"
-              value={unreadTickets}
-              helper="Requieren respuesta"
-              tone="violet"
-              icon={Radio}
-              onClick={() => applyQuickFilter({ unread: 'unread' })}
-              compact={embedded}
-            />
-            <TicketOpsStat
-              label="Resueltos"
-              value={resolvedTickets}
-              helper="Cerrados/resueltos"
-              tone="emerald"
-              icon={CheckCircle2}
-              onClick={() => applyQuickFilter({ status: 'resuelto' })}
-              compact={embedded}
-            />
-            </div>
-          ) : null}
-          {embedded ? (
-            <div className="flex min-w-max shrink-0 items-center justify-end gap-1.5">
-              <Badge
-                data-testid="tickets-embedded-kpi-summary"
-                variant="outline"
-                className="max-w-[13rem] shrink-0 rounded-full bg-background/70 text-[11px] font-medium text-muted-foreground"
-                title={`${openTickets} abiertos | ${unreadTickets} sin leer | ${riskTickets} en riesgo | ${resolvedTickets} resueltos`}
+        <div className="flex min-h-12 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+              <ListChecks className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <h2
+                id={conversationFocusMode ? 'tickets-focus-dialog-title' : undefined}
+                className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base"
               >
-                <span className="truncate">
-                  {openTickets.toLocaleString('es-AR')} abiertos
-                  {unreadTickets > 0 ? ` · ${unreadTickets.toLocaleString('es-AR')} sin leer` : ''}
-                  {riskTickets > 0 ? ` · ${riskTickets.toLocaleString('es-AR')} riesgo` : ''}
-                </span>
-              </Badge>
-              {nextPriorityTicket ? (
-                <div
-                  data-testid="tickets-next-priority-strip"
-                  className="flex shrink-0 items-center gap-1.5"
-                  title={`${nextPriorityCrmQueue?.label || nextPriorityLabel}: #${nextPriorityTicket.nro_ticket || nextPriorityTicket.id} ${nextPriorityLabel}. ${nextPriorityCrmQueue?.reason || ''}`.trim()}
-                >
-                  <span className="hidden font-semibold uppercase tracking-[0.08em] min-[1280px]:inline">
-                    Siguiente
-                  </span>
-                  <span className="hidden max-w-[10rem] truncate font-semibold text-foreground min-[520px]:block min-[1180px]:max-w-[12rem]">
-                    #{nextPriorityTicket.nro_ticket || nextPriorityTicket.id} · {nextPriorityCrmQueue?.label || nextPriorityLabel}
-                  </span>
-                  {nextPriorityCrmQueue ? (
-                    <Badge variant="outline" className="hidden shrink-0 rounded-full text-[10px] min-[1360px]:inline-flex">
-                      Score {nextPriorityCrmQueue.score.toLocaleString('es-AR')}
-                    </Badge>
-                  ) : null}
-                  {nextPriorityCrmQueue ? (
-                    <span className="sr-only">
-                      Asunto: {nextPriorityLabel}. {nextPriorityCrmQueue.reason}
-                    </span>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant={isNextPrioritySelected ? 'secondary' : 'default'}
-                    size="sm"
-                    className="h-7 rounded-full px-2 text-xs"
-                    disabled={isNextPrioritySelected}
-                    aria-label={
-                      isNextPrioritySelected
-                        ? 'Prioridad en atencion'
-                        : `Atender siguiente prioridad ${nextPriorityTicket.nro_ticket || nextPriorityTicket.id}: ${nextPriorityCrmQueue?.label || nextPriorityLabel}. ${nextPriorityLabel}`
-                    }
-                    onClick={() => selectTicket(nextPriorityTicket.id)}
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span>{isNextPrioritySelected ? 'En foco' : 'Atender'}</span>
-                  </Button>
-                </div>
-              ) : null}
-              {loading ? (
-                <Badge variant="secondary" className="shrink-0 rounded-full">
-                  Actualizando
-                </Badge>
-              ) : null}
-              <TicketFilterPopover
-                compact
-                align="end"
-                side="bottom"
-                onReset={resetOperationalFilters}
-                triggerTestId="tickets-header-filter-button"
-                panelTestId="tickets-header-filter-panel"
-                className="h-8 rounded-full"
-              />
-              {operationalFilterBadges.length > 0 ? (
-                <div
-                  data-testid="tickets-embedded-active-filters"
-                  className="flex shrink-0 items-center gap-1"
-                  title={operationalFilterBadges.join(' | ')}
-                >
-                  <Badge variant="secondary" className="rounded-full text-[11px]">
-                    {compactFilterSummaryLabel}
-                  </Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 rounded-full px-2 text-xs"
-                    aria-label="Limpiar filtros"
-                    title="Limpiar filtros"
-                    onClick={resetOperationalFilters}
-                  >
-                    <Filter className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : null}
+                {conversationFocusMode
+                  ? `Conversación ampliada${selectedTicket?.nro_ticket ? ` · ${selectedTicket.nro_ticket}` : ''}`
+                  : tenant?.tipo === 'municipio' ? 'Centro de reclamos' : 'Centro de tickets'}
+              </h2>
+              <p className="hidden truncate text-xs text-muted-foreground sm:block">
+                {conversationFocusMode
+                  ? 'Historial, respuesta y panel del caso en un espacio de trabajo dedicado.'
+                  : 'Priorizá la cola, conversá y resolvé sin perder contexto.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            {!isMobile && selectedTicket ? (
+              <Button
+                ref={conversationFocusButtonRef}
+                type="button"
+                variant={conversationFocusMode ? 'secondary' : 'outline'}
+                size="sm"
+                className="h-8 gap-1.5 px-2.5 text-xs"
+                onClick={toggleConversationFocusMode}
+                aria-pressed={conversationFocusMode}
+                aria-controls="tickets-conversation-region"
+                aria-label={conversationFocusMode ? 'Salir de vista ampliada' : 'Ampliar conversación'}
+                title={conversationFocusMode ? 'Volver a la bandeja completa (Escape)' : 'Ocultar cola e inspector para ampliar la conversación'}
+              >
+                {conversationFocusMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                <span className="hidden md:inline">{conversationFocusMode ? 'Salir de vista ampliada' : 'Ampliar conversación'}</span>
+              </Button>
+            ) : null}
+            {realtimeActivity.pending > 0 ? (
               <Button
                 type="button"
-                variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
+                variant="secondary"
                 size="sm"
-                className="h-8 gap-2 rounded-full"
+                className="h-8 px-2 text-xs"
                 onClick={() => {
                   clearRealtimeActivity();
                   void refreshTickets();
                 }}
-                title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+                title={realtimeActivity.lastLabel || 'Revisar novedades'}
               >
-                <Bell className="h-4 w-4" />
-                {realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime'}
+                {realtimeActivity.pending.toLocaleString('es-AR')} novedades
               </Button>
-            </div>
-          ) : null}
-        </div>
-        {!embedded ? (
-          <div className="mt-2 flex flex-col gap-2 border-t border-border/50 pt-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <TicketFilterPopover
-              compact
-              align="start"
-              side="bottom"
-              onReset={resetOperationalFilters}
-              triggerTestId="tickets-desk-filter-button"
-              panelTestId="tickets-desk-filter-panel"
-              className="h-8 rounded-full"
-            />
-            {operationalFilterBadges.length > 0 ? (
-              <Badge
-                data-testid="tickets-desk-active-filters"
-                variant="secondary"
-                className="max-w-full gap-1 rounded-full"
-                title={operationalFilterBadges.join(' | ')}
-                aria-label={`Filtros activos: ${operationalFilterBadges.join(', ')}`}
-              >
-                <Filter className="h-3 w-3" />
-                {compactFilterSummaryLabel}
-              </Badge>
-            ) : (
-              <Badge
-                data-testid="tickets-desk-active-filters"
-                variant="outline"
-                className="gap-1 rounded-full text-muted-foreground"
-              >
-                <Filter className="h-3 w-3" />
-                Sin filtros
-              </Badge>
-            )}
-            {operationalFilterBadges.length > 0 ? (
-              <Button type="button" variant="ghost" size="sm" className="h-7 rounded-full px-2 text-xs" onClick={resetOperationalFilters}>
-                Limpiar
-              </Button>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {typeof summary?.unassigned === 'number' ? (
-              <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1">
-                <UserRound className="h-3 w-3" />
-                Sin responsable: {summary.unassigned}
-              </Badge>
             ) : null}
             <Button
+              data-testid="tickets-primary-operational-action"
               type="button"
-              variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
               size="sm"
-              className="h-8 gap-2 rounded-full"
-              onClick={() => {
-                clearRealtimeActivity();
-                void refreshTickets();
-              }}
-              title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+              className="h-8 gap-1.5 px-2.5 text-xs"
+              onClick={handlePrimaryOperationalAction}
+              aria-label={
+                nextPriorityTicket && !isNextPrioritySelected
+                  ? `Atender prioridad: ${nextPriorityCrmQueue?.label || nextPriorityLabel}. ${nextPriorityLabel}`
+                  : primaryOperationalActionLabel
+              }
             >
-              <Bell className="h-4 w-4" />
-              {realtimeActivity.pending > 0
-                ? `${realtimeActivity.pending} novedades`
-                : 'Realtime listo'}
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{primaryOperationalActionLabel}</span>
+              <span className="sm:hidden">
+                {nextPriorityTicket && !isNextPrioritySelected
+                  ? 'Prioridad'
+                  : selectedTicket
+                    ? 'Responder'
+                    : 'Actualizar'}
+              </span>
             </Button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-2 rounded-full"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
               onClick={() => void refreshTickets()}
+              aria-label="Recargar datos de la cola"
+              title="Recargar datos de la cola"
             >
-              <RefreshCw className="h-4 w-4" />
-              Actualizar
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
             </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  data-testid="tickets-workspace-tools-trigger"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 px-2.5 text-xs"
+                  aria-label={
+                    operationalFilterBadges.length
+                      ? `Más opciones, ${operationalFilterBadges.length} filtros activos`
+                      : 'Más opciones'
+                  }
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Más opciones</span>
+                  {operationalFilterBadges.length ? (
+                    <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
+                      {operationalFilterBadges.length}
+                    </span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                data-testid="tickets-workspace-tools-panel"
+                aria-label="Opciones secundarias del centro de reclamos"
+                align="end"
+                sideOffset={8}
+                className="max-h-[min(75vh,42rem)] w-[min(94vw,38rem)] overflow-y-auto rounded-lg border-border/80 p-0 shadow-2xl"
+              >
+                <div className="border-b border-border/70 px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground">Opciones de la mesa</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Indicadores, filtros y herramientas secundarias.
+                  </p>
+                </div>
+
+                <section className="space-y-2 border-b border-border/70 p-3" aria-labelledby="ticket-queue-indicators-title">
+                  <div className="flex items-center justify-between gap-2">
+                    <p id="ticket-queue-indicators-title" className="text-xs font-semibold text-foreground">
+                      Indicadores de cola
+                    </p>
+                    {typeof summary?.unassigned === 'number' ? (
+                      <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1 text-[10px]">
+                        <UserRound className="h-3 w-3" />
+                        {summary.unassigned} sin responsable
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                    <TicketOpsStat
+                      label="Abiertos"
+                      value={openTickets}
+                      helper="Casos por resolver"
+                      tone="blue"
+                      icon={Clock}
+                      onClick={() => applyQuickFilter({ status: 'all', unread: 'all', sla: 'all' })}
+                      compact
+                    />
+                    <TicketOpsStat
+                      label="Riesgo"
+                      value={riskTickets}
+                      helper="SLA vencido"
+                      tone="amber"
+                      icon={AlertTriangle}
+                      onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
+                      compact
+                    />
+                    <TicketOpsStat
+                      label="No leídos"
+                      value={unreadTickets}
+                      helper="Requieren respuesta"
+                      tone="violet"
+                      icon={Radio}
+                      onClick={() => applyQuickFilter({ unread: 'unread' })}
+                      compact
+                    />
+                    <TicketOpsStat
+                      label="Resueltos"
+                      value={resolvedTickets}
+                      helper="Cerrados o resueltos"
+                      tone="emerald"
+                      icon={CheckCircle2}
+                      onClick={() => applyQuickFilter({ status: 'resuelto' })}
+                      compact
+                    />
+                  </div>
+                </section>
+
+                <section className="space-y-2 border-b border-border/70 p-3" aria-labelledby="ticket-queue-filters-title">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p id="ticket-queue-filters-title" className="text-xs font-semibold text-foreground">
+                        Vista de la cola
+                      </p>
+                      <p
+                        data-testid={embedded ? 'tickets-embedded-active-filters' : 'tickets-desk-active-filters'}
+                        className="truncate text-[11px] text-muted-foreground"
+                        title={operationalFilterBadges.join(' | ') || 'Sin filtros'}
+                        aria-label={
+                          operationalFilterBadges.length
+                            ? `Filtros activos: ${operationalFilterBadges.join(', ')}`
+                            : 'Sin filtros activos'
+                        }
+                      >
+                        {compactFilterSummaryLabel}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <TicketFilterPopover
+                        compact
+                        align="end"
+                        side="bottom"
+                        onReset={resetOperationalFilters}
+                        triggerTestId={embedded ? 'tickets-header-filter-button' : 'tickets-desk-filter-button'}
+                        panelTestId={embedded ? 'tickets-header-filter-panel' : 'tickets-desk-filter-panel'}
+                        className="h-8"
+                      />
+                      {operationalFilterBadges.length ? (
+                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={resetOperationalFilters}>
+                          <Filter className="mr-1 h-3.5 w-3.5" />
+                          Limpiar
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {recommendedViews.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {recommendedViews.slice(0, 3).map((view, index) => (
+                        <Button
+                          key={view.id || `recommended_${index}`}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 max-w-full px-2 text-[11px]"
+                          title={view.description || view.label}
+                          onClick={() => applyRecommendedView(view.query)}
+                        >
+                          <span className="truncate">{view.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {deepLinkFocus ? (
+                    <Badge data-testid="tickets-deeplink-focus" variant="outline" className="max-w-full capitalize text-[10px]">
+                      Vista solicitada: {formatDeskDeepLinkFocus(deepLinkFocus)}
+                    </Badge>
+                  ) : null}
+                </section>
+
+                <section className="space-y-2 p-3" aria-labelledby="ticket-secondary-actions-title">
+                  <p id="ticket-secondary-actions-title" className="text-xs font-semibold text-foreground">
+                    Herramientas secundarias
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <CuadrillaFieldModal
+                      triggerButton={(
+                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                          <UserRound className="h-3.5 w-3.5" />
+                          Operación de cuadrillas
+                        </Button>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => {
+                        clearRealtimeActivity();
+                        void refreshTickets();
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Sincronizar ahora
+                    </Button>
+                  </div>
+                </section>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
-        ) : null}
       </div>
-      {!embedded ? (
-        <div className="border-b border-border/70 bg-background/65 px-3 py-2 sm:px-4">
-          <OperationalContinuityBar
-            testId="tickets-operational-continuity"
-            icon={MessageSquare}
-            tone={continuityTone}
-            title={selectedTicket ? 'Atencion del reclamo' : 'Mesa de reclamos'}
-            subtitle={
-              selectedTicket
-                ? 'Conversacion, historial y detalle permanecen conectados para responder sin perder contexto.'
-                : 'Selecciona un caso o toma la siguiente prioridad para mantener la mesa operativa.'
-            }
-            reference={selectedTicketReference}
-            statusLabel={selectedTicketStatus ?? `${openTickets} abiertos`}
-            channelLabel={selectedTicket ? selectedTicketChannel : 'WhatsApp / web'}
-            liveLabel={realtimeActivity.pending > 0 ? `${realtimeActivity.pending} novedades` : 'Realtime listo'}
-            slaLabel={selectedTicketSla ?? (riskTickets > 0 ? `${riskTickets} en riesgo` : 'SLA estable')}
-            nextActionLabel={selectedTicketNextAction}
-            primaryActionLabel={
-              nextPriorityTicket && !isNextPrioritySelected
-                ? 'Atender prioridad'
-                : selectedTicket
-                  ? 'Responder'
-                  : 'Actualizar mesa'
-            }
-            onPrimaryAction={handlePrimaryOperationalAction}
-            secondaryActionLabel="Actualizar"
-            onSecondaryAction={() => void refreshTickets()}
-            metrics={[
-              { label: 'Abiertos', value: openTickets, tone: 'default' },
-              { label: 'No leidos', value: unreadTickets, tone: unreadTickets > 0 ? 'live' : 'muted' },
-              { label: 'Riesgo', value: riskTickets, tone: riskTickets > 0 ? 'warning' : 'muted' },
-              { label: 'Resueltos', value: resolvedTickets, tone: 'success' },
-            ]}
-          />
-        </div>
-      ) : null}
       {isMobile ? (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden" data-testid="tickets-mobile-layout">
           <div className="shrink-0 border-b border-border/70 bg-card/80 px-2 py-1.5 shadow-sm">
@@ -1369,43 +1882,151 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       ) : (
         <div
           data-testid="tickets-desktop-grid"
-          className="grid h-full min-h-0 w-full flex-1 overflow-hidden"
+          className="relative grid h-full min-h-0 w-full flex-1 overflow-hidden"
+          data-conversation-focus={conversationFocusMode ? 'true' : 'false'}
+          data-detail-presentation={showDetailsAsDrawer ? 'drawer' : showDetailsAsColumn ? 'column' : showDetailsDock ? 'dock' : 'collapsed'}
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
-          {isSidebarVisible && (
-            <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70" data-testid="tickets-list-region">
+          {effectiveSidebarVisible && (
+            <section
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border/70"
+              data-testid="tickets-list-region"
+              aria-labelledby="tickets-queue-column-title"
+            >
+              <TicketWorkspaceColumnHeader
+                id="tickets-queue-column-title"
+                step={1}
+                title="Cola priorizada"
+                description="Casos ordenados por urgencia y actividad pendiente."
+              />
               <Sidebar
                 compact={embedded}
                 showFilterControl={isMobile && !embedded}
                 showListSummaryBar={false}
-                className="h-full w-full shrink-0"
+                showQueueMetrics={false}
+                className="min-h-0 flex-1 border-r-0"
+              />
+            </section>
+          )}
+
+          <section
+            className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+            data-testid="tickets-conversation-region"
+            id="tickets-conversation-region"
+            aria-labelledby={conversationFocusMode ? undefined : 'tickets-conversation-column-title'}
+            aria-label={conversationFocusMode ? 'Conversación ampliada' : undefined}
+          >
+            {!conversationFocusMode ? (
+              <TicketWorkspaceColumnHeader
+                id="tickets-conversation-column-title"
+                step={2}
+                title="Caso y conversación"
+                description="Intercambio con el vecino y acciones principales del caso."
+              />
+            ) : null}
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <ConversationPanel
+                isMobile={false}
+                isSidebarVisible={effectiveSidebarVisible}
+                isDetailsVisible={effectiveDetailsVisible}
+                onToggleSidebar={handleToggleDesktopSidebar}
+                onToggleDetails={handleToggleDesktopDetails}
+                canToggleSidebar
+                showDetailsToggle
+                operationalWorkspace
               />
             </div>
-          )}
+          </section>
 
-          <div className="min-h-0 min-w-0 overflow-hidden" data-testid="tickets-conversation-region">
-            <ConversationPanel
-              isMobile={false}
-              isSidebarVisible={isSidebarVisible}
-              isDetailsVisible={isDetailsVisible}
-              onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
-              onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
-              canToggleSidebar
-              showDetailsToggle
-              desktopView={desktopView}
-              setDesktopView={setDesktopView}
+          {showDetailsDock ? (
+            <TicketInspectorDock
+              buttonRef={detailsDockButtonRef}
+              onOpen={handleToggleDesktopDetails}
             />
-          </div>
+          ) : null}
 
-          {isDetailsVisible && (
-            <div className="min-h-0 min-w-0 overflow-hidden border-l border-border/70" data-testid="tickets-detail-region">
-              <DetailsPanel className="h-full w-full" />
-            </div>
+          {showDetailsAsColumn && (
+            <section
+              id="tickets-resolution-panel"
+              className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70"
+              data-testid="tickets-detail-region"
+              data-inspector-width={renderedDetailsWidth}
+              aria-labelledby="tickets-resolution-column-title"
+              style={{ width: renderedDetailsWidth, minWidth: DETAIL_MIN_WIDTH, maxWidth: DETAIL_MAX_WIDTH }}
+            >
+              <TicketInspectorResizeHandle
+                width={renderedDetailsWidth}
+                maxWidth={activeDetailMaxWidth}
+                onPointerDown={handleInspectorResizePointerDown}
+                onKeyDown={handleInspectorResizeKeyDown}
+              />
+              <TicketWorkspaceColumnHeader
+                id="tickets-resolution-column-title"
+                step={3}
+                title="Resolución guiada"
+                description="Siguiente paso, responsable y herramientas para resolver."
+              />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <DetailsPanel
+                  className="h-full w-full border-l-0"
+                  onClose={conversationFocusMode ? closeFocusedDetails : closeDesktopDetails}
+                  operationalWorkspace
+                />
+              </div>
+            </section>
           )}
+
+          <AnimatePresence initial={false}>
+            {showDetailsAsDrawer ? (
+              <motion.section
+                id="tickets-resolution-panel"
+                key="ticket-details-drawer"
+                initial={{ opacity: 0, x: 28 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 28 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="absolute inset-y-0 right-0 z-30 flex min-w-0 max-w-[calc(100%-3rem)] flex-col overflow-hidden border-l border-border/80 bg-background shadow-[-18px_0_42px_rgba(15,23,42,0.24)]"
+                data-testid="tickets-detail-drawer"
+                data-inspector-width={renderedDetailsWidth}
+                aria-labelledby="tickets-resolution-drawer-title"
+                aria-modal="false"
+                role="dialog"
+                ref={detailsDrawerRef}
+                style={{ width: renderedDetailsWidth }}
+              >
+                <TicketInspectorResizeHandle
+                  width={renderedDetailsWidth}
+                  maxWidth={activeDetailMaxWidth}
+                  onPointerDown={handleInspectorResizePointerDown}
+                  onKeyDown={handleInspectorResizeKeyDown}
+                />
+                <TicketWorkspaceColumnHeader
+                  id="tickets-resolution-drawer-title"
+                  step={3}
+                  title="Resolución guiada"
+                  description="Inspector adaptable con siguiente paso, responsable y herramientas para resolver."
+                />
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <DetailsPanel
+                    className="h-full w-full border-l-0"
+                    onClose={conversationFocusMode ? closeFocusedDetails : closeDesktopDetails}
+                    operationalWorkspace
+                  />
+                </div>
+              </motion.section>
+            ) : null}
+          </AnimatePresence>
         </div>
       )}
-      <Toaster richColors />
     </Card>
+    {conversationFocusMode ? (
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px]"
+        data-testid="tickets-focus-backdrop"
+      />
+    ) : null}
+    </>
   );
 };
 

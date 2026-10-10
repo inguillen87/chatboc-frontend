@@ -8,10 +8,29 @@ declare global {
 }
 
 let refreshToastId: string | number | undefined;
-let localCleanupStarted = false;
+let ephemeralCleanupStarted = false;
 let pwaSetupStarted = false;
 let registrationErrorCount = 0;
 let registrationRetryTimer: number | undefined;
+let publicRefreshInteractionObserved = false;
+
+const isPublicTenantEntry = (pathname: string) => /^\/t\/[^/]+\/?$/.test(pathname);
+
+const observePublicRefreshInteraction = () => {
+  if (isPublicTenantEntry(window.location.pathname)) publicRefreshInteractionObserved = true;
+};
+
+const publicTenantRefreshHasWork = () => {
+  if (publicRefreshInteractionObserved) return true;
+  // Open chats (including desktop), dialogs and pending reads retain the
+  // explicit update action. Never dismiss the user's draft or audio reading.
+  if (document.querySelector('.chat-root, [role="dialog"], [aria-busy="true"]')) return true;
+  if (document.querySelector('audio[src], video[src]')) return true;
+  return Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="hidden"]), textarea')).some(field => {
+    if (field instanceof HTMLInputElement && (field.type === 'checkbox' || field.type === 'radio')) return field.checked !== field.defaultChecked;
+    return field.value.trim().length > 0;
+  }) || Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"]')).some(field => Boolean(field.textContent?.trim()));
+};
 
 const REGISTRATION_RETRY_DELAYS_MS = [1_000, 5_000];
 const PRIVACY_PWA_CONTRACT_CACHE = 'chatboc-pwa-contract-api-network-only-v1';
@@ -38,6 +57,8 @@ const PUBLIC_RUNTIME_PREFIXES = [
   '/precios',
   '/casos',
   '/opinar',
+  '/encuestas',
+  '/e/',
   '/login',
   '/register',
   '/widget',
@@ -52,6 +73,11 @@ const PANEL_RUNTIME_PREFIXES = [
   '/integracion',
 ];
 
+// `/perfil` is the authenticated shell entry point but does not contain a
+// long-lived unsaved operation on initial load. Applying a waiting worker here
+// prevents an old lazy-chunk graph from breaking deep links after a release.
+const SAFE_AUTHENTICATED_REFRESH_PREFIXES = ['/perfil'];
+
 const dismissRefreshToast = () => {
   if (refreshToastId === undefined) {
     return;
@@ -61,12 +87,25 @@ const dismissRefreshToast = () => {
   refreshToastId = undefined;
 };
 
-const shouldAutoApplyPublicRefresh = () => {
+const clearRefreshToastHandle = (closedToast: { id: string | number }) => {
+  if (refreshToastId === closedToast.id) {
+    refreshToastId = undefined;
+  }
+};
+
+export const shouldAutoApplyPublicRefresh = () => {
   if (typeof window === 'undefined') return false;
 
   const pathname = window.location.pathname || '/';
+  // Only the exact public organization entry is eligible. Tenant management,
+  // surveys, checkout and all other nested routes keep the existing prompt.
+  if (isPublicTenantEntry(pathname)) return !publicTenantRefreshHasWork();
   if (PANEL_RUNTIME_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return false;
+  }
+
+  if (SAFE_AUTHENTICATED_REFRESH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return true;
   }
 
   return PUBLIC_RUNTIME_PREFIXES.some((prefix) =>
@@ -79,9 +118,35 @@ const isLocalPreviewHost = () => {
   return LOCAL_PREVIEW_HOSTS.has(window.location.hostname);
 };
 
-const cleanupLocalPwaRuntime = async () => {
-  if (localCleanupStarted) return;
-  localCleanupStarted = true;
+const isLocalPwaLifecycleVerification = () => {
+  if (typeof window === 'undefined' || !isLocalPreviewHost()) return false;
+
+  const params = new URLSearchParams(window.location.search);
+  const hashQuery = window.location.hash.includes('?')
+    ? window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+    : '';
+  const hashParams = new URLSearchParams(hashQuery);
+  const hasVerificationFlag = (name: string) => params.has(name) || hashParams.has(name);
+
+  return (
+    hasVerificationFlag('pwa-lifecycle-e2e') ||
+    hasVerificationFlag('pwa-offline') ||
+    hasVerificationFlag('pwa-privacy-upgrade')
+  );
+};
+
+export const shouldDisablePwaForHost = (hostname?: string | null) => {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  return (
+    LOCAL_PREVIEW_HOSTS.has(normalized) ||
+    normalized === 'preview.chatboc.ar' ||
+    normalized.endsWith('.vercel.app')
+  );
+};
+
+const cleanupEphemeralPwaRuntime = async () => {
+  if (ephemeralCleanupStarted) return;
+  ephemeralCleanupStarted = true;
 
   const registrations = await navigator.serviceWorker.getRegistrations();
   await Promise.all(
@@ -99,8 +164,8 @@ const cleanupLocalPwaRuntime = async () => {
     );
   }
 
-  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-local-pwa-cleaned')) {
-    sessionStorage.setItem('chatboc-local-pwa-cleaned', '1');
+  if (navigator.serviceWorker.controller && !sessionStorage.getItem('chatboc-ephemeral-pwa-cleaned')) {
+    sessionStorage.setItem('chatboc-ephemeral-pwa-cleaned', '1');
     window.location.reload();
   }
 };
@@ -226,6 +291,9 @@ const registerPwaWorker = () => {
 
             refreshToastId = toast('Nueva version disponible', {
               description: 'Actualiza para recibir las ultimas mejoras.',
+              duration: Infinity,
+              onDismiss: clearRefreshToastHandle,
+              onAutoClose: clearRefreshToastHandle,
               action: {
                 label: 'Actualizar',
                 onClick: () => {
@@ -268,15 +336,26 @@ export const setupPWA = () => {
     return;
   }
 
-  if (import.meta.env.DEV && isLocalPreviewHost()) {
-    cleanupLocalPwaRuntime().catch((error) => {
-      console.warn('Local PWA cleanup skipped', error);
+  // Vercel aliases are release-verification surfaces, not installable PWA
+  // origins. A worker registered on a stable Preview alias can combine a
+  // cached HTML shell from release A with immutable chunks from release B.
+  // Keep PWA support on production/custom domains and make Preview deterministic.
+  const allowLocalLifecycleVerification = import.meta.env.PROD && isLocalPwaLifecycleVerification();
+  if (
+    !allowLocalLifecycleVerification &&
+    ((import.meta.env.DEV && isLocalPreviewHost()) || shouldDisablePwaForHost(window.location.hostname))
+  ) {
+    cleanupEphemeralPwaRuntime().catch((error) => {
+      console.warn('Ephemeral PWA cleanup skipped', error);
     });
     return;
   }
 
   if (pwaSetupStarted) return;
   pwaSetupStarted = true;
+  for (const event of ['pointerdown', 'keydown', 'input']) {
+    document.addEventListener(event, observePublicRefreshInteraction, {capture:true, passive:true});
+  }
   removeLegacySensitiveApiCaches().catch((error) => {
     console.warn('Legacy PWA API cache cleanup failed', error);
   });

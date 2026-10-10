@@ -5,6 +5,7 @@ import { getOrCreateAnonId } from "@/utils/anonId";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import { createLeadCaptureIdempotencyKey } from "@/utils/leadCapture";
 import type { TicketCollaborationState } from "@/types/tickets";
+import { exactAssignmentId } from "@/utils/ticketAssignmentSnapshot";
 
 export type DemoRubro = "municipio" | "pyme";
 
@@ -953,7 +954,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<CatalogQualityResponse>(
       `/api/admin/catalog/quality?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -967,7 +968,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<LeadsPipelineResponse>(
       `/api/admin/leads/pipeline?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1036,7 +1037,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<StrategicOverviewResponse>(
       `/api/admin/leads/strategic-overview?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1077,7 +1078,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<LeadInteractionsResponse>(
       `/api/admin/leads/interactions?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1150,6 +1151,7 @@ export const enterpriseService = {
   trackEvent: async (
     payload: {
       tenant_id?: number;
+      tenant_profile_id?: number;
       event_name?: string;
       event?: string;
       payload?: Record<string, unknown>;
@@ -1171,6 +1173,10 @@ export const enterpriseService = {
         typeof payload.tenant_id === "number" &&
         Number.isFinite(payload.tenant_id)
           ? payload.tenant_id
+          : undefined,
+      tenant_profile_id:
+        typeof payload.tenant_profile_id === "number" && Number.isFinite(payload.tenant_profile_id)
+          ? payload.tenant_profile_id
           : undefined,
       tenant_slug: tenantSlug || undefined,
       event_name: eventName,
@@ -1300,12 +1306,17 @@ export const enterpriseService = {
 
   autoAssignTenantTicket: async (
     tenantSlug: string,
-    ticketType: string,
+    ticketType: 'municipio' | 'pyme',
     ticketId: string | number,
-    payload: { required_permission?: string } = {},
+    payload: { required_permission?: string; expected_assignee_id: string | number | null },
   ) => {
+    exactAssignmentId(ticketId);
+    if (!tenantSlug.trim() || !['municipio', 'pyme'].includes(ticketType) || !payload || !Object.hasOwn(payload, 'expected_assignee_id')) {
+      throw new ApiError('La asignación requiere un caso y responsable actual verificables.', 400);
+    }
+    if (payload.expected_assignee_id !== null) exactAssignmentId(payload.expected_assignee_id);
     return apiFetch<any>(
-      `/api/admin/tenants/${tenantSlug}/tickets/${ticketType}/${ticketId}/auto-assign`,
+      `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/tickets/${ticketType}/${encodeURIComponent(String(ticketId))}/auto-assign`,
       {
         method: "POST",
         body: payload,
@@ -1331,7 +1342,7 @@ export const enterpriseService = {
   getGlobalEncuestasOverview: async (tenantSlug?: string) => {
     return apiFetch<{ items?: any[]; totals?: any }>(
       `/api/admin/encuestas/overview`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1359,9 +1370,14 @@ export const enterpriseService = {
     tenantSlug?: string,
   ) => {
     const query = buildQueryString(filters);
-    const canonicalPath = tenantSlug
-      ? `/api/v2/tenants/${encodeURIComponent(tenantSlug)}/health${query ? `?${query}` : ""}`
-      : `/api/v2/tenant-health${query ? `?${query}` : ""}`;
+    // /api/v2/tenant-health resolves one tenant; the platform needs the collection.
+    if (!tenantSlug) {
+      return apiFetch<{ items?: any[] }>(
+        `/api/admin/analytics/tenant-health${query ? `?${query}` : ""}`,
+        { omitTenant: true },
+      );
+    }
+    const canonicalPath = `/api/v2/tenants/${encodeURIComponent(tenantSlug)}/health${query ? `?${query}` : ""}`;
     return apiFetchWithFallback<{ items?: any[] }>(
       canonicalPath,
       `/api/admin/analytics/tenant-health?${query}`,
@@ -1432,7 +1448,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<RealtimeAiOverviewResponse>(
       `/api/admin/analytics/realtime-ai?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 
@@ -1443,7 +1459,7 @@ export const enterpriseService = {
     const query = buildQueryString(filters);
     return apiFetch<StrategicHeatmapResponse>(
       `/api/admin/analytics/heatmap-categories-zones?${query}`,
-      { tenantSlug },
+      { tenantSlug, omitTenant: !tenantSlug },
     );
   },
 

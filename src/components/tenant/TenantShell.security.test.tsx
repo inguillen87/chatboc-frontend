@@ -77,6 +77,8 @@ describe('TenantShell public navigation security', () => {
     });
 
     renderShell();
+    expect(screen.getByText('Gobierno')).toBeVisible();
+    expect(screen.queryByText('municipio')).not.toBeInTheDocument();
 
     expect(await screen.findByRole('link', { name: 'Encuestas seguras' })).toHaveAttribute(
       'href',

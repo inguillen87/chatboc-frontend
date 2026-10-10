@@ -3,10 +3,16 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { usePanelSessionStore } from '@/stores';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser, UserProvider } from './useUser';
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
+import profileFixture from '../../tests/fixtures/organization-profile-settings.json';
+import workspaceFixtures from '../../tests/fixtures/organization-workspaces.json';
+import {retirementProof} from '../../tests/fixtures/session-retirement.synthetic';
+import {captureSessionRetirement} from '@/utils/sessionRetirement';
+import { privateWorkspacePresentation } from '@/utils/privateWorkspaceIdentity';
+import { hasOrganizationIdentityContracts } from '@/utils/verifiedOrganizationIdentity';
 
 const SessionVisibleUserProbe = () => {
   const { user } = useUser();
@@ -21,6 +27,21 @@ const VerifiedClerkBridgeProbe = () => {
   return <div>verified profile hydration</div>;
 };
 
+const InstitutionalVerificationProbe = () => {
+  const { user, organizationProfileVerified } = useUser();
+  return <output data-testid="institutional-verification">{`${user?.tenant_slug}|${organizationProfileVerified}`}</output>;
+};
+const LegacyOrganizationPresentationProbe = () => {
+  const { user, organizationProfileVerified, loading, hasVerifiedSession } = useUser();
+  const presentation = privateWorkspacePresentation({pathname: '/perfil', search: '', user,
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading});
+  return <output data-testid="legacy-organization-presentation">
+    {`${presentation.identity?.name || 'neutral'}|${hasOrganizationIdentityContracts(user)}|${organizationProfileVerified}`}
+  </output>;
+};
+const verifiedAuthority = { clerkStatus: 'disabled' as const, hasBearerSession: true, hasVerifiedSession: true };
+const jwt = (id: number) => `header.${btoa(JSON.stringify({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600 }))}.signature`;
+
 describe('UserProvider Clerk cookie profile hydration', () => {
   beforeEach(() => {
     vi.mocked(apiFetch).mockReset().mockResolvedValue({
@@ -33,6 +54,83 @@ describe('UserProvider Clerk cookie profile hydration', () => {
     });
     safeLocalStorage.clear();
     usePanelSessionStore.setState({ authToken: null, user: null });
+  });
+
+  it('preserves authenticated institutional contracts separately from the personal avatar', async () => {
+    safeLocalStorage.setItem('authProvider', 'clerk');
+    safeLocalStorage.setItem('clerkUserId', 'user_clerk_cookie');
+    const workspace = { ...workspaceFixtures.gobierno, tenant: profileFixture.tenant };
+    const platform = { contract_version: 'platform.workspace.v1', heading: 'Administración de plataforma' };
+    vi.mocked(apiFetch).mockResolvedValue({ id: 42, name: 'Operator', rol: 'tenant_admin', tipo_chat: 'municipio', rubro: 'gobierno',
+      tenant_slug: 'tenant-a', organization_profile: profileFixture, organization_workspace: workspace, platform_workspace: platform });
+    render(<UserProvider><VerifiedClerkBridgeProbe /></UserProvider>);
+    await waitFor(() => expect(usePanelSessionStore.getState().user).toMatchObject({
+      organization_profile: profileFixture, organization_workspace: workspace, platform_workspace: platform, tenant_slug: 'tenant-a',
+    }));
+  });
+  it('registers verified cookie-only /me authority without persisting its proof in the profile',async()=>{
+    safeLocalStorage.setItem('authProvider','clerk');safeLocalStorage.setItem('clerkUserId','synthetic-clerk-user');
+    vi.mocked(apiFetch).mockResolvedValue({id:42,rol:'tenant_admin',tipo_chat:'municipio',rubro:'gobierno',session_retirement:retirementProof({actor_id:'42',provider:'clerk',clerk_session_id:'synthetic-sid-a'})});
+    render(<UserProvider><VerifiedClerkBridgeProbe/></UserProvider>);
+    await waitFor(()=>expect(captureSessionRetirement('42')?.clerk_session_id).toBe('synthetic-sid-a'));
+    expect(safeLocalStorage.getItem('user')).not.toContain('synthetic-proof-a');
+  });
+
+  it('revalidates a complete persisted profile once after reload and hides institutional identity until the response', async () => {
+    const token = jwt(42);
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'operator@example.test', rol: 'tenant_admin', rubro: 'gobierno', tenant_slug: 'tenant-a' } });
+    let finish!: (value: unknown) => void;
+    vi.mocked(apiFetch).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-a|false');
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ id: 42, rol: 'tenant_admin', rubro: 'gobierno', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-a|true');
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a verified legacy organization when fresh hydration omits both organization contracts', async () => {
+    const token = jwt(42);
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({authToken: token, user: {id: '42', rol: 'tenant_admin', tenant_slug: 'qa-legacy'}});
+    vi.mocked(apiFetch).mockResolvedValue({id: 42, name: 'Personal operator', rol: 'tenant_admin',
+      tipo_chat: 'pyme', rubro: 'pyme', nombre_empresa: 'Verified legacy organization', tenant_slug: 'qa-legacy'});
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}>
+      <LegacyOrganizationPresentationProbe />
+    </SessionAuthorityProvider></UserProvider>);
+    await waitFor(() => expect(screen.getByTestId('legacy-organization-presentation'))
+      .toHaveTextContent('Verified legacy organization|false|true'));
+    expect(apiFetch).toHaveBeenCalledOnce();
+    expect(usePanelSessionStore.getState().user).toHaveProperty('organization_profile', undefined);
+    expect(usePanelSessionStore.getState().user).toHaveProperty('organization_workspace', undefined);
+  });
+
+  it('does not verify a late profile response after the credential session changes', async () => {
+    const token = jwt(42);
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'a@example.test', rol: 'tenant_admin', rubro: 'gobierno', tenant_slug: 'tenant-a' } });
+    let finishOld!: (value: unknown) => void;
+    vi.mocked(apiFetch).mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    vi.mocked(apiFetch).mockResolvedValue({ id: 43, rol: 'tenant_admin', tipo_chat: 'municipio', rubro: 'gobierno', tenant_slug: 'tenant-b' });
+    act(() => { usePanelSessionStore.getState().setAuthToken(jwt(43)); usePanelSessionStore.getState().setUser({ id: '43', email: 'b@example.test', rol: 'tenant_admin', tenant_slug: 'tenant-b' }); });
+    await waitFor(() => expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-b|true'));
+    await act(async () => finishOld({ id: 42, rol: 'tenant_admin', tipo_chat: 'municipio', tenant_slug: 'tenant-a' }));
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('tenant-b|true');
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+  it('retires a native panel session when its isolated profile is actually denied with 401', async () => {
+    const token = 'synthetic-native-panel-session';
+    safeLocalStorage.setItem('authToken', token);
+    usePanelSessionStore.setState({ authToken: token, user: { id: '42', email: 'operator@example.test', rol: 'admin', tenant_slug: 'tenant-a' } });
+    vi.mocked(apiFetch).mockRejectedValue(new ApiError('Session expired', 401));
+    render(<UserProvider><SessionAuthorityProvider value={verifiedAuthority}><InstitutionalVerificationProbe /></SessionAuthorityProvider></UserProvider>);
+    await waitFor(() => expect(usePanelSessionStore.getState().authToken).toBeNull());
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
+    expect(safeLocalStorage.getItem('user')).toBeNull();
+    expect(apiFetch).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('institutional-verification')).toHaveTextContent('false');
   });
 
   it.each(['loading', 'signed_out'] as const)(
@@ -144,10 +242,32 @@ describe('UserProvider Clerk cookie profile hydration', () => {
         expect.objectContaining({
           omitEntityToken: true,
           omitTenant: true,
+          isWidgetRequest: false,
+          omitChatSessionId: true,
+          omitCredentials: false,
+          persistTenantSlug: false,
+          singleAttempt: true,
+          allowStartupRecovery: true,
+          isCurrent: expect.any(Function),
           preserveAuthOn401: true,
           suppressPanel401Redirect: true,
         }),
       );
     });
+  });
+});
+
+
+describe('institutional consumers receive the actual session authority', () => {
+  const AuthorityProbe=()=>{const session=useUser();return <output data-testid="authority">{String(session.hasVerifiedSession)}</output>;};
+  it.each([true,false])('exposes the verified-session flag %s without synthesizing it from a profile',verified=>{
+    render(<SessionAuthorityProvider value={{clerkStatus:verified?'ready':'signed_out',hasBearerSession:false,hasVerifiedSession:verified}}><AuthorityProbe/></SessionAuthorityProvider>);
+    expect(screen.getByTestId('authority')).toHaveTextContent(String(verified));
+  });
+  it('immediately revokes the same consumer when session authority changes',()=>{
+    const view=render(<SessionAuthorityProvider value={{clerkStatus:'ready',hasBearerSession:false,hasVerifiedSession:true}}><AuthorityProbe/></SessionAuthorityProvider>);
+    expect(screen.getByTestId('authority')).toHaveTextContent('true');
+    view.rerender(<SessionAuthorityProvider value={{clerkStatus:'signed_out',hasBearerSession:false,hasVerifiedSession:false}}><AuthorityProbe/></SessionAuthorityProvider>);
+    expect(screen.getByTestId('authority')).toHaveTextContent('false');
   });
 });

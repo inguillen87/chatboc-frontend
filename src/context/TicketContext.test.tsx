@@ -184,6 +184,27 @@ const TicketTargetConsumer = () => {
   );
 };
 
+const OpaqueTicketTargetConsumer = ({
+  ticketId,
+  sourceModel,
+}: {
+  ticketId: string;
+  sourceModel: 'TenantTicket' | 'MunicipioTicket' | 'PymeTicket';
+}) => {
+  const { selectedTicket, ticketTargetResolution, resolveTicketTarget } = useTickets();
+  return (
+    <div>
+      <span data-testid="opaque-target-status">{ticketTargetResolution.status}</span>
+      <span data-testid="opaque-target-id">{ticketTargetResolution.ticketId ?? 'none'}</span>
+      <span data-testid="opaque-target-source">{ticketTargetResolution.sourceModel ?? 'none'}</span>
+      <span data-testid="opaque-target-selection">{selectedTicket?.nro_ticket ?? 'none'}</span>
+      <button type="button" onClick={() => void resolveTicketTarget(ticketId, sourceModel)}>
+        resolver identidad opaca
+      </button>
+    </div>
+  );
+};
+
 
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
@@ -360,6 +381,55 @@ describe('TicketContext unread delta reconciliation', () => {
     expect(getTicketsMock).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the hydrated inbox mounted while a collection invalidation revalidates silently', async () => {
+    render(
+      <TicketProvider>
+        <CachedInboxConsumer />
+      </TicketProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cached-selected-ticket')).toHaveTextContent('REC-1');
+      expect(screen.getByTestId('cached-loading')).toHaveTextContent('false');
+    });
+
+    let resolveRefresh: (value: unknown) => void = () => {};
+    getTicketsMock.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRefresh = resolve;
+    }));
+
+    act(() => {
+      ticketUpdateHandlers.onCollectionInvalidated?.({
+        contract_version: 'tickets.collection.invalidated.v1',
+        resource: 'tickets',
+        reason: 'collection_changed',
+        refetch: true,
+      });
+    });
+
+    await waitFor(() => expect(getTicketsMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('cached-selected-ticket')).toHaveTextContent('REC-1');
+    expect(screen.getByTestId('cached-loading')).toHaveTextContent('false');
+
+    act(() => {
+      resolveRefresh({
+        tickets: [
+          {
+            id: 1,
+            tipo: 'municipio',
+            nro_ticket: 'REC-1',
+            asunto: 'Alumbrado actualizado',
+            estado: 'abierto',
+            fecha: '2026-03-21T10:00:00.000Z',
+            categoria: 'General',
+          },
+        ],
+      });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('cached-loading')).toHaveTextContent('false'));
+  });
+
   it('keeps cached tickets visible but surfaces auth errors from the live refresh', async () => {
     getTicketsMock.mockRejectedValueOnce(
       new ApiError('Acceso prohibido', 403, { error: 'forbidden' }),
@@ -454,7 +524,7 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('target-selected-ticket').textContent).toBe('REC-99');
       expect(screen.getByTestId('target-ticket-count').textContent).toBe('2');
     });
-    expect(getInboxTicketByIdMock).toHaveBeenCalledWith(99, {
+    expect(getInboxTicketByIdMock).toHaveBeenCalledWith('99', {
       tenantSlug: 'demo',
     });
   });
@@ -501,11 +571,54 @@ describe('TicketContext unread delta reconciliation', () => {
       expect(screen.getByTestId('target-resolution-source').textContent).toBe('PymeTicket');
       expect(screen.getByTestId('target-selected-ticket').textContent).toBe('P-99');
     });
-    expect(getInboxTicketByIdMock).toHaveBeenCalledWith(99, {
+    expect(getInboxTicketByIdMock).toHaveBeenCalledWith('99', {
       tenantSlug: 'demo',
       sourceModel: 'PymeTicket',
     });
   });
+
+  it.each([
+    ['0000419', 'TenantTicket', 'T-0000419'],
+    ['9007199254740993123', 'MunicipioTicket', 'M-9007199254740993123'],
+    ['case:2026/08/30-A', 'PymeTicket', 'P-CASE-A'],
+  ] as const)(
+    'mantiene la identidad opaca %s al resolver %s dentro del tenant activo',
+    async (ticketId, sourceModel, ticketNumber) => {
+      getInboxTicketByIdMock.mockResolvedValueOnce({
+        id: ticketId,
+        ticket_id: ticketId,
+        tipo: sourceModel === 'PymeTicket' ? 'pyme' : 'municipio',
+        source_model: sourceModel,
+        nro_ticket: ticketNumber,
+        asunto: 'Caso territorial exacto',
+        estado: 'abierto',
+        fecha: '2026-08-30T10:00:00.000Z',
+        categoria: 'Luminarias',
+      });
+
+      render(
+        <TicketProvider>
+          <OpaqueTicketTargetConsumer ticketId={ticketId} sourceModel={sourceModel} />
+        </TicketProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('opaque-target-selection').textContent).toBe('REC-1');
+      });
+      fireEvent.click(screen.getByRole('button', { name: /resolver identidad opaca/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('opaque-target-status').textContent).toBe('resolved');
+        expect(screen.getByTestId('opaque-target-id').textContent).toBe(ticketId);
+        expect(screen.getByTestId('opaque-target-source').textContent).toBe(sourceModel);
+        expect(screen.getByTestId('opaque-target-selection').textContent).toBe(ticketNumber);
+      });
+      expect(getInboxTicketByIdMock).toHaveBeenCalledWith(ticketId, {
+        tenantSlug: 'demo',
+        sourceModel,
+      });
+    },
+  );
 
   it('clears and locks selection when the requested ticket is not authorized', async () => {
     getInboxTicketByIdMock.mockRejectedValueOnce(

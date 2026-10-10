@@ -1,6 +1,7 @@
 import { apiFetch } from '@/utils/api';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 import type { ClerkAuthIntent } from '@/utils/clerkAuthContext';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 
 export interface ClerkEmailAddressPayload {
   id?: string | null;
@@ -112,6 +113,7 @@ export interface ClerkOnboardingModalContract {
 export interface ClerkSessionResponse {
   contract_version: 'auth.clerk.v1';
   token?: string | null;
+  session_retirement?:SessionRetirementProof;
   auth_provider: 'clerk';
   auth_intent?: ClerkAuthIntent;
   audience?: 'tenant_owner' | 'tenant_portal' | string;
@@ -201,7 +203,7 @@ const clerkHeaders = (token: string) => ({
 });
 
 export const fetchClerkFrontendConfig = () =>
-  apiFetch<ClerkFrontendConfigResponse>('/auth/clerk/config', {
+  apiFetch<ClerkFrontendConfigResponse>('/api/auth/clerk/config', {
     method: 'GET',
     skipAuth: true,
     suppressPanel401Redirect: true,
@@ -216,18 +218,20 @@ export const syncClerkSession = (
   token: string,
   user: ClerkUserProfilePayload,
   context: { intent?: ClerkAuthIntent; tenant_slug?: string | null } = {},
+  signal?: AbortSignal,
 ) =>
-  apiFetch<ClerkSessionResponse>('/auth/clerk/session', {
+  apiFetch<ClerkSessionResponse>('/api/auth/clerk/session', {
     method: 'POST',
     skipAuth: true,
     omitTenant: true,
     omitCredentials: false,
     headers: clerkHeaders(token),
     body: { user, ...context },
+    ...(signal ? { signal } : {}),
   });
 
 export const completeClerkOnboarding = (token: string, payload: ClerkOnboardingPayload) =>
-  apiFetch<ClerkSessionResponse>('/auth/clerk/onboarding', {
+  apiFetch<ClerkSessionResponse>('/api/auth/clerk/onboarding', {
     method: 'POST',
     skipAuth: true,
     omitTenant: true,

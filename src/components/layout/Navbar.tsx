@@ -1,10 +1,19 @@
+import {PrivateWorkspaceBrand} from '@/components/brand/PrivateWorkspaceBrand';
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
+import {InstitutionalAccessBrand} from '@/components/brand/InstitutionalAccessBrand';
+import {readPanelLoginScope} from '@/utils/panelLoginScope';
+import '@/components/auth/panelLogin.css';
 // src/components/layout/Navbar.tsx
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link as RouterLink, useLocation } from "react-router-dom";
+import { Link as RouterLink, useLocation,useNavigate } from "react-router-dom";
 import {
+  Activity,
   BarChart3,
+  BookOpen,
+  Building2,
   ClipboardList,
+  CreditCard,
   Database,
   Layout,
   LogOut,
@@ -13,10 +22,11 @@ import {
   Moon,
   ScrollText,
   ShoppingCart,
+  Settings,
+  ShieldCheck,
   Sun,
   Tag,
   Ticket as TicketIcon,
-  User,
   UserCog,
   Users,
   X,
@@ -31,6 +41,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -39,16 +50,18 @@ import { useCapabilities } from "@/context/CapabilitiesContext";
 import { useSessionAuthority } from "@/components/access/SessionAuthorityContext";
 import { useTenant } from "@/context/TenantContext";
 import useCartCount from "@/hooks/useCartCount";
-import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { useUser } from "@/hooks/useUser";
 import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getValidStoredToken } from "@/utils/authTokens";
-import { buildTenantPath } from "@/utils/tenantPaths";
+import { buildTenantPath, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { TICKET_DESK_PATH } from "@/utils/backofficeRoutes";
 import { resolveConsentedAvatar } from "@/utils/avatarConsent";
 import { ORDER_READ_CAPABILITIES, TICKET_READ_CAPABILITIES } from "@/utils/moduleCapabilities";
 import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionLogout";
+import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
+import { readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
+import { hasOrganizationIdentityContracts, readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 
 interface AdminNavLink {
   to: string;
@@ -59,12 +72,10 @@ interface AdminNavLink {
 }
 
 const landingNavItems = [
-  { id: "problemas", label: "Problemas" },
-  { id: "solucion", label: "Solución" },
-  { id: "como-funciona", label: "Cómo funciona" },
-  { id: "precios", label: "Precios" },
-  { id: "publico-objetivo", label: "Sectores" },
-  { id: "cta", label: "Empezar" },
+  { id: "sistema-operativo", label: "Plataforma" },
+  { id: "solucion", label: "Soluciones" },
+  { id: "demos", label: "Casos" },
+  { id: "precios", label: "Planes" },
 ];
 
 const MOBILE_MENU_ID = "chatboc-mobile-navigation";
@@ -81,31 +92,6 @@ const getScrollBehavior = (): ScrollBehavior => {
 const isRecord = (value: unknown): value is Record<string, any> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const readLandingNavItems = (navigation: unknown) => {
-  const rawItems = (() => {
-    if (Array.isArray(navigation)) return navigation;
-    if (isRecord(navigation)) {
-      if (Array.isArray(navigation.items)) return navigation.items;
-      if (Array.isArray(navigation.links)) return navigation.links;
-    }
-    return [];
-  })();
-
-  const items = rawItems
-    .map((item) => {
-      if (!isRecord(item)) return null;
-      const label = String(item.label || item.title || item.name || "").trim();
-      const target = String(item.id || item.section_id || item.href || item.to || item.route || "").trim();
-      if (!label || !target) return null;
-      const id = target.replace(/^\/?#/, "").replace(/^\/+/, "");
-      return { id, label };
-    })
-    .filter((item): item is (typeof landingNavItems)[number] => Boolean(item))
-    .filter((item) => item.id.toLowerCase() !== "opinar" && item.label.toLowerCase() !== "opinar");
-
-  return items.length ? items : landingNavItems;
-};
-
 const parseStoredUser = (raw: string | null) => {
   if (!raw) return null;
   try {
@@ -118,19 +104,27 @@ const parseStoredUser = (raw: string | null) => {
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef=useRef<HTMLElement>(null);
+  const privateBrandRef=useRef<HTMLAnchorElement>(null);
+  const privateShell=usePrivateWorkspacePresentation();
   const [isDark, setIsDark] = useState(false);
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
-  const { user } = useUser();
-  const cartCount = useCartCount();
+  const navigate=useNavigate();
+  const { user, organizationProfileVerified, loading: userLoading } = useUser();
+  const cartCount = useCartCount(!privateShell.active);
   const clerkRuntime = useClerkRuntime();
-  const { currentSlug } = useTenant();
+  const { currentSlug,tenant,isLoadingTenant,tenantError } = useTenant();
+  const institutionBrandRef=useRef<HTMLAnchorElement>(null);
+  const loginScope=readPanelLoginScope(location.pathname);
+  const accessIdentity=loginScope.valid&&loginScope.tenantSlug&&!isLoadingTenant&&!tenantError
+    &&currentSlug?.toLowerCase()===loginScope.tenantSlug&&tenant?.slug?.toLowerCase()===loginScope.tenantSlug
+    &&tenant.publishedIdentity?.tenantSlug===loginScope.tenantSlug?tenant.publishedIdentity:null;
   const { capabilities, hasAnyCapability } = useCapabilities();
   const { hasVerifiedSession } = useSessionAuthority();
 
   const isLanding = location.pathname === "/";
-  const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
   const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
   const hasPersistedSession = hasValidStoredToken || hasPersistedClerkSession();
   const isLoggedIn = Boolean(
@@ -138,29 +132,102 @@ const Navbar: React.FC = () => {
       (user || (hasPersistedSession && safeLocalStorage.getItem("user"))),
   );
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
-  const resolvedLandingNavItems = useMemo(
-    () => readLandingNavItems(landingExperience?.navigation),
-    [landingExperience],
-  );
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
     [isLoggedIn],
   );
   const storedUser = useMemo(() => parseStoredUser(storedUserRaw), [storedUserRaw]);
   const effectiveUser = user ?? storedUser;
+  const authenticatedOrganization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: userLoading,
+  });
+  const hasOrganizationContracts = hasOrganizationIdentityContracts(effectiveUser);
 
   const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
+  const contextPath = location.pathname.toLowerCase();
+  const explicitTenantScope = TENANT_ROUTE_PREFIXES.some((prefix) => contextPath.startsWith(`/${prefix}/`)) ||
+    contextPath.startsWith('/portal/') || /^\/[^/]+\/(?:analytics|estadisticas)(?:\/|$)/.test(contextPath) ||
+    ['tenant', 'tenant_slug', 'endpoint'].some((key) => new URLSearchParams(location.search).has(key));
+  const isPlatformRoute = ['/superadmin', '/admin/tenants'].includes(contextPath.replace(/\/+$/, ''));
+  const isPlatformAdmin = isLoggedIn && hasRequiredRole(userRole, ['superadmin']) && (isPlatformRoute || !explicitTenantScope);
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isTenantOwnerLike = useMemo(() => hasRequiredRole(userRole, ["tenant_admin", "superadmin"]), [userRole]);
-  const isMunicipal = effectiveUser?.tipo_chat === "municipio";
+  const canOpenKnowledge = Boolean(isLoggedIn && organizationProfileVerified && hasAnyCapability(['knowledge.read']));
+  const requestedKnowledgeTenant = readExplicitTenantRequest(new URLSearchParams(location.search));
+  const selectedKnowledgeTenant = requestedKnowledgeTenant.present
+    ? requestedKnowledgeTenant.valid ? requestedKnowledgeTenant.slug : null
+    : normalizeProfileTenantSlug(readCanonicalTenantSlugFromPath(location.pathname) || /^\/([^/]+)\/(?:analytics|estadisticas)(?:\/|$)/i.exec(location.pathname)?.[1]);
+  const isSelectedPlatformTenant = Boolean(isLoggedIn && hasRequiredRole(userRole, ['superadmin']) && !isPlatformAdmin && explicitTenantScope);
+  const selectedTenantIdentity = isSelectedPlatformTenant && organizationProfileVerified && !isLoadingTenant && !tenantError && selectedKnowledgeTenant &&
+    normalizeProfileTenantSlug(currentSlug) === selectedKnowledgeTenant && normalizeProfileTenantSlug(tenant?.slug) === selectedKnowledgeTenant &&
+    tenant?.publishedIdentity?.tenantSlug === selectedKnowledgeTenant ? tenant.publishedIdentity : null;
+  const selectedTenantType = selectedTenantIdentity ? String(tenant?.tipo || '').trim().toLowerCase() : '';
+  const organizationProfileHref = isSelectedPlatformTenant && selectedKnowledgeTenant
+    ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}`
+    : !hasRequiredRole(userRole, ['superadmin']) && authenticatedOrganization
+      ? `/perfil?tab=perfil&tenant_slug=${encodeURIComponent(authenticatedOrganization.tenantSlug)}&section=general`
+      : '/perfil?tab=perfil';
+  const ordersWorkspaceTenant = isSelectedPlatformTenant
+    ? selectedTenantIdentity?.tenantSlug
+    : !hasRequiredRole(userRole, ['superadmin']) ? authenticatedOrganization?.tenantSlug : null;
+  const ordersHref = ordersWorkspaceTenant
+    ? `/perfil?tab=pedidos&tenant_slug=${encodeURIComponent(ordersWorkspaceTenant)}`
+    : '/perfil?tab=pedidos';
+  const surveyWorkspaceTenant = hasVerifiedSession && organizationProfileVerified && !userLoading
+    ? ordersWorkspaceTenant : null;
+  const surveysHref = surveyWorkspaceTenant
+    ? `/admin/encuestas?tenant_slug=${encodeURIComponent(surveyWorkspaceTenant)}` : null;
+  const publicSiteSlug = isSelectedPlatformTenant ? selectedKnowledgeTenant
+    : privateShell.active ? privateShell.identity?.tenantSlug : currentSlug;
+  const knowledgeHref = hasRequiredRole(user?.rol || user?.role, ['superadmin'])
+    ? selectedKnowledgeTenant ? `/admin/knowledge?tenant_slug=${encodeURIComponent(selectedKnowledgeTenant)}` : '/superadmin?section=organizations'
+    : '/admin/knowledge';
+  const isMunicipal = isSelectedPlatformTenant ? selectedTenantType === 'municipio'
+    : authenticatedOrganization ? authenticatedOrganization.isMunicipal
+      : !hasOrganizationContracts && effectiveUser?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
+  const organizationName = isSelectedPlatformTenant ? selectedTenantIdentity?.name || 'Organización seleccionada' : privateShell.active ? privateShell.identity?.name || 'Organización' :
+    isPlatformAdmin ? 'ChatBoc · Plataforma' : authenticatedOrganization?.name || (hasOrganizationContracts ? 'Organización' : String(
+      effectiveUser?.nombre_empresa ||
+        effectiveUser?.tenant?.nombre ||
+        effectiveUser?.tenant?.name ||
+        effectiveUser?.organization_name ||
+        "",
+    ).trim() || "Organización");
+  const organizationType = isPlatformAdmin ? 'Superadministrador' : isSelectedPlatformTenant
+    ? selectedTenantType === 'municipio' ? 'Municipio' : ['pyme','empresa'].includes(selectedTenantType) ? 'Empresa' : 'Organización'
+    : authenticatedOrganization?.organizationTypeLabel || (hasOrganizationContracts ? 'Organización' : isMunicipal ? "Municipio" : "Empresa");
+  const normalizedPlan = String(effectiveUser?.plan || effectiveUser?.tenant?.plan || "").trim().toLowerCase();
+  const readablePlanName = normalizedPlan
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  const planLabel =
+    normalizedPlan === "full"
+      ? "Plan Full"
+      : normalizedPlan === "pro"
+        ? "Plan Pro"
+        : normalizedPlan === "gratis" || normalizedPlan === "free"
+          ? "Plan Inicial"
+          : normalizedPlan
+            ? `Plan ${readablePlanName}`
+            : "Plan sin identificar";
   const userAvatar = resolveConsentedAvatar(effectiveUser as Record<string, unknown> | null | undefined);
 
   const adminLinks = useMemo(() => {
+    if (isPlatformAdmin) return [
+      { to: '/superadmin', label: 'Super Admin', icon: ShieldCheck },
+      { to: '/superadmin?section=organizations', label: 'Organizaciones', icon: Building2 },
+      { to: '/superadmin?section=crm', label: 'CRM comercial', icon: Users },
+      { to: '/superadmin?section=channels', label: 'Canales y WhatsApp', icon: MessageCircle },
+      { to: '/superadmin?section=diagnostics', label: 'Diagnóstico operativo', icon: Activity },
+      ...(canOpenKnowledge ? [{ to: knowledgeHref, label: 'Fuentes de conocimiento', icon: BookOpen }] : []),
+    ] as AdminNavLink[];
     if (!isAdminLike) {
       return [] as AdminNavLink[];
     }
@@ -174,7 +241,7 @@ const Navbar: React.FC = () => {
         requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
       },
       {
-        to: "/pedidos",
+        to: ordersHref,
         label: "Pedidos",
         icon: ClipboardList,
         requiredAnyCapabilities: ORDER_READ_CAPABILITIES,
@@ -192,6 +259,7 @@ const Navbar: React.FC = () => {
         requiredAnyCapabilities: ["employees.read", "tenant.employees.read"],
       },
     ];
+    if (canOpenKnowledge) links.push({ to: knowledgeHref, label: 'Fuentes de conocimiento', icon: BookOpen });
 
     if (isMunicipal) {
       links.push({
@@ -223,7 +291,7 @@ const Navbar: React.FC = () => {
       roles: ["super_admin", "superadmin"],
     });
 
-    links.push({ to: buildTenantPath("/", currentSlug), label: "Ver sitio publico", icon: Layout });
+    if(publicSiteSlug)links.push({ to: buildTenantPath("/", publicSiteSlug), label: "Ver sitio publico", icon: Layout });
 
     const hasBackendCapabilities = capabilities.length > 0;
 
@@ -238,8 +306,16 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, currentSlug, hasAnyCapability, isAdminLike, isMunicipal, isTenantOwnerLike, userRole]);
+  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref]);
 
+  const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
+  useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);
+  useEffect(()=>{
+    if(!menuOpen)return;
+    const outside=(event:PointerEvent)=>{if(event.target instanceof Node&&!headerRef.current?.contains(event.target))setMenuOpen(false);};
+    document.addEventListener('pointerdown',outside);
+    return()=>document.removeEventListener('pointerdown',outside);
+  },[menuOpen]);
   useEffect(() => {
     const currentTheme = safeLocalStorage.getItem("theme");
     if (currentTheme === "dark") {
@@ -276,7 +352,7 @@ const Navbar: React.FC = () => {
     const desktopNavigation = window.matchMedia(DESKTOP_NAVIGATION_QUERY);
     const closeForDesktop = () => {
       setMenuOpen(false);
-      brandHomeButtonRef.current?.focus({ preventScroll: true });
+      (privateBrandRef.current || institutionBrandRef.current || brandHomeButtonRef.current)?.focus({ preventScroll: true });
     };
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) closeForDesktop();
@@ -314,7 +390,9 @@ const Navbar: React.FC = () => {
   };
 
   const handleLogoClick = () => {
-    if (isLanding) {
+    if (isPlatformAdmin) {
+      window.location.href = '/superadmin';
+    } else if (isLanding) {
       window.scrollTo({ top: 0, behavior: getScrollBehavior() });
     } else {
       window.location.href = "/";
@@ -322,10 +400,10 @@ const Navbar: React.FC = () => {
     setMenuOpen(false);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setMenuOpen(false);
-    await logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
-    window.location.href = "/";
+    void logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
+    navigate('/login',{replace:true});
   };
 
   const navButtonClass =
@@ -334,24 +412,25 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-        <button
+    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
+      <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
+        {privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
           ref={brandHomeButtonRef}
+          type="button"
           onClick={handleLogoClick}
-          className="group flex items-center rounded-[8px] px-1 py-1 transition-colors hover:bg-primary/5"
-          aria-label="Ir al inicio de Chatboc"
+          className="group flex min-h-11 items-center rounded-lg px-1.5 py-1 transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          aria-label={isPlatformAdmin ? 'Ir al panel de ChatBoc' : 'Ir al inicio de Chatboc'}
+          title={isPlatformAdmin ? 'ChatBoc · Super Admin' : 'Chatboc.ar · Inicio'}
         >
           <ChatbocBrandLockup
             size="nav"
-            tone={isDark ? "dark" : "light"}
-            className="transition-transform duration-300 group-hover:translate-y-[-1px] group-hover:scale-[1.01]"
+            tone="auto"
           />
-        </button>
+        </button>}
 
         {isLanding ? (
-          <nav className="hidden flex-1 items-center justify-center gap-1 md:flex">
-            {resolvedLandingNavItems.map((item) => (
+          <nav aria-label="Navegación principal" className="hidden flex-1 items-center justify-center gap-1 md:flex">
+            {landingNavItems.map((item) => (
               <button key={item.id} onClick={() => scrollToSection(item.id)} className={navButtonClass}>
                 {item.label}
               </button>
@@ -360,18 +439,20 @@ const Navbar: React.FC = () => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          <RouterLink
-            to={cartPath}
-            className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
-            aria-label="Ver carrito"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            {cartCount > 0 ? (
-              <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
-                {cartCount}
-              </span>
-            ) : null}
-          </RouterLink>
+          {!isLanding && !isPlatformAdmin && !privateShell.active ? (
+            <RouterLink
+              to={cartPath}
+              className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
+              aria-label="Ver carrito"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              {cartCount > 0 ? (
+                <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
+                  {cartCount}
+                </span>
+              ) : null}
+            </RouterLink>
+          ) : null}
 
           {isLoggedIn ? (
             <DropdownMenu>
@@ -387,14 +468,49 @@ const Navbar: React.FC = () => {
                     consented={userAvatar.consented}
                     size="sm"
                   />
-                  <span className="hidden font-medium text-foreground md:inline">Mi cuenta</span>
+                  <span className="hidden font-medium text-foreground md:inline">{isPlatformAdmin ? 'Super Admin' : 'Mi cuenta'}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-80 p-2">
+                <DropdownMenuLabel className="px-3 py-2 font-normal">
+                  <span className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/50 text-primary">
+                      <Building2 className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        {isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}
+                      </span>
+                      <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">{organizationName}</span>
+                      <span className="block text-xs text-muted-foreground">{organizationType}</span>
+                      {isPlatformAdmin && effectiveUser?.email ? <span className="mt-1 block break-all text-xs text-muted-foreground">{effectiveUser.email}</span> : null}
+                    </span>
+                  </span>
+                </DropdownMenuLabel>
+                {!isPlatformAdmin && <>
+                {!isSelectedPlatformTenant && <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Plan y facturación
+                </DropdownMenuLabel>
+                <DropdownMenuItem asChild className="rounded-lg">
+                  <RouterLink to="/perfil?tab=perfil&section=plan" className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      <span className="block font-semibold text-foreground">{planLabel}</span>
+                      <span className="block text-xs text-muted-foreground">Ver uso, límites y facturación</span>
+                    </span>
+                  </RouterLink>
+                </DropdownMenuItem>
+                </>}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Configuración
+                </DropdownMenuLabel>
                 <DropdownMenuItem asChild>
-                  <RouterLink to="/perfil" className="flex items-center gap-2 text-sm">
-                    <User className="h-4 w-4" />
-                    Mi perfil
+                  <RouterLink to={organizationProfileHref} className="flex items-center gap-2 text-sm">
+                    <Settings className="h-4 w-4" />
+                    Perfil y organización
                   </RouterLink>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -403,6 +519,7 @@ const Navbar: React.FC = () => {
                     Chat en vivo
                   </RouterLink>
                 </DropdownMenuItem>
+                </>}
                 {adminLinks.length > 0 ? (
                   <>
                     <DropdownMenuSeparator />
@@ -416,15 +533,19 @@ const Navbar: React.FC = () => {
                     ))}
                   </>
                 ) : null}
-                {FEATURE_ENCUESTAS ? (
+                {FEATURE_ENCUESTAS && !isPlatformAdmin && surveysHref ? (
                   <DropdownMenuItem asChild>
-                    <RouterLink to="/admin/encuestas" className="flex items-center gap-2 text-sm">
+                    <RouterLink to={surveysHref} className="flex items-center gap-2 text-sm">
                       <BarChart3 className="h-4 w-4" />
                       Panel de encuestas
                     </RouterLink>
                   </DropdownMenuItem>
                 ) : null}
-                <DropdownMenuItem className="flex items-center gap-2 text-destructive focus:text-destructive" onSelect={handleLogout}>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Sesión
+                </DropdownMenuLabel>
+                <DropdownMenuItem className="flex items-center gap-2 rounded-lg text-destructive focus:text-destructive" onSelect={handleLogout}>
                   <LogOut className="h-4 w-4" />
                   Cerrar sesión
                 </DropdownMenuItem>
@@ -436,7 +557,7 @@ const Navbar: React.FC = () => {
                 Iniciar sesión
               </RouterLink>
               <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
-                Prueba gratuita
+                Ver demo
               </RouterLink>
             </>
           )}
@@ -454,7 +575,7 @@ const Navbar: React.FC = () => {
         <button
           ref={mobileMenuButtonRef}
           type="button"
-          className="rounded-[8px] p-2 text-foreground transition-colors hover:bg-accent md:hidden"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:hidden"
           onClick={() => setMenuOpen((current) => !current)}
           aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
           aria-expanded={menuOpen}
@@ -473,33 +594,63 @@ const Navbar: React.FC = () => {
         >
           <div className="flex flex-col gap-1 text-foreground">
             {isLanding
-              ? resolvedLandingNavItems.map((item) => (
+              ? landingNavItems.map((item) => (
                   <button key={item.id} onClick={() => scrollToSection(item.id)} className={mobileItemClass}>
                     {item.label}
                   </button>
                 ))
               : null}
-            <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
-              <ShoppingCart className="h-4 w-4" />
-              Carrito
-              {cartCount > 0 ? (
-                <span className="ml-auto inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
-                  {cartCount}
-                </span>
-              ) : null}
-            </RouterLink>
+            {!isLanding && !isPlatformAdmin && !privateShell.active ? (
+              <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                <ShoppingCart className="h-4 w-4" />
+                Carrito
+                {cartCount > 0 ? (
+                  <span className="ml-auto inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
+                    {cartCount}
+                  </span>
+                ) : null}
+              </RouterLink>
+            ) : null}
 
             {isLoggedIn ? (
               <>
-                <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
-                  Mi perfil
-                </RouterLink>
-                <RouterLink to={liveChatPath} onClick={() => setMenuOpen(false)} className={mobileItemClass}>
-                  Chat
-                </RouterLink>
+                <div className="mt-1 rounded-lg border border-border/70 bg-muted/25 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-foreground">{organizationName}</p>
+                  <p className="text-xs text-muted-foreground">{organizationType}</p>
+                  {isPlatformAdmin && effectiveUser?.email ? <p className="mt-1 break-all text-xs text-muted-foreground">{effectiveUser.email}</p> : null}
+                </div>
+                {!isPlatformAdmin && <>
+                {!isSelectedPlatformTenant &&
+                <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
+                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plan y facturación</p>
+                  <RouterLink
+                    to="/perfil?tab=perfil&section=plan"
+                    onClick={() => setMenuOpen(false)}
+                    className={`${mobileItemClass} flex items-center gap-2`}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span className="flex-1">
+                      <span className="block font-semibold">{planLabel}</span>
+                      <span className="block text-xs font-normal text-muted-foreground">Uso, límites y facturación</span>
+                    </span>
+                  </RouterLink>
+                </div>}
+                <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
+                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Configuración</p>
+                  <RouterLink to={organizationProfileHref} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                    <Settings className="h-4 w-4" />
+                    Perfil y organización
+                  </RouterLink>
+                  <RouterLink to={liveChatPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
+                    <MessageCircle className="h-4 w-4" />
+                    Chat
+                  </RouterLink>
+                </div>
+                </>}
                 {adminLinks.length > 0 || FEATURE_ENCUESTAS ? (
                   <div className="mt-2 space-y-2 border-t border-border/60 pt-3">
-                    <p className="px-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground/80">Panel admin</p>
+                    <p className="px-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground/80">{isPlatformAdmin ? 'Gestión de ChatBoc' : 'Panel admin'}</p>
                     <div className="flex flex-col gap-1">
                       {adminLinks.map(({ to, label, icon: Icon }) => (
                         <RouterLink
@@ -512,9 +663,9 @@ const Navbar: React.FC = () => {
                           {label}
                         </RouterLink>
                       ))}
-                      {FEATURE_ENCUESTAS ? (
+                      {FEATURE_ENCUESTAS && !isPlatformAdmin && surveysHref ? (
                         <RouterLink
-                          to="/admin/encuestas"
+                          to={surveysHref}
                           onClick={() => setMenuOpen(false)}
                           className="flex items-center gap-2 rounded-[8px] border border-border/70 px-3 py-2 text-sm transition-colors hover:border-primary/50 hover:text-primary"
                         >
@@ -525,9 +676,13 @@ const Navbar: React.FC = () => {
                     </div>
                   </div>
                 ) : null}
-                <button onClick={handleLogout} className={`${mobileItemClass} text-destructive hover:text-destructive`}>
-                  Cerrar sesión
-                </button>
+                <div className="mt-2 border-t border-border/60 pt-3">
+                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sesión</p>
+                  <button onClick={handleLogout} className={`${mobileItemClass} flex items-center gap-2 text-destructive hover:text-destructive`}>
+                    <LogOut className="h-4 w-4" />
+                    Cerrar sesión
+                  </button>
+                </div>
               </>
             ) : (
               <>
@@ -539,7 +694,7 @@ const Navbar: React.FC = () => {
                   onClick={() => setMenuOpen(false)}
                   className="chatboc-cta-primary mt-1 rounded-[8px] px-4 py-2 text-center text-sm font-semibold"
                 >
-                  Prueba gratuita
+                  Ver demo
                 </RouterLink>
               </>
             )}
