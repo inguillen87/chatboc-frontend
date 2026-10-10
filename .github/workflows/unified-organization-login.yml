@@ -33,6 +33,11 @@ name: Unified organization login
       - src/pages/TenantImplementationCenterPage*
       - src/pages/tenant/TenantHomePage.tsx
       - src/components/knowledge/**
+      - src/components/chat/InstitutionalChatMessage*
+      - src/features/chat/institutionalChatMessage*
+      - src/components/chat/ChatHeader*
+      - src/components/chat/ChatHumanSupportBar*
+      - tests/e2e/chat-header-layout.spec.ts
       - src/pages/admin/knowledge/KnowledgeSourcesPage*
       - src/routesConfig.tsx
       - src/routesConfig.capabilities.test.tsx
