@@ -1,5 +1,6 @@
 import React from 'react';
 import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {node,workspace,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
 const mocks=vi.hoisted(()=>({read:vi.fn(),fetch:vi.fn()}));
@@ -62,6 +63,48 @@ describe('institutional voice controls',()=>{
     render(<InstitutionalChatMessage answer={{tenant:scope.tenant,revision:scope.revision,nodes:[node()],sources:node().sources,audioReading:copy}} onButtonClick={()=>{}}/>);
     fireEvent.click(screen.getByRole('button',{name:copy.listen}));await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent(copy.error));
     expect(screen.getByText(node().text)).toBeVisible();expect(screen.getByRole('button',{name:'1 Consultar requisitos'})).toBeEnabled();expect(screen.queryByText('PRIVATE_PROVIDER_FAILURE')).not.toBeInTheDocument();
+  });
+  it('returns keyboard focus to listening when an audio error retires the focused stop control',async()=>{
+    const user=userEvent.setup();const mounted=render(<InstitutionalResponseAudio scope={scope} copy={copy}/>);
+    await user.tab();expect(screen.getByRole('button',{name:copy.listen})).toHaveFocus();
+    await user.keyboard('{Enter}');await screen.findByRole('button',{name:copy.pause});
+    await user.tab();expect(screen.getByRole('button',{name:copy.stop})).toHaveFocus();
+    fireEvent.error(mounted.container.querySelector('audio')!);
+    expect(screen.queryByRole('button',{name:copy.stop})).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(copy.error);
+    expect(screen.getByRole('button',{name:copy.listen})).toHaveFocus();
+    expect(revoke).toHaveBeenCalledWith('blob:synthetic-audio');expect(mocks.read).toHaveBeenCalledOnce();
+    await user.keyboard('{Enter}');await screen.findByRole('button',{name:copy.pause});
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+  it('preserves outside typing focus when an audio error removes the stop control',async()=>{
+    const user=userEvent.setup();const mounted=render(<><InstitutionalResponseAudio scope={scope} copy={copy}/><label>Pregunta<input/></label></>);
+    await user.click(screen.getByRole('button',{name:copy.listen}));await screen.findByRole('button',{name:copy.pause});
+    await user.click(screen.getByLabelText('Pregunta'));await user.type(screen.getByLabelText('Pregunta'),'Consulta en curso');
+    fireEvent.error(mounted.container.querySelector('audio')!);
+    expect(screen.getByLabelText('Pregunta')).toHaveFocus();expect(screen.getByLabelText('Pregunta')).toHaveValue('Consulta en curso');
+    expect(screen.queryByRole('button',{name:copy.stop})).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:copy.listen})).toBeEnabled();expect(mocks.read).toHaveBeenCalledOnce();
+  });
+  it('repairs the removed keyboard stop control after pending generation fails without starting playback',async()=>{
+    const user=userEvent.setup();let reject!:(cause:Error)=>void;
+    mocks.read.mockReturnValueOnce(new Promise<Blob>((_,fail)=>{reject=fail;}));
+    render(<InstitutionalResponseAudio scope={scope} copy={copy}/>);
+    await user.tab();await user.keyboard('{Enter}');expect(screen.getByRole('button',{name:copy.loading})).toBeDisabled();
+    await user.tab();expect(screen.getByRole('button',{name:copy.stop})).toHaveFocus();
+    await act(async()=>{reject(new Error('PRIVATE_PROVIDER_FAILURE'));});
+    expect(screen.getByRole('button',{name:copy.listen})).toHaveFocus();expect(screen.getByRole('alert')).toHaveTextContent(copy.error);
+    expect(screen.queryByRole('button',{name:copy.stop})).not.toBeInTheDocument();
+    expect(create).not.toHaveBeenCalled();expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+    expect(mocks.read).toHaveBeenCalledOnce();expect(screen.queryByText('PRIVATE_PROVIDER_FAILURE')).not.toBeInTheDocument();
+  });
+  it('does not reclaim focus moved elsewhere before the error render commits',async()=>{
+    const user=userEvent.setup();const mounted=render(<><InstitutionalResponseAudio scope={scope} copy={copy}/><label>Pregunta<input/></label></>);
+    await user.click(screen.getByRole('button',{name:copy.listen}));await screen.findByRole('button',{name:copy.pause});
+    await user.tab();expect(screen.getByRole('button',{name:copy.stop})).toHaveFocus();
+    act(()=>{fireEvent.error(mounted.container.querySelector('audio')!);screen.getByLabelText('Pregunta').focus();});
+    expect(screen.getByLabelText('Pregunta')).toHaveFocus();expect(screen.getByRole('button',{name:copy.listen})).toBeEnabled();
+    expect(screen.queryByRole('button',{name:copy.stop})).not.toBeInTheDocument();expect(mocks.read).toHaveBeenCalledOnce();
   });
   it('does not expose voice for an answer without a backend capability',()=>{
     render(<InstitutionalChatMessage answer={{tenant:scope.tenant,revision:scope.revision,nodes:[node()],sources:node().sources}} onButtonClick={()=>{}}/>);
