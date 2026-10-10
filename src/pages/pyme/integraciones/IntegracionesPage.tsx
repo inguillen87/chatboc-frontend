@@ -356,11 +356,14 @@ const IntegracionesPage = () => {
     || Boolean(querySlugs[0] && querySlugs[0] !== currentSlug);
   const { user, loading: userLoading, hasVerifiedSession, organizationProfileVerified } = useUser();
   const sessionRevision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
-  const coherent = currentSlug && publicTenant?.slug === currentSlug && Number.isSafeInteger(publicTenant.id) && Number(publicTenant.id) > 0
+  const publishedIdentity = publicTenant?.publishedIdentity;
+  const publishedTenantId = publishedIdentity?.tenantId;
+  const coherent = currentSlug && publicTenant?.slug === currentSlug && publishedIdentity?.tenantSlug === currentSlug
+    && Number.isSafeInteger(publishedTenantId) && Number(publishedTenantId) > 0
     && (!routeTenant || routeTenant === currentSlug) && !conflictingRequest && !isLoadingTenant && !tenantError;
   const verifiedScope = !userLoading && organizationProfileVerified && coherent
     ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug: currentSlug, user }) : null;
-  const channelScopeKey = verifiedScope ? JSON.stringify([verifiedScope, sessionRevision, publicTenant?.id]) : null;
+  const channelScopeKey = verifiedScope ? JSON.stringify([verifiedScope, sessionRevision, publishedTenantId]) : null;
   const channelScope = useRef(channelScopeKey);
   useLayoutEffect(() => { channelScope.current = channelScopeKey; return () => { channelScope.current = null; }; }, [channelScopeKey]);
   const [channelRead, setChannelRead] = useState<{ key: string; contract: ChannelActivationContract | null; failed: boolean } | null>(null);
@@ -372,7 +375,7 @@ const IntegracionesPage = () => {
     setChannelRead(null);
     void fetchTenantChannelActivation(currentSlug, { isCurrent }).then(contract => {
       if (!isCurrent()) return;
-      if (contract.tenant?.id !== publicTenant?.id || contract.tenant.slug !== currentSlug || !contract.whatsapp_connection) throw new Error('whatsapp_scope_unverified');
+      if (contract.tenant?.id !== publishedTenantId || contract.tenant.slug !== currentSlug || !contract.whatsapp_connection) throw new Error('whatsapp_scope_unverified');
       setChannelRead({ key: channelScopeKey, contract, failed: false });
     }).catch(() => { if (isCurrent()) setChannelRead({ key: channelScopeKey, contract: null, failed: true }); });
     return () => { retired = true; };

@@ -12,11 +12,14 @@ import { fetchTenantChannelActivation } from '@/api/v2/channelActivation';
 import { getTenantDomain, readTenantDomain } from '@/api/tenantDomain';
 import { domainPayload } from '@/test/fixtures/tenantDomain';
 import { toast } from 'sonner';
+import type { TenantPublicInfo } from '@/types/tenant';
 
 const session = vi.hoisted(() => ({ loading: false, hasVerifiedSession: true, organizationProfileVerified: true,
   user: { id: 42, tenantSlug: 'junin', role: 'superadmin' } as { id: number; tenantSlug: string; role: string } | null }));
 const tenant = vi.hoisted(() => ({ currentSlug: 'tierra-del-fuego' as string | null,
-  tenant: { id: 46, slug: 'tierra-del-fuego' }, isLoadingTenant: false, tenantError: null as string | null }));
+  tenant: { slug: 'tierra-del-fuego', nombre: 'Organización elegida', publishedIdentity: {
+    tenantId: 46, tenantSlug: 'tierra-del-fuego', name: 'Organización elegida', logoUrl: null,
+  } } as TenantPublicInfo, isLoadingTenant: false, tenantError: null as string | null }));
 const api = vi.hoisted(() => ({ adminGetIntegrations: vi.fn(), adminGetNotificationSettings: vi.fn(),
   adminGetCatalog: vi.fn(), adminGetMercadoPagoCredentials: vi.fn(), get: vi.fn(),
   put: vi.fn(), post: vi.fn(), adminConnectIntegration: vi.fn() }));
@@ -40,6 +43,9 @@ vi.mock('@/components/admin/catalog/CatalogSpreadsheetEditor', () => ({ default:
 vi.mock('@/pages/pyme/integraciones/IntegrationPreviewDialog', () => ({ default: () => null }));
 
 const service = vi.mocked(tenantService);
+const publicInfo = (id = 46, slug = 'tierra-del-fuego'): TenantPublicInfo => ({
+  slug, nombre: 'Organización elegida', publishedIdentity: { tenantId: id, tenantSlug: slug, name: 'Organización elegida', logoUrl: null },
+});
 const bundle = (slug = 'tierra-del-fuego', name = 'Organización elegida'): TenantConfigBundle => ({
   tenant: { id: 46, slug, nombre: name, tipo: 'municipio', plan: 'full' },
   configs: { widget: {}, menu: {}, links: {}, contacts: {} },
@@ -74,7 +80,7 @@ beforeEach(() => {
   advanceChatbocSessionRevision();
   session.loading = false; session.hasVerifiedSession = true; session.organizationProfileVerified = true;
   session.user = { id: 42, tenantSlug: 'junin', role: 'superadmin' };
-  tenant.currentSlug = 'tierra-del-fuego'; tenant.tenant = { id: 46, slug: 'tierra-del-fuego' };
+  tenant.currentSlug = 'tierra-del-fuego'; tenant.tenant = publicInfo();
   tenant.isLoadingTenant = false; tenant.tenantError = null;
   service.getTenantConfig.mockResolvedValue(bundle());
   api.adminGetIntegrations.mockResolvedValue([]);
@@ -140,7 +146,7 @@ describe('read-only institutional profile access', () => {
   });
 
   it.each(['organismo_norte', 'organismo__norte_'])('keeps the complete valid underscore identity in the read and destination: %s', slug => {
-    tenant.currentSlug = slug; tenant.tenant = { id:46, slug };
+    tenant.currentSlug = slug; tenant.tenant = publicInfo(46, slug);
     service.getTenantConfig.mockResolvedValue(bundle(slug));
     render(fixture(`/t/${slug}/integracion?tenant_slug=${slug}`));
     return waitFor(() => {
@@ -150,7 +156,7 @@ describe('read-only institutional profile access', () => {
   });
 
   it('does not treat an underscore organization as a similarly named hyphen organization', () => {
-    tenant.currentSlug = 'organismo_norte'; tenant.tenant = { id:46, slug: 'organismo_norte' };
+    tenant.currentSlug = 'organismo_norte'; tenant.tenant = publicInfo(46, 'organismo_norte');
     render(fixture('/t/organismo_norte/integracion?tenant_slug=organismo-norte'));
     expect(service.getTenantConfig).not.toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: 'Perfil institucional' })).not.toBeInTheDocument();
@@ -163,7 +169,7 @@ describe('read-only institutional profile access', () => {
       if (reason === 'loading-user') session.loading = true;
       if (reason === 'loading-tenant') tenant.isLoadingTenant = true;
       if (reason === 'tenant-error') tenant.tenantError = 'No disponible';
-      if (reason === 'foreign-public-tenant') tenant.tenant = { id:47, slug: 'junin' };
+      if (reason === 'foreign-public-tenant') tenant.tenant = publicInfo(47, 'junin');
       if (reason === 'foreign-current-tenant') tenant.currentSlug = 'junin';
       if (reason === 'missing-target') tenant.currentSlug = null;
       render(fixture(reason === 'missing-target' ? '/integracion' : undefined));
@@ -228,9 +234,9 @@ describe('read-only institutional profile access', () => {
     service.getTenantConfig.mockReturnValueOnce(pendingA.promise).mockReturnValueOnce(pendingB.promise).mockReturnValueOnce(freshA.promise);
     render(fixture());
     const guardA = service.getTenantConfig.mock.calls[0][1]!.isCurrent!;
-    tenant.currentSlug = 'junin'; tenant.tenant = { id:47, slug: 'junin' };
+    tenant.currentSlug = 'junin'; tenant.tenant = publicInfo(47, 'junin');
     await act(async () => { navigate('/t/junin/integracion'); });
-    tenant.currentSlug = 'tierra-del-fuego'; tenant.tenant = { id:46, slug: 'tierra-del-fuego' };
+    tenant.currentSlug = 'tierra-del-fuego'; tenant.tenant = publicInfo();
     await act(async () => { navigate('/t/tierra-del-fuego/integracion'); });
     expect(guardA()).toBe(false);
     await act(async () => { pendingA.resolve(bundle(undefined, 'Respuesta A vieja')); pendingB.reject(new Error('B viejo')); });
@@ -259,6 +265,8 @@ describe('professional IntegracionesPage using its real route configuration', ()
       <Routes><Route path={route.path} element={route.element}/></Routes></Suspense></MemoryRouter>;
   };
   it('renders domain settings and the canonical Meta test connection on the actual tenant route',async()=>{
+    expect(tenant.tenant).not.toHaveProperty('id');
+    expect(session.user?.tenantSlug).toBe('junin');
     api.adminGetIntegrations.mockResolvedValue([{provider:'whatsapp',connected:true}]);
     api.get.mockResolvedValue({twilio:{join_number:'+14155238886',join_phrase:'join brief-yesterday'}});
     render(realRoute());
@@ -271,6 +279,35 @@ describe('professional IntegracionesPage using its real route configuration', ()
     expect(screen.queryByText(/join brief-yesterday|14155238886/)).not.toBeInTheDocument();
     expect(api.get.mock.calls.some(([path])=>String(path).includes('sandbox-setup'))).toBe(false);
     expect(vi.mocked(getTenantDomain)).toHaveBeenCalledWith({id:46,slug:'tierra-del-fuego'},expect.any(Function));
+    noWrites();
+  });
+  it.each(['missing', 'zero-id', 'unsafe-id', 'foreign-slug'])('does not guess canonical WhatsApp authority from an incomplete published identity: %s', async reason => {
+    if (reason === 'missing') tenant.tenant.publishedIdentity = null;
+    if (reason === 'zero-id') tenant.tenant.publishedIdentity!.tenantId = 0;
+    if (reason === 'unsafe-id') tenant.tenant.publishedIdentity!.tenantId = Number.MAX_SAFE_INTEGER + 1;
+    if (reason === 'foreign-slug') tenant.tenant.publishedIdentity!.tenantSlug = 'junin';
+    await act(async () => { render(realRoute()); });
+    expect(fetchTenantChannelActivation).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Meta Cloud API' })).not.toBeInTheDocument();
+    noWrites();
+  });
+  it('retires a pending channel read when the published id changes even with the same route slug', async () => {
+    const oldContract = await vi.mocked(fetchTenantChannelActivation).getMockImplementation()!();
+    let resolve!: (value: typeof oldContract) => void;
+    vi.mocked(fetchTenantChannelActivation)
+      .mockReturnValueOnce(new Promise(done => { resolve = done; }))
+      .mockResolvedValueOnce({ ...oldContract, tenant: { id: 47, slug: 'tierra-del-fuego' },
+        whatsapp_connection: { ...oldContract.whatsapp_connection!, display_phone_number: '+15556565680' } });
+    const view = render(realRoute());
+    await waitFor(() => expect(fetchTenantChannelActivation).toHaveBeenCalledTimes(1));
+    const retiredRead = vi.mocked(fetchTenantChannelActivation).mock.calls[0][1]!;
+    tenant.tenant = publicInfo(47);
+    view.rerender(realRoute());
+    expect(retiredRead.isCurrent?.()).toBe(false);
+    expect(await screen.findByText('+15556565680')).toBeInTheDocument();
+    await act(async () => { resolve(oldContract); });
+    expect(screen.queryByText('+15556565679')).not.toBeInTheDocument();
+    expect(screen.getByText('+15556565680')).toBeInTheDocument();
     noWrites();
   });
   it('keeps an expired Meta connection visible and never substitutes the historical Twilio sandbox',async()=>{

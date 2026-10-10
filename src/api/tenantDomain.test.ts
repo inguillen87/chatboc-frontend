@@ -18,7 +18,8 @@ describe('domain lifecycle contract',()=>{
   it('reads exact private scope with a single attempt and no widget credentials',async()=>{
     vi.mocked(apiFetch).mockResolvedValue(domainPayload());
     await getTenantDomain(domainScope,()=>true);
-    expect(apiFetch).toHaveBeenCalledWith('/api/admin/tenants/government-east/domain',expect.objectContaining({tenantSlug:domainScope.slug,persistTenantSlug:false,isWidgetRequest:false,omitEntityToken:true,omitChatSessionId:true,singleAttempt:true}));
+    expect(apiFetch).toHaveBeenCalledWith('/api/admin/tenants/government-east/domain',expect.objectContaining({tenantSlug:domainScope.slug,omitTenant:true,
+      headers:{'X-Tenant':domainScope.slug,'X-Tenant-Slug':domainScope.slug},persistTenantSlug:false,isWidgetRequest:false,omitEntityToken:true,omitChatSessionId:true,singleAttempt:true}));
   });
   it.each(['request','verify_dns','revoke'] as const)('writes only the supported %s operation with exact revision',async operation=>{
     const current=readTenantDomain(domainPayload(),domainScope);

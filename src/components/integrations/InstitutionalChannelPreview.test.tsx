@@ -10,6 +10,8 @@ import type { KnowledgeWorkspace } from '@/components/knowledge/institutionalAss
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import { tenantService } from '@/services/tenantService';
 import { domainPayload } from '@/test/fixtures/tenantDomain';
+import { getTenantPublicInfoFlexible } from '@/api/tenant';
+import type { TenantPublicInfo } from '@/types/tenant';
 
 // Actual component, runtime parsers and HTTP transport; every Response below is a LOCAL SYNTHETIC fixture.
 vi.unmock('react-router-dom');
@@ -20,7 +22,7 @@ vi.mock('@/utils/anonId', () => ({ ensureRemoteAnonId: vi.fn().mockResolvedValue
 const session = vi.hoisted(() => ({ loading: false, hasVerifiedSession: true, organizationProfileVerified: true,
   user: { id: 42, tenantSlug: 'actor-home' } as { id: number; tenantSlug: string; role?: string; permissions?: string[]; capabilities?: string[]; scopes?: string[] } | null }));
 const tenant = vi.hoisted(() => ({ currentSlug: 'qa-office' as string | null,
-  tenant: { id: undefined as number | undefined, slug: 'qa-office', publishedIdentity: undefined as undefined | { tenantId: number; tenantSlug: string } },
+  tenant: { slug: 'qa-office', nombre: 'Institución sintética local' } as TenantPublicInfo,
   isLoadingTenant: false, tenantError: null as string | null }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => session }));
 vi.mock('@/context/TenantContext', () => ({ useTenant: () => tenant }));
@@ -57,7 +59,7 @@ const fixture = (entry = '/t/qa-office/integracion') => <MemoryRouter initialEnt
   </Routes>
 </MemoryRouter>;
 const switchTenant = (slug: string) => {
-  tenant.currentSlug = slug; tenant.tenant = { id: undefined, slug, publishedIdentity: undefined };
+  tenant.currentSlug = slug; tenant.tenant = { slug, nombre: 'Institución sintética local' };
   navigate(`/t/${slug}/integracion`);
 };
 const assertPublicReads = (expectedSlug = 'qa-office', calls = vi.mocked(global.fetch).mock.calls) => {
@@ -75,7 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks(); advanceChatbocSessionRevision(); safeLocalStorage.clear();
   session.loading = false; session.hasVerifiedSession = true; session.organizationProfileVerified = true;
   session.user = { id: 42, tenantSlug: 'actor-home' };
-  tenant.currentSlug = 'qa-office'; tenant.tenant = { id: undefined, slug: 'qa-office', publishedIdentity: undefined };
+  tenant.currentSlug = 'qa-office'; tenant.tenant = { slug: 'qa-office', nombre: 'Institución sintética local' };
   tenant.isLoadingTenant = false; tenant.tenantError = null;
   usePanelSessionStore.setState({ authToken: 'synthetic-private-session', user: { id: 42, tenant_slug: 'actor-home' } as any });
   useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-widget-session', entityToken: 'synthetic-entity' });
@@ -135,7 +137,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
     const data = model('medico_general');
     const reserved = { ...source, document_visibility: 'private' as const, url: 'https://example.org/reserved-original.pdf', origin_url: 'https://example.org/reserved-origin' };
     data.knowledge!.sources = [reserved]; data.knowledge!.initial.sources = [{ ...reserved, pages: [1] }];
-    tenant.currentSlug = 'medico_general'; tenant.tenant = { id: undefined, slug: 'medico_general', publishedIdentity: undefined };
+    tenant.currentSlug = 'medico_general'; tenant.tenant = { slug: 'medico_general', nombre: 'Institución sintética local' };
     global.fetch = vi.fn().mockResolvedValue(json(data));
     const { container } = render(fixture('/t/medico_general/integracion'));
     expect(await screen.findByText('Institución sintética local')).toBeVisible();
@@ -174,7 +176,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
   it.each(['wrong-slug', 'wrong-id', 'private', 'editable', 'invalid-source', 'unregistered-source', 'invalid-contract'])('rejects %s workspace identity or contract instead of accepting its content', async invalid => {
     const data = model();
     if (invalid === 'wrong-slug') data.tenant.slug = 'qa-other';
-    if (invalid === 'wrong-id') tenant.tenant.publishedIdentity = { tenantId: 999, tenantSlug: 'qa-office' };
+    if (invalid === 'wrong-id') tenant.tenant.publishedIdentity = { tenantId: 999, tenantSlug: 'qa-office', name: 'Institución sintética local', logoUrl: null };
     if (invalid === 'private') data.visibility = 'private';
     if (invalid === 'editable') data.can_edit = true;
     if (invalid === 'invalid-source') data.knowledge!.initial.sources[0].sha256 = 'bad';
@@ -288,12 +290,12 @@ describe('public institutional preview — local synthetic fixtures', () => {
 
   it('retires published-identity ID A→B→A even when the tenant slug remains unchanged', async () => {
     const old = deferred<Response>(), middle = deferred<Response>();
-    tenant.tenant.publishedIdentity = { tenantId: 701, tenantSlug: 'qa-office' };
+    tenant.tenant.publishedIdentity = { tenantId: 701, tenantSlug: 'qa-office', name: 'Institución sintética local', logoUrl: null };
     global.fetch = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(middle.promise).mockResolvedValueOnce(json(model('qa-office', 'Identidad vigente')));
     const view = render(fixture()); await waitFor(() => expect(global.fetch).toHaveBeenCalledOnce());
-    tenant.tenant.publishedIdentity = { tenantId: 999, tenantSlug: 'qa-office' }; view.rerender(fixture());
+    tenant.tenant.publishedIdentity = { tenantId: 999, tenantSlug: 'qa-office', name: 'Institución sintética local', logoUrl: null }; view.rerender(fixture());
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
-    tenant.tenant.publishedIdentity = { tenantId: 701, tenantSlug: 'qa-office' }; view.rerender(fixture());
+    tenant.tenant.publishedIdentity = { tenantId: 701, tenantSlug: 'qa-office', name: 'Institución sintética local', logoUrl: null }; view.rerender(fixture());
     expect(await screen.findByText('Identidad vigente')).toBeVisible();
     await act(async () => { old.resolve(json(model('qa-office', 'Identidad anterior'))); middle.resolve(json(model('qa-office', 'Identidad intermedia'))); });
     expect(screen.getByText('Identidad vigente')).toBeVisible(); expect(screen.queryByText('Identidad anterior')).not.toBeInTheDocument();
@@ -339,7 +341,13 @@ describe('public institutional preview — local synthetic fixtures', () => {
   });
 
   it('places the public corpus before optional transport, labels sandbox provenance and preserves the R8 profile CTA and draft', async () => {
-    tenant.tenant.id = 701;
+    // Exercise the real public normalizer: the published tuple is nested and no
+    // top-level `id` exists on TenantPublicInfo in the application.
+    global.fetch = vi.fn().mockResolvedValue(json({ contract_version: 'public.tenant_profile.v1',
+      tenant: { id: 701, slug: 'qa-office', nombre: 'Institución sintética local', tipo: 'municipio' } }));
+    tenant.tenant = await getTenantPublicInfoFlexible('qa-office');
+    expect(tenant.tenant).not.toHaveProperty('id');
+    expect(tenant.tenant.publishedIdentity).toMatchObject({ tenantId: 701, tenantSlug: 'qa-office' });
     const channelPath = '/api/v2/tenants/qa-office/activation/channels';
     const domainPath = '/api/admin/tenants/qa-office/domain';
     const publicPath = '/api/public/tenants/qa-office/institutional-assistant';
@@ -399,7 +407,9 @@ describe('public institutional preview — local synthetic fixtures', () => {
       expect(headers.get('Authorization')).toBe('Bearer synthetic-private-session');
       expect(headers.get('X-Tenant-Slug')).toBe('qa-office');
       expect(headers.has('X-Entity-Token')).toBe(false); expect(headers.has('X-Chat-Session-Id')).toBe(false);
-      expect(new URL(String(url), window.location.origin).searchParams.get('tenant')).toBe('qa-office');
+      const target = new URL(String(url), window.location.origin);
+      if (target.pathname === domainPath) expect(target.search).toBe('');
+      else expect(target.searchParams.get('tenant')).toBe('qa-office');
     }
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('actor-home');
     expect(useTenantStore.getState().slug).toBe('actor-home');

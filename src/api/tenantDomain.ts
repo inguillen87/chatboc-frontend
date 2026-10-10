@@ -61,7 +61,10 @@ export function tenantDomainErrorMessage(error: unknown): string {
   return error instanceof TenantDomainContractError ? error.message : 'No pudimos consultar o confirmar el dominio. Reintentá en unos minutos.';
 }
 function options(scope: DomainTenantScope, isCurrent: () => boolean) {
-  return {tenantSlug:scope.slug,persistTenantSlug:false,isWidgetRequest:false,omitEntityToken:true,omitChatSessionId:true,singleAttempt:true,isCurrent};
+  // This path-scoped contract rejects query parameters. Keep the authenticated
+  // panel transport and explicit scope headers without the client's query aliases.
+  return {tenantSlug:scope.slug,omitTenant:true,headers:{'X-Tenant':scope.slug,'X-Tenant-Slug':scope.slug},
+    persistTenantSlug:false,isWidgetRequest:false,omitEntityToken:true,omitChatSessionId:true,singleAttempt:true,isCurrent};
 }
 export async function getTenantDomain(scope: DomainTenantScope, isCurrent: () => boolean) {
   const data = await apiFetch<unknown>(endpoint(scope), options(scope,isCurrent));
