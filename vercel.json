@@ -9,7 +9,8 @@
       "feature/realtime-accessible-owner-20261010": false,
       "release/enterprise-tdf-consolidated-20261010": false,
       "release/pro-whitelabel-frontend-20261010": false,
-      "fix/tenant-integration-provider-20261010": false
+      "fix/tenant-integration-provider-20261010": false,
+      "fix/owner-voice-disclosure-20261010": false
     }
   },
   "headers": [
