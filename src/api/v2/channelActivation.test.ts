@@ -12,6 +12,22 @@ vi.mock('@/utils/api', () => ({
   apiFetch: vi.fn(),
 }));
 
+describe('tenant-bound WhatsApp connection display contract',()=>{
+  const summary = () => ({contract_version:'tenant.whatsapp_connection_summary.v1',provider:'meta',environment:'sandbox',
+    display_phone_number:'+15556565679',configuration_status:'configured',reason_code:null,expires_at:1791657685,
+    counts:{sandbox_registered:1,production_registered:0},production_ready:false,conversation_verified:false});
+  const payload = (patch:Record<string,unknown>={}) => ({contract_version:'tenant.channel_activation.v1',tenant:{id:46,slug:'government'},
+    channels:[],whatsapp_connection:{...summary(),...patch}});
+  it('preserves a Meta test connection as display metadata without counting it as production readiness',()=>{
+    expect(parseTenantChannelActivation(payload(),'government').whatsapp_connection).toEqual(summary());
+  });
+  it.each([{production_ready:true},{display_phone_number:'https://evil.invalid'},{expires_at:Infinity},
+    {counts:{sandbox_registered:-1,production_registered:0}},{configuration_status:'live'},
+    {environment:'untrusted'},{provider:'unknown_provider'},{contract_version:'foreign.v1'}])('rejects malformed or false productive metadata %j',patch=>{
+    expect(()=>parseTenantChannelActivation(payload(patch),'government')).toThrow('whatsapp_connection_contract_invalid');
+  });
+});
+
 const journeyAction = {
   id: 'configure_channels',
   label: 'Configurar canales',

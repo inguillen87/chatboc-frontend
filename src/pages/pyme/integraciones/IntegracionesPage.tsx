@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { ApiError } from '@/utils/api';
@@ -34,6 +34,11 @@ import ChannelPreview from '@/components/integrations/ChannelPreview';
 import InstitutionalChannelPreview from '@/components/integrations/InstitutionalChannelPreview';
 import WhatsappTechProviderOnboarding from '@/components/integrations/WhatsappTechProviderOnboarding';
 import InstitutionalProfileAccess from '@/components/integrations/InstitutionalProfileAccess';
+import { useUser } from '@/hooks/useUser';
+import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { fetchTenantChannelActivation, type ChannelActivationContract } from '@/api/v2/channelActivation';
+import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import {
   Dialog,
   DialogContent,
@@ -341,8 +346,41 @@ export const normalizeSandboxContract = (response: any): WhatsappSandboxSetup =>
 };
 
 const IntegracionesPage = () => {
-  const { currentSlug, isLoadingTenant, tenantError } = useTenant();
+  const { currentSlug, tenant: publicTenant, isLoadingTenant, tenantError } = useTenant();
+  const { tenant: routeTenant } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const explicit = readExplicitTenantRequest(searchParams);
+  const querySlugs = ['tenant', 'tenant_slug'].flatMap(key => searchParams.getAll(key)).map(normalizeProfileTenantSlug);
+  const conflictingRequest = !explicit.valid || querySlugs.some(value => !value) || new Set(querySlugs).size > 1
+    || Boolean(routeTenant && !normalizeProfileTenantSlug(routeTenant))
+    || Boolean(querySlugs[0] && querySlugs[0] !== currentSlug);
+  const { user, loading: userLoading, hasVerifiedSession, organizationProfileVerified } = useUser();
+  const sessionRevision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
+  const coherent = currentSlug && publicTenant?.slug === currentSlug && Number.isSafeInteger(publicTenant.id) && Number(publicTenant.id) > 0
+    && (!routeTenant || routeTenant === currentSlug) && !conflictingRequest && !isLoadingTenant && !tenantError;
+  const verifiedScope = !userLoading && organizationProfileVerified && coherent
+    ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug: currentSlug, user }) : null;
+  const channelScopeKey = verifiedScope ? JSON.stringify([verifiedScope, sessionRevision, publicTenant?.id]) : null;
+  const channelScope = useRef(channelScopeKey);
+  useLayoutEffect(() => { channelScope.current = channelScopeKey; return () => { channelScope.current = null; }; }, [channelScopeKey]);
+  const [channelRead, setChannelRead] = useState<{ key: string; contract: ChannelActivationContract | null; failed: boolean } | null>(null);
+  const [channelAttempt, setChannelAttempt] = useState(0);
+  useEffect(() => {
+    if (!channelScopeKey || !currentSlug) return;
+    let retired = false;
+    const isCurrent = () => !retired && channelScope.current === channelScopeKey && isChatbocSessionRevisionCurrent(sessionRevision);
+    setChannelRead(null);
+    void fetchTenantChannelActivation(currentSlug, { isCurrent }).then(contract => {
+      if (!isCurrent()) return;
+      if (contract.tenant?.id !== publicTenant?.id || contract.tenant.slug !== currentSlug || !contract.whatsapp_connection) throw new Error('whatsapp_scope_unverified');
+      setChannelRead({ key: channelScopeKey, contract, failed: false });
+    }).catch(() => { if (isCurrent()) setChannelRead({ key: channelScopeKey, contract: null, failed: true }); });
+    return () => { retired = true; };
+  }, [channelScopeKey, currentSlug, channelAttempt]);
+  const channelContract = channelScopeKey && channelRead?.key === channelScopeKey ? channelRead.contract : null;
+  const whatsappConnection = channelContract?.whatsapp_connection;
+  const currentWhatsappProvider = useRef(whatsappConnection?.provider);
+  currentWhatsappProvider.current = whatsappConnection?.provider;
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -395,9 +433,13 @@ const IntegracionesPage = () => {
     loadSettings();
     loadCatalog();
     loadWidgetQuickMenu();
-    loadWhatsappSandboxSetup();
     loadPaymentGateway();
   }, [currentSlug]);
+
+  useEffect(() => {
+    setSandboxSetup(null); setSandboxResult(null);
+    if (whatsappConnection?.provider === 'twilio') void loadWhatsappSandboxSetup();
+  }, [channelScopeKey, whatsappConnection?.provider]);
 
   useEffect(() => {
     if (!requestedChannel) return;
@@ -548,7 +590,9 @@ const IntegracionesPage = () => {
   };
 
   const loadWhatsappSandboxSetup = async () => {
-    if (!currentSlug) return;
+    if (!currentSlug || !channelScopeKey || whatsappConnection?.provider !== 'twilio') return;
+    const requestScope = channelScopeKey;
+    const isCurrent = () => channelScope.current === requestScope && isChatbocSessionRevisionCurrent(sessionRevision);
     const fallbackSessionEndpoint = `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-session`;
     setSandboxSetupLoading(true);
     try {
@@ -559,6 +603,7 @@ const IntegracionesPage = () => {
           suppressPanel401Redirect: true,
         },
       );
+      if (!isCurrent()) return;
       const setup = normalizeSandboxContract(response);
       setSandboxSetup({
         ...setup,
@@ -586,13 +631,14 @@ const IntegracionesPage = () => {
           "",
       }));
     } catch (error) {
+      if (!isCurrent()) return;
       setSandboxSetup({
         instructions: [],
         quickMenu: [],
         sessionEndpoint: fallbackSessionEndpoint,
       });
     } finally {
-      setSandboxSetupLoading(false);
+      if (isCurrent()) setSandboxSetupLoading(false);
     }
   };
 
@@ -843,6 +889,8 @@ const IntegracionesPage = () => {
   };
 
   const getIntegrationStatus = (provider: string) => {
+      if (provider === 'whatsapp') return { provider, connected: whatsappConnection?.production_ready === true
+        && whatsappConnection.environment === 'production' && channelContract?.channels?.find(channel => channel.id === 'whatsapp')?.ready === true };
       return integrations.find(i => i.provider === provider) || { provider, connected: false };
   };
 
@@ -1104,7 +1152,10 @@ const IntegracionesPage = () => {
   };
 
   const handlePrepareWhatsappSandbox = async () => {
-    if (!currentSlug) return;
+    if (!currentSlug || !channelScopeKey || channelScope.current !== channelScopeKey || whatsappConnection?.provider !== 'twilio') return;
+    const initiatingScope = channelScopeKey;
+    const isCurrent = () => channelScope.current === initiatingScope && currentWhatsappProvider.current === 'twilio'
+      && isChatbocSessionRevisionCurrent(sessionRevision);
     const deeplink = buildSandboxDeeplink();
 
     const payload = {
@@ -1130,6 +1181,7 @@ const IntegracionesPage = () => {
         payload,
         { tenantSlug: currentSlug, suppressPanel401Redirect: true },
       );
+      if (!isCurrent()) return;
       const testResult = normalizeSandboxContract(response);
       const remoteDeeplink = testResult.deeplink || deeplink;
       const remoteJoinNumber = testResult.joinNumber || sandboxSetup?.joinNumber || null;
@@ -1161,12 +1213,13 @@ const IntegracionesPage = () => {
         window.open(remoteDeeplink, "_blank", "noopener,noreferrer");
       }
     } catch (error: any) {
+      if (!isCurrent()) return;
       console.error("No se pudo preparar sandbox WhatsApp", error);
       setSandboxResult(null);
       const requestId = error instanceof ApiError && error.requestId ? ` Req: ${error.requestId}` : "";
       toast.error(`No se pudo preparar la prueba desde backend.${requestId}`);
     } finally {
-      setSandboxLoading(false);
+      if (isCurrent()) setSandboxLoading(false);
     }
   };
 
@@ -1574,7 +1627,7 @@ const IntegracionesPage = () => {
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
                 Autoriza WhatsApp Business, prueba recorridos reales y deja cada canal listo para operar desde el espacio de la organización.
               </p>
-              <InstitutionalProfileAccess />
+              <InstitutionalProfileAccess includeDomainSettings />
             </div>
           </div>
           <dl className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">
@@ -1585,7 +1638,7 @@ const IntegracionesPage = () => {
             <div className="border-l-2 border-border pl-3">
               <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">WhatsApp</dt>
               <dd className="mt-2 text-sm font-semibold text-foreground">
-                {whatsappStatus.connected ? "Operativo" : "Requiere autorización"}
+                {whatsappConnection?.environment === 'sandbox' ? 'Prueba · sin certificación productiva' : whatsappStatus.connected ? "Operativo" : "Requiere autorización"}
               </dd>
             </div>
             <div className="border-l-2 border-border pl-3">
@@ -2047,9 +2100,21 @@ const IntegracionesPage = () => {
                                 {selectedChannelPlanLock ? renderIntegrationPlanLockPanel(selectedChannelPlanLock) : null}
                                  {selectedChannel === 'whatsapp' ? (
                                      <div className="space-y-6">
-                                         <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
-                                         <Separator />
-                                         {renderWhatsappSandboxPanel()}
+                                         {!whatsappConnection ? <div className="space-y-3" role={channelRead?.failed || (!channelScopeKey && !userLoading && !isLoadingTenant) ? 'alert' : 'status'}>
+                                           <p>{!channelScopeKey && !userLoading && !isLoadingTenant ? 'Verificá tu sesión y seleccioná una organización para configurar WhatsApp.' : channelRead?.failed ? 'No pudimos verificar el proveedor de WhatsApp de esta organización.' : 'Verificando la conexión de WhatsApp.'}</p>
+                                           {channelRead?.failed ? <Button variant="outline" className="min-h-11" onClick={() => setChannelAttempt(value => value + 1)}>Reintentar verificación</Button> : null}
+                                         </div> : whatsappConnection.provider === 'meta' ? <div className="space-y-4 rounded-xl border p-4">
+                                           <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Meta Cloud API</h3><Badge variant="secondary">{whatsappConnection.environment === 'sandbox' ? 'Entorno de prueba' : 'Configuración registrada'}</Badge></div>
+                                           {whatsappConnection.display_phone_number ? <p className="break-all font-mono">{whatsappConnection.display_phone_number}</p> : <p>Número pendiente de confirmar.</p>}
+                                           <p>{whatsappConnection.configuration_status === 'expired' ? 'La credencial temporal venció. Se conserva la conexión de prueba; requiere renovación.' : whatsappConnection.configuration_status === 'configured' ? 'Conexión de prueba configurada. Disponibilidad y entrega actuales pendientes de verificar.' : 'La conexión necesita completar su configuración.'}</p>
+                                           <p className="text-sm text-muted-foreground">La prueba usa destinatarios autorizados. Un número de prueba no habilita atención pública ni certifica producción.</p>
+                                           {whatsappConnection.expires_at ? <p className="text-sm">Credencial temporal hasta {new Date(whatsappConnection.expires_at * 1000).toLocaleString('es-AR')}.</p> : null}
+                                           {channelContract?.channels?.find(channel => channel.id === 'whatsapp')?.evidence?.map((evidence,index) => <p key={index} className="text-sm text-muted-foreground">{evidence}</p>)}
+                                         </div> : whatsappConnection.provider === 'twilio' ? <>
+                                           <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
+                                           <Separator />{renderWhatsappSandboxPanel()}
+                                         </> : <p role="status">WhatsApp no tiene un proveedor verificado para esta organización.</p>}
+                                         {channelContract ? <Button variant="outline" className="min-h-11" onClick={() => setChannelAttempt(value => value + 1)}>Actualizar estado de WhatsApp</Button> : null}
                                      </div>
                                 ) : selectedChannel === 'mercadopago' ? (
                                     renderPaymentGatewayPanel()

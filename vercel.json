@@ -8,7 +8,8 @@
       "fix/widget-host-theme-switch-20261010": false,
       "feature/realtime-accessible-owner-20261010": false,
       "release/enterprise-tdf-consolidated-20261010": false,
-      "release/pro-whitelabel-frontend-20261010": false
+      "release/pro-whitelabel-frontend-20261010": false,
+      "fix/tenant-integration-provider-20261010": false
     }
   },
   "headers": [
