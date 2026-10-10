@@ -113,9 +113,9 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate=useNavigate();
   const { user, organizationProfileVerified, loading: userLoading } = useUser();
-  const cartCount = useCartCount(!privateShell.active);
+  const { currentSlug,tenant,isLoadingTenant,tenantError,hostBinding } = useTenant();
+  const cartCount = useCartCount(!privateShell.active && !hostBinding);
   const clerkRuntime = useClerkRuntime();
-  const { currentSlug,tenant,isLoadingTenant,tenantError } = useTenant();
   const institutionBrandRef=useRef<HTMLAnchorElement>(null);
   const loginScope=readPanelLoginScope(location.pathname);
   const accessIdentity=loginScope.valid&&loginScope.tenantSlug&&!isLoadingTenant&&!tenantError
@@ -124,7 +124,7 @@ const Navbar: React.FC = () => {
   const { capabilities, hasAnyCapability } = useCapabilities();
   const { hasVerifiedSession } = useSessionAuthority();
 
-  const isLanding = location.pathname === "/";
+  const isLanding = location.pathname === "/" && !hostBinding;
   const hasValidStoredToken = Boolean(getValidStoredToken("authToken") || getValidStoredToken("chatAuthToken"));
   const hasPersistedSession = hasValidStoredToken || hasPersistedClerkSession();
   const isLoggedIn = Boolean(
@@ -145,7 +145,7 @@ const Navbar: React.FC = () => {
 
   const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
   const contextPath = location.pathname.toLowerCase();
-  const explicitTenantScope = TENANT_ROUTE_PREFIXES.some((prefix) => contextPath.startsWith(`/${prefix}/`)) ||
+  const explicitTenantScope = Boolean(hostBinding) || TENANT_ROUTE_PREFIXES.some((prefix) => contextPath.startsWith(`/${prefix}/`)) ||
     contextPath.startsWith('/portal/') || /^\/[^/]+\/(?:analytics|estadisticas)(?:\/|$)/.test(contextPath) ||
     ['tenant', 'tenant_slug', 'endpoint'].some((key) => new URLSearchParams(location.search).has(key));
   const isPlatformRoute = ['/superadmin', '/admin/tenants'].includes(contextPath.replace(/\/+$/, ''));
@@ -291,7 +291,7 @@ const Navbar: React.FC = () => {
       roles: ["super_admin", "superadmin"],
     });
 
-    if(publicSiteSlug)links.push({ to: buildTenantPath("/", publicSiteSlug), label: "Ver sitio publico", icon: Layout });
+    if(publicSiteSlug)links.push({ to: hostBinding && publicSiteSlug === hostBinding.tenant.slug ? hostBinding.paths.home : buildTenantPath("/", publicSiteSlug), label: "Ver sitio publico", icon: Layout });
 
     const hasBackendCapabilities = capabilities.length > 0;
 
@@ -306,7 +306,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref]);
+  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref, hostBinding]);
 
   const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
   useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);
@@ -412,9 +412,9 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
+    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
-        {privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
+        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
@@ -439,7 +439,7 @@ const Navbar: React.FC = () => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          {!isLanding && !isPlatformAdmin && !privateShell.active ? (
+          {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
             <RouterLink
               to={cartPath}
               className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
@@ -553,12 +553,12 @@ const Navbar: React.FC = () => {
             </DropdownMenu>
           ) : (
             <>
-              <RouterLink to="/login" className="chatboc-cta-secondary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
+              <RouterLink to="/login" className={`${hostBinding ? 'border bg-primary text-primary-foreground' : 'chatboc-cta-secondary'} rounded-[8px] px-3 py-1.5 text-sm font-semibold`}>
                 Iniciar sesión
               </RouterLink>
-              <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
+              {!hostBinding ? <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
                 Ver demo
-              </RouterLink>
+              </RouterLink> : null}
             </>
           )}
 
@@ -600,7 +600,7 @@ const Navbar: React.FC = () => {
                   </button>
                 ))
               : null}
-            {!isLanding && !isPlatformAdmin && !privateShell.active ? (
+            {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
               <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                 <ShoppingCart className="h-4 w-4" />
                 Carrito
@@ -689,13 +689,13 @@ const Navbar: React.FC = () => {
                 <RouterLink to="/login" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
                   Iniciar sesión
                 </RouterLink>
-                <RouterLink
+                {!hostBinding ? <RouterLink
                   to="/demo"
                   onClick={() => setMenuOpen(false)}
                   className="chatboc-cta-primary mt-1 rounded-[8px] px-4 py-2 text-center text-sm font-semibold"
                 >
                   Ver demo
-                </RouterLink>
+                </RouterLink> : null}
               </>
             )}
 

@@ -17,6 +17,7 @@ import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 import { fetchWithStartupContinuity, isClerkSessionRequest, isPanelCredentialLoginRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
 import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { readActiveTenantHostRuntime, requiresTenantHostBinding, tenantHostRequestMatches, TenantHostUnavailableError } from '@/utils/tenantHostBinding';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -321,6 +322,14 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
 };
 
 const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: string | null): string | null => {
+  if (typeof window !== 'undefined' && requiresTenantHostBinding(window.location?.hostname)) {
+    const hostBinding = readActiveTenantHostRuntime(window.location?.hostname);
+    if (!hostBinding) throw new TenantHostUnavailableError();
+    const explicit = sanitizeTenantSlug(explicitTenant);
+    if ((explicitTenant != null && (!explicit || explicit.toLowerCase() !== hostBinding.tenant.slug)) ||
+      (pathForFallback && !tenantHostRequestMatches(hostBinding, pathForFallback))) throw new TenantHostUnavailableError();
+    return hostBinding.tenant.slug;
+  }
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
 
@@ -396,7 +405,7 @@ export const resolveTenantSlug = (
 ): string | null => {
   const resolved = inferTenantSlug(explicitTenant, pathForFallback);
 
-  if (resolved && options.persist !== false) {
+  if (resolved && options.persist !== false && !(typeof window !== 'undefined' && requiresTenantHostBinding(window.location?.hostname))) {
     try {
       safeLocalStorage.setItem("tenantSlug", resolved);
     } catch (error) {
@@ -982,9 +991,19 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
+  const isBoundDomain = typeof window !== 'undefined' && requiresTenantHostBinding(window.location?.hostname);
+  const activeHostBinding = isBoundDomain ? readActiveTenantHostRuntime(window.location?.hostname) : null;
+  // Global identity calls may omit tenant selection, but that flag cannot make
+  // an explicit foreign organization route/query valid on a bound domain.
+  if (activeHostBinding && !tenantHostRequestMatches(activeHostBinding, path)) throw new TenantHostUnavailableError();
+  if (isBoundDomain && /^https?:\/\//i.test(path)) {
+    let requestOrigin: string;
+    try { requestOrigin = new URL(path).origin; } catch { throw new TenantHostUnavailableError(); }
+    if (requestOrigin !== window.location.origin) throw new TenantHostUnavailableError();
+  }
   const resolvedTenantSlug = omitTenant
     ? null
-    : treatAsWidget && tenantSlug === undefined
+    : !isBoundDomain && treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path, { persist: persistTenantSlug !== false });
   // Explicit tenant and global panel scopes have their own authority. Public page,
@@ -1126,7 +1145,7 @@ export async function apiFetch<T>(
   const pathWithoutApiPrefix = hasApiPrefix
     ? normalizedPathWithTenant.replace(/^api\/+/, "")
     : normalizedPathWithTenant;
-  const preferredBase =
+  const preferredBase = isBoundDomain ? SAME_ORIGIN_PROXY_BASE :
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
       : "";
@@ -1150,7 +1169,7 @@ export async function apiFetch<T>(
   const configuredCandidateBases = API_BASE_CANDIDATES.length
     ? API_BASE_CANDIDATES
     : [BASE_API_URL].filter((value): value is string => !!value);
-  const candidateBases = isAbsolutePath
+  const candidateBases = isBoundDomain && !isAbsolutePath ? [SAME_ORIGIN_PROXY_BASE] : isAbsolutePath
     ? []
     : preferredBase
       ? Array.from(new Set([

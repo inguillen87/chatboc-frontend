@@ -4,6 +4,7 @@ import { MemoryRouter,useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Navbar from './Navbar';
+import { tenantHostFixture } from '@/test/fixtures/tenantHost';
 const logout=vi.hoisted(()=>vi.fn());
 vi.mock('@/utils/sessionLogout',async original=>({...await original<typeof import('@/utils/sessionLogout')>(),logoutChatbocSession:logout}));
 
@@ -95,6 +96,19 @@ describe('Navbar account menu routing', () => {
       hasBearerSession: true,
       hasVerifiedSession: true,
     });
+  });
+  it('brands the bound root from its published identity and keeps public access on the same host', () => {
+    const binding = tenantHostFixture();
+    useTenantMock.mockReturnValue({ currentSlug: binding.tenant.slug, hostBinding: binding, tenant: binding.tenant });
+    useUserMock.mockReturnValue({ user: null, loading: false });
+    useSessionAuthorityMock.mockReturnValue({ hasVerifiedSession: false, hasBearerSession: false });
+    render(<MemoryRouter initialEntries={['/']}><Navbar /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /Organización de prueba/ })).toHaveAttribute('href', '/');
+    expect(screen.getByText('atencion.example.test')).toBeInTheDocument();
+    expect(screen.queryByText('Chatboc.ar')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Iniciar sesión' }).every(link => link.getAttribute('href') === '/login')).toBe(true);
+    expect(screen.queryByRole('link', { name: 'Ver demo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /carrito/i })).not.toBeInTheDocument();
   });
   it('replaces the organization route with central login before remote retirement completes',()=>{
     logout.mockReturnValue(new Promise(()=>{}));

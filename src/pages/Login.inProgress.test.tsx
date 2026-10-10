@@ -5,12 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Login from './Login';
 import { ClerkRuntimeProvider } from '@/components/auth/ClerkRuntimeContext';
+import { tenantHostFixture } from '@/test/fixtures/tenantHost';
 
 const mocks = vi.hoisted(() => ({
   credentialLogin: vi.fn(),
   googleExchange: vi.fn(),
   oauthRedirect: vi.fn(),
   passkeyLogin: vi.fn(),
+  tenantContext: vi.fn(),
 }));
 
 vi.mock('@clerk/clerk-react', () => ({
@@ -31,7 +33,7 @@ vi.mock('@/env', async original => ({ ...await original<typeof import('@/env')>(
 vi.mock('@/api/panelLogin', () => ({ loginPanelWithCredentials: mocks.credentialLogin }));
 vi.mock('@/api/v2/auth', () => ({ loginWithGoogle: mocks.googleExchange }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ setUser: vi.fn(), refreshUser: vi.fn().mockResolvedValue(undefined) }) }));
-vi.mock('@/context/TenantContext', () => ({ useTenant: () => ({ currentSlug: null, tenant: null, isLoadingTenant: false }) }));
+vi.mock('@/context/TenantContext', () => ({ useTenant: () => mocks.tenantContext() }));
 vi.mock('@/hooks/useDateSettings', () => ({ useDateSettings: () => ({ timezone: 'America/Argentina/Buenos_Aires', locale: 'es-AR', updateSettings: vi.fn() }) }));
 vi.mock('@/services/passkeys', () => ({ isPasskeySupported: () => Promise.resolve(true), loginPasskey: mocks.passkeyLogin }));
 vi.mock('@/services/enterpriseService', async original => ({
@@ -59,6 +61,7 @@ describe('Login in-progress authentication', () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     vi.clearAllMocks();
+    mocks.tenantContext.mockReturnValue({ currentSlug: null, tenant: null, isLoadingTenant: false });
     mocks.credentialLogin.mockReturnValue(new Promise(() => {}));
     mocks.passkeyLogin.mockReturnValue(new Promise(() => {}));
   });
@@ -88,6 +91,19 @@ describe('Login in-progress authentication', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Legacy Google' }));
     expect(mocks.googleExchange).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Legacy Google' }).parentElement).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('scopes a bound-host root login to its exact published tenant without platform demos', async () => {
+    const binding = tenantHostFixture();
+    mocks.tenantContext.mockReturnValue({ hostBinding: binding, currentSlug: binding.tenant.slug, tenant: { slug: binding.tenant.slug, publishedIdentity: binding.identity }, isLoadingTenant: false });
+    renderLogin(false);
+    expect(screen.getByRole('heading', { name: 'Ingresar a Organización de prueba' })).toBeInTheDocument();
+    expect(screen.queryByText('Entrar a una demo guiada')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ir al acceso central de ChatBoc' })).toHaveAttribute('href', 'https://www.chatboc.ar/login');
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'fixture@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'unused-fixture' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
+    expect(mocks.credentialLogin).toHaveBeenCalledWith('fixture@example.invalid', 'unused-fixture', '/t/government-east/login', expect.any(Function));
   });
 
   it('keeps the same exclusion for a pending passkey request', async () => {

@@ -670,7 +670,7 @@ function ChatWidgetInner({
   defaultOpen = false,
   initialView = 'chat',
   widgetId = "chatboc-widget-iframe",
-  ownerToken,
+  ownerToken: suppliedOwnerToken,
   initialRubro,
   openWidth = "420px",
   openHeight = "680px",
@@ -693,6 +693,9 @@ function ChatWidgetInner({
   fontFamily,
 }: ChatWidgetProps) {
   const location = useLocation();
+  const { tenant, currentSlug, hostBinding } = useTenant();
+  // A bound domain starts from its canonical public profile, not an ambient owner token.
+  const ownerToken = hostBinding ? undefined : suppliedOwnerToken;
   const CHATBOC_WIDGET_STATIC = CHATBOC_AGENT_LAUNCHER_STATIC;
   const CHATBOC_WIDGET_PNG_FALLBACK = CHATBOC_AGENT_MARK;
   const CHATBOC_WIDGET_FALLBACK = CHATBOC_AGENT_AVATAR;
@@ -794,9 +797,9 @@ function ChatWidgetInner({
   const [duplicateInstance, setDuplicateInstance] = useState(false);
   const isEmbedded = mode !== "standalone";
   const isPublicPlatformSurface = useMemo(() => {
-    if (typeof window === "undefined" || isEmbedded) return false;
+    if (typeof window === "undefined" || isEmbedded || hostBinding) return false;
     return isPublicPlatformSurfacePath(window.location.pathname);
-  }, [isEmbedded]);
+  }, [isEmbedded, hostBinding]);
 
   const resolvedOwnerToken = useMemo(() => {
     const isDemoSessionContext =
@@ -837,7 +840,6 @@ function ChatWidgetInner({
   const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_STATIC);
   const [hideClosedLauncherForHeroPreview, setHideClosedLauncherForHeroPreview] = useState(false);
 
-  const { tenant, currentSlug } = useTenant();
   const storedTenantSlug = useMemo(() => {
     const candidate = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
     if (
@@ -1163,6 +1165,7 @@ function ChatWidgetInner({
   }, []);
 
   const explicitResolvedTenantSlug = useMemo(() => {
+    if (hostBinding) return hostBinding.tenant.slug;
     const candidates = [
       contextOverride?.tenantSlug,
       explicitTenantSlug,
@@ -1180,6 +1183,7 @@ function ChatWidgetInner({
 
     return null;
   }, [
+    hostBinding,
     contextOverride,
     explicitTenantSlug,
     tenantSlugFromEntity,
@@ -1287,6 +1291,7 @@ function ChatWidgetInner({
   );
 
   useEffect(() => {
+    if (hostBinding) return;
     if (entityInfo?.onboarding?.mode === "demo_session") return;
 
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
@@ -1298,7 +1303,7 @@ function ChatWidgetInner({
     if (isEmbedded || isPublicPlatformSurface) {
       safeLocalStorage.removeItem("tenantSlug");
     }
-  }, [entityInfo?.onboarding?.mode, isEmbedded, isPublicPlatformSurface, resolvedTenantSlug]);
+  }, [entityInfo?.onboarding?.mode, isEmbedded, isPublicPlatformSurface, resolvedTenantSlug, hostBinding]);
 
   useEffect(() => {
     if (!isEmbedded) return;

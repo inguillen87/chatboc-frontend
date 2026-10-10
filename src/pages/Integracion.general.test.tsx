@@ -28,6 +28,7 @@ vi.mock('@/services/tenantService', () => ({ tenantService: {
 } }));
 vi.mock('@/components/brand/MetaAppReviewApproval', () => ({ default: () => null }));
 vi.mock('@/components/tenant/MenuBuilder', () => ({ default: () => null }));
+vi.mock('@/components/tenant/TenantDomainSettings', () => ({ TenantDomainSettings: ({ tenant }: { tenant: { id: number; slug: string } }) => <div data-testid="tenant-domain-scope">{tenant.id}:{tenant.slug}</div> }));
 vi.mock('@/pages/pyme/integraciones/IntegracionesPage', () => ({ default: () => null }));
 vi.mock('@/components/integrations/WhatsappTechProviderOnboarding', () => ({ default: () => null }));
 vi.mock('sonner', () => ({ toast: messages }));
@@ -99,6 +100,7 @@ describe('Integracion institutional data and explicit visual drafts', () => {
     ('opens the versioned profile of the verified selected organization at %s, without a PUT', async entry => {
       render(app(entry));
       const name = await ready();
+      expect(screen.getByTestId('tenant-domain-scope')).toHaveTextContent('17:selected-government');
       expect(name).toHaveAttribute('readonly');
       fireEvent.keyDown(name, { key: 'N' });
       expect(name).toHaveValue('Organización seleccionada');

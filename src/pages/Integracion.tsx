@@ -55,6 +55,7 @@ import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTe
 import ChatCustomizer from '@/components/admin/ChatCustomizer';
 import { useTenant } from '@/context/TenantContext';
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
+import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
 
 const readInstitutionalProfile = (bundle: TenantConfigBundle | null, slug: string | null) => {
   const profile = bundle?.organization_profile;
@@ -556,6 +557,7 @@ const Integracion = () => {
                 </div>
               </CardContent>
             </Card>
+            {profile && scopeKey && configScopeKey === scopeKey ? <TenantDomainSettings key={scopeKey} tenant={profile.tenant} scopeKey={scopeKey} /> : null}
           </TabsContent>
 
           {/* --- MARKETPLACE & INTEGRATIONS (NEW PRO FEATURES) --- */}

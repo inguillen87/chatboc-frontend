@@ -11,6 +11,7 @@ const safeLocalStorageGetItemMock = vi.fn();
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => useUserMock(),
 }));
+vi.mock('@/context/TenantContext', () => ({ useTenantContextPresence: () => null }));
 
 vi.mock('@/context/CapabilitiesContext', () => ({
   useCapabilities: () => useCapabilitiesMock(),

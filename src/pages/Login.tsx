@@ -61,8 +61,10 @@ const LoginSession = () => {
   const location = useLocation();
   const { refreshUser, setUser } = useUser();
   const { timezone, locale, updateSettings } = useDateSettings();
-  const { currentSlug, tenant, isLoadingTenant, tenantError } = useTenant();
-  const accessScope = readPanelLoginScope(location.pathname);
+  const { currentSlug, tenant, isLoadingTenant, tenantError, hostBinding } = useTenant();
+  const credentialPathname = hostBinding && /^\/login\/?$/i.test(location.pathname)
+    ? `/t/${encodeURIComponent(hostBinding.tenant.slug)}/login` : location.pathname;
+  const accessScope = readPanelLoginScope(credentialPathname);
   const institutionalIdentity = !isLoadingTenant && !tenantError && accessScope.tenantSlug &&
     tenant?.slug?.toLowerCase() === accessScope.tenantSlug && tenant.publishedIdentity?.tenantSlug === accessScope.tenantSlug
       ? tenant.publishedIdentity : null;
@@ -77,7 +79,7 @@ const LoginSession = () => {
     credentialRequest.current = attempt;
     setIsLoading(false);
     return () => { attempt.active = false; };
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, hostBinding?.host]);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
@@ -96,7 +98,7 @@ const LoginSession = () => {
   const [upgradeBlockedFeature, setUpgradeBlockedFeature] = useState<string | null>(null);
   const franchisePartner = getFranchisePartnerConfig();
 
-  const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
+  const isGlobalLogin = !hostBinding && (location.pathname === '/login' || location.pathname === '/login/');
   const safeNextPath = getSafeAuthNextPath(location.search);
 
   const normalizeDemoRubro = (raw: unknown): DemoRubro | null => {
@@ -341,6 +343,7 @@ const LoginSession = () => {
   useEffect(() => {
     let mounted = true;
     const loadDemoOptions = async () => {
+      if (hostBinding) return;
       try {
         const catalog = await getDemoCatalogWithRetry();
         if (!mounted) return;
@@ -430,7 +433,7 @@ const LoginSession = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [hostBinding?.host]);
 
   useEffect(() => {
     let mounted = true;
@@ -452,7 +455,7 @@ const LoginSession = () => {
     attempt.busy = true; setError(""); setIsLoading(true);
     try {
       const result = await completePanelCredentialLogin({ email: nextEmail.trim(), password: nextPassword,
-        pathname: location.pathname, search: location.search, isCurrent: () => attempt.active,
+        pathname: credentialPathname, search: location.search, isCurrent: () => attempt.active,
         setUser: setUser as any });
       if (!attempt.active) return;
       setPassword(''); navigate(result.destination);
@@ -613,7 +616,9 @@ const LoginSession = () => {
         </h2>
         <SessionRetirementNotice/>
         <p className="mb-4 text-sm text-center text-muted-foreground" aria-label="Alcance del acceso">{accessScope.tenantSlug ? `Acceso para la organización ${accessScope.tenantSlug}. Usá tu cuenta institucional.` : "Acceso central. Tu cuenta determina a qué organización podés ingresar."}</p>
-        {accessScope.tenantSlug && <p className="mb-4 text-center text-sm"><Link to="/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</Link></p>}
+        {accessScope.tenantSlug && <p className="mb-4 text-center text-sm">{hostBinding
+          ? <a href="https://www.chatboc.ar/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</a>
+          : <Link to="/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</Link>}</p>}
         {franchisePartner.partnerName ? (
           <p className="text-xs text-center text-muted-foreground mb-4">{franchisePartner.partnerName}</p>
         ) : null}
