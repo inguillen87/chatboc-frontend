@@ -122,6 +122,7 @@ export function createOwnerVoiceTransport(options: OwnerVoiceOptions) {
         if (!/^[a-f0-9]{32}$/.test(sessionId) || answer.sdp.length > 48 * 1024
             || answer.limits.client_duration_seconds !== 120) throw new Error('invalid_contract');
         await peer!.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
+        if (closed) return;
         connectionDeadline = setTimeout(() => { void fail(); }, 15_000);
         // UX duration only. The server contract explicitly denies a billing guarantee.
         duration = setTimeout(() => { void close(); }, 120_000);

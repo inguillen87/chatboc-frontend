@@ -25,9 +25,29 @@ it('requires explicit consent and keeps authentication on the private endpoint',
   const button = await screen.findByRole('button', { name: 'Iniciar voz' }); expect(button).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Activar mi micrófono' })); fireEvent.click(button); fireEvent.click(button);
   expect(start).toHaveBeenCalledOnce();
-  expect(apiFetch).toHaveBeenCalledWith('/api/admin/tenants/a/realtime/browser/capabilities', expect.objectContaining({ omitEntityToken: true, allowSafeBaseFallback: false }));
+  expect(apiFetch).toHaveBeenCalledWith('/api/admin/tenants/a/realtime/browser/capabilities', expect.objectContaining({
+    omitEntityToken: true, omitChatSessionId: true, allowSafeBaseFallback: false,
+    singleAttempt: true, isWidgetRequest: false, persistTenantSlug: false }));
   expect(apiFetch.mock.calls[0][1].skipAuth).toBeUndefined();
   rendered.unmount(); expect(close).toHaveBeenCalledOnce();
+});
+
+it('uses a single owner-authenticated attempt for creation and server hangup too', async () => {
+  const { createOwnerVoiceTransport } = await import('@/utils/ownerRealtimeVoice');
+  const rendered=render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
+  fireEvent.click(await screen.findByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  const options=vi.mocked(createOwnerVoiceTransport).mock.calls.at(-1)![0];
+  await options.exchange('synthetic-sdp');
+  await options.stop('a'.repeat(32));
+  for (const [path, options] of apiFetch.mock.calls.filter(([, options]) => options.method === 'POST')) {
+    expect(path).toContain('/api/admin/tenants/a/realtime/browser/sessions');
+    expect(options).toEqual(expect.objectContaining({ singleAttempt:true,isWidgetRequest:false,
+      persistTenantSlug:false,omitEntityToken:true,omitChatSessionId:true,allowSafeBaseFallback:false }));
+    expect(options.skipAuth).toBeUndefined();
+  }
+  expect(apiFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(2);
+  rendered.unmount();
 });
 it('rejects a stale or foreign tenant capability and ignores it after a tenant change', async () => {
   apiFetch.mockResolvedValue({ ...capability, tenant: { slug: 'other' } });

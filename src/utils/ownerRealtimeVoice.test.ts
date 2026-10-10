@@ -76,6 +76,17 @@ describe('owner voice browser transport (offline)', () => {
     await transport.start(); await transport.close(); await transport.close();
     expect(options.stop).toHaveBeenCalledOnce(); expect(options.state).toHaveBeenLastCalledWith('pending');
   });
+  it('does not recreate timers after cancellation during remote SDP attachment', async () => {
+    const attach=deferred<void>(); peer.setRemoteDescription.mockReturnValue(attach.promise);
+    const { transport, options }=fixture(); const starting=transport.start();
+    await vi.waitFor(() => expect(peer.setRemoteDescription).toHaveBeenCalledOnce());
+    await transport.close(); const count=options.state.mock.calls.length;
+    attach.resolve(undefined); await starting;
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(options.state.mock.calls).toHaveLength(count);
+    expect(options.stop).toHaveBeenCalledOnce(); expect(options.exchange).toHaveBeenCalledOnce();
+  });
   it('collects full captions, never sends tool or session updates, and uses actual speaking events', async () => {
     const { transport, options } = fixture(); await transport.start();
     const send = (event: unknown) => channel.onmessage({ data: JSON.stringify(event) });

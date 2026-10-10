@@ -22,6 +22,7 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
   const busy = useRef(false);
   const base = `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/realtime/browser`;
   const requestOptions = { tenantSlug, omitEntityToken: true, omitChatSessionId: true,
+    singleAttempt: true, isWidgetRequest: false, persistTenantSlug: false,
     suppressPanel401Redirect: true, preserveAuthOn401: true, allowSafeBaseFallback: false };
   useEffect(() => {
     const current = ++generation.current;
