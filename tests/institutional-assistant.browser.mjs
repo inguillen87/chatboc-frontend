@@ -55,9 +55,11 @@ try{
    await expect(page.getByRole('dialog',{name:state.ui.import})).toBeVisible();
    await expect(page.getByRole('button',{name:state.ui.cancel,exact:true})).toBeFocused();assert.equal(writes.length,0);
    await page.getByRole('button',{name:state.ui.confirm,exact:true}).click();
-   await expect(page.getByRole('button',{name:'Consultar requisitos',exact:true})).toBeVisible();
+   const menuAction=node('start').actions.find(action=>action.target==='requirements');assert.ok(menuAction);
+   const menuButton=page.getByRole('button',{name:`${menuAction.code} ${menuAction.label}`,exact:true});
+   await expect(menuButton).toBeVisible();await expect(menuButton.getByText(menuAction.code,{exact:true})).toBeVisible();
    assert.deepEqual(writes[0].bundle,sourceFile);assert.equal(writes.length,1);
-   await page.getByRole('button',{name:'Consultar requisitos',exact:true}).click();
+   await menuButton.click();
    await expect(page.getByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
    assert.deepEqual(answerRequests,[{method:'GET',node_id:'requirements',revision:state.revision}]);assert.equal(writes.length,1);
    await expect(page.getByRole('link',{name:'Referencia institucional'})).toHaveAttribute('href','https://example.org/informacion');
@@ -125,7 +127,7 @@ try{
    await expect(page.getByRole('heading',{name:'Preparar la organización para operar'})).toHaveCount(0);
    await expect(page.getByText('Normativa Municipal V2.pdf')).toHaveCount(0);
    assert.deepEqual(errors,[]);
-   results.push({width,height,dark,passed:true,registeredKnowledgeRoute:true,realApiFetch:true,realImplementationPage:true,canonicalNavigation:true,canonicalGetRead:true,questionUsesSameSources:true,importRequiresConfirmation:true,publicationReadback:true,denialDoesNotRetry:true,syntheticWriteAttempts:writes.length,syntheticChanges:2,seriousAccessibilityViolations:severe.length,sourceDialogViolations:sourceSevere.length,reviewDialogViolations:reviewSevere.length,sourceFocusRestored:true,readingPositionPreserved:true,reviewBlocksBackground:true,multilineQuestion:true,uncoveredResponseFocused:true});
+   results.push({width,height,dark,passed:true,registeredKnowledgeRoute:true,realApiFetch:true,realImplementationPage:true,canonicalNavigation:true,canonicalCodeVisible:true,canonicalGetRead:true,questionUsesSameSources:true,importRequiresConfirmation:true,publicationReadback:true,denialDoesNotRetry:true,syntheticWriteAttempts:writes.length,syntheticChanges:2,seriousAccessibilityViolations:severe.length,sourceDialogViolations:sourceSevere.length,reviewDialogViolations:reviewSevere.length,sourceFocusRestored:true,readingPositionPreserved:true,reviewBlocksBackground:true,multilineQuestion:true,uncoveredResponseFocused:true});
   }catch(error){results.push({width,height,dark,passed:false,error:error.message,errors,writeAttempts:writes.length});await page.screenshot({path:`${folder}/failure-${width}.png`,fullPage:true}).catch(()=>{});}
   finally{await context.close();}
  }
