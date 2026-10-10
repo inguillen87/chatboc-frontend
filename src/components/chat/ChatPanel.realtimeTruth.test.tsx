@@ -81,11 +81,29 @@ describe("ChatPanel realtime transport truth", () => {
     chatLogic.messages=[];
     chatLogic.visitorName=null;
     chatLogic.contexto={};
+    chatLogic.uxContext={};
     profile.user=null;
     window.localStorage.clear();window.sessionStorage.clear();
     vi.mocked(apiFetch).mockImplementation(async (path) =>
       path === "/api/public/realtime/session" ? provisionedSession : {},
     );
+  });
+
+  it.each([false,true])('respects explicit WhatsApp enabled=%s despite recommended handoff and voice followup',(enabled)=>{
+    chatLogic.uxContext={recommended_experience:{preferred_handoff_channels:['whatsapp']}};
+    render(<ChatPanel tipoChat="municipio" tenantSlug="qa-channel-scope" mode="iframe"
+      supportChannels={{whatsapp:{enabled,label:'Continuar con el equipo por WhatsApp',action:'contact_whatsapp'}}}
+      realtimeConfig={{voiceHandoff:{enabled:true,supportsWhatsAppFollowup:true}}}/>);
+    const button=screen.queryByRole('button',{name:'Continuar con el equipo por WhatsApp',exact:true});
+    if(enabled){
+      expect(button).toBeVisible();
+      fireEvent.click(button!);
+      expect(chatLogic.handleSend).toHaveBeenCalledWith(expect.objectContaining({action:'contact_whatsapp'}));
+    }else{
+      expect(button).not.toBeInTheDocument();
+      expect(chatLogic.handleSend).not.toHaveBeenCalled();
+      expect(screen.getByRole('textbox',{name:'Borrador de consulta'})).toBeVisible();
+    }
   });
 
   it.each(['iframe','script','standalone'] as const)('keeps the %s visitor bubble generic despite an administrative profile and an unscoped stored name', async (mode) => {

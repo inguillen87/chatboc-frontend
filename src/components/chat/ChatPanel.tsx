@@ -2240,10 +2240,11 @@ const ChatPanel = (props: ChatPanelProps) => {
     (channel) => channel.toLowerCase() === "whatsapp",
   );
   const canRenderWhatsAppBridge = Boolean(
-    (boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction) ||
-      (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
-        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
-      hasRecommendedWhatsAppHandoff,
+    supportChannels?.whatsapp?.enabled !== false &&
+      ((boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction) ||
+        (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
+          boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
+        hasRecommendedWhatsAppHandoff),
   );
   const showLiveChatSupport = canRenderLiveChat && !isToolbarActionCollapsed("live_chat");
   const showWhatsAppSupport = canRenderWhatsAppBridge && !isToolbarActionCollapsed("whatsapp");

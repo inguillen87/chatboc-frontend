@@ -36,6 +36,7 @@ name: Unified organization login
       - src/components/chat/InstitutionalChatMessage*
       - src/features/chat/institutionalChatMessage*
       - src/components/chat/ChatHeader*
+      - src/components/chat/ChatPanel*
       - src/components/chat/ChatHumanSupportBar*
       - tests/e2e/chat-header-layout.spec.ts
       - src/pages/admin/knowledge/KnowledgeSourcesPage*
