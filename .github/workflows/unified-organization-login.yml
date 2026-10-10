@@ -41,6 +41,7 @@ name: Unified organization login
       - src/components/chat/ChatHumanSupportBar*
       - src/components/chat/ChatWidgetInner*
       - src/utils/widgetTheme*
+      - src/hooks/useDarkMode*
       - src/utils/color.ts
       - tests/e2e/chat-header-layout.spec.ts
       - src/pages/admin/knowledge/KnowledgeSourcesPage*
