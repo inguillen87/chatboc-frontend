@@ -44,7 +44,7 @@ const ChatHumanSupportBar: React.FC<ChatHumanSupportBarProps> = ({
         className,
       )}
     >
-      <div className="mx-auto flex w-full max-w-4xl items-center gap-2.5">
+      <div className="mx-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2">
         <span
           className={cn(
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
@@ -56,23 +56,22 @@ const ChatHumanSupportBar: React.FC<ChatHumanSupportBarProps> = ({
         >
           <UserRound className="h-4 w-4" />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-semibold text-foreground">Ayuda de una persona</p>
-          <p className="truncate text-[11px] text-muted-foreground">{statusText}</p>
+        <div className="min-w-0">
+          <p className="break-words text-xs font-semibold leading-snug text-foreground">Ayuda de una persona</p>
+          <p className="break-words text-[11px] leading-snug text-muted-foreground">{statusText}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="col-span-2 flex min-w-0 flex-wrap items-stretch gap-2">
           {onLiveChat ? (
             <button
               type="button"
               onClick={onLiveChat}
               aria-label={cleanLabel(liveChatLabel, "Hablar con el equipo")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="inline-flex min-h-12 min-w-12 flex-1 basis-32 items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary px-2.5 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
-              <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="hidden min-[360px]:inline">
+              <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words leading-snug">
                 {cleanLabel(liveChatLabel, "Hablar con el equipo")}
               </span>
-              <span className="min-[360px]:hidden">Equipo</span>
             </button>
           ) : null}
           {onWhatsApp ? (
@@ -80,13 +79,12 @@ const ChatHumanSupportBar: React.FC<ChatHumanSupportBarProps> = ({
               type="button"
               onClick={onWhatsApp}
               aria-label={cleanLabel(whatsappLabel, "WhatsApp")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border/70 bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="inline-flex min-h-12 min-w-12 flex-1 basis-32 items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-card px-2.5 py-2 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
-              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="sr-only sm:not-sr-only">
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words leading-snug">
                 {cleanLabel(whatsappLabel, "WhatsApp")}
               </span>
-              <span className="sm:hidden" aria-hidden="true">WhatsApp</span>
             </button>
           ) : null}
         </div>

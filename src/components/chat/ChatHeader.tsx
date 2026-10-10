@@ -183,9 +183,9 @@ const ChatHeader: React.FC<Props> = ({
               {title || 'Chatboc'}
             </span>
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/82 sm:text-xs">
-            <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate font-medium">{subtitle || 'Asistente digital'}</span>
+          <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-white/82 sm:text-xs">
+            <MessageCircleMore className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 break-words font-medium leading-snug">{subtitle || 'Asistente digital'}</span>
           </div>
           {statusLabel && !isUltraCompact ? (
             <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/80">
