@@ -12,7 +12,8 @@
       "fix/tenant-integration-provider-20261010": false,
       "fix/owner-voice-disclosure-20261010": false,
       "fix/institutional-preview-domain-fixture-20261010": false,
-      "fix/integration-published-tenant-scope-20261010": false
+      "fix/integration-published-tenant-scope-20261010": false,
+      "fix/tdf-realtime-keyboard-captions-20261010": false
     }
   },
   "headers": [
