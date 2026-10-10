@@ -12,6 +12,8 @@ import { useUser } from '@/hooks/useUser';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { apiClient } from '@/api/client';
 import { Order } from '@/types/unified';
+import { OrderAmountBreakdown, PublishedOrderAmounts } from '@/components/orders/OrderAmountBreakdown';
+import { formatOrderTotal, formatPublishedAmount, assessWidgetOrderAmounts, assessWidgetOrderItemAmounts } from '@/features/orders/orderAmounts';
 import type { WidgetPortalOrder } from '@/utils/widgetPortal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +49,7 @@ const getChannelIcon = (channel: string) => {
 };
 
 const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
-  const total = typeof order.amountTotal === 'number' ? order.amountTotal : null;
+  const amounts = order.amount_evidence ?? assessWidgetOrderAmounts({total:order.amountTotal});
   const title = order.title || (order.nroPedido ? `#${order.nroPedido}` : null);
   return (
     <Card className="overflow-hidden">
@@ -66,7 +68,7 @@ const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
             ) : null}
           </div>
           <div className="text-right">
-            {total !== null ? <span className="block text-lg font-bold">${total.toLocaleString()}</span> : null}
+            <span className="block text-lg font-bold">{formatPublishedAmount(amounts.total,amounts.currency)}</span>
             {order.trackingUrl ? (
               <a href={order.trackingUrl} className="mt-1 flex items-center justify-end gap-1 text-xs text-primary hover:underline">
                 Tracking <ExternalLink className="h-3 w-3" />
@@ -76,16 +78,9 @@ const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
         </div>
 
         <div className="space-y-4 p-4">
-          {order.items.length > 0 ? (
-            <div className="space-y-2">
-              {order.items.map((item) => (
-                <div key={item.id} className="flex justify-between gap-3 text-sm">
-                  <span>{[item.quantity ? `${item.quantity}x` : null, item.name].filter(Boolean).join(' ')}</span>
-                  {typeof item.price === 'number' ? <span className="font-medium text-muted-foreground">${item.price.toLocaleString()}</span> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <PublishedOrderAmounts evidence={amounts} showTotal={false} rows={order.items.map(item=>({
+            name:item.name||'Artículo sin nombre informado',evidence:item.amount_evidence??assessWidgetOrderItemAmounts(item,amounts.currency),
+          }))} />
           {(order.detailEndpoint || order.trackingUrl) ? (
             <div className="flex justify-end gap-2 border-t pt-4">
               {order.detailEndpoint ? (
@@ -134,7 +129,7 @@ const LegacyOrderCard = ({ order, currentSlug }: { order: Order; currentSlug: st
             </p>
           </div>
           <div className="text-right">
-            <span className="block text-lg font-bold">${order.total.toLocaleString()}</span>
+            <span className="block text-lg font-bold">{formatOrderTotal(order)}</span>
             {anyOrder.externalUrl ? (
               <a href={anyOrder.externalUrl} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center justify-end gap-1 text-xs text-primary hover:underline">
                 Ver en plataforma <ExternalLink className="h-3 w-3" />
@@ -144,14 +139,7 @@ const LegacyOrderCard = ({ order, currentSlug }: { order: Order; currentSlug: st
         </div>
 
         <div className="p-4">
-          <div className="space-y-2">
-            {order.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between text-sm">
-                <span>{item.quantity}x {item.name}</span>
-                <span className="font-medium text-muted-foreground">${item.price.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
+          <OrderAmountBreakdown order={order} showTotal={false} />
           {(anyOrder.customer_profile?.name || anyOrder.customer_profile?.phone || anyOrder.market_order_id || anyOrder.commercial_state?.supports_handoff) ? (
             <div className="mt-4 grid gap-2 rounded-2xl border border-border/60 bg-muted/20 p-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
               {anyOrder.customer_profile?.name ? (

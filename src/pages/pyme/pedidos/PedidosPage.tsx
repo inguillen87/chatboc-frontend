@@ -1,6 +1,5 @@
 import AbandonedCartRecoveryPanel from '@/components/cart/AbandonedCartRecoveryPanel';
-import React, { useState, useEffect } from 'react';
-import { useTenant } from '@/context/TenantContext';
+import React, { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/api/client';
 import { AdminOrdersResponse, CrmOperatorAction, CrmReviewCard, Order, OrderOperationalSummary } from '@/types/unified';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -17,10 +16,14 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import { AssistedRequestPanel } from '@/components/orders/AssistedRequestPanel';
+import { OrderAmountBreakdown } from '@/components/orders/OrderAmountBreakdown';
+import { formatOrderTotal } from '@/features/orders/orderAmounts';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { cn } from '@/lib/utils';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
+import { useUser } from '@/hooks/useUser';
+import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -692,8 +695,30 @@ const CrmOperatorActionsPanel = ({
   );
 };
 
-const PedidosPage = () => {
-  const { currentSlug } = useTenant();
+const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
+  const { user, loading: profileLoading, organizationProfileVerified, hasVerifiedSession } = useUser();
+  const organization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(profileLoading),
+  });
+  const organizationType = organization?.tenantSlug === currentSlug ? organization.organizationType : null;
+  const isGovernment = organizationType === 'municipio' || organizationType === 'gobierno';
+  const isSchool = organizationType === 'colegio';
+  const isCompany = organizationType === 'empresa' || organizationType === 'pyme';
+  const pageTitle = isGovernment ? 'Pedidos institucionales'
+    : isSchool ? 'Pedidos de la institución'
+    : isCompany ? 'Pedidos y ventas' : 'Pedidos';
+  const pageDescription = isGovernment ? 'Consultá y gestioná los pedidos institucionales de esta organización.'
+    : isSchool ? 'Consultá y gestioná los pedidos de la institución educativa.'
+    : isCompany ? 'Consultá y gestioná los pedidos de tu empresa.'
+    : 'Consultá el estado de los pedidos registrados para esta organización.';
+  const active = useRef(true);
+  const scope = useRef({ slug: currentSlug, generation: 0 });
+  if (scope.current.slug !== currentSlug) scope.current = { slug: currentSlug, generation: scope.current.generation + 1 };
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  const captureCurrentScope = () => {
+    const generation = scope.current.generation;
+    return () => active.current && scope.current.slug === currentSlug && scope.current.generation === generation;
+  };
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryString = searchParams.toString();
@@ -746,43 +771,36 @@ const PedidosPage = () => {
   }, [queryString, searchParams]);
 
   const loadOrders = async () => {
+    const isCurrent = captureCurrentScope();
     setLoading(true);
     try {
       if (!currentSlug) return;
 
       const data = await listOrdersWithOptionalSummary(currentSlug, { status: 'all', limit: 100 });
+      if (!isCurrent()) return;
       const normalized = normalizeOrders(data.orders);
       setOrders(normalized);
       setOrdersSummary(data.summary ?? null);
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Error loading orders:', error);
 
-      try {
-          // Fallback retry without filters
-          const fallbackData = await listOrdersWithOptionalSummary(currentSlug);
-          const fallbackNormalized = normalizeOrders(fallbackData.orders);
-          if (fallbackNormalized.length > 0) {
-              setOrders(fallbackNormalized);
-              setOrdersSummary(fallbackData.summary ?? null);
-              return;
-          }
-      } catch (e) {
-          // Ignore fallback error
-      }
       setOrders([]);
       setOrdersSummary(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
     if (!currentSlug) return;
+    const isCurrent = captureCurrentScope();
     const currentOrders = Array.isArray(orders) ? orders : [];
     if (newStatus === 'cancelled' && !window.confirm('Confirmas cancelar este pedido?')) return;
 
     try {
       const response = await apiClient.adminUpdateOrder(currentSlug, orderId, { status: newStatus });
+      if (!isCurrent()) return;
       const updatedOrders = currentOrders.map((order) =>
         order.id === orderId ? resolveUpdatedOrder(order, response, newStatus) : order,
       );
@@ -791,6 +809,7 @@ const PedidosPage = () => {
         setSelectedOrder(resolveUpdatedOrder(selectedOrder, response, newStatus));
       }
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Failed to update status', error);
       toast.error("No se pudo actualizar el estado. El pedido no fue modificado.");
     }
@@ -806,6 +825,7 @@ const PedidosPage = () => {
     },
   ) => {
     if (!currentSlug) return;
+    const isCurrent = captureCurrentScope();
     const resolutionKey = `${payload.lineId || payload.sourceName}:${payload.catalogItemId}`;
     setResolvingCatalogCandidateKey(resolutionKey);
     try {
@@ -818,6 +838,7 @@ const PedidosPage = () => {
           },
         ],
       });
+      if (!isCurrent()) return;
       const updated = resolveUpdatedOrder(order, response, order.status);
       setOrders((currentOrders) => currentOrders.map((item) => (item.id === order.id ? resolveUpdatedOrder(item, response, item.status) : item)));
       if (selectedOrder && selectedOrder.id === order.id) {
@@ -825,15 +846,17 @@ const PedidosPage = () => {
       }
       toast.success(`Catalogo vinculado: ${payload.sourceName} -> ${payload.candidateName}`);
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Failed to resolve catalog candidate', error);
       toast.error('No se pudo vincular el producto del catalogo.');
     } finally {
-      setResolvingCatalogCandidateKey(null);
+      if (isCurrent()) setResolvingCatalogCandidateKey(null);
     }
   };
 
   const handleCreateOrder = async () => {
     if (!currentSlug) return;
+    const isCurrent = captureCurrentScope();
     if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
       toast.error("Complete los campos obligatorios");
       return;
@@ -851,15 +874,17 @@ const PedidosPage = () => {
       };
 
       await apiClient.adminCreateOrder(currentSlug, payload);
+      if (!isCurrent()) return;
       toast.success("Pedido creado correctamente");
       setIsCreateOpen(false);
       setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });
       loadOrders(); // Refresh list
     } catch (error) {
+      if (!isCurrent()) return;
       console.error("Create order failed", error);
       toast.error("Error al crear el pedido");
     } finally {
-      setCreateLoading(false);
+      if (isCurrent()) setCreateLoading(false);
     }
   };
 
@@ -920,8 +945,8 @@ const PedidosPage = () => {
     <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
       <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-none ${selectedOrder ? 'hidden md:flex' : ''}`}>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Pedidos & Fidelización</h1>
-          <p className="text-sm md:text-base text-muted-foreground mb-2">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{pageTitle}</h1>
+          <p className="text-sm md:text-base text-muted-foreground mb-2">{pageDescription}</p>
           <div className="flex items-center gap-2">
             <Button
               variant={activeTab === 'pedidos' ? 'default' : 'outline'}
@@ -1386,7 +1411,7 @@ const PedidosPage = () => {
                             </div>
                         </div>
                         <div className="font-bold text-lg">
-                            ${order.total.toLocaleString()}
+                            {formatOrderTotal(order)}
                         </div>
                     </div>
                   </CardContent>
@@ -1548,35 +1573,7 @@ const PedidosPage = () => {
 
                   {/* Items Table */}
                   <div className="border rounded-md overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted text-muted-foreground">
-                        <tr>
-                          <th className="p-3 text-left font-medium">Producto</th>
-                          <th className="p-3 text-right font-medium">Cant.</th>
-                          <th className="p-3 text-right font-medium">Precio</th>
-                          <th className="p-3 text-right font-medium">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(selectedOrder.items || []).map((item, idx) => (
-                          <tr key={idx} className="border-t last:border-0">
-                            <td className="p-3">
-                                <div className="font-medium">{item.name}</div>
-                                <div className="text-xs text-muted-foreground">SKU: {item.sku || 'N/A'}</div>
-                            </td>
-                            <td className="p-3 text-right">{item.quantity}</td>
-                            <td className="p-3 text-right">${item.price.toLocaleString()}</td>
-                            <td className="p-3 text-right font-medium">${(item.price * item.quantity).toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-muted/30 font-medium">
-                        <tr>
-                          <td colSpan={3} className="p-3 text-right">Total</td>
-                          <td className="p-3 text-right text-lg">${selectedOrder.total.toLocaleString()}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                    <OrderAmountBreakdown order={selectedOrder} />
                   </div>
 
                   {/* Dispatch Info */}

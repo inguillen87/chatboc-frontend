@@ -9,6 +9,7 @@ export const ALLOWED_TICKET_STATUSES = [
 export type AllowedTicketStatus = typeof ALLOWED_TICKET_STATUSES[number];
 
 const STATUS_ALIASES: Record<string, AllowedTicketStatus> = {
+  open: 'nuevo',
   abierto: 'en_proceso',
   'en espera': 'en_proceso',
   'en-espera': 'en_proceso',
@@ -24,9 +25,13 @@ const STATUS_ALIASES: Record<string, AllowedTicketStatus> = {
   'en camino': 'en_proceso',
   derivado: 'en_proceso',
   'en proceso': 'en_proceso',
+  in_progress: 'en_proceso',
+  waiting_customer: 'en_proceso',
   completado: 'resuelto',
   cerrado: 'resuelto',
+  closed: 'resuelto',
   finalizado: 'resuelto',
+  resolved: 'resuelto',
   solucionado: 'resuelto',
   resuelto: 'resuelto',
 };
@@ -114,4 +119,39 @@ export const pickLastKnownStatus = (
   }
 
   return null;
+};
+
+interface TicketWorkflowStateSource {
+  estado?: string | null;
+  next_states?: unknown;
+  workflow?: {
+    next_states?: unknown;
+  } | null;
+}
+
+/**
+ * Returns only transitions explicitly published for this ticket by the API.
+ * Missing/malformed contracts fail closed instead of recreating business rules
+ * in the browser.
+ */
+export const getPublishedTicketTransitions = (
+  ticket?: TicketWorkflowStateSource | null,
+): AllowedTicketStatus[] => {
+  if (!ticket) return [];
+
+  const rawNextStates = Array.isArray(ticket.workflow?.next_states)
+    ? ticket.workflow.next_states
+    : Array.isArray(ticket.next_states)
+      ? ticket.next_states
+      : [];
+  const currentState = normalizeTicketStatus(ticket.estado);
+  const transitions = new Set<AllowedTicketStatus>();
+
+  rawNextStates.forEach((value) => {
+    if (typeof value !== 'string') return;
+    const normalized = normalizeTicketStatus(value);
+    if (normalized && normalized !== currentState) transitions.add(normalized);
+  });
+
+  return ALLOWED_TICKET_STATUSES.filter((status) => transitions.has(status));
 };

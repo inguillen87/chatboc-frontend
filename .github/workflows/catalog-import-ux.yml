@@ -1,0 +1,34 @@
+name: Catalog import UX and safe errors
+"on":
+  pull_request:
+    paths:
+      - src/components/catalog/ImportWizard*
+      - src/components/admin/catalog/CatalogUploadWizard.tsx
+      - src/utils/catalogImportError*
+      - .github/workflows/catalog-import-ux.yml
+permissions:
+  contents: read
+concurrency:
+  group: catalog-import-ux-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Catalog import focused regression
+        run: npx vitest run src/utils/catalogImportError.test.ts src/components/catalog/ImportWizard.error.test.tsx --maxWorkers=2
+      - name: Complete frontend regression
+        run: npm test -- --maxWorkers=2
+      - name: Application build
+        run: npm run build

@@ -8,6 +8,11 @@ import { MapEvidenceBadge, buildMapEvidence, type MapEvidenceInput } from "@/com
 import { clusterHeatmapPoints } from "@/utils/heatmap";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import { runtimeDiagnostics } from "@/utils/runtimeDiagnostics";
+import {
+  buildTerritorialTicketHref,
+  isTerritorialTenantScopeCompatible,
+  resolveTerritorialTicketIdentity,
+} from "@/utils/territorialTicketIdentity";
 
 const normalizeExternalMapLibreAsset = (value: unknown): string => {
   const trimmed = String(value ?? "").trim();
@@ -56,9 +61,14 @@ export type MapLibreMapProps = {
   center?: [number, number]; // [lon, lat]
   initialZoom?: number;
   onSelect?: (lat: number, lon: number, address?: string) => void;
+  onFeatureSelect?: (point: HeatPoint | null) => void;
   heatmapData?: HeatPoint[];
+  /** Expected tenant scope for points, GeoJSON features and exact CRM links. */
+  tenantSlug?: string | null;
   polygons?: { type: "FeatureCollection"; features: any[] };
   showHeatmap?: boolean;
+  showPoints?: boolean;
+  showPointLabels?: boolean;
   showPolygons?: boolean;
   marker?: [number, number];
   className?: string;
@@ -92,6 +102,7 @@ export type MapLibreMapProps = {
   } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
+  fitBoundsRequestKey?: string | number;
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
   onProviderUnavailable?: (
@@ -101,14 +112,101 @@ export type MapLibreMapProps = {
   ) => void;
   disableClientClustering?: boolean;
   evidence?: MapEvidenceInput | null;
+  showEvidenceBadge?: boolean;
   providerFallbackMessage?: string | null;
+  ariaLabel?: string;
+  ariaDescribedBy?: string;
+  popupContext?: "tickets" | "survey" | "territory";
+  pointMinZoom?: number;
+  pointLabelMinZoom?: number;
+  pointLabelMode?: "count" | "barrio" | "categoria" | "none";
+  heatmapRadiusScale?: number;
+  heatmapPalette?: "default" | "faro";
+  /** Fade density as the operator zooms in so concrete points become the primary evidence. */
+  adaptiveZoomMode?: boolean;
 };
+
+const isRenderableCoordinatePair = (lat: unknown, lng: unknown): lat is number =>
+  typeof lat === "number" &&
+  typeof lng === "number" &&
+  Number.isFinite(lat) &&
+  Number.isFinite(lng) &&
+  lat >= -90 &&
+  lat <= 90 &&
+  lng >= -180 &&
+  lng <= 180 &&
+  !(lat === 0 && lng === 0);
 
 const addLayer = (map: Map, layer: any) => {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer);
   }
 };
+
+const MAP_HEAT_SOURCE_ID = "chatboc-runtime-heatmap";
+const MAP_POINT_SOURCE_ID = "chatboc-runtime-points";
+const FILTERED_VIEW_MAX_ZOOM = 14;
+const COMPACT_FILTERED_VIEW_MAX_ZOOM = 13;
+const COMPACT_FILTERED_VIEW_SPAN_DEGREES = 0.0025;
+const EMPTY_MAP_FEATURE_COLLECTION: { type: "FeatureCollection"; features: unknown[] } = {
+  type: "FeatureCollection" as const,
+  features: [],
+};
+
+// MapLibre requires zoom interpolation at the expression root. Apply the
+// radius scale to each stop; wrapping the interpolation rejects the heat layer.
+const heatmapRadiusExpression = (scale: number) => [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  0,
+  [
+    "*",
+    scale,
+    [
+      "max",
+      4,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        2.6,
+      ],
+    ],
+  ],
+  9,
+  [
+    "*",
+    scale,
+    [
+      "max",
+      14,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        4.8,
+      ],
+    ],
+  ],
+  13,
+  [
+    "*",
+    scale,
+    [
+      "max",
+      18,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        6.4,
+      ],
+    ],
+  ],
+];
+
+const sourceDataForLayer = (
+  source: { type: "FeatureCollection"; features: unknown[] },
+  visible: boolean,
+) => (visible ? source : EMPTY_MAP_FEATURE_COLLECTION);
 
 type MapLibreModule = typeof import("maplibre-gl");
 
@@ -248,11 +346,29 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       intensity: p.intensity ?? p.totalWeight ?? p.weight ?? 1,
       id: p.id,
       ticket: p.ticket,
+      ticketId: p.ticketId,
+      ticket_id: p.ticketId,
+      sourceModel: p.sourceModel,
+      source_model: p.sourceModel,
+      recordId: p.recordId,
+      record_id: p.recordId,
+      recordSource: p.recordSource,
+      record_source: p.recordSource,
+      ticketIdentityStatus: p.ticketIdentityStatus,
+      ticketHref: p.ticketHref,
+      tenantSlug: p.tenantSlug,
       categoria: p.categoria,
+      canal: p.canal,
+      fuente: p.fuente,
+      source: p.source,
+      total: p.total,
       categoryColor: p.categoryColor,
       direccion: p.direccion,
+      addressCellLabel: p.addressCellLabel,
       distrito: p.distrito,
       barrio: p.barrio,
+      ciudad: p.ciudad,
+      provincia: p.provincia,
       estado: p.estado,
       tipo_ticket: p.tipo_ticket,
       severidad: p.severidad,
@@ -332,6 +448,32 @@ const appendPopupBreakdown = (
   parent.appendChild(section);
 };
 
+const TERRITORY_PLACEHOLDER_LABELS = new Set([
+  "sin zona",
+  "sin barrio",
+  "sin distrito",
+  "sin localidad",
+  "no informado",
+  "no informada",
+  "desconocido",
+  "desconocida",
+  "unknown",
+  "none",
+  "null",
+  "n/a",
+]);
+
+const presentTerritoryLabel = (value: unknown) => {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const label = String(value).trim();
+  if (!label) return undefined;
+  const normalized = label
+    .toLocaleLowerCase("es-AR")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  return TERRITORY_PLACEHOLDER_LABELS.has(normalized) ? undefined : label;
+};
+
 const appendPopupTicketLink = (
   parent: HTMLElement,
   ticketId: unknown,
@@ -351,14 +493,46 @@ const appendPopupTicketLink = (
   return link;
 };
 
+const appendTerritorialTicketLink = (
+  parent: HTMLElement,
+  candidate: unknown,
+  clusterSize = 1,
+) => {
+  if (clusterSize > 1) return null;
+  const candidateRecord = candidate !== null && typeof candidate === "object"
+    ? candidate as Record<string, unknown>
+    : {};
+  const candidateTenantSlug = typeof candidateRecord.tenantSlug === "string"
+    ? candidateRecord.tenantSlug
+    : null;
+  const resolution = resolveTerritorialTicketIdentity(candidate, candidateTenantSlug);
+  const href = buildTerritorialTicketHref(
+    resolution.status === "valid" ? resolution.identity : null,
+    candidateTenantSlug,
+  );
+  if (!href) return null;
+
+  const paragraph = document.createElement("p");
+  paragraph.className = "mt-3 border-t border-slate-200 pt-2 text-xs";
+  const link = document.createElement("a");
+  link.href = href;
+  link.className = "font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-600";
+  link.textContent = "Abrir reclamo en CRM";
+  paragraph.appendChild(link);
+  parent.appendChild(paragraph);
+  return link;
+};
+
 export const buildMapClusterPopupContent = ({
   cluster,
   properties,
   numberFormatter = popupNumberFormatter,
+  popupContext = "tickets",
 }: {
   cluster?: HeatPoint;
   properties?: Record<string, unknown>;
   numberFormatter?: Intl.NumberFormat;
+  popupContext?: "tickets" | "survey" | "territory";
 }) => {
   const root = document.createElement("div");
   root.className = "max-w-xs space-y-1";
@@ -370,6 +544,61 @@ export const buildMapClusterPopupContent = ({
     const totalWeight = Number.isFinite(cluster.totalWeight)
       ? Number(cluster.totalWeight)
       : Number(cluster.weight ?? 0);
+
+    if (popupContext === "territory") {
+      const zone = presentTerritoryLabel(cluster.barrio) ?? presentTerritoryLabel(cluster.distrito);
+      const locality = [zone, presentTerritoryLabel(cluster.ciudad)].filter(Boolean).join(" · ");
+      appendPopupText(
+        root,
+        "p",
+        locality || "Ubicación pendiente de verificar",
+        "text-sm font-semibold text-slate-800",
+      );
+      if (cluster.categoria) {
+        appendPopupText(root, "p", `Categoría: ${cluster.categoria}`, "text-xs text-slate-600");
+      }
+      if (cluster.direccion) {
+        appendPopupText(root, "p", `Área agrupada: ${cluster.direccion}`, "text-xs text-slate-600");
+      }
+      if (cluster.tipo_ticket) {
+        appendPopupText(root, "p", `Tipo: ${cluster.tipo_ticket}`, "text-xs text-slate-600");
+      }
+      if (cluster.estado) {
+        appendPopupText(root, "p", `Estado: ${cluster.estado}`, "text-xs text-slate-600");
+      }
+      if (cluster.canal) {
+        appendPopupText(root, "p", `Canal: ${cluster.canal}`, "text-xs text-slate-600");
+      }
+      if (totalWeight > 0) {
+        appendPopupText(
+          root,
+          "p",
+          `Volumen representativo: ${numberFormatter.format(totalWeight)}`,
+          "mt-1 text-xs font-semibold text-slate-700",
+        );
+      }
+      appendTerritorialTicketLink(root, cluster, clusterSize);
+      return root;
+    }
+
+    if (popupContext === "survey") {
+      const representedResponses = totalWeight > 0 ? totalWeight : clusterSize;
+      appendPopupText(
+        root,
+        "p",
+        `Respuestas representadas: ${numberFormatter.format(representedResponses)}`,
+        "text-sm font-semibold text-slate-800",
+      );
+
+      const zone = presentTerritoryLabel(cluster.barrio) ?? presentTerritoryLabel(cluster.distrito);
+      if (zone) {
+        appendPopupText(root, "p", `Zona: ${zone}`, "text-xs text-slate-600");
+      }
+      if (cluster.canal) {
+        appendPopupText(root, "p", `Canal: ${cluster.canal}`, "text-xs text-slate-600");
+      }
+      return root;
+    }
 
     appendPopupText(
       root,
@@ -396,19 +625,19 @@ export const buildMapClusterPopupContent = ({
       );
     }
 
-    const topBarrio = cluster.aggregatedBarrios?.[0];
+    const topBarrio = cluster.aggregatedBarrios?.find((item) => presentTerritoryLabel(item.label));
     if (topBarrio) {
       appendPopupText(
         root,
         "p",
-        `Zona destacada: ${topBarrio.label} (${Number(topBarrio.percentage ?? 0).toFixed(1)}%)`,
+        `Zona destacada: ${presentTerritoryLabel(topBarrio.label)} (${Number(topBarrio.percentage ?? 0).toFixed(1)}%)`,
         "text-xs text-slate-600",
       );
-    } else if (cluster.barrio || cluster.distrito) {
+    } else if (presentTerritoryLabel(cluster.barrio) || presentTerritoryLabel(cluster.distrito)) {
       appendPopupText(
         root,
         "p",
-        `Zona: ${cluster.barrio ?? cluster.distrito}`,
+        `Zona: ${presentTerritoryLabel(cluster.barrio) ?? presentTerritoryLabel(cluster.distrito)}`,
         "text-xs text-slate-600",
       );
     }
@@ -455,7 +684,77 @@ export const buildMapClusterPopupContent = ({
   const ticket = safeProperties.ticket;
   const categoria = safeProperties.categoria;
   const direccion = safeProperties.direccion;
-  const distrito = safeProperties.distrito;
+  const distrito = presentTerritoryLabel(safeProperties.distrito);
+
+  if (popupContext === "territory") {
+    const barrio = presentTerritoryLabel(safeProperties.barrio) ?? distrito;
+    const ciudad = presentTerritoryLabel(safeProperties.ciudad);
+    const locality = [barrio, ciudad].filter(Boolean).map(String).join(" · ");
+    appendPopupText(
+      root,
+      "p",
+      locality || "Ubicación pendiente de verificar",
+      "text-sm font-semibold text-slate-800",
+    );
+    if (categoria) {
+      appendPopupText(root, "p", `Categoría: ${String(categoria)}`, "text-xs text-slate-600");
+    }
+    if (direccion) {
+      appendPopupText(root, "p", `Área agrupada: ${String(direccion)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.tipo_ticket) {
+      appendPopupText(root, "p", `Tipo: ${String(safeProperties.tipo_ticket)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.estado) {
+      appendPopupText(root, "p", `Estado: ${String(safeProperties.estado)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.canal) {
+      appendPopupText(root, "p", `Canal: ${String(safeProperties.canal)}`, "text-xs text-slate-600");
+    }
+    const volume = Number(safeProperties.totalWeight ?? safeProperties.weight ?? 0);
+    if (Number.isFinite(volume) && volume > 0) {
+      appendPopupText(
+        root,
+        "p",
+        `Volumen representativo: ${numberFormatter.format(volume)}`,
+        "mt-1 text-xs font-semibold text-slate-700",
+      );
+    }
+    appendTerritorialTicketLink(
+      root,
+      safeProperties,
+      Number(safeProperties.clusterSize ?? safeProperties.point_count ?? 1),
+    );
+    return root;
+  }
+
+  if (popupContext === "survey") {
+    const responseCandidates = [
+      safeProperties.totalWeight,
+      safeProperties.total,
+      safeProperties.clusterSize,
+      safeProperties.weight,
+    ];
+    const representedResponses = responseCandidates
+      .map((value) => Number(value))
+      .find((value) => Number.isFinite(value) && value >= 0);
+    appendPopupText(
+      root,
+      "p",
+      Number.isFinite(representedResponses)
+        ? `Respuestas representadas: ${numberFormatter.format(representedResponses as number)}`
+        : "Participación territorial",
+      "text-sm font-semibold text-slate-800",
+    );
+    const zone = presentTerritoryLabel(safeProperties.barrio) ?? distrito;
+    if (zone) {
+      appendPopupText(root, "p", `Zona: ${String(zone)}`, "text-xs text-slate-600");
+    }
+    if (safeProperties.canal) {
+      appendPopupText(root, "p", `Canal: ${String(safeProperties.canal)}`, "text-xs text-slate-600");
+    }
+    return root;
+  }
 
   if (ticket || id) {
     appendPopupText(root, "p", `Ticket #${String(ticket ?? id)}`, "text-sm font-semibold");
@@ -482,8 +781,11 @@ export const buildMapClusterPopupContent = ({
 const toggleLayers = (
   map: Map,
   showHeatmap: boolean,
+  showPoints: boolean,
+  showPointLabels: boolean,
   showPolygons: boolean,
-  layerIds: { heat: string; halo: string; circles: string },
+  layerIds: { heat: string; halo: string; circles: string; labels: string },
+  haloFollowsHeat = false,
 ) => {
   if (map.getLayer(layerIds.heat)) {
     map.setLayoutProperty(
@@ -496,14 +798,21 @@ const toggleLayers = (
     map.setLayoutProperty(
       layerIds.halo,
       "visibility",
-      !showHeatmap && !showPolygons ? "visible" : "none",
+      (haloFollowsHeat ? showHeatmap || showPoints : showPoints) && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer(layerIds.circles)) {
     map.setLayoutProperty(
       layerIds.circles,
       "visibility",
-      !showHeatmap && !showPolygons ? "visible" : "none",
+      showPoints && !showPolygons ? "visible" : "none",
+    );
+  }
+  if (map.getLayer(layerIds.labels)) {
+    map.setLayoutProperty(
+      layerIds.labels,
+      "visibility",
+      showPoints && showPointLabels && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer("polygons-fill")) {
@@ -518,9 +827,13 @@ export default function MapLibreMap({
   center,
   initialZoom = 12,
   onSelect,
+  onFeatureSelect,
   heatmapData = [],
+  tenantSlug,
   polygons,
   showHeatmap = true,
+  showPoints,
+  showPointLabels = true,
   showPolygons = false,
   marker,
   className,
@@ -531,11 +844,22 @@ export default function MapLibreMap({
   geoLayerConfig,
   adminLocation,
   fitToBounds,
+  fitBoundsRequestKey,
   boundsPadding,
   onBoundingBoxChange,
   disableClientClustering = false,
   evidence,
+  showEvidenceBadge = true,
   providerFallbackMessage,
+  ariaLabel,
+  ariaDescribedBy,
+  popupContext = "tickets",
+  pointMinZoom = 9,
+  pointLabelMinZoom = 9,
+  pointLabelMode = "count",
+  heatmapRadiusScale = 1,
+  heatmapPalette = "default",
+  adaptiveZoomMode = false,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapGeneration, setMapGeneration] = useState(0);
@@ -544,37 +868,57 @@ export default function MapLibreMap({
     () =>
       (heatmapData ?? []).filter(
         (point): point is HeatPoint & { lat: number; lng: number } =>
-          Boolean(point) && Number.isFinite(point.lat) && Number.isFinite(point.lng),
+          Boolean(point) &&
+          isRenderableCoordinatePair(point.lat, point.lng) &&
+          isTerritorialTenantScopeCompatible(point, tenantSlug),
       ),
-    [heatmapData],
+    [heatmapData, tenantSlug],
   );
   const aggregatedHint = useMemo(
     () =>
       normalizedHeatmap.some(
         (point) =>
           (typeof point.clusterSize === "number" && point.clusterSize > 1) ||
-          Boolean(point.clusterId) ||
-          (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
-          (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
-          (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
-          (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
-          (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
-          (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+          Boolean(point.clusterId),
       ),
     [normalizedHeatmap],
   );
   const shouldCluster = useMemo(
-    () => !disableClientClustering && !aggregatedHint,
-    [disableClientClustering, aggregatedHint],
+    () => normalizedHeatmap.length > 0 && !disableClientClustering && !aggregatedHint,
+    [disableClientClustering, aggregatedHint, normalizedHeatmap.length],
   );
   const processedHeatmap = useMemo(
     () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
     [normalizedHeatmap, shouldCluster],
   );
-  const configuredGeoSource = useMemo(
-    () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
-    [geoLayerConfig?.source],
-  );
+  const resolvedShowPoints = showPoints ?? (!showHeatmap && !showPolygons);
+  const resolvedShowPointLabels = showPointLabels && pointLabelMode !== "none";
+  const resolvedPointMinZoom = Number.isFinite(pointMinZoom)
+    ? Math.max(0, Math.min(24, pointMinZoom))
+    : 9;
+  const resolvedPointLabelMinZoom = Number.isFinite(pointLabelMinZoom)
+    ? Math.max(0, Math.min(24, pointLabelMinZoom))
+    : 9;
+  const resolvedHeatmapRadiusScale = Number.isFinite(heatmapRadiusScale)
+    ? Math.max(0.5, Math.min(4, heatmapRadiusScale))
+    : 1;
+  const configuredGeoSource = useMemo(() => {
+    if (!isFeatureCollection(geoLayerConfig?.source)) return null;
+    if (!tenantSlug) return geoLayerConfig.source;
+    return {
+      ...geoLayerConfig.source,
+      features: geoLayerConfig.source.features.filter((feature) => {
+        const featureRecord = feature && typeof feature === "object"
+          ? feature as Record<string, unknown>
+          : {};
+        const properties = featureRecord.properties && typeof featureRecord.properties === "object"
+          ? featureRecord.properties
+          : featureRecord;
+        return isTerritorialTenantScopeCompatible(properties, tenantSlug);
+      }),
+    };
+  }, [geoLayerConfig?.source, tenantSlug]);
+  const renderedGeoSource = shouldCluster ? null : configuredGeoSource;
   const configuredSourceOptions = useMemo(() => {
     const raw = geoLayerConfig?.source_options;
     if (!raw || typeof raw !== "object") return {} as { cluster?: boolean; clusterMaxZoom?: number; clusterRadius?: number };
@@ -592,8 +936,9 @@ export default function MapLibreMap({
       heat: geoLayerConfig?.layers?.heatmap?.id?.trim() || "tickets-heat",
       halo: `${geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles"}-halo`,
       circles: geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles",
+      labels: geoLayerConfig?.layers?.clusters?.id?.trim() || `${geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles"}-labels`,
     }),
-    [geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
+    [geoLayerConfig?.layers?.clusters?.id, geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
   );
   const configuredInteractions = useMemo(
     () => ({
@@ -653,10 +998,12 @@ export default function MapLibreMap({
   const libRef = useRef<MapLibreModule | null>(null);
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
+  const clusterCountMarkersRef = useRef<any[]>([]);
   const latestHeatmap = useRef<HeatPoint[]>(processedHeatmap);
-  const configuredGeoSourceRef = useRef(configuredGeoSource);
+  const configuredGeoSourceRef = useRef(renderedGeoSource);
   const configuredInteractionsRef = useRef(configuredInteractions);
   const contractVersionRef = useRef(geoLayerConfig?.contract_version ?? null);
+  const popupContextRef = useRef<"tickets" | "survey" | "territory">(popupContext);
   const emitBackendMapEventRef = useRef(emitBackendMapEvent);
   const boundingBoxCallbackRef = useRef<MapLibreMapProps['onBoundingBoxChange']>(onBoundingBoxChange);
   const boundingBoxControllerRef = useRef<{ setEnabled: (enabled: boolean) => void } | null>(null);
@@ -683,10 +1030,16 @@ export default function MapLibreMap({
   const apiKeyRef = useRef(resolvedMaptilerKey);
   const centerRef = useRef(center);
   const showHeatmapRef = useRef(showHeatmap);
+  const showPointsRef = useRef(resolvedShowPoints);
+  const showPointLabelsRef = useRef(resolvedShowPointLabels);
   const showPolygonsRef = useRef(showPolygons);
   const polygonsRef = useRef(polygons);
   const onSelectRef = useRef(onSelect);
+  const onFeatureSelectRef = useRef(onFeatureSelect);
   const initialZoomRef = useRef(initialZoom);
+  const prefersReducedMotionRef = useRef(prefersReducedMotion);
+  const boundsPaddingRef = useRef(boundsPadding);
+  const heatmapRadiusScaleRef = useRef(resolvedHeatmapRadiusScale);
 
   useEffect(() => {
     apiKeyRef.current = resolvedMaptilerKey;
@@ -701,6 +1054,14 @@ export default function MapLibreMap({
   }, [showHeatmap]);
 
   useEffect(() => {
+    showPointsRef.current = resolvedShowPoints;
+  }, [resolvedShowPoints]);
+
+  useEffect(() => {
+    showPointLabelsRef.current = resolvedShowPointLabels;
+  }, [resolvedShowPointLabels]);
+
+  useEffect(() => {
     showPolygonsRef.current = showPolygons;
   }, [showPolygons]);
 
@@ -713,16 +1074,32 @@ export default function MapLibreMap({
   }, [onSelect]);
 
   useEffect(() => {
+    onFeatureSelectRef.current = onFeatureSelect;
+  }, [onFeatureSelect]);
+
+  useEffect(() => {
     initialZoomRef.current = initialZoom;
   }, [initialZoom]);
+
+  useEffect(() => {
+    prefersReducedMotionRef.current = prefersReducedMotion;
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    boundsPaddingRef.current = boundsPadding;
+  }, [boundsPadding]);
+
+  useEffect(() => {
+    heatmapRadiusScaleRef.current = resolvedHeatmapRadiusScale;
+  }, [resolvedHeatmapRadiusScale]);
 
   useEffect(() => {
     latestHeatmap.current = processedHeatmap;
   }, [processedHeatmap]);
 
   useEffect(() => {
-    configuredGeoSourceRef.current = configuredGeoSource;
-  }, [configuredGeoSource]);
+    configuredGeoSourceRef.current = renderedGeoSource;
+  }, [renderedGeoSource]);
 
   useEffect(() => {
     configuredInteractionsRef.current = configuredInteractions;
@@ -731,6 +1108,10 @@ export default function MapLibreMap({
   useEffect(() => {
     contractVersionRef.current = geoLayerConfig?.contract_version ?? null;
   }, [geoLayerConfig?.contract_version]);
+
+  useEffect(() => {
+    popupContextRef.current = popupContext;
+  }, [popupContext]);
 
   useEffect(() => {
     emitBackendMapEventRef.current = emitBackendMapEvent;
@@ -825,6 +1206,8 @@ export default function MapLibreMap({
           style: initialStyle,
           center: centerRef.current ?? [0, 0],
           zoom: initialZoomRef.current,
+          cooperativeGestures: true,
+          maxPitch: 60,
         });
 
         mapRef.current = mapInstance;
@@ -841,10 +1224,28 @@ export default function MapLibreMap({
           const map = mapRef.current;
           setMapError(null);
 
-          if (!map.getSource("points")) {
-            map.addSource("points", {
+          const currentSource =
+            configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current);
+
+          if (!map.getSource(MAP_HEAT_SOURCE_ID)) {
+            map.addSource(MAP_HEAT_SOURCE_ID, {
               type: "geojson",
-              data: configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current),
+              data: sourceDataForLayer(
+                currentSource,
+                (showHeatmapRef.current || (heatmapPalette === "faro" && showPointsRef.current)) &&
+                  !showPolygonsRef.current,
+              ),
+              ...configuredSourceOptions,
+            });
+          }
+
+          if (!map.getSource(MAP_POINT_SOURCE_ID)) {
+            map.addSource(MAP_POINT_SOURCE_ID, {
+              type: "geojson",
+              data: sourceDataForLayer(
+                currentSource,
+                showPointsRef.current && !showPolygonsRef.current,
+              ),
               ...configuredSourceOptions,
             });
           }
@@ -898,162 +1299,223 @@ export default function MapLibreMap({
           addLayer(map, {
             id: configuredLayerIds.heat,
             type: "heatmap",
-            source: "points",
+            source: MAP_HEAT_SOURCE_ID,
             maxzoom: 15,
             paint: {
-              "heatmap-weight": ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
-              "heatmap-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                0,
-                [
-                  "max",
-                  4,
-                  [
-                    "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                    2.6,
+              "heatmap-weight": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
+                    0,
+                    0,
+                    1,
+                    0.42,
+                    4,
+                    0.58,
+                    16,
+                    0.78,
+                    64,
+                    1,
+                  ]
+                : ["coalesce", ["get", "intensity"], ["get", "weight"], ["get", "point_count"], 1],
+              "heatmap-intensity": heatmapPalette === "faro"
+                ? ["interpolate", ["linear"], ["zoom"], 0, 1.8, 15, 4.6]
+                : ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
+              "heatmap-radius": heatmapRadiusExpression(heatmapRadiusScaleRef.current),
+              "heatmap-opacity": adaptiveZoomMode
+                ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
+                : heatmapPalette === "faro"
+                  ? 0.76
+                  : 0.65,
+              "heatmap-color": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["heatmap-density"],
+                    0,
+                    "rgba(105, 213, 223, 0)",
+                    0.03,
+                    "rgba(105, 213, 223, 0.38)",
+                    0.24,
+                    "rgba(8, 124, 129, 0.68)",
+                    0.58,
+                    "rgba(242, 184, 75, 0.82)",
+                    1,
+                    "rgba(213, 93, 57, 0.96)",
+                  ]
+                : [
+                    "interpolate",
+                    ["linear"],
+                    ["heatmap-density"],
+                    0,
+                    "rgba(68, 1, 84, 0)",
+                    0.18,
+                    "rgba(68, 1, 84, 0.62)",
+                    0.38,
+                    "rgba(59, 82, 139, 0.72)",
+                    0.58,
+                    "rgba(33, 145, 140, 0.78)",
+                    0.78,
+                    "rgba(94, 201, 98, 0.86)",
+                    1,
+                    "rgba(253, 231, 37, 0.96)",
                   ],
-                ],
-                9,
-                [
-                  "max",
-                  14,
-                  [
-                    "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                    4.8,
-                  ],
-                ],
-                13,
-                [
-                  "max",
-                  18,
-                  [
-                    "*",
-                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                    6.4,
-                  ],
-                ],
-              ],
-              "heatmap-opacity": 0.65,
-              "heatmap-color": [
-                "interpolate",
-                ["linear"],
-                ["heatmap-density"],
-                0,
-                "rgba(56, 189, 248, 0)",
-                0.18,
-                "rgba(45, 212, 191, 0.62)",
-                0.36,
-                "rgba(59, 130, 246, 0.72)",
-                0.58,
-                "rgba(168, 85, 247, 0.76)",
-                0.78,
-                "rgba(251, 191, 36, 0.84)",
-                1,
-                "rgba(244, 63, 94, 0.96)",
-              ],
             },
           });
 
           addLayer(map, {
             id: configuredLayerIds.halo,
             type: "circle",
-            source: "points",
-            minzoom: 8,
+            source: heatmapPalette === "faro" ? MAP_HEAT_SOURCE_ID : MAP_POINT_SOURCE_ID,
+            // Faro's heat layer always keeps a concrete location anchor on top
+            // of the density field. At regional zooms the heat remains
+            // interpretable instead of becoming an unlabeled colour cloud.
+            minzoom: heatmapPalette === "faro" ? Math.min(resolvedPointMinZoom, 5) : resolvedPointMinZoom,
             paint: {
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                8,
-                [
-                  "max",
-                  12,
-                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], 1]], 3.2],
-                ],
-                16,
-                [
-                  "max",
-                  24,
-                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], 1]], 5.2],
-                ],
-              ],
-              "circle-color": [
-                "case",
-                ["has", "categoryColor"],
-                ["get", "categoryColor"],
-                [
-                  "interpolate",
-                  ["linear"],
-                  ["coalesce", ["get", "averageWeight"], 1],
-                  0,
-                  "#38bdf8",
-                  10,
-                  "#2563eb",
-                  24,
-                  "#a855f7",
-                  42,
-                  "#f43f5e",
-                ],
-              ],
-              "circle-opacity": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                8,
-                0.18,
-                14,
-                0.28,
-                16,
-                0.2,
-              ],
-              "circle-blur": 0.86,
+              "circle-radius": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    4,
+                    [
+                      "+",
+                      10,
+                      ["min", 5, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 0.7]],
+                    ],
+                    14,
+                    [
+                      "+",
+                      14,
+                      ["min", 8, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 1]],
+                    ],
+                    16,
+                    [
+                      "+",
+                      16,
+                      ["min", 9, ["*", ["sqrt", ["coalesce", ["get", "totalWeight"], ["get", "weight"], 1]], 1.1]],
+                    ],
+                  ]
+                : [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    8,
+                    [
+                      "max",
+                      12,
+                      ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 3.2],
+                    ],
+                    16,
+                    [
+                      "max",
+                      24,
+                      ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 5.2],
+                    ],
+                  ],
+              "circle-color": heatmapPalette === "faro"
+                ? [
+                    "case",
+                    ["has", "categoryColor"],
+                    ["get", "categoryColor"],
+                    "#2563eb",
+                  ]
+                : [
+                    "case",
+                    ["has", "categoryColor"],
+                    ["get", "categoryColor"],
+                    [
+                      "interpolate",
+                      ["linear"],
+                      ["coalesce", ["get", "averageWeight"], 1],
+                      0,
+                      "#38bdf8",
+                      10,
+                      "#2563eb",
+                      24,
+                      "#a855f7",
+                      42,
+                      "#f43f5e",
+                    ],
+                  ],
+              "circle-opacity": heatmapPalette === "faro"
+                ? 0.42
+                : ["interpolate", ["linear"], ["zoom"], 4, 0.18, 14, 0.28, 16, 0.2],
+              "circle-blur": heatmapPalette === "faro" ? 0.08 : 0.86,
+              ...(heatmapPalette === "faro"
+                ? {
+                    "circle-stroke-color": "rgba(255, 255, 255, 0.96)",
+                    "circle-stroke-width": 3,
+                    "circle-stroke-opacity": 0.98,
+                  }
+                : {}),
             },
           });
 
           addLayer(map, {
             id: configuredLayerIds.circles,
             type: "circle",
-            source: "points",
-            minzoom: 9,
+            source: MAP_POINT_SOURCE_ID,
+            minzoom: resolvedPointMinZoom,
             paint: {
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                9,
-                [
-                  "max",
-                  [
-                    "+",
-                    4,
-                    [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                      1.2,
-                    ],
-                  ],
-                  6,
-                ],
-                16,
-                [
-                  "max",
-                  [
-                    "+",
+              "circle-radius": heatmapPalette === "faro"
+                ? [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
                     6,
                     [
-                      "*",
-                      ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                      2.4,
+                      "max",
+                      9,
+                      ["+", 7, ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 1.4]],
+                    ],
+                    14,
+                    [
+                      "max",
+                      13,
+                      ["+", 9, ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 2.2]],
+                    ],
+                    17,
+                    [
+                      "max",
+                      16,
+                      ["+", 11, ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]], 2.6]],
+                    ],
+                  ]
+                : [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    9,
+                    [
+                      "max",
+                      [
+                        "+",
+                        4,
+                        [
+                          "*",
+                          ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                          1.2,
+                        ],
+                      ],
+                      6,
+                    ],
+                    16,
+                    [
+                      "max",
+                      [
+                        "+",
+                        6,
+                        [
+                          "*",
+                          ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+                          2.4,
+                        ],
+                      ],
+                      14,
                     ],
                   ],
-                  14,
-                ],
-              ],
               "circle-color": [
                 "case",
                 ["has", "categoryColor"],
@@ -1072,19 +1534,75 @@ export default function MapLibreMap({
                   "#ef4444",
                 ],
               ],
-              "circle-stroke-color": [
-                "case",
-                [">", ["coalesce", ["get", "clusterSize"], 1], 12],
-                "rgba(15, 23, 42, 0.35)",
-                "rgba(255, 255, 255, 0.95)",
-              ],
-              "circle-stroke-width": 1.5,
-              "circle-opacity": 0.88,
-              "circle-blur": 0.12,
+              "circle-stroke-color": heatmapPalette === "faro"
+                ? "rgba(15, 23, 42, 0.90)"
+                : [
+                    "case",
+                    [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 12],
+                    "rgba(15, 23, 42, 0.35)",
+                    "rgba(255, 255, 255, 0.95)",
+                  ],
+              "circle-stroke-width": heatmapPalette === "faro" ? 2.25 : 1.5,
+              "circle-stroke-opacity": heatmapPalette === "faro" ? 0.98 : 1,
+              "circle-opacity": heatmapPalette === "faro" ? 0.98 : 0.88,
+              "circle-blur": heatmapPalette === "faro" ? 0.02 : 0.12,
             },
           });
 
-          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current, configuredLayerIds);
+          addLayer(map, {
+            id: configuredLayerIds.labels,
+            type: "symbol",
+            source: MAP_POINT_SOURCE_ID,
+            minzoom: resolvedPointLabelMinZoom,
+            layout: {
+              "text-field": pointLabelMode === "barrio"
+                ? ["coalesce", ["get", "barrio"], ["get", "distrito"], ""]
+                : pointLabelMode === "categoria"
+                  ? ["coalesce", ["get", "categoria"], ""]
+                  : [
+                      "case",
+                      [">", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1], 1],
+                      [
+                        "to-string",
+                        [
+                          "coalesce",
+                          ["get", "totalWeight"],
+                          ["get", "total"],
+                          ["get", "point_count_abbreviated"],
+                          ["get", "clusterSize"],
+                        ],
+                      ],
+                      "",
+                    ],
+              "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 15, 12],
+              ...(pointLabelMode === "count"
+                ? {}
+                : {
+                    "text-anchor": "top",
+                    "text-offset": [0, 1.35],
+                    "text-padding": 4,
+                    "text-max-width": 12,
+                  }),
+              "text-allow-overlap": pointLabelMode === "count",
+              "text-ignore-placement": pointLabelMode === "count",
+            },
+            paint: {
+              "text-color": pointLabelMode === "count" ? "#ffffff" : "#0f172a",
+              "text-halo-color": pointLabelMode === "count" ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.96)",
+              "text-halo-width": pointLabelMode === "count" ? 1 : 2,
+              "text-opacity": 0.96,
+            },
+          });
+
+          toggleLayers(
+            map,
+            showHeatmapRef.current,
+            showPointsRef.current,
+            showPointLabelsRef.current,
+            showPolygonsRef.current,
+            configuredLayerIds,
+            heatmapPalette === "faro",
+          );
           const currentInteractions = configuredInteractionsRef.current;
           trackFrontendEvent("map_loaded", {
             provider: "maplibre",
@@ -1100,16 +1618,31 @@ export default function MapLibreMap({
             time_slider_enabled: currentInteractions.timeSliderEnabled,
             time_slider_field: currentInteractions.timeSliderField ?? null,
           });
-          const pointSource = map.getSource("points");
+          const latestSource =
+            configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current);
+          const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
+          if (heatSource && typeof (heatSource as any).setData === "function") {
+            (heatSource as any).setData(
+              sourceDataForLayer(
+                latestSource,
+                (showHeatmapRef.current || (heatmapPalette === "faro" && showPointsRef.current)) &&
+                  !showPolygonsRef.current,
+              ),
+            );
+          }
+          const pointSource = map.getSource(MAP_POINT_SOURCE_ID);
           if (pointSource && typeof (pointSource as any).setData === "function") {
             (pointSource as any).setData(
-              configuredGeoSourceRef.current ?? buildGeoJson(latestHeatmap.current),
+              sourceDataForLayer(
+                latestSource,
+                showPointsRef.current && !showPolygonsRef.current,
+              ),
             );
           }
         };
 
         const cycleStyle = (reason?: string) => {
-          if (tileStyle || exhaustedStyles || styleCandidates.length === 0) {
+          if (!isMounted || tileStyle || exhaustedStyles || styleCandidates.length === 0) {
             return;
           }
 
@@ -1128,7 +1661,10 @@ export default function MapLibreMap({
         };
 
         const handleStyleError = (event: any) => {
-          if (exhaustedStyles) return;
+          // MapLibre aborts in-flight style/tile requests as part of remove().
+          // Teardown is expected and must never start a fallback style cycle on
+          // an instance that is already being destroyed.
+          if (!isMounted || exhaustedStyles) return;
           const resourceType = event?.resourceType;
           const status = event?.error?.status ?? event?.error?.code;
           const message = event?.error?.message;
@@ -1236,6 +1772,65 @@ export default function MapLibreMap({
           const cluster = clusterId
             ? latestHeatmap.current.find((point) => point.clusterId === clusterId)
             : undefined;
+          const featureId = String(properties.id ?? properties.ticket ?? "").trim();
+          const featureIdentityResolution = resolveTerritorialTicketIdentity(
+            properties,
+            tenantSlug,
+          );
+          const featureIdentity = featureIdentityResolution.status === "valid"
+            ? featureIdentityResolution.identity
+            : null;
+          const featureClusterSize = Number(properties.clusterSize ?? properties.point_count ?? cluster?.clusterSize ?? 1);
+          const isAggregateCluster = Number.isFinite(featureClusterSize) && featureClusterSize > 1;
+          const exactIdentityMatch = featureIdentity && !isAggregateCluster
+            ? latestHeatmap.current.find((point) => {
+                const pointResolution = resolveTerritorialTicketIdentity(point, tenantSlug);
+                return pointResolution.status === "valid"
+                  && pointResolution.identity.opaqueKey === featureIdentity.opaqueKey;
+              })
+            : undefined;
+          const legacyMatch = !featureIdentity && featureIdentityResolution.status === "missing"
+            ? latestHeatmap.current.find((point) => {
+                const pointId = String(point.id ?? point.ticket ?? "").trim();
+                if (featureId && pointId === featureId) return true;
+                return Math.abs(point.lng - Number(coords[0])) < 0.0000001
+                  && Math.abs(point.lat - Number(coords[1])) < 0.0000001;
+              })
+            : undefined;
+          const matchedPoint = cluster ?? exactIdentityMatch ?? legacyMatch;
+          const authoritativeIdentity = featureIdentity && !isAggregateCluster
+            ? featureIdentity
+            : null;
+          const featureTenantSlug = authoritativeIdentity?.tenantSlug ?? tenantSlug ?? undefined;
+          const selectedPoint: HeatPoint = {
+            ...(matchedPoint ?? {
+              lat: Number(coords[1]),
+              lng: Number(coords[0]),
+              ...(featureId ? { id: featureId } : {}),
+            }),
+            ...(authoritativeIdentity
+              ? {
+                  ticket: authoritativeIdentity.ticketId,
+                  ticketId: authoritativeIdentity.ticketId,
+                  sourceModel: authoritativeIdentity.sourceModel,
+                  ticketIdentityStatus: "valid" as const,
+                  ticketHref: buildTerritorialTicketHref(
+                    authoritativeIdentity,
+                    featureTenantSlug,
+                  ) ?? undefined,
+                  ...(featureTenantSlug ? { tenantSlug: featureTenantSlug } : {}),
+                }
+              : matchedPoint
+                ? {}
+                : { ticketIdentityStatus: featureIdentityResolution.status }),
+            ...(typeof properties.categoria === "string" ? { categoria: properties.categoria } : {}),
+            ...(typeof properties.barrio === "string" ? { barrio: properties.barrio } : {}),
+            ...(typeof properties.distrito === "string" ? { distrito: properties.distrito } : {}),
+            ...(typeof properties.estado === "string" ? { estado: properties.estado } : {}),
+            ...(typeof properties.canal === "string" ? { canal: properties.canal } : {}),
+            ...(typeof properties.categoryColor === "string" ? { categoryColor: properties.categoryColor } : {}),
+            ...(typeof properties.addressCellLabel === "string" ? { addressCellLabel: properties.addressCellLabel } : {}),
+          };
 
           while (Math.abs(e.lngLat.lng - coords[0]) > 180) {
             coords[0] += e.lngLat.lng > coords[0] ? 360 : -360;
@@ -1253,12 +1848,45 @@ export default function MapLibreMap({
             feature_id: properties?.id ?? null,
             contract_version: contractVersionRef.current,
           });
+          onFeatureSelectRef.current?.(selectedPoint);
 
-          const popup = new maplibre.Popup();
+          const popup = new maplibre.Popup({
+            offset: 16,
+            closeButton: true,
+            maxWidth: "320px",
+          });
           popup
             .setLngLat(coords as LngLatLike)
-            .setDOMContent(buildMapClusterPopupContent({ cluster, properties }))
+            .setDOMContent(buildMapClusterPopupContent({
+              cluster,
+              properties,
+              popupContext: popupContextRef.current,
+            }))
             .addTo(mapInstance);
+        };
+
+        const handlePointMouseEnter = () => {
+          if (!configuredInteractionsRef.current.hover) return;
+          mapInstance.getCanvas().style.cursor = "pointer";
+        };
+
+        const handlePointMouseLeave = () => {
+          mapInstance.getCanvas().style.cursor = "";
+        };
+
+        const handleHeatAnchorClick = (event: any) => {
+          if (showPointsRef.current) return;
+          handleCircleClick(event);
+        };
+
+        const handleHeatAnchorMouseEnter = () => {
+          if (showPointsRef.current) return;
+          handlePointMouseEnter();
+        };
+
+        const handleHeatAnchorMouseLeave = () => {
+          if (showPointsRef.current) return;
+          handlePointMouseLeave();
         };
 
         const handleMissingImage = (e: any) => {
@@ -1271,6 +1899,13 @@ export default function MapLibreMap({
 
         mapInstance.on("click", handleClick);
         mapInstance.on("click", configuredLayerIds.circles, handleCircleClick);
+        mapInstance.on("mouseenter", configuredLayerIds.circles, handlePointMouseEnter);
+        mapInstance.on("mouseleave", configuredLayerIds.circles, handlePointMouseLeave);
+        if (heatmapPalette === "faro") {
+          mapInstance.on("click", configuredLayerIds.halo, handleHeatAnchorClick);
+          mapInstance.on("mouseenter", configuredLayerIds.halo, handleHeatAnchorMouseEnter);
+          mapInstance.on("mouseleave", configuredLayerIds.halo, handleHeatAnchorMouseLeave);
+        }
         mapInstance.on("styleimagemissing", handleMissingImage);
         const bboxEvents = [
           "boxzoomend",
@@ -1299,6 +1934,13 @@ export default function MapLibreMap({
         return () => {
           mapInstance.off("click", handleClick);
           mapInstance.off("click", configuredLayerIds.circles, handleCircleClick);
+          mapInstance.off("mouseenter", configuredLayerIds.circles, handlePointMouseEnter);
+          mapInstance.off("mouseleave", configuredLayerIds.circles, handlePointMouseLeave);
+          if (heatmapPalette === "faro") {
+            mapInstance.off("click", configuredLayerIds.halo, handleHeatAnchorClick);
+            mapInstance.off("mouseenter", configuredLayerIds.halo, handleHeatAnchorMouseEnter);
+            mapInstance.off("mouseleave", configuredLayerIds.halo, handleHeatAnchorMouseLeave);
+          }
           mapInstance.off("styleimagemissing", handleMissingImage);
           bboxEvents.forEach((eventName) => mapInstance.off(eventName, scheduleBoundingBox));
           mapInstance.off("load", scheduleBoundingBox);
@@ -1346,19 +1988,26 @@ export default function MapLibreMap({
         adminMarkerRef.current.remove();
         adminMarkerRef.current = null;
       }
+      clusterCountMarkersRef.current.forEach((clusterMarker) => clusterMarker.remove());
+      clusterCountMarkersRef.current = [];
     };
   }, [
     configuredLayerIds.circles,
     configuredLayerIds.halo,
     configuredLayerIds.heat,
+    configuredLayerIds.labels,
     configuredSourceOptions.cluster,
     configuredSourceOptions.clusterMaxZoom,
     configuredSourceOptions.clusterRadius,
     geoLayerConfig?.style_url,
+    heatmapPalette,
     mapStyleUrl,
     mapTileAttribution,
     mapTileUrl,
+    pointLabelMode,
     resolvedMaptilerKey,
+    resolvedPointLabelMinZoom,
+    resolvedPointMinZoom,
   ]);
 
   const centerLng = center?.[0];
@@ -1370,34 +2019,105 @@ export default function MapLibreMap({
 
     if (Number.isFinite(centerLng) && Number.isFinite(centerLat)) {
       const nextCenter: [number, number] = [centerLng as number, centerLat as number];
-      if (prefersReducedMotion) {
+      if (prefersReducedMotionRef.current) {
         map.jumpTo({ center: nextCenter, zoom: initialZoomRef.current });
       } else {
         map.flyTo({ center: nextCenter, zoom: initialZoomRef.current });
       }
     }
-  }, [centerLat, centerLng, mapGeneration, prefersReducedMotion]);
+  }, [centerLat, centerLng, mapGeneration]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    const sourceData = renderedGeoSource ?? buildGeoJson(processedHeatmap);
     const applyData = () => {
-      const source = map.getSource("points");
-      if (!source || typeof (source as any).setData !== "function") return;
-      (source as any).setData(configuredGeoSource ?? buildGeoJson(processedHeatmap));
+      const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
+      if (heatSource && typeof (heatSource as any).setData === "function") {
+        (heatSource as any).setData(
+          sourceDataForLayer(
+            sourceData,
+            (showHeatmap || (heatmapPalette === "faro" && resolvedShowPoints)) && !showPolygons,
+          ),
+        );
+      }
+
+      const pointSource = map.getSource(MAP_POINT_SOURCE_ID);
+      if (pointSource && typeof (pointSource as any).setData === "function") {
+        (pointSource as any).setData(
+          sourceDataForLayer(sourceData, resolvedShowPoints && !showPolygons),
+        );
+      }
     };
-    const source = map.getSource("points");
-    if (source && typeof (source as any).setData === "function") {
+    const heatSource = map.getSource(MAP_HEAT_SOURCE_ID);
+    const pointSource = map.getSource(MAP_POINT_SOURCE_ID);
+    if (
+      heatSource &&
+      typeof (heatSource as any).setData === "function" &&
+      pointSource &&
+      typeof (pointSource as any).setData === "function"
+    ) {
       applyData();
       return;
     }
 
     map.once("load", applyData);
+    map.once("style.load", applyData);
     return () => {
       map.off("load", applyData);
+      map.off("style.load", applyData);
     };
-  }, [configuredGeoSource, mapGeneration, processedHeatmap]);
+  }, [
+    renderedGeoSource,
+    mapGeneration,
+    processedHeatmap,
+    resolvedShowPoints,
+    heatmapPalette,
+    showHeatmap,
+    showPolygons,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.getLayer(configuredLayerIds.heat)) return;
+
+    map.setPaintProperty(
+      configuredLayerIds.heat,
+      "heatmap-opacity",
+      adaptiveZoomMode
+        ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
+        : heatmapPalette === "faro"
+          ? 0.76
+          : 0.65,
+    );
+  }, [adaptiveZoomMode, configuredLayerIds.heat, heatmapPalette, mapGeneration]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const applyRadius = () => {
+      if (!map.getLayer(configuredLayerIds.heat)) return;
+      map.setPaintProperty(
+        configuredLayerIds.heat,
+        "heatmap-radius",
+        heatmapRadiusExpression(resolvedHeatmapRadiusScale),
+      );
+    };
+
+    if (map.isStyleLoaded()) {
+      applyRadius();
+      return;
+    }
+
+    map.once("load", applyRadius);
+    map.once("style.load", applyRadius);
+    return () => {
+      map.off("load", applyRadius);
+      map.off("style.load", applyRadius);
+    };
+  }, [configuredLayerIds.heat, mapGeneration, resolvedHeatmapRadiusScale]);
 
   useEffect(() => {
     if (!configuredInteractions.timeSliderEnabled) return;
@@ -1420,23 +2140,41 @@ export default function MapLibreMap({
     if (!map) return;
 
     if (!map.getLayer(configuredLayerIds.heat) || !map.getLayer(configuredLayerIds.circles)) {
-      const handler = () => toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
+      const handler = () => toggleLayers(
+        map,
+        showHeatmap,
+        resolvedShowPoints,
+        resolvedShowPointLabels,
+        showPolygons,
+        configuredLayerIds,
+        heatmapPalette === "faro",
+      );
       map.once("load", handler);
       return () => {
         map.off("load", handler);
       };
     }
 
-    toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
+    toggleLayers(
+      map,
+      showHeatmap,
+      resolvedShowPoints,
+      resolvedShowPointLabels,
+      showPolygons,
+      configuredLayerIds,
+      heatmapPalette === "faro",
+    );
     trackFrontendEvent("map_layer_toggle", {
       provider: "maplibre",
       show_heatmap: showHeatmap,
+      show_points: resolvedShowPoints,
       show_polygons: showPolygons,
       contract_version: geoLayerConfig?.contract_version ?? null,
     });
     emitBackendMapEvent("layer_toggle", {
       provider: "maplibre",
       show_heatmap: showHeatmap,
+      show_points: resolvedShowPoints,
       show_polygons: showPolygons,
       contract_version: geoLayerConfig?.contract_version ?? null,
     });
@@ -1444,9 +2182,13 @@ export default function MapLibreMap({
     configuredLayerIds.circles,
     configuredLayerIds.halo,
     configuredLayerIds.heat,
+    configuredLayerIds.labels,
     emitBackendMapEvent,
     geoLayerConfig?.contract_version,
+    heatmapPalette,
     mapGeneration,
+    resolvedShowPointLabels,
+    resolvedShowPoints,
     showHeatmap,
     showPolygons,
   ]);
@@ -1474,6 +2216,10 @@ export default function MapLibreMap({
     let frame: number;
 
     const animate = () => {
+      // A style can disappear between a fast layer toggle and the next frame
+      // (or while the component is being torn down). Never ask MapLibre for a
+      // layer after the active instance/style changed.
+      if (mapRef.current !== map || !map.isStyleLoaded()) return;
       // Slower, deeper pulse for a "breathing" effect
       const t = (Date.now() % 4000) / 4000;
       const intensity = 1 + 0.3 * Math.sin(t * Math.PI * 2);
@@ -1486,6 +2232,65 @@ export default function MapLibreMap({
     animate();
     return () => cancelAnimationFrame(frame);
   }, [configuredLayerIds.heat, mapGeneration, prefersReducedMotion, showHeatmap, showPolygons]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const maplibre = libRef.current;
+
+    clusterCountMarkersRef.current.forEach((clusterMarker) => clusterMarker.remove());
+    clusterCountMarkersRef.current = [];
+
+    if (
+      !map ||
+      !maplibre ||
+      !resolvedShowPoints ||
+      !resolvedShowPointLabels ||
+      showPolygons ||
+      pointLabelMode !== "count"
+    ) {
+      return;
+    }
+
+    clusterCountMarkersRef.current = processedHeatmap
+      .filter((point) => Number(point.clusterSize ?? 1) > 1)
+      .map((point) => {
+        const count = Math.max(2, Math.round(Number(point.clusterSize ?? 1)));
+        const element = document.createElement("span");
+        element.textContent = count.toLocaleString("es-AR");
+        element.setAttribute("role", "img");
+        element.setAttribute("aria-label", `${count.toLocaleString("es-AR")} reclamos agrupados`);
+        element.style.alignItems = "center";
+        element.style.background = point.categoryColor || "#7c3aed";
+        element.style.border = "2px solid rgba(255,255,255,0.96)";
+        element.style.borderRadius = "999px";
+        element.style.boxShadow = "0 5px 16px rgba(15,23,42,0.38)";
+        element.style.color = "#ffffff";
+        element.style.display = "flex";
+        element.style.fontSize = "12px";
+        element.style.fontWeight = "800";
+        element.style.height = "28px";
+        element.style.justifyContent = "center";
+        element.style.lineHeight = "1";
+        element.style.pointerEvents = "none";
+        element.style.width = "28px";
+
+        return new maplibre.Marker({ element, anchor: "center" })
+          .setLngLat([point.lng, point.lat])
+          .addTo(map);
+      });
+
+    return () => {
+      clusterCountMarkersRef.current.forEach((clusterMarker) => clusterMarker.remove());
+      clusterCountMarkersRef.current = [];
+    };
+  }, [
+    mapGeneration,
+    pointLabelMode,
+    processedHeatmap,
+    resolvedShowPointLabels,
+    resolvedShowPoints,
+    showPolygons,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1553,35 +2358,77 @@ export default function MapLibreMap({
     }
   }, [adminLocation, mapGeneration]);
 
+  const fitBoundsCoordinatesKey = JSON.stringify(
+    Array.from(
+      new globalThis.Map(
+        (fitToBounds ?? [])
+          .filter(
+            (value): value is [number, number] =>
+              Array.isArray(value) &&
+              value.length === 2 &&
+              isRenderableCoordinatePair(value[1], value[0]),
+          )
+          .map((coordinate) => [`${coordinate[0]}:${coordinate[1]}`, coordinate] as const),
+      ).values(),
+    ).sort(([leftLng, leftLat], [rightLng, rightLat]) =>
+      leftLng - rightLng || leftLat - rightLat,
+    ),
+  );
+  const stableFitBoundsCoordinates = useMemo(
+    () => JSON.parse(fitBoundsCoordinatesKey) as [number, number][],
+    [fitBoundsCoordinatesKey],
+  );
+
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
     if (!map) return;
 
-    const coords = (fitToBounds ?? []).filter(
-      (value): value is [number, number] =>
-        Array.isArray(value) &&
-        value.length === 2 &&
-        Number.isFinite(value[0]) &&
-        Number.isFinite(value[1]),
-    );
+    const coords = stableFitBoundsCoordinates;
 
     if (!coords.length) {
       return;
     }
 
     const applyBounds = () => {
-      const moveTo = (nextCenter: [number, number]) => {
-        const options = { center: nextCenter, zoom: initialZoomRef.current };
-        if (prefersReducedMotion) {
+      let west = coords[0][0];
+      let east = coords[0][0];
+      let south = coords[0][1];
+      let north = coords[0][1];
+      for (let index = 1; index < coords.length; index += 1) {
+        const [lng, lat] = coords[index];
+        west = Math.min(west, lng);
+        east = Math.max(east, lng);
+        south = Math.min(south, lat);
+        north = Math.max(north, lat);
+      }
+      const center: [number, number] = [(west + east) / 2, (south + north) / 2];
+      const longitudeScale = Math.max(0.2, Math.cos((center[1] * Math.PI) / 180));
+      const effectiveSpan = Math.max((east - west) * longitudeScale, north - south);
+      const compactSet = effectiveSpan <= COMPACT_FILTERED_VIEW_SPAN_DEGREES;
+
+      try {
+        map.stop();
+        map.resize();
+      } catch {
+        // A style transition can finish between the render and this camera request.
+      }
+
+      const moveTo = (nextCenter: [number, number], zoom = initialZoomRef.current) => {
+        const options = { center: nextCenter, zoom };
+        if (prefersReducedMotionRef.current) {
           map.jumpTo(options);
         } else {
           map.flyTo(options);
         }
       };
 
-      if (coords.length === 1) {
-        moveTo(coords[0]);
+      if (coords.length === 1 || compactSet) {
+        const compactZoom = Math.min(
+          COMPACT_FILTERED_VIEW_MAX_ZOOM,
+          Math.max(10, initialZoomRef.current),
+        );
+        moveTo(center, compactZoom);
         return;
       }
 
@@ -1591,20 +2438,11 @@ export default function MapLibreMap({
           new maplibre.LngLatBounds(coords[0], coords[0]),
         );
 
-        const samePoint =
-          typeof bounds.getNorth === "function" &&
-          bounds.getNorth() === bounds.getSouth() &&
-          bounds.getEast() === bounds.getWest();
-
-        if (samePoint && typeof bounds.getCenter === "function") {
-          moveTo(bounds.getCenter().toArray() as [number, number]);
-          return;
-        }
-
         try {
           map.fitBounds(bounds, {
-            padding: boundsPadding ?? 48,
-            duration: prefersReducedMotion ? 0 : 1000,
+            padding: boundsPaddingRef.current ?? 48,
+            maxZoom: FILTERED_VIEW_MAX_ZOOM,
+            duration: prefersReducedMotionRef.current ? 0 : 700,
           });
           return;
         } catch (err) {
@@ -1623,7 +2461,7 @@ export default function MapLibreMap({
         map.off("load", applyBounds);
       };
     }
-  }, [boundsPadding, fitToBounds, mapGeneration, prefersReducedMotion]);
+  }, [fitBoundsCoordinatesKey, fitBoundsRequestKey, mapGeneration, stableFitBoundsCoordinates]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -1674,16 +2512,43 @@ export default function MapLibreMap({
     className,
     !className && "h-[500px]",
   );
+  const renderedFeatureCount = configuredGeoSource?.features.length ?? processedHeatmap.length;
+  const showEmptyMapState =
+    !showPolygons && (showHeatmap || resolvedShowPoints) && renderedFeatureCount === 0;
 
   return (
-    <div className={containerClassName}>
-      <div ref={mapContainerRef} className="absolute inset-0" />
-      <MapEvidenceBadge evidence={mapEvidence} className="absolute left-3 top-3 z-10" />
+    <div
+      className={containerClassName}
+      role={ariaLabel ? "region" : undefined}
+      aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+    >
+      <div ref={mapContainerRef} className="h-full w-full" />
+      {showEvidenceBadge ? (
+        <MapEvidenceBadge
+          evidence={mapEvidence}
+          className="absolute left-3 right-14 top-3 z-10 max-w-none sm:right-auto sm:max-w-[min(82vw,24rem)]"
+        />
+      ) : null}
       {providerFallbackMessage && (
         <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           {providerFallbackMessage}
         </div>
       )}
+      {showEmptyMapState && !mapError ? (
+        <div
+          className="pointer-events-none absolute bottom-4 left-1/2 z-10 w-[min(90%,22rem)] -translate-x-1/2 rounded-xl border border-slate-200/90 bg-white/95 px-4 py-3 text-center shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-950/95"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+            Sin puntos geolocalizados para esta vista
+          </p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            El mapa permanece disponible; la selección actual no contiene ubicaciones representables.
+          </p>
+        </div>
+      ) : null}
       {mapError && (
         <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           No se pudo cargar el mapa: {mapError}

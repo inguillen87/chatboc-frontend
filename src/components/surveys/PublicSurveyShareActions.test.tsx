@@ -34,6 +34,13 @@ describe('PublicSurveyShareActions', () => {
     expect(status).toHaveTextContent('QR para sala');
     expect(status).toHaveTextContent('Share multicanal');
     expect(status).toHaveTextContent('Preparado');
+    expect(screen.getByText('Analíticas preparadas')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Al responder, el tablero recibirá los metadatos autorizados de difusión, demografía y ubicación.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Analíticas capturadas')).not.toBeInTheDocument();
   });
 
   it('surfaces the submitted channel and synchronized state after participation', () => {
@@ -54,6 +61,7 @@ describe('PublicSurveyShareActions', () => {
     expect(status).toHaveTextContent('Respuesta registrada');
     expect(status).toHaveTextContent('Sincronizado');
     expect(status).toHaveTextContent('Canal qr');
+    expect(screen.getByText('Analíticas capturadas')).toBeInTheDocument();
     expect(screen.getByText('Preguntas respondidas: 2 de 3.')).toBeInTheDocument();
   });
 

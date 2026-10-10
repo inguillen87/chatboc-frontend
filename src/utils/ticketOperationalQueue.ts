@@ -1,5 +1,6 @@
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import { isTicketSlaOverdue, resolveTicketSlaSource } from '@/utils/ticketSla';
 
 type QueueTicket = Partial<Ticket> & Record<string, any>;
 
@@ -11,14 +12,14 @@ export const isUnreadQueueTicket = (ticket: QueueTicket) =>
       Number(ticket.collaboration_state?.unread_viewer_count || 0) > 0,
   );
 
-export const isRiskQueueTicket = (ticket: QueueTicket) => {
-  const sla = String(ticket.sla_status || '').toLowerCase();
+export const isRiskQueueTicket = (ticket: QueueTicket) =>
+  isTicketSlaOverdue(resolveTicketSlaSource(ticket));
+
+export const isHighPriorityQueueTicket = (ticket: QueueTicket) => {
   const priority = String(ticket.priority || '').toLowerCase();
   return (
-    sla.includes('breach') ||
-    sla.includes('venc') ||
-    sla.includes('overdue') ||
     priority.includes('alta') ||
+    priority.includes('high') ||
     priority.includes('urgent') ||
     priority.includes('urgente')
   );
@@ -55,6 +56,7 @@ export const getQueueScore = (ticket: QueueTicket) => {
   return (
     (isUnreadQueueTicket(ticket) ? 100 : 0) +
     (isRiskQueueTicket(ticket) ? 50 : 0) +
+    (isHighPriorityQueueTicket(ticket) ? 35 : 0) +
     (!isResolved ? 10 : 0)
   );
 };

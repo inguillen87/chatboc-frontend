@@ -129,7 +129,7 @@ describe('TenantTicket v2 service routing', () => {
     });
 
     expect(result.unified_conversation_stream).toHaveLength(1);
-    expect(calledUrls()).toEqual(['/api/v2/tickets/378430/timeline']);
+    expect(calledUrls()).toEqual(['/api/v2/tickets/378430/timeline?limit=50']);
     expect(calledUrls().some((url) => url.includes('/api/tickets/municipio/378430/timeline'))).toBe(false);
   });
 

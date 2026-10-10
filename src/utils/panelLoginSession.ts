@@ -1,5 +1,8 @@
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { advanceChatbocSessionRevision } from "@/utils/sessionLogout";
+import { usePanelSessionStore } from '@/stores';
+import {registerSessionRetirement,validateSessionRetirementProof,type SessionRetirementProof} from './sessionRetirement';
+import {clearNativePanelSelection,selectNativePanelImpersonation} from './nativePanelSelection';
 
 export interface PanelLoginUser {
   id?: string | number;
@@ -19,10 +22,14 @@ export interface PanelLoginUser {
 
 export interface PersistPanelLoginSessionInput {
   token?: string | null;
+  sessionRetirement?:SessionRetirementProof;
+  nativeImpersonation?:{initiatedByActorId:string};
   user?: PanelLoginUser | null;
   entityToken?: string | null;
   tipoChat?: "pyme" | "municipio" | string | null;
   tenantSlugHint?: string | null;
+  /** Credential login establishes a new identity instead of filling an old profile. */
+  replaceIdentity?: boolean;
   setUser?: (user: PanelLoginUser) => void;
 }
 
@@ -50,26 +57,35 @@ const firstText = (...values: unknown[]): string | undefined => {
 
 export const persistPanelLoginSession = ({
   token,
+  sessionRetirement,
+  nativeImpersonation,
   user,
   entityToken,
   tipoChat,
   tenantSlugHint,
+  replaceIdentity = false,
   setUser,
 }: PersistPanelLoginSessionInput): PanelLoginUser | null => {
+  if(sessionRetirement&&(!user?.id||!validateSessionRetirementProof(sessionRetirement,{actorId:user.id,provider:'native'})))throw new Error('El servicio no devolvió una sesión verificable.');
+  clearNativePanelSelection();
+  if(nativeImpersonation&&sessionRetirement&&user?.id)selectNativePanelImpersonation({actorId:String(user.id),lineageId:sessionRetirement.lineage_id,initiatedByActorId:nativeImpersonation.initiatedByActorId});
   safeLocalStorage.removeItem("authProvider");
   safeLocalStorage.removeItem("clerkUserId");
   if (token) {
     advanceChatbocSessionRevision();
-    safeLocalStorage.setItem("authToken", token);
+    usePanelSessionStore.getState().setAuthToken(token);
   }
   if (entityToken) {
     safeLocalStorage.setItem("entityToken", entityToken);
   }
 
-  const storedUser = { ...parseStoredUser() };
+  const storedUser: PanelLoginUser = replaceIdentity ? {} : { ...parseStoredUser() };
   delete storedUser.authProvider;
   delete storedUser.auth_provider;
   delete storedUser.clerkUserId;
+  delete storedUser.organization_profile;
+  delete storedUser.organization_workspace;
+  delete storedUser.session_retirement;
   const resolvedTenantSlug = firstText(
     user?.tenant_slug,
     user?.tenantSlug,
@@ -80,12 +96,15 @@ export const persistPanelLoginSession = ({
     storedUser.tenantSlug,
     storedUser.tenant?.slug,
     storedUser.tenant?.tenant_slug,
-    safeLocalStorage.getItem("tenantSlug"),
+    replaceIdentity ? null : safeLocalStorage.getItem("tenantSlug"),
   );
 
   if (resolvedTenantSlug) {
     safeLocalStorage.setItem("tenantSlug", resolvedTenantSlug);
+  } else if (replaceIdentity) {
+    safeLocalStorage.removeItem("tenantSlug");
   }
+  if (replaceIdentity && !entityToken) safeLocalStorage.removeItem("entityToken");
 
   const resolvedRole = firstText(user?.rol, user?.role, storedUser.rol, storedUser.role);
   const resolvedTipoChat = firstText(tipoChat, user?.tipo_chat, storedUser.tipo_chat);
@@ -117,10 +136,12 @@ export const persistPanelLoginSession = ({
       nextUser.tenantSlug ||
       nextUser.tipo_chat,
   );
+  delete nextUser.session_retirement;
 
   if (!hasUsefulIdentity) return null;
 
   safeLocalStorage.setItem("user", JSON.stringify(nextUser));
   setUser?.(nextUser);
+  if(sessionRetirement&&nextUser.id)registerSessionRetirement(sessionRetirement,{actorId:nextUser.id,provider:'native'});
   return nextUser;
 };

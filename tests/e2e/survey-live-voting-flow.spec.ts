@@ -172,7 +172,17 @@ for (const viewport of E2E_VIEWPORTS) {
     const selectedOption = page.getByRole('radio', { name: 'Mejorar alumbrado' });
     await selectedOption.check();
     await expect(selectedOption).toBeChecked();
-    await expect(page.getByText(/8 votos/).first()).toBeVisible();
+    await expect(page.getByText(/8 votos/)).toHaveCount(0);
+
+    const resultsView = page.getByRole('button', { name: 'Resultados y territorio' });
+    await resultsView.click();
+    await expect(resultsView).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByText(/8 votos · 66\.7%/).first()).toBeVisible();
+
+    const participateView = page.getByRole('button', { name: 'Participar' });
+    await participateView.click();
+    await expect(participateView).toHaveAttribute('aria-current', 'page');
+    await expect(selectedOption).toBeChecked();
     await expectNoHorizontalOverflow(page);
     await page.getByRole('button', { name: 'Enviar voto' }).click();
 

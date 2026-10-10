@@ -27,7 +27,7 @@ const mockAdminUpdateOrder = vi.mocked(apiClient.adminUpdateOrder);
 const renderPedidosPage = (initialEntry = '/pedidos') =>
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <PedidosPage />
+      <PedidosPage tenantSlug="junin" />
     </MemoryRouter>,
   );
 

@@ -26,6 +26,28 @@ vi.mock('@/utils/api', () => ({
 import { enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract } from '@/services/enterpriseService';
 import { invalidateDemoCatalogRequestCache } from '@/services/demoCatalogRequest';
 
+describe('enterpriseService safe lead assignment', () => {
+  beforeEach(() => { apiFetchMock.mockReset().mockResolvedValue({ ok: true }); });
+
+  it('publica el responsable esperado y conserva un ID decimal grande sin pérdidas', async () => {
+    await enterpriseService.autoAssignTenantTicket('junin', 'municipio', '9007199254740993123', { expected_assignee_id: 22 });
+    expect(apiFetchMock).toHaveBeenCalledExactlyOnceWith('/api/admin/tenants/junin/tickets/municipio/9007199254740993123/auto-assign', {
+      method: 'POST', body: { expected_assignee_id: 22 }, tenantSlug: 'junin',
+    });
+  });
+
+  it('no sustituye responsable ausente por null', async () => {
+    await expect(enterpriseService.autoAssignTenantTicket('junin', 'municipio', 403, {} as any)).rejects.toMatchObject({ status: 400 });
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([403, 409])('no reintenta una asignación rechazada con %s', async (status) => {
+    apiFetchMock.mockRejectedValueOnce(new MockApiError('Rechazado', status, null));
+    await expect(enterpriseService.autoAssignTenantTicket('junin', 'municipio', 403, { expected_assignee_id: null })).rejects.toMatchObject({ status });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('enterpriseService demo endpoints', () => {
   beforeEach(() => {
     invalidateDemoCatalogRequestCache({ revalidate: false });

@@ -1,6 +1,8 @@
+import {InstitutionalLoginLogo} from '@/components/auth/InstitutionalLoginLogo';
+import '@/components/auth/panelLogin.css';
 
-import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +30,11 @@ import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 import { getSafeAuthNextPath } from "@/utils/authRedirect";
 import { persistPanelLoginSession } from "@/utils/panelLoginSession";
 import { hasRequiredRole } from "@/utils/roles";
+import { completePanelCredentialLogin, ObsoletePanelLogin } from "@/utils/completePanelCredentialLogin";
+import { PanelLoginBoundaryError } from "@/utils/panelLoginResponse";
+import { readPanelLoginScope } from "@/utils/panelLoginScope";
+import {SessionRetirementNotice} from '@/components/auth/SessionRetirementNotice';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
 
 
 const isDevEnvironment = () => {
@@ -49,30 +56,30 @@ const withRequestIdSuffix = (baseMessage: string, requestId?: string | null) => 
   return trimmed ? `${baseMessage} (ID: ${trimmed})` : baseMessage;
 };
 
-interface LoginResponse {
-  token: string;
-  user: {
-    id: number;
-    email: string;
-    name: string;
-    rol: string;
-    role?: string;
-    tenant_slug: string;
-  };
-  entityToken?: string;
-  tipo_chat?: 'pyme' | 'municipio';
-}
-
-const Login = () => {
+const LoginSession = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { refreshUser, setUser } = useUser();
   const { timezone, locale, updateSettings } = useDateSettings();
-  const { currentSlug } = useTenant();
+  const { currentSlug, tenant, isLoadingTenant, tenantError, hostBinding } = useTenant();
+  const credentialPathname = hostBinding && /^\/login\/?$/i.test(location.pathname)
+    ? `/t/${encodeURIComponent(hostBinding.tenant.slug)}/login` : location.pathname;
+  const accessScope = readPanelLoginScope(credentialPathname);
+  const institutionalIdentity = !isLoadingTenant && !tenantError && accessScope.tenantSlug &&
+    tenant?.slug?.toLowerCase() === accessScope.tenantSlug && tenant.publishedIdentity?.tenantSlug === accessScope.tenantSlug
+      ? tenant.publishedIdentity : null;
+  const organizationName = institutionalIdentity?.name || null;
+  const credentialRequest = useRef({ active: true, busy: false });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    const attempt = { active: true, busy: false };
+    credentialRequest.current = attempt;
+    setIsLoading(false);
+    return () => { attempt.active = false; };
+  }, [location.pathname, location.search, hostBinding?.host]);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
@@ -91,7 +98,7 @@ const Login = () => {
   const [upgradeBlockedFeature, setUpgradeBlockedFeature] = useState<string | null>(null);
   const franchisePartner = getFranchisePartnerConfig();
 
-  const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
+  const isGlobalLogin = !hostBinding && (location.pathname === '/login' || location.pathname === '/login/');
   const safeNextPath = getSafeAuthNextPath(location.search);
 
   const normalizeDemoRubro = (raw: unknown): DemoRubro | null => {
@@ -336,6 +343,7 @@ const Login = () => {
   useEffect(() => {
     let mounted = true;
     const loadDemoOptions = async () => {
+      if (hostBinding) return;
       try {
         const catalog = await getDemoCatalogWithRetry();
         if (!mounted) return;
@@ -425,7 +433,7 @@ const Login = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [hostBinding?.host]);
 
   useEffect(() => {
     let mounted = true;
@@ -441,61 +449,25 @@ const Login = () => {
     };
   }, []);
 
-  const loginWithCredentials = async (nextEmail: string, nextPassword: string, tenantSlugOverride?: string) => {
-    setError("");
-    setIsLoading(true);
-
-    const pathSegments = location.pathname.split('/').filter(Boolean);
-    const slugFromPath = (pathSegments.length > 0 && pathSegments[0] !== 'login') ? pathSegments[0] : null;
-
-    const storedSlug = safeLocalStorage.getItem("tenantSlug");
-    const effectiveSlug = tenantSlugOverride || slugFromPath || currentSlug || storedSlug;
-
-    const payload: any = { email: nextEmail, password: nextPassword };
-    if (effectiveSlug) {
-      payload.tenant_slug = effectiveSlug;
-    }
-
+  const loginWithCredentials = async (nextEmail: string, nextPassword: string) => {
+    const attempt = credentialRequest.current;
+    if (attempt.busy || isPasskeyLoading || isDemoLoading) return;
+    attempt.busy = true; setError(""); setIsLoading(true);
     try {
-      const data = await apiFetch<LoginResponse>("/auth/admin/login", {
-        method: "POST",
-        body: payload,
-      });
-
-      const responseTenantSlug = data.user?.tenant_slug;
-      const responseRole = data.user?.rol || data.user?.role;
-      const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
-      persistPanelLoginSession({
-        token: data.token,
-        user: data.user,
-        entityToken: data.entityToken,
-        tipoChat: data.tipo_chat,
-        tenantSlugHint: resolvedTenantSlug,
-        setUser: setUser as any,
-      });
-
-      if (safeNextPath) {
-        navigate(safeNextPath);
-      } else if (hasRequiredRole(responseRole, ["superadmin"])) {
-        navigate("/superadmin");
-      } else if (hasRequiredRole(responseRole, ["tenant_admin", "employee", "catalog_manager", "analytics_viewer"])) {
-        navigate("/perfil");
-      } else {
-        navigate(buildTenantPath("/", resolvedTenantSlug));
-      }
-
-      refreshUser().catch(() => undefined);
+      const result = await completePanelCredentialLogin({ email: nextEmail.trim(), password: nextPassword,
+        pathname: credentialPathname, search: location.search, isCurrent: () => attempt.active,
+        setUser: setUser as any });
+      if (!attempt.active) return;
+      setPassword(''); navigate(result.destination);
+      void refreshUser().catch(() => undefined);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.status >= 500
-          ? "Servicio temporalmente no disponible. Intentá nuevamente en unos minutos."
-          : (err.body?.error || "Credenciales inválidas o error en el servidor."));
-      } else {
-        setError("No se pudo conectar con el servidor.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
+      if (!attempt.active || err instanceof ObsoletePanelLogin) return;
+      if (err instanceof PanelLoginBoundaryError) setError(err.message);
+      else if (err instanceof ApiError) setError(err.status >= 500
+        ? "Servicio temporalmente no disponible. Intentá nuevamente en unos minutos."
+        : (err.body?.error || "Credenciales inválidas o error en el servidor."));
+      else setError("No se pudo conectar con el servidor.");
+    } finally { attempt.busy = false; if (attempt.active) setIsLoading(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -504,14 +476,17 @@ const Login = () => {
   };
 
   const handlePasskeyLogin = async () => {
+    const passkeyRevision=captureChatbocSessionRevision();const attempt=credentialRequest.current;
     setError("");
     setIsPasskeyLoading(true);
     try {
       const result = await loginPasskey();
+      if(!attempt.active||!isChatbocSessionRevisionCurrent(passkeyRevision))return;
       const responseTenantSlug = (result as any)?.tenantSlug || (result as any)?.tenant_slug;
       const resultRole = (result as any)?.user?.rol || (result as any)?.user?.role;
       persistPanelLoginSession({
         token: result?.token,
+        sessionRetirement:result?.session_retirement,
         user: (result as any)?.user,
         entityToken: result?.entityToken,
         tipoChat: (result as any)?.tipo_chat,
@@ -633,11 +608,17 @@ const Login = () => {
   ] as const;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
+    <div className="panel-login-workspace min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
+        {institutionalIdentity && <InstitutionalLoginLogo identity={institutionalIdentity}/>}
         <h2 className="text-2xl font-bold mb-2 text-center text-foreground">
-          Iniciar Sesión
+          {organizationName ? `Ingresar a ${organizationName}` : "Iniciar Sesión"}
         </h2>
+        <SessionRetirementNotice/>
+        <p className="mb-4 text-sm text-center text-muted-foreground" aria-label="Alcance del acceso">{accessScope.tenantSlug ? `Acceso para la organización ${accessScope.tenantSlug}. Usá tu cuenta institucional.` : "Acceso central. Tu cuenta determina a qué organización podés ingresar."}</p>
+        {accessScope.tenantSlug && <p className="mb-4 text-center text-sm">{hostBinding
+          ? <a href="https://www.chatboc.ar/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</a>
+          : <Link to="/login" className="underline underline-offset-4">Ir al acceso central de ChatBoc</Link>}</p>}
         {franchisePartner.partnerName ? (
           <p className="text-xs text-center text-muted-foreground mb-4">{franchisePartner.partnerName}</p>
         ) : null}
@@ -665,6 +646,7 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             type="email"
+            aria-label="Correo electrónico"
             placeholder="Correo electrónico"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -675,6 +657,7 @@ const Login = () => {
           />
           <Input
             type="password"
+            aria-label="Contraseña"
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -683,16 +666,20 @@ const Login = () => {
             autoComplete="current-password"
             className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50"
           />
-          {error && <p className="text-destructive text-sm text-center">{error}</p>}
+          {error && <p role="alert" className="text-destructive text-sm text-center">{error}</p>}
           <Button
             type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
+            className="panel-login-submit w-full py-2.5 text-base"
             disabled={isLoading || isPasskeyLoading}
           >
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
           <div className="space-y-2">
-            <ClerkAuthButtons mode="login" className="pt-1" />
+            <ClerkAuthButtons
+              mode="login"
+              className="pt-1"
+              disabled={isLoading || isPasskeyLoading || isDemoLoading || isActivatingDemoWhatsapp}
+            />
             {isPasskeyAvailable && (
               <Button
                 type="button"
@@ -704,10 +691,14 @@ const Login = () => {
                 {isPasskeyLoading ? "Verificando Passkey..." : "Entrar con Passkey"}
               </Button>
             )}
-            <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
+            <GoogleLoginButton
+              className="w-full"
+              disabled={isLoading || isPasskeyLoading || isDemoLoading || isActivatingDemoWhatsapp}
+              onLoggedIn={() => navigateToTenantCatalog()}
+            />
           </div>
         </form>
-        <div className="mt-6 border-t border-border pt-4 space-y-3">
+        {isGlobalLogin && <div className="mt-6 border-t border-border pt-4 space-y-3">
           {!demoLoginEnabled ? (
             <p className="text-xs text-muted-foreground">Demo no disponible actualmente.</p>
           ) : null}
@@ -723,16 +714,18 @@ const Login = () => {
                 key={option.id}
                 type="button"
                 variant="outline"
-                className="h-auto justify-between gap-3 rounded-xl border-border/80 px-4 py-3 text-left hover:border-primary/60 hover:bg-primary/10"
+                className="h-auto w-full min-w-0 !whitespace-normal justify-between gap-3 rounded-xl border-border/80 px-4 py-3 text-left hover:border-primary/60 hover:bg-primary/10"
                 onClick={() => { void handleDemoLogin(undefined, option.payload); }}
                 disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
                 aria-label={`Abrir ${option.title}`}
               >
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{option.title}</span>
-                  <span className="mt-1 block text-xs font-normal text-muted-foreground">{option.description}</span>
+                  <span className="mt-1 block break-words text-xs font-normal leading-relaxed text-muted-foreground">
+                    {option.description}
+                  </span>
                 </span>
-                <span aria-hidden="true" className="text-lg">-&gt;</span>
+                <span aria-hidden="true" className="shrink-0 text-lg">-&gt;</span>
               </Button>
             ))}
           </div>
@@ -835,9 +828,9 @@ const Login = () => {
               })}
             </div>
           ) : null}
-        </div>
+        </div>}
 
-        {franchisePartner.salesUrl ? (
+        {isGlobalLogin && franchisePartner.salesUrl ? (
           <Button
             type="button"
             variant="secondary"
@@ -875,4 +868,7 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default function Login() {
+  const location = useLocation();
+  return <LoginSession key={location.pathname + location.search} />;
+}

@@ -123,6 +123,7 @@ describe("tenant admin v2 contracts", () => {
         },
       ],
       queues: {
+        open: [{ source_model: "MunicipioTicket", id: 123, category: "alumbrado" }],
         unassigned: [{ id: 123, channel: "whatsapp" }],
         unassigned_count: 1,
       },
@@ -142,6 +143,11 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.contract_version).toBe("employee.routing.v1");
     expect(normalized.dimensions.channels).toEqual(["whatsapp", "widget"]);
     expect(normalized.employees[0].scope.permisos).toEqual(["tickets_assign"]);
+    expect(normalized.queues.open[0]).toMatchObject({
+      source_model: "MunicipioTicket",
+      id: 123,
+      category: "alumbrado",
+    });
     expect(normalized.queues.unassigned_count).toBe(1);
     expect(normalized.recommendations[0].score).toBe(96);
     expect(normalized.recommendations[0].reasons).toContain("zone_match");
@@ -195,7 +201,24 @@ describe("tenant admin v2 contracts", () => {
         map: { can_render: true },
         location: { lat: -34.6, lng: -58.4 },
         attachments: [{ id: "att_1", name: "certificado.pdf" }],
-        sla: { status: "ok", overdue: false },
+        sla: {
+          contract_version: "ticket.sla.v1",
+          clocks: {
+            first_response: {
+              state: "ok",
+              status: "due",
+              due_at: "2026-08-30T14:00:00Z",
+              known: true,
+            },
+            next_update: {
+              state: "warning",
+              status: "due",
+              due_at: "2026-08-30T13:00:00Z",
+              known: true,
+            },
+            resolution: { state: "inactive", status: "inactive", known: true },
+          },
+        },
         allowed_actions: [{ id: "reply", label: "Responder" }],
         source_metadata: { widget_id: "landing-widget" },
         frontend_contract: { render_as: "inbox_360_drawer" },
@@ -208,6 +231,9 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.item.allowed_actions[0].id).toBe("reply");
     expect(normalized.item.attachments[0].name).toBe("certificado.pdf");
     expect(normalized.item.frontend_contract?.render_as).toBe("inbox_360_drawer");
+    expect(normalized.item.sla?.clocks.first_response.state).toBe("healthy");
+    expect(normalized.item.sla?.clocks.next_update.state).toBe("due");
+    expect(normalized.item.sla?.clocks.resolution.state).toBe("inactive");
   });
 
   it("normalizes live chat channel state for inbox, detail and actions", () => {

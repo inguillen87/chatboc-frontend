@@ -14,6 +14,10 @@ import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new 
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
+import { fetchWithStartupContinuity, isClerkSessionRequest, isPanelCredentialLoginRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
+import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { readActiveTenantHostRuntime, requiresTenantHostBinding, tenantHostRequestMatches, TenantHostUnavailableError } from '@/utils/tenantHostBinding';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -30,14 +34,22 @@ export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
   public readonly requestId?: string;
+  public readonly retryAfterMs?: number;
 
-  constructor(message: string, status: number, body: any = null, requestId?: string) {
+  constructor(
+    message: string,
+    status: number,
+    body: any = null,
+    requestId?: string,
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     Object.setPrototypeOf(this, ApiError.prototype);
     this.status = status;
     this.body = body;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -65,6 +77,20 @@ const resolveResponseRequestId = (response: Response, data: unknown): string | u
   }
 
   return undefined;
+};
+
+const resolveRetryAfterMs = (response: Response): number | undefined => {
+  const rawValue = response.headers.get("Retry-After")?.trim();
+  if (!rawValue) return undefined;
+
+  const seconds = Number(rawValue);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1_000);
+  }
+
+  const retryAt = Date.parse(rawValue);
+  if (!Number.isFinite(retryAt)) return undefined;
+  return Math.max(0, retryAt - Date.now());
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
@@ -258,11 +284,26 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
     if (candidate) return candidate;
   }
 
+  // Versioned tenant contracts carry the tenant after `/tenants/`. Treating
+  // the API version (`v1`, `v2`, ...) as the tenant contaminates every query
+  // with values such as `tenant_slug=v2` and can resolve another/default
+  // contract even though the canonical path already names the real tenant.
+  const versionedTenantMatch = normalizedPath.match(
+    /^\/api\/v\d+\/tenants\/([^/?#]+)/i,
+  );
+  if (versionedTenantMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(versionedTenantMatch[1]);
+    if (candidate) return candidate;
+  }
+
   // 2. Generic API match
   // This might match /api/public/... -> 'public' (which is a placeholder)
   const apiMatch = normalizedPath.match(/^\/api\/([^/?#]+)/i);
   if (apiMatch?.[1]) {
-    const candidate = sanitizeTenantSlug(apiMatch[1]);
+    const apiNamespace = apiMatch[1];
+    const candidate = /^v\d+$/i.test(apiNamespace)
+      ? null
+      : sanitizeTenantSlug(apiNamespace);
     // If it's a valid tenant, return it.
     // If it's a placeholder (like 'public'), we continue to try other patterns.
     if (candidate) return candidate;
@@ -281,6 +322,14 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
 };
 
 const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: string | null): string | null => {
+  if (typeof window !== 'undefined' && requiresTenantHostBinding(window.location?.hostname)) {
+    const hostBinding = readActiveTenantHostRuntime(window.location?.hostname);
+    if (!hostBinding) throw new TenantHostUnavailableError();
+    const explicit = sanitizeTenantSlug(explicitTenant);
+    if ((explicitTenant != null && (!explicit || explicit.toLowerCase() !== hostBinding.tenant.slug)) ||
+      (pathForFallback && !tenantHostRequestMatches(hostBinding, pathForFallback))) throw new TenantHostUnavailableError();
+    return hostBinding.tenant.slug;
+  }
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
 
@@ -356,7 +405,7 @@ export const resolveTenantSlug = (
 ): string | null => {
   const resolved = inferTenantSlug(explicitTenant, pathForFallback);
 
-  if (resolved && options.persist !== false) {
+  if (resolved && options.persist !== false && !(typeof window !== 'undefined' && requiresTenantHostBinding(window.location?.hostname))) {
     try {
       safeLocalStorage.setItem("tenantSlug", resolved);
     } catch (error) {
@@ -415,6 +464,7 @@ const shouldLogVerboseApi = (): boolean => {
 export const REDACTED_API_LOG_VALUE = "[REDACTED]" as const;
 
 const SENSITIVE_API_DIAGNOSTIC_KEY_FRAGMENTS = [
+  "proof",
   "authorization",
   "token",
   "credential",
@@ -621,6 +671,15 @@ const resolveApiErrorMessage = (data: unknown, fallback: string, status?: number
 };
 
 interface ApiFetchOptions {
+  /** Preserve document bytes; errors keep HTTP/auth handling without decoding bodies. */
+  responseType?: 'json' | 'response';
+  signal?: AbortSignal;
+  /** One chosen destination: no path/base fallback or redirects; no replay by default. */
+  singleAttempt?: boolean;
+  /** Allow GET or the explicitly guarded password session exchange on pre-dispatch startup evidence. */
+  allowStartupRecovery?: boolean;
+  /** Retire a request when its initiating screen or credential attempt is no longer current. */
+  isCurrent?: () => boolean;
   schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
@@ -654,6 +713,11 @@ interface ApiFetchOptions {
    */
   omitChatSessionId?: boolean;
   /**
+   * Uses an already-issued chat session instead of the browser-global fallback.
+   * Demo bootstraps bind this value to their signed demo session.
+   */
+  chatSessionId?: string | null;
+  /**
    * When true, avoids sending browser cookies with the request.
    * Useful for widget requests where the visitor should remain anonymous.
    */
@@ -684,6 +748,12 @@ interface ApiFetchOptions {
    * different from the panel/API origin.
    */
   baseUrlOverride?: string | null;
+  /**
+   * For idempotent GET requests, allows a canonical/public host override to
+   * fall back to the normal API candidates when that host returns a gateway
+   * failure. Mutating requests never use this fallback.
+   */
+  allowSafeBaseFallback?: boolean;
   /**
    * Avoid sending the entity token header even if one is available globally.
    * Public endpoints should not depend on tenant secrets to serve content,
@@ -846,6 +916,8 @@ export const resolveOmnichannelConversationId = (
  * Soporta autenticación JWT y modo anónimo vía header "X-Anon-Id".
  * Elimina el uso de anon_id como query param (profesional).
  */
+export function apiFetch(path: string, options: ApiFetchOptions & { responseType: 'response'; schema?: never }): Promise<Response>;
+export function apiFetch<T = unknown>(path: string, options?: ApiFetchOptions & { responseType?: 'json' }): Promise<T>;
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
@@ -863,9 +935,11 @@ export async function apiFetch<T>(
     omitCredentials,
     isWidgetRequest,
     omitChatSessionId,
+    chatSessionId: explicitChatSessionId,
     tenantSlug,
     persistTenantSlug,
     baseUrlOverride,
+    allowSafeBaseFallback,
     omitEntityToken,
     omitTenant,
     pin,
@@ -917,11 +991,39 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
+  const isBoundDomain = typeof window !== 'undefined' && requiresTenantHostBinding(window.location?.hostname);
+  const activeHostBinding = isBoundDomain ? readActiveTenantHostRuntime(window.location?.hostname) : null;
+  // Global identity calls may omit tenant selection, but that flag cannot make
+  // an explicit foreign organization route/query valid on a bound domain.
+  if (activeHostBinding && !tenantHostRequestMatches(activeHostBinding, path)) throw new TenantHostUnavailableError();
+  if (isBoundDomain && /^https?:\/\//i.test(path)) {
+    let requestOrigin: string;
+    try { requestOrigin = new URL(path).origin; } catch { throw new TenantHostUnavailableError(); }
+    if (requestOrigin !== window.location.origin) throw new TenantHostUnavailableError();
+  }
   const resolvedTenantSlug = omitTenant
     ? null
-    : treatAsWidget && tenantSlug === undefined
+    : !isBoundDomain && treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path, { persist: persistTenantSlug !== false });
+  // Explicit tenant and global panel scopes have their own authority. Public page,
+  // cart and widget initialization may update presentation storage in parallel.
+  const isIsolatedPanelRequest = !skipAuth && !treatAsWidget && isWidgetRequest === false &&
+    (omitTenant === true || (typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug) && persistTenantSlug === false)) &&
+    omitEntityToken === true && omitChatSessionId === true;
+  const isStartupRecoveryCredentialLogin = options.allowStartupRecovery === true &&
+    isPanelCredentialLoginRequest(path, method) && skipAuth === true && omitCredentials === true &&
+    isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
+    persistTenantSlug === false && typeof options.isCurrent === 'function' &&
+    typeof body?.email === 'string' && Boolean(body.email) && typeof body?.password === 'string' && Boolean(body.password);
+  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin;
+  // An explicit anonymous tenant read does not carry the panel identity. A
+  // concurrent /me refresh must not retire it or select that private tenant.
+  // Its caller's signal/isCurrent still retires the public route itself.
+  const isIsolatedPublicTenantRead = method === 'GET' &&
+    skipAuth === true && omitCredentials === true &&
+    omitEntityToken === true && omitChatSessionId === true && persistTenantSlug === false &&
+    typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug);
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -959,14 +1061,16 @@ export async function apiFetch<T>(
       if (panelToken) {
         token = panelToken;
         tokenSource = "authToken";
-      } else if (chatToken) {
+      } else if (chatToken && !isIsolatedPanelRequest) {
         token = chatToken;
         tokenSource = "chatAuthToken";
       }
     }
   }
   const shouldAttachChatSession = !omitChatSessionId;
-  const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
+  const chatSessionId = shouldAttachChatSession
+    ? normalizeHeaderValue(explicitChatSessionId) || getOrCreateChatSessionId()
+    : null;
 
   const anonId = getOrCreateAnonId();
 
@@ -1041,7 +1145,7 @@ export async function apiFetch<T>(
   const pathWithoutApiPrefix = hasApiPrefix
     ? normalizedPathWithTenant.replace(/^api\/+/, "")
     : normalizedPathWithTenant;
-  const preferredBase =
+  const preferredBase = isBoundDomain ? SAME_ORIGIN_PROXY_BASE :
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
       : "";
@@ -1061,13 +1165,18 @@ export async function apiFetch<T>(
     return `${cleanBase}/${pathForBase}`;
   };
 
-  const candidateBases = isAbsolutePath
+  const isSafeReadRequest = method === 'GET';
+  const configuredCandidateBases = API_BASE_CANDIDATES.length
+    ? API_BASE_CANDIDATES
+    : [BASE_API_URL].filter((value): value is string => !!value);
+  const candidateBases = isBoundDomain && !isAbsolutePath ? [SAME_ORIGIN_PROXY_BASE] : isAbsolutePath
     ? []
     : preferredBase
-      ? [preferredBase.replace(/\/$/, "")]
-      : API_BASE_CANDIDATES.length
-        ? API_BASE_CANDIDATES
-        : [BASE_API_URL].filter((value): value is string => !!value);
+      ? Array.from(new Set([
+          preferredBase.replace(/\/$/, ""),
+          ...(allowSafeBaseFallback && isSafeReadRequest ? configuredCandidateBases : []),
+        ]))
+      : configuredCandidateBases;
 
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
@@ -1146,7 +1255,16 @@ export async function apiFetch<T>(
        headers["Anon-Id"] = anonId;
     }
   }
-  if (effectiveEntityToken && !omitEntityToken && !shouldOmitEntityTokenForRoute) {
+  // A Clerk panel cookie is the selected identity. An automatically recovered
+  // widget token would outrank that cookie on the backend and invalidate it.
+  // Keep explicit widget/entity credentials and existing Bearer requests intact.
+  const omitImplicitEntityTokenForClerkCookie =
+    !treatAsWidget &&
+    !token &&
+    entityToken === undefined &&
+    safeLocalStorage.getItem('authProvider') === 'clerk' &&
+    safeLocalStorage.getItem('clerkSessionTransport') === 'cookie';
+  if (effectiveEntityToken && !omitEntityToken && !shouldOmitEntityTokenForRoute && !omitImplicitEntityTokenForClerkCookie) {
     headers["X-Entity-Token"] = effectiveEntityToken;
     headers["X-Token"] = effectiveEntityToken;
   }
@@ -1189,21 +1307,51 @@ export async function apiFetch<T>(
     headers,
     body: isForm ? body : (typeof body === "string" ? body : (body ? JSON.stringify(body) : undefined)),
     credentials: shouldOmitCredentials ? 'omit' : 'include',
+    signal: options.signal,
     cache,
   };
 
+  const readRequestIdentity = () => isIsolatedPublicTenantRead
+    ? JSON.stringify(['public-tenant-read', effectiveTenantSlug])
+    : JSON.stringify([
+    usePanelSessionStore.getState().authToken, hasIndependentRequestIdentity ? null : useWidgetSessionStore.getState().chatAuthToken,
+    safeLocalStorage.getItem('authToken'), hasIndependentRequestIdentity ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
+    safeLocalStorage.getItem('clerkUserId'), safeLocalStorage.getItem('authProvider'),
+    ...(hasIndependentRequestIdentity ? [
+      safeLocalStorage.getItem('clerkSessionTransport'), usePanelSessionStore.getState().user?.id,
+      parseStoredJsonRecord('user')?.id, captureChatbocSessionRevision(),
+    ] : []),
+  ]);
+  const requestIdentity = readRequestIdentity();
+  const dispatch = (destination: string, init: RequestInit) => fetchWithStartupContinuity(destination, init, {
+    singleAttempt: options.singleAttempt === true && !(options.allowStartupRecovery === true && (method === 'GET' || isStartupRecoveryCredentialLogin)),
+    allowCredentialLoginRecovery: isStartupRecoveryCredentialLogin,
+    isCurrent: () => readRequestIdentity() === requestIdentity && options.isCurrent?.() !== false,
+  });
+
+  // Vercel Preview containers can scale from zero. Every request, including
+  // mutations, waits on the same contract-aware readiness promise so the first
+  // screen waits for readiness before sending its first business requests.
+  await ensureBackendRuntimeReady({ baseUrl: url });
+
   let response: Response | null = null;
   let lastError: unknown = null;
+  const attemptedUrls = new Set<string>();
 
-  if (isAbsolutePath) {
+  const singleAttempt = options.singleAttempt === true;
+  const exclusiveRequest = singleAttempt || isClerkSessionRequest(url, method) || isPanelCredentialLoginRequest(url, method);
+  if (exclusiveRequest) {
+    response = await dispatch(url, { ...requestInit, redirect: 'error' });
+  } else if (isAbsolutePath) {
     try {
-      response = await fetch(url, requestInit);
+      response = await dispatch(url, requestInit);
     } catch (err) {
+      if (err instanceof BackendBootstrapError || (err as Error)?.name === 'AbortError') throw err;
       lastError = err;
     }
   }
 
-  for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
+  for (let baseIndex = 0; !exclusiveRequest && baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];
     const cleanBase = (base || "").replace(/\/$/, "");
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
@@ -1220,10 +1368,14 @@ export async function apiFetch<T>(
 
     for (let urlIndex = 0; urlIndex < urlsToTry.length; urlIndex++) {
       const candidateUrl = urlsToTry[urlIndex];
+      if (attemptedUrls.has(candidateUrl)) {
+        continue;
+      }
+      attemptedUrls.add(candidateUrl);
       url = candidateUrl;
 
       try {
-        const candidateResponse = await fetch(candidateUrl, requestInit);
+        const candidateResponse = await dispatch(candidateUrl, requestInit);
 
         const shouldRetryForStatus = (status: number) => {
           if (status === 404) {
@@ -1250,6 +1402,8 @@ export async function apiFetch<T>(
         const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
         const hasMoreBases = baseIndex < candidateBases.length - 1;
         const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
+        const isRetryableGatewayFailure =
+          isSafeReadRequest && !isStartupResponse(candidateResponse) && [502, 503, 504].includes(candidateResponse.status);
         const candidateContentType =
           candidateResponse.headers.get("content-type")?.toLowerCase() ?? "";
         const looksLikeFrontendHtmlShell =
@@ -1275,6 +1429,12 @@ export async function apiFetch<T>(
           break;
         }
 
+        if (isRetryableGatewayFailure && hasMoreBases) {
+          // A gateway failure is tied to the host/proxy, not to a legacy path
+          // alias on that same host. Move directly to the next backend base.
+          break;
+        }
+
         if (isMissingProxy || shouldTryNextCandidate) {
           continue;
         }
@@ -1286,7 +1446,8 @@ export async function apiFetch<T>(
         response = candidateResponse;
         break;
       } catch (err) {
-        lastError = err;
+        if (err instanceof BackendBootstrapError || (err as Error)?.name === 'AbortError') throw err;
+      lastError = err;
         continue;
       }
     }
@@ -1296,10 +1457,10 @@ export async function apiFetch<T>(
     }
   }
 
-  if (!response && fallbackUrl) {
+  if (!exclusiveRequest && !response && fallbackUrl) {
     try {
       url = fallbackUrl;
-      response = await fetch(fallbackUrl, requestInit);
+      response = await dispatch(fallbackUrl, requestInit);
     } catch (fallbackErr) {
       lastError = fallbackErr;
     }
@@ -1312,6 +1473,12 @@ export async function apiFetch<T>(
     throw new NetworkError("No fue posible establecer la conexión con el servidor.");
   }
 
+  const assertCurrentResponse = () => {
+    if (readRequestIdentity() !== requestIdentity || options.isCurrent?.() === false) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
+  };
+  assertCurrentResponse();
   if (typeof onResponse === "function") {
     try {
       onResponse(response.clone());
@@ -1323,7 +1490,16 @@ export async function apiFetch<T>(
     }
   }
 
+  // Document consumers validate MIME, size and digest without converting private
+  // bytes to text or including them in API diagnostics. Authentication and the
+  // dispatch retirement checks above are shared with ordinary requests.
+  if (options.responseType === 'response' && response.ok) {
+    assertCurrentResponse();
+    return response as T;
+  }
+
   try {
+    assertCurrentResponse();
     const responseTenantSlug = sanitizeTenantSlug(
       response.headers.get("X-Tenant-Slug") ||
       response.headers.get("x-tenant-slug") ||
@@ -1359,12 +1535,16 @@ export async function apiFetch<T>(
     }
 
     // Puede devolver vacío (204 No Content)
-    const text = await response.text().catch(() => "");
+    const responseContentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
+    // A denied document may carry private bytes under any Content-Type. Keep
+    // ordinary status/auth handling, without reading its body into diagnostics.
+    const text = options.responseType === 'response'
+      ? '' : await response.text().catch(() => "");
+    assertCurrentResponse();
     const trimmedText = text.trim();
     let data: any = null;
     let parsedAsJson = false;
-    const responseContentType =
-      response.headers.get("content-type")?.toLowerCase() ?? "";
 
     if (trimmedText) {
       try {
@@ -1508,6 +1688,7 @@ export async function apiFetch<T>(
         response.status,
         data,
         responseRequestId,
+        resolveRetryAfterMs(response),
       );
     }
 
@@ -1529,6 +1710,7 @@ export async function apiFetch<T>(
 
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    if ((error as Error)?.name === 'AbortError') throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
         `Network/API connection issue while reaching ${BASE_API_URL}.`,

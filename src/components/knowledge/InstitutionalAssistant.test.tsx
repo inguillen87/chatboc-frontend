@@ -1,0 +1,174 @@
+import React from 'react';
+import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
+import {workspace,node,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
+const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
+vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
+import InstitutionalAssistant from './InstitutionalAssistant';
+const deferred=()=>{let resolve!:(value:any)=>void;const promise=new Promise<any>(r=>{resolve=r;});return{promise,resolve};};
+const view=(slug='qa-knowledge',sessionKey='actor-a')=><InstitutionalAssistant tenantSlug={slug} sessionKey={sessionKey}/>;
+beforeEach(()=>{mocks.fetch.mockReset();mocks.fetch.mockResolvedValue(workspace());});afterEach(cleanup);
+describe('institutional workspace inside the application',()=>{
+ it('uses the verified organization, canonical answer and source labels',async()=>{
+  render(view());await screen.findByRole('heading',{name:'Información y orientación'});
+  expect(screen.getByText('Institución de prueba')).toBeVisible();expect(screen.getByText(node().text)).toBeVisible();
+  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  expect(await screen.findByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
+  expect(screen.getByRole('link',{name:'Referencia institucional'})).toHaveAttribute('href','https://example.org/informacion');
+  expect(screen.queryByText(node().text)).not.toBeInTheDocument();
+ });
+ it('submits a typed question once and shows the canonical response',async()=>{
+  render(view());await screen.findByLabelText('Escribí tu consulta');const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);
+  fireEvent.change(screen.getByLabelText('Escribí tu consulta'),{target:{value:'¿Qué documentos necesito?'}});
+  const form=screen.getByLabelText('Escribí tu consulta').closest('form')!;fireEvent.submit(form);fireEvent.submit(form);
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(mocks.fetch.mock.calls[1][1].body.question).toBe('¿Qué documentos necesito?');
+  await act(async()=>{pending.resolve(reply());await pending.promise;});expect(await screen.findByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
+ });
+ it('removes answers after rejection and recovers only by a fresh read',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce(new Error('PRIVATE BODY'));
+  fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');
+  expect(screen.queryByText(node().text)).not.toBeInTheDocument();expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
+ });
+ it('preserves canonical content after a cold node read and retries that same revision only on a click',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503,body:{detail:'PRIVATE BODY'}});
+  fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');
+  expect(screen.getByText(node().text)).toBeVisible();expect(screen.getByText('Institución de prueba')).toBeVisible();
+  expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  const failed=mocks.fetch.mock.calls[1];mocks.fetch.mockResolvedValueOnce(reply());
+  fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));
+  expect(await screen.findByRole('heading',{name:'Requisitos de la consulta'})).toBeVisible();
+  expect(mocks.fetch.mock.calls[2]).toEqual(failed);expect(failed[1].method).toBe('GET');
+ });
+ it('keeps a failed typed question and retries the same POST only after an explicit click',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503});
+  const input=screen.getByLabelText('Escribí tu consulta');fireEvent.change(input,{target:{value:'¿Qué documentos necesito?'}});
+  fireEvent.submit(input.closest('form')!);await screen.findByRole('alert');
+  expect(input).toHaveValue('¿Qué documentos necesito?');expect(screen.getByText(node().text)).toBeVisible();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);const failed=mocks.fetch.mock.calls[1];
+  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));
+  await screen.findByRole('heading',{name:'Requisitos de la consulta'});expect(mocks.fetch.mock.calls[2]).toEqual(failed);
+  expect(failed[1].method).toBe('POST');expect(input).toHaveValue('');
+ });
+ it('lets an edited failed question become a new request instead of sending the old input',async()=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503});
+  const input=screen.getByLabelText('Escribí tu consulta');fireEvent.change(input,{target:{value:'Pregunta anterior'}});
+  fireEvent.submit(input.closest('form')!);await screen.findByRole('alert');
+  fireEvent.change(input,{target:{value:'Pregunta corregida'}});expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(reply());fireEvent.submit(input.closest('form')!);await screen.findByRole('heading',{name:'Requisitos de la consulta'});
+  expect(mocks.fetch.mock.calls[2][1].body.question).toBe('Pregunta corregida');
+ });
+ it.each([401,403,412])('requires a fresh read after answer HTTP %s instead of retrying its revision',async status=>{
+  render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status});
+  fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');
+  expect(screen.queryByText(node().text)).not.toBeInTheDocument();mocks.fetch.mockResolvedValueOnce(workspace());
+  fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
+  expect(mocks.fetch.mock.calls[2][0]).toBe('/api/admin/tenants/qa-knowledge/institutional-assistant');
+ });
+ it('removes failed input and retained private answers when the actor changes',async()=>{
+  const mounted=render(view());await screen.findByText(node().text);mocks.fetch.mockRejectedValueOnce({status:503});
+  const input=screen.getByLabelText('Escribí tu consulta');fireEvent.change(input,{target:{value:'Consulta privada anterior'}});
+  fireEvent.submit(input.closest('form')!);await screen.findByRole('alert');
+  mocks.fetch.mockResolvedValueOnce(workspace({tenant:{id:701,slug:'qa-knowledge',name:'Nueva sesión'}}));
+  mounted.rerender(view('qa-knowledge','actor-b'));await screen.findByText('Nueva sesión');
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();expect(screen.getByLabelText('Escribí tu consulta')).toHaveValue('');
+  expect(screen.queryByText('Consulta privada anterior')).not.toBeInTheDocument();
+ });
+ it('does not restore a response after switching the verified actor',async()=>{
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);const mounted=render(view());
+  mocks.fetch.mockResolvedValueOnce(workspace({tenant:{id:701,slug:'qa-knowledge',name:'Nueva sesión'}}));mounted.rerender(view('qa-knowledge','actor-b'));
+  await screen.findByText('Nueva sesión');await act(async()=>{pending.resolve(workspace());await pending.promise;});expect(screen.queryByText('Institución de prueba')).not.toBeInTheDocument();
+ });
+ it('requires confirmation before publication and verifies readback',async()=>{
+  render(view());await screen.findByRole('button',{name:'Habilitar en el agente'});fireEvent.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  expect(mocks.fetch).toHaveBeenCalledOnce();fireEvent.click(screen.getByRole('button',{name:'Cancelar'}));expect(mocks.fetch).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole('button',{name:'Habilitar en el agente'}));mocks.fetch.mockResolvedValue(workspace({revision:'c'.repeat(64),visibility:'public'}));
+  fireEvent.click(screen.getByRole('button',{name:'Confirmar cambio'}));expect(await screen.findByRole('button',{name:'Retirar del agente'})).toBeVisible();
+  expect(mocks.fetch.mock.calls[1][1].method).toBe('PUT');expect(mocks.fetch.mock.calls[2][1].method).toBe('GET');
+ });
+ it('does not re-send an uncertain publication',async()=>{
+  render(view());await screen.findByRole('button',{name:'Habilitar en el agente'});fireEvent.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  mocks.fetch.mockRejectedValueOnce(new Error('network'));fireEvent.click(screen.getByRole('button',{name:'Confirmar cambio'}));await screen.findByRole('alert');
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(screen.queryByRole('button',{name:'Confirmar cambio'})).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Volver a consultar'}));await screen.findByText(node().text);
+  expect(mocks.fetch.mock.calls[2][1].method).toBe('GET');
+ });
+ it('offers larger type without changing the answer or making requests',async()=>{render(view());await screen.findByText(node().text);fireEvent.click(screen.getByRole('button',{name:'Texto ampliado'}));expect(screen.getByTestId('institutional-assistant')).toHaveClass('institutional-assistant--large');expect(mocks.fetch).toHaveBeenCalledOnce();});
+ it('does not create a workspace without a verified session',()=>{render(<InstitutionalAssistant tenantSlug="qa-knowledge"/>);expect(mocks.fetch).not.toHaveBeenCalled();});
+ it('shows the first access denial without exposing a private response body and retries a fresh read',async()=>{
+  mocks.fetch.mockRejectedValueOnce({status:403,body:{detail:'PRIVATE BODY'}});render(view());
+  expect(await screen.findByRole('alert')).toHaveTextContent('No tenés acceso al conocimiento de esta organización');
+  expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();expect(screen.queryByText(node().text)).not.toBeInTheDocument();
+  mocks.fetch.mockResolvedValueOnce(workspace());fireEvent.click(screen.getByRole('button',{name:'Reintentar'}));
+  expect(await screen.findByText(node().text)).toBeVisible();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it('shows an observable initial read failure instead of leaving the console blank',async()=>{
+  mocks.fetch.mockRejectedValueOnce(new Error('PRIVATE BODY'));render(view());
+  expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos cargar el conocimiento');
+  expect(screen.getByRole('button',{name:'Reintentar'})).toBeEnabled();expect(screen.queryByText('PRIVATE BODY')).not.toBeInTheDocument();
+ });
+});
+describe('source evidence and inclusive navigation',()=>{
+ it('shows the supplied choice codes once, keeps emoji decorative and preserves canonical navigation',async()=>{
+  const value=workspace({visibility:'public',can_edit:false});
+  value.knowledge!.initial.actions=[{code:'5',label:'🚗 Oblea del auto',target:'requirements'},{code:'9',label:'🏠 Volver al menú',target:'start'}];
+  mocks.fetch.mockResolvedValueOnce(value);render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
+  const car=await screen.findByRole('button',{name:'5 Oblea del auto'}),home=screen.getByRole('button',{name:'9 Volver al menú'});
+  expect(car).toBeVisible();expect(home).toBeVisible();expect(car).not.toHaveAttribute('aria-label');
+  expect(car.querySelector('[aria-hidden=true]')).toHaveTextContent('🚗');
+  mocks.fetch.mockResolvedValueOnce(reply('requirements',value));fireEvent.click(car);
+  await screen.findByRole('heading',{name:'Requisitos de la consulta'});
+  expect(mocks.fetch.mock.calls[1][0]).toBe(`/api/public/tenants/qa-knowledge/institutional-assistant/nodes/requirements?revision=${value.revision}`);
+  expect(mocks.fetch.mock.calls[1][1].method).toBe('GET');
+ });
+ it('paginates a three-node answer locally and sends only the selected canonical destination',async()=>{
+  const value=workspace({ui:{...workspace().ui,more_options:'Más opciones',previous_options:'Opciones anteriores',options_page:'Opciones: grupo {current} de {total}'}});
+  mocks.fetch.mockResolvedValue(value);render(view());await screen.findByText(node().text);
+  const nodes=[node('requirements'),node('other'),node('last')];nodes[1].title='Otro tema';nodes[2].title='Último tema';
+  nodes.forEach((n,i)=>n.actions=Array.from({length:i===2?3:4},(_,j)=>({code:String(j),label:`Consulta ${i*4+j+1}`,target:`target-${i*4+j}`})));
+  mocks.fetch.mockResolvedValueOnce({...reply(),nodes});const input=screen.getByLabelText('Escribí tu consulta');
+  fireEvent.change(input,{target:{value:'Consulta sobre tres temas'}});fireEvent.submit(input.closest('form')!);await screen.findByRole('heading',{name:'Último tema'});
+  expect(screen.getByRole('status')).toHaveTextContent('grupo 1 de 3');fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
+  expect(screen.getByRole('button',{name:'0 Consulta 5'})).toHaveFocus();fireEvent.click(screen.getByRole('button',{name:'Más opciones'}));
+  expect(screen.getByRole('heading',{name:'Otro tema'})).toBeVisible();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  const final=reply('target-10');final.nodes[0].title='Destino elegido';
+  mocks.fetch.mockResolvedValueOnce(final);fireEvent.click(screen.getByRole('button',{name:'2 Consulta 11'}));await screen.findByRole('heading',{name:'Destino elegido'});
+  expect(mocks.fetch.mock.calls[2][0]).toContain('/nodes/target-10?revision=');expect(screen.queryByRole('button',{name:'Más opciones'})).not.toBeInTheDocument();
+ });
+ it('presents supplied lists as reading lists without changing the source citation',async()=>{
+  const value=workspace();value.knowledge!.initial.text='Documentos para consultar.\n\n• Original legible\n• <img src=x onerror=literal()>\n\nPasos de consulta.\n1. Reuní la documentación\n2. Consultá con el equipo';
+  mocks.fetch.mockResolvedValue(value);const mounted=render(view());await screen.findByText('Documentos para consultar.');
+  const prose=mounted.container.querySelector('.institutional-assistant__prose')!;
+  expect(Array.from(prose.children,element=>element.tagName)).toEqual(['P','UL','P','OL']);
+  expect(prose.querySelectorAll('li')).toHaveLength(4);expect(prose).toHaveTextContent('<img src=x onerror=literal()>');expect(prose.querySelector('img')).toBeNull();
+  expect(screen.getByText('Información institucional de prueba')).toBeInTheDocument();expect(mocks.fetch).toHaveBeenCalledOnce();
+ });
+ it('keeps distinct options even when they lead to the same next menu',async()=>{
+  const value=workspace();value.knowledge!.initial.actions=[{code:'1',label:'Para mí',target:'requirements'},{code:'2',label:'Para una persona que acompaño',target:'requirements'}];
+  mocks.fetch.mockResolvedValue(value);render(view());
+  expect(await screen.findByRole('button',{name:'1 Para mí'})).toBeVisible();expect(screen.getByRole('button',{name:'2 Para una persona que acompaño'})).toBeVisible();
+ });
+ it('renders supplied evidence text as text, not active HTML',async()=>{
+  const value=workspace();value.knowledge!.initial.sources[0].excerpts=[{page:1,text:'<script>source</script> Texto de la fuente.'}];
+  mocks.fetch.mockResolvedValue(value);const mounted=render(view());await screen.findByText(node().text);
+  expect(mounted.container.querySelectorAll('script')).toHaveLength(0);expect(screen.getByText('<script>source</script> Texto de la fuente.')).toBeInTheDocument();
+ });
+});
+describe('published institution view',()=>{
+ it('serves the same published content without management controls or panel credentials',async()=>{
+  mocks.fetch.mockResolvedValue(workspace({visibility:'public',can_edit:false}));
+  render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
+  await screen.findByText(node().text);
+  expect(screen.queryByRole('button',{name:'Incorporar conocimiento'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Habilitar en el agente'})).not.toBeInTheDocument();
+  expect(mocks.fetch.mock.calls[0][0]).toBe('/api/public/tenants/qa-knowledge/institutional-assistant');
+  expect(mocks.fetch.mock.calls[0][1]).toMatchObject({skipAuth:true,omitEntityToken:true,omitCredentials:true,persistTenantSlug:false});
+ });
+ it('does not show a private response on the public institution page',async()=>{
+  mocks.fetch.mockResolvedValue(workspace());
+  const mounted=render(<InstitutionalAssistant tenantSlug="qa-knowledge" mode="public"/>);
+  await act(async()=>{await Promise.resolve();});
+  expect(mounted.container).not.toHaveTextContent(node().text);
+  expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar el conocimiento');
+ });
+});

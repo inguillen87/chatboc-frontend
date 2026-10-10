@@ -23,7 +23,7 @@ export default function ConversationRating({ conversationId }: { conversationId?
   };
 
   return (
-    <div className="space-y-2 rounded-lg border p-3" aria-label="Calificación de conversación">
+    <div className="space-y-2 rounded-lg border p-3" role="group" aria-label="Calificación de conversación">
       <p className="text-xs text-muted-foreground">¿Cómo fue tu experiencia?</p>
       <div className="flex gap-2">
         {OPTIONS.map((option) => (

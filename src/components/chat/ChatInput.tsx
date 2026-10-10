@@ -48,6 +48,9 @@ interface Props {
     fields?: string[];
   } | null;
   supportsMultimodalIntake?: boolean;
+  tenantSlug?: string | null;
+  demoSessionId?: string | null;
+  chatSessionId?: string | null;
 }
 
 
@@ -119,7 +122,24 @@ const mediaActionLabel = (
   fallback: string,
 ) => mediaCapabilities?.composer?.actions?.find((action) => action?.type === mode)?.label?.trim() || fallback;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, disabled = false, disabledReason = null, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, uiHints, guidedFlow, supportsMultimodalIntake = true }, ref) => {
+const ChatInput = forwardRef<ChatInputHandle, Props>(({
+  onSendMessage,
+  isTyping,
+  disabled = false,
+  disabledReason = null,
+  inputRef,
+  onTypingChange,
+  onSystemMessage,
+  validateBeforeSend,
+  channelCapabilities,
+  mediaCapabilities,
+  uiHints,
+  guidedFlow,
+  supportsMultimodalIntake = true,
+  tenantSlug,
+  demoSessionId,
+  chatSessionId,
+}, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -293,6 +313,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         const response = await uploadChatAttachment<UploadResponse>(
           uploadEndpoint,
           createUploadFormData,
+          { tenantSlug, demoSessionId, chatSessionId },
         );
         const originalFile = attachmentPreview.file;
         const uploadRaw =
@@ -519,6 +540,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       const data = await uploadChatAttachment<UploadResponse>(
         '/archivos/upload/chat_attachment',
         createAudioUploadFormData,
+        { tenantSlug, demoSessionId, chatSessionId },
       );
 
       const normalized = normalizeUploadResponse(data);

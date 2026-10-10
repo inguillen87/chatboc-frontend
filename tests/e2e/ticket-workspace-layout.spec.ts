@@ -27,14 +27,18 @@ const tickets = Array.from({ length: 18 }, (_, index) => ({
   id: TICKET_ID + index,
   nro_ticket: `M-${TICKET_ID + index}`,
   asunto: index === 0 ? 'Luminaria apagada en avenida principal' : `Reclamo operativo ${index + 1}`,
-  descripcion: 'Solicitud con seguimiento municipal y conversacion activa.',
+  descripcion: index === 2
+    ? 'La persona solicita una respuesta coordinada entre servicios públicos, movilidad y atención ciudadana porque el incidente afecta varios accesos y requiere seguimiento documentado sin perder información operativa.'
+    : 'Solicitud con seguimiento municipal y conversacion activa.',
   estado: index % 5 === 0 ? 'en_proceso' : 'nuevo',
   fecha: new Date(Date.UTC(2026, 6, 10, 10, index)).toISOString(),
   tipo: 'municipio',
   ticket_type: 'municipio',
   source_model: 'Reclamo',
   tenant_slug: TENANT_SLUG,
-  categoria: index % 2 === 0 ? 'Alumbrado' : 'Via publica',
+  categoria: index === 2
+    ? 'Infraestructura urbana, alumbrado público, seguridad peatonal y coordinación interáreas'
+    : index % 2 === 0 ? 'Alumbrado' : 'Via publica',
   channel: 'whatsapp',
   display_name: `Vecino ${index + 1}`,
   name: `Vecino ${index + 1}`,
@@ -47,6 +51,14 @@ const tickets = Array.from({ length: 18 }, (_, index) => ({
     unread_count: index < 6 ? 2 : 0,
     unread_viewer_count: 0,
   },
+  allowed_actions: [
+    {
+      id: 'coordinate_inspection',
+      label: 'Coordinar inspección conjunta y confirmar ventana estimada de resolución al ciudadano',
+      href: `/admin/tickets/${TICKET_ID + index}/coordinate`,
+      enabled: true,
+    },
+  ],
 }));
 
 const timeline = Array.from({ length: 36 }, (_, index) => ({
@@ -57,6 +69,22 @@ const timeline = Array.from({ length: 36 }, (_, index) => ({
       : `Respuesta del equipo ${index + 1}: el caso sigue en seguimiento operativo.`,
   fecha: new Date(Date.UTC(2026, 6, 10, 11, index)).toISOString(),
   es_admin: index % 2 === 1,
+}));
+
+const crmPeople = Array.from({ length: 80 }, (_, index) => ({
+  id: `contact-${index + 1}`,
+  contact_id: `contact-${index + 1}`,
+  nombre: `Persona CRM ${String(index + 1).padStart(2, '0')}`,
+  email: `persona${index + 1}@example.com`,
+  telefono: `+549110001${String(index).padStart(4, '0')}`,
+  canal: index % 2 === 0 ? 'whatsapp' : 'web',
+  etiquetas: index % 3 === 0 ? ['reclamo', 'seguimiento'] : ['contacto'],
+  marketing: index % 2 === 0,
+  motivo: index % 2 === 0 ? 'Seguimiento de reclamo municipal' : 'Consulta general',
+  resumen: `Contexto operativo publicado para la persona ${index + 1}.`,
+  last_seen: new Date(Date.UTC(2026, 6, 18, 12, index)).toISOString(),
+  created_at: new Date(Date.UTC(2026, 5, 1, 9, index)).toISOString(),
+  interaction_count: index + 1,
 }));
 
 type TimelineMessage = (typeof timeline)[number];
@@ -129,6 +157,23 @@ const mockWorkspaceApis = async (page: Page, capture: WorkspaceApiCapture) => {
 
     if (path === '/api/me' || path === '/me') {
       await json(route, operatorUser);
+      return;
+    }
+
+    if (path.endsWith('/api/app/backoffice/navigation')) {
+      await json(route, {
+        contract_version: 'backoffice.navigation.v1',
+        tenant_slug: TENANT_SLUG,
+        role: 'admin',
+        modules: [
+          { id: 'operations', label: 'Operar reclamos', route: '/perfil?tab=tickets', enabled: true, priority: 1 },
+          { id: 'reports', label: 'Reportes claros', route: '/perfil?tab=estadisticas', enabled: true, priority: 2 },
+          { id: 'surveys', label: 'Encuestas y sondeos', route: '/admin/encuestas', enabled: true, priority: 3 },
+          { id: 'people', label: 'Personas y accesos', route: '/empleados', enabled: true, priority: 4 },
+          { id: 'maps', label: 'Mapas de calor', route: '/perfil?tab=estadisticas&view=mapas', enabled: true, priority: 5 },
+          { id: 'advanced_analytics', label: 'Analítica IA', route: '/analytics?mode=advanced', enabled: true, priority: 6 },
+        ],
+      });
       return;
     }
 
@@ -252,6 +297,40 @@ const mockWorkspaceApis = async (page: Page, capture: WorkspaceApiCapture) => {
       return;
     }
 
+    if (path.endsWith('/api/v2/crm/people')) {
+      await json(route, {
+        contract_version: 'crm.people.directory.v2',
+        items: crmPeople.slice(0, 50).map((person) => ({
+          id: person.id,
+          contact_id: null,
+          name: person.nombre.replace('Persona CRM', 'P*** C***'),
+          email: `p***${person.id.split('-').at(-1)}@example.com`,
+          phone: `***${person.telefono.slice(-4)}`,
+          channel: person.canal,
+          marketing: person.marketing,
+          tags: person.etiquetas,
+          last_seen: person.last_seen,
+          source: 'contact',
+          pii_masked: true,
+          possible_duplicate: false,
+        })),
+        page: { limit: 50, total: 50, has_more: false, next_cursor: null },
+        pii: {
+          requested: false,
+          masked: true,
+          granted: false,
+          permission: 'crm_contacts_pii_read',
+          reason_code: 'pii_masked_by_default',
+        },
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/crm/clientes')) {
+      await json(route, crmPeople);
+      return;
+    }
+
     if (path.endsWith('/api/v2/backoffice/operations/inbox-summary')) {
       await json(route, {
         contract_version: 'backoffice.inbox_summary.v1',
@@ -343,6 +422,36 @@ const expectScrollable = async (locator: Locator) => {
   expect(metrics.after).not.toBe(metrics.before);
 };
 
+const expectInspectorContentContained = async (inspectorRegion: Locator) => {
+  const panel = inspectorRegion.getByTestId('ticket-details-panel');
+  const viewport = panel.locator('[data-radix-scroll-area-viewport]').first();
+  await expect(panel).toBeVisible();
+  await expect(viewport).toBeVisible();
+
+  const metrics = await viewport.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const visibleChildren = Array.from(element.querySelectorAll<HTMLElement>('*'))
+      .map((child) => child.getBoundingClientRect())
+      .filter((childRect) => childRect.width > 0 && childRect.height > 0);
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      overflowX: window.getComputedStyle(element).overflowX,
+      scrollbarGutter: window.getComputedStyle(element).scrollbarGutter,
+      maxChildRight: Math.max(rect.right, ...visibleChildren.map((childRect) => childRect.right)),
+      minChildLeft: Math.min(rect.left, ...visibleChildren.map((childRect) => childRect.left)),
+      left: rect.left,
+      right: rect.right,
+    };
+  });
+
+  expect(metrics.overflowX).toBe('hidden');
+  expect(metrics.scrollbarGutter).toContain('stable');
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  expect(metrics.minChildLeft).toBeGreaterThanOrEqual(metrics.left - 1);
+  expect(metrics.maxChildRight).toBeLessThanOrEqual(metrics.right + 1);
+};
+
 const expectMobileConversationLayout = async (page: Page) => {
   const messageScroll = page.getByTestId('ticket-message-scroll');
   const replyFooter = page.getByTestId('ticket-reply-footer');
@@ -417,6 +526,147 @@ const expectMobileConversationLayout = async (page: Page) => {
   await expect(mobileViewport).toBeVisible();
 };
 
+test('profile home exposes role-based enterprise work areas and nests plans under Administration', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+  await installWorkspaceSession(page);
+  await mockWorkspaceApis(page, capture);
+  await page.goto('/perfil', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.getByRole('heading', { name: 'Municipio Demo', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Trabajo de hoy' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Atención' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú CRM ciudadano' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Inteligencia' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toBeVisible();
+  await expect(page.getByText('Configuración técnica separada de la operación diaria.')).toBeVisible();
+  await expect(page.getByText(/Información operativa confirmada/)).toBeVisible();
+  await expect(page.getByText(/Módulo publicado por backend/i)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Abrir menú Administración' }).click();
+  const planItem = page.getByRole('menuitem', { name: /Planes y facturación/i });
+  await expect(planItem).toBeVisible();
+  await planItem.click();
+
+  await expect(page).toHaveURL(/tab=perfil.*section=plan|section=plan.*tab=perfil/);
+  await expect(page.getByText('Uso de la organización')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
+  await expectNoHorizontalOverflow(page);
+});
+
+test('profile people CRM stays inside the viewport with an independently scrollable queue', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+  await installWorkspaceSession(page);
+  await mockWorkspaceApis(page, capture);
+  await page.goto('/perfil?tab=usuarios&tenant_slug=municipio-demo', { waitUntil: 'domcontentloaded' });
+
+  const workspace = page.getByTestId('crm-people-workspace');
+  const grid = page.getByTestId('crm-people-grid');
+  await expect(page.getByTestId('profile-crm-workspace')).toBeVisible();
+  await expect(workspace).toHaveAttribute('data-layout', 'embedded');
+  await expect(page.getByText('Consola CRM')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'P*** C*** 01' })).toBeVisible();
+
+  const bounds = await page.evaluate(() => {
+    const read = (testId: string) => {
+      const rect = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.getBoundingClientRect();
+      return rect ? { top: rect.top, bottom: rect.bottom, height: rect.height } : null;
+    };
+    return {
+      workspace: read('crm-people-workspace'),
+      grid: read('crm-people-grid'),
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(bounds.workspace).not.toBeNull();
+  expect(bounds.grid).not.toBeNull();
+  expect(bounds.workspace?.bottom || 0).toBeLessThanOrEqual(bounds.viewportHeight + 1);
+  expect(bounds.grid?.height || 0).toBeGreaterThan(220);
+  await expectScrollable(page.locator('aside[aria-label="Lista de personas"] > div'));
+  await expectNoHorizontalOverflow(page);
+  await expectDocumentLocked(page);
+});
+
+test('profile people CRM keeps record actions and summary reachable at 390x844', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const capture: WorkspaceApiCapture = { replies: [], timelineReplies: {} };
+  await installWorkspaceSession(page);
+  await mockWorkspaceApis(page, capture);
+  await page.goto('/perfil?tab=usuarios&tenant_slug=municipio-demo', { waitUntil: 'domcontentloaded' });
+
+  const workspace = page.getByTestId('crm-people-workspace');
+  const grid = page.getByTestId('crm-people-grid');
+  const recordHeader = page.getByTestId('crm-person-header');
+  const recordTabs = page.getByTestId('crm-person-tabs');
+  const recordScroll = page
+    .getByTestId('crm-person-scroll')
+    .locator('[data-radix-scroll-area-viewport]')
+    .first();
+
+  await expect(workspace).toHaveAttribute('data-layout', 'embedded');
+  await expect(page.getByRole('combobox', { name: 'Vista operativa de personas' })).toBeVisible();
+  await expect(page.locator('aside[aria-label="Lista de personas"]')).toBeHidden();
+  const recordActions = page.getByRole('button', { name: 'Más acciones' });
+  await expect(recordActions).toBeVisible();
+  await recordActions.click();
+  const protectedCaseAction = page.getByRole('menuitem', { name: 'Sin caso exacto' });
+  await expect(protectedCaseAction).toBeVisible();
+  await expect(protectedCaseAction).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Abrir panel contextual' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Resumen', exact: true })).toBeVisible();
+  await expect(page.getByText('Datos protegidos. El detalle requiere un permiso explícito y una identidad resoluble publicada por el backend.')).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const read = (testId: string) => {
+      const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+      const rect = element?.getBoundingClientRect();
+      return element && rect
+        ? {
+            top: rect.top,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+          }
+        : null;
+    };
+    return {
+      grid: read('crm-people-grid'),
+      recordHeader: read('crm-person-header'),
+      recordTabs: read('crm-person-tabs'),
+      areaNavigation: read('crm-area-navigation'),
+      queueControls: read('crm-queue-controls'),
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(layout.grid).not.toBeNull();
+  expect(layout.grid?.height || 0).toBeGreaterThan(180);
+  expect(layout.grid?.bottom || 0).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.recordHeader?.bottom || 0).toBeLessThanOrEqual((layout.grid?.bottom || 0) + 1);
+  expect(layout.recordTabs?.bottom || 0).toBeLessThanOrEqual((layout.grid?.bottom || 0) + 1);
+  for (const region of [layout.areaNavigation, layout.queueControls, layout.recordHeader, layout.recordTabs]) {
+    expect(region).not.toBeNull();
+    expect(region?.scrollWidth || 0).toBeLessThanOrEqual((region?.clientWidth || 0) + 1);
+  }
+
+  await expect(recordHeader).toBeInViewport();
+  await expect(recordTabs).toBeInViewport();
+  await expect(recordScroll).toBeVisible();
+  const scrollMetrics = await recordScroll.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollMetrics.clientHeight).toBeGreaterThan(60);
+  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
+  await expectNoHorizontalOverflow(page);
+  await expectDocumentLocked(page);
+});
+
 const desktopPaths = [
   '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
   '/t/municipio-demo/reclamos?ticket_id=101&channel=whatsapp&focus=heatmap',
@@ -449,6 +699,109 @@ for (const path of desktopPaths) {
     await expectDocumentLocked(page);
   });
 }
+
+for (const viewport of [
+  { width: 1920, height: 1080, label: '1920x1080' },
+  { width: 1600, height: 900, label: '1600x900' },
+  { width: 1366, height: 768, label: '1366x768' },
+]) {
+  test(`enterprise ticket inspector preserves the conversation at ${viewport.label}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await openWorkspace(
+      page,
+      '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
+    );
+
+    const grid = page.getByTestId('tickets-desktop-grid');
+    const conversation = page.getByTestId('tickets-conversation-region');
+    const detail = page.getByTestId('tickets-detail-region');
+    await expect(grid).toHaveAttribute('data-detail-presentation', 'column');
+    await expect(detail).toBeVisible();
+
+    if (viewport.width < 1440) {
+      await expect(page.getByTestId('tickets-list-region')).toHaveCount(0);
+    } else {
+      await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+    }
+
+    const [conversationBox, detailBox] = await Promise.all([
+      conversation.boundingBox(),
+      detail.boundingBox(),
+    ]);
+    expect(conversationBox).not.toBeNull();
+    expect(detailBox).not.toBeNull();
+    expect(conversationBox?.width || 0).toBeGreaterThanOrEqual(560);
+    expect(detailBox?.width || 0).toBeGreaterThanOrEqual(340);
+    expect(detailBox?.width || 0).toBeLessThanOrEqual(520);
+
+    await expect(page.getByText(/Coordinar inspección conjunta y confirmar ventana estimada/i)).toBeVisible();
+    await expectInspectorContentContained(detail);
+    await expectNoHorizontalOverflow(page);
+    await expectDocumentLocked(page);
+
+    if (viewport.width === 1920) {
+      const separator = detail.getByRole('separator', { name: /ajustar ancho del inspector/i });
+      await separator.press('End');
+      await expect(separator).toHaveAttribute('aria-valuenow', '520');
+      await expect(detail).toHaveAttribute('data-inspector-width', '520');
+      await expect.poll(() => page.evaluate(() => JSON.parse(
+        window.localStorage.getItem('chatboc:tickets:inspector-layout:municipio-demo:operator-e2e') || '{}',
+      ))).toEqual({ open: true, width: 520 });
+    }
+
+    if (viewport.width === 1366) {
+      await page.getByRole('button', { name: 'Mostrar lista de tickets' }).click();
+      await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+      await expect(page.getByTestId('tickets-detail-region')).toHaveCount(0);
+      await expect(grid).toHaveAttribute('data-detail-presentation', 'collapsed');
+
+      await page.getByRole('button', { name: 'Ver detalles del ticket' }).click();
+      await expect(page.getByTestId('tickets-list-region')).toHaveCount(0);
+      await expect(page.getByTestId('tickets-detail-region')).toBeVisible();
+      await expect(grid).toHaveAttribute('data-detail-presentation', 'column');
+    }
+  });
+}
+
+test('ticket inspector becomes a contained drawer at 1024px and restores the queue on close', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openWorkspace(
+    page,
+    '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
+  );
+
+  const grid = page.getByTestId('tickets-desktop-grid');
+  await expect(grid).toHaveAttribute('data-detail-presentation', 'collapsed');
+  await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+
+  const detailsTrigger = page.getByRole('button', { name: 'Ver detalles del ticket' });
+  await detailsTrigger.click();
+  const drawer = page.getByTestId('tickets-detail-drawer');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toHaveAttribute('role', 'dialog');
+  await expect(drawer).toHaveAttribute('aria-modal', 'false');
+  await expect(grid).toHaveAttribute('data-detail-presentation', 'drawer');
+  await expect(page.getByTestId('tickets-list-region')).toHaveCount(0);
+  const resizeHandle = drawer.getByRole('separator', { name: /ajustar ancho del inspector/i });
+  await expect(resizeHandle).toHaveAttribute('aria-valuemax', '464');
+  await expect(drawer.getByRole('button', { name: 'Cerrar detalles del ticket' })).toBeFocused();
+
+  const [conversationBox, drawerBox] = await Promise.all([
+    page.getByTestId('tickets-conversation-region').boundingBox(),
+    drawer.boundingBox(),
+  ]);
+  expect(conversationBox).not.toBeNull();
+  expect(drawerBox).not.toBeNull();
+  expect((conversationBox?.width || 0) - (drawerBox?.width || 0)).toBeGreaterThanOrEqual(560);
+  await expectInspectorContentContained(drawer);
+  await expectNoHorizontalOverflow(page);
+
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(page.getByTestId('tickets-list-region')).toBeVisible();
+  await expect(grid).toHaveAttribute('data-detail-presentation', 'collapsed');
+  await expect(detailsTrigger).toBeFocused();
+});
 
 const mobilePaths = [
   '/perfil?tab=tickets&ticket_id=101&channel=whatsapp&focus=heatmap',
@@ -556,8 +909,9 @@ for (const viewport of E2E_VIEWPORTS) {
     expect(capture.replies[0].body).toContain('Actualizacion operativa E2E para M-102.');
 
     const deliveryStatus = page.getByTestId('ticket-reply-delivery-status');
-    await expect(deliveryStatus).toContainText('Mensaje enviado');
+    await expect(deliveryStatus).toContainText('Estado de entrega por confirmar');
     await expect(deliveryStatus).toContainText('WhatsApp');
+    await expect(deliveryStatus).toContainText('WhatsApp acepto la respuesta del operador.');
     await expect(
       page
         .getByTestId('ticket-message-scroll')

@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/utils/api';
@@ -102,8 +102,8 @@ const createTestQueryClient = () =>
     },
   });
 
-const typeAndSend = (message: string) => {
-  fireEvent.change(screen.getByPlaceholderText('Escribe una respuesta...'), { target: { value: message } });
+const typeAndSend = async (message: string) => {
+  fireEvent.change(await screen.findByPlaceholderText('Escribe una respuesta...'), { target: { value: message } });
   fireEvent.click(screen.getByRole('button', { name: /Enviar mensaje/i }));
 };
 
@@ -127,6 +127,66 @@ describe('TicketConversationPane reply delivery contract', () => {
       .mockReturnValueOnce('crm-reply:attempt-0003');
   });
 
+  it('keeps owner, SLA and next step visible while detailed context stays collapsed', async () => {
+    getInboxDetailMock.mockResolvedValue({
+      item: {
+        ...ticket,
+        assignee: { name: 'Ana Operadora' },
+        next_steps: ['Coordinar visita técnica'],
+        sla: { status: 'active' },
+      },
+      raw: null,
+    });
+    renderPane();
+    const operational = await screen.findByRole('region', { name: 'Control operativo del caso' });
+    expect(within(operational).getByText('Ana Operadora')).toBeVisible();
+    expect(within(operational).getByText('Coordinar visita técnica')).toBeVisible();
+    expect(within(operational).getByRole('group', { name: /SLA:/ })).toBeVisible();
+    expect(screen.getByText('Contexto, compromisos y acciones del caso').closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('renders the three SLA clocks from the hydrated omnichannel detail', async () => {
+    getInboxDetailMock.mockResolvedValue({
+      item: {
+        ...ticket,
+        sla: {
+          contract_version: 'ticket.sla.v1',
+          clocks: {
+            first_response: {
+              state: 'ok',
+              status: 'due',
+              due_at: '2026-08-30T14:00:00Z',
+              known: true,
+            },
+            next_update: {
+              state: 'warning',
+              status: 'due',
+              due_at: '2026-08-30T13:00:00Z',
+              known: true,
+            },
+            resolution: {
+              state: 'breached',
+              status: 'overdue',
+              due_at: '2026-08-30T12:00:00Z',
+              known: true,
+            },
+          },
+        },
+      },
+      raw: null,
+    });
+
+    renderPane();
+
+    fireEvent.click(await screen.findByText('Contexto, compromisos y acciones del caso'));
+    expect(await screen.findByRole('region', { name: 'Relojes de nivel de servicio' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('ticket-sla-clock-first_response')).toHaveAttribute('data-sla-state', 'healthy');
+      expect(screen.getByTestId('ticket-sla-clock-next_update')).toHaveAttribute('data-sla-state', 'due');
+      expect(screen.getByTestId('ticket-sla-clock-resolution')).toHaveAttribute('data-sla-state', 'overdue');
+    });
+  });
+
   it('reuses the same client_message_id after an ambiguous error and renders a durable queue honestly', async () => {
     postInboxActionMock
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
@@ -146,9 +206,13 @@ describe('TicketConversationPane reply delivery contract', () => {
       }));
 
     renderPane();
-    typeAndSend('La cuadrilla ya recibio el aviso.');
+    await typeAndSend('La cuadrilla ya recibio el aviso.');
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole('button', { name: /Enviar mensaje/i })).not.toBeDisabled());
+    expect(screen.getByTestId('omnichannel-reply-failure')).toHaveTextContent('Entrega por confirmar');
+    expect(screen.getByTestId('omnichannel-reply-failure')).toHaveTextContent('evitar duplicados');
+    expect(screen.getByLabelText('Respuesta al contacto')).toHaveValue('La cuadrilla ya recibio el aviso.');
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Enviar mensaje/i }));
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(2));
@@ -172,11 +236,11 @@ describe('TicketConversationPane reply delivery contract', () => {
       .mockRejectedValueOnce(new TypeError('connection reset'));
 
     renderPane();
-    typeAndSend('Primer texto');
+    await typeAndSend('Primer texto');
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole('button', { name: /Enviar mensaje/i })).not.toBeDisabled());
 
-    typeAndSend('Texto corregido');
+    await typeAndSend('Texto corregido');
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(2));
 
     expect(replyClientMessageIdAt(0)).toBe('crm-reply:attempt-0001');
@@ -190,7 +254,7 @@ describe('TicketConversationPane reply delivery contract', () => {
       .mockRejectedValueOnce(new TypeError('connection reset'));
 
     renderPane();
-    typeAndSend('Mismo texto');
+    await typeAndSend('Mismo texto');
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByRole('button', { name: /Enviar mensaje/i })).not.toBeDisabled());
 
@@ -217,7 +281,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     }));
 
     renderPane();
-    typeAndSend('Estamos revisando tu reclamo.');
+    await typeAndSend('Estamos revisando tu reclamo.');
 
     expect(await screen.findByText('Aceptado por el proveedor')).toBeInTheDocument();
     expect(screen.getByText(/whatsapp · Pendiente de callback/i)).toBeInTheDocument();
@@ -240,7 +304,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     }));
 
     renderPane();
-    typeAndSend('Confirmamos la novedad.');
+    await typeAndSend('Confirmamos la novedad.');
 
     expect(await screen.findByText('Entrega confirmada')).toBeInTheDocument();
     expect(screen.getByText(/whatsapp · Leído/i)).toBeInTheDocument();
@@ -264,7 +328,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     }));
 
     renderPane();
-    typeAndSend('Confirmamos la novedad.');
+    await typeAndSend('Confirmamos la novedad.');
 
     expect(await screen.findByText('Aceptado por el proveedor')).toBeInTheDocument();
     expect(screen.getByTestId('omnichannel-delivery-status')).toHaveTextContent('Pendiente de callback');
@@ -303,7 +367,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     postInboxActionMock.mockResolvedValueOnce(responseWithDelivery(delivery));
 
     renderPane();
-    typeAndSend('Respuesta operativa.');
+    await typeAndSend('Respuesta operativa.');
 
     expect(await screen.findByText(title)).toBeInTheDocument();
     expect(screen.getByTestId('omnichannel-delivery-status')).toHaveTextContent(badge);
@@ -323,7 +387,7 @@ describe('TicketConversationPane reply delivery contract', () => {
       </QueryClientProvider>,
     );
 
-    typeAndSend('Respuesta para el ticket 42');
+    await typeAndSend('Respuesta para el ticket 42');
     await waitFor(() => expect(postInboxActionMock).toHaveBeenCalledTimes(1));
     view.rerender(
       <QueryClientProvider client={queryClient}>
@@ -356,7 +420,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     }));
 
     renderPane();
-    typeAndSend('Actualizar el timeline.');
+    await typeAndSend('Actualizar el timeline.');
 
     expect(await screen.findByText('Guardado solo en CRM')).toBeInTheDocument();
     await waitFor(() => expect(getInboxDetailMock.mock.calls.length).toBeGreaterThanOrEqual(2));

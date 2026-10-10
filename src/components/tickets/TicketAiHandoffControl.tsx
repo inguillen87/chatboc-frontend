@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Bot, Headphones, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
 
 import {
+  buildSaasActionPayload,
   postOmnichannelInboxActionV2,
   type OmnichannelInboxActionV2,
   type SaasAction,
@@ -72,12 +73,6 @@ export const isAiHandoffAction = (action: Pick<SaasAction, 'id' | 'type'>): bool
   HANDOFF_ACTION_IDS.has(normalizeActionId(action.id)) ||
   HANDOFF_ACTION_IDS.has(normalizeActionId(action.type));
 
-const actionPayload = (action: SaasAction): PlainRecord => ({
-  ...asRecord(action.payload_defaults),
-  ...asRecord(action.payloadDefaults),
-  ...asRecord(action.payload),
-});
-
 const isMissingValue = (value: unknown): boolean =>
   value === undefined || value === null || (typeof value === 'string' && !value.trim());
 
@@ -94,7 +89,15 @@ export const getHandoffActionBlockReason = (
     return `Método ${method} no habilitado para cambiar el control de la conversación.`;
   }
 
-  const payload = { ...actionPayload(action), ticket_id: ticketId };
+  if (!action.endpoint?.startsWith('/')) {
+    return 'El backend no publicó un endpoint seguro para cambiar el control de la conversación.';
+  }
+
+  if (action.delivery_mode !== 'internal_event' || action.external_dispatch !== false) {
+    return 'La transición no garantiza una acción interna sin despacho externo.';
+  }
+
+  const payload = { ...buildSaasActionPayload(action), ticket_id: ticketId };
   const missing = (action.requires || []).filter((field) => isMissingValue(payload[field]));
   if (missing.length) {
     return `Falta completar el contrato backend: ${missing.join(', ')}.`;
@@ -187,7 +190,7 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
         {
           action: action.id,
           endpoint: action.endpoint,
-          payload: actionPayload(action),
+          payload: buildSaasActionPayload(action),
         },
         tenantSlug,
       ),

@@ -1,8 +1,16 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 import { setMobileNavigationOpen } from './mobileNavigationOverlay';
 import { PwaInstallPrompt } from './PwaInstallPrompt';
+
+const renderPrompt = (entry = '/') =>
+  render(
+    <MemoryRouter initialEntries={[entry]}>
+      <PwaInstallPrompt />
+    </MemoryRouter>,
+  );
 
 describe('PwaInstallPrompt landmarks', () => {
   beforeEach(() => {
@@ -13,7 +21,7 @@ describe('PwaInstallPrompt landmarks', () => {
   afterEach(() => setMobileNavigationOpen(false));
 
   it('uses a labelled complementary landmark instead of a status role for interactive controls', async () => {
-    render(<PwaInstallPrompt />);
+    renderPrompt();
 
     await act(async () => {
       window.dispatchEvent(new Event('beforeinstallprompt'));
@@ -25,7 +33,7 @@ describe('PwaInstallPrompt landmarks', () => {
   });
 
   it('removes the install prompt from the accessibility tree while mobile navigation is open', async () => {
-    render(<PwaInstallPrompt />);
+    renderPrompt();
 
     await act(async () => {
       window.dispatchEvent(new Event('beforeinstallprompt'));
@@ -39,5 +47,15 @@ describe('PwaInstallPrompt landmarks', () => {
 
     act(() => setMobileNavigationOpen(false));
     expect(screen.getByRole('complementary', { name: 'Instalar Chatboc' })).toBeInTheDocument();
+  });
+
+  it('does not cover the guided demo presentation surface', async () => {
+    renderPrompt('/demo?sector=gobierno&rubro=municipio&tenant_slug=junin');
+
+    await act(async () => {
+      window.dispatchEvent(new Event('beforeinstallprompt'));
+    });
+
+    expect(screen.queryByRole('complementary', { name: 'Instalar Chatboc' })).not.toBeInTheDocument();
   });
 });

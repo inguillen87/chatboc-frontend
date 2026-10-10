@@ -1,0 +1,133 @@
+name: Unified organization login
+"on":
+  pull_request:
+    paths:
+      - src/pages/Login.tsx
+      - src/api/tenant*
+      - src/types/tenant.ts
+      - src/types/tenantHost.ts
+      - src/context/TenantContext*
+      - src/hooks/useTenantHostBinding*
+      - src/utils/tenantHostBinding*
+      - src/utils/api.hostBinding.test.ts
+      - src/components/tenant/TenantHost*
+      - src/components/tenant/TenantDomainSettings*
+      - src/components/tenant/TenantShell*
+      - src/components/layout/Layout.tsx
+      - src/pages/Integracion*
+      - src/test/fixtures/tenantHost.ts
+      - src/test/fixtures/tenantDomain.ts
+      - src/utils/publishedTenantIdentity*
+      - src/components/layout/Navbar*
+      - src/components/layout/Footer*
+      - src/components/layout/PrivateWorkspaceShell*
+      - src/components/brand/PrivateWorkspaceBrand*
+      - src/components/brand/privateWorkspace.css
+      - src/hooks/usePrivateWorkspacePresentation*
+      - src/utils/privateWorkspaceIdentity*
+      - tests/private-navigation.browser.mjs
+      - tests/e2e/fixtures/private-navigation.*
+      - src/components/auth/InstitutionalLoginLogo*
+      - src/components/brand/InstitutionalAccessBrand*
+      - src/api/panelLogin*
+      - src/utils/panelLogin*
+      - src/utils/completePanelCredentialLogin*
+      - src/hooks/useUser*
+      - src/hooks/useChatLogic*
+      - src/components/auth/panelLogin.css
+      - tests/useUserStability.test.tsx
+      - tests/unified_login_http.py
+      - tests/unified-login.browser.mjs
+      - tests/e2e/fixtures/unified-login.*
+      - src/utils/privateConversationGuide*
+      - src/components/implementation/PrivateConversationGuide*
+      - src/components/implementation/privateConversationGuide.css
+      - src/components/profile/ChannelActivationChecklist*
+      - src/pages/TenantImplementationCenterPage*
+      - src/pages/tenant/TenantHomePage.tsx
+      - src/components/knowledge/**
+      - src/components/chat/InstitutionalChatMessage*
+      - src/features/chat/institutionalChatMessage*
+      - src/components/chat/ChatHeader*
+      - src/components/chat/ChatPanel*
+      - src/components/chat/OwnerRealtimeVoicePanel*
+      - src/utils/ownerRealtimeVoice*
+      - src/components/chat/ChatHumanSupportBar*
+      - src/components/chat/ChatWidgetInner*
+      - src/utils/widgetTheme*
+      - src/hooks/useDarkMode*
+      - src/utils/color.ts
+      - tests/e2e/chat-header-layout.spec.ts
+      - src/pages/admin/knowledge/KnowledgeSourcesPage*
+      - src/routesConfig.tsx
+      - src/routesConfig.capabilities.test.tsx
+      - tests/institutional-assistant.browser.mjs
+      - tests/e2e/fixtures/institutional-assistant.*
+      - tests/fixtures/institutional-assistant.synthetic.ts
+      - src/api/v2/channelActivation*
+      - tests/private-guide.browser.mjs
+      - src/utils/privateGuideControl*
+      - src/utils/api.ts
+      - src/utils/api.singleAttempt.test.ts
+      - src/components/implementation/PrivateGuideControl*
+      - tests/fixtures/guide-control.synthetic.ts
+      - tests/guide-control.browser.mjs
+      - tests/e2e/fixtures/guide-control.*
+      - tests/e2e/fixtures/private-guide.*
+      - tests/fixtures/private-guide.synthetic.ts
+      - .github/workflows/unified-organization-login.yml
+permissions:
+  contents: read
+concurrency:
+  group: unified-login-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Complete frontend regression
+        run: |
+          mkdir -p .vercel/unified-login-evidence
+          npm test -- --maxWorkers=2 --reporter=json --outputFile=.vercel/unified-login-evidence/vitest.json
+      - name: Application build
+        run: npm run build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Private navigation and organization identity
+        run: node tests/private-navigation.browser.mjs
+      - name: Private guide contract and lifecycle
+        run: node tests/private-guide.browser.mjs
+      - name: Private guide administration and confirmation
+        run: node tests/guide-control.browser.mjs
+      - name: Native institutional knowledge workspace
+        run: node tests/institutional-assistant.browser.mjs
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: unified-login-evidence
+          path: |
+            .vercel/unified-login-evidence/
+            .vercel/private-navigation-evidence/
+            .vercel/private-guide-evidence/browser-results.json
+            .vercel/private-guide-evidence/*.png
+            .vercel/institutional-assistant-evidence/browser-results.json
+            .vercel/institutional-assistant-evidence/*.png
+            .vercel/institutional-assistant-evidence/*-axe.json
+            .vercel/guide-control-evidence/browser-results.json
+            .vercel/guide-control-evidence/*.png
+            .vercel/guide-control-evidence/*-axe.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

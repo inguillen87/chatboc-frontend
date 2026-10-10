@@ -1,0 +1,308 @@
+{
+  "municipio": {
+    "contract_version": "organization.profile_workspace.v1",
+    "tenant": {
+      "id": 10,
+      "slug": "sample-municipio"
+    },
+    "organization_type": "municipio",
+    "organization_label": "Municipio",
+    "heading": "Perfil del municipio",
+    "description": "Configurá este espacio sin crear otra cuenta. Los permisos y las funciones siguen dependiendo de tu organización y plan.",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Datos de la organización",
+        "description": "Nombre, contacto y sitio informativo."
+      },
+      {
+        "id": "identity",
+        "label": "Marca e identidad",
+        "description": "Logo e imagen que identifican este espacio."
+      },
+      {
+        "id": "location",
+        "label": "Ubicación",
+        "description": "Domicilio y coordenadas de atención."
+      },
+      {
+        "id": "hours",
+        "label": "Horarios",
+        "description": "Disponibilidad del equipo para atender."
+      },
+      {
+        "id": "channels",
+        "label": "Canales e integraciones",
+        "description": "Revisá WhatsApp y las conexiones del espacio actual."
+      },
+      {
+        "id": "plan-security",
+        "label": "Plan, equipo y seguridad",
+        "description": "Consultá consumo y permisos sin cambiar de organización."
+      }
+    ],
+    "continuity": {
+      "preserve_existing_account": true,
+      "whatsapp_registration_present": true,
+      "note": "Ya existe un registro de WhatsApp. Revisá su estado en Integraciones antes de iniciar otra conexión."
+    },
+    "domain_note": "El sitio informativo del perfil no cambia el dominio de acceso ni verifica su propiedad.",
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "gobierno": {
+    "contract_version": "organization.profile_workspace.v1",
+    "tenant": {
+      "id": 10,
+      "slug": "sample-gobierno"
+    },
+    "organization_type": "gobierno",
+    "organization_label": "Gobierno",
+    "heading": "Perfil del gobierno",
+    "description": "Configurá este espacio sin crear otra cuenta. Los permisos y las funciones siguen dependiendo de tu organización y plan.",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Datos de la organización",
+        "description": "Nombre, contacto y sitio informativo."
+      },
+      {
+        "id": "identity",
+        "label": "Marca e identidad",
+        "description": "Logo e imagen que identifican este espacio."
+      },
+      {
+        "id": "location",
+        "label": "Ubicación",
+        "description": "Domicilio y coordenadas de atención."
+      },
+      {
+        "id": "hours",
+        "label": "Horarios",
+        "description": "Disponibilidad del equipo para atender."
+      },
+      {
+        "id": "channels",
+        "label": "Canales e integraciones",
+        "description": "Revisá WhatsApp y las conexiones del espacio actual."
+      },
+      {
+        "id": "plan-security",
+        "label": "Plan, equipo y seguridad",
+        "description": "Consultá consumo y permisos sin cambiar de organización."
+      }
+    ],
+    "continuity": {
+      "preserve_existing_account": true,
+      "whatsapp_registration_present": false,
+      "note": "Administrá WhatsApp desde Integraciones. El teléfono de contacto no acredita una conexión."
+    },
+    "domain_note": "El sitio informativo del perfil no cambia el dominio de acceso ni verifica su propiedad.",
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "colegio": {
+    "contract_version": "organization.profile_workspace.v1",
+    "tenant": {
+      "id": 10,
+      "slug": "sample-colegio"
+    },
+    "organization_type": "colegio",
+    "organization_label": "Colegio",
+    "heading": "Perfil del colegio",
+    "description": "Configurá este espacio sin crear otra cuenta. Los permisos y las funciones siguen dependiendo de tu organización y plan.",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Datos de la organización",
+        "description": "Nombre, contacto y sitio informativo."
+      },
+      {
+        "id": "identity",
+        "label": "Marca e identidad",
+        "description": "Logo e imagen que identifican este espacio."
+      },
+      {
+        "id": "location",
+        "label": "Ubicación",
+        "description": "Domicilio y coordenadas de atención."
+      },
+      {
+        "id": "hours",
+        "label": "Horarios",
+        "description": "Disponibilidad del equipo para atender."
+      },
+      {
+        "id": "channels",
+        "label": "Canales e integraciones",
+        "description": "Revisá WhatsApp y las conexiones del espacio actual."
+      },
+      {
+        "id": "plan-security",
+        "label": "Plan, equipo y seguridad",
+        "description": "Consultá consumo y permisos sin cambiar de organización."
+      }
+    ],
+    "continuity": {
+      "preserve_existing_account": true,
+      "whatsapp_registration_present": false,
+      "note": "Administrá WhatsApp desde Integraciones. El teléfono de contacto no acredita una conexión."
+    },
+    "domain_note": "El sitio informativo del perfil no cambia el dominio de acceso ni verifica su propiedad.",
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "empresa": {
+    "contract_version": "organization.profile_workspace.v1",
+    "tenant": {
+      "id": 10,
+      "slug": "sample-empresa"
+    },
+    "organization_type": "empresa",
+    "organization_label": "Empresa",
+    "heading": "Perfil de la empresa",
+    "description": "Configurá este espacio sin crear otra cuenta. Los permisos y las funciones siguen dependiendo de tu organización y plan.",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Datos de la organización",
+        "description": "Nombre, contacto y sitio informativo."
+      },
+      {
+        "id": "identity",
+        "label": "Marca e identidad",
+        "description": "Logo e imagen que identifican este espacio."
+      },
+      {
+        "id": "location",
+        "label": "Ubicación",
+        "description": "Domicilio y coordenadas de atención."
+      },
+      {
+        "id": "hours",
+        "label": "Horarios",
+        "description": "Disponibilidad del equipo para atender."
+      },
+      {
+        "id": "channels",
+        "label": "Canales e integraciones",
+        "description": "Revisá WhatsApp y las conexiones del espacio actual."
+      },
+      {
+        "id": "plan-security",
+        "label": "Plan, equipo y seguridad",
+        "description": "Consultá consumo y permisos sin cambiar de organización."
+      }
+    ],
+    "continuity": {
+      "preserve_existing_account": true,
+      "whatsapp_registration_present": false,
+      "note": "Administrá WhatsApp desde Integraciones. El teléfono de contacto no acredita una conexión."
+    },
+    "domain_note": "El sitio informativo del perfil no cambia el dominio de acceso ni verifica su propiedad.",
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "pyme": {
+    "contract_version": "organization.profile_workspace.v1",
+    "tenant": {
+      "id": 10,
+      "slug": "sample-pyme"
+    },
+    "organization_type": "pyme",
+    "organization_label": "Pyme",
+    "heading": "Perfil de la pyme",
+    "description": "Configurá este espacio sin crear otra cuenta. Los permisos y las funciones siguen dependiendo de tu organización y plan.",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Datos de la organización",
+        "description": "Nombre, contacto y sitio informativo."
+      },
+      {
+        "id": "identity",
+        "label": "Marca e identidad",
+        "description": "Logo e imagen que identifican este espacio."
+      },
+      {
+        "id": "location",
+        "label": "Ubicación",
+        "description": "Domicilio y coordenadas de atención."
+      },
+      {
+        "id": "hours",
+        "label": "Horarios",
+        "description": "Disponibilidad del equipo para atender."
+      },
+      {
+        "id": "channels",
+        "label": "Canales e integraciones",
+        "description": "Revisá WhatsApp y las conexiones del espacio actual."
+      },
+      {
+        "id": "plan-security",
+        "label": "Plan, equipo y seguridad",
+        "description": "Consultá consumo y permisos sin cambiar de organización."
+      }
+    ],
+    "continuity": {
+      "preserve_existing_account": true,
+      "whatsapp_registration_present": false,
+      "note": "Administrá WhatsApp desde Integraciones. El teléfono de contacto no acredita una conexión."
+    },
+    "domain_note": "El sitio informativo del perfil no cambia el dominio de acceso ni verifica su propiedad.",
+    "writes_performed": false,
+    "provider_calls_performed": false
+  },
+  "unknown": {
+    "contract_version": "organization.profile_workspace.v1",
+    "tenant": {
+      "id": 10,
+      "slug": "sample-unknown"
+    },
+    "organization_type": "organizacion",
+    "organization_label": "Organización",
+    "heading": "Perfil de la organización",
+    "description": "Configurá este espacio sin crear otra cuenta. Los permisos y las funciones siguen dependiendo de tu organización y plan.",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Datos de la organización",
+        "description": "Nombre, contacto y sitio informativo."
+      },
+      {
+        "id": "identity",
+        "label": "Marca e identidad",
+        "description": "Logo e imagen que identifican este espacio."
+      },
+      {
+        "id": "location",
+        "label": "Ubicación",
+        "description": "Domicilio y coordenadas de atención."
+      },
+      {
+        "id": "hours",
+        "label": "Horarios",
+        "description": "Disponibilidad del equipo para atender."
+      },
+      {
+        "id": "channels",
+        "label": "Canales e integraciones",
+        "description": "Revisá WhatsApp y las conexiones del espacio actual."
+      },
+      {
+        "id": "plan-security",
+        "label": "Plan, equipo y seguridad",
+        "description": "Consultá consumo y permisos sin cambiar de organización."
+      }
+    ],
+    "continuity": {
+      "preserve_existing_account": true,
+      "whatsapp_registration_present": false,
+      "note": "Administrá WhatsApp desde Integraciones. El teléfono de contacto no acredita una conexión."
+    },
+    "domain_note": "El sitio informativo del perfil no cambia el dominio de acceso ni verifica su propiedad.",
+    "writes_performed": false,
+    "provider_calls_performed": false
+  }
+}
