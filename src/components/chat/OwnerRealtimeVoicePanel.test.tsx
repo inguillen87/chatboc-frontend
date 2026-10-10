@@ -38,6 +38,7 @@ it('requires explicit consent and keeps authentication on the private endpoint',
   await openDetails();
   const button = screen.getByRole('button', { name: 'Iniciar voz' }); expect(button).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Activar mi micrófono' })); fireEvent.click(button); fireEvent.click(button);
+  await waitFor(() => expect(start).toHaveBeenCalledOnce());
   expect(start).toHaveBeenCalledOnce();
   expect(apiFetch).toHaveBeenCalledWith('/api/admin/tenants/a/realtime/browser/capabilities', expect.objectContaining({
     omitEntityToken: true, omitChatSessionId: true, allowSafeBaseFallback: false,
@@ -51,7 +52,7 @@ it('uses a single owner-authenticated attempt for creation and server hangup too
   const rendered=render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
   await openDetails();
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' })); });
   const options=vi.mocked(createOwnerVoiceTransport).mock.calls.at(-1)![0];
   await options.exchange('synthetic-sdp');
   await options.stop('a'.repeat(32));
@@ -108,7 +109,7 @@ it('keeps a visible stop control and preserves subtitles when an active trial is
   render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
   const disclosure = await openDetails();
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' })); });
   const options = vi.mocked(createOwnerVoiceTransport).mock.calls.at(-1)![0];
   act(() => {
     options.state('live');
@@ -129,7 +130,7 @@ it('keeps a visible stop control and preserves subtitles when an active trial is
   fireEvent.click(disclosure);
   expect(screen.getByRole('log', { name: 'Subtítulos' })).toHaveTextContent('Orientación publicada');
   expect(start).toHaveBeenCalledOnce();
-  expect(apiFetch).toHaveBeenCalledOnce();
+  expect(apiFetch).toHaveBeenCalledTimes(2);
 });
 
 it('keeps mute and return-to-text controls functional in the expanded trial', async () => {
@@ -137,7 +138,7 @@ it('keeps mute and return-to-text controls functional in the expanded trial', as
   render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
   await openDetails();
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' })); });
   const options = vi.mocked(createOwnerVoiceTransport).mock.calls.at(-1)![0];
   act(() => options.state('live'));
   fireEvent.click(screen.getByRole('button', { name: 'Silenciar micrófono' }));
@@ -177,7 +178,7 @@ it('does not move focus to a new tenant after an old server close resolves', asy
   const rendered = render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
   const disclosure = await openDetails();
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' })); });
   const options = vi.mocked(createOwnerVoiceTransport).mock.calls.at(-1)![0];
   act(() => options.state('live'));
   fireEvent.click(disclosure);
@@ -360,4 +361,86 @@ it('keeps reduced-motion rendering static when synthetic speaking and captions a
   expect(rendered.container.querySelector('img')?.getAttribute('src')).toContain('chatboc-agent-mark.svg');
   expect(rendered.container.querySelector('img')?.className).not.toContain('animate-pulse');
   expect(screen.getByRole('log', { name: 'Subtítulos' })).toHaveTextContent('Texto accesible');
+});
+
+it.each(['expired', 'error', 'foreign', 'revision_changed', 'not_owner', 'revision_missing', 'revision_number', 'revision_blank'])(
+  'rechecks owner capabilities before creating a transport and rejects %s without requesting mic', async result => {
+    render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
+    await openDetails();
+    fireEvent.click(screen.getByRole('checkbox'));
+    if (result === 'error') apiFetch.mockRejectedValueOnce(new Error('synthetic-expired-owner-read'));
+    else apiFetch.mockResolvedValueOnce({ ...capability,
+      ...(result === 'expired' ? { enabled: false } : {}),
+      ...(result === 'foreign' ? { tenant: { slug: 'foreign' } } : {}),
+      ...(result === 'revision_changed' ? { revision: 'new-revision' } : {}),
+      ...(result === 'not_owner' ? { owner_trial: false } : {}),
+      ...(result === 'revision_missing' ? { revision: undefined } : {}),
+      ...(result === 'revision_number' ? { revision: 123 } : {}),
+      ...(result === 'revision_blank' ? { revision: ' ' } : {}),
+    });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Iniciar voz' })); });
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(apiFetch.mock.calls[1]).toEqual(['/api/admin/tenants/a/realtime/browser/capabilities', expect.objectContaining({
+      singleAttempt: true, isWidgetRequest: false, omitEntityToken: true, persistTenantSlug: false,
+    })]);
+    expect(createOwnerVoiceTransport).not.toHaveBeenCalled(); expect(start).not.toHaveBeenCalled();
+    expect(apiFetch.mock.calls.some(([, options]) => options.method === 'POST')).toBe(false);
+    expect(screen.getByRole('status')).toHaveTextContent(ui.error);
+    if (result !== 'expired') expect(screen.getByRole('checkbox')).not.toBeChecked();
+  },
+);
+
+it('cancels a pending capability read before mic and allows a new attempt without a late response clearing its state', async () => {
+  render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
+  const { user } = await startUsingKeyboardForPendingCapability();
+  const firstResolve = pendingCapabilityResolver;
+  expect(screen.getByRole('status')).toHaveTextContent(ui.connecting);
+  expect(createOwnerVoiceTransport).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Terminar voz' }));
+  expect(screen.getByRole('status')).toHaveTextContent(ui.ended);
+  expect(screen.getByRole('button', { name: 'Iniciar voz' })).toHaveFocus();
+  let resolveNew!: (value: typeof capability) => void;
+  apiFetch.mockImplementationOnce(() => new Promise(resolve => { resolveNew = resolve; }));
+  await user.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  await act(async () => firstResolve(capability));
+  expect(screen.getByRole('status')).toHaveTextContent(ui.connecting);
+  expect(createOwnerVoiceTransport).not.toHaveBeenCalled();
+  await act(async () => resolveNew(capability));
+  expect(createOwnerVoiceTransport).toHaveBeenCalledOnce(); expect(start).toHaveBeenCalledOnce();
+});
+
+let pendingCapabilityResolver: (value: typeof capability) => void;
+const startUsingKeyboardForPendingCapability = async () => {
+  const user = userEvent.setup();
+  await openDetails();
+  fireEvent.click(screen.getByRole('checkbox'));
+  apiFetch.mockImplementationOnce(() => new Promise(resolve => { pendingCapabilityResolver = resolve; }));
+  await user.click(screen.getByRole('button', { name: 'Iniciar voz' }));
+  return { user };
+};
+
+it.each(['tenant_change', 'unmount'])(
+  'retires the start preflight on %s and ignores a late enabled response without acquiring mic', async change => {
+    const view = render(<OwnerRealtimeVoicePanel tenantSlug="a" />);
+    await startUsingKeyboardForPendingCapability();
+    const resolveOld = pendingCapabilityResolver;
+    if (change === 'unmount') view.unmount();
+    else {
+      apiFetch.mockResolvedValueOnce({ ...capability, tenant: { slug: 'b' } });
+      view.rerender(<OwnerRealtimeVoicePanel tenantSlug="b" />);
+      await screen.findByRole('button', { name: 'Probar conversación por voz' });
+    }
+    await act(async () => resolveOld(capability));
+    expect(createOwnerVoiceTransport).not.toHaveBeenCalled(); expect(start).not.toHaveBeenCalled();
+    expect(apiFetch.mock.calls.some(([, options]) => options.method === 'POST')).toBe(false);
+  },
+);
+
+it('does not steal outside focus when a pending start admission fails', async () => {
+  render(<><OwnerRealtimeVoicePanel tenantSlug="a" /><button>Seguir por texto</button></>);
+  const { user } = await startUsingKeyboardForPendingCapability();
+  await user.click(screen.getByRole('button', { name: 'Seguir por texto' }));
+  await act(async () => pendingCapabilityResolver({ ...capability, enabled: false }));
+  expect(screen.getByRole('button', { name: 'Seguir por texto' })).toHaveFocus();
+  expect(createOwnerVoiceTransport).not.toHaveBeenCalled(); expect(start).not.toHaveBeenCalled();
 });

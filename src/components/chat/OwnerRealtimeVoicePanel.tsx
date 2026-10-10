@@ -7,6 +7,12 @@ import { createOwnerVoiceTransport, type OwnerVoiceState, type VoiceAnswer, type
 type Capability = { enabled: boolean; revision?: string; ui: Record<string, string>;
   contract_version: string; owner_trial: boolean; tenant: { slug: string } };
 
+const isBoundCapability = (value: Capability | null | undefined, slug: string): value is Capability =>
+  Boolean(value && value.contract_version === 'browser.realtime.owner_trial.v1' && value.owner_trial === true
+    && value.tenant?.slug === slug && value.ui && typeof value.ui === 'object' && !Array.isArray(value.ui)
+    && typeof value.enabled === 'boolean'
+    && (value.enabled !== true || (typeof value.revision === 'string' && value.revision.trim().length > 0)));
+
 /** Authenticated owner trial only. The server decides enablement and supplies copy. */
 export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMotion = false }: { tenantSlug: string; logoUrl?: string; reducedMotion?: boolean }) {
   const [capability, setCapability] = useState<Capability | null>(null);
@@ -38,8 +44,7 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
     voiceState.current = 'idle'; pendingFocus.current = null;
     setCapability(null); setConsent(false); setCaptions([]); setState('idle'); setExpanded(false);
     void apiFetch<Capability>(`${base}/capabilities`, requestOptions).then(value => {
-      if (current !== generation.current || value.contract_version !== 'browser.realtime.owner_trial.v1'
-          || value.owner_trial !== true || value.tenant?.slug !== tenantSlug || !value.ui) return;
+      if (current !== generation.current || !isBoundCapability(value, tenantSlug)) return;
       setCapability(value);
     }, () => { /* A public visitor or employee does not get an owner trial UI. */ });
     return () => { generation.current++; void transport.current?.close(); transport.current = null; };
@@ -64,19 +69,50 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
   if (!capability) return null;
   const ui = capability.ui;
   const stop = async () => {
-    await transport.current?.close();
+    if (transport.current) await transport.current.close();
+    else if (busy.current) {
+      // Cancellation also retires the capability read, before any microphone/transport exists.
+      const current = ++generation.current;
+      const focused = document.activeElement;
+      if (focused === stopButton.current || (focused && activeControls.current?.contains(focused))) {
+        pendingFocus.current = { generation: current, tenantSlug, target: 'start', from: focused };
+      }
+      busy.current = false; voiceState.current = 'ended'; setState('ended');
+    }
   };
-  const start = () => {
+  const start = async () => {
     if (!capability.enabled || !capability.revision || !consent || active || busy.current || !audio.current || state === 'pending') return;
     busy.current = true;
     const current = ++generation.current;
+    transport.current = null;
     pendingFocus.current = { generation: current, tenantSlug, target: 'stop', from: document.activeElement };
     setCaptions([]); setMuted(false); setSpeaking(false); setPlaybackBlocked(false);
+    voiceState.current = 'connecting'; setState('connecting');
+    let fresh: Capability;
+    try {
+      // A cached owner opt-in can expire while the widget stays open. No local
+      // transport (and therefore no mic prompt) is created before this fresh GET.
+      fresh = await apiFetch<Capability>(`${base}/capabilities`, requestOptions);
+      if (current !== generation.current) return;
+      if (!isBoundCapability(fresh, tenantSlug) || fresh.enabled !== true || fresh.revision !== capability.revision) {
+        if (isBoundCapability(fresh, tenantSlug)) setCapability(fresh);
+        throw new Error('owner_capability_not_current');
+      }
+      if (!audio.current) throw new Error('owner_audio_unmounted');
+    } catch {
+      if (current !== generation.current) return;
+      const focused = document.activeElement;
+      if (focused === stopButton.current || (focused && activeControls.current?.contains(focused))) {
+        pendingFocus.current = { generation: current, tenantSlug, target: 'start', from: focused };
+      }
+      busy.current = false; voiceState.current = 'error'; setState('error'); setConsent(false);
+      return;
+    }
     const guarded = <T,>(setter: (value: T) => void) => (value: T) => { if (current === generation.current) setter(value); };
     const instance = createOwnerVoiceTransport({
       audio: audio.current,
       exchange: sdp => apiFetch<VoiceAnswer>(`${base}/sessions`, { ...requestOptions, method: 'POST',
-        body: { sdp, revision: capability.revision, consent: true } }),
+        body: { sdp, revision: fresh.revision, consent: true } }),
       stop: sessionId => apiFetch(`${base}/sessions/${encodeURIComponent(sessionId)}/stop`, { ...requestOptions, method: 'POST', body: {} }),
       state: value => {
         if (current !== generation.current) return;
@@ -124,7 +160,7 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
             <span>{ui.consent}</span>
           </label>}
           <div ref={activeControls} className="mt-2 flex flex-wrap gap-2">
-            {!active ? <button ref={startButton} type="button" disabled={!consent || state === 'pending'} onClick={start}
+            {!active ? <button ref={startButton} type="button" disabled={!consent || state === 'pending'} onClick={() => { void start(); }}
               className="min-h-11 rounded-lg bg-primary px-4 text-primary-foreground disabled:opacity-50">{ui.start}</button> : (
               <button type="button" aria-pressed={muted} onClick={() => { transport.current?.mute(!muted); setMuted(!muted); }}
                 className="min-h-11 rounded-lg border px-4">{muted ? ui.unmute : ui.mute}</button>

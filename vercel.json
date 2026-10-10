@@ -14,7 +14,8 @@
       "fix/institutional-preview-domain-fixture-20261010": false,
       "fix/integration-published-tenant-scope-20261010": false,
       "fix/tdf-realtime-keyboard-captions-20261010": false,
-      "fix/tdf-widget-composer-a11y-20261010": false
+      "fix/tdf-widget-composer-a11y-20261010": false,
+      "fix/tdf-integration-labels-expiry-20261010": false
     }
   },
   "headers": [

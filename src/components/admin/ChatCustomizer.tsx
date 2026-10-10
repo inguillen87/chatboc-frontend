@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useEffect, useRef, useState, useId } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -139,6 +139,7 @@ const normalizeWidgetAccessState = (payload: unknown): WidgetAccessState | null 
   };
 };
 const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }) => {
+  const controlId = useId();
   const { currentSlug } = useTenant();
   const [config, setConfig] = useState<ChatCustomizerConfig>({ ...DEFAULT_THEME, ...(initialConfig || {}) });
   const [saving, setSaving] = useState(false);
@@ -566,15 +567,19 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Color Primario</Label>
+                                <Label htmlFor={`${controlId}-primary-hex`}>Color Primario</Label>
                                 <div className="flex gap-2">
                                     <Input
                                         type="color"
+                                        id={`${controlId}-primary-picker`}
+                                        aria-label="Seleccionar color primario"
                                         value={config.primaryColor}
                                         onChange={(e) => handleChange('primaryColor', e.target.value)}
                                         className="w-12 h-10 p-1 cursor-pointer shrink-0"
                                     />
                                     <Input
+                                        id={`${controlId}-primary-hex`}
+                                        aria-label="Color primario, código hexadecimal"
                                         value={config.primaryColor}
                                         onChange={(e) => handleChange('primaryColor', e.target.value)}
                                         className="font-mono uppercase"
@@ -582,15 +587,19 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label>Color Secundario</Label>
+                                <Label htmlFor={`${controlId}-secondary-hex`}>Color Secundario</Label>
                                 <div className="flex gap-2">
                                     <Input
                                         type="color"
+                                        id={`${controlId}-secondary-picker`}
+                                        aria-label="Seleccionar color secundario"
                                         value={config.accentColor}
                                         onChange={(e) => handleChange('accentColor', e.target.value)}
                                         className="w-12 h-10 p-1 cursor-pointer shrink-0"
                                     />
                                     <Input
+                                        id={`${controlId}-secondary-hex`}
+                                        aria-label="Color secundario, código hexadecimal"
                                         value={config.accentColor}
                                         onChange={(e) => handleChange('accentColor', e.target.value)}
                                         className="font-mono uppercase"
@@ -601,9 +610,10 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
                          <div className="space-y-4">
                                 <div className="flex justify-between items-center">
-                                     <Label>Redondeo ({config.borderRadius}px)</Label>
+                                     <Label id={`${controlId}-radius-label`}>Redondeo ({config.borderRadius}px)</Label>
                                 </div>
                                 <Slider
+                                    thumbProps={{ 'aria-labelledby': `${controlId}-radius-label` }}
                                     value={[config.borderRadius]}
                                     min={0}
                                     max={24}
@@ -623,10 +633,11 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardContent className="space-y-6">
                          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                              <div className="space-y-0.5">
-                                <Label>Apertura Automática</Label>
+                                <Label htmlFor={`${controlId}-auto-open`}>Apertura Automática</Label>
                                 <p className="text-xs text-muted-foreground">Abrir el chat al cargar la página</p>
                              </div>
                              <Switch
+                                 id={`${controlId}-auto-open`}
                                 checked={config.autoOpen}
                                 onCheckedChange={(c) => handleChange('autoOpen', c)}
                              />
@@ -637,9 +648,9 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                         )}
 
                         <div className="space-y-2">
-                                <Label>Posición</Label>
+                                <Label htmlFor={`${controlId}-position`}>Posición</Label>
                                 <Select value={config.position} onValueChange={(v) => handleChange('position', v)}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectTrigger id={`${controlId}-position`}><SelectValue/></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="right">Derecha</SelectItem>
                                         <SelectItem value="left">Izquierda</SelectItem>
@@ -649,12 +660,12 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
                         <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
-                                <Label>Margen Lateral (px)</Label>
-                                <Input type="number" value={config.sideOffset} onChange={(e) => handleChange('sideOffset', Number(e.target.value))} />
+                                <Label htmlFor={`${controlId}-side-offset`}>Margen Lateral (px)</Label>
+                                <Input id={`${controlId}-side-offset`} type="number" value={config.sideOffset} onChange={(e) => handleChange('sideOffset', Number(e.target.value))} />
                              </div>
                              <div className="space-y-2">
-                                <Label>Margen Inferior (px)</Label>
-                                <Input type="number" value={config.bottomOffset} onChange={(e) => handleChange('bottomOffset', Number(e.target.value))} />
+                                <Label htmlFor={`${controlId}-bottom-offset`}>Margen Inferior (px)</Label>
+                                <Input id={`${controlId}-bottom-offset`} type="number" value={config.bottomOffset} onChange={(e) => handleChange('bottomOffset', Number(e.target.value))} />
                              </div>
                         </div>
                     </CardContent>
@@ -669,17 +680,18 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardContent className="space-y-4">
                          <div className="flex gap-4">
                              <div className="space-y-2 flex-1">
-                                <Label>Nombre del Asistente</Label>
+                                <Label htmlFor={`${controlId}-bot-name`}>Nombre del Asistente</Label>
                                 <Input
+                                    id={`${controlId}-bot-name`}
                                     value={config.botName}
                                     onChange={(e) => handleChange('botName', e.target.value)}
                                     placeholder="Ej: Sofía"
                                 />
                              </div>
                              <div className="space-y-2 w-1/3">
-                                     <Label htmlFor="logo-url">Avatar HTTPS</Label>
+                                     <Label htmlFor={`${controlId}-logo-url`}>Avatar HTTPS</Label>
                                      <Input
-                                         id="logo-url"
+                                         id={`${controlId}-logo-url`}
                                          type="url"
                                          value={config.logoUrl}
                                          onChange={(event) => handleChange('logoUrl', event.target.value)}
@@ -689,8 +701,9 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                          </div>
 
                         <div className="space-y-2">
-                            <Label>Mensaje de Bienvenida</Label>
+                            <Label htmlFor={`${controlId}-welcome`}>Mensaje de Bienvenida</Label>
                             <Input
+                                id={`${controlId}-welcome`}
                                 value={config.welcomeMessage}
                                 onChange={(e) => handleChange('welcomeMessage', e.target.value)}
                                 placeholder="Ej: ¡Hola! 👋 ¿En qué te puedo ayudar?"
@@ -698,8 +711,9 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Llamada a la Acción (Burbuja)</Label>
+                            <Label htmlFor={`${controlId}-cta`}>Llamada a la Acción (Burbuja)</Label>
                             <Input
+                                id={`${controlId}-cta`}
                                 value={config.ctaMessage}
                                 onChange={(e) => handleChange('ctaMessage', e.target.value)}
                                 placeholder="Ej: ¿Tenés alguna duda?"
@@ -800,8 +814,8 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 Código
             </Button>
             <div className="flex items-center gap-2 ml-auto rounded-full border border-border/60 bg-background/80 px-3 py-1">
-                <Label className="text-xs text-muted-foreground">Mostrar</Label>
-                <Switch checked={previewOpen} onCheckedChange={setPreviewOpen} />
+                <Label htmlFor={`${controlId}-preview-open`} className="text-xs text-muted-foreground">Mostrar vista previa</Label>
+                <Switch id={`${controlId}-preview-open`} checked={previewOpen} onCheckedChange={setPreviewOpen} />
             </div>
         </div>
 

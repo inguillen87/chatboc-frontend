@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -376,5 +377,79 @@ describe('ChatCustomizer runtime persistence', () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
     expect(removeItem).not.toHaveBeenCalled();
     expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)).toEqual(storedDraft);
+  });
+
+  it('names the color picker and hexadecimal controls separately and connects the visible labels to editable values', async () => {
+    mocks.getRuntimeWidgetConfig.mockResolvedValue(buildTenantRuntimeWidgetUpdate(baseConfig));
+    render(<ChatCustomizer />);
+    await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledOnce());
+    const user = userEvent.setup();
+    const primaryHex = screen.getByRole('textbox', { name: 'Color primario, código hexadecimal' });
+    const primaryPicker = screen.getByLabelText('Seleccionar color primario');
+    const secondaryHex = screen.getByRole('textbox', { name: 'Color secundario, código hexadecimal' });
+    const secondaryPicker = screen.getByLabelText('Seleccionar color secundario');
+    expect(primaryPicker).toHaveAttribute('type', 'color');
+    expect(secondaryPicker).toHaveAttribute('type', 'color');
+    await user.click(screen.getByText('Color Primario'));
+    expect(primaryHex).toHaveFocus();
+    await user.clear(primaryHex); await user.type(primaryHex, '#123456');
+    expect(primaryHex).toHaveValue('#123456'); expect(primaryPicker).toHaveValue('#123456');
+    await user.click(screen.getByText('Color Secundario'));
+    expect(secondaryHex).toHaveFocus();
+    fireEvent.change(secondaryPicker, { target: { value: '#abcdef' } });
+    expect(secondaryHex).toHaveValue('#abcdef');
+    expect(mocks.updateRuntimeWidgetConfig).not.toHaveBeenCalled();
+  });
+
+  it('uses each customizer instance’s own control when its label is clicked', async () => {
+    mocks.getRuntimeWidgetConfig.mockResolvedValue(buildTenantRuntimeWidgetUpdate(baseConfig));
+    render(<><section aria-label="Primer editor"><ChatCustomizer /></section><section aria-label="Segundo editor"><ChatCustomizer /></section></>);
+    await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledTimes(2));
+    const first = within(screen.getByRole('region', { name: 'Primer editor' }));
+    const second = within(screen.getByRole('region', { name: 'Segundo editor' }));
+    const firstHex = first.getByRole('textbox', { name: 'Color primario, código hexadecimal' });
+    const secondHex = second.getByRole('textbox', { name: 'Color primario, código hexadecimal' });
+    expect(firstHex.id).not.toEqual(secondHex.id);
+    const user = userEvent.setup();
+    await user.click(second.getByText('Color Primario'));
+    expect(secondHex).toHaveFocus(); expect(firstHex).not.toHaveFocus();
+    await user.click(first.getByText('Color Primario'));
+    expect(firstHex).toHaveFocus(); expect(secondHex).not.toHaveFocus();
+    for (const editor of [first, second]) {
+      await user.click(editor.getByRole('tab', { name: 'Contenido' }));
+    }
+    await user.click(second.getByText('Avatar HTTPS'));
+    expect(second.getByRole('textbox', { name: 'Avatar HTTPS' })).toHaveFocus();
+    expect(first.getByRole('textbox', { name: 'Avatar HTTPS' })).not.toHaveFocus();
+    expect(mocks.updateRuntimeWidgetConfig).not.toHaveBeenCalled();
+  });
+
+  it('labels the slider, switches, placement and content fields for keyboard use without saving automatically', async () => {
+    mocks.getRuntimeWidgetConfig.mockResolvedValue(buildTenantRuntimeWidgetUpdate(baseConfig));
+    render(<ChatCustomizer />);
+    await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledOnce());
+    const user = userEvent.setup();
+    const radius = screen.getByRole('slider', { name: 'Redondeo (16px)' });
+    radius.focus(); await user.keyboard('[ArrowRight]');
+    expect(screen.getByRole('slider', { name: 'Redondeo (18px)' })).toHaveAttribute('aria-valuenow', '18');
+    const preview = screen.getByRole('switch', { name: 'Mostrar vista previa' });
+    expect(preview).toHaveAttribute('aria-checked', 'true');
+    await user.click(screen.getByText('Mostrar vista previa'));
+    expect(preview).toHaveAttribute('aria-checked', 'false');
+    await user.click(screen.getByRole('tab', { name: 'Comportamiento' }));
+    const autoOpen = screen.getByRole('switch', { name: 'Apertura Automática' });
+    await user.click(screen.getByText('Apertura Automática'));
+    expect(autoOpen).toHaveAttribute('aria-checked', 'true');
+    const position = screen.getByRole('combobox', { name: 'Posición' });
+    await user.click(screen.getByText('Posición'));
+    expect(position).toHaveFocus();
+    expect(screen.getByRole('spinbutton', { name: 'Margen Lateral (px)' })).toHaveValue(20);
+    expect(screen.getByRole('spinbutton', { name: 'Margen Inferior (px)' })).toHaveValue(20);
+    await user.click(screen.getByRole('tab', { name: 'Contenido' }));
+    for (const label of ['Nombre del Asistente', 'Mensaje de Bienvenida', 'Llamada a la Acción (Burbuja)', 'Avatar HTTPS']) {
+      await user.click(screen.getByText(label));
+      expect(screen.getByRole('textbox', { name: label })).toHaveFocus();
+    }
+    expect(mocks.updateRuntimeWidgetConfig).not.toHaveBeenCalled();
   });
 });

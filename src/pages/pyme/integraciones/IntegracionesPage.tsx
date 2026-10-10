@@ -33,6 +33,7 @@ import CatalogSpreadsheetEditor from '@/components/admin/catalog/CatalogSpreadsh
 import ChannelPreview from '@/components/integrations/ChannelPreview';
 import InstitutionalChannelPreview from '@/components/integrations/InstitutionalChannelPreview';
 import WhatsappTechProviderOnboarding from '@/components/integrations/WhatsappTechProviderOnboarding';
+import MetaCredentialStatus from '@/components/integrations/MetaCredentialStatus';
 import InstitutionalProfileAccess from '@/components/integrations/InstitutionalProfileAccess';
 import { useUser } from '@/hooks/useUser';
 import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
@@ -2109,9 +2110,8 @@ const IntegracionesPage = () => {
                                          </div> : whatsappConnection.provider === 'meta' ? <div className="space-y-4 rounded-xl border p-4">
                                            <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Meta Cloud API</h3><Badge variant="secondary">{whatsappConnection.environment === 'sandbox' ? 'Entorno de prueba' : 'Configuración registrada'}</Badge></div>
                                            {whatsappConnection.display_phone_number ? <p className="break-all font-mono">{whatsappConnection.display_phone_number}</p> : <p>Número pendiente de confirmar.</p>}
-                                           <p>{whatsappConnection.configuration_status === 'expired' ? 'La credencial temporal venció. Se conserva la conexión de prueba; requiere renovación.' : whatsappConnection.configuration_status === 'configured' ? 'Conexión de prueba configurada. Disponibilidad y entrega actuales pendientes de verificar.' : 'La conexión necesita completar su configuración.'}</p>
+                                            <MetaCredentialStatus configuration_status={whatsappConnection.configuration_status} expires_at={whatsappConnection.expires_at} />
                                            <p className="text-sm text-muted-foreground">La prueba usa destinatarios autorizados. Un número de prueba no habilita atención pública ni certifica producción.</p>
-                                           {whatsappConnection.expires_at ? <p className="text-sm">Credencial temporal hasta {new Date(whatsappConnection.expires_at * 1000).toLocaleString('es-AR')}.</p> : null}
                                            {channelContract?.channels?.find(channel => channel.id === 'whatsapp')?.evidence?.map((evidence,index) => <p key={index} className="text-sm text-muted-foreground">{evidence}</p>)}
                                          </div> : whatsappConnection.provider === 'twilio' ? <>
                                            <WhatsappTechProviderOnboarding tenantSlug={currentSlug} focusAction={requestedAction} />
