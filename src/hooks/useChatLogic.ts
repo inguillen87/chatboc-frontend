@@ -56,7 +56,7 @@ import {
 } from "@/utils/legacyDemoSelector";
 import { sendChatBootstrapMessage } from "@/features/chat/chatApi";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable} from '@/features/chat/institutionalChatMessage';
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction} from '@/features/chat/institutionalChatMessage';
 import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
 import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
 
@@ -2723,6 +2723,18 @@ export function useChatLogic({
           ? { text: payload.trim(), source: "system" }
           : { ...payload, text: payload.text?.trim() || "" };
 
+      const plainTypedInput=typeof payload==='string'||actualPayload.source==='input'||actualPayload.source===undefined;
+      if(plainTypedInput&&!actualPayload.action&&!actualPayload.action_id&&!isTyping&&!initPendingResponseRef.current&&
+        institutionalBootstrapStatus!=='loading'&&!actualPayload.attachmentInfo&&!actualPayload.audioBlob&&
+        !actualPayload.location&&!actualPayload.ubicacion_usuario&&!actualPayload.archivo_url&&!actualPayload.payload){
+        // Never recover an earlier menu behind an error, human reply or generic
+        // response. The canonical button action carries its own revision.
+        const latestReply=messagesRef.current.filter(message=>message.isBot).at(-1);
+        const choice=!latestReply?.isError
+          ?institutionalNumericChatAction(actualPayload.text||'',latestReply?.institutional,tenantSlug):null;
+        if(choice){actualPayload.action=choice;actualPayload.action_id=choice;}
+      }
+
       const originalText = actualPayload.text || "";
 
       const {
@@ -3307,6 +3319,7 @@ export function useChatLogic({
       liveChatTicketId,
       liveChatAccessToken,
       isTyping,
+      institutionalBootstrapStatus,
       isAnonimo,
       currentClaimIdempotencyKey,
       tipoChat,

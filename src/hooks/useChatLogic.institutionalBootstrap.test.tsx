@@ -23,6 +23,20 @@ beforeEach(()=>{mocks.fetch.mockReset();window.localStorage.clear();window.sessi
 afterEach(cleanup);
 
 describe('shared institutional bootstrap',()=>{
+ it.each(['human','error'] as const)('does not select an older institutional menu behind the latest %s reply',async kind=>{
+  mocks.fetch.mockResolvedValueOnce(published());
+  const hook=renderHook(()=>useChatLogic(options()));await init(hook.result);
+  const previous=hook.result.current.messages.at(-1)!;
+  act(()=>hook.result.current.setMessages(messages=>[...messages,{
+   id:'latest-reply',text:'Respuesta actual',isBot:true,timestamp:new Date(),
+   ...(kind==='error'?{isError:true,institutional:previous.institutional}:{data:{es_admin:true}}),
+  }]));
+  mocks.fetch.mockResolvedValueOnce({message_body:'Respuesta vigente'});
+  await act(async()=>{await hook.result.current.handleSend({text:'1️⃣',source:'input'});});
+  const [,request]=mocks.fetch.mock.calls.at(-1)!;
+  expect(request.method).toBe('POST');
+  expect(request.body.action).toBeUndefined();expect(request.body.action_id).toBeUndefined();
+ });
  it('loads public knowledge without INIT POST or credentials and renders the existing typed message',async()=>{
   const value=published();mocks.fetch.mockResolvedValue(value);
   const hook=renderHook(()=>useChatLogic(options()));await init(hook.result);

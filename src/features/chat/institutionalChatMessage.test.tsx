@@ -2,7 +2,7 @@ import React from 'react';
 import {act,cleanup,fireEvent,render,renderHook,screen} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node} from '../../../tests/fixtures/institutional-assistant.synthetic';
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel,institutionalChatBootstrapPayload} from './institutionalChatMessage';
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel,institutionalChatBootstrapPayload,institutionalNumericChatAction} from './institutionalChatMessage';
 const mocks=vi.hoisted(()=>({fetch:vi.fn(),workspace:vi.fn()}));
 vi.mock('@/utils/api',async importOriginal=>({...await importOriginal<typeof import('@/utils/api')>(),apiFetch:(...args:unknown[])=>String(args[0]).includes('/institutional-assistant')?mocks.workspace(...args):mocks.fetch(...args)}));
 vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:null})}));
@@ -28,6 +28,27 @@ beforeEach(()=>{mocks.fetch.mockReset();mocks.workspace.mockReset();mocks.worksp
 afterEach(cleanup);
 
 describe('institutional responder boundary',()=>{
+ it.each(['1',' 1 ','1️⃣','1⃣'])('resolves only the currently advertised numeric option %s',input=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge');
+  expect(institutionalNumericChatAction(input,answer,'qa-knowledge')).toBe('knowledge:bbbbbbbbbbbbbbbb:topic-0');
+ });
+ it('uses canonical zero and ten codes without deriving them from list positions',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!;
+  answer.nodes[0].actions=[{code:'0',label:'Volver al menú',target:'start'},{code:'10',label:'Otras consultas',target:'other'}];
+  expect(institutionalNumericChatAction('0️⃣',answer,'qa-knowledge')).toBe('knowledge:bbbbbbbbbbbbbbbb:start');
+  expect(institutionalNumericChatAction('🔟',answer,'qa-knowledge')).toBe('knowledge:bbbbbbbbbbbbbbbb:other');
+  expect(institutionalNumericChatAction('1',answer,'qa-knowledge')).toBeNull();
+ });
+ it.each(['1 CUD','CUD 1','11','01','1\n2','１','1️⃣ texto',''])('does not reinterpret text or an unadvertised code %s',input=>{
+  expect(institutionalNumericChatAction(input,parseInstitutionalChatMessage(payload(),'qa-knowledge'),'qa-knowledge')).toBeNull();
+ });
+ it('refuses ambiguous codes, another tenant and an invalid revision',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!;
+  expect(institutionalNumericChatAction('1',answer,'another-tenant')).toBeNull();
+  expect(institutionalNumericChatAction('1',{...answer,revision:'invalid'},'qa-knowledge')).toBeNull();
+  answer.nodes[0].actions.push({code:'1',label:'Otro destino',target:'other'});
+  expect(institutionalNumericChatAction('1',answer,'qa-knowledge')).toBeNull();
+ });
  it('exposes reading only when the backend supplies its complete audio capability, independently of choice paging',()=>{
   const copy:InstitutionalAudioReading={contract_version:'chatboc.institutional_audio.v1',listen:'Escuchar',pause:'Pausar',resume:'Continuar audio',stop:'Detener',loading:'Preparando audio…',error:'La información sigue disponible en texto.',disclosure:'Voz generada por IA.'};
   const w=workspace({visibility:'public',can_edit:false,audio_reading:copy});

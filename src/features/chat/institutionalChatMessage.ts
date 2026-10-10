@@ -14,6 +14,18 @@ export const isInstitutionalChatPayload=(value:unknown):boolean=>record(value)&&
 export const institutionalChatActions=(nodes:KnowledgeNode[])=>nodes.flatMap(node=>node.actions)
   .filter((action,index,list)=>list.findIndex(other=>other.target===action.target&&other.label===action.label)===index);
 
+/** A typed code can select only an action advertised by this current answer. */
+export function institutionalNumericChatAction(text:string,answer:InstitutionalChatMessage|null|undefined,tenantSlug:string|null|undefined):string|null {
+  const input=text.trim();
+  if(!/^(?:[0-9]{1,3}|[0-9]\uFE0F?\u20E3|\u{1F51F})$/u.test(input)||!answer||
+    !tenantSlug||answer.tenant?.slug!==tenantSlug||!Number.isSafeInteger(answer.tenant.id)||answer.tenant.id<1||
+    !/^[a-f0-9]{64}$/.test(answer.revision)||!Array.isArray(answer.nodes)||!answer.nodes.length||!answer.nodes.every(isKnowledgeNode))return null;
+  const code=input==='🔟'?'10':input.replace(/\uFE0F?\u20E3$/u,'');
+  const matches=institutionalChatActions(answer.nodes).filter(action=>action.code===code);
+  if(new Set(matches.map(action=>action.target)).size!==1)return null;
+  return `knowledge:${answer.revision.slice(0,16)}:${matches[0].target}`;
+}
+
 /** The public workspace uses the same tenant/source parsers and responder envelope. */
 export function institutionalChatBootstrapPayload(value:unknown,tenantSlug:string) {
   const workspace=parseWorkspace(value,tenantSlug,'public');

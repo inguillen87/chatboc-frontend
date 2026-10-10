@@ -1,7 +1,8 @@
 import React from 'react';
 import {act, cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {workspace} from '../../../tests/fixtures/institutional-assistant.synthetic';
+import {node,workspace} from '../../../tests/fixtures/institutional-assistant.synthetic';
+import {institutionalChatBootstrapPayload} from '@/features/chat/institutionalChatMessage';
 import {safeLocalStorage} from '@/utils/safeLocalStorage';
 import {usePanelSessionStore, useWidgetSessionStore} from '@/stores';
 import {resetBackendBootstrapGateForTests} from '@/utils/backendBootstrapGate';
@@ -32,6 +33,24 @@ const chatPosts=()=>vi.mocked(global.fetch).mock.calls.filter(([url,request])=>S
 const settle=async()=>act(async()=>{for(let i=0;i<30;i++)await Promise.resolve();});
 const advance=async(ms=500)=>act(async()=>{await vi.advanceTimersByTimeAsync(ms);});
 const ordinaryAction={action:'contactos_utiles',text:'Consultar contactos'};
+const json=(value:unknown)=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
+const published=(slug='qa-visitor')=>{
+  const value=workspace({visibility:'public',can_edit:false});value.tenant.slug=slug;return value;
+};
+const submenu=(revision='b'.repeat(64),slug='qa-visitor')=>{
+  const value=published(slug);value.revision=revision;
+  value.knowledge!.start='requirements';value.knowledge!.initial={...node('requirements'),actions:[
+    {code:'1',label:'Consultar apoyo',target:'support'},
+    {code:'0',label:'Menú principal',target:'start'},
+  ]};
+  return institutionalChatBootstrapPayload(value,slug);
+};
+const sendTyped=async(text:string)=>{
+  fireEvent.change(screen.getByRole('textbox',{name:'Borrador de consulta'}),{target:{value:text}});
+  fireEvent.click(screen.getByRole('button',{name:'Enviar consulta de prueba'}));
+  await settle();
+};
+const lastBody=()=>JSON.parse(String(chatPosts().at(-1)?.[1]?.body));
 
 beforeEach(()=>{
   vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});
@@ -143,5 +162,96 @@ describe('pending widget action retirement',()=>{
     view.rerender(panel('qa-other'));await settle();
     view.rerender(panel());await settle();await advance();
     expect(chatPosts().length).toBe(0);
+  });
+});
+
+describe('typed institutional choices in the mounted widget',()=>{
+  it.each(['1','1️⃣'])('dispatches the initial published choice through the canonical button action for %s',async text=>{
+    render(panel());await settle();await advance(200);await settle();
+    expect(chatPosts()).toHaveLength(0);
+    expect(screen.getByText('Elegí un tema o escribí una pregunta.')).toBeInTheDocument();
+    await sendTyped(text);
+    expect(chatPosts()).toHaveLength(1);
+    expect(lastBody()).toMatchObject({action:'knowledge:bbbbbbbbbbbbbbbb:requirements',action_id:'knowledge:bbbbbbbbbbbbbbbb:requirements',tenant_slug:'qa-visitor',button_source:'input'});
+    const request=chatPosts()[0][1];
+    expect(request?.credentials).toBe('omit');
+    expect(new Headers(request?.headers).get('Authorization')).toBeNull();
+    expect(screen.getByText(`• ${text}`)).toBeInTheDocument();
+  });
+
+  it.each([{text:'1',target:'support'},{text:'0',target:'start'}])('uses the current submenu code $text rather than the initial menu',async({text,target})=>{
+    global.fetch=vi.fn().mockImplementation(async(_url,request)=>json(request?.method==='POST'?submenu():published()));
+    render(panel());await settle();await advance(200);await settle();
+    await sendTyped('1️⃣');await advance(500);await settle();
+    expect(screen.getByText('Requisitos de la consulta')).toBeInTheDocument();
+    await sendTyped(text);
+    expect(chatPosts()).toHaveLength(2);
+    expect(lastBody()).toMatchObject({action:`knowledge:bbbbbbbbbbbbbbbb:${target}`,action_id:`knowledge:bbbbbbbbbbbbbbbb:${target}`});
+  });
+
+  it('uses only the newest published reply revision',async()=>{
+    global.fetch=vi.fn().mockImplementation(async(_url,request)=>json(request?.method==='POST'?submenu('c'.repeat(64)):published()));
+    render(panel());await settle();await advance(200);await settle();
+    await sendTyped('1');await advance(500);await settle();
+    await sendTyped('0️⃣');
+    expect(chatPosts()).toHaveLength(2);
+    expect(lastBody().action).toBe('knowledge:cccccccccccccccc:start');
+  });
+
+  it('does not search an earlier menu behind a generic response',async()=>{
+    render(panel());await settle();await advance(200);await settle();
+    await sendTyped('Consulta escrita');await advance(500);await settle();
+    expect(screen.getByText(/Respuesta de prueba vigente/)).toBeInTheDocument();
+    await sendTyped('1');
+    expect(chatPosts()).toHaveLength(2);
+    expect(lastBody().action).toBeUndefined();expect(lastBody().action_id).toBeUndefined();
+    expect(lastBody().pregunta).toBe('1');
+  });
+
+  it('does not reuse the previous organization menu during a scope change',async()=>{
+    let releaseOther:(value:Response)=>void=()=>{};
+    global.fetch=vi.fn().mockImplementation(async(url,request)=>{
+      if(request?.method==='POST')return json({message_body:'Respuesta de prueba vigente'});
+      if(String(url).includes('qa-other'))return new Promise<Response>(resolve=>{releaseOther=resolve;});
+      return json(published());
+    });
+    const view=render(panel());await settle();await advance(200);await settle();
+    view.rerender(panel('qa-other'));await settle();
+    await sendTyped('1');
+    expect(chatPosts()).toHaveLength(1);
+    expect(lastBody().action).toBeUndefined();expect(lastBody().action_id).toBeUndefined();
+    expect(lastBody().tenant_slug).toBe('qa-other');
+    await act(async()=>{releaseOther(json(published('qa-other')));});
+    await settle();await advance(200);await settle();
+    await sendTyped('1');
+    expect(chatPosts()).toHaveLength(2);
+    expect(lastBody().action).toBeUndefined();expect(lastBody().action_id).toBeUndefined();
+    expect(lastBody().tenant_slug).toBe('qa-other');
+  });
+
+  it('selects only the newly rendered organization menu after a completed scope change',async()=>{
+    global.fetch=vi.fn().mockImplementation(async(url,request)=>{
+      if(request?.method==='POST')return json({message_body:'Respuesta de prueba vigente'});
+      const value=published(String(url).includes('qa-other')?'qa-other':'qa-visitor');
+      if(value.tenant.slug==='qa-other')value.knowledge!.initial.actions=[{code:'1',label:'Nueva consulta',target:'other-topic'}];
+      return json(value);
+    });
+    const view=render(panel());await settle();await advance(200);await settle();
+    view.rerender(panel('qa-other'));await settle();await advance(200);await settle();
+    expect(screen.getByRole('button',{name:'Nueva consulta'})).toBeInTheDocument();
+    await sendTyped('1️⃣');
+    expect(chatPosts()).toHaveLength(1);
+    expect(lastBody()).toMatchObject({action:'knowledge:bbbbbbbbbbbbbbbb:other-topic',tenant_slug:'qa-other'});
+  });
+
+  it('does not dispatch a second choice while the current response is pending',async()=>{
+    let releaseReply:(value:Response)=>void=()=>{};
+    global.fetch=vi.fn().mockImplementation(async(_url,request)=>request?.method==='POST'
+      ?new Promise<Response>(resolve=>{releaseReply=resolve;})
+      :json(published()));
+    render(panel());await settle();await advance(200);await settle();
+    await sendTyped('1');await sendTyped('1️⃣');
+    expect(chatPosts()).toHaveLength(1);
+    await act(async()=>{releaseReply(json(submenu()));});await settle();
   });
 });

@@ -21,6 +21,7 @@ name: Unified organization login
       - src/utils/panelLogin*
       - src/utils/completePanelCredentialLogin*
       - src/hooks/useUser*
+      - src/hooks/useChatLogic*
       - src/components/auth/panelLogin.css
       - tests/useUserStability.test.tsx
       - tests/unified_login_http.py
