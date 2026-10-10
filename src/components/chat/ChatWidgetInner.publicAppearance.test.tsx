@@ -22,8 +22,8 @@ vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('./ChatPanel', async () => {
   const { default: ChatHeader } = await import('./ChatHeader');
   return {
-    default: ({ welcomeTitle, welcomeSubtitle }: { welcomeTitle?: string; welcomeSubtitle?: string }) => (
-      <ChatHeader onClose={() => {}} title={welcomeTitle} subtitle={welcomeSubtitle} />
+    default: ({ welcomeTitle, welcomeSubtitle, onClose }: { welcomeTitle?: string; welcomeSubtitle?: string; onClose: () => void }) => (
+      <ChatHeader onClose={onClose} title={welcomeTitle} subtitle={welcomeSubtitle} />
     ),
   };
 });
@@ -75,6 +75,47 @@ afterEach(() => {
 });
 
 describe('shared widget public assistant appearance', () => {
+  it('opens with the host light palette after changing the theme while closed, without themechange', async () => {
+    window.history.replaceState({}, '', '/t/qa-theme');
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('theme', 'dark');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('qa-theme', 'Asistente de prueba'),
+      theme_config: {
+        mode: 'light',
+        light: { primary: '#000', secondary: '#fff', background: '#fff', text: '#000' },
+        dark: { primary: '#000', secondary: '#1f2937', background: '#111827', text: '#fff' },
+      },
+    });
+    const view = renderWidget(<MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen={false} tenantSlug="qa-theme" /></MemoryRouter>);
+    const target = view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    await waitFor(() => expect(target.style.getPropertyValue('--input')).toBe('221 39% 11%'));
+    expect(screen.queryByTitle('Asistente de prueba')).not.toBeInTheDocument();
+    act(() => {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    });
+    await waitFor(() => expect(target.style.getPropertyValue('--input')).toBe('0 0% 100%'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir el asistente Asistente de prueba' }));
+    await waitFor(() => expect(screen.getByTitle('Asistente de prueba')).toBeVisible());
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 0%');
+    expect(target.style.getPropertyValue('--card')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--primary')).toBe('0 0% 0%');
+    act(() => {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    });
+    await waitFor(() => expect(target.style.getPropertyValue('--input')).toBe('221 39% 11%'));
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--card')).toBe('221 39% 11%');
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar chat' }));
+    const launcher = await screen.findByRole('button', { name: 'Abrir el asistente Asistente de prueba' });
+    fireEvent.click(launcher);
+    await waitFor(() => expect(screen.getByTitle('Asistente de prueba')).toBeVisible());
+    expect(target.style.getPropertyValue('--input')).toBe('221 39% 11%');
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 100%');
+  });
+
   it('follows the real user dark/light preference instead of the persisted light default, including the composer', async () => {
     window.history.replaceState({}, '', '/t/qa-theme');
     document.documentElement.classList.add('dark');localStorage.setItem('theme','dark');
