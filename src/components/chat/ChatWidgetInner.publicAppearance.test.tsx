@@ -17,7 +17,6 @@ vi.mock('@/context/TenantContext', () => ({
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({ user: { rol: 'superadmin', nombre: 'Private account operator' } }),
 }));
-vi.mock('@/hooks/useDarkMode', () => ({ useDarkMode: () => false }));
 vi.mock('@/hooks/useCartCount', () => ({ useCartCount: () => 0 }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('./ChatPanel', async () => {
@@ -37,6 +36,7 @@ vi.mock('./ChatbocLogoAnimated', () => ({ default: () => <span aria-hidden="true
 
 const appDefaults = { welcomeTitle: 'Asistente Virtual', welcomeSubtitle: 'Consultas, ventas y soporte con Chatboc' };
 const originalFetch = global.fetch;
+const originalRootClass = document.documentElement.className;
 const renderWidget = (children: React.ReactNode) => render(<React.Suspense fallback={null}>{children}</React.Suspense>);
 const publicConfig = (slug: string, assistant: string) => ({
   contract_version: 'public.widget_config.v1',
@@ -49,6 +49,11 @@ const publicConfig = (slug: string, assistant: string) => ({
 
 beforeEach(() => {
   localStorage.clear();
+  vi.stubGlobal('matchMedia',vi.fn().mockImplementation((media:string)=>({
+    matches:false,media,onchange:null,addEventListener:vi.fn(),removeEventListener:vi.fn(),
+    addListener:vi.fn(),removeListener:vi.fn(),dispatchEvent:vi.fn(),
+  })));
+  document.documentElement.classList.remove('dark','a11y-high-contrast');
   usePanelSessionStore.setState({ authToken: null, user: null });
   useTenantStore.getState().clearTenant();
   useWidgetSessionStore.setState({ status: 'ready', entityToken: null, chatAuthToken: null });
@@ -60,14 +65,63 @@ afterEach(() => {
   cleanup();
   global.fetch = originalFetch;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   localStorage.clear();
   usePanelSessionStore.setState({ authToken: null, user: null });
   useTenantStore.getState().clearTenant();
   useWidgetSessionStore.setState({ chatAuthToken: null, entityToken: null });
   window.history.replaceState({}, '', '/');
+  document.documentElement.className=originalRootClass;
 });
 
 describe('shared widget public assistant appearance', () => {
+  it('follows the real user dark/light preference instead of the persisted light default, including the composer', async () => {
+    window.history.replaceState({}, '', '/t/qa-theme');
+    document.documentElement.classList.add('dark');localStorage.setItem('theme','dark');
+    vi.spyOn(tenantService,'getPublicWidgetConfig').mockResolvedValue({...publicConfig('qa-theme','Asistente de prueba'),
+      theme_config:{mode:'light',light:{primary:'#000',secondary:'#fff',background:'#fff',text:'#000'},dark:{primary:'#000',secondary:'#1f2937',background:'#111827',text:'#fff'}}});
+    const view=renderWidget(<MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen tenantSlug="qa-theme"/></MemoryRouter>);
+    await waitFor(()=>expect(view.container.querySelector<HTMLElement>('.chatboc-container')?.style.getPropertyValue('--input')).toBe('221 39% 11%'));
+    const target=view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    expect(target.style.getPropertyValue('--card')).toBe('221 39% 11%');
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--primary')).toBe('0 0% 0%');
+    expect(target.style.getPropertyValue('--primary-foreground')).toBe('0 0% 100%');
+    act(()=>{document.documentElement.classList.remove('dark');localStorage.setItem('theme','light');window.dispatchEvent(new Event('themechange'));});
+    await waitFor(()=>expect(target.style.getPropertyValue('--input')).toBe('0 0% 100%'));
+    expect(target.style.getPropertyValue('--card')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 0%');
+  });
+
+  it('lets high contrast maximize surface readability without replacing brand colors or the global focus and border preferences', async () => {
+    window.history.replaceState({}, '', '/t/qa-theme');
+    vi.spyOn(tenantService,'getPublicWidgetConfig').mockResolvedValue({...publicConfig('qa-theme','Asistente de prueba'),
+      theme_config:{light:{primary:'#005bb5',background:'#fff',text:'#005bb5'}}});
+    const view=renderWidget(<MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen tenantSlug="qa-theme"/></MemoryRouter>);
+    await waitFor(()=>expect(view.container.querySelector<HTMLElement>('.chatboc-container')?.style.getPropertyValue('--foreground')).toBe('210 100% 35%'));
+    const target=view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    const beforeRing=document.documentElement.style.getPropertyValue('--ring'), beforeBorder=document.documentElement.style.getPropertyValue('--border');
+    act(()=>{document.documentElement.classList.add('a11y-high-contrast');window.dispatchEvent(new CustomEvent('test-accessibility-change',{detail:{highContrast:true}}));});
+    await waitFor(()=>expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 0%'));
+    expect(target.style.getPropertyValue('--primary')).toBe('210 100% 35%');
+    expect(target.style.getPropertyValue('--input')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--ring')).toBe('');expect(target.style.getPropertyValue('--border')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--ring')).toBe(beforeRing);
+    expect(document.documentElement.style.getPropertyValue('--border')).toBe(beforeBorder);
+    view.unmount();expect(target.style.getPropertyValue('--input')).toBe('');
+    expect(document.documentElement.classList.contains('a11y-high-contrast')).toBe(true);
+  });
+
+  it('inherits host surfaces when that resolved mode has no published palette while retaining available brand colors', async () => {
+    window.history.replaceState({}, '', '/t/qa-theme');document.documentElement.classList.add('dark');
+    vi.spyOn(tenantService,'getPublicWidgetConfig').mockResolvedValue({...publicConfig('qa-theme','Asistente de prueba'),
+      theme_config:{mode:'light',light:{primary:'#005bb5',secondary:'#fff',background:'#fff',text:'#000'}}});
+    const view=renderWidget(<MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen tenantSlug="qa-theme"/></MemoryRouter>);
+    await waitFor(()=>expect(view.container.querySelector<HTMLElement>('.chatboc-container')?.style.getPropertyValue('--primary')).toBe('210 100% 35%'));
+    const target=view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    for(const name of ['--background','--card','--foreground','--input'])expect(target.style.getPropertyValue(name)).toBe('');
+  });
+
   it('normalizes public HEX branding in the widget scope and restores it without changing the host page', async () => {
     window.history.replaceState({}, '', '/t/qa-theme');
     const before = document.documentElement.style.getPropertyValue('--primary');
@@ -79,9 +133,11 @@ describe('shared widget public assistant appearance', () => {
     expect(target.style.getPropertyValue('--primary-foreground')).toBe('0 0% 100%');
     expect(target.style.getPropertyValue('--card')).toBe('0 0% 100%');
     expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 0%');
+    expect(target.style.getPropertyValue('--input')).toBe('0 0% 100%');
     expect(document.documentElement.style.getPropertyValue('--primary')).toBe(before);
     view.unmount();
     expect(target.style.getPropertyValue('--primary')).toBe('');
+    expect(target.style.getPropertyValue('--input')).toBe('');
     expect(document.documentElement.style.getPropertyValue('--primary')).toBe(before);
   });
 
@@ -98,6 +154,7 @@ describe('shared widget public assistant appearance', () => {
     expect(target.style.getPropertyValue('--primary-foreground')).toBe('0 0% 0%');
     expect(target.style.getPropertyValue('--card')).toBe('0 0% 0%');
     expect(target.style.getPropertyValue('--foreground')).toBe('0 0% 100%');
+    expect(target.style.getPropertyValue('--input')).toBe('0 0% 0%');
   });
 
   it('keeps custom message color variables as full CSS colors and gives explicit props readable contrast', async () => {

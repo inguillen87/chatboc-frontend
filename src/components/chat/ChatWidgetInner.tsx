@@ -753,6 +753,7 @@ function ChatWidgetInner({
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
+  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(readAccessibilityPrefs);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
   const [isOpen, setIsOpen] = useState(() => {
@@ -1495,10 +1496,18 @@ function ChatWidgetInner({
     const target = mode === 'iframe' ? root : widgetContainerRef.current;
 
     if (!target) return;
-    const modeTheme = entityInfo?.theme_config?.mode;
-    const isDark = modeTheme === 'dark' || (modeTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    const theme = isDark ? entityInfo?.theme_config?.dark : entityInfo?.theme_config?.light;
-    const variables = widgetThemeVariables(theme, {primary: primaryColor, secondary: accentColor});
+    // The host/iframe already resolves the user's theme preference. The saved
+    // organization default must not force a light surface into their dark UI.
+    const palette = isDarkMode ? entityInfo?.theme_config?.dark : entityInfo?.theme_config?.light;
+    const alternate = isDarkMode ? entityInfo?.theme_config?.light : entityInfo?.theme_config?.dark;
+    const theme = {
+      ...(palette && typeof palette === 'object' && !Array.isArray(palette) ? palette : {}),
+      primary: normalizeColorHsl(palette?.primary) ?? normalizeColorHsl(alternate?.primary),
+      secondary: normalizeColorHsl(palette?.secondary) ?? normalizeColorHsl(alternate?.secondary),
+    };
+    // A missing palette inherits the host's semantic surfaces while retaining
+    // available published brand colors; high contrast owns the text choice.
+    const variables = widgetThemeVariables(theme, {primary: primaryColor, secondary: accentColor, highContrast: a11yPrefs.highContrast});
 
     // Additional Customizations
     if (target) {
@@ -1528,7 +1537,7 @@ function ChatWidgetInner({
     if (variables['--font-sans']) target.style.fontFamily = variables['--font-sans'];
     return () => { restore(); target.style.fontFamily = previousFont; };
 
-  }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
+  }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 
   const proactiveMessages = useMemo(() => {
     const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
@@ -1775,8 +1784,6 @@ function ChatWidgetInner({
     const normalized = extractRubroKey(rawRubro);
     return normalized;
   }, [entityInfo]);
-  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(readAccessibilityPrefs);
-
   useEffect(() => {
     const handleStorage = () => {
       setA11yPrefs(readAccessibilityPrefs());

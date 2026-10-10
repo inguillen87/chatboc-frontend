@@ -1,7 +1,7 @@
 import {accessibleForegroundHsl, normalizeColorHsl} from './color';
 
 /** Backend theme first; explicit widget props override only valid supplied colors. */
-export function widgetThemeVariables(theme: unknown, overrides: {primary?: unknown; secondary?: unknown} = {}): Record<string, string> {
+export function widgetThemeVariables(theme: unknown, overrides: {primary?: unknown; secondary?: unknown; highContrast?: boolean} = {}): Record<string, string> {
   const colors = theme && typeof theme === 'object' && !Array.isArray(theme) ? theme as Record<string, unknown> : {};
   const variables: Record<string, string> = {};
   for (const name of ['primary', 'secondary'] as const) {
@@ -14,10 +14,12 @@ export function widgetThemeVariables(theme: unknown, overrides: {primary?: unkno
   const background = normalizeColorHsl(colors.background);
   const foreground = normalizeColorHsl(colors.text) ?? normalizeColorHsl(colors.foreground);
   if (background) {
-    const readableText = accessibleForegroundHsl(background, foreground);
+    const readableText = accessibleForegroundHsl(background, overrides.highContrast ? undefined : foreground);
     const [h, s, l] = background.split(' ').map(parseFloat);
     const muted = `${h} ${s}% ${l > 50 ? Math.max(0, l - 6) : Math.min(100, l + 6)}%`;
-    for (const name of ['background', 'card', 'popover']) variables[`--${name}`] = background;
+    // Global input rules use --input with !important. Keep compose controls on
+    // this readable surface instead of inheriting a contrasting host theme.
+    for (const name of ['background', 'card', 'popover', 'input']) variables[`--${name}`] = background;
     for (const name of ['foreground', 'card-foreground', 'popover-foreground']) variables[`--${name}`] = readableText;
     variables['--muted'] = muted;
     variables['--muted-foreground'] = accessibleForegroundHsl(muted, readableText);

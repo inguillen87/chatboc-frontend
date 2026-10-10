@@ -55,6 +55,7 @@ describe('authenticated PWA update notification', () => {
   });
 
   beforeEach(() => {
+    window.history.replaceState({}, '', '/superadmin?pwa-lifecycle-e2e');
     originalStorage = [
       [localStorage, 'authProvider', localStorage.getItem('authProvider')],
       [localStorage, 'user', localStorage.getItem('user')],
@@ -149,5 +150,26 @@ describe('authenticated PWA update notification', () => {
     expect(screen.getAllByText('Nueva version disponible')).toHaveLength(1);
     expect(toast.getToasts().filter((entry) => entry.title === 'Nueva version disponible')).toHaveLength(1);
     expect(updateSW).not.toHaveBeenCalled();
+  });
+
+  it('applies a waiting worker on an idle public organization entry without clearing the session or caches', async () => {
+    window.history.replaceState({}, '', '/t/example-city');
+    await publishUpdate();
+    expect(updateSW).toHaveBeenCalledExactlyOnceWith(true);
+    expect(screen.queryByText('Nueva version disponible')).not.toBeInTheDocument();
+    expect(deleteCache).not.toHaveBeenCalled();expect(unregister).not.toHaveBeenCalled();
+  });
+
+  it('keeps the real explicit update action after interacting with a public menu, even after a draft is emptied', async () => {
+    window.history.replaceState({}, '', '/t/example-city');
+    const draft=document.createElement('textarea');document.body.append(draft);
+    fireEvent.input(draft,{target:{value:'Consulta sin enviar'}});
+    fireEvent.input(draft,{target:{value:''}});draft.remove();
+    await publishUpdate();
+    expect(updateSW).not.toHaveBeenCalled();
+    expect(screen.getByRole('button',{name:'Actualizar'})).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'Actualizar'}));
+    expect(updateSW).toHaveBeenCalledExactlyOnceWith(true);
+    expect(deleteCache).not.toHaveBeenCalled();expect(unregister).not.toHaveBeenCalled();
   });
 });

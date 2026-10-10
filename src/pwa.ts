@@ -12,6 +12,25 @@ let ephemeralCleanupStarted = false;
 let pwaSetupStarted = false;
 let registrationErrorCount = 0;
 let registrationRetryTimer: number | undefined;
+let publicRefreshInteractionObserved = false;
+
+const isPublicTenantEntry = (pathname: string) => /^\/t\/[^/]+\/?$/.test(pathname);
+
+const observePublicRefreshInteraction = () => {
+  if (isPublicTenantEntry(window.location.pathname)) publicRefreshInteractionObserved = true;
+};
+
+const publicTenantRefreshHasWork = () => {
+  if (publicRefreshInteractionObserved) return true;
+  // Open chats (including desktop), dialogs and pending reads retain the
+  // explicit update action. Never dismiss the user's draft or audio reading.
+  if (document.querySelector('.chat-root, [role="dialog"], [aria-busy="true"]')) return true;
+  if (document.querySelector('audio[src], video[src]')) return true;
+  return Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="hidden"]), textarea')).some(field => {
+    if (field instanceof HTMLInputElement && (field.type === 'checkbox' || field.type === 'radio')) return field.checked !== field.defaultChecked;
+    return field.value.trim().length > 0;
+  }) || Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"]')).some(field => Boolean(field.textContent?.trim()));
+};
 
 const REGISTRATION_RETRY_DELAYS_MS = [1_000, 5_000];
 const PRIVACY_PWA_CONTRACT_CACHE = 'chatboc-pwa-contract-api-network-only-v1';
@@ -78,6 +97,9 @@ export const shouldAutoApplyPublicRefresh = () => {
   if (typeof window === 'undefined') return false;
 
   const pathname = window.location.pathname || '/';
+  // Only the exact public organization entry is eligible. Tenant management,
+  // surveys, checkout and all other nested routes keep the existing prompt.
+  if (isPublicTenantEntry(pathname)) return !publicTenantRefreshHasWork();
   if (PANEL_RUNTIME_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return false;
   }
@@ -331,6 +353,9 @@ export const setupPWA = () => {
 
   if (pwaSetupStarted) return;
   pwaSetupStarted = true;
+  for (const event of ['pointerdown', 'keydown', 'input']) {
+    document.addEventListener(event, observePublicRefreshInteraction, {capture:true, passive:true});
+  }
   removeLegacySensitiveApiCaches().catch((error) => {
     console.warn('Legacy PWA API cache cleanup failed', error);
   });

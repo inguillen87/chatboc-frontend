@@ -32,7 +32,7 @@ describe('scoped widget theme color contracts', () => {
     expect(variables).toMatchObject({'--primary':'0 0% 0%','--primary-foreground':'0 0% 100%',
       '--secondary':'0 0% 100%','--secondary-foreground':'0 0% 0%',
       '--background':'0 0% 100%','--foreground':'0 0% 0%', '--card':'0 0% 100%', '--card-foreground':'0 0% 0%',
-      '--popover':'0 0% 100%', '--popover-foreground':'0 0% 0%', '--muted':'0 0% 94%', '--muted-foreground':'0 0% 0%'});
+      '--popover':'0 0% 100%', '--popover-foreground':'0 0% 0%', '--input':'0 0% 100%', '--muted':'0 0% 94%', '--muted-foreground':'0 0% 0%'});
     for (const value of Object.values(variables)) expect(normalizeColorHsl(value)).not.toBeNull();
   });
 
@@ -41,6 +41,18 @@ describe('scoped widget theme color contracts', () => {
       .toMatchObject({'--primary':'0 0% 0%', '--primary-foreground':'0 0% 100%', '--secondary':'0 0% 100%'});
     expect(widgetThemeVariables({primary:'221 83% 53%'}, {primary:'invalid'})['--primary']).toBe('221 83% 53%');
     expect(widgetThemeVariables({primary:'invalid'})).toEqual({});
+  });
+
+  it.each([['#fff', '#000', '0 0% 100%', '0 0% 0%'], ['#000', '#fff', '0 0% 0%', '0 0% 100%']])(
+    'keeps input and textarea text readable on published background %s', (background, text, input, foreground) => {
+      expect(widgetThemeVariables({background, text})).toMatchObject({'--input':input,'--foreground':foreground});
+      expect(accessibleForegroundHsl(input,foreground)).toBe(foreground);
+    },
+  );
+
+  it('gives high contrast text priority over readable but lower-contrast configured text without changing the brand', () => {
+    expect(widgetThemeVariables({background:'#fff',text:'#005bb5',primary:'#005bb5'},{highContrast:true}))
+      .toMatchObject({'--input':'0 0% 100%','--foreground':'0 0% 0%','--primary':'210 100% 35%'});
   });
 
   it('restores only the target variables on replacement or unmount, keeping host styling intact', () => {

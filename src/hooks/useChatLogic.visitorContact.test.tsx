@@ -41,7 +41,9 @@ describe('public visitor contact isolation',()=>{
   expect(hook.result.current.visitorName).toBeNull();
   await act(async()=>{await hook.result.current.initializeConversation();});
   render(<ChatMessage message={hook.result.current.messages[0]} isTyping={false} onButtonClick={hook.result.current.handleSend}/>);
-  fireEvent.click(screen.getByRole('button',{name:'Contactos por ciudad'}));
+  // The menu code is part of the accessible label, while the chat payload keeps
+  // the backend label and revision-bound action unchanged.
+  fireEvent.click(screen.getByRole('button',{name:'1 Contactos por ciudad'}));
   await waitFor(()=>expect(hook.result.current.isTyping).toBe(false));
   const posts=requestBodies();expect(posts).toHaveLength(1);
   expect(posts[0].url).toContain('/ask/municipio');

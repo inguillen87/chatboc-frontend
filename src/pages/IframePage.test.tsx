@@ -1,5 +1,5 @@
 import React from 'react';
-import {cleanup,render,screen,waitFor} from '@testing-library/react';
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import IframePage from './IframePage';
 
@@ -26,10 +26,30 @@ afterEach(()=>{cleanup();global.fetch=originalFetch;delete (window as any).CHATB
 describe('IframePage persisted assistant header',()=>{
   it('renders the persisted assistant name as the title and greeting below it',async()=>{
     render(<IframePage/>);
-    expect(await screen.findByTitle('Asistente de la organización')).toHaveTextContent('Asistente de la organización');
-    expect(screen.getByText(publicConfig.welcome_title)).toHaveClass('truncate');
+    expect(await screen.findByTitle('Asistente de la organización',{}, {timeout:5000})).toHaveTextContent('Asistente de la organización');
+    const greeting=screen.getByText(publicConfig.welcome_title);
+    expect(greeting).toBeVisible();
+    expect(greeting).not.toHaveClass('truncate');
     expect(screen.queryByTitle(publicConfig.welcome_title)).not.toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith('/api/public/tenants/example-city/widget-config',expect.objectContaining({credentials:'omit'}));
+  });
+
+  it('keeps a long persisted welcome readable through the complete-text dialog without hiding it in a tooltip',async()=>{
+    const welcome='Hola, soy el asistente de esta organización. Podés consultar información y orientación, escribir con tus palabras o pedir ayuda para alguien que acompañás.';
+    global.fetch=vi.fn().mockResolvedValue(new Response(JSON.stringify({...publicConfig,welcome_title:welcome}),{headers:{'Content-Type':'application/json'}}));
+    render(<IframePage/>);
+    await screen.findByTitle(publicConfig.welcome_subtitle);
+    const summary=screen.getByText('Hola, soy el asistente de esta organización.');
+    expect(summary).toBeVisible();expect(summary).not.toHaveClass('truncate');
+    expect(screen.queryByTitle(welcome)).not.toBeInTheDocument();
+    const read=screen.getByRole('button',{name:'Leer bienvenida completa'});
+    read.focus();fireEvent.click(read);
+    expect(screen.getByRole('dialog',{name:'Bienvenida completa'})).toBeVisible();
+    expect(screen.getByText(welcome)).toBeVisible();
+    fireEvent.keyDown(screen.getByRole('dialog',{name:'Bienvenida completa'}),{key:'Escape'});
+    await waitFor(()=>expect(read).toHaveFocus());
+    expect(screen.queryByRole('dialog',{name:'Bienvenida completa'})).not.toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledOnce();
   });
 
   it('retains explicit embed display overrides without writing backend configuration',async()=>{

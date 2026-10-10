@@ -15,7 +15,32 @@ const setPath = (path: string) => {
 };
 
 describe('public PWA refresh policy', () => {
-  afterEach(() => setPath('/'));
+  afterEach(() => {document.body.replaceChildren();setPath('/');});
+
+  it.each(['/t/example-city','/t/example-city/'])('auto-applies on an idle exact public organization entry %s', path => {
+    setPath(path);expect(shouldAutoApplyPublicRefresh()).toBe(true);
+  });
+
+  it.each([
+    '<div class="chat-root"></div>', '<div role="dialog"></div>', '<div aria-busy="true"></div>',
+    '<textarea>Consulta sin enviar</textarea>', '<input value="Dato sin enviar">',
+    '<input type="file">', '<div contenteditable="true">Borrador</div>', '<audio src="blob:local-reading"></audio>',
+  ])('retains the explicit update action while work is present: %s', markup => {
+    setPath('/t/example-city');document.body.innerHTML=markup;
+    if(markup.includes('type="file"'))Object.defineProperty(document.querySelector('input')!,'value',{value:'selected-file.pdf'});
+    expect(shouldAutoApplyPublicRefresh()).toBe(false);
+  });
+
+  it.each(['/t/example-city/integracion','/t/example-city/reclamos/nuevo','/t/example-city/market/checkout'])(
+    'never auto-applies on a nested tenant operation %s', path => {setPath(path);expect(shouldAutoApplyPublicRefresh()).toBe(false);},
+  );
+
+  it.each(['checkbox','radio'])('protects changed %s selections while permitting an unchanged default', type => {
+    setPath('/t/example-city');document.body.innerHTML=`<input type="${type}" checked>`;
+    const field=document.querySelector('input')!;
+    expect(shouldAutoApplyPublicRefresh()).toBe(true);
+    field.checked=false;expect(shouldAutoApplyPublicRefresh()).toBe(false);
+  });
 
   it.each([
     '/e/demo-gobierno-junin-prioridades-barriales?tenant_slug=junin',
