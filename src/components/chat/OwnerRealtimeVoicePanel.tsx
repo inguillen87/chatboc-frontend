@@ -95,10 +95,10 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
     void instance.start();
   };
   return (
-    <section aria-label={ui.title} className="mx-3 my-2 rounded-xl border border-border bg-card p-1.5 text-card-foreground">
+    <section aria-label={ui.title} className="mx-3 my-2 flex min-h-0 max-h-[50%] shrink flex-col rounded-xl border border-border bg-card p-1.5 text-card-foreground">
       <button ref={disclosureButton} type="button" aria-expanded={expanded} aria-controls={detailsId}
         onClick={() => setExpanded(value => !value)}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="flex min-h-11 w-full shrink-0 items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <img src={reducedMotion ? CHATBOC_AGENT_MARK : logoUrl || CHATBOC_AGENT_AVATAR} alt="" width={28} height={28}
           className={`h-7 w-7 shrink-0 rounded-lg object-contain ${speaking && !reducedMotion ? 'motion-safe:animate-pulse' : ''}`}
           onError={event => { const fallback = reducedMotion ? CHATBOC_AGENT_MARK : CHATBOC_AGENT_AVATAR; if (!event.currentTarget.src.includes(fallback)) event.currentTarget.src = fallback; }} />
@@ -106,14 +106,15 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
         <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {(expanded || active || state === 'pending' || state === 'error') &&
-        <p role="status" aria-live="polite" className="px-2 pt-2 text-sm">{ui[state]}</p>}
+        <p role="status" aria-live="polite" className="shrink-0 px-2 pt-2 text-sm">{ui[state]}</p>}
       {active && <button ref={stopButton} type="button" onClick={() => { void stop(); }}
-        className="mx-2 mt-2 min-h-11 rounded-lg border px-4">{ui.stop}</button>}
+        className="mx-2 mt-2 min-h-11 shrink-0 self-start rounded-lg border px-4">{ui.stop}</button>}
       {!expanded && captions.length > 0 && <div role="log" aria-live="polite" aria-label={ui.captions} tabIndex={0}
-        className="mx-2 mt-3 max-h-32 overflow-auto rounded-lg border p-2 text-base leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="mx-2 mt-3 min-h-0 max-h-32 overflow-auto rounded-lg border p-2 text-base leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <p className="whitespace-pre-wrap break-words"><strong>{ui[captions[captions.length - 1].speaker]}: </strong>{captions[captions.length - 1].text}</p>
       </div>}
-      <div id={detailsId} hidden={!expanded} className={expanded ? 'px-2 pb-2 pt-3' : 'hidden'}>
+      <div id={detailsId} hidden={!expanded} role="group" aria-label={ui.title} tabIndex={expanded ? 0 : undefined}
+        className={expanded ? 'min-h-0 overflow-y-auto overscroll-contain px-2 pb-2 pt-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : 'hidden'}>
       <h3 className="font-semibold">{ui.title}</h3><p className="mt-1 text-sm">{ui.description}</p>
       <p className="mt-1 text-xs">{ui.avatar_notice}</p>
       {!capability.enabled ? <p className="mt-2 text-sm">{ui.disabled}</p> : (

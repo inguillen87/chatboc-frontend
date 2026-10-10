@@ -4494,7 +4494,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="chatboc-chat-footer relative w-full min-w-0 shrink-0 border-t bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] backdrop-blur-sm sm:px-2.5 sm:py-1.5">
+      <div className="chatboc-chat-footer sticky bottom-0 z-10 w-full min-w-0 shrink-0 border-t bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] backdrop-blur-sm sm:px-2.5 sm:py-1.5">
         {smartHint && (
           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
             <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">
