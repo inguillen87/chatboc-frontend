@@ -43,4 +43,22 @@ describe("ChatHumanSupportBar", () => {
     const { container } = render(<ChatHumanSupportBar />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("keeps an offline message action in the fixed support area and preserves its callback", () => {
+    const onLiveChat = vi.fn();
+    render(<ChatHumanSupportBar onLiveChat={onLiveChat} onWhatsApp={vi.fn()} />);
+    expect(screen.getByRole("region", { name: "Opciones de atención humana" })).toHaveClass("shrink-0");
+    expect(screen.getByText("Podés dejar un mensaje")).toBeVisible();
+    const primary = screen.getByRole("button", { name: "Dejar mensaje" });
+    expect(primary).toHaveClass("bg-primary", "min-h-11");
+    expect(screen.getByRole("button", { name: "WhatsApp" })).toHaveClass("bg-card");
+    fireEvent.click(primary);
+    expect(onLiveChat).toHaveBeenCalledOnce();
+  });
+
+  it("gives a sole configured WhatsApp action primary emphasis without claiming realtime help", () => {
+    render(<ChatHumanSupportBar onWhatsApp={vi.fn()} whatsappLabel="Escribir al equipo" />);
+    expect(screen.getByRole("button", { name: "Escribir al equipo" })).toHaveClass("bg-primary");
+    expect(screen.queryByText("Equipo disponible ahora")).not.toBeInTheDocument();
+  });
 });

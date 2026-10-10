@@ -296,7 +296,7 @@ const TenantPublicLanding = () => {
             </div>
           </motion.section> : null}
 
-          <InstitutionalAssistant tenantSlug={slug} mode="public" onPublicKnowledgeAvailability={setPublicKnowledge} />
+          <InstitutionalAssistant tenantSlug={slug} mode="public" publicIdentity={tenant?.publishedIdentity} onPublicKnowledgeAvailability={setPublicKnowledge} />
 
           {!navigationLoaded ? (
             <div className="flex min-h-[160px] items-center justify-center rounded-3xl border bg-muted/30">

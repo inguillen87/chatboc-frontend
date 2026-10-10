@@ -35,42 +35,45 @@ const ChatHumanSupportBar: React.FC<ChatHumanSupportBarProps> = ({
         liveChatAvailable ? "Equipo disponible ahora" : "Podés dejar un mensaje",
       )
     : "Continuidad por WhatsApp";
+  const primaryLabel = cleanLabel(liveChatLabel, liveChatAvailable ? "Hablar con el equipo" : "Dejar mensaje");
 
   return (
     <section
       aria-label="Opciones de atención humana"
       className={cn(
-        "border-b border-border/60 bg-background/94 px-2.5 py-2 shadow-[0_1px_0_hsl(var(--border)/0.35)] sm:px-4",
+        "shrink-0 border-b border-border/60 bg-background/94 px-2.5 py-2 shadow-[0_1px_0_hsl(var(--border)/0.35)] sm:px-4",
         className,
       )}
     >
-      <div className="mx-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2">
-        <span
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
-            liveChatAvailable
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300"
-              : "border-border/70 bg-muted/60 text-muted-foreground",
-          )}
-          aria-hidden="true"
-        >
-          <UserRound className="h-4 w-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="break-words text-xs font-semibold leading-snug text-foreground">Ayuda de una persona</p>
-          <p className="break-words text-[11px] leading-snug text-muted-foreground">{statusText}</p>
+      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 basis-36 items-center gap-2">
+          <span
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
+              liveChatAvailable
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300"
+                : "border-border/70 bg-muted/60 text-muted-foreground",
+            )}
+            aria-hidden="true"
+          >
+            <UserRound className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="break-words text-xs font-semibold leading-snug text-foreground">Ayuda de una persona</p>
+            <p className="break-words text-[11px] leading-snug text-muted-foreground">{statusText}</p>
+          </div>
         </div>
-        <div className="col-span-2 flex min-w-0 flex-wrap items-stretch gap-2">
+        <div className="flex min-w-0 flex-1 basis-32 flex-wrap items-stretch gap-2">
           {onLiveChat ? (
             <button
               type="button"
               onClick={onLiveChat}
-              aria-label={cleanLabel(liveChatLabel, "Hablar con el equipo")}
-              className="inline-flex min-h-12 min-w-12 flex-1 basis-32 items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary px-2.5 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label={primaryLabel}
+              className="inline-flex min-h-11 min-w-11 flex-1 basis-28 items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary px-2.5 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="min-w-0 break-words leading-snug">
-                {cleanLabel(liveChatLabel, "Hablar con el equipo")}
+                {primaryLabel}
               </span>
             </button>
           ) : null}
@@ -79,7 +82,12 @@ const ChatHumanSupportBar: React.FC<ChatHumanSupportBarProps> = ({
               type="button"
               onClick={onWhatsApp}
               aria-label={cleanLabel(whatsappLabel, "WhatsApp")}
-              className="inline-flex min-h-12 min-w-12 flex-1 basis-32 items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-card px-2.5 py-2 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className={cn(
+                "inline-flex min-h-11 min-w-11 flex-1 basis-28 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                onLiveChat
+                  ? "border-border/70 bg-card text-foreground hover:border-primary/40 hover:bg-muted/50"
+                  : "border-primary/25 bg-primary text-primary-foreground hover:bg-primary/90",
+              )}
             >
               <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="min-w-0 break-words leading-snug">

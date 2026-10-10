@@ -31,7 +31,7 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 const tenantId = (slug: string) => slug === publicSlug ? 701 : 702;
 const tenantName = (slug: string) => `Espacio ${slug}`;
 const publicWorkspace = (slug = publicSlug) => workspace({ tenant: { id: tenantId(slug), slug, name: tenantName(slug) }, visibility: 'public', can_edit: false });
-const profile = (slug: string) => json({ contract_version: 'public.tenant_profile.v1', tenant: { id: tenantId(slug), slug, nombre: tenantName(slug), tipo: 'municipio' } });
+const profile = (slug: string) => json({ contract_version: 'public.tenant_profile.v1', tenant: { id: tenantId(slug), slug, nombre: tenantName(slug), tipo: 'municipio', logo_url: `/branding/${slug}.png` } });
 const unavailable = () => json({ reason_code: 'knowledge_not_available' }, 404);
 const knowledgeRequests = () => vi.mocked(global.fetch).mock.calls.filter(([input]) => new URL(String(input), window.location.origin).pathname.endsWith('/institutional-assistant'));
 
@@ -95,6 +95,7 @@ describe('published institutional reading comes before the generic public overvi
     act(() => { usePanelSessionStore.setState({ authToken: 'synthetic-refreshed-session' }); safeLocalStorage.setItem('authToken', 'synthetic-refreshed-session'); });
     await act(async () => { pending.resolve(json(publicWorkspace())); });
     const reader = await screen.findByTestId('institutional-assistant');
+    expect(reader.querySelector('.institutional-assistant__mark img')).toHaveAttribute('src', `/branding/${publicSlug}.png`);
     await waitFor(() => expect(screen.queryByText(genericDescription)).not.toBeInTheDocument());
     const heading = screen.getByRole('heading', { level: 1, name: tenantName(publicSlug) });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
@@ -173,6 +174,7 @@ describe('published institutional reading comes before the generic public overvi
     else await screen.findByText('No pudimos cargar el conocimiento');
     await act(async () => { pending.resolve(json(publicWorkspace())); });
     expect(screen.getAllByRole('heading', { level: 1, name: tenantName(otherSlug) })).toHaveLength(nextPublished ? 1 : 2);
+    if (nextPublished) expect(screen.getByTestId('institutional-assistant').querySelector('.institutional-assistant__mark img')).toHaveAttribute('src', `/branding/${otherSlug}.png`);
     expect(screen.queryByRole('heading', { level: 1, name: tenantName(publicSlug) })).not.toBeInTheDocument();
     expect(Boolean(screen.queryByText(genericDescription))).toBe(!nextPublished);
     expect(knowledgeRequests()).toHaveLength(2);

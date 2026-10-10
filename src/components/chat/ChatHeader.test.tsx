@@ -104,4 +104,32 @@ describe("ChatHeader", () => {
     expect(screen.queryByRole("button", { name: "Opciones del chat" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cerrar chat" })).toBeVisible();
   });
+
+  it("keeps a long welcome compact and opens the complete backend text with keyboard dismissal", async () => {
+    const welcome = "Hola, soy tu asistente. Te ayudo a encontrar información y orientación sobre trámites y servicios. Podés escribir con tus palabras o consultar para alguien que acompañás.";
+    render(<ChatHeader onClose={vi.fn()} subtitle={welcome} />);
+
+    expect(screen.getByText("Hola, soy tu asistente.")).toBeVisible();
+    expect(screen.queryByText(welcome)).not.toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Leer bienvenida completa" });
+    expect(trigger).toHaveClass("min-h-11");
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Bienvenida completa" })).toBeVisible();
+    expect(screen.getByText(welcome)).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Bienvenida completa" }), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Bienvenida completa" })).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("preserves a long single sentence and does not require expansion for short copy", () => {
+    const welcome = "Esta información de bienvenida ocupa una sola oración extensa y debe seguir disponible íntegra para quienes la quieran consultar con calma";
+    const { rerender } = render(<ChatHeader onClose={vi.fn()} subtitle={welcome} />);
+    expect(screen.getByRole("button", { name: "Leer bienvenida completa" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Leer bienvenida completa" }));
+    expect(screen.getByText(welcome)).toBeVisible();
+    rerender(<ChatHeader onClose={vi.fn()} subtitle="Orientación y ayuda" />);
+    expect(screen.getByText("Orientación y ayuda")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Leer bienvenida completa" })).not.toBeInTheDocument();
+  });
 });

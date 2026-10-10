@@ -10,14 +10,21 @@ import {institutionalChoiceLabel} from '@/features/chat/institutionalChatMessage
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
+import {safeInstitutionLogo,type PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
 import './institutionalAssistant.css';
 export interface PublicKnowledgeAvailability {tenantSlug:string;tenantId:number;revision:string}
-interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void}
+interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';publicIdentity?:PublishedTenantIdentity|null;onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void}
+function InstitutionalIdentityMark({logo,name}:{logo:string|null;name:string}) {
+  const [failed,setFailed]=useState(false);
+  return <div className="institutional-assistant__mark" aria-hidden="true">
+    {logo&&!failed?<img src={logo} alt="" onError={()=>setFailed(true)}/>:name.slice(0,1)}
+  </div>;
+}
 export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
   return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
 }
-function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability}:Props){
+function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowledgeAvailability}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
@@ -135,24 +142,28 @@ function AssistantSession({tenantSlug,mode='admin',onPublicKnowledgeAvailability
     return <div role="status"><ViewState status="loading" title="Cargando conocimiento"/></div>;
   }
   const ui=workspace.ui,knowledge=workspace.knowledge;
+  const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
+    ?safeInstitutionLogo(publicIdentity.logoUrl):null;
   const actions=nodes.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
-  return <section className={`institutional-assistant${large?' institutional-assistant--large':''}`} data-testid="institutional-assistant" aria-label={ui.heading}>
+  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(topic=><button type="button" key={topic.id} disabled={busy||Boolean(pending)} aria-current={current===topic.id?'page':undefined} onClick={()=>navigate(topic.id)}><span>{topic.label}</span><ChevronRight size={15}/></button>)}</nav>;
+  return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}`} data-testid="institutional-assistant" aria-label={ui.heading}>
     <header className="institutional-assistant__header">
-      <div className="institutional-assistant__identity"><div className="institutional-assistant__mark" aria-hidden="true">{workspace.tenant.name.slice(0,1)}</div>
+      <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
       <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>setLarge(v=>!v)}><Type size={19}/></button>
         <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17}/><span>{ui.sources}</span></button></div>
     </header>
     <div className="institutional-assistant__body">
-      <aside className="institutional-assistant__sidebar"><p className="institutional-assistant__eyebrow">{ui.topics}</p>
-        <nav aria-label={ui.topics}>{knowledge?.topics.map(topic=><button type="button" key={topic.id} disabled={busy||Boolean(pending)} aria-current={current===topic.id?'page':undefined} onClick={()=>navigate(topic.id)}><span>{topic.label}</span><ChevronRight size={15}/></button>)}</nav>
+      {mode==='admin'?<aside className="institutional-assistant__sidebar"><p className="institutional-assistant__eyebrow">{ui.topics}</p>
+        {topicNavigation}
         {knowledge?<div className="institutional-assistant__version"><span>{ui.version} {knowledge.version}</span><span>{ui[workspace.visibility]??workspace.visibility}</span></div>:null}
         {workspace.can_edit?<div className="institutional-assistant__management"><input ref={upload} type="file" accept="application/json,.json" onChange={importFile} hidden/>
           <button type="button" disabled={busy} onClick={event=>{reviewTrigger.current=event.currentTarget;upload.current?.click();}}><Plus size={16}/>{ui.import}</button>
           {knowledge?<button type="button" disabled={busy||error||Boolean(pending)} onClick={event=>openReview({operation:workspace.visibility==='public'?'retire':'publish'},event.currentTarget)}>{workspace.visibility==='public'?ui.retire:ui.publish}</button>:null}</div>:null}
-      </aside>
+      </aside>:null}
       <div className="institutional-assistant__conversation">
         <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={()=>knowledge&&navigate(knowledge.start)}><ArrowLeft size={15}/>{ui.home}</button><span>{ui.evidence}</span></div>
+        {mode==='public'&&knowledge&&current!==knowledge.start&&nodes.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
           {asked?<div className="institutional-assistant__question"><MessageSquare size={16}/><p>{asked}</p></div>:null}
           {busy?<div className="institutional-assistant__loading" role="status"><Loader2 size={22} className="animate-spin"/><p>{ui.loading}</p></div>:null}

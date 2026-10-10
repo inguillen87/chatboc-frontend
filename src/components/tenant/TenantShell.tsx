@@ -12,6 +12,7 @@ import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { TenantSwitcher } from './TenantSwitcher';
 
@@ -156,7 +157,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
             <div className="flex flex-wrap items-center gap-2">
               {resolvedTenant.tipo ? (
                 <Badge variant="secondary" className="uppercase tracking-wide">
-                  {resolvedTenant.tipo}
+                  {organizationTypeLabel(resolvedTenant.tipo)}
                 </Badge>
               ) : null}
               {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}

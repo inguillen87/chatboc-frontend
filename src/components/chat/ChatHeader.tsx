@@ -1,11 +1,12 @@
 import React from "react";
-import { MessageCircleMore, MoreHorizontal } from "lucide-react";
+import { ChevronDown, MessageCircleMore, MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 import type { ChatWidgetUiHints } from "@/types/chat";
@@ -96,6 +97,15 @@ const isEnabledFlag = (value: unknown, fallback = true) => {
   return fallback;
 };
 
+const briefSubtitle = (text: string) => {
+  if (text.length <= 90) return text;
+  const firstSentence = text.match(/^(.+?[.!?])(?:\s|$)/u)?.[1];
+  if (firstSentence && firstSentence.length <= 90) return firstSentence;
+  const prefix = text.slice(0, 86);
+  const lastSpace = prefix.lastIndexOf(" ");
+  return `${prefix.slice(0, lastSpace > 45 ? lastSpace : undefined).trimEnd()}…`;
+};
+
 const ChatHeader: React.FC<Props> = ({
   onClose,
   isTyping = false,
@@ -118,6 +128,9 @@ const ChatHeader: React.FC<Props> = ({
 }) => {
   const isMobile = useIsMobile();
   const isUltraCompact = compactActions && isMobile;
+  const welcomeText = subtitle?.trim() || "Asistente digital";
+  const welcomeSummary = briefSubtitle(welcomeText);
+  const hasFullWelcome = welcomeSummary !== welcomeText;
   const liveChatSocketEnabled = isEnabledFlag(
     supportChannels?.live_chat?.socket_enabled,
     false,
@@ -151,7 +164,7 @@ const ChatHeader: React.FC<Props> = ({
       aria-busy={isTyping}
       className={`
         relative flex items-center justify-between gap-2 flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
-        border-b border-white/10 px-2.5 py-2.5 sm:px-4 sm:py-4
+        border-b border-white/10 px-2.5 py-2.5 sm:px-4 sm:py-3
         text-white transition-all
       `}
       style={{
@@ -183,10 +196,34 @@ const ChatHeader: React.FC<Props> = ({
               {title || 'Chatboc'}
             </span>
           </div>
-          <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-white/82 sm:text-xs">
-            <MessageCircleMore className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 break-words font-medium leading-snug">{subtitle || 'Asistente digital'}</span>
-          </div>
+          {hasFullWelcome ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Leer bienvenida completa"
+                  className="mt-0.5 flex min-h-11 w-full items-center gap-1.5 rounded-md text-left text-[11px] text-white/90 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:text-xs"
+                >
+                  <MessageCircleMore className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 line-clamp-2 break-words font-medium leading-snug">{welcomeSummary}</span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                role="dialog"
+                aria-label="Bienvenida completa"
+                className="z-[1000004] max-h-[min(50dvh,20rem)] w-80 max-w-[calc(100vw-24px)] overflow-y-auto text-sm leading-relaxed"
+              >
+                <p className="whitespace-pre-line break-words">{welcomeText}</p>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-white/90 sm:text-xs">
+              <MessageCircleMore className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words font-medium leading-snug">{welcomeText}</span>
+            </div>
+          )}
           {statusLabel && !isUltraCompact ? (
             <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/80">
               <span className={cn("h-1.5 w-1.5 rounded-full", liveChatVisible ? "bg-emerald-300" : "bg-sky-200")} />

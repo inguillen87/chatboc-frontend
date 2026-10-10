@@ -10,10 +10,16 @@
 .institutional-assistant__identity { display:flex; align-items:center; gap:13px; min-width:0; }
 .institutional-assistant__identity>div:last-child { min-width:0; }
 .institutional-assistant__mark { width:42px; height:42px; flex-shrink:0; display:grid; place-items:center; border:1px solid hsl(var(--border)); border-radius:10px; background:hsl(var(--muted)); font-size:21px; font-weight:650; }
+.institutional-assistant__mark img { width:100%; height:100%; object-fit:contain; border-radius:inherit; }
 .institutional-assistant__identity p { margin:0 0 3px; font-size:var(--institutional-detail-size); font-weight:550; color:hsl(var(--muted-foreground)); }
 .institutional-assistant__identity h2 { margin:0; font-size:1.2em; line-height:1.4; font-weight:650; letter-spacing:-.02em; }
 .institutional-assistant__utilities { display:flex; flex-wrap:wrap; gap:5px; flex-shrink:0; max-width:100%; }
 .institutional-assistant__body { display:grid; grid-template-columns:235px minmax(0,1fr); min-height:620px; }
+.institutional-assistant--public .institutional-assistant__body { grid-template-columns:minmax(0,1fr); }
+.institutional-assistant__topic-index { padding:8px 23px; border-bottom:1px solid hsl(var(--border)/.7); }
+.institutional-assistant__topic-index summary { min-height:var(--institutional-target-size); padding-block:10px; width:fit-content; cursor:pointer; font-size:var(--institutional-control-size); }
+.institutional-assistant__topic-index nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:4px; }
+.institutional-assistant__topic-index nav button { justify-content:space-between; text-align:left; border:1px solid hsl(var(--border)); }
 .institutional-assistant__sidebar { padding:24px 16px; border-right:1px solid hsl(var(--border)); background:hsl(var(--muted)/.22); min-width:0; }
 .institutional-assistant__eyebrow { margin:0 12px 14px; font-size:var(--institutional-detail-size); letter-spacing:.08em; text-transform:uppercase; color:hsl(var(--muted-foreground)); font-weight:600; }
 .institutional-assistant__sidebar nav { display:grid; gap:4px; }
