@@ -5,7 +5,9 @@
     "deploymentEnabled": {
       "release/neon-paired-acceptance-20261001": false,
       "release/tdf-accessible-audio-20261010": false,
-      "fix/widget-host-theme-switch-20261010": false
+      "fix/widget-host-theme-switch-20261010": false,
+      "feature/realtime-accessible-owner-20261010": false,
+      "release/enterprise-tdf-consolidated-20261010": false
     }
   },
   "headers": [
