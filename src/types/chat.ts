@@ -1,4 +1,5 @@
 // src/types/chat.ts
+import type { AudioRecoveryCallbacks } from '@/features/chat/audioRecovery';
 export interface AttachmentInfo {
   name: string;
   url: string;
@@ -558,6 +559,7 @@ export interface SendPayload {
   audioFilename?: string;
   audioField?: string;
   audioEndpoint?: string;
+  audioRecovery?: AudioRecoveryCallbacks;
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
   action_id?: string; // ID de acción explícito para compatibilidad con payloads interactivos del backend

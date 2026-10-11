@@ -4891,6 +4891,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             tenantSlug={attachmentUploadContext.tenantSlug}
             demoSessionId={attachmentUploadContext.demoSessionId}
             chatSessionId={attachmentUploadContext.chatSessionId}
+            audioContextKey={JSON.stringify(chatBootstrap??null)}
           />
         )}
       </div>

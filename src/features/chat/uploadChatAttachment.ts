@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from "@/utils/api";
+import { captureAudioRecoveryOwner, createRecoverableAudioAttempt, type RecoverableAudioAttempt } from './audioRecovery';
 
 const UPLOAD_ALIAS_RETRY_STATUSES = new Set([404, 405, 501]);
 const DIRECT_UPLOAD_CONTRACT_VERSION = "chat.attachment.direct.v1";
@@ -29,6 +30,7 @@ export type ChatAttachmentUploadContext = {
   chatSessionId?: string | null;
   /** A retired recording may not start another upload stage or accept its ACK. */
   isCurrent?: () => boolean;
+  singleAttempt?: boolean;
 };
 
 const assertUploadCurrent = (context: ChatAttachmentUploadContext) => {
@@ -118,6 +120,7 @@ const postUploadApi = async <T>(
       chatSessionId: context.chatSessionId,
       baseUrlOverride: resolveRootUploadBase(endpoint),
       ...(context.isCurrent ? { isCurrent: context.isCurrent } : {}),
+      singleAttempt: context.singleAttempt,
     });
     assertUploadCurrent(context);
     return response;
@@ -125,7 +128,7 @@ const postUploadApi = async <T>(
     assertUploadCurrent(context);
     const aliasEndpoint = resolveApiAlias(endpoint);
     if (
-      aliasEndpoint &&
+      aliasEndpoint && !context.singleAttempt &&
       error instanceof ApiError &&
       UPLOAD_ALIAS_RETRY_STATUSES.has(error.status)
     ) {
@@ -144,6 +147,47 @@ const postUploadApi = async <T>(
     }
     throw error;
   }
+};
+
+/** Recovery keeps a signed intent in memory. A lost completion ACK must never
+ * start another prepare or repeat the object PUT. Legacy/uncertain PUTs are
+ * deliberately not offered a retry. */
+export const createChatAttachmentUploadAttempt = <T>(
+  endpoint: string,
+  createFormData: () => FormData,
+  context: ChatAttachmentUploadContext = {},
+): RecoverableAudioAttempt<T> => {
+  const owner = captureAudioRecoveryOwner(context.isCurrent);
+  const frozenContext = { ...context, isCurrent: owner, singleAttempt: true };
+  const initialFormData = createFormData();
+  const file = readUploadFile(initialFormData);
+  let phase: 'prepare' | 'put' | 'complete' | 'legacy' = 'prepare';
+  let prepared: DirectUploadPrepareResponse | null = null;
+  return createRecoverableAudioAttempt(async () => {
+    if (!file || !supportsDirectChatAttachmentUpload(endpoint) || !file.name.trim() || !normalizeMimeType(file.type)) {
+      phase = 'legacy';
+      return postUploadApi<T>(endpoint, initialFormData, frozenContext);
+    }
+    if (!prepared) {
+      try { prepared = await prepareDirectUpload(endpoint, file, frozenContext); }
+      catch (error) {
+        if (file.size <= LEGACY_MULTIPART_MAX_FILE_BYTES && isDirectUploadCompatibilityError(error)) {
+          phase = 'legacy';
+          return postUploadApi<T>(endpoint, initialFormData, frozenContext);
+        }
+        throw error;
+      }
+      phase = 'put';
+      await putDirectlyToObjectStorage(prepared, file, frozenContext);
+      phase = 'complete';
+    }
+    return postUploadApi<T>(endpoint, { operation: 'complete_direct_upload', intent_token: prepared.intent_token }, frozenContext);
+  }, owner, error => {
+    if (phase === 'legacy' || phase === 'put' || (error as Error)?.name === 'AbortError') return false;
+    if (error instanceof ApiError && (error.status < 500 ||
+      (error.body as Record<string, unknown> | null)?.code === 'invalid_direct_upload_contract')) return false;
+    return phase === 'prepare' || phase === 'complete';
+  });
 };
 
 const uploadWithLegacyMultipart = <T>(

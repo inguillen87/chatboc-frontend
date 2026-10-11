@@ -54,7 +54,8 @@ import {
   isLegacyDemoSelectorOptionTitle,
   isLegacyDemoSelectorText,
 } from "@/utils/legacyDemoSelector";
-import { sendChatBootstrapMessage } from "@/features/chat/chatApi";
+import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt } from "@/features/chat/chatApi";
+import { audioRecoveryMessage, captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from '@/features/chat/audioRecovery';
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction} from '@/features/chat/institutionalChatMessage';
 import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
@@ -308,7 +309,13 @@ export function useChatLogic({
   const initializationAbortRef=useRef<AbortController|null>(null);
   const initializationMountedRef=useRef(true);
   const conversationScopeGenerationRef=useRef(0);
+  const typingRequestOwnerRef=useRef<symbol|null>(null);
   const initializationScope=JSON.stringify([tipoChat,tenantSlug??null,entityToken??null]);
+  const audioRequestScope=JSON.stringify([initializationScope,chatBootstrap??null]);
+  const audioRequestScopeRef=useRef({scope:audioRequestScope,generation:0});
+  if(audioRequestScopeRef.current.scope!==audioRequestScope){
+    audioRequestScopeRef.current={scope:audioRequestScope,generation:audioRequestScopeRef.current.generation+1};
+  }
   const visitorNameRef=useRef<{scope:string;name:string}|null>(null);
   const initializationScopeRef=useRef(initializationScope);
   if(initializationScopeRef.current!==initializationScope){
@@ -3021,9 +3028,43 @@ export function useChatLogic({
       }
 
       setIsTyping(true);
+      const typingOwner=Symbol('chat-request');
+      typingRequestOwnerRef.current=typingOwner;
+      const releaseAudioTyping=()=>{
+        if(typingRequestOwnerRef.current!==typingOwner)return;
+        typingRequestOwnerRef.current=null;
+        if(isCurrentSend())setIsTyping(false);
+      };
 
       let actionTelemetryTenantSlug: string | null = tenantSlug || null;
       let actionTelemetryTipoChat: "pyme" | "municipio" = tipoChat;
+      let audioAttempt: RecoverableAudioAttempt<any> | null = null;
+      const audioGeneration=audioRequestScopeRef.current.generation;
+      const hasAudioRecovery=Boolean(audioBlob||actualPayload.audioRecovery);
+      const audioIsCurrent=()=>isCurrentSend()&&audioRequestScopeRef.current.scope===audioRequestScope&&
+        audioRequestScopeRef.current.generation===audioGeneration&&actualPayload.audioRecovery?.isCurrent()!==false;
+      const reportAudioFailure=(error:unknown) => {
+        if(!hasAudioRecovery||!audioIsCurrent())return;
+        const retryable=audioAttempt?.canRetry(error)===true;
+        actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(retryable),...(retryable?{retry:async()=>{
+          if(!audioIsCurrent()||!audioAttempt)return;
+          typingRequestOwnerRef.current=typingOwner;
+          setIsTyping(true);
+          actualPayload.audioRecovery?.onPending?.(releaseAudioTyping);
+          try{
+            const recovered=await audioAttempt.run();
+            if(!audioIsCurrent())return;
+            const rendered=processBotPayload(recovered,{fallbackOnEmpty:true});
+            if(rendered)actualPayload.audioRecovery?.onSuccess();
+            else actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(false)});
+          }catch(recoveryError){
+            if(!audioIsCurrent())return;
+            reportAudioFailure(recoveryError);
+            addSystemMessage(getErrorMessage(recoveryError,'No pudimos confirmar este envío.'),'error');
+          }finally{releaseAudioTyping();}
+        }}:{})});
+      };
+      if(hasAudioRecovery)actualPayload.audioRecovery?.onPending?.(releaseAudioTyping);
 
       try {
         const allowRubroInference = tipoChat !== "municipio";
@@ -3146,9 +3187,7 @@ export function useChatLogic({
 
         let response: any;
         if (chatBootstrap) {
-          response = await sendChatBootstrapMessage(
-            chatBootstrap,
-            {
+          const bootstrapPayload = {
               text: questionForBackend,
               intent: typeof resolvedAction === "string" ? resolvedAction : null,
               payload:
@@ -3162,13 +3201,14 @@ export function useChatLogic({
               audioField,
               audioEndpoint,
               extraPayload: requestBody,
-              isCurrent:isCurrentSend,
+              isCurrent:hasAudioRecovery?audioIsCurrent:isCurrentSend,
+              ...(hasAudioRecovery?{singleAttempt:true}:{}),
               ...(requestIdempotencyKey
                 ? { idempotencyKey: requestIdempotencyKey }
                 : {}),
-            },
-            tenantSlug,
-          );
+            };
+          if(audioBlob){audioAttempt=createChatBootstrapAudioAttempt(chatBootstrap,bootstrapPayload);response=await audioAttempt.run();}
+          else response=await sendChatBootstrapMessage(chatBootstrap,bootstrapPayload,tenantSlug);
         } else if (audioBlob) {
           const formData = new FormData();
           formData.append(audioField || "audio_file", audioBlob, audioFilename || `audio-${Date.now()}.webm`);
@@ -3184,7 +3224,9 @@ export function useChatLogic({
             }
             formData.append(key, String(value));
           });
-          response = await apiFetch<any>(endpoint, {
+          const owner=captureAudioRecoveryOwner(audioIsCurrent);
+          const municipalEndpoint=/^\/(?:api\/)?ask\/municipio\/?$/.test(endpoint.split(/[?#]/,1)[0]);
+          audioAttempt=createRecoverableAudioAttempt(()=>apiFetch<any>(endpoint, {
             method: "POST",
             body: formData,
             skipAuth: effectiveSkipAuth,
@@ -3194,8 +3236,11 @@ export function useChatLogic({
             headers: requestIdempotencyKey
               ? { "Idempotency-Key": requestIdempotencyKey }
               : undefined,
-            isCurrent:isCurrentSend,
-          });
+            chatSessionId:sessionId,
+            singleAttempt:true,
+            isCurrent:owner,
+          }),owner,error=>Boolean(requestIdempotencyKey)&&municipalEndpoint&&canReconcileMunicipalAudioError(error));
+          response=await audioAttempt.run();
         } else {
           response = await apiFetch<any>(endpoint, {
             method: "POST",
@@ -3208,12 +3253,17 @@ export function useChatLogic({
               ? { "Idempotency-Key": requestIdempotencyKey }
               : undefined,
             isCurrent:isCurrentSend,
+            ...(hasAudioRecovery?{singleAttempt:true,isCurrent:audioIsCurrent}:{}),
           });
         }
-        if(!isCurrentSend())return;
+        if(!isCurrentSend()||(hasAudioRecovery&&!audioIsCurrent()))return;
         const renderedResponse = processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
         });
+        if(hasAudioRecovery&&audioIsCurrent()){
+          if(renderedResponse)actualPayload.audioRecovery?.onSuccess();
+          else actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(false)});
+        }
         if (resolvedAction || resolvedActionId) {
           trackWidgetEvent(
             renderedResponse
@@ -3239,8 +3289,9 @@ export function useChatLogic({
           }
         }
       } catch (error: any) {
-        if(!isCurrentSend())return;
-        if (error instanceof ApiError && error.status === 409) {
+        if(!isCurrentSend()||(hasAudioRecovery&&!audioIsCurrent()))return;
+        reportAudioFailure(error);
+        if (!hasAudioRecovery && error instanceof ApiError && error.status === 409) {
           resetChatSessionId();
         }
         const trialLimitNotice = readChatTrialLimitNotice(error);
@@ -3311,6 +3362,8 @@ export function useChatLogic({
           },
         ]);
         setIsTyping(false);
+      } finally {
+        if(hasAudioRecovery)releaseAudioTyping();
       }
     },
     [
@@ -3330,6 +3383,7 @@ export function useChatLogic({
       shouldUsePublicFlow,
       liveChatAvailable,
       chatBootstrap,
+      audioRequestScope,
       resolvePersistentPublicContext,
       onTrialLimit,
       initializationScope,

@@ -19,7 +19,8 @@ import {
 } from "@/utils/uploadResponse";
 import { ensureAbsoluteUrl } from "@/utils/chatButtons";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { uploadChatAttachment } from "@/features/chat/uploadChatAttachment";
+import { uploadChatAttachment, createChatAttachmentUploadAttempt } from "@/features/chat/uploadChatAttachment";
+import { audioRecoveryMessage, type AudioRecoveryNotice } from '@/features/chat/audioRecovery';
 import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {
   getChatAttachmentAcceptedTypes,
@@ -52,6 +53,7 @@ interface Props {
   tenantSlug?: string | null;
   demoSessionId?: string | null;
   chatSessionId?: string | null;
+  audioContextKey?: string;
 }
 
 
@@ -140,6 +142,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   tenantSlug,
   demoSessionId,
   chatSessionId,
+  audioContextKey,
 }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -151,7 +154,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const fallbackInputRef = useRef<HTMLInputElement>(null);
   const internalRef = inputRef || fallbackInputRef;
   const audioCompletion=useRef<{token:symbol;isCurrent:()=>boolean}|null>(null);
-  const [recordingDraft,setRecordingDraft]=useState<{blob:Blob;isCurrent:()=>boolean}|null>(null);
+  const [recordingDraft,setRecordingDraft]=useState<{blob:Blob;isCurrent:()=>boolean;recovery?:AudioRecoveryNotice;pending?:boolean;discard?:()=>void}|null>(null);
+  const recordingDraftRef=useRef(recordingDraft);
+  recordingDraftRef.current=recordingDraft;
   const typingNow=useRef(isTyping);typingNow.current=isTyping;
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
   const supportsAudioInput =
@@ -232,12 +237,12 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const showLocationAction = supportsLocationShare && shouldShowToolbarAction("share_location");
   const showAudioAction = supportsAudioInput && shouldShowToolbarAction("record_audio");
   const audioScopeKey=JSON.stringify([tenantSlug??null,demoSessionId??null,chatSessionId??null,
-    showAudioAction,disabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null]);
+    showAudioAction,disabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null,audioContextKey??null,mediaCapabilities??null,channelCapabilities??null]);
   const {isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:showAudioAction&&!disabled});
   if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
   const currentRecordingDraft=recordingDraft?.isCurrent()?recordingDraft:null;
-  useLayoutEffect(()=>{setRecordingDraft(null);},[audioScopeKey]);
-  useLayoutEffect(()=>subscribeChatbocSessionRevision(()=>{setRecordingDraft(null);audioCompletion.current=null;}),[]);
+  useLayoutEffect(()=>{setRecordingDraft(null);return()=>{recordingDraftRef.current?.discard?.();};},[audioScopeKey]);
+  useLayoutEffect(()=>subscribeChatbocSessionRevision(()=>{recordingDraftRef.current?.discard?.();setRecordingDraft(null);audioCompletion.current=null;}),[]);
   const showEmojiAction = shouldShowToolbarAction("emoji");
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const resolvedPlaceholder =
@@ -525,6 +530,18 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const handleSendAudio = async (audioBlob: Blob,isCurrent:()=>boolean) => {
     if (disabled || !isCurrent()) return;
     if(typingNow.current){setRecordingDraft({blob:audioBlob,isCurrent});return;}
+    const recordedOwner=isCurrent;
+    let retained=true;
+    let retirePending:()=>void=()=>{};
+    isCurrent=()=>retained&&recordedOwner();
+    const discard=()=>{retained=false;retirePending();};
+    const recoveryCallbacks={
+      isCurrent,
+      onPending:(retire:()=>void)=>{retirePending=retire;},
+      onFailure:(recovery:AudioRecoveryNotice)=>{if(isCurrent())setRecordingDraft({blob:audioBlob,isCurrent,recovery,discard});},
+      onSuccess:()=>{if(isCurrent())setRecordingDraft(current=>current?.blob===audioBlob?null:current);},
+    };
+    setRecordingDraft({blob:audioBlob,isCurrent,discard,pending:true,recovery:{message:'Enviando tu grabación. Podés descartarla mientras esperamos la confirmación.'}});
     onSystemMessage?.('Enviando audio...', 'info');
     if(!isCurrent())return;
 
@@ -537,6 +554,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
         audioFilename: filename,
         audioField: audioMode.multipart_field || 'audio_file',
         audioEndpoint: audioMode.chat_endpoint || '/ask',
+        audioRecovery: recoveryCallbacks,
         source: 'input',
       });
       return;
@@ -548,12 +566,14 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       return formData;
     };
 
-    try {
-      const data = await uploadChatAttachment<UploadResponse>(
+    const attempt = createChatAttachmentUploadAttempt<UploadResponse>(
         '/archivos/upload/chat_attachment',
         createAudioUploadFormData,
         { tenantSlug, demoSessionId, chatSessionId,isCurrent },
       );
+    const execute = async (): Promise<void> => {
+    try {
+      const data = await attempt.run();
 
       if(!isCurrent())return;
 
@@ -657,6 +677,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
           ...(normalized.id ? { id: normalized.id } : {}),
         },
         archivo_url: absoluteUploadedUrl,
+        audioRecovery:recoveryCallbacks,
         source: 'input',
       });
       // Optional: a success system message could be sent here, but it might be noisy.
@@ -666,7 +687,12 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       console.error("Error al enviar audio:", error);
       const friendlyError = getErrorMessage(error, "Hubo un problema al subir tu grabación.");
       onSystemMessage?.(friendlyError, 'error');
+      const retryable = attempt.canRetry(error);
+      setRecordingDraft({blob:audioBlob,isCurrent,discard,recovery:{message:audioRecoveryMessage(retryable),
+        ...(retryable?{retry:execute}:{})}});
     }
+    };
+    await execute();
   };
 
   return (
@@ -677,18 +703,22 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
         </div>
       ) : null}
       {currentRecordingDraft?<div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
-        <p role="status">{isTyping?'Guardamos tu grabación mientras termina la respuesta. Podés enviarla cuando esté disponible.':'Tu grabación está lista. Podés enviarla o descartarla.'}</p>
+        <p role="status">{currentRecordingDraft.recovery?.message||(isTyping?'Guardamos tu grabación mientras termina la respuesta. Podés enviarla cuando esté disponible.':'Tu grabación está lista. Podés enviarla o descartarla.')}</p>
         <div className="mt-2 flex flex-wrap gap-2">
+          {!currentRecordingDraft.recovery||currentRecordingDraft.recovery.retry?
           <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            disabled={isTyping||disabled} onClick={async()=>{
+            disabled={isTyping||disabled||currentRecordingDraft.pending} onClick={async()=>{
               const draft=currentRecordingDraft;
               if(!draft.isCurrent()||typingNow.current||audioCompletion.current?.isCurrent())return;
               const completion=Symbol('recording-draft');audioCompletion.current={token:completion,isCurrent:draft.isCurrent};
-              setRecordingDraft(null);
-              try{await handleSendAudio(draft.blob,draft.isCurrent);}finally{if(audioCompletion.current?.token===completion)audioCompletion.current=null;}
-            }}>Enviar grabación</button>
+              setRecordingDraft({...draft,pending:true});
+              try{if(draft.recovery?.retry)await draft.recovery.retry();else await handleSendAudio(draft.blob,draft.isCurrent);}finally{
+                if(audioCompletion.current?.token===completion)audioCompletion.current=null;
+                if(draft.isCurrent())setRecordingDraft(current=>current?.blob===draft.blob?{...current,pending:false}:current);
+              }
+            }}>{currentRecordingDraft.recovery?'Comprobar envío':'Enviar grabación'}</button>:null}
           <button type="button" className="rounded-lg border border-border bg-background px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            onClick={()=>setRecordingDraft(null)}>Descartar grabación</button>
+            onClick={()=>{currentRecordingDraft.discard?.();setRecordingDraft(null);}}>Descartar grabación</button>
         </div>
       </div>:null}
       {draftRecovered ? (

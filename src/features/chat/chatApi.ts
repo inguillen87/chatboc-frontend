@@ -8,6 +8,7 @@ import {
 } from '@/utils/municipalChatIdempotency';
 import type { ChatBootstrapConfig, ChatRatingValue } from './chatTypes';
 import type { ChatLeadCaptureConfig } from '@/types/chat';
+import { captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from './audioRecovery';
 
 export { createLeadCaptureIdempotencyKey };
 
@@ -26,6 +27,7 @@ export interface ChatBootstrapMessagePayload {
   extraPayload?: Record<string, unknown>;
   idempotencyKey?: string;
   isCurrent?: () => boolean;
+  singleAttempt?: boolean;
 }
 
 export interface LeadCaptureNextAction {
@@ -987,8 +989,38 @@ export const sendChatBootstrapMessage = async (
       omitChatSessionId: true,
       suppressPanel401Redirect: true,
       baseUrlOverride: resolveSameOriginChatBase(target),
+      ...(payload.singleAttempt?{singleAttempt:true}:{}),
       ...(payload.isCurrent ? { isCurrent: payload.isCurrent } : {}),
     });
 
   return normalizeChatBootstrapResponse(await requestEndpoint(endpoint));
+};
+
+/** Freeze the entire multipart request before its first dispatch. Recovery uses
+ * the same URL, bytes, filename, form fields, actor and municipal key. */
+export const createChatBootstrapAudioAttempt = (
+  bootstrap: ChatBootstrapConfig,
+  payload: ChatBootstrapMessagePayload,
+): RecoverableAudioAttempt<any> => {
+  const rawEndpoint = payload.audioEndpoint?.trim() || bootstrap.same_origin_endpoint?.trim() || bootstrap.endpoint?.trim();
+  if (!payload.audioBlob || !rawEndpoint) throw new ApiError('No hay un destino válido para esta grabación.', 400);
+  const endpoint = normalizeChatBootstrapEndpoint(rawEndpoint);
+  const municipal = isMunicipalChatEndpoint(endpoint) && isMunicipalBootstrapRequest(bootstrap, payload, endpoint);
+  const key = municipal ? normalizeMunicipalChatIdempotencyKey(payload.idempotencyKey) || createMunicipalChatIdempotencyKey() : null;
+  const owner = captureAudioRecoveryOwner(payload.isCurrent);
+  const filename = payload.audioFilename || `audio-${Date.now()}.webm`;
+  const body = buildAudioPayload(bootstrap, { ...payload, audioFilename: filename });
+  const headers = normalizeBootstrapHeaders(bootstrap) ?? {};
+  removeHeader(headers, 'Idempotency-Key');
+  removeHeader(headers, 'Content-Type');
+  if (key) headers['Idempotency-Key'] = key;
+  const url = appendQuery(endpoint, sanitizeBootstrapQuery(bootstrap));
+  const base = resolveSameOriginChatBase(endpoint);
+  const method = resolveBootstrapMethod(bootstrap.method);
+  return createRecoverableAudioAttempt(async () => normalizeChatBootstrapResponse(await apiFetch<unknown>(url, {
+    method, body, headers: { ...headers },
+    skipAuth: true, isWidgetRequest: true, tenantSlug: null, omitTenant: true,
+    omitChatSessionId: true, suppressPanel401Redirect: true, baseUrlOverride: base,
+    singleAttempt: true, isCurrent: owner,
+  })), owner, error => municipal && canReconcileMunicipalAudioError(error));
 };

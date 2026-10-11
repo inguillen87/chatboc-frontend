@@ -7,6 +7,9 @@ import {readKnowledgeSource,knowledgeSourceReadMessage,subscribeKnowledgeSourceA
 import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 export interface KnowledgeReview {operation:'import'|'publish'|'retire';bundle?:unknown;filename?:string}
 interface BaseProps {workspace:KnowledgeWorkspace;restoreFocus:()=>void;largeText?:boolean}
+// Institutional dialogs can open above the standalone assistant and the
+// platform accessibility dock. Their backdrop must cover both floating layers.
+const INSTITUTIONAL_DIALOG_LAYER = 'z-[1000004]';
 export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,mode='admin',highlightedSourceId,largeText=false}:{open:boolean;onOpenChange:(open:boolean)=>void;mode?:'admin'|'public';highlightedSourceId?:string|null}&BaseProps){
  const title=useRef<HTMLHeadingElement>(null),ui=workspace.ui;
  const mounted=useRef(false),visible=useRef(open),sequence=useRef(0),controller=useRef<AbortController|null>(null),url=useRef<string|null>(null),locked=useRef(false);
@@ -54,7 +57,7 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
   finally{if(isCurrent()){locked.current=false;setPending(null);}}
  };
  return <Dialog open={open} onOpenChange={value=>{if(!value)retire();onOpenChange(value);}}>
-  <DialogContent showCloseButton={false} className={`institutional-assistant-dialog institutional-assistant-dialog--sources${largeText?' institutional-assistant-dialog--large':''}`}
+  <DialogContent showCloseButton={false} overlayClassName={INSTITUTIONAL_DIALOG_LAYER} className={`${INSTITUTIONAL_DIALOG_LAYER} institutional-assistant-dialog institutional-assistant-dialog--sources${largeText?' institutional-assistant-dialog--large':''}`}
    aria-describedby={undefined}
    onOpenAutoFocus={event=>{event.preventDefault();title.current?.focus();}}
    onCloseAutoFocus={event=>{event.preventDefault();restoreFocus();}}>
@@ -97,7 +100,7 @@ export function KnowledgeReviewDialog({workspace,pending,onCancel,onConfirm,rest
  const heading=pending?.operation==='import'?ui.import:pending?.operation==='publish'?ui.publish:ui.retire;
  const description=pending?.operation==='import'?ui.import_help:pending?.operation==='publish'?ui.confirm_publish:ui.confirm_retire;
  return <Dialog open={pending!==null} onOpenChange={open=>{if(!open)onCancel();}}>
-  <DialogContent showCloseButton={false} className={`institutional-assistant-dialog institutional-assistant-dialog--review${largeText?' institutional-assistant-dialog--large':''}`}
+  <DialogContent showCloseButton={false} overlayClassName={INSTITUTIONAL_DIALOG_LAYER} className={`${INSTITUTIONAL_DIALOG_LAYER} institutional-assistant-dialog institutional-assistant-dialog--review${largeText?' institutional-assistant-dialog--large':''}`}
    onOpenAutoFocus={event=>{event.preventDefault();cancel.current?.focus();}}
    onCloseAutoFocus={event=>{event.preventDefault();restoreFocus();}}>
    <header className="institutional-assistant-dialog__header"><div>

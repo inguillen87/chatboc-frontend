@@ -18,6 +18,7 @@ import {
   getBootstrapSessionValues,
   normalizeLeadCaptureResponse,
   sendChatBootstrapMessage,
+  createChatBootstrapAudioAttempt,
   submitWidgetAssistedOrder,
   submitLeadCapture,
   type LeadCaptureNextAction,
@@ -27,6 +28,7 @@ import {
   type OperationalOrderResult,
   type OperationalTicketResult,
 } from './chatApi';
+import { audioRecoveryMessage, type RecoverableAudioAttempt } from './audioRecovery';
 import type { ChatBootstrapConfig, ChatPanelContext, ChatUiMessage, HandoffLabels, HandoffState, QuickReplyItem } from './chatTypes';
 import type {
   ChatAnimationTokens,
@@ -874,12 +876,23 @@ function StandaloneChatPanel({
     }
     if (hasRuntimeChat && resolvedChatBootstrap) {
       void (async () => {
+        let audioAttempt: RecoverableAudioAttempt<any> | null = null;
+        const audioIsCurrent=()=>payload.audioRecovery?.isCurrent()!==false;
+        const reportAudioFailure=(error:unknown) => {
+          if(!payload.audioBlob||!audioIsCurrent())return;
+          const retryable=audioAttempt?.canRetry(error)===true;
+          payload.audioRecovery?.onFailure({message:audioRecoveryMessage(retryable),...(retryable?{retry:async()=>{
+            if(!audioIsCurrent())return;
+            try{await runRuntimeChat();}catch(recoveryError){reportAudioFailure(recoveryError);}
+          }}:{})});
+        };
         const runRuntimeChat = async () => {
-          const response = await sendChatBootstrapMessage(
-            resolvedChatBootstrap,
-            payload,
-            resolvedContext.tenantSlug,
-          );
+          let response: any;
+          if(payload.audioBlob){
+            audioAttempt ??= createChatBootstrapAudioAttempt(resolvedChatBootstrap,{...payload,isCurrent:audioIsCurrent});
+            response=await audioAttempt.run();
+            if(!audioIsCurrent())return;
+          }else response=await sendChatBootstrapMessage(resolvedChatBootstrap,payload,resolvedContext.tenantSlug);
           const replyText = extractChatBootstrapReplyText(response);
           if (isTechnicalAssistantReply(response, replyText)) {
             throw new Error('Respuesta tecnica del runtime de chat demo.');
@@ -891,7 +904,10 @@ function StandaloneChatPanel({
           }
           onRuntimeResult?.(response, runtimeLeadResult);
           setRuntimeReplies(extractRuntimeQuickReplies(response, Boolean(surveyMenu)));
-          if (!replyText) return;
+          if (!replyText) {
+            if(payload.audioBlob)payload.audioRecovery?.onFailure({message:audioRecoveryMessage(false)});
+            return;
+          }
           setMessages((prev) => [
             ...prev,
             {
@@ -904,6 +920,7 @@ function StandaloneChatPanel({
               surveyMenu,
             },
           ]);
+          if(payload.audioBlob)payload.audioRecovery?.onSuccess();
         };
 
         try {
@@ -949,12 +966,15 @@ function StandaloneChatPanel({
             }
           }
           await runRuntimeChat();
-        } catch {
+        } catch (error) {
+          if(payload.audioBlob&&!audioIsCurrent())return;
+          reportAudioFailure(error);
           const isDemoRuntime = Boolean(
             readBootstrapDemoSessionId(resolvedChatBootstrap) ||
               resolvedChatBootstrap?.payload?.demo_mode === true,
           );
           const errorText =
+            payload.audioBlob?'No pudimos confirmar tu grabación. Revisá las opciones que aparecen junto al mensaje.':
             runtimeUnavailableDescription ||
             runtimeUnavailableTitle ||
             (isDemoRuntime
@@ -1232,6 +1252,7 @@ function StandaloneChatPanel({
         tenantSlug={attachmentUploadContext.tenantSlug}
         demoSessionId={attachmentUploadContext.demoSessionId}
         chatSessionId={attachmentUploadContext.chatSessionId}
+        audioContextKey={JSON.stringify(resolvedChatBootstrap)}
         disabled={!hasRuntimeChat}
       />
       <ConversationRating conversationId={conversationId} />

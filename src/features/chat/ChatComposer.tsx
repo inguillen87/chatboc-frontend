@@ -6,6 +6,8 @@ import { getErrorMessage } from '@/utils/api';
 import { requestLocation } from '@/utils/geolocation';
 import useAudioRecorder,{recordedAudioFilename} from '@/hooks/useAudioRecorder';
 import type { ChatMediaCapabilities, ChatMediaInputModeConfig } from '@/types/chat';
+import type { AudioRecoveryCallbacks, AudioRecoveryNotice } from './audioRecovery';
+import { subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { uploadChatAttachment } from './uploadChatAttachment';
 import {
   getChatAttachmentAcceptedTypes,
@@ -24,6 +26,7 @@ export interface ChatComposerPayload {
   audioFilename?: string;
   audioField?: string;
   audioEndpoint?: string;
+  audioRecovery?: AudioRecoveryCallbacks;
 }
 
 type AttachmentDraft = {
@@ -43,6 +46,7 @@ export default function ChatComposer({
   tenantSlug,
   demoSessionId,
   chatSessionId,
+  audioContextKey,
   disabled = false,
 }: {
   onSend: (payload: ChatComposerPayload) => void;
@@ -55,6 +59,7 @@ export default function ChatComposer({
   tenantSlug?: string | null;
   demoSessionId?: string | null;
   chatSessionId?: string | null;
+  audioContextKey?: string;
   disabled?: boolean;
 }) {
   const [text, setText] = useState('');
@@ -64,6 +69,9 @@ export default function ChatComposer({
   const [selectedFileMode, setSelectedFileMode] = useState<'image' | 'file'>('file');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioCompletion=useRef<{token:symbol;isCurrent:()=>boolean}|null>(null);
+  const [audioDraft,setAudioDraft]=useState<{blob:Blob;isCurrent:()=>boolean;notice:AudioRecoveryNotice;pending?:boolean;discard:()=>void}|null>(null);
+  const audioDraftRef=useRef(audioDraft);
+  audioDraftRef.current=audioDraft;
 
   useEffect(() => {
     if (typeof draftText !== 'string') return;
@@ -88,8 +96,11 @@ export default function ChatComposer({
   );
   const audioEnabled=enabledActions.some(action=>action.type==='audio')&&!disabled;
   const audioScopeKey=JSON.stringify([tenantSlug??null,demoSessionId??null,chatSessionId??null,
-    audioEnabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null]);
+    audioEnabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null,audioContextKey??null,mediaCapabilities??null]);
   const {recorderState,isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:audioEnabled});
+  const currentAudioDraft=audioDraft?.isCurrent()?audioDraft:null;
+  useEffect(()=>{setAudioDraft(null);return()=>{audioDraftRef.current?.discard();};},[audioScopeKey]);
+  useEffect(()=>subscribeChatbocSessionRevision(()=>{audioDraftRef.current?.discard();setAudioDraft(null);}),[]);
   if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
   useEffect(()=>{setComposerState(value=>value==='recording'||value==='transcribing'?'idle':value);},[audioScopeKey]);
   useEffect(()=>{
@@ -210,16 +221,22 @@ export default function ChatComposer({
   };
 
   const toggleAudio = async () => {
+    if(currentAudioDraft)return;
     if(audioCompletion.current?.isCurrent())return;
     audioCompletion.current=null;
     if(isStarting){cancelRecording();setComposerState('idle');return;}
-    const isCurrent=captureRecordingOwner();
+    const recordedOwner=captureRecordingOwner();
+    let retained=true;
+    let retirePending:()=>void=()=>{};
+    const isCurrent=()=>retained&&recordedOwner();
+    const discard=()=>{retained=false;retirePending();};
     if (isRecording) {
       const completion=Symbol('recording-completion');audioCompletion.current={token:completion,isCurrent};
       setComposerState('transcribing');
       try {
         const audioBlob = await stopRecording();
         if (audioBlob&&isCurrent()) {
+          setAudioDraft({blob:audioBlob,isCurrent,discard,pending:true,notice:{message:'Enviando tu grabación. Podés descartarla mientras esperamos la confirmación.'}});
           onSend({
             text: text.trim(),
             intent,
@@ -228,6 +245,12 @@ export default function ChatComposer({
             audioFilename: recordedAudioFilename(audioBlob,'audio'),
             audioField: audioMode?.multipart_field || 'audio_file',
             audioEndpoint: audioMode?.chat_endpoint || undefined,
+            audioRecovery: {
+              isCurrent,
+              onPending:retire=>{retirePending=retire;},
+              onFailure: notice => {if(isCurrent())setAudioDraft({blob:audioBlob,isCurrent,notice,discard});},
+              onSuccess: () => {if(isCurrent())setAudioDraft(current=>current?.blob===audioBlob?null:current);},
+            },
           });
           if(isCurrent()){setText('');setError(null);}
         }
@@ -310,6 +333,23 @@ export default function ChatComposer({
           });
         }}
       />
+      {currentAudioDraft ? <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground">
+        <p role="status">{currentAudioDraft.notice.message}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {currentAudioDraft.notice.retry?<Button type="button" size="sm" disabled={disabled||currentAudioDraft.pending}
+            onClick={async()=>{
+              const draft=currentAudioDraft;
+              if(!draft.isCurrent()||audioCompletion.current?.isCurrent())return;
+              const token=Symbol('audio-recovery');audioCompletion.current={token,isCurrent:draft.isCurrent};
+              setAudioDraft({...draft,pending:true});
+              try{await draft.notice.retry?.();}finally{
+                if(audioCompletion.current?.token===token)audioCompletion.current=null;
+                if(draft.isCurrent())setAudioDraft(current=>current?.blob===draft.blob?{...current,pending:false}:current);
+              }
+            }}>Comprobar envío</Button>:null}
+          <Button type="button" size="sm" variant="outline" onClick={()=>{currentAudioDraft.discard();setAudioDraft(null);}}>Descartar grabación</Button>
+        </div>
+      </div>:null}
       {attachmentDraft ? (
         <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-2">
           {attachmentDraft.previewUrl ? (
@@ -375,7 +415,7 @@ export default function ChatComposer({
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5 px-2 text-xs"
-                disabled={disabled || (composerState !== 'idle' && !(action.type === 'audio' && (isRecording||isStarting)))}
+                disabled={disabled || (action.type==='audio'&&Boolean(currentAudioDraft)) || (composerState !== 'idle' && !(action.type === 'audio' && (isRecording||isStarting)))}
                 onClick={() => handleAction(action.type)}
                 title={action.type==='audio'&&isStarting?'Cancelar grabación':action.type==='audio'&&isRecording?'Detener grabación':action.label}
               >
