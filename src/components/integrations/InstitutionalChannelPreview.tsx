@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
@@ -15,7 +15,8 @@ import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscri
 type RequestContext = { slug: string; scopeKey: string; sessionRevision: number; panelGeneration: number; tenantId?: number };
 type PreviewRead = { context: RequestContext; status: 'ready'; workspace: KnowledgeWorkspace; answer: InstitutionalMessage } |
   { context: RequestContext; status: 'loading' | 'legacy' | 'error' };
-type PreviewFocus = { scopeKey: string; attempt: number; context: RequestContext | null; origin: HTMLElement; moved: boolean };
+type PreviewFocus = { scopeKey: string; attempt: number; context: RequestContext | null;
+  origin: HTMLElement; retiring: boolean; cleanup: () => void };
 
 const actorAuthority = (value: unknown) => {
   const actor = value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -46,14 +47,19 @@ export default function InstitutionalChannelPreview() {
   const [read, setRead] = useState<PreviewRead | null>(null);
   const [panelGeneration, setPanelGeneration] = useState(0);
   const panelGenerationRef = useRef(0);
+  const requestFocus = useRef<PreviewFocus | null>(null);
+  const retireFocus = useCallback(() => {
+    const focus = requestFocus.current; requestFocus.current = null; focus?.cleanup();
+  }, []);
   // Retire synchronous panel authority changes before React renders, including A→B→A in one batch.
   // Tokens are compared only in memory; they are never included in a scope key or rendered.
   useLayoutEffect(() => usePanelSessionStore.subscribe((next, previous) => {
     if (next.authToken !== previous.authToken || actorAuthority(next.user) !== actorAuthority(previous.user)) {
       panelGenerationRef.current += 1;
+      retireFocus();
       setPanelGeneration(panelGenerationRef.current);
     }
-  }), []);
+  }), [retireFocus]);
   const explicit = readExplicitTenantRequest(searchParams);
   const routeSlug = normalizeProfileTenantSlug(routeTenant);
   const conflict = !explicit.valid || Boolean(routeTenant && !routeSlug) ||
@@ -70,10 +76,26 @@ export default function InstitutionalChannelPreview() {
   [scopeKey, slug, sessionRevision, panelGeneration, identity?.tenantId, attempt]);
   const activeContext = useRef<RequestContext | null>(null);
   const activeNavigation = useRef<object | null>(null);
-  const requestFocus = useRef<PreviewFocus | null>(null);
-  const responseContainer = useRef<HTMLDivElement>(null);
-  const loadingMessage = useRef<HTMLParagraphElement>(null);
-  const failureMessage = useRef<HTMLDivElement>(null);
+  const responseContainer = useRef<HTMLDivElement | null>(null);
+  const loadingMessage = useRef<HTMLParagraphElement | null>(null);
+  const failureMessage = useRef<HTMLDivElement | null>(null);
+  // Ref detachment identifies our own control replacement. BODY is owned only
+  // for that replacement, never after a voluntary blur of a retained control.
+  const setResponseContainer = useCallback((element: HTMLDivElement | null) => {
+    const focus = requestFocus.current;
+    if (!element && focus && responseContainer.current?.contains(focus.origin)) focus.retiring = true;
+    responseContainer.current = element;
+  }, []);
+  const setLoadingMessage = useCallback((element: HTMLParagraphElement | null) => {
+    const focus = requestFocus.current;
+    if (!element && focus?.origin === loadingMessage.current) focus.retiring = true;
+    loadingMessage.current = element;
+  }, []);
+  const setFailureMessage = useCallback((element: HTMLDivElement | null) => {
+    const focus = requestFocus.current;
+    if (!element && focus && failureMessage.current?.contains(focus.origin)) focus.retiring = true;
+    failureMessage.current = element;
+  }, []);
   const isCurrent = (candidate: RequestContext) => activeContext.current === candidate &&
     candidate.panelGeneration === panelGenerationRef.current && isChatbocSessionRevisionCurrent(candidate.sessionRevision);
 
@@ -84,18 +106,32 @@ export default function InstitutionalChannelPreview() {
     // A retry replaces the read context, but owns focus only for its exact
     // attempt and unchanged verified authority; an initial read owns no focus.
     if (focus && context && focus.scopeKey === context.scopeKey && focus.attempt === attempt) focus.context = context;
-    else requestFocus.current = null;
+    else retireFocus();
     return () => { activeContext.current = null; activeNavigation.current = null; };
-  }, [context, attempt]);
+  }, [context, attempt, retireFocus]);
 
-  useLayoutEffect(() => {
+  useLayoutEffect(() => () => retireFocus(), [retireFocus]);
+  const ownFocus = (origin: HTMLElement, focusAttempt: number, focusContext: RequestContext | null) => {
+    retireFocus();
+    if (!context || document.activeElement !== origin) return;
+    const focus: PreviewFocus = { scopeKey: context.scopeKey, attempt: focusAttempt,
+      context: focusContext, origin, retiring: false, cleanup: () => {} };
+    requestFocus.current = focus;
     const trackFocus = (event: FocusEvent) => {
-      const focus = requestFocus.current;
-      if (focus && event.target !== focus.origin && event.target !== loadingMessage.current) focus.moved = true;
+      if (requestFocus.current === focus && event.target !== focus.origin) retireFocus();
+    };
+    const trackBlur = (event: FocusEvent) => {
+      if (requestFocus.current !== focus || event.target !== focus.origin) return;
+      if (focus.retiring && (event.relatedTarget === null || event.relatedTarget === document.body)) return;
+      retireFocus();
+    };
+    focus.cleanup = () => {
+      document.removeEventListener('focusin', trackFocus);
+      document.removeEventListener('focusout', trackBlur);
     };
     document.addEventListener('focusin', trackFocus);
-    return () => { requestFocus.current = null; document.removeEventListener('focusin', trackFocus); };
-  }, []);
+    document.addEventListener('focusout', trackBlur);
+  };
 
   useEffect(() => {
     if (!context) return;
@@ -117,22 +153,20 @@ export default function InstitutionalChannelPreview() {
   const matching = context && read?.context === context ? read : null;
   useLayoutEffect(() => {
     const focus = requestFocus.current;
-    if (!context || focus?.context !== context || !isCurrent(context)) return;
-    if (focus.moved || (document.activeElement !== document.body && document.activeElement !== focus.origin && document.activeElement !== loadingMessage.current)) {
-      requestFocus.current = null;
-      return;
-    }
-    if (!matching || matching.status === 'loading') loadingMessage.current?.focus({ preventScroll: true });
-    else {
-      if (matching.status === 'ready') responseContainer.current?.querySelector<HTMLHeadingElement>('h3')?.focus({ preventScroll: true });
-      else failureMessage.current?.focus({ preventScroll: true });
-      requestFocus.current = null;
-    }
-  }, [context, matching]);
+    if (!focus || !context || focus.context !== context || !isCurrent(context)) return;
+    const active = document.activeElement;
+    if (active !== focus.origin && !(active === document.body && focus.retiring)) { retireFocus(); return; }
+    const pending = !matching || matching.status === 'loading';
+    const target = pending ? loadingMessage.current : matching.status === 'ready'
+      ? responseContainer.current?.querySelector<HTMLHeadingElement>('h3') : failureMessage.current;
+    if (!target?.isConnected) { retireFocus(); return; }
+    focus.origin = target; focus.retiring = false;
+    target.focus({ preventScroll: true });
+    if (!pending || document.activeElement !== target) retireFocus();
+  }, [context, matching, retireFocus]);
   const retry = (origin: HTMLButtonElement) => {
     if (!context || !isCurrent(context)) return;
-    requestFocus.current = document.activeElement === origin
-      ? { scopeKey: context.scopeKey, attempt: attempt + 1, context: null, origin, moved: false } : null;
+    ownFocus(origin, attempt + 1, null);
     setAttempt(value => value + 1);
   };
   const navigate = async (nodeId: string) => {
@@ -140,8 +174,8 @@ export default function InstitutionalChannelPreview() {
     const navigation = {};
     activeNavigation.current = navigation;
     const origin = document.activeElement;
-    requestFocus.current = origin instanceof HTMLElement && origin.hasAttribute('data-institutional-choice')
-      ? { scopeKey: context.scopeKey, attempt, context, origin, moved: false } : null;
+    if (origin instanceof HTMLElement && origin.hasAttribute('data-institutional-choice')) ownFocus(origin, attempt, context);
+    else retireFocus();
     const current = () => isCurrent(context) && activeNavigation.current === navigation;
     const workspace = matching.workspace;
     // Retire the preceding response, including its sources and options, while the read is pending.
@@ -172,15 +206,15 @@ export default function InstitutionalChannelPreview() {
       {conflict ? 'La organización de la dirección no coincide. Revisá la URL para consultar su contenido público.'
         : userLoading || isLoadingTenant ? 'Verificando la organización y la sesión.'
           : 'Necesitamos una organización y una sesión verificadas para mostrar esta vista previa.'}
-    </p> : !matching || matching.status === 'loading' ? <p ref={loadingMessage} tabIndex={-1} role="status" className="mt-4 text-sm">Consultando el contenido público de esta organización…</p>
-      : matching.status === 'error' ? <div ref={failureMessage} tabIndex={-1} role="alert" className="mt-4 space-y-3 text-sm leading-relaxed">
+    </p> : !matching || matching.status === 'loading' ? <p ref={setLoadingMessage} tabIndex={-1} role="status" className="mt-4 text-sm">Consultando el contenido público de esta organización…</p>
+      : matching.status === 'error' ? <div ref={setFailureMessage} tabIndex={-1} role="alert" className="mt-4 space-y-3 text-sm leading-relaxed">
         <p>No pudimos verificar el contenido público de esta organización. La respuesta, sus opciones y sus fuentes se retiraron.</p>
         <Button type="button" variant="outline" className="min-h-11" onClick={event => retry(event.currentTarget)}>Reintentar contenido público</Button>
-      </div> : matching.status === 'legacy' ? <div ref={failureMessage} tabIndex={-1} role="status" className="mt-4 space-y-3 text-sm leading-relaxed">
+      </div> : matching.status === 'legacy' ? <div ref={setFailureMessage} tabIndex={-1} role="status" className="mt-4 space-y-3 text-sm leading-relaxed">
         <p>No hay un menú institucional público disponible para esta organización.</p>
         <p>La simulación del canal muestra únicamente el borrador de prueba.</p>
         <Button type="button" variant="outline" className="min-h-11" onClick={event => retry(event.currentTarget)}>Volver a consultar contenido público</Button>
-      </div> : <div ref={responseContainer} className="mt-4 min-w-0">
+      </div> : <div ref={setResponseContainer} className="mt-4 min-w-0">
         <p className="break-words font-medium">{matching.workspace.tenant.name}</p>
         <p className="mt-1 text-sm text-muted-foreground">
           {matching.workspace.knowledge!.node_count} nodos · {matching.workspace.knowledge!.sources.length} fuentes

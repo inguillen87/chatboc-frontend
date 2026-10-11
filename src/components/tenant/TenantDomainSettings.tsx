@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { getTenantDomain, saveTenantDomain, tenantDomainErrorMessage, type DomainTenantScope, type TenantDomainDescriptor } from '@/api/tenantDomain';
+import { ApiError } from '@/utils/api';
 
 const labels = { unconfigured:'Sin dominio propio',pending_dns:'Pendiente de verificar DNS',pending_platform:'DNS confirmado · falta publicación y HTTPS',
   active:'Dominio verificado y activo',revoked:'Dominio desvinculado',verification_expired:'Verificación vencida' };
@@ -13,12 +14,22 @@ export function TenantDomainSettings({ tenant, scopeKey }: { tenant: DomainTenan
   const key = JSON.stringify([scopeKey,tenant.id,tenant.slug]);
   const active = useRef(key); active.current = key;
   const inFlight = useRef<string | null>(null);
+  const accessEpoch = useRef(0);
   const [state,setState] = useState<{key:string;domain:TenantDomainDescriptor|null;error:string|null;busy:boolean}>({key,domain:null,error:null,busy:true});
   const [draft,setDraft] = useState(''), [confirmRevoke,setConfirmRevoke] = useState(false), [copied,setCopied] = useState(false);
   const [clock,setClock] = useState<{key:string;domain:TenantDomainDescriptor|null;now:number}>({key,domain:null,now:Date.now()});
   const publicSite = useRef<HTMLAnchorElement>(null), refreshControl = useRef<HTMLButtonElement>(null);
   const retiredLink = useRef<{key:string;domain:TenantDomainDescriptor;link:HTMLAnchorElement}|null>(null);
   const isCurrent = (initiating:string) => active.current === initiating;
+  const rejectAccess = (error:unknown,initiating:string) => {
+    if(!isCurrent(initiating)||!(error instanceof ApiError)||![401,403].includes(error.status))return false;
+    // A current authority rejection retires the earlier descriptor and local
+    // actions. Transport failures still preserve work for an explicit retry.
+    accessEpoch.current+=1;retiredLink.current=null;
+    setDraft('');setConfirmRevoke(false);setCopied(false);
+    setState({key:initiating,domain:null,error:tenantDomainErrorMessage(error),busy:false});
+    return true;
+  };
   const load = async () => {
     if(inFlight.current===key)return;
     inFlight.current=key;
@@ -26,7 +37,7 @@ export function TenantDomainSettings({ tenant, scopeKey }: { tenant: DomainTenan
     try {
       const domain=await getTenantDomain(tenant,()=>isCurrent(initiating));
       if(isCurrent(initiating))setState({key,domain,error:null,busy:false});
-    } catch(error){if(isCurrent(initiating))setState(previous=>({...previous,key,error:tenantDomainErrorMessage(error),busy:false}));}
+    } catch(error){if(!rejectAccess(error,initiating)&&isCurrent(initiating))setState(previous=>({...previous,key,error:tenantDomainErrorMessage(error),busy:false}));}
     finally{if(inFlight.current===initiating)inFlight.current=null;}
   };
   useEffect(()=>{
@@ -62,13 +73,14 @@ export function TenantDomainSettings({ tenant, scopeKey }: { tenant: DomainTenan
     try{
       const updated=await saveTenantDomain(tenant,domain,operation,operation==='request'?draft:undefined,()=>isCurrent(initiating));
       if(isCurrent(initiating)){setState({key,domain:updated,error:null,busy:false});if(operation==='request')setDraft(updated.host||'');}
-    }catch(error){if(isCurrent(initiating))setState(previous=>({...previous,error:tenantDomainErrorMessage(error),busy:false}));}
+    }catch(error){if(!rejectAccess(error,initiating)&&isCurrent(initiating))setState(previous=>({...previous,error:tenantDomainErrorMessage(error),busy:false}));}
     finally{if(inFlight.current===initiating)inFlight.current=null;}
   };
   const copyProof=async()=>{
-    const initiating=key, proof=domain?.dns_proof;if(!proof||busy||observationExpired())return;
-    try{await navigator.clipboard.writeText(proof.value);if(isCurrent(initiating))setCopied(true);}
-    catch{if(isCurrent(initiating))setState(previous=>({...previous,error:'No pudimos copiar el valor. Podés seleccionarlo y copiarlo desde el registro TXT.'}));}
+    const initiating=key, epoch=accessEpoch.current, proof=domain?.dns_proof;if(!proof||busy||observationExpired())return;
+    const current=()=>isCurrent(initiating)&&accessEpoch.current===epoch;
+    try{await navigator.clipboard.writeText(proof.value);if(current())setCopied(true);}
+    catch{if(current())setState(previous=>({...previous,error:'No pudimos copiar el valor. Podés seleccionarlo y copiarlo desde el registro TXT.'}));}
   };
   return <Card className="mt-4" aria-busy={busy}>
     <CardHeader><CardTitle>Dominio propio</CardTitle></CardHeader>
