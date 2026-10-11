@@ -90,7 +90,7 @@ describe('institutional voice controls',()=>{
     const user=userEvent.setup();let reject!:(cause:Error)=>void;
     mocks.read.mockReturnValueOnce(new Promise<Blob>((_,fail)=>{reject=fail;}));
     render(<InstitutionalResponseAudio scope={scope} copy={copy}/>);
-    await user.tab();await user.keyboard('{Enter}');expect(screen.getByRole('button',{name:copy.loading})).toBeDisabled();
+    await user.tab();await user.keyboard('{Enter}');expect(screen.getByRole('button',{name:copy.loading})).toHaveAttribute('aria-disabled','true');
     await user.tab();expect(screen.getByRole('button',{name:copy.stop})).toHaveFocus();
     await act(async()=>{reject(new Error('PRIVATE_PROVIDER_FAILURE'));});
     expect(screen.getByRole('button',{name:copy.listen})).toHaveFocus();expect(screen.getByRole('alert')).toHaveTextContent(copy.error);

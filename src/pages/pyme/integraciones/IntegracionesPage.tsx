@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, useId } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
@@ -412,6 +412,8 @@ const IntegracionesPage = () => {
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [notifyTelegram, setNotifyTelegram] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState(true);
+  const notificationEmailId = useId();
+  const notificationActivityId = useId();
   const [widgetQuickMenu, setWidgetQuickMenu] = useState<QuickMenuPreviewItem[]>([]);
   const [whatsappSandbox, setWhatsappSandbox] =
     useState<WhatsappSandboxState>(DEFAULT_WHATSAPP_SANDBOX);
@@ -2126,10 +2128,10 @@ const IntegracionesPage = () => {
                                         <p className="text-sm text-muted-foreground">Configurá las notificaciones por correo electrónico.</p>
                                         <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                                             <div className="space-y-0.5">
-                                                <Label className="text-base">Notificaciones por Email</Label>
+                                                <Label htmlFor={notificationEmailId} className="text-base">Notificaciones por Email</Label>
                                                 <p className="text-xs text-muted-foreground">Resumen diario y backup de seguridad.</p>
                                             </div>
-                                            <Switch checked={notifyEmail} onCheckedChange={setNotifyEmail} />
+                                            <Switch id={notificationEmailId} checked={notifyEmail} onCheckedChange={setNotifyEmail} />
                                         </div>
                                         <div className="flex justify-end">
                                             <Button onClick={handleSaveNotifications} disabled={savingSettings}>
@@ -2206,8 +2208,9 @@ const IntegracionesPage = () => {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <Label>Notificar nueva actividad del canal</Label>
+                                        <Label htmlFor={notificationActivityId}>Notificar nueva actividad del canal</Label>
                                         <Switch
+                                            id={notificationActivityId}
                                             checked={selectedChannel === 'whatsapp' ? notifyWhatsapp : notifyTelegram}
                                             onCheckedChange={selectedChannel === 'whatsapp' ? setNotifyWhatsapp : setNotifyTelegram}
                                         />

@@ -11,6 +11,7 @@ export function InstitutionalResponseAudio(props:Props) {
 }
 function ResponseAudio({scope,copy}:Props) {
   const player=useRef<HTMLAudioElement>(null),url=useRef<string|null>(null),request=useRef<AbortController|null>(null),active=useRef(true),serial=useRef(0);
+  const preparing=useRef(false);
   const token=useRef(Symbol('institutional-reading')),stopCurrent=useRef<()=>void>(()=>{});
   const primary=useRef<HTMLButtonElement>(null),stopControl=useRef<HTMLButtonElement>(null),restoreFocus=useRef(false),errorFocus=useRef<HTMLButtonElement|null>(null);
   const [state,setState]=useState<'idle'|'loading'|'ready'|'playing'|'paused'|'error'>('idle');
@@ -31,34 +32,37 @@ function ResponseAudio({scope,copy}:Props) {
     if(!url.current&&stopControl.current&&document.activeElement===stopControl.current)errorFocus.current=stopControl.current;
     setState('error');
   };
-  useEffect(()=>{active.current=true;const audio=player.current;return()=>{active.current=false;serial.current++;request.current?.abort();release(audio);if(currentReading?.token===token.current)currentReading=null;};},[]);
+  useEffect(()=>{active.current=true;const audio=player.current;return()=>{active.current=false;preparing.current=false;serial.current++;request.current?.abort();release(audio);if(currentReading?.token===token.current)currentReading=null;};},[]);
   const play=async(seq:number)=>{
     const audio=player.current;if(!audio||!active.current)return;
     try{await audio.play();if(active.current&&serial.current===seq)setState('playing');}
     catch{if(active.current&&serial.current===seq)fail();}
   };
   const listen=async()=>{
-    const audio=player.current;if(!audio||state==='loading')return;
+    const audio=player.current;if(!audio||preparing.current||state==='loading')return;
     if(state==='playing'){audio.pause();setState('paused');return;}
     if(currentReading?.token!==token.current)currentReading?.stop();
     currentReading={token:token.current,stop:()=>stopCurrent.current()};
     const seq=++serial.current;
     if(url.current){await play(seq);return;}
-    const controller=new AbortController();request.current=controller;setState('loading');
+    // ARIA keeps the initiating button in the keyboard order. This synchronous
+    // guard also blocks repeated activations before React commits loading.
+    const controller=new AbortController();request.current=controller;preparing.current=true;setState('loading');
     try{
       const blob=await readInstitutionalAudio(scope,{signal:controller.signal,isCurrent:()=>active.current&&request.current===controller});
       if(!active.current||controller.signal.aborted||request.current!==controller)return;
-      url.current=URL.createObjectURL(blob);audio.src=url.current;setState('ready');
+      url.current=URL.createObjectURL(blob);audio.src=url.current;
       // This follows an explicit Listen action. Rendering/new replies never play.
       await play(seq);
     }catch{if(active.current&&!controller.signal.aborted&&request.current===controller)fail();}
+    finally{if(request.current===controller)preparing.current=false;}
   };
-  const stop=(returnFocus=false)=>{restoreFocus.current=returnFocus;serial.current++;request.current?.abort();request.current=null;release();if(currentReading?.token===token.current)currentReading=null;setState('idle');};
+  const stop=(returnFocus=false)=>{restoreFocus.current=returnFocus;preparing.current=false;serial.current++;request.current?.abort();request.current=null;release();if(currentReading?.token===token.current)currentReading=null;setState('idle');};
   stopCurrent.current=stop;
   return <section className="institutional-response-audio" aria-label={copy.listen}>
     <p className="institutional-response-audio__disclosure">{copy.disclosure}</p>
     <div className="institutional-response-audio__controls">
-      <button ref={primary} type="button" disabled={state==='loading'} onClick={()=>void listen()}>
+      <button ref={primary} type="button" aria-disabled={state==='loading'} onClick={()=>void listen()}>
         {state==='loading'?copy.loading:state==='playing'?copy.pause:state==='paused'?copy.resume:copy.listen}
       </button>
       {(state==='loading'||url.current)?<button ref={stopControl} type="button" onClick={()=>stop(true)}>{copy.stop}</button>:null}
