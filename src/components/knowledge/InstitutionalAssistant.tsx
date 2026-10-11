@@ -41,7 +41,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const dialog=useRef<'sources'|'review'|null>(null),review=useRef<KnowledgeReview|null>(null);
   const returnToHeading=useRef(false),frame=useRef<number|null>(null);
   const recoveryFocus=useRef<number|null>(null);
-  const requestFocus=useRef<{seq:number;origin:HTMLElement;owned:boolean;moved:boolean;review:boolean;completed:boolean}|null>(null);
+  const requestFocus=useRef<{seq:number;origin:HTMLElement;owned:boolean;moved:boolean;disabledBlur:boolean;reviewCloseBlur:boolean;transferredPage:HTMLElement|null;retiringPageOrigin:boolean;review:boolean;completed:boolean}|null>(null);
   const published=mode==='public'&&workspace?.visibility==='public'&&workspace.can_edit===false&&workspace.tenant.slug===tenantSlug&&workspace.knowledge?workspace:null;
   const publishedTenantId=published?.tenant.id??null,publishedRevision=published?.revision??null;
   useEffect(()=>{
@@ -51,7 +51,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const captureRequestFocus=(seq:number,origin:HTMLElement|null,fromReview=false)=>{
     if(frame.current!==null){cancelAnimationFrame(frame.current);frame.current=null;}
     const focused=document.activeElement;
-    requestFocus.current=origin?.isConnected?{seq,origin,owned:focused===origin||focused===document.body,moved:false,review:fromReview,completed:false}:null;
+    requestFocus.current=origin?.isConnected?{seq,origin,owned:focused===origin||focused===document.body,moved:false,disabledBlur:false,reviewCloseBlur:false,transferredPage:null,retiringPageOrigin:false,review:fromReview,completed:false}:null;
   };
   const focusResult=(seq:number,fallbackToPage=false)=>{
     if(frame.current!==null)cancelAnimationFrame(frame.current);
@@ -60,7 +60,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       const request=requestFocus.current;requestFocus.current=null;frame.current=null;
       if(!request||request.seq!==seq||!request.owned||request.moved)return;
       const focused=document.activeElement;
-      if(focused!==request.origin&&(request.origin.isConnected||focused!==document.body))return;
+      if(focused!==request.origin&&(focused!==document.body||(request.origin.isConnected&&!request.disabledBlur&&!request.reviewCloseBlur&&!request.retiringPageOrigin)))return;
       const target=heading.current?.isConnected?heading.current:fallbackToPage?pageHeading.current:null;
       if(!target?.isConnected)return;
       if(reading.current)reading.current.scrollTop=0;
@@ -76,10 +76,10 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       request.review=false;
       if(request.completed)requestFocus.current=null;
       const focused=document.activeElement;
-      if(!request.owned||request.moved||(focused!==request.origin&&(request.origin.isConnected||focused!==document.body)))return;
+      if(!request.owned||request.moved||(focused!==request.origin&&(focused!==document.body||(request.origin.isConnected&&!request.reviewCloseBlur))))return;
       // Closing our confirmation dialog transfers its owned focus; it is not
       // the user voluntarily moving to another task during the pending write.
-      if(target?.isConnected)request.origin=target;
+      if(target?.isConnected){request.origin=target;if(target===pageHeading.current)request.transferredPage=target;}
     }
     target?.focus({preventScroll:true});
   };
@@ -112,8 +112,24 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       const request=requestFocus.current;
       if(request&&event.target!==request.origin&&event.target!==document.body)request.moved=true;
     };
-    document.addEventListener('focusin',trackFocus);active.current=true;void load();
-    return()=>{active.current=false;serial.current++;requestFocus.current=null;document.removeEventListener('focusin',trackFocus);if(frame.current!==null)cancelAnimationFrame(frame.current);};
+    const trackBlur=(event:FocusEvent)=>{
+      const request=requestFocus.current;
+      if(!request||event.target!==request.origin||!request.origin.isConnected)return;
+      // Chromium blurs a retained form control when our pending request disables
+      // it. Record that exact transition; BODY alone never establishes ownership.
+      if(request.owned&&!request.moved&&(event.relatedTarget===null||event.relatedTarget===document.body)){
+        if(request.origin.matches(':disabled')){request.disabledBlur=true;return;}
+        // Our confirmation closes a portalled dialog while its enabled control
+        // can still be connected during the closing animation.
+        if(request.review&&returnToHeading.current&&dialog.current===null){request.reviewCloseBlur=true;return;}
+        // The rejected write replaces our heading with an alert. React clears
+        // its ref before Chromium blurs the still-connected outgoing element.
+        if(request.retiringPageOrigin&&request.transferredPage===request.origin&&pageHeading.current!==request.origin)return;
+      }
+      request.moved=true;
+    };
+    document.addEventListener('focusin',trackFocus);document.addEventListener('focusout',trackBlur);active.current=true;void load();
+    return()=>{active.current=false;serial.current++;requestFocus.current=null;document.removeEventListener('focusin',trackFocus);document.removeEventListener('focusout',trackBlur);if(frame.current!==null)cancelAnimationFrame(frame.current);};
   },[]);
   const navigate=async(id:string,text?:string,origin:HTMLElement|null=null)=>{
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
@@ -160,7 +176,11 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
         const request=requestFocus.current;
         if(request?.seq===seq){request.completed=true;if(!request.review)requestFocus.current=null;}
       }}
-    catch{if(active.current&&serial.current===seq){setError(true);setWorkspace(null);focusResult(seq);}}
+    catch{if(active.current&&serial.current===seq){
+      const request=requestFocus.current;
+      if(request?.seq===seq&&request.transferredPage===request.origin&&request.origin===pageHeading.current)request.retiringPageOrigin=true;
+      setError(true);setWorkspace(null);focusResult(seq);
+    }}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
   if(!workspace){

@@ -177,6 +177,13 @@ describe('published institution view',()=>{
 describe('asynchronous reading focus',()=>{
  let frames:FrameRequestCallback[];
  const runFrames=()=>act(()=>{frames.splice(0).forEach(frame=>frame(0));});
+ const chromiumDisabledBlur=(input:HTMLElement)=>{
+  const control=input as HTMLTextAreaElement;
+  // jsdom does not blur disabled controls. Restore disabled during native blur
+  // so focusout observes the same target, state and BODY transition as Chromium.
+  control.addEventListener('blur',()=>{control.disabled=true;},{once:true});
+  control.disabled=false;control.blur();
+ };
  const withOutside=(slug='qa-knowledge',session='actor-a')=><><label>Otra tarea<input/></label>{view(slug,session)}</>;
  beforeEach(()=>{
   frames=[];
@@ -218,6 +225,29 @@ describe('asynchronous reading focus',()=>{
   await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();
   expect(screen.getByRole('heading',{name:'Requisitos de la consulta'})).toHaveFocus();
   expect(input).toHaveValue('');expect(mocks.fetch.mock.calls[1][1].body.question).toBe('Consulta por teclado');
+ });
+ it.each(['success','error'] as const)('restores owned focus after Chromium blurs the disabled textarea on %s',async outcome=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  const input=screen.getByLabelText('Escribí tu consulta');await user.type(input,'Consulta por teclado');
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.keyboard('{Enter}');
+  expect(input).toBeDisabled();chromiumDisabledBlur(input);expect(document.body).toHaveFocus();
+  await act(async()=>{if(outcome==='success')pending.resolve(reply());else pending.reject({status:503});await pending.promise.catch(()=>{});});
+  runFrames();expect(outcome==='success'?screen.getByRole('heading',{name:'Requisitos de la consulta'}):screen.getByRole('alert')).toHaveFocus();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it('does not reuse the disabled blur after the user focuses and leaves another field',async()=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  const input=screen.getByLabelText('Escribí tu consulta');await user.type(input,'Consulta por teclado');
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.keyboard('{Enter}');chromiumDisabledBlur(input);
+  const outside=screen.getByLabelText('Otra tarea');outside.focus();outside.blur();
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();expect(document.body).toHaveFocus();
+ });
+ it('does not restore focus after the retained enabled textarea is explicitly blurred before the result frame',async()=>{
+  const user=userEvent.setup();render(view());await screen.findByText(node().text);
+  const input=screen.getByLabelText('Escribí tu consulta');await user.type(input,'Consulta por teclado');
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.keyboard('{Enter}');
+  await act(async()=>{pending.resolve(reply());await pending.promise;});expect(input).not.toBeDisabled();input.blur();
+  runFrames();expect(document.body).toHaveFocus();
  });
  it('focuses an owned error and the same-revision retry result without resending automatically',async()=>{
   const user=userEvent.setup();render(view());await screen.findByText(node().text);
@@ -307,6 +337,30 @@ describe('asynchronous reading focus',()=>{
   if(leave)expect(outside).toHaveFocus();else expect(screen.getByRole('alert')).toHaveFocus();
   expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(mocks.fetch.mock.calls[1][1].method).toBe('PUT');
   expect(screen.queryByRole('button',{name:'Confirmar cambio'})).not.toBeInTheDocument();
+ });
+ it.each([false,true])('recognizes the connected enabled review control blur during its own close with external focus %s',async leave=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  await user.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  const confirm=screen.getByRole('button',{name:'Confirmar cambio'}),pending=deferred();
+  mocks.fetch.mockImplementationOnce(()=>{expect(confirm.isConnected).toBe(true);expect(confirm).not.toBeDisabled();confirm.blur();return pending.promise;});
+  await user.click(confirm);await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  const outside=screen.getByLabelText('Otra tarea');if(leave){outside.focus();outside.blur();}
+  await act(async()=>{pending.reject(new Error('unconfirmed write'));await pending.promise.catch(()=>{});});runFrames();
+  if(leave)expect(document.body).toHaveFocus();else expect(screen.getByRole('alert')).toHaveFocus();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it.each(['owned','outside','page-blur'] as const)('recognizes retirement of the page heading receiving our review focus in %s',async disposition=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  await user.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'Confirmar cambio'}));
+  const page=screen.getByRole('heading',{name:'Información y orientación'});await waitFor(()=>expect(page).toHaveFocus());
+  const section=page.closest('section')!,remove=section.removeChild.bind(section);let retiredHeading=false;
+  vi.spyOn(section,'removeChild').mockImplementation(child=>{if(child.contains(page)){retiredHeading=true;page.blur();}return remove(child);});
+  const outside=screen.getByLabelText('Otra tarea');if(disposition==='outside'){outside.focus();outside.blur();}else if(disposition==='page-blur')page.blur();
+  await act(async()=>{pending.reject(new Error('unconfirmed write'));await pending.promise.catch(()=>{});});runFrames();
+  expect(retiredHeading).toBe(true);
+  if(disposition==='owned')expect(screen.getByRole('alert')).toHaveFocus();else expect(document.body).toHaveFocus();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
  });
  it('keeps external focus through a successful confirmation and verified fresh read',async()=>{
   const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
