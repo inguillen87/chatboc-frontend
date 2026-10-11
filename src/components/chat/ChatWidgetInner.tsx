@@ -1618,6 +1618,7 @@ function ChatWidgetInner({
 
   const handleOpenPanelKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
+      if (event.defaultPrevented) return;
       event.preventDefault();
       setIsOpen(false);
       safeLocalStorage.setItem('widget_manually_closed', '1');

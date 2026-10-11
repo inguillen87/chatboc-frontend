@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import IntegrationPreviewDialog from './IntegrationPreviewDialog';
 import { cn } from '@/lib/utils';
+import { useTenantNotificationSettings } from './useTenantNotificationSettings';
 import {
   buildIntegrationPlanLockView,
   lockMatchesChannel,
@@ -388,7 +389,6 @@ const IntegracionesPage = () => {
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
-  const [savingSettings, setSavingSettings] = useState(false);
   const [mappingOpen, setMappingOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedMappingProvider, setSelectedMappingProvider] = useState<string | null>(null);
@@ -407,11 +407,9 @@ const IntegracionesPage = () => {
   const requestedAction = searchParams.get("action");
 
   // Notification Settings State
-  const [ownerPhone, setOwnerPhone] = useState('');
-  const [telegramChatId, setTelegramChatId] = useState('');
-  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
-  const [notifyTelegram, setNotifyTelegram] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  const notifications = useTenantNotificationSettings(currentSlug, channelScopeKey);
+  const notificationPreferences = notifications.draft.notification_settings;
+  const notificationStatusId = useId();
   const notificationEmailId = useId();
   const notificationActivityId = useId();
   const [widgetQuickMenu, setWidgetQuickMenu] = useState<QuickMenuPreviewItem[]>([]);
@@ -436,7 +434,6 @@ const IntegracionesPage = () => {
       return;
     }
     loadIntegrations();
-    loadSettings();
     loadCatalog();
     loadWidgetQuickMenu();
     loadPaymentGateway();
@@ -857,22 +854,6 @@ const IntegracionesPage = () => {
     }
   };
 
-  const loadSettings = async () => {
-    try {
-      if (!currentSlug) return;
-      const settings = await apiClient.adminGetNotificationSettings(currentSlug);
-      if (settings) {
-        setOwnerPhone(settings.owner_phone || '');
-        setTelegramChatId(settings.telegram_chat_id || '');
-        setNotifyWhatsapp(settings.notification_settings?.whatsapp ?? false);
-        setNotifyTelegram(settings.notification_settings?.telegram ?? false);
-        setNotifyEmail(settings.notification_settings?.email ?? true);
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
-
   const loadIntegrations = async () => {
     setLoading(true);
     try {
@@ -1081,26 +1062,16 @@ const IntegracionesPage = () => {
   };
 
   const handleSaveNotifications = async () => {
-      if (!currentSlug) return;
-      setSavingSettings(true);
-      try {
-        await apiClient.adminUpdateNotificationSettings(currentSlug, {
-            owner_phone: ownerPhone,
-            telegram_chat_id: telegramChatId,
-            notification_settings: {
-                whatsapp: notifyWhatsapp,
-                telegram: notifyTelegram,
-                email: notifyEmail
-            }
-        });
-        toast.success('Configuración guardada correctamente.');
-      } catch (error) {
-          console.error('Failed to save settings', error);
-          toast.error('No se pudo guardar la configuración.');
-      } finally {
-          setSavingSettings(false);
-      }
+      const result = await notifications.save();
+      if (result === 'saved') toast.success('Configuración guardada correctamente.');
   };
+  const renderNotificationStatus = () => <div id={notificationStatusId} className="space-y-2 text-sm">
+    {!notifications.verified ? <p role="status">Verificá tu sesión y organización para cambiar las alertas.</p>
+      : notifications.loading ? <p role="status">Leyendo las preferencias de esta organización.</p>
+      : notifications.saving ? <p role="status">Guardando las preferencias de esta organización.</p> : null}
+    {notifications.error ? <p role="alert" className="text-destructive">{notifications.error}</p> : null}
+    {notifications.canRetry ? <Button type="button" variant="outline" className="min-h-11" onClick={() => void notifications.reload()}>Reintentar preferencias</Button> : null}
+  </div>;
 
   const updateWhatsappSandbox = (field: keyof WhatsappSandboxState, value: string) => {
     setWhatsappSandbox((prev) => ({ ...prev, [field]: value }));
@@ -2131,13 +2102,15 @@ const IntegracionesPage = () => {
                                                 <Label htmlFor={notificationEmailId} className="text-base">Notificaciones por Email</Label>
                                                 <p className="text-xs text-muted-foreground">Resumen diario y backup de seguridad.</p>
                                             </div>
-                                            <Switch id={notificationEmailId} checked={notifyEmail} onCheckedChange={setNotifyEmail} />
+                                            <Switch id={notificationEmailId} aria-describedby={notificationStatusId} disabled={!notifications.canEdit}
+                                              checked={notificationPreferences.email} onCheckedChange={value => notifications.setPreference('email', value)} />
                                         </div>
                                         <div className="flex justify-end">
-                                            <Button onClick={handleSaveNotifications} disabled={savingSettings}>
+                                            <Button onClick={handleSaveNotifications} disabled={!notifications.canEdit}>
                                                 Guardar Preferencias
                                             </Button>
                                         </div>
+                                        {renderNotificationStatus()}
                                     </div>
                                 ) : (
                                     <>
@@ -2211,13 +2184,15 @@ const IntegracionesPage = () => {
                                         <Label htmlFor={notificationActivityId}>Notificar nueva actividad del canal</Label>
                                         <Switch
                                             id={notificationActivityId}
-                                            checked={selectedChannel === 'whatsapp' ? notifyWhatsapp : notifyTelegram}
-                                            onCheckedChange={selectedChannel === 'whatsapp' ? setNotifyWhatsapp : setNotifyTelegram}
+                                            aria-describedby={notificationStatusId} disabled={!notifications.canEdit}
+                                            checked={selectedChannel === 'whatsapp' ? notificationPreferences.whatsapp : notificationPreferences.telegram}
+                                            onCheckedChange={value => notifications.setPreference(selectedChannel === 'whatsapp' ? 'whatsapp' : 'telegram', value)}
                                         />
                                     </div>
                                     <div className="flex justify-end">
-                                        <Button size="sm" variant="secondary" onClick={handleSaveNotifications}>Actualizar Alertas</Button>
+                                        <Button size="sm" variant="secondary" disabled={!notifications.canEdit} onClick={handleSaveNotifications}>Actualizar Alertas</Button>
                                     </div>
+                                    {renderNotificationStatus()}
                                 </CardContent>
                             </Card>
                         )}
