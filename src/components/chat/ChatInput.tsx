@@ -1,11 +1,11 @@
 // src/components/chat/ChatInput.tsx
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
-import useAudioRecorder from "@/hooks/useAudioRecorder";
+import useAudioRecorder, {recordedAudioFilename} from "@/hooks/useAudioRecorder";
 import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
 import { ChatMediaCapabilities, ChatUxChannelCapabilities, ChatWidgetUiHints, SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
 import { ensureAbsoluteUrl } from "@/utils/chatButtons";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { uploadChatAttachment } from "@/features/chat/uploadChatAttachment";
+import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {
   getChatAttachmentAcceptedTypes,
   getChatAttachmentMaxFileMb,
@@ -149,7 +150,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const [draftRecovered, setDraftRecovered] = useState(false);
   const fallbackInputRef = useRef<HTMLInputElement>(null);
   const internalRef = inputRef || fallbackInputRef;
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const audioCompletion=useRef<{token:symbol;isCurrent:()=>boolean}|null>(null);
+  const [recordingDraft,setRecordingDraft]=useState<{blob:Blob;isCurrent:()=>boolean}|null>(null);
+  const typingNow=useRef(isTyping);typingNow.current=isTyping;
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
   const supportsAudioInput =
     supportsMultimodalIntake &&
@@ -228,6 +231,13 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const showAttachAction = allowedFileTypes.length > 0 && shouldShowToolbarAction("attach_file");
   const showLocationAction = supportsLocationShare && shouldShowToolbarAction("share_location");
   const showAudioAction = supportsAudioInput && shouldShowToolbarAction("record_audio");
+  const audioScopeKey=JSON.stringify([tenantSlug??null,demoSessionId??null,chatSessionId??null,
+    showAudioAction,disabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null]);
+  const {isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:showAudioAction&&!disabled});
+  if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
+  const currentRecordingDraft=recordingDraft?.isCurrent()?recordingDraft:null;
+  useLayoutEffect(()=>{setRecordingDraft(null);},[audioScopeKey]);
+  useLayoutEffect(()=>subscribeChatbocSessionRevision(()=>{setRecordingDraft(null);audioCompletion.current=null;}),[]);
   const showEmojiAction = shouldShowToolbarAction("emoji");
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const resolvedPlaceholder =
@@ -512,11 +522,13 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
     safeLocalStorage.removeItem(draftStorageKey);
   };
 
-  const handleSendAudio = async (audioBlob: Blob) => {
-    if (isTyping || disabled) return;
+  const handleSendAudio = async (audioBlob: Blob,isCurrent:()=>boolean) => {
+    if (disabled || !isCurrent()) return;
+    if(typingNow.current){setRecordingDraft({blob:audioBlob,isCurrent});return;}
     onSystemMessage?.('Enviando audio...', 'info');
+    if(!isCurrent())return;
 
-    const filename = `audio-grabado-${Date.now()}.webm`;
+    const filename = recordedAudioFilename(audioBlob);
     const audioMode = mediaCapabilities?.input_modes?.audio;
     if (audioMode && audioMode.enabled !== false) {
       onSendMessage({
@@ -540,8 +552,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       const data = await uploadChatAttachment<UploadResponse>(
         '/archivos/upload/chat_attachment',
         createAudioUploadFormData,
-        { tenantSlug, demoSessionId, chatSessionId },
+        { tenantSlug, demoSessionId, chatSessionId,isCurrent },
       );
+
+      if(!isCurrent())return;
 
       const normalized = normalizeUploadResponse(data);
       const responsePayload =
@@ -609,7 +623,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       const uploadedMime =
         normalized.mimeType ||
         coalesceString(responsePayload?.mimeType, responsePayload?.mime_type) ||
-        'audio/webm';
+        audioBlob.type || 'audio/webm';
       const uploadedSize =
         normalized.size ??
         coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
@@ -635,6 +649,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
         resolvedThumb,
       );
 
+      if(!isCurrent())return;
       onSendMessage({
         text: '',
         attachmentInfo: {
@@ -647,6 +662,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       // Optional: a success system message could be sent here, but it might be noisy.
       // onSystemMessage?.('Audio enviado con éxito.', 'info');
     } catch (error) {
+      if(!isCurrent())return;
       console.error("Error al enviar audio:", error);
       const friendlyError = getErrorMessage(error, "Hubo un problema al subir tu grabación.");
       onSystemMessage?.(friendlyError, 'error');
@@ -660,6 +676,21 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
           {disabledReason}
         </div>
       ) : null}
+      {currentRecordingDraft?<div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
+        <p role="status">{isTyping?'Guardamos tu grabación mientras termina la respuesta. Podés enviarla cuando esté disponible.':'Tu grabación está lista. Podés enviarla o descartarla.'}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            disabled={isTyping||disabled} onClick={async()=>{
+              const draft=currentRecordingDraft;
+              if(!draft.isCurrent()||typingNow.current||audioCompletion.current?.isCurrent())return;
+              const completion=Symbol('recording-draft');audioCompletion.current={token:completion,isCurrent:draft.isCurrent};
+              setRecordingDraft(null);
+              try{await handleSendAudio(draft.blob,draft.isCurrent);}finally{if(audioCompletion.current?.token===completion)audioCompletion.current=null;}
+            }}>Enviar grabación</button>
+          <button type="button" className="rounded-lg border border-border bg-background px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            onClick={()=>setRecordingDraft(null)}>Descartar grabación</button>
+        </div>
+      </div>:null}
       {draftRecovered ? (
         <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
           Recuperamos tu borrador anterior automáticamente.
@@ -829,20 +860,26 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             {showAudioAction ? (
             <button
               onClick={async () => {
+                if(audioCompletion.current?.isCurrent())return;
+                audioCompletion.current=null;
+                if(isStarting){cancelRecording();return;}
+                const isCurrent=captureRecordingOwner();
                 if (isRecording) {
-                  const audioBlob = await stopRecording();
-                  if (audioBlob) {
-                    handleSendAudio(audioBlob);
-                  }
+                  const completion=Symbol('recording-completion');audioCompletion.current={token:completion,isCurrent};
+                  try{
+                    const audioBlob=await stopRecording();
+                    if(audioBlob&&isCurrent())await handleSendAudio(audioBlob,isCurrent);
+                  }finally{if(audioCompletion.current?.token===completion)audioCompletion.current=null;}
                 } else {
                   try {
                     await startRecording();
                   } catch (error) {
+                    if(!isCurrent())return;
                     toast({ title: "Error al grabar", description: "No se pudo iniciar la grabación. Verifica los permisos del micrófono.", variant: "destructive" });
                   }
                 }
               }}
-              disabled={disabled || isTyping || isLocating || !!attachmentPreview}
+              disabled={disabled || Boolean(currentRecordingDraft) || (!isRecording&&!isStarting&&(isTyping || isLocating || !!attachmentPreview))}
               className={`
                 flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
                 rounded-full p-2 sm:p-3
@@ -850,11 +887,11 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
                 border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
-                ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+                ${disabled || (!isRecording&&!isStarting&&(isTyping || isLocating || !!attachmentPreview)) ? "opacity-50 cursor-not-allowed" : ""}
                 ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
               `}
-              aria-label={isRecording ? "Detener grabación" : audioLabel}
-              title={audioLabel}
+              aria-label={isStarting ? "Cancelar grabación" : isRecording ? "Detener grabación" : audioLabel}
+              title={isStarting ? "Cancelar grabación" : isRecording ? "Detener grabación" : audioLabel}
               type="button"
             >
               {isRecording ? <MicOff className="h-4 w-4 sm:h-5 sm:w-5" /> : <Mic className="h-4 w-4 sm:h-5 sm:w-5" />}

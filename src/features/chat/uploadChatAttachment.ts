@@ -27,6 +27,14 @@ export type ChatAttachmentUploadContext = {
   tenantSlug?: string | null;
   demoSessionId?: string | null;
   chatSessionId?: string | null;
+  /** A retired recording may not start another upload stage or accept its ACK. */
+  isCurrent?: () => boolean;
+};
+
+const assertUploadCurrent = (context: ChatAttachmentUploadContext) => {
+  if (context.isCurrent?.() === false) {
+    throw new DOMException("Upload retired", "AbortError");
+  }
 };
 
 const normalizeContextValue = (value?: string | null) => value?.trim() || null;
@@ -93,13 +101,14 @@ const postUploadApi = async <T>(
   body: FormData | Record<string, unknown>,
   context: ChatAttachmentUploadContext = {},
 ): Promise<T> => {
+  assertUploadCurrent(context);
   const demoSessionId = context.demoSessionId?.trim() || "";
   const tenantSlug = context.tenantSlug?.trim() || undefined;
   const headers = demoSessionId
     ? { "X-Demo-Session-Id": demoSessionId }
     : undefined;
   try {
-    return await apiFetch<T>(endpoint, {
+    const response = await apiFetch<T>(endpoint, {
       method: "POST",
       body,
       headers,
@@ -108,15 +117,19 @@ const postUploadApi = async <T>(
       persistTenantSlug: false,
       chatSessionId: context.chatSessionId,
       baseUrlOverride: resolveRootUploadBase(endpoint),
+      ...(context.isCurrent ? { isCurrent: context.isCurrent } : {}),
     });
+    assertUploadCurrent(context);
+    return response;
   } catch (error) {
+    assertUploadCurrent(context);
     const aliasEndpoint = resolveApiAlias(endpoint);
     if (
       aliasEndpoint &&
       error instanceof ApiError &&
       UPLOAD_ALIAS_RETRY_STATUSES.has(error.status)
     ) {
-      return apiFetch<T>(aliasEndpoint, {
+      const response = await apiFetch<T>(aliasEndpoint, {
         method: "POST",
         body,
         headers,
@@ -124,7 +137,10 @@ const postUploadApi = async <T>(
         tenantSlug,
         persistTenantSlug: false,
         chatSessionId: context.chatSessionId,
+        ...(context.isCurrent ? { isCurrent: context.isCurrent } : {}),
       });
+      assertUploadCurrent(context);
+      return response;
     }
     throw error;
   }
@@ -256,7 +272,9 @@ const resolveSignedUploadHeaders = (
 const putDirectlyToObjectStorage = async (
   prepared: DirectUploadPrepareResponse,
   file: File,
+  context: ChatAttachmentUploadContext,
 ) => {
+  assertUploadCurrent(context);
   const response = await fetch(prepared.upload.url, {
     method: "PUT",
     body: file,
@@ -266,6 +284,9 @@ const putDirectlyToObjectStorage = async (
     mode: "cors",
     referrerPolicy: "no-referrer",
   });
+
+  // A dispatched PUT is not replayed or undone. Retirement prevents completion.
+  assertUploadCurrent(context);
 
   if (!response.ok) {
     throw new ApiError("No se pudo transferir el archivo al almacenamiento seguro.", response.status, {
@@ -298,6 +319,7 @@ export const uploadChatAttachment = async <T>(
   createFormData: () => FormData,
   context: ChatAttachmentUploadContext = {},
 ): Promise<T> => {
+  assertUploadCurrent(context);
   if (!supportsDirectChatAttachmentUpload(endpoint)) {
     return uploadWithLegacyMultipart<T>(endpoint, createFormData, context);
   }
@@ -320,6 +342,7 @@ export const uploadChatAttachment = async <T>(
   try {
     prepared = await prepareDirectUpload(endpoint, file, context);
   } catch (error) {
+    assertUploadCurrent(context);
     if (
       file.size <= LEGACY_MULTIPART_MAX_FILE_BYTES &&
       isDirectUploadCompatibilityError(error)
@@ -329,7 +352,7 @@ export const uploadChatAttachment = async <T>(
     throw error;
   }
 
-  await putDirectlyToObjectStorage(prepared, file);
+  await putDirectlyToObjectStorage(prepared, file, context);
 
   return postUploadApi<T>(
     endpoint,

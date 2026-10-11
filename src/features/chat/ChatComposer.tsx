@@ -4,7 +4,7 @@ import { FileText, Image, MapPin, Mic, MicOff, Paperclip, Send, X } from 'lucide
 import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/api';
 import { requestLocation } from '@/utils/geolocation';
-import useAudioRecorder from '@/hooks/useAudioRecorder';
+import useAudioRecorder,{recordedAudioFilename} from '@/hooks/useAudioRecorder';
 import type { ChatMediaCapabilities, ChatMediaInputModeConfig } from '@/types/chat';
 import { uploadChatAttachment } from './uploadChatAttachment';
 import {
@@ -63,7 +63,7 @@ export default function ChatComposer({
   const [attachmentDraft, setAttachmentDraft] = useState<AttachmentDraft | null>(null);
   const [selectedFileMode, setSelectedFileMode] = useState<'image' | 'file'>('file');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const audioCompletion=useRef<{token:symbol;isCurrent:()=>boolean}|null>(null);
 
   useEffect(() => {
     if (typeof draftText !== 'string') return;
@@ -86,6 +86,15 @@ export default function ChatComposer({
       }),
     [mediaCapabilities?.composer?.actions, mediaCapabilities?.input_modes],
   );
+  const audioEnabled=enabledActions.some(action=>action.type==='audio')&&!disabled;
+  const audioScopeKey=JSON.stringify([tenantSlug??null,demoSessionId??null,chatSessionId??null,
+    audioEnabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null]);
+  const {recorderState,isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:audioEnabled});
+  if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
+  useEffect(()=>{setComposerState(value=>value==='recording'||value==='transcribing'?'idle':value);},[audioScopeKey]);
+  useEffect(()=>{
+    if(recorderState==='inactive')setComposerState(value=>value==='recording'||value==='transcribing'?'idle':value);
+  },[recorderState]);
 
   const resolvedPlaceholder =
     mediaCapabilities?.composer?.placeholder?.trim() ||
@@ -201,27 +210,32 @@ export default function ChatComposer({
   };
 
   const toggleAudio = async () => {
+    if(audioCompletion.current?.isCurrent())return;
+    audioCompletion.current=null;
+    if(isStarting){cancelRecording();setComposerState('idle');return;}
+    const isCurrent=captureRecordingOwner();
     if (isRecording) {
+      const completion=Symbol('recording-completion');audioCompletion.current={token:completion,isCurrent};
       setComposerState('transcribing');
       try {
         const audioBlob = await stopRecording();
-        if (audioBlob) {
+        if (audioBlob&&isCurrent()) {
           onSend({
             text: text.trim(),
             intent,
             payload,
             audioBlob,
-            audioFilename: `audio-${Date.now()}.webm`,
+            audioFilename: recordedAudioFilename(audioBlob,'audio'),
             audioField: audioMode?.multipart_field || 'audio_file',
             audioEndpoint: audioMode?.chat_endpoint || undefined,
           });
-          setText('');
-          setError(null);
+          if(isCurrent()){setText('');setError(null);}
         }
       } catch (err) {
-        setError(getErrorMessage(err, 'No se pudo enviar el audio.'));
+        if(isCurrent())setError(getErrorMessage(err, 'No se pudo enviar el audio.'));
       } finally {
-        setComposerState('idle');
+        if(audioCompletion.current?.token===completion)audioCompletion.current=null;
+        if(isCurrent())setComposerState('idle');
       }
       return;
     }
@@ -229,8 +243,10 @@ export default function ChatComposer({
       setComposerState('recording');
       await startRecording();
     } catch (err) {
-      setComposerState('idle');
-      setError(getErrorMessage(err, 'No se pudo iniciar la grabacion.'));
+      if(isCurrent()){
+        setComposerState('idle');
+        setError(getErrorMessage(err, 'No se pudo iniciar la grabacion.'));
+      }
     }
   };
 
@@ -359,12 +375,12 @@ export default function ChatComposer({
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5 px-2 text-xs"
-                disabled={disabled || (composerState !== 'idle' && !(action.type === 'audio' && isRecording))}
+                disabled={disabled || (composerState !== 'idle' && !(action.type === 'audio' && (isRecording||isStarting)))}
                 onClick={() => handleAction(action.type)}
-                title={action.label}
+                title={action.type==='audio'&&isStarting?'Cancelar grabación':action.type==='audio'&&isRecording?'Detener grabación':action.label}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span>{action.label}</span>
+                <span>{action.type==='audio'&&isStarting?'Cancelar grabación':action.type==='audio'&&isRecording?'Detener grabación':action.label}</span>
               </Button>
             );
           })}
