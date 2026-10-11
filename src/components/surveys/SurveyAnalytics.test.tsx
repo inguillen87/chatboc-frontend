@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SurveyAnalytics } from './SurveyAnalytics';
+import { normalizeSurveySummary } from '@/api/encuestas';
 import type { SurveyAnalyticsHeatmap, SurveySummary } from '@/types/encuestas';
 
 const motionHarness = vi.hoisted(() => ({ shouldReduceMotion: false }));
@@ -16,10 +17,13 @@ vi.mock('recharts', () => {
   const PieChartContainer = ({ children }: { children?: ReactNode }) => (
     <div data-testid="mock-pie-chart">{children}</div>
   );
+  const BarChartContainer = ({ children, data }: { children?: ReactNode; data?: unknown[] }) => (
+    <div data-testid="mock-bar-chart" data-chart-data={JSON.stringify(data)}>{children}</div>
+  );
   const Empty = () => null;
   return {
     ResponsiveContainer: Container,
-    BarChart: Container,
+    BarChart: BarChartContainer,
     LineChart: Container,
     PieChart: PieChartContainer,
     Bar: Container,
@@ -208,7 +212,178 @@ describe('SurveyAnalytics territory command center', () => {
     expect(rows[1]).toHaveTextContent('sobre elegibles');
     expect(rows[2]).toHaveTextContent('Web');
     expect(rows[2]).toHaveTextContent('100%');
+    const chartData = JSON.parse(screen.getByTestId('mock-bar-chart').getAttribute('data-chart-data') ?? '[]');
+    expect(chartData.map((row: { respuestasSeleccionaron: number }) => row.respuestasSeleccionaron)).toEqual([1, 1]);
     expect(screen.queryByTestId('mock-pie-chart')).not.toBeInTheDocument();
+  });
+
+  it.each(['opcion_multiple', 'multiple_choice', 'multiple-choice', 'multiple', 'checkbox', 'check', 'multi_select', 'multi-select', 'multiselect'])(
+    'uses the canonical multiple-choice contract with internal type %s',
+    (internalType) => {
+      const summary = eligibleMultipleSummaryFixture();
+      summary.preguntas[0].tipo_interno = internalType;
+      render(<SurveyAnalytics summary={normalizeSurveySummary(summary)} onExport={vi.fn().mockResolvedValue(undefined)} />);
+      const rates = screen.getByTestId('survey-eligible-option-rates');
+      expect(rates).toHaveTextContent('En selección múltiple pueden sumar más de 100%.');
+      expect(within(rates).getAllByRole('row').slice(1).every((row) => row.textContent?.includes('100%'))).toBe(true);
+      expect(screen.queryByTestId('mock-pie-chart')).not.toBeInTheDocument();
+    },
+  );
+
+  it('recognizes a legacy checkbox without a canonical question type', () => {
+    const summary = eligibleMultipleSummaryFixture();
+    summary.preguntas[0].tipo = undefined;
+    summary.preguntas[0].tipo_interno = 'checkbox';
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    expect(screen.getByTestId('survey-eligible-option-rates')).toHaveTextContent('En selección múltiple pueden sumar más de 100%.');
+  });
+
+  it('lets canonical single choice take precedence over an internal alias', () => {
+    const summary = eligibleMultipleSummaryFixture();
+    summary.preguntas[0].tipo = 'single_choice';
+    summary.preguntas[0].tipo_interno = 'opcion_multiple';
+    summary.preguntas[0].opciones[1] = { ...summary.preguntas[0].opciones[1], respuestas: 0, respuestas_seleccionaron: 0, porcentaje: 0, porcentaje_elegibles: 0, porcentaje_respuestas_pregunta: 0 };
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    expect(screen.getByTestId('survey-eligible-option-rates')).not.toHaveTextContent('En selección múltiple pueden sumar más de 100%.');
+  });
+
+  it('renders real backend demographic counts including zero without inventing percentages or duplicate aliases', () => {
+    const genero = [{ label: 'Femenino', value: 3 }, { label: 'Masculino', value: 2 }, { label: 'Otro', value: 0 }];
+    const summary = normalizeSurveySummary({ total_respuestas: 10, preguntas: [], demografia: {
+      genero, genero_series: genero, genero_map: { Femenino: 3, Masculino: 2, Otro: 0 },
+      edad: { promedio: 40, mediana: 38, p90: 70, muestra: 5 },
+    } });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const demographicCard = screen.getByText('Segmentación demográfica').closest('[class*="rounded"]') as HTMLElement;
+    const charts = within(demographicCard).getAllByTestId('mock-bar-chart');
+    expect(charts).toHaveLength(1);
+    const rows = JSON.parse(charts[0].getAttribute('data-chart-data') ?? '[]');
+    expect(rows.map((row: { label: string; value: number }) => [row.label, row.value])).toEqual([['Femenino', 3], ['Masculino', 2], ['Otro', 0]]);
+    expect(rows.every((row: Record<string, unknown>) => !('percentage' in row))).toBe(true);
+    expect(within(demographicCard).queryByText(/series|map/i)).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])('uses the exact question-response percentage when eligibility is estimated (stale fields: %s)', (staleFields) => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [{
+      texto: 'Canales utilizados', tipo: 'multiple_choice', tipo_interno: 'checkbox',
+      base_elegibles_estimada: true, respuestas_elegibles_estimadas: 2, respuestas_respondidas: 4,
+      ...(staleFields ? { respuestas_elegibles: 2, tasa_respuesta_elegible: 200 } : {}),
+      opciones: ['WhatsApp', 'Web'].map((texto) => ({ texto, respuestas: 4, respuestas_seleccionaron: 4,
+        porcentaje_total_encuesta: 80, porcentaje_respuestas_pregunta: 100,
+        ...(staleFields ? { porcentaje_elegibles: 200 } : {}),
+      })),
+    }] });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const rates = screen.getByTestId('survey-eligible-option-rates');
+    const rows = within(rates).getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toHaveTextContent('100%');
+      expect(row).toHaveTextContent('sobre respuestas de la pregunta');
+      expect(row).toHaveTextContent('2 elegibles estimados');
+      expect(row).toHaveTextContent('4 respondieron');
+      expect(row).not.toHaveTextContent('200%');
+      expect(row).not.toHaveTextContent('sobre elegibles');
+    }
+    expect(screen.queryByTestId('mock-pie-chart')).not.toBeInTheDocument();
+  });
+
+  it('uses only the supplied total-survey rate if the question-response rate is absent from an estimated base', () => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [{
+      texto: 'Canales utilizados', tipo: 'multiple_choice', base_elegibles_estimada: true,
+      respuestas_elegibles_estimadas: 2, respuestas_elegibles: 2, respuestas_respondidas: 4,
+      opciones: [{ texto: 'Web', respuestas: 4, respuestas_seleccionaron: 4, porcentaje_total_encuesta: 80 }],
+    }] });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const row = screen.getByText('Web').closest('tr');
+    expect(row).toHaveTextContent('80%');
+    expect(row).toHaveTextContent('sobre total de encuesta');
+    expect(row).toHaveTextContent('2 elegibles estimados');
+    expect(row).not.toHaveTextContent('200%');
+  });
+
+  it('does not invent a rate from an estimated denominator or normalized legacy percentage', () => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [{
+      texto: 'Canales utilizados', tipo: 'multiple_choice', base_elegibles_estimada: true,
+      respuestas_elegibles_estimadas: 0, respuestas_elegibles: 2, respuestas_respondidas: 4,
+      opciones: [{ texto: 'Web', respuestas: 4, respuestas_seleccionaron: 4 }],
+    }] });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const row = screen.getByText('Web').closest('tr');
+    expect(row).toHaveTextContent('Sin tasa exacta');
+    expect(row).toHaveTextContent('0 elegibles estimados');
+    expect(row).not.toHaveTextContent('%');
+  });
+
+  it('does not display an unavailable eligible estimate as zero when the sample cap is zero', () => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [{
+      texto: 'Canales utilizados', tipo: 'multiple_choice', base_elegibles_estimada: true,
+      respuestas_elegibles_estimadas: null, respuestas_respondidas: 4,
+      opciones: [{ texto: 'Web', respuestas: 4, porcentaje_respuestas_pregunta: 100 }],
+    }] });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const row = screen.getByText('Web').closest('tr');
+    expect(row).toHaveTextContent('Base elegible estimada');
+    expect(row).toHaveTextContent('100%');
+    expect(row).toHaveTextContent('sobre respuestas de la pregunta');
+    expect(row).not.toHaveTextContent('0 elegibles');
+  });
+
+  it('renders the backend territorial demographic series once per attribute', () => {
+    const barrios = [{ label: 'Centro', value: 4 }, { label: 'Norte', value: 0 }];
+    const ciudades = [{ label: 'Ushuaia', value: 4 }];
+    const summary = normalizeSurveySummary({ total_respuestas: 10, preguntas: [], demografia: {
+      territorio: [{ key: 'barrios', label: 'Barrios', series: barrios }, { key: 'ciudades', label: 'Ciudades', series: ciudades }],
+      territorio_map: { barrios, ciudades },
+    } });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const demographicCard = screen.getByText('Segmentación demográfica').closest('[class*="rounded"]') as HTMLElement;
+    const charts = within(demographicCard).getAllByTestId('mock-bar-chart');
+    expect(charts).toHaveLength(2);
+    expect(charts.map((chart) => JSON.parse(chart.getAttribute('data-chart-data') ?? '[]').map((row: { label: string; value: number }) => [row.label, row.value]))).toEqual([[['Centro', 4], ['Norte', 0]], [['Ushuaia', 4]]]);
+    expect(within(demographicCard).getByText('Barrios')).toBeInTheDocument();
+    expect(within(demographicCard).getByText('Ciudades')).toBeInTheDocument();
+  });
+
+  it('preserves legacy demographic counts and explicit zero percentages while rejecting invalid counts', () => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [], demografia: { genero: [
+      { etiqueta: 'Sin declarar', respuestas: 0, porcentaje: 0 },
+      { clave: 'Femenino', respuestas: 3, porcentaje: 60 },
+      { label: 'Inválido', value: -1 }, { label: 'No finito', value: Number.NaN },
+    ] } });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const chart = within(screen.getByText('Segmentación demográfica').closest('[class*="rounded"]') as HTMLElement).getByTestId('mock-bar-chart');
+    const rows = JSON.parse(chart.getAttribute('data-chart-data') ?? '[]');
+    expect(rows.map((row: { label: string; value: number; percentage: number }) => [row.label, row.value, row.percentage])).toEqual([
+      ['Sin declarar', 0, 0], ['Femenino', 3, 60],
+    ]);
+  });
+
+  it('uses compatibility demographic maps once when canonical series are absent', () => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [], demografia: {
+      genero_map: { Femenino: 3, Masculino: 0 },
+      territorio_map: { barrios: [{ label: 'Centro', value: 3 }] },
+    } });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const charts = within(screen.getByText('Segmentación demográfica').closest('[class*="rounded"]') as HTMLElement).getAllByTestId('mock-bar-chart');
+    expect(charts).toHaveLength(2);
+    expect(charts.map((chart) => JSON.parse(chart.getAttribute('data-chart-data') ?? '[]').map((row: { label: string; value: number }) => [row.label, row.value]))).toEqual([
+      [['Femenino', 3], ['Masculino', 0]], [['Centro', 3]],
+    ]);
+  });
+
+  it('keeps exact eligible rates authoritative when the estimated-base flag is false', () => {
+    const summary = normalizeSurveySummary({ total_respuestas: 5, preguntas: [{
+      texto: 'Canales utilizados', tipo: 'multiple_choice', base_elegibles_estimada: false,
+      respuestas_elegibles_estimadas: 2, respuestas_elegibles: 4, respuestas_respondidas: 4,
+      opciones: [{ texto: 'Web', respuestas: 4, respuestas_seleccionaron: 4, porcentaje_elegibles: 100, porcentaje_total_encuesta: 80 }],
+    }] });
+    render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const row = screen.getByText('Web').closest('tr');
+    expect(row).toHaveTextContent('100%');
+    expect(row).toHaveTextContent('sobre elegibles');
+    expect(row).toHaveTextContent('4 elegibles');
+    expect(row).not.toHaveTextContent('estimados');
   });
 
   it('keeps the legacy distribution fallback when eligibility metrics are absent', () => {

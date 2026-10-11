@@ -27,7 +27,6 @@ import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import type {
   SurveyAnalyticsFilters,
-  SurveyDemographicBreakdownItem,
   SurveyAnalyticsHeatmap,
   SurveyAnalyticsProvenance,
   SurveyHeatmapPoint,
@@ -85,15 +84,18 @@ const DEMOGRAPHIC_LABELS: Record<string, string> = {
 const normalizeDemographicLabel = (key: string) =>
   DEMOGRAPHIC_LABELS[key] ?? key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
 
-const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
+const buildDemographicData = (items: unknown[]) =>
   items
-    .filter((item) => typeof item?.respuestas === 'number')
-    .map((item, index) => {
-      const label = item.etiqueta ?? item.clave ?? 'Sin dato';
+    .flatMap((item, index) => {
+      if (!isRecord(item)) return [];
+      const value = toFiniteNumber(item.respuestas ?? item.value);
+      if (value === null || value < 0) return [];
+      const label = toNonEmptyString(item.etiqueta ?? item.clave ?? item.label) ?? 'Sin dato';
+      const percentage = toFiniteNumber(item.porcentaje);
       return {
         label,
-        value: item.respuestas,
-        percentage: typeof item.porcentaje === 'number' ? item.porcentaje : undefined,
+        value,
+        ...(percentage !== null && percentage >= 0 ? { percentage } : {}),
         key: `${item.clave ?? label}-${index}`,
       };
     });
@@ -392,6 +394,8 @@ type OptionCandidate = { value: unknown; fallbackLabel?: string };
 
 interface QuestionEligibilityContext {
   respuestasElegibles: number | null;
+  baseElegiblesEstimada: boolean;
+  respuestasElegiblesEstimadas: number | null;
   respuestasRespondidas: number | null;
   tasaRespuestaElegible: number | null;
   tipo: string | null;
@@ -407,11 +411,13 @@ interface OptionBreakdownItem {
   porcentajeElegibles?: number;
   porcentajeRespuestasPregunta?: number;
   respuestasElegibles?: number;
+  baseElegiblesEstimada: boolean;
+  respuestasElegiblesEstimadas?: number;
   respuestasRespondidas?: number;
   tasaRespuestaElegible?: number;
-  participacion: number;
+  participacion?: number;
   usaBaseElegible: boolean;
-  baseParticipacion: 'elegibles' | 'respuestas_pregunta' | 'total_encuesta' | 'legacy';
+  baseParticipacion: 'elegibles' | 'respuestas_pregunta' | 'total_encuesta' | 'legacy' | 'sin_tasa';
   esSeleccionMultiple: boolean;
 }
 
@@ -484,7 +490,7 @@ const extractOptionItem = (
         container.porcentajeTotalEncuesta,
     ) ?? undefined;
   const porcentajeElegibles =
-    toFiniteNumber(
+    eligibility.baseElegiblesEstimada ? undefined : toFiniteNumber(
       container.porcentaje_elegibles ??
         container.porcentajeElegibles,
     ) ?? undefined;
@@ -497,6 +503,7 @@ const extractOptionItem = (
     porcentajeElegibles !== undefined ||
     porcentajeRespuestasPregunta !== undefined;
   const usaBaseElegible =
+    eligibility.baseElegiblesEstimada ||
     eligibility.respuestasElegibles !== null ||
     eligibility.respuestasRespondidas !== null ||
     eligibility.tasaRespuestaElegible !== null ||
@@ -526,15 +533,11 @@ const extractOptionItem = (
         ? 'respuestas_pregunta'
         : porcentajeTotalEncuesta !== undefined
           ? 'total_encuesta'
-          : 'legacy';
-  const participacion = Math.max(
-    0,
-    participacionElegible ??
+          : eligibility.baseElegiblesEstimada ? 'sin_tasa' : 'legacy';
+  const participacion = participacionElegible ??
       porcentajeRespuestasPregunta ??
       porcentajeTotalEncuesta ??
-      porcentaje ??
-      0,
-  );
+      (eligibility.baseElegiblesEstimada ? undefined : porcentaje ?? 0);
   return {
     pregunta: preguntaLabel,
     opcion,
@@ -544,6 +547,10 @@ const extractOptionItem = (
     porcentajeTotalEncuesta,
     porcentajeElegibles,
     porcentajeRespuestasPregunta,
+    baseElegiblesEstimada: eligibility.baseElegiblesEstimada,
+    ...(eligibility.respuestasElegiblesEstimadas !== null
+      ? { respuestasElegiblesEstimadas: Math.max(0, eligibility.respuestasElegiblesEstimadas) }
+      : {}),
     ...(eligibility.respuestasElegibles !== null
       ? { respuestasElegibles: Math.max(0, eligibility.respuestasElegibles) }
       : {}),
@@ -553,10 +560,10 @@ const extractOptionItem = (
     ...(tasaRespuestaElegible !== null
       ? { tasaRespuestaElegible: Math.max(0, tasaRespuestaElegible) }
       : {}),
-    participacion: Number.isFinite(participacion) ? participacion : 0,
+    participacion: participacion !== undefined && Number.isFinite(participacion) ? Math.max(0, participacion) : undefined,
     usaBaseElegible,
     baseParticipacion,
-    esSeleccionMultiple: ['opcion_multiple', 'multiple', 'multiple_choice'].includes(
+    esSeleccionMultiple: ['opcion_multiple', 'multiple', 'multiple_choice', 'multiple-choice', 'checkbox', 'check', 'multi_select', 'multi-select', 'multiselect'].includes(
       eligibility.tipo?.trim().toLowerCase() ?? '',
     ),
   };
@@ -621,8 +628,13 @@ const buildOptionBreakdown = (
           preguntaContainer.nombre ??
           preguntaContainer.name,
       ) ?? `Pregunta ${preguntaIndex + 1}`;
+    const baseElegiblesEstimada = preguntaContainer.base_elegibles_estimada === true;
     const eligibility: QuestionEligibilityContext = {
-      respuestasElegibles: toFiniteNumber(
+      baseElegiblesEstimada,
+      respuestasElegiblesEstimadas: baseElegiblesEstimada
+        ? toFiniteNumber(preguntaContainer.respuestas_elegibles_estimadas)
+        : null,
+      respuestasElegibles: baseElegiblesEstimada ? null : toFiniteNumber(
         preguntaContainer.respuestas_elegibles ??
           preguntaContainer.respuestasElegibles,
       ),
@@ -630,16 +642,14 @@ const buildOptionBreakdown = (
         preguntaContainer.respuestas_respondidas ??
           preguntaContainer.respuestasRespondidas,
       ),
-      tasaRespuestaElegible: toFiniteNumber(
+      tasaRespuestaElegible: baseElegiblesEstimada ? null : toFiniteNumber(
         preguntaContainer.tasa_respuesta_elegible ??
           preguntaContainer.tasaRespuestaElegible,
       ),
-      tipo: toNonEmptyString(
-        preguntaContainer.tipo_interno ??
-          preguntaContainer.tipoInterno ??
-          preguntaContainer.tipo ??
-          preguntaContainer.type,
-      ),
+      tipo: toNonEmptyString(preguntaContainer.tipo) ??
+        toNonEmptyString(preguntaContainer.type) ??
+        toNonEmptyString(preguntaContainer.tipo_interno) ??
+        toNonEmptyString(preguntaContainer.tipoInterno),
     };
     const optionCandidates = collectOptionCandidates(
       preguntaContainer.opciones ??
@@ -1651,19 +1661,46 @@ export const SurveyAnalytics = ({
       }>;
     }
 
-    return Object.entries(demographics)
-      .map(([id, items]) => {
-        const normalizedItems = getArrayOrObjectValues<SurveyDemographicBreakdownItem>(items);
-        if (!normalizedItems.length) return null;
-        const data = buildDemographicData(normalizedItems);
-        if (!data.length) return null;
-        return {
-          id,
-          title: normalizeDemographicLabel(id),
-          data,
-        };
-      })
-      .filter((section): section is { id: string; title: string; data: ReturnType<typeof buildDemographicData> } => Boolean(section));
+    const canonicalSections = new Map<string, { items: unknown; priority: number }>();
+    for (const [key, items] of Object.entries(demographics)) {
+      const id = key.replace(/_(series|map)$/, '');
+      if (id === 'edad') continue; // Age statistics are not categorical counts.
+      const priority = key === id ? 0 : key.endsWith('_series') ? 1 : 2;
+      const existing = canonicalSections.get(id);
+      if (!existing || priority < existing.priority) canonicalSections.set(id, { items, priority });
+    }
+
+    const normalizeItems = (items: unknown): unknown[] => {
+      if (isRecord(items) && Object.values(items).every((value) => toFiniteNumber(value) !== null)) {
+        return Object.entries(items).map(([label, value]) => ({ label, value }));
+      }
+      return getArrayOrObjectValues(items);
+    };
+    const sections: Array<{ id: string; title: string; data: ReturnType<typeof buildDemographicData> }> = [];
+    for (const [id, { items }] of canonicalSections) {
+      if (id === 'territorio') {
+        const territories = Array.isArray(items)
+          ? items
+          : isRecord(items)
+            ? Object.entries(items).map(([key, series]) => ({ key, series }))
+            : [];
+        for (const [index, territory] of territories.entries()) {
+          if (!isRecord(territory)) continue;
+          const key = toNonEmptyString(territory.key) ?? String(index);
+          const data = buildDemographicData(normalizeItems(territory.series));
+          if (!data.length) continue;
+          sections.push({
+            id: `${id}-${key}`,
+            title: toNonEmptyString(territory.label) ?? normalizeDemographicLabel(key),
+            data,
+          });
+        }
+      } else {
+        const data = buildDemographicData(normalizeItems(items));
+        if (data.length) sections.push({ id, title: normalizeDemographicLabel(id), data });
+      }
+    }
+    return sections;
   }, [summaryRecord]);
 
   useEffect(() => {
@@ -1777,7 +1814,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Preferencias por opción</CardTitle>
           <CardDescription>
             {hasEligibilityMetrics
-              ? 'Tasas independientes por pregunta y opción, calculadas sobre participantes elegibles.'
+              ? 'Tasas independientes por pregunta y opción, con la base indicada en cada fila.'
               : 'Resultados acumulados por pregunta y opción.'}
           </CardDescription>
         </CardHeader>
@@ -1819,7 +1856,7 @@ export const SurveyAnalytics = ({
                   ? 'Cada porcentaje es una tasa de selección independiente. En selección múltiple pueden sumar más de 100%.'
                   : hasRowsWithoutEligibleBase
                     ? 'Las filas sin base elegible informada se muestran explícitamente con su porcentaje legacy.'
-                    : 'Cada porcentaje usa la base elegible de su propia pregunta.'}
+                    : 'Cada porcentaje usa la base indicada para su propia pregunta.'}
               </p>
               <table
                 className="w-full min-w-[640px] text-left text-sm"
@@ -1848,7 +1885,7 @@ export const SurveyAnalytics = ({
                         {formatSurveyNumber(entry.respuestasSeleccionaron)}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        {formatSurveyPercentage(entry.participacion)}
+                        {entry.participacion !== undefined ? formatSurveyPercentage(entry.participacion) : 'Sin tasa exacta'}
                         <span className="block text-xs font-normal text-muted-foreground">
                           {entry.baseParticipacion === 'elegibles'
                             ? 'sobre elegibles'
@@ -1856,11 +1893,15 @@ export const SurveyAnalytics = ({
                               ? 'sobre respuestas de la pregunta'
                               : entry.baseParticipacion === 'total_encuesta'
                                 ? 'sobre total de encuesta'
-                                : 'porcentaje legacy'}
+                                : entry.baseParticipacion === 'legacy' ? 'porcentaje legacy' : 'Base exacta no informada'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {!entry.usaBaseElegible
+                        {entry.baseElegiblesEstimada
+                          ? entry.respuestasElegiblesEstimadas !== undefined
+                            ? `${formatSurveyNumber(entry.respuestasElegiblesEstimadas)} elegibles estimados`
+                            : 'Base elegible estimada'
+                          : !entry.usaBaseElegible
                           ? 'Base elegible no informada'
                           : entry.respuestasElegibles !== undefined
                             ? `${formatSurveyNumber(entry.respuestasElegibles)} elegibles`
@@ -2194,7 +2235,7 @@ export const SurveyAnalytics = ({
                       <Tooltip
                         formatter={(value: number, _name, payload) => {
                           const percentage = payload?.payload?.percentage;
-                          return percentage
+                          return typeof percentage === 'number'
                             ? [`${value} respuestas (${percentage.toFixed(1)}%)`, '']
                             : [`${value} respuestas`, ''];
                         }}

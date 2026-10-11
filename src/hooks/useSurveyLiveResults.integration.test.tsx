@@ -58,7 +58,7 @@ it('removes withdrawn results from the displayed and persistent cache and stops 
   expect(view.result.current.liveResults).toBeUndefined();
   expect(view.result.current.liveStatus.label).toBe('Resultados no disponibles');
   expect(view.result.current.pollingIntervalMs).toBeNull();
-  expect(safeLocalStorage.getItem('survey-live-results:tenant:withdrawn:{}')).toBeNull();
+  expect(safeLocalStorage.getItem(`survey-live-results:${JSON.stringify(['tenant', 'withdrawn', '{}'])}`)).toBeNull();
   const attempts = vi.mocked(getPublicSurveyLiveResults).mock.calls.length;
   await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
   expect(getPublicSurveyLiveResults).toHaveBeenCalledTimes(attempts);

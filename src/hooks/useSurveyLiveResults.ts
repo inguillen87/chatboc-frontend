@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getPublicSurveyLiveResults } from '@/api/encuestas';
 import type { SurveyLivePublicResultsPayload } from '@/types/encuestas';
@@ -54,7 +54,29 @@ const parseCachedPayload = (key: string): SurveyLivePublicResultsPayload | undef
 };
 
 const getTrend = (payload?: SurveyLivePublicResultsPayload) => payload?.momentum?.trend;
-const isAccessWithdrawn = (error: unknown) => error instanceof ApiError && [403, 404].includes(error.status);
+const isAccessWithdrawn = (error: unknown): error is ApiError =>
+  error instanceof ApiError && [401, 403, 404].includes(error.status);
+
+interface PublicResultsAccessState {
+  requestGeneration: number;
+  lastSuccessGeneration: number;
+  rejectionBarrier: number;
+  rejection: ApiError | null;
+  acceptedGenerations: Record<string, number>;
+}
+
+const initialAccessState = (storageKey: string): PublicResultsAccessState => {
+  const status = Number(safeLocalStorage.getItem(storageKey));
+  const withdrawn = [401, 403, 404].includes(status);
+  return {
+    // A persisted withdrawal also invalidates every older filter cache after
+    // recovery. Start beyond zero so each filter needs its own fresh success.
+    requestGeneration: withdrawn ? 1 : 0, lastSuccessGeneration: 0,
+    rejectionBarrier: withdrawn ? 1 : 0,
+    rejection: withdrawn ? new ApiError('Resultados no disponibles', status) : null,
+    acceptedGenerations: {},
+  };
+};
 
 const toFiniteNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
@@ -205,9 +227,21 @@ export const useSurveyLiveResults = (
 ) => {
   const normalizedSlug = slug?.trim() ?? '';
   const normalizedTenant = tenantSlug?.trim() ?? '';
+  const queryClient = useQueryClient();
+  const accessStorageKey = `survey-live-results-access:${JSON.stringify([normalizedTenant, normalizedSlug])}`;
+  const accessQueryKey = ['survey-public-live-results-access', normalizedSlug, normalizedTenant];
+  // Visibility belongs to the survey and organization, not the selected filter.
+  // Retain a rejection through remounts and across persistent cache hydration.
+  const accessQuery = useQuery({
+    queryKey: accessQueryKey,
+    enabled: false,
+    queryFn: () => initialAccessState(accessStorageKey),
+    initialData: () => initialAccessState(accessStorageKey),
+    gcTime: Infinity,
+  });
   const serializedParams = useMemo(() => JSON.stringify(params ?? {}), [params]);
   const cacheKey = useMemo(
-    () => `survey-live-results:${normalizedTenant || 'default'}:${normalizedSlug}:${serializedParams}`,
+    () => `survey-live-results:${JSON.stringify([normalizedTenant, normalizedSlug, serializedParams])}`,
     [normalizedSlug, normalizedTenant, serializedParams],
   );
   const [isDocumentHidden, setIsDocumentHidden] = useState<boolean>(() =>
@@ -226,14 +260,46 @@ export const useSurveyLiveResults = (
     queryKey: ['survey-public-live-results', normalizedSlug, normalizedTenant, serializedParams],
     enabled: Boolean(normalizedSlug),
     queryFn: async () => {
-      const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined, params);
-      safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
-      return data;
+      let generation = 0;
+      queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+        const state = previous ?? initialAccessState(accessStorageKey);
+        generation = state.requestGeneration + 1;
+        return { ...state, requestGeneration: generation };
+      });
+      try {
+        const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined, params);
+        let accepted = false;
+        queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+          const state = previous ?? initialAccessState(accessStorageKey);
+          if (generation < (state.acceptedGenerations[serializedParams] ?? 0) || generation <= state.rejectionBarrier) return state;
+          accepted = true;
+          return {
+            ...state, lastSuccessGeneration: Math.max(state.lastSuccessGeneration, generation), rejection: null,
+            acceptedGenerations: { ...state.acceptedGenerations, [serializedParams]: generation },
+          };
+        });
+        if (accepted) {
+          safeLocalStorage.removeItem(accessStorageKey);
+          safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+        }
+        return data;
+      } catch (error) {
+        if (isAccessWithdrawn(error)) {
+          queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+            const state = previous ?? initialAccessState(accessStorageKey);
+            if (generation < state.lastSuccessGeneration) return state;
+            safeLocalStorage.setItem(accessStorageKey, String(error.status));
+            safeLocalStorage.removeItem(cacheKey);
+            return { ...state, rejection: error, rejectionBarrier: state.requestGeneration };
+          });
+        }
+        throw error;
+      }
     },
-    initialData: () => parseCachedPayload(cacheKey),
+    initialData: () => accessQuery.data.rejection ? undefined : parseCachedPayload(cacheKey),
     retry: false,
     refetchInterval: (context) => {
-      if (isAccessWithdrawn(context.state.error)) return false;
+      if (queryClient.getQueryData<PublicResultsAccessState>(accessQueryKey)?.rejection) return false;
       return getSurveyLivePollingInterval(
         context.state.data as SurveyLivePublicResultsPayload | undefined,
         isDocumentHidden,
@@ -241,11 +307,15 @@ export const useSurveyLiveResults = (
       );
     },
     retryOnMount: false,
-    refetchOnWindowFocus: (context) => !isAccessWithdrawn(context.state.error),
-    refetchOnReconnect: (context) => !isAccessWithdrawn(context.state.error),
+    refetchOnWindowFocus: () => !queryClient.getQueryData<PublicResultsAccessState>(accessQueryKey)?.rejection,
+    refetchOnReconnect: () => !queryClient.getQueryData<PublicResultsAccessState>(accessQueryKey)?.rejection,
   });
-  const accessWithdrawn = isAccessWithdrawn(query.error);
-  const visibleResults = accessWithdrawn ? undefined : query.data;
+  const accessError = accessQuery.data.rejection;
+  const accessWithdrawn = Boolean(accessError);
+  // A recovery in another filter cannot publish this filter's older response.
+  const filterVerified = accessQuery.data.rejectionBarrier === 0 ||
+    (accessQuery.data.acceptedGenerations[serializedParams] ?? 0) > accessQuery.data.rejectionBarrier;
+  const visibleResults = accessWithdrawn || !filterVerified ? undefined : query.data;
 
   useEffect(() => {
     if (accessWithdrawn) safeLocalStorage.removeItem(cacheKey);
@@ -295,7 +365,7 @@ export const useSurveyLiveResults = (
     accessWithdrawn,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
-    error: query.error ? getErrorMessage(query.error) : null,
+    error: accessError ? getErrorMessage(accessError) : query.error ? getErrorMessage(query.error) : null,
     consecutiveErrors,
     liveStatus,
     pollingIntervalMs,
