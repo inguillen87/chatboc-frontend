@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertTriangle, BarChart3, ExternalLink, Loader2, MapPinned, Radio, RefreshCw, ShieldCheck, Signal, Users } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -243,6 +243,11 @@ export function SurveyLiveResultsPanel({
   const normalizedTenant = tenantSlug?.trim() ?? '';
   const [params, setParams] = useState<SurveyLiveRequestParams>(DEFAULT_PARAMS);
   const [socketPayload, setSocketPayload] = useState<SurveyLivePublicResultsPayload | undefined>(undefined);
+  const [manualRefreshPending, setManualRefreshPending] = useState(false);
+  const refreshRequest = useRef<object | null>(null);
+  const refreshButton = useRef<HTMLButtonElement>(null);
+  const restoreRefreshFocus = useRef(false);
+  const refreshFocusCleanup = useRef<(() => void) | null>(null);
 
   const {
     liveResults: polledPayload,
@@ -255,6 +260,57 @@ export function SurveyLiveResultsPanel({
     pollingIntervalMs,
     refetch,
   } = useSurveyLiveResults(enabled && normalizedSlug ? normalizedSlug : undefined, normalizedTenant || undefined, params);
+
+  useEffect(() => {
+    setManualRefreshPending(false);
+    return () => {
+      refreshFocusCleanup.current?.();
+      refreshFocusCleanup.current = null;
+      refreshRequest.current = null;
+      restoreRefreshFocus.current = false;
+    };
+  }, [enabled, normalizedSlug, normalizedTenant]);
+
+  useLayoutEffect(() => {
+    if (!restoreRefreshFocus.current || manualRefreshPending || isFetching) return;
+    restoreRefreshFocus.current = false;
+    const button = refreshButton.current;
+    if (button?.isConnected && (document.activeElement === button || document.activeElement === document.body)) {
+      button.focus({ preventScroll: true });
+    }
+  }, [manualRefreshPending, isFetching]);
+
+  const handleRefresh = async () => {
+    if (refreshRequest.current || isFetching) return;
+    const request = {};
+    refreshRequest.current = request;
+    restoreRefreshFocus.current = document.activeElement === refreshButton.current;
+    const trigger = refreshButton.current;
+    const onFocusIn = (event: FocusEvent) => {
+      if (refreshRequest.current === request && event.target !== trigger && event.target !== document.body) {
+        restoreRefreshFocus.current = false;
+      }
+    };
+    const stopFocusTracking = () => document.removeEventListener('focusin', onFocusIn);
+    if (restoreRefreshFocus.current) {
+      document.addEventListener('focusin', onFocusIn);
+      refreshFocusCleanup.current = stopFocusTracking;
+    }
+    setManualRefreshPending(true);
+    try {
+      await refetch();
+    } catch {
+      // Availability and recovery remain owned by the authoritative live hook.
+    } finally {
+      stopFocusTracking();
+      if (refreshFocusCleanup.current === stopFocusTracking) refreshFocusCleanup.current = null;
+      if (refreshRequest.current === request) {
+        refreshRequest.current = null;
+        setManualRefreshPending(false);
+      }
+    }
+  };
+  const refreshPending = manualRefreshPending || isFetching;
 
   const realtimeSocketOptions = useMemo(
     () => buildRealtimeSocketOptions(polledPayload?.realtime, normalizedSlug, normalizedTenant || undefined),
@@ -342,19 +398,8 @@ export function SurveyLiveResultsPanel({
     );
   }
 
-  if (accessWithdrawn) {
-    return (
-      <Card className={className} data-testid="survey-live-results-panel-unavailable">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{liveStatus.description}</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
   return (
-    <Card className={className} data-testid="survey-live-results-panel">
+    <Card className={className} data-testid={accessWithdrawn ? 'survey-live-results-panel-unavailable' : 'survey-live-results-panel'}>
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -362,29 +407,40 @@ export function SurveyLiveResultsPanel({
               <Radio className="h-5 w-5 text-primary" />
               {title}
             </CardTitle>
-            <CardDescription>{description}</CardDescription>
+            <CardDescription role={accessWithdrawn ? 'status' : undefined} aria-live={accessWithdrawn ? 'polite' : undefined}>
+              {accessWithdrawn ? liveStatus.description : description}
+            </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${statusTone(statusMode)}`} role="status">
+            {!accessWithdrawn ? <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${statusTone(statusMode)}`} role="status">
               <span className={`h-2 w-2 rounded-full bg-current ${isFetching || hasSocketPayload ? 'animate-pulse' : ''}`} />
               {statusLabel}
-            </span>
-            {updatedAtLabel ? <span className="text-xs text-muted-foreground">Actualizado {updatedAtLabel}</span> : null}
-            <Button type="button" variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
-              {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              Refrescar
+            </span> : null}
+            {!accessWithdrawn && updatedAtLabel ? <span className="text-xs text-muted-foreground">Actualizado {updatedAtLabel}</span> : null}
+            <Button
+              ref={refreshButton}
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={refreshPending}
+              aria-busy={refreshPending}
+              aria-label={accessWithdrawn ? 'Reintentar disponibilidad' : 'Refrescar'}
+              onClick={() => void handleRefresh()}
+            >
+              {refreshPending ? <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw aria-hidden="true" className="mr-2 h-4 w-4" />}
+              {accessWithdrawn ? refreshPending ? 'Comprobando disponibilidad...' : 'Reintentar disponibilidad' : 'Refrescar'}
             </Button>
           </div>
         </div>
-        {error && consecutiveErrors > 2 ? (
+        {!accessWithdrawn && error && consecutiveErrors > 2 ? (
           <div className="flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
             <AlertTriangle className="h-4 w-4" />
             Se muestran datos previos mientras polling reintenta: {error}
           </div>
         ) : null}
-        <SurveyResponseProvenanceBadge sources={[payload]} />
+        {!accessWithdrawn ? <SurveyResponseProvenanceBadge sources={[payload]} /> : null}
       </CardHeader>
-      <CardContent className="space-y-5">
+      {!accessWithdrawn ? <CardContent className="space-y-5">
         {isLoading && !payload ? (
           <div className="flex min-h-[180px] items-center justify-center rounded-xl border border-dashed border-border/70 text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -558,7 +614,7 @@ export function SurveyLiveResultsPanel({
             ) : null}
           </>
         )}
-      </CardContent>
+      </CardContent> : null}
     </Card>
   );
 }

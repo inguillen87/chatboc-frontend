@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getPublicSurveyLiveResults } from '@/api/encuestas';
@@ -63,18 +63,39 @@ interface PublicResultsAccessState {
   rejectionBarrier: number;
   rejection: ApiError | null;
   acceptedGenerations: Record<string, number>;
+  observedMarker: string | null;
 }
 
+interface WithdrawalMarker { value: string; status: number }
+const parseWithdrawalMarker = (value: string | null): WithdrawalMarker | null => {
+  if (value === null) return null;
+  // Retain compatibility with notices written by an older open tab.
+  if (['401', '403', '404'].includes(value)) return { value, status: Number(value) };
+  try {
+    const marker = JSON.parse(value);
+    if (marker?.v === 1 && [401, 403, 404].includes(marker.status) &&
+        typeof marker.id === 'string' && /^[a-zA-Z0-9-]{1,128}$/.test(marker.id)) {
+      return { value, status: marker.status };
+    }
+  } catch { /* Ignore unrelated or corrupt storage values. */ }
+  return null;
+};
+const createWithdrawalMarker = (status: number): WithdrawalMarker => {
+  const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return { status, value: JSON.stringify({ v: 1, status, id }) };
+};
+
 const initialAccessState = (storageKey: string): PublicResultsAccessState => {
-  const status = Number(safeLocalStorage.getItem(storageKey));
-  const withdrawn = [401, 403, 404].includes(status);
+  const marker = parseWithdrawalMarker(safeLocalStorage.getItem(storageKey));
+  const withdrawn = Boolean(marker);
   return {
     // A persisted withdrawal also invalidates every older filter cache after
     // recovery. Start beyond zero so each filter needs its own fresh success.
     requestGeneration: withdrawn ? 1 : 0, lastSuccessGeneration: 0,
     rejectionBarrier: withdrawn ? 1 : 0,
-    rejection: withdrawn ? new ApiError('Resultados no disponibles', status) : null,
+    rejection: marker ? new ApiError('Resultados no disponibles', marker.status) : null,
     acceptedGenerations: {},
+    observedMarker: marker?.value ?? null,
   };
 };
 
@@ -229,7 +250,10 @@ export const useSurveyLiveResults = (
   const normalizedTenant = tenantSlug?.trim() ?? '';
   const queryClient = useQueryClient();
   const accessStorageKey = `survey-live-results-access:${JSON.stringify([normalizedTenant, normalizedSlug])}`;
-  const accessQueryKey = ['survey-public-live-results-access', normalizedSlug, normalizedTenant];
+  const accessQueryKey = useMemo(
+    () => ['survey-public-live-results-access', normalizedSlug, normalizedTenant],
+    [normalizedSlug, normalizedTenant],
+  );
   // Visibility belongs to the survey and organization, not the selected filter.
   // Retain a rejection through remounts and across persistent cache hydration.
   const accessQuery = useQuery({
@@ -239,6 +263,33 @@ export const useSurveyLiveResults = (
     initialData: () => initialAccessState(accessStorageKey),
     gcTime: Infinity,
   });
+  const observeWithdrawal = useCallback((marker: WithdrawalMarker) => {
+    queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+      const state = previous ?? initialAccessState(accessStorageKey);
+      if (state.observedMarker === marker.value) return state;
+      const barrier = Math.max(1, state.requestGeneration);
+      return {
+        ...state, observedMarker: marker.value,
+        requestGeneration: barrier, rejectionBarrier: barrier,
+        rejection: new ApiError('Resultados no disponibles', marker.status),
+      };
+    });
+  }, [queryClient, accessQueryKey, accessStorageKey]);
+  useEffect(() => {
+    const current = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+    if (current) observeWithdrawal(current);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== accessStorageKey || !event.newValue) return;
+      try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+      // A delayed notice that has already been superseded cannot retire newer
+      // results. Removing a notice never verifies access in this tab.
+      if (safeLocalStorage.getItem(accessStorageKey) !== event.newValue) return;
+      const marker = parseWithdrawalMarker(event.newValue);
+      if (marker) observeWithdrawal(marker);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [accessStorageKey, observeWithdrawal]);
   const serializedParams = useMemo(() => JSON.stringify(params ?? {}), [params]);
   const cacheKey = useMemo(
     () => `survey-live-results:${JSON.stringify([normalizedTenant, normalizedSlug, serializedParams])}`,
@@ -260,6 +311,8 @@ export const useSurveyLiveResults = (
     queryKey: ['survey-public-live-results', normalizedSlug, normalizedTenant, serializedParams],
     enabled: Boolean(normalizedSlug),
     queryFn: async () => {
+      const requestMarker = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+      if (requestMarker) observeWithdrawal(requestMarker);
       let generation = 0;
       queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
         const state = previous ?? initialAccessState(accessStorageKey);
@@ -268,6 +321,10 @@ export const useSurveyLiveResults = (
       });
       try {
         const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined, params);
+        // Another tab can write its denial before the browser delivers the
+        // storage event. Check at settlement as well as in the event listener.
+        const currentMarker = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+        if (currentMarker && currentMarker.value !== requestMarker?.value) observeWithdrawal(currentMarker);
         let accepted = false;
         queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
           const state = previous ?? initialAccessState(accessStorageKey);
@@ -279,8 +336,11 @@ export const useSurveyLiveResults = (
           };
         });
         if (accepted) {
-          safeLocalStorage.removeItem(accessStorageKey);
-          safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+          const latestMarker = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+          if (latestMarker && latestMarker.value !== requestMarker?.value) observeWithdrawal(latestMarker);
+          else safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+          // Keep the last opaque notice. Clearing shared storage here could
+          // erase a simultaneous denial or revive another tab's older cache.
         }
         return data;
       } catch (error) {
@@ -288,9 +348,10 @@ export const useSurveyLiveResults = (
           queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
             const state = previous ?? initialAccessState(accessStorageKey);
             if (generation < state.lastSuccessGeneration) return state;
-            safeLocalStorage.setItem(accessStorageKey, String(error.status));
+            const marker = createWithdrawalMarker(error.status);
+            safeLocalStorage.setItem(accessStorageKey, marker.value);
             safeLocalStorage.removeItem(cacheKey);
-            return { ...state, rejection: error, rejectionBarrier: state.requestGeneration };
+            return { ...state, rejection: error, rejectionBarrier: state.requestGeneration, observedMarker: marker.value };
           });
         }
         throw error;
