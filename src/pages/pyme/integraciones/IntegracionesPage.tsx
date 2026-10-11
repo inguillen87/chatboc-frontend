@@ -407,7 +407,7 @@ const IntegracionesPage = () => {
   const requestedAction = searchParams.get("action");
 
   // Notification Settings State
-  const notifications = useTenantNotificationSettings(currentSlug, channelScopeKey);
+  const notifications = useTenantNotificationSettings(currentSlug, channelScopeKey, publishedTenantId);
   const notificationPreferences = notifications.draft.notification_settings;
   const notificationStatusId = useId();
   const notificationEmailId = useId();
