@@ -294,6 +294,79 @@ it('returns focus to the compact disclosure when a close remains unconfirmed', a
   expect(start).toHaveBeenCalledOnce();
 });
 
+it.each(['accepted', 'rejected', 'unknown'] as const)(
+  'shows local closure before the deferred %s server result using the real transport', async result => {
+    const actual = await vi.importActual<typeof import('@/utils/ownerRealtimeVoice')>('@/utils/ownerRealtimeVoice');
+    const answer = { session_id: 'a'.repeat(32), sdp: 'v=0\r\nm=audio 9 X\r\n', limits: { client_duration_seconds: 120 } };
+    let acknowledge!: (value: { provider_close_accepted: boolean }) => void;
+    let reject!: (reason: Error) => void;
+    const hangup = new Promise<{ provider_close_accepted: boolean }>((resolve, fail) => { acknowledge = resolve; reject = fail; });
+    const track = { stop: vi.fn(), enabled: true };
+    const media = { getTracks: () => [track], getAudioTracks: () => [track] };
+    const getMedia = vi.fn().mockResolvedValue(media);
+    const channel: any = { close: vi.fn(), readyState: 'connecting', onmessage: null, onopen: null };
+    const peer: any = { addTrack: vi.fn(), createDataChannel: vi.fn(() => channel),
+      createOffer: vi.fn().mockResolvedValue({ type: 'offer', sdp: answer.sdp }),
+      setLocalDescription: vi.fn().mockResolvedValue(undefined), setRemoteDescription: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(), connectionState: 'connecting' };
+    const previousMedia = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: getMedia } });
+    vi.stubGlobal('RTCPeerConnection', function () { return peer; });
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    let transport!: ReturnType<typeof actual.createOwnerVoiceTransport>;
+    vi.mocked(createOwnerVoiceTransport).mockImplementationOnce(options => {
+      transport = actual.createOwnerVoiceTransport(options); return transport;
+    });
+    apiFetch.mockImplementation(path => {
+      if (path.endsWith('/capabilities')) return Promise.resolve(capability);
+      if (path.endsWith('/stop')) return hangup;
+      if (path.endsWith('/sessions')) return Promise.resolve(answer);
+      return Promise.reject(new Error('synthetic-unexpected-route'));
+    });
+    const view = render(<><OwnerRealtimeVoicePanel tenantSlug="a" /><input aria-label="Seguir por texto" /></>);
+    try {
+      const user = userEvent.setup();
+      const disclosure = await openDetails();
+      await act(async () => { await user.click(screen.getByRole('checkbox')); await user.click(screen.getByRole('button', { name: ui.start })); });
+      await waitFor(() => expect(peer.setRemoteDescription).toHaveBeenCalledOnce());
+      act(() => {
+        peer.connectionState = 'connected'; channel.readyState = 'open'; channel.onopen();
+        channel.onmessage({ data: JSON.stringify({ type: 'response.output_audio_transcript.done', item_id: 'synthetic', transcript: 'Orientación publicada' }) });
+      });
+      expect(screen.getByRole('status')).toHaveTextContent(ui.live);
+      const stopButton = screen.getByRole('button', { name: ui.stop }); stopButton.focus();
+      await act(async () => { await user.keyboard('[Enter]'); });
+      expect(track.stop).toHaveBeenCalledOnce(); expect(peer.close).toHaveBeenCalledOnce(); expect(pause).toHaveBeenCalledOnce();
+      expect(screen.getByRole('status')).toHaveTextContent(ui.pending);
+      expect(screen.queryByRole('button', { name: ui.stop })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: ui.mute })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: ui.start })).toBeDisabled(); expect(screen.getByRole('checkbox')).toBeDisabled();
+      expect(screen.getByRole('log', { name: ui.captions })).toHaveTextContent('Orientación publicada');
+      expect(disclosure).toHaveFocus();
+      const duplicate = transport.close();
+      expect(apiFetch.mock.calls.filter(([path]) => path.endsWith('/stop'))).toHaveLength(1);
+      // The eventual ACK must not move focus away from resumed text work.
+      const text = screen.getByRole('textbox', { name: 'Seguir por texto' });
+      await act(async () => { await user.click(text); await user.type(text, 'Consulta conservada'); });
+      await act(async () => {
+        if (result === 'unknown') reject(new Error('synthetic-close-response-lost'));
+        else acknowledge({ provider_close_accepted: result === 'accepted' });
+        expect(await duplicate).toBe(result === 'accepted');
+      });
+      expect(screen.getByRole('status')).toHaveTextContent(result === 'accepted' ? ui.ended : ui.pending);
+      expect(text).toHaveFocus(); expect(text).toHaveValue('Consulta conservada');
+      expect(screen.getByRole('button', { name: ui.start }).hasAttribute('disabled')).toBe(result !== 'accepted');
+      expect(getMedia).toHaveBeenCalledOnce(); expect(createOwnerVoiceTransport).toHaveBeenCalledOnce();
+      expect(apiFetch.mock.calls.filter(([path]) => path.endsWith('/sessions'))).toHaveLength(1);
+      expect(apiFetch.mock.calls.filter(([path]) => path.endsWith('/stop'))).toHaveLength(1);
+    } finally {
+      view.unmount(); pause.mockRestore(); vi.unstubAllGlobals();
+      if (previousMedia) Object.defineProperty(navigator, 'mediaDevices', previousMedia);
+      else Reflect.deleteProperty(navigator, 'mediaDevices');
+    }
+  },
+);
+
 it('does not steal focus from outside the voice controls during a connection or delayed close', async () => {
   render(<><OwnerRealtimeVoicePanel tenantSlug="a" /><button>Continuar por texto</button></>);
   const { user, options } = await startUsingKeyboard();

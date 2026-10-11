@@ -28,7 +28,11 @@ export function createOwnerVoiceTransport(options: OwnerVoiceOptions) {
   const stopOnce = async () => {
     if (!sessionId) return !exchangeIssued;
     if (!stopAttempt) {
-      stopAttempt = options.stop(sessionId).then(result => result.provider_close_accepted === true, () => false);
+      const id = sessionId;
+      // Memoize before dispatch so a rejection (including a synchronous one)
+      // remains one attempt and never reopens local media.
+      stopAttempt = Promise.resolve().then(() => options.stop(id))
+        .then(result => result?.provider_close_accepted === true, () => false);
     }
     return stopAttempt;
   };
@@ -50,8 +54,12 @@ export function createOwnerVoiceTransport(options: OwnerVoiceOptions) {
     options.speaking(false);
   };
   const close = async () => {
+    if (closed) return stopOnce();
     closed = true;
     release(); // Mic turns off immediately, before waiting for the server.
+    // Local closure is observable now; an issued call still needs a server ACK.
+    // If its ID arrives later, start() closes that same call once.
+    if (sessionId || exchangeIssued) options.state('pending');
     const stopped = await stopOnce();
     options.state(stopped ? 'ended' : 'pending');
     return stopped;

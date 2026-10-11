@@ -73,7 +73,7 @@ describe('institutional reading and review',()=>{
  it('announces and focuses a source-uncovered answer instead of losing keyboard position',async()=>{
   render(view());const input=await screen.findByLabelText('Escribí tu consulta');
   mocks.fetch.mockResolvedValueOnce({...reply(),nodes:[],text:workspace().ui.unknown});
-  fireEvent.change(input,{target:{value:'¿Y un dato no documentado?'}});fireEvent.submit(input.closest('form')!);
+  fireEvent.change(input,{target:{value:'¿Y un dato no documentado?'}});input.focus();fireEvent.submit(input.closest('form')!);
   const notice=await screen.findByText(workspace().ui.unknown);
   await waitFor(()=>expect(notice).toHaveFocus());expect(notice).toHaveAttribute('role','status');
  });
@@ -151,7 +151,7 @@ describe('explicit workspace recovery focus',()=>{
  });
  it('recovers a rejected question with a fresh GET and focuses its new revision without re-POSTing',async()=>{
   render(view());const input=await screen.findByLabelText('Escribí tu consulta');
-  mocks.fetch.mockRejectedValueOnce({status:412});fireEvent.change(input,{target:{value:'Consulta de la revisión anterior'}});fireEvent.submit(input.closest('form')!);
+  mocks.fetch.mockRejectedValueOnce({status:412});fireEvent.change(input,{target:{value:'Consulta de la revisión anterior'}});input.focus();fireEvent.submit(input.closest('form')!);
   const alert=await screen.findByRole('alert');await waitFor(()=>expect(alert).toHaveFocus());
   const retry=screen.getByRole('button',{name:'Volver a consultar'}),pending=deferred();
   mocks.fetch.mockReturnValueOnce(pending.promise);retry.focus();fireEvent.click(retry);

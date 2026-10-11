@@ -1,11 +1,12 @@
 import React from 'react';
 import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node,reply} from '../../../tests/fixtures/institutional-assistant.synthetic';
 const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>mocks.fetch(...args)}));
 import InstitutionalAssistant from './InstitutionalAssistant';
-const deferred=()=>{let resolve!:(value:any)=>void;const promise=new Promise<any>(r=>{resolve=r;});return{promise,resolve};};
+const deferred=()=>{let resolve!:(value:any)=>void,reject!:(reason:unknown)=>void;const promise=new Promise<any>((r,j)=>{resolve=r;reject=j;});return{promise,resolve,reject};};
 const view=(slug='qa-knowledge',sessionKey='actor-a')=><InstitutionalAssistant tenantSlug={slug} sessionKey={sessionKey}/>;
 beforeEach(()=>{mocks.fetch.mockReset();mocks.fetch.mockResolvedValue(workspace());});afterEach(cleanup);
 describe('institutional workspace inside the application',()=>{
@@ -170,5 +171,163 @@ describe('published institution view',()=>{
   await act(async()=>{await Promise.resolve();});
   expect(mounted.container).not.toHaveTextContent(node().text);
   expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar el conocimiento');
+ });
+});
+
+describe('asynchronous reading focus',()=>{
+ let frames:FrameRequestCallback[];
+ const runFrames=()=>act(()=>{frames.splice(0).forEach(frame=>frame(0));});
+ const withOutside=(slug='qa-knowledge',session='actor-a')=><><label>Otra tarea<input/></label>{view(slug,session)}</>;
+ beforeEach(()=>{
+  frames=[];
+  vi.spyOn(globalThis,'requestAnimationFrame').mockImplementation(callback=>{frames.push(callback);return frames.length;});
+  vi.spyOn(globalThis,'cancelAnimationFrame').mockImplementation(()=>{});
+ });
+ afterEach(()=>vi.restoreAllMocks());
+ it.each(['success','error'] as const)('keeps a field chosen while a canonical answer %s is pending',async outcome=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);
+  await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  const outside=screen.getByLabelText('Otra tarea');await user.click(outside);await user.type(outside,'Trabajo conservado');
+  await act(async()=>{if(outcome==='success')pending.resolve(reply());else pending.reject({status:503});await pending.promise.catch(()=>{});});
+  if(outcome==='success')await screen.findByRole('heading',{name:'Requisitos de la consulta'});else await screen.findByRole('alert');
+  runFrames();expect(outside).toHaveFocus();expect(outside).toHaveValue('Trabajo conservado');
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it('keeps a field chosen while a fresh recovery read is pending',async()=>{
+  const user=userEvent.setup();mocks.fetch.mockRejectedValueOnce({status:403});render(withOutside());
+  const retry=await screen.findByRole('button',{name:'Reintentar'}),pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);
+  await user.click(retry);const outside=screen.getByLabelText('Otra tarea');await user.click(outside);
+  await act(async()=>{pending.resolve(workspace());await pending.promise;});await screen.findByText(node().text);
+  runFrames();expect(outside).toHaveFocus();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+ });
+ it('focuses the canonical result after the focused menu control is retired',async()=>{
+  const user=userEvent.setup();render(view());await screen.findByText(node().text);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);
+  const choice=screen.getByRole('button',{name:'1 Consultar requisitos'});choice.focus();await user.keyboard('{Enter}');
+  expect(choice.isConnected).toBe(false);expect(document.body).toHaveFocus();
+  await act(async()=>{pending.resolve(reply());await pending.promise;});
+  const result=await screen.findByRole('heading',{name:'Requisitos de la consulta'});runFrames();expect(result).toHaveFocus();
+  expect(mocks.fetch.mock.calls[1][0]).toContain('/nodes/requirements?revision=');
+ });
+ it('focuses the canonical result after a retained textarea submits with Enter',async()=>{
+  const user=userEvent.setup();render(view());await screen.findByText(node().text);
+  const input=screen.getByLabelText('Escribí tu consulta');await user.type(input,'Consulta por teclado');
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.keyboard('{Enter}');
+  expect(input).toHaveFocus();expect(input).toBeDisabled();
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();
+  expect(screen.getByRole('heading',{name:'Requisitos de la consulta'})).toHaveFocus();
+  expect(input).toHaveValue('');expect(mocks.fetch.mock.calls[1][1].body.question).toBe('Consulta por teclado');
+ });
+ it('focuses an owned error and the same-revision retry result without resending automatically',async()=>{
+  const user=userEvent.setup();render(view());await screen.findByText(node().text);
+  const failed=deferred();mocks.fetch.mockReturnValueOnce(failed.promise);await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  await act(async()=>{failed.reject({status:503});await failed.promise.catch(()=>{});});runFrames();
+  expect(screen.getByRole('alert')).toHaveFocus();expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'Volver a consultar'}));
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();
+  expect(screen.getByRole('heading',{name:'Requisitos de la consulta'})).toHaveFocus();
+  expect(mocks.fetch.mock.calls[2]).toEqual(mocks.fetch.mock.calls[1]);
+ });
+ it('does not steal focus when the user leaves after the result renders but before its frame',async()=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  await act(async()=>{pending.resolve(reply());await pending.promise;});await screen.findByRole('heading',{name:'Requisitos de la consulta'});
+  const outside=screen.getByLabelText('Otra tarea');await user.click(outside);runFrames();expect(outside).toHaveFocus();
+ });
+ it('does not infer ownership from BODY after the user chose and then left another field',async()=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  const outside=screen.getByLabelText('Otra tarea');await user.click(outside);outside.blur();expect(document.body).toHaveFocus();
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();expect(document.body).toHaveFocus();
+ });
+ it('does not borrow focus from an external field for a click that did not focus its button',async()=>{
+  render(withOutside());await screen.findByText(node().text);const outside=screen.getByLabelText('Otra tarea');outside.focus();
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);fireEvent.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  outside.blur();await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();expect(document.body).toHaveFocus();
+ });
+ it('keeps external focus during an explicit same-revision answer retry',async()=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  mocks.fetch.mockRejectedValueOnce({status:503});await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));await screen.findByRole('alert');runFrames();
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'Volver a consultar'}));
+  const outside=screen.getByLabelText('Otra tarea');await user.click(outside);
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();expect(outside).toHaveFocus();
+  expect(mocks.fetch.mock.calls[2]).toEqual(mocks.fetch.mock.calls[1]);
+ });
+ it('retires a queued frame when a newer canonical request starts',async()=>{
+  const user=userEvent.setup();render(view());await screen.findByText(node().text);
+  mocks.fetch.mockResolvedValueOnce(reply());await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  await screen.findByRole('heading',{name:'Requisitos de la consulta'});const oldFrame=frames.at(-1)!;
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'9 Volver al menú'}));
+  act(()=>oldFrame(0));expect(document.body).toHaveFocus();
+  await act(async()=>{pending.resolve(reply('start'));await pending.promise;});runFrames();
+  expect(screen.getByRole('heading',{name:node().title})).toHaveFocus();expect(mocks.fetch).toHaveBeenCalledTimes(3);
+ });
+ it.each(['actor','tenant'] as const)('retires a deferred result and its focus on %s change',async change=>{
+  const user=userEvent.setup(),mounted=render(withOutside());await screen.findByText(node().text);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  const fresh=workspace({tenant:{id:change==='tenant'?702:701,slug:change==='tenant'?'another-organization':'qa-knowledge',name:'Organización vigente'}});
+  fresh.knowledge!.initial.title='Menú vigente';mocks.fetch.mockResolvedValueOnce(fresh);
+  mounted.rerender(withOutside(fresh.tenant.slug,change==='actor'?'actor-b':'actor-a'));await screen.findByText('Organización vigente');
+  const outside=screen.getByLabelText('Otra tarea');await user.click(outside);
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();
+  expect(outside).toHaveFocus();expect(screen.getByRole('heading',{name:'Menú vigente'})).toBeVisible();
+  expect(screen.queryByRole('heading',{name:'Requisitos de la consulta'})).not.toBeInTheDocument();
+ });
+ it('does not focus a retired answer after unmounting while its request is pending',async()=>{
+  const user=userEvent.setup(),mounted=render(withOutside());await screen.findByText(node().text);
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);await user.click(screen.getByRole('button',{name:'1 Consultar requisitos'}));
+  mounted.rerender(<label>Otra tarea<input/></label>);const outside=screen.getByLabelText('Otra tarea');await user.click(outside);
+  await act(async()=>{pending.resolve(reply());await pending.promise;});runFrames();expect(outside).toHaveFocus();
+  expect(screen.queryByRole('heading',{name:'Requisitos de la consulta'})).not.toBeInTheDocument();
+ });
+ it.each([false,true])('handles a deferred import parse error with external focus %s',async leave=>{
+  const user=userEvent.setup(),mounted=render(withOutside());await screen.findByText(node().text);
+  await user.type(screen.getByLabelText('Escribí tu consulta'),'Borrador conservado');
+  const trigger=screen.getByRole('button',{name:'Incorporar conocimiento'});await user.click(trigger);
+  const pending=deferred(),file=new File(['invalid JSON'],'knowledge.json',{type:'application/json'});
+  Object.defineProperty(file,'text',{value:()=>pending.promise});
+  fireEvent.change(mounted.container.querySelector('input[type=file]')!,{target:{files:[file]}});
+  const outside=screen.getByLabelText('Otra tarea');if(leave)await user.click(outside);
+  await act(async()=>{pending.resolve('invalid JSON');await pending.promise;});await screen.findByRole('alert');runFrames();
+  if(leave)expect(outside).toHaveFocus();else expect(screen.getByRole('alert')).toHaveFocus();
+  expect(screen.getByText('Institución de prueba')).toBeVisible();expect(screen.getByLabelText('Escribí tu consulta')).toHaveValue('Borrador conservado');
+  expect(mocks.fetch).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+ });
+ it.each([false,true])('handles a deferred confirmation error after its own close-focus transfer with external focus %s',async leave=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  await user.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  const pending=deferred();mocks.fetch.mockReturnValueOnce(pending.promise);
+  await user.click(screen.getByRole('button',{name:'Confirmar cambio'}));
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  const page=screen.getByRole('heading',{name:'Información y orientación'});await waitFor(()=>expect(page).toHaveFocus());
+  const outside=screen.getByLabelText('Otra tarea');if(leave)await user.click(outside);
+  await act(async()=>{pending.reject(new Error('unconfirmed write'));await pending.promise.catch(()=>{});});await screen.findByRole('alert');runFrames();
+  if(leave)expect(outside).toHaveFocus();else expect(screen.getByRole('alert')).toHaveFocus();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(mocks.fetch.mock.calls[1][1].method).toBe('PUT');
+  expect(screen.queryByRole('button',{name:'Confirmar cambio'})).not.toBeInTheDocument();
+ });
+ it('keeps external focus through a successful confirmation and verified fresh read',async()=>{
+  const user=userEvent.setup();render(withOutside());await screen.findByText(node().text);
+  await user.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  const pending=deferred(),fresh=workspace({revision:'c'.repeat(64),visibility:'public'});
+  mocks.fetch.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(fresh);
+  await user.click(screen.getByRole('button',{name:'Confirmar cambio'}));await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(()=>expect(screen.getByRole('heading',{name:'Información y orientación'})).toHaveFocus());
+  const outside=screen.getByLabelText('Otra tarea');await user.click(outside);
+  await act(async()=>{pending.resolve(fresh);await pending.promise;});await screen.findByRole('button',{name:'Retirar del agente'});runFrames();
+  expect(outside).toHaveFocus();expect(mocks.fetch.mock.calls.map(call=>call[1].method)).toEqual(['GET','PUT','GET']);
+ });
+ it('retires a completed confirmation before a new review returns keyboard focus to its own trigger',async()=>{
+  const user=userEvent.setup();render(view());await screen.findByText(node().text);
+  await user.click(screen.getByRole('button',{name:'Habilitar en el agente'}));
+  const fresh=workspace({revision:'c'.repeat(64),visibility:'public'});mocks.fetch.mockResolvedValueOnce(fresh).mockResolvedValueOnce(fresh);
+  await user.click(screen.getByRole('button',{name:'Confirmar cambio'}));
+  const trigger=await screen.findByRole('button',{name:'Retirar del agente'});await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await user.click(trigger);const cancel=await screen.findByRole('button',{name:'Cancelar'});expect(cancel).toHaveFocus();
+  await user.keyboard('{Enter}');await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(()=>expect(trigger).toHaveFocus());runFrames();expect(trigger).toHaveFocus();
+  expect(mocks.fetch.mock.calls.map(call=>call[1].method)).toEqual(['GET','PUT','GET']);
  });
 });
