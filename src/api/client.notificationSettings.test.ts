@@ -22,6 +22,44 @@ const draft = () => ({ owner_phone: 'synthetic-phone', telegram_chat_id: 'synthe
 beforeEach(() => { apiFetchMock.mockReset(); });
 
 describe('tenant notification endpoint contract', () => {
+  it.each(['GET', 'POST'])('does not dispatch a %s under explicitly retired caller authority', async method => {
+    const authority = { isCurrent: () => false, expectedTenantId: 701 };
+    const request = method === 'GET' ? apiClient.adminGetNotificationSettings('qa-office', authority)
+      : apiClient.adminUpdateNotificationSettings('qa-office', draft(), undefined, authority);
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' }); expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+  it.each([404, 405, 501])('retires the legacy GET fallback after delayed unsupported HTTP%s', async status => {
+    let current = true; apiFetchMock.mockImplementation(async () => { current = false; throw new ApiError('synthetic unsupported', status); });
+    await expect(apiClient.adminGetNotificationSettings('qa-office', { isCurrent: () => current })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([404, 405, 501])('retires the legacy PUT fallback after delayed unsupported HTTP%s', async status => {
+    let current = true; apiFetchMock.mockImplementation(async () => { current = false; throw new ApiError('synthetic unsupported', status); });
+    await expect(apiClient.adminUpdateNotificationSettings('qa-office', draft(), undefined, { isCurrent: () => current })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('forwards the caller current guard to canonical and explicit legacy reads and writes', async () => {
+    const isCurrent = () => true;
+    apiFetchMock.mockRejectedValueOnce(new ApiError('synthetic unsupported', 404)).mockResolvedValueOnce(draft());
+    await apiClient.adminGetNotificationSettings('qa-office', { isCurrent, expectedTenantId: 701 });
+    apiFetchMock.mockRejectedValueOnce(new ApiError('synthetic unsupported', 405)).mockResolvedValueOnce({ status: 'ok' });
+    await apiClient.adminUpdateNotificationSettings('qa-office', draft(), undefined, { isCurrent, expectedTenantId: 701 });
+    expect(apiFetchMock).toHaveBeenCalledTimes(4);
+    for (const [, options] of apiFetchMock.mock.calls) expect(options.isCurrent).toBe(isCurrent);
+  });
+  it.each(['GET', 'POST'])('rejects a canonical %s with the right slug and a mismatched expected tenant ID', async method => {
+    apiFetchMock.mockResolvedValue(canonical({ preferences: draft().notification_settings }));
+    const authority = { isCurrent: () => true, expectedTenantId: 702 };
+    const request = method === 'GET' ? apiClient.adminGetNotificationSettings('qa-office', authority)
+      : apiClient.adminUpdateNotificationSettings('qa-office', draft(), undefined, authority);
+    await expect(request).rejects.toMatchObject({ status: 502 }); expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('accepts the independently supplied canonical tenant ID on reads and acknowledgements', async () => {
+    apiFetchMock.mockResolvedValue(canonical({ preferences: draft().notification_settings }));
+    const authority = { isCurrent: () => true, expectedTenantId: 701 };
+    await expect(apiClient.adminGetNotificationSettings('qa-office', authority)).resolves.toMatchObject(draft());
+    await expect(apiClient.adminUpdateNotificationSettings('qa-office', draft(), undefined, authority)).resolves.toMatchObject(draft());
+  });
   it('reads canonical destinations and retains preferences absent from the switches', async () => {
     apiFetchMock.mockResolvedValue(canonical({ preferences: draft().notification_settings }));
     expect(await apiClient.adminGetNotificationSettings('qa-office')).toMatchObject(draft());

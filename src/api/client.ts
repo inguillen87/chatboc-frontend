@@ -10,6 +10,8 @@ import {
   readLegacyNotificationSettingsAck,
   serializeNotificationSettings,
   serializeLegacyNotificationSettings,
+  assertNotificationSettingsAuthority,
+  type NotificationSettingsRequestAuthority,
   type TenantNotificationSettings,
   type TenantNotificationSettingsAck,
   type TenantNotificationSettingsUpdate,
@@ -750,36 +752,49 @@ export const apiClient = {
     });
   },
 
-  adminGetNotificationSettings: async (tenantSlug: string): Promise<TenantNotificationSettings> => {
-    const options = { ...panelReadOptions(tenantSlug), suppressPanel401Redirect: true };
+  adminGetNotificationSettings: async (tenantSlug: string, authority?: NotificationSettingsRequestAuthority): Promise<TenantNotificationSettings> => {
+    const options = { ...panelReadOptions(tenantSlug), suppressPanel401Redirect: true,
+      ...(authority?.isCurrent ? { isCurrent: authority.isCurrent } : {}) };
+    assertNotificationSettingsAuthority(authority);
     try {
       const response = await apiFetch<unknown>('/api/v2/notifications/hooks', options);
-      return readNotificationHooksSettings(response, tenantSlug);
+      assertNotificationSettingsAuthority(authority);
+      return readNotificationHooksSettings(response, tenantSlug, authority?.expectedTenantId);
     } catch (error) {
       if (!shouldFallbackToLegacyEndpoint(error)) throw error;
-      return readLegacyNotificationSettings(await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, options));
+      assertNotificationSettingsAuthority(authority);
+      const response = await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, options);
+      assertNotificationSettingsAuthority(authority);
+      // Legacy DTOs have no tenant ID; compatibility remains bound to the requested route and current scope.
+      return readLegacyNotificationSettings(response);
     }
   },
 
   adminUpdateNotificationSettings: async (tenantSlug: string, settings: TenantNotificationSettingsUpdate,
-    legacySnapshot?: TenantNotificationSettings): Promise<TenantNotificationSettingsAck> => {
+    legacySnapshot?: TenantNotificationSettings, authority?: NotificationSettingsRequestAuthority): Promise<TenantNotificationSettingsAck> => {
+    assertNotificationSettingsAuthority(authority);
     const body = serializeNotificationSettings(settings);
     // A lost or malformed acknowledgement never causes an automatic write replay.
-    const options = { ...panelReadOptions(tenantSlug), allowStartupRecovery: false, suppressPanel401Redirect: true };
+    const options = { ...panelReadOptions(tenantSlug), allowStartupRecovery: false, suppressPanel401Redirect: true,
+      ...(authority?.isCurrent ? { isCurrent: authority.isCurrent } : {}) };
     try {
       const response = await apiFetch<unknown>('/api/v2/notifications/hooks', {
         ...options,
         method: 'POST',
         body,
       });
-      return readNotificationHooksSettingsAck(response, tenantSlug, body);
+      assertNotificationSettingsAuthority(authority);
+      return readNotificationHooksSettingsAck(response, tenantSlug, body, authority?.expectedTenantId);
     } catch (error) {
       if (!shouldFallbackToLegacyEndpoint(error)) throw error;
-      return readLegacyNotificationSettingsAck(await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, {
+      assertNotificationSettingsAuthority(authority);
+      const response = await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, {
         ...options,
         method: 'PUT',
         body: serializeLegacyNotificationSettings(settings, legacySnapshot),
-      }));
+      });
+      assertNotificationSettingsAuthority(authority);
+      return readLegacyNotificationSettingsAck(response);
     }
   },
 

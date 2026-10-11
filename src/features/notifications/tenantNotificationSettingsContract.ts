@@ -11,6 +11,14 @@ export type TenantNotificationSettingsUpdate = Partial<Omit<TenantNotificationSe
   notification_settings: NotificationPreferences;
 };
 export type TenantNotificationSettingsAck = TenantNotificationSettings | { status: 'ok' };
+export interface NotificationSettingsRequestAuthority {
+  isCurrent?: () => boolean;
+  expectedTenantId?: number;
+}
+
+export const assertNotificationSettingsAuthority = (authority?: NotificationSettingsRequestAuthority) => {
+  if (authority?.isCurrent?.() === false) throw new DOMException('Request retired', 'AbortError');
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -30,10 +38,12 @@ const readDestination = (value: unknown): string | null => {
 };
 
 /** Canonical GET and POST ACK share a tenant-bound v1 envelope. */
-export const readNotificationHooksSettings = (value: unknown, tenantSlug: string): TenantNotificationSettings => {
+export const readNotificationHooksSettings = (value: unknown, tenantSlug: string, expectedTenantId?: number): TenantNotificationSettings => {
   if (!isRecord(value) || value.error !== undefined || value.contract_version !== 'notifications.hooks.v1'
     || !isRecord(value.tenant) || !Number.isSafeInteger(value.tenant.id) || Number(value.tenant.id) <= 0
-    || value.tenant.slug !== tenantSlug || !isRecord(value.delivery)) return invalid();
+    || value.tenant.slug !== tenantSlug || !isRecord(value.delivery)
+    || (expectedTenantId !== undefined && (!Number.isSafeInteger(expectedTenantId) || expectedTenantId <= 0
+      || value.tenant.id !== expectedTenantId))) return invalid();
   return {
     owner_phone: readDestination(value.delivery.owner_phone),
     telegram_chat_id: readDestination(value.delivery.telegram_chat_id),
@@ -74,8 +84,9 @@ export const serializeNotificationSettings = (settings: TenantNotificationSettin
 /** A canonical ACK must confirm each submitted value, without comparing untouched fields. */
 export const readNotificationHooksSettingsAck = (
   value: unknown, tenantSlug: string, submitted: ReturnType<typeof serializeNotificationSettings>,
+  expectedTenantId?: number,
 ): TenantNotificationSettings => {
-  const settings = readNotificationHooksSettings(value, tenantSlug);
+  const settings = readNotificationHooksSettings(value, tenantSlug, expectedTenantId);
   for (const [channel, enabled] of Object.entries(submitted.preferences)) {
     if (settings.notification_settings[channel] !== enabled) return invalid();
   }
