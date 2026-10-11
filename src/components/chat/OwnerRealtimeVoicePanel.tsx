@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { apiFetch } from '@/utils/api';
 import { CHATBOC_AGENT_AVATAR, CHATBOC_AGENT_MARK } from '@/utils/brandAssets';
 import { createOwnerVoiceTransport, type OwnerVoiceState, type VoiceAnswer, type VoiceCaption } from '@/utils/ownerRealtimeVoice';
+import { captureChatbocSessionRevision, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 type Capability = { enabled: boolean; revision?: string; ui: Record<string, string>;
   contract_version: string; owner_trial: boolean; tenant: { slug: string } };
@@ -34,10 +35,26 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
   const transport = useRef<ReturnType<typeof createOwnerVoiceTransport> | null>(null);
   const generation = useRef(0);
   const busy = useRef(false);
+  const [sessionRevision, setSessionRevision] = useState(captureChatbocSessionRevision);
   const base = `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/realtime/browser`;
   const requestOptions = { tenantSlug, omitEntityToken: true, omitChatSessionId: true,
     singleAttempt: true, isWidgetRequest: false, persistTenantSlug: false,
     suppressPanel401Redirect: true, preserveAuthOn401: true, allowSafeBaseFallback: false };
+  useLayoutEffect(() => subscribeChatbocSessionRevision(() => {
+    // Retirement is synchronous: callbacks from the previous session cannot
+    // recreate media or captions while React commits the new session view.
+    generation.current++;
+    busy.current = false; voiceState.current = 'idle'; pendingFocus.current = null;
+    const previous = transport.current; transport.current = null;
+    setCapability(null); setConsent(false); setCaptions([]); setState('idle');
+    setMuted(false); setSpeaking(false); setPlaybackBlocked(false); setExpanded(false);
+    setSessionRevision(captureChatbocSessionRevision());
+    // UI retirement never depends on a transport cleanup or remote ACK.
+    if (previous) {
+      try { void Promise.resolve(previous.close()).catch(() => { /* Remote closure remains unconfirmed. */ }); }
+      catch { /* A local transport failure cannot restore the retired session. */ }
+    }
+  }), []);
   useEffect(() => {
     const current = ++generation.current;
     busy.current = false;
@@ -47,8 +64,15 @@ export default function OwnerRealtimeVoicePanel({ tenantSlug, logoUrl, reducedMo
       if (current !== generation.current || !isBoundCapability(value, tenantSlug)) return;
       setCapability(value);
     }, () => { /* A public visitor or employee does not get an owner trial UI. */ });
-    return () => { generation.current++; void transport.current?.close(); transport.current = null; };
-  }, [tenantSlug]);
+    return () => {
+      generation.current++;
+      const previous = transport.current; transport.current = null;
+      if (previous) {
+        try { void Promise.resolve(previous.close()).catch(() => {}); }
+        catch { /* Retire callbacks even when local cleanup fails. */ }
+      }
+    };
+  }, [tenantSlug, sessionRevision]);
   const active = state === 'connecting' || state === 'live';
   useLayoutEffect(() => {
     const request = pendingFocus.current;
