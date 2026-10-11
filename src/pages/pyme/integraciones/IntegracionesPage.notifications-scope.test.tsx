@@ -113,6 +113,7 @@ const deferred = <T,>() => { let resolve!: (value: T) => void, reject!: (error: 
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const settings = (email: boolean, suffix: string) => ({ owner_phone: `synthetic-phone-${suffix}`, telegram_chat_id: `synthetic-chat-${suffix}`,
   notification_settings: { email, telegram: false, whatsapp: false } });
+const notificationAuthority = (expectedTenantId: number) => ({ expectedTenantId, isCurrent: expect.any(Function) });
 function Page() { const navigate = useNavigate(); return <><button onClick={() => navigate('/t/qa-b/integraciones?channel=email')}>Cambiar a B</button>
   <button onClick={() => navigate('/t/qa-a/integraciones?channel=email')}>Cambiar a A</button><IntegracionesPage /></>; }
 const fixture = () => <MemoryRouter initialEntries={['/t/qa-a/integraciones?channel=email']}><Routes>
@@ -125,20 +126,29 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('notification drafts belong to the verified tenant/session', () => {
   it('ignores a delayed A read after B has loaded and saves only the B settings', async () => {
     const a = deferred<any>(); api.adminGetNotificationSettings.mockImplementation((slug: string) => slug === 'qa-a' ? a.promise : Promise.resolve(settings(false, 'B')));
-    const user = userEvent.setup(); render(fixture()); await waitFor(() => expect(api.adminGetNotificationSettings).toHaveBeenCalledWith('qa-a'));
+    const user = userEvent.setup(); const { unmount } = render(fixture());
+    await waitFor(() => expect(api.adminGetNotificationSettings).toHaveBeenCalledWith('qa-a', notificationAuthority(701)));
+    const aAuthority = api.adminGetNotificationSettings.mock.calls[0][1]; expect(aAuthority.isCurrent()).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Cambiar a B' }));
-    await waitFor(() => expect(api.adminGetNotificationSettings).toHaveBeenCalledWith('qa-b'));
+    await waitFor(() => expect(api.adminGetNotificationSettings).toHaveBeenCalledWith('qa-b', notificationAuthority(702)));
+    const bAuthority = api.adminGetNotificationSettings.mock.calls[1][1];
+    expect(aAuthority.isCurrent()).toBe(false); expect(bAuthority.isCurrent()).toBe(true);
     await waitFor(() => expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false'));
     await act(async () => { a.resolve(settings(true, 'A')); await a.promise; });
     expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
     await user.click(screen.getByRole('button', { name: 'Guardar Preferencias' }));
-    expect(api.adminUpdateNotificationSettings).toHaveBeenCalledWith('qa-b', { notification_settings: {} }, settings(false, 'B'));
+    expect(api.adminUpdateNotificationSettings).toHaveBeenCalledWith('qa-b', { notification_settings: {} }, settings(false, 'B'), notificationAuthority(702));
+    const saveAuthority = api.adminUpdateNotificationSettings.mock.calls[0][3];
+    expect(saveAuthority.isCurrent()).toBe(true);
+    unmount(); expect(bAuthority.isCurrent()).toBe(false); expect(saveAuthority.isCurrent()).toBe(false);
   });
   it('does not allow saving a previous draft before B notification settings are read', async () => {
     const b = deferred<any>(); api.adminGetNotificationSettings.mockImplementation((slug: string) => slug === 'qa-a' ? Promise.resolve(settings(true, 'A')) : b.promise);
     const user = userEvent.setup(); render(fixture()); await waitFor(() => expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true'));
     await user.click(screen.getByRole('button', { name: 'Cambiar a B' }));
-    await waitFor(() => expect(api.adminGetNotificationSettings).toHaveBeenCalledWith('qa-b'));
+    await waitFor(() => expect(api.adminGetNotificationSettings).toHaveBeenCalledWith('qa-b', notificationAuthority(702)));
+    expect(api.adminGetNotificationSettings.mock.calls[0][1].isCurrent()).toBe(false);
+    expect(api.adminGetNotificationSettings.mock.calls[1][1].isCurrent()).toBe(true);
     expect(screen.getByRole('button', { name: 'Guardar Preferencias' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Guardar Preferencias' })); expect(api.adminUpdateNotificationSettings).not.toHaveBeenCalled();
   });
