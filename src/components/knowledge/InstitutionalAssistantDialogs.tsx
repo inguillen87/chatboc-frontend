@@ -11,12 +11,22 @@ interface BaseProps {workspace:KnowledgeWorkspace;restoreFocus:()=>void;largeTex
 export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,mode='admin',highlightedSourceId,largeText=false}:{open:boolean;onOpenChange:(open:boolean)=>void;mode?:'admin'|'public';highlightedSourceId?:string|null}&BaseProps){
  const title=useRef<HTMLHeadingElement>(null),ui=workspace.ui;
  const mounted=useRef(false),visible=useRef(open),sequence=useRef(0),controller=useRef<AbortController|null>(null),url=useRef<string|null>(null),locked=useRef(false);
+ const consultFocus=useRef<{sequence:number;trigger:HTMLButtonElement;dialog:HTMLElement|null;owned:boolean;cleanup:()=>void}|null>(null);
  const [pending,setPending]=useState<string|null>(null),[failure,setFailure]=useState<{id:string;message:string}|null>(null);
  const [document,setDocument]=useState<(KnowledgeSourceDocument&{id:string;url:string})|null>(null);
  visible.current=open;
- const retire=()=>{sequence.current++;locked.current=false;controller.current?.abort();controller.current=null;if(url.current)URL.revokeObjectURL(url.current);url.current=null;};
+ const retire=()=>{consultFocus.current?.cleanup();consultFocus.current=null;sequence.current++;locked.current=false;controller.current?.abort();controller.current=null;if(url.current)URL.revokeObjectURL(url.current);url.current=null;};
  useLayoutEffect(()=>{mounted.current=true;return()=>{mounted.current=false;retire();};},[]);
  useLayoutEffect(()=>{retire();setDocument(null);setPending(null);setFailure(null);},[open,workspace.tenant.id,workspace.tenant.slug,workspace.revision,mode]);
+ useLayoutEffect(()=>{
+  if(pending!==null)return;
+  const focus=consultFocus.current;if(!focus)return;consultFocus.current=null;focus.cleanup();
+  if(!visible.current||!mounted.current||focus.sequence!==sequence.current||!focus.owned||!focus.trigger.isConnected||focus.trigger.disabled)return;
+  const active=window.document.activeElement;
+  // Native disabling can blur to BODY; Radix may transfer that focus to this
+  // exact dialog container. Any deliberate move to another control revokes it.
+  if(active===focus.trigger||active===window.document.body||active===focus.dialog)focus.trigger.focus({preventScroll:true});
+ },[pending]);
  useLayoutEffect(()=>{
   const retireAuthority=()=>{
    retire();setDocument(null);setPending(null);setFailure(null);
@@ -40,9 +50,15 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
   window.addEventListener('storage',storageChanged);
   return()=>{unsubscribePanel();unsubscribeRevision();window.removeEventListener('storage',storageChanged);};
  },[mode,onOpenChange]);
- const consult=async(id:string)=>{
+ const consult=async(id:string,trigger:HTMLButtonElement)=>{
   const source=workspace.knowledge?.sources.find(item=>item.id===id);if(!source||!visible.current||locked.current)return;
   retire();locked.current=true;const seq=sequence.current;const request=new AbortController();controller.current=request;
+  const focus={sequence:seq,trigger,dialog:trigger.closest<HTMLElement>('[role="dialog"]'),owned:window.document.activeElement===trigger,cleanup:()=>{}};
+  const onFocusIn=(event:FocusEvent)=>{if(event.target!==trigger&&event.target!==window.document.body&&event.target!==focus.dialog)focus.owned=false;};
+  const onFocusOut=(event:FocusEvent)=>{if(event.target===trigger&&trigger.isConnected&&!trigger.disabled)focus.owned=false;};
+  focus.cleanup=()=>{window.document.removeEventListener('focusin',onFocusIn);window.document.removeEventListener('focusout',onFocusOut);};
+  if(focus.owned){window.document.addEventListener('focusin',onFocusIn);window.document.addEventListener('focusout',onFocusOut);}
+  consultFocus.current=focus;
   const isCurrent=()=>mounted.current&&visible.current&&sequence.current===seq;
   setDocument(null);setFailure(null);setPending(id);
   try{const result=await readKnowledgeSource(workspace,source,mode,{isCurrent,signal:request.signal});
@@ -65,7 +81,7 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
      <div><h3>{source.title}</h3>
       <KnowledgeSourceMetadata source={source} mode={mode}/>
       {knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
-      {source.delivery&&knowledgeSourceOriginalAllowed(source,mode)?<button type="button" className="mt-3 w-full sm:w-auto" disabled={pending!==null} onClick={()=>void consult(source.id)}>
+      {source.delivery&&knowledgeSourceOriginalAllowed(source,mode)?<button type="button" className="mt-3 w-full sm:w-auto" disabled={pending!==null} onClick={event=>void consult(source.id,event.currentTarget)}>
        {pending===source.id?'Consultando documento…':'Leer documento'}<span className="sr-only">: {source.title}</span>
       </button>:null}
       {pending===source.id?<p role="status" className="mt-2 text-sm">Estamos verificando el documento.</p>:null}
