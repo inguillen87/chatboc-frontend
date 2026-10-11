@@ -23,7 +23,7 @@ import type {
   SurveySummary,
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
-import { getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   buildSurveyDemoAnalyticsFromDataset,
@@ -117,6 +117,20 @@ const summaryUsesFallback = (primary?: SurveySummary, fallback?: SurveySummary) 
   );
 };
 
+const isAnalyticsAccessDenied = (error: unknown): error is ApiError =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403);
+
+interface SurveyAnalyticsAccessState {
+  requestGeneration: number;
+  lastSuccessGeneration: number;
+  rejectionBarrier: number;
+  rejection: ApiError | null;
+}
+
+const initialAccessState = (): SurveyAnalyticsAccessState => ({
+  requestGeneration: 0, lastSuccessGeneration: 0, rejectionBarrier: 0, rejection: null,
+});
+
 interface UseSurveyAnalyticsOptions {
   fallbackSurvey?: SurveyPublic | SurveyAdmin | null;
   fallbackCount?: number;
@@ -142,28 +156,65 @@ export function useSurveyAnalytics(
     () => ({ tenantSlug: tenantSlug ?? undefined, sendAnonId: true }),
     [tenantSlug],
   );
-  const allowFallback = ENABLE_SURVEY_ANALYTICS_FALLBACK;
-  const fallbackSurvey = allowFallback ? options.fallbackSurvey ?? null : null;
-  const fallbackCount = allowFallback ? options.fallbackCount : undefined;
-  const fallbackScenario = allowFallback ? options.fallbackScenario ?? null : null;
-
+  // Access belongs to the survey and organization, not a selected filter.
+  // Keep the rejection shared with other observers and across remounts.
+  const accessQueryKey = queryKeys.surveys.analyticsModule('access', normalizedId ?? 'missing', tenantSlug);
+  const accessQuery = useQuery({
+    queryKey: accessQueryKey,
+    enabled: false,
+    queryFn: initialAccessState,
+    initialData: initialAccessState,
+    gcTime: Infinity,
+  });
   const dashboardQuery = useQuery({
     queryKey: queryKeys.surveys.analytics('dashboard', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
     enabled: normalizedId !== null,
     retry: false,
-    queryFn: () =>
-      normalizedId !== null
-        ? getSurveyDashboardBundle(normalizedId, normalizedFilters, requestOptions)
-        : Promise.reject('No id provided'),
+    queryFn: async () => {
+      if (normalizedId === null) throw new Error('No id provided');
+      let generation = 0;
+      queryClient.setQueryData<SurveyAnalyticsAccessState>(accessQueryKey, (previous) => {
+        const state = previous ?? initialAccessState();
+        generation = state.requestGeneration + 1;
+        return { ...state, requestGeneration: generation };
+      });
+      try {
+        const data = await getSurveyDashboardBundle(normalizedId, normalizedFilters, requestOptions);
+        queryClient.setQueryData<SurveyAnalyticsAccessState>(accessQueryKey, (previous) => {
+          const state = previous ?? initialAccessState();
+          // Cached data, or a request already in flight when access was
+          // rejected, cannot restore authority. Ignore older successes too.
+          if (generation < state.lastSuccessGeneration || (state.rejection && generation <= state.rejectionBarrier)) return state;
+          return { ...state, lastSuccessGeneration: generation, rejection: null };
+        });
+        return data;
+      } catch (error) {
+        if (isAnalyticsAccessDenied(error)) {
+          queryClient.setQueryData<SurveyAnalyticsAccessState>(accessQueryKey, (previous) => {
+            const state = previous ?? initialAccessState();
+            if (generation < state.lastSuccessGeneration) return state;
+            return { ...state, rejection: error, rejectionBarrier: state.requestGeneration };
+          });
+        }
+        throw error;
+      }
+    },
   });
+  // A current authorization rejection takes precedence over retained query
+  // data and compatibility endpoints. A later successful request can recover.
+  const dashboardAccessError = accessQuery.data.rejection;
+  const allowFallback = ENABLE_SURVEY_ANALYTICS_FALLBACK && !dashboardAccessError;
+  const fallbackSurvey = allowFallback ? options.fallbackSurvey ?? null : null;
+  const fallbackCount = allowFallback ? options.fallbackCount : undefined;
+  const fallbackScenario = allowFallback ? options.fallbackScenario ?? null : null;
 
   const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [
       {
         queryKey: queryKeys.surveys.analytics('summary', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
         enabled:
-          normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary || !dashboardQuery.isFetched),
+          normalizedId !== null && !dashboardAccessError &&
+          (dashboardQuery.isError || (dashboardQuery.isSuccess && !dashboardQuery.data?.modules?.summary)),
         queryFn: () =>
           normalizedId !== null
             ? getSummary(normalizedId, normalizedFilters, requestOptions)
@@ -172,8 +223,8 @@ export function useSurveyAnalytics(
       {
         queryKey: queryKeys.surveys.analytics('timeseries', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
         enabled:
-          normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.timeseries || !dashboardQuery.isFetched),
+          normalizedId !== null && !dashboardAccessError &&
+          (dashboardQuery.isError || (dashboardQuery.isSuccess && !dashboardQuery.data?.modules?.timeseries)),
         queryFn: () =>
           normalizedId !== null
             ? getTimeseries(normalizedId, normalizedFilters, requestOptions)
@@ -182,8 +233,8 @@ export function useSurveyAnalytics(
       {
         queryKey: queryKeys.surveys.analytics('heatmap', normalizedId ?? 'missing', tenantSlug, normalizedFilters),
         enabled:
-          normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.heatmap?.points || !dashboardQuery.isFetched),
+          normalizedId !== null && !dashboardAccessError &&
+          (dashboardQuery.isError || (dashboardQuery.isSuccess && !dashboardQuery.data?.modules?.heatmap?.points)),
         queryFn: () =>
           normalizedId !== null
             ? getHeatmap(normalizedId, normalizedFilters, requestOptions)
@@ -195,6 +246,8 @@ export function useSurveyAnalytics(
   const exportMutation = useMutation({
     mutationFn: async () => {
       if (normalizedId === null) throw new Error('No survey id provided');
+      const rejection = queryClient.getQueryData<SurveyAnalyticsAccessState>(accessQueryKey)?.rejection;
+      if (rejection) throw rejection;
       return downloadExportCsv(normalizedId, normalizedFilters, requestOptions);
     },
     onSuccess: () => {
@@ -229,9 +282,9 @@ export function useSurveyAnalytics(
     }
   }, [fallbackSurvey, fallbackDataset, normalizedFilters]);
 
-  const primarySummary = dashboardQuery.data?.modules?.summary ?? summaryQuery.data;
-  const primaryTimeseries = dashboardQuery.data?.modules?.timeseries ?? timeseriesQuery.data;
-  const primaryHeatmap = dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points;
+  const primarySummary = dashboardAccessError ? undefined : dashboardQuery.data?.modules?.summary ?? summaryQuery.data;
+  const primaryTimeseries = dashboardAccessError ? undefined : dashboardQuery.data?.modules?.timeseries ?? timeseriesQuery.data;
+  const primaryHeatmap = dashboardAccessError ? undefined : dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points;
   const summaryData = useMemo(
     () => mergeSurveyAnalytics(primarySummary, fallbackAnalytics?.summary),
     [primarySummary, fallbackAnalytics?.summary],
@@ -306,30 +359,32 @@ export function useSurveyAnalytics(
   );
 
   const heatmapMeta = useMemo(
-    () => heatmapFallbackUsed
+    () => dashboardAccessError ? undefined : heatmapFallbackUsed
       ? fallbackHeatmapPayload?.metadata
       : dashboardQuery.data?.modules?.heatmap?.metadata ?? heatmapQuery.data?.metadata,
-    [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapFallbackUsed, heatmapQuery.data?.metadata, fallbackHeatmapPayload?.metadata],
+    [dashboardAccessError, dashboardQuery.data?.modules?.heatmap?.metadata, heatmapFallbackUsed, heatmapQuery.data?.metadata, fallbackHeatmapPayload?.metadata],
   );
 
   const heatmapPayload = useMemo<SurveyAnalyticsHeatmap | undefined>(() => {
+    if (dashboardAccessError) return undefined;
     if (heatmapFallbackUsed) return fallbackHeatmapPayload;
     const backendHeatmap = dashboardQuery.data?.modules?.heatmap ?? heatmapQuery.data;
     if (backendHeatmap) return backendHeatmap;
     return fallbackHeatmapPayload;
-  }, [dashboardQuery.data?.modules?.heatmap, heatmapFallbackUsed, heatmapQuery.data, fallbackHeatmapPayload]);
+  }, [dashboardAccessError, dashboardQuery.data?.modules?.heatmap, heatmapFallbackUsed, heatmapQuery.data, fallbackHeatmapPayload]);
 
   const dashboardBundle = useMemo(
-    () => dashboardQuery.data,
-    [dashboardQuery.data],
+    () => dashboardAccessError ? undefined : dashboardQuery.data,
+    [dashboardAccessError, dashboardQuery.data],
   );
 
   const executiveSummary = useMemo(
-    () => dashboardQuery.data?.executive_summary,
-    [dashboardQuery.data?.executive_summary],
+    () => dashboardAccessError ? undefined : dashboardQuery.data?.executive_summary,
+    [dashboardAccessError, dashboardQuery.data?.executive_summary],
   );
 
   const effectiveError = useMemo(() => {
+    if (dashboardAccessError) return getErrorMessage(dashboardAccessError);
     const fallbackRecovered = summaryQuery.isSuccess || timeseriesQuery.isSuccess || heatmapQuery.isSuccess;
     if (dashboardQuery.isError && fallbackRecovered) {
       return null;
@@ -351,6 +406,7 @@ export function useSurveyAnalytics(
 
     return errorCandidate ? getErrorMessage(errorCandidate) : null;
   }, [
+    dashboardAccessError,
     dashboardQuery.isError,
     dashboardQuery.error,
     summaryQuery.isSuccess,
@@ -373,7 +429,7 @@ export function useSurveyAnalytics(
     dashboardBundle,
     executiveSummary,
     provenance,
-    isLoading: dashboardQuery.isLoading || summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
+    isLoading: !dashboardAccessError && (dashboardQuery.isLoading || summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading),
     error: effectiveError,
     filters: normalizedFilters,
     setFilters: (next: SurveyAnalyticsFilters) => setFiltersState(normalizeFilters(next)),
@@ -381,6 +437,7 @@ export function useSurveyAnalytics(
     isExporting: exportMutation.isPending,
     refresh: async () => {
       const dashboardResult = await dashboardQuery.refetch();
+      if (queryClient.getQueryData<SurveyAnalyticsAccessState>(accessQueryKey)?.rejection) return;
       const modules = dashboardResult.data?.modules;
       const fallbackRefreshes: Array<Promise<unknown>> = [];
       if (!modules?.summary) fallbackRefreshes.push(summaryQuery.refetch());
@@ -390,8 +447,6 @@ export function useSurveyAnalytics(
     },
     isRefreshing:
       dashboardQuery.isFetching ||
-      summaryQuery.isFetching ||
-      timeseriesQuery.isFetching ||
-      heatmapQuery.isFetching,
+      (!dashboardAccessError && (summaryQuery.isFetching || timeseriesQuery.isFetching || heatmapQuery.isFetching)),
   };
 }

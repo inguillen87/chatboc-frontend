@@ -67,7 +67,7 @@ const summaryFixture = (): SurveySummary =>
   ({
     total_respuestas: 50,
     participantes_unicos: 42,
-    tasa_completitud: 0.88,
+    tasa_completitud: 88,
     canales: [
       { canal: 'whatsapp', respuestas: 31 },
       { canal: 'web', respuestas: 19 },
@@ -480,12 +480,43 @@ describe('SurveyAnalytics territory command center', () => {
     expect(screen.queryByText(/focos detectados/i)).not.toBeInTheDocument();
   });
 
-  it('labels completion as complete received responses and preserves an authoritative 100 percent', () => {
-    render(<SurveyAnalytics summary={{ ...summaryFixture(), total_respuestas: 1, tasa_completitud: 100 }} onExport={vi.fn().mockResolvedValue(undefined)} />);
+  it.each([
+    { total: 200, rate: 0.5, expected: '0.5%' },
+    { total: 100, rate: 1, expected: '1.0%' },
+    { total: 1, rate: 100, expected: '100.0%' },
+    { total: 200, rate: 0, expected: '0.0%' },
+  ])('preserves $rate percentage points over $total received responses', ({ total, rate, expected }) => {
+    render(<SurveyAnalytics summary={{ ...summaryFixture(), total_respuestas: total, tasa_completitud: rate }} onExport={vi.fn().mockResolvedValue(undefined)} />);
     const card = screen.getByText('Completitud de respuestas recibidas').closest('[class*="rounded"]');
     expect(card).toHaveTextContent('Respuestas completas sobre respuestas recibidas');
     expect(card).toHaveTextContent('No mide formularios iniciados ni población convocada');
-    expect(card).toHaveTextContent('100.0%');
+    expect(within(card as HTMLElement).getByText(expected, { exact: true })).toBeInTheDocument();
+  });
+
+  it.each([null, undefined, -1, 101, Number.NaN, Number.POSITIVE_INFINITY])(
+    'keeps an unavailable completion rate when the server value is %s',
+    (rate) => {
+      const summary = { ...summaryFixture(), tasa_completitud: rate } as unknown as SurveySummary;
+      render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+      const card = screen.getByText('Completitud de respuestas recibidas').closest('[class*="rounded"]');
+      expect(within(card as HTMLElement).getByText('—', { exact: true })).toBeInTheDocument();
+    },
+  );
+
+  it.each([0, -1, null, undefined, Number.NaN, Number.POSITIVE_INFINITY, 0.5])(
+    'keeps completion unavailable without a valid positive received-response count: %s',
+    (total) => {
+      const summary = { ...summaryFixture(), total_respuestas: total, tasa_completitud: 0 } as unknown as SurveySummary;
+      render(<SurveyAnalytics summary={summary} onExport={vi.fn().mockResolvedValue(undefined)} />);
+      const card = screen.getByText('Completitud de respuestas recibidas').closest('[class*="rounded"]');
+      expect(within(card as HTMLElement).getByText('—', { exact: true })).toBeInTheDocument();
+    },
+  );
+
+  it('keeps completion unavailable before a summary is received', () => {
+    render(<SurveyAnalytics onExport={vi.fn().mockResolvedValue(undefined)} />);
+    const card = screen.getByText('Completitud de respuestas recibidas').closest('[class*="rounded"]');
+    expect(within(card as HTMLElement).getByText('—', { exact: true })).toBeInTheDocument();
   });
 
   it('uses authoritative backend geographic coverage when supplied', () => {

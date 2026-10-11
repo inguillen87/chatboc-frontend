@@ -1581,30 +1581,20 @@ export const SurveyAnalytics = ({
   }, [summary, summaryRecord]);
 
   const completionRateLabel = useMemo(() => {
-    if (completionRateValue === null) {
+    if (
+      completionRateValue === null ||
+      !Number.isFinite(completionRateValue) ||
+      completionRateValue < 0 ||
+      completionRateValue > 100 ||
+      totalResponsesValue === null ||
+      !Number.isInteger(totalResponsesValue) ||
+      totalResponsesValue <= 0
+    ) {
       return '—';
     }
 
-    let normalized = completionRateValue;
-
-    if (!Number.isFinite(normalized)) {
-      return '—';
-    }
-
-    if (normalized > 1 && normalized <= 100) {
-      normalized /= 100;
-    }
-
-    if (normalized > 100) {
-      normalized = 1;
-    }
-
-    if (normalized < 0) {
-      normalized = 0;
-    }
-
-    return `${(normalized * 100).toFixed(1)}%`;
-  }, [completionRateValue]);
+    return `${completionRateValue.toFixed(1)}%`;
+  }, [completionRateValue, totalResponsesValue]);
 
 
   const geoIntensity = useMemo(() => {
