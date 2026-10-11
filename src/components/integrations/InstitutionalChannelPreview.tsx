@@ -15,6 +15,7 @@ import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscri
 type RequestContext = { slug: string; scopeKey: string; sessionRevision: number; panelGeneration: number; tenantId?: number };
 type PreviewRead = { context: RequestContext; status: 'ready'; workspace: KnowledgeWorkspace; answer: InstitutionalMessage } |
   { context: RequestContext; status: 'loading' | 'legacy' | 'error' };
+type PreviewFocus = { scopeKey: string; attempt: number; context: RequestContext | null; origin: HTMLElement; moved: boolean };
 
 const actorAuthority = (value: unknown) => {
   const actor = value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -69,7 +70,7 @@ export default function InstitutionalChannelPreview() {
   [scopeKey, slug, sessionRevision, panelGeneration, identity?.tenantId, attempt]);
   const activeContext = useRef<RequestContext | null>(null);
   const activeNavigation = useRef<object | null>(null);
-  const focusContext = useRef<RequestContext | null>(null);
+  const requestFocus = useRef<PreviewFocus | null>(null);
   const responseContainer = useRef<HTMLDivElement>(null);
   const loadingMessage = useRef<HTMLParagraphElement>(null);
   const failureMessage = useRef<HTMLDivElement>(null);
@@ -79,8 +80,22 @@ export default function InstitutionalChannelPreview() {
   useLayoutEffect(() => {
     activeContext.current = context;
     activeNavigation.current = null;
-    return () => { activeContext.current = null; activeNavigation.current = null; focusContext.current = null; };
-  }, [context]);
+    const focus = requestFocus.current;
+    // A retry replaces the read context, but owns focus only for its exact
+    // attempt and unchanged verified authority; an initial read owns no focus.
+    if (focus && context && focus.scopeKey === context.scopeKey && focus.attempt === attempt) focus.context = context;
+    else requestFocus.current = null;
+    return () => { activeContext.current = null; activeNavigation.current = null; };
+  }, [context, attempt]);
+
+  useLayoutEffect(() => {
+    const trackFocus = (event: FocusEvent) => {
+      const focus = requestFocus.current;
+      if (focus && event.target !== focus.origin && event.target !== loadingMessage.current) focus.moved = true;
+    };
+    document.addEventListener('focusin', trackFocus);
+    return () => { requestFocus.current = null; document.removeEventListener('focusin', trackFocus); };
+  }, []);
 
   useEffect(() => {
     if (!context) return;
@@ -101,23 +116,32 @@ export default function InstitutionalChannelPreview() {
 
   const matching = context && read?.context === context ? read : null;
   useLayoutEffect(() => {
-    if (!context || focusContext.current !== context || !matching || !isCurrent(context)) return;
-    if (document.activeElement !== document.body && document.activeElement !== loadingMessage.current) {
-      focusContext.current = null;
+    const focus = requestFocus.current;
+    if (!context || focus?.context !== context || !isCurrent(context)) return;
+    if (focus.moved || (document.activeElement !== document.body && document.activeElement !== focus.origin && document.activeElement !== loadingMessage.current)) {
+      requestFocus.current = null;
       return;
     }
-    if (matching.status === 'loading') loadingMessage.current?.focus({ preventScroll: true });
+    if (!matching || matching.status === 'loading') loadingMessage.current?.focus({ preventScroll: true });
     else {
       if (matching.status === 'ready') responseContainer.current?.querySelector<HTMLHeadingElement>('h3')?.focus({ preventScroll: true });
-      else if (matching.status === 'error') failureMessage.current?.focus({ preventScroll: true });
-      focusContext.current = null;
+      else failureMessage.current?.focus({ preventScroll: true });
+      requestFocus.current = null;
     }
   }, [context, matching]);
+  const retry = (origin: HTMLButtonElement) => {
+    if (!context || !isCurrent(context)) return;
+    requestFocus.current = document.activeElement === origin
+      ? { scopeKey: context.scopeKey, attempt: attempt + 1, context: null, origin, moved: false } : null;
+    setAttempt(value => value + 1);
+  };
   const navigate = async (nodeId: string) => {
     if (!context || matching?.status !== 'ready' || !isCurrent(context) || activeNavigation.current) return;
     const navigation = {};
     activeNavigation.current = navigation;
-    focusContext.current = document.activeElement?.hasAttribute('data-institutional-choice') ? context : null;
+    const origin = document.activeElement;
+    requestFocus.current = origin instanceof HTMLElement && origin.hasAttribute('data-institutional-choice')
+      ? { scopeKey: context.scopeKey, attempt, context, origin, moved: false } : null;
     const current = () => isCurrent(context) && activeNavigation.current === navigation;
     const workspace = matching.workspace;
     // Retire the preceding response, including its sources and options, while the read is pending.
@@ -151,11 +175,11 @@ export default function InstitutionalChannelPreview() {
     </p> : !matching || matching.status === 'loading' ? <p ref={loadingMessage} tabIndex={-1} role="status" className="mt-4 text-sm">Consultando el contenido público de esta organización…</p>
       : matching.status === 'error' ? <div ref={failureMessage} tabIndex={-1} role="alert" className="mt-4 space-y-3 text-sm leading-relaxed">
         <p>No pudimos verificar el contenido público de esta organización. La respuesta, sus opciones y sus fuentes se retiraron.</p>
-        <Button type="button" variant="outline" className="min-h-11" onClick={() => setAttempt(value => value + 1)}>Reintentar contenido público</Button>
-      </div> : matching.status === 'legacy' ? <div role="status" className="mt-4 space-y-3 text-sm leading-relaxed">
+        <Button type="button" variant="outline" className="min-h-11" onClick={event => retry(event.currentTarget)}>Reintentar contenido público</Button>
+      </div> : matching.status === 'legacy' ? <div ref={failureMessage} tabIndex={-1} role="status" className="mt-4 space-y-3 text-sm leading-relaxed">
         <p>No hay un menú institucional público disponible para esta organización.</p>
         <p>La simulación del canal muestra únicamente el borrador de prueba.</p>
-        <Button type="button" variant="outline" className="min-h-11" onClick={() => setAttempt(value => value + 1)}>Volver a consultar contenido público</Button>
+        <Button type="button" variant="outline" className="min-h-11" onClick={event => retry(event.currentTarget)}>Volver a consultar contenido público</Button>
       </div> : <div ref={responseContainer} className="mt-4 min-w-0">
         <p className="break-words font-medium">{matching.workspace.tenant.name}</p>
         <p className="mt-1 text-sm text-muted-foreground">

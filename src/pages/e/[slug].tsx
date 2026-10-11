@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCallback, useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, RefreshCw, Timer, TrendingUp, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
@@ -52,6 +52,16 @@ import {
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v2';
 const PUBLIC_PARTICIPATION_FALLBACK = 'Participación ciudadana';
 const PUBLIC_BRAND_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/;
+
+type ParticipationScope = { key: string; active: boolean };
+type CompletedParticipation = {
+  scope: ParticipationScope;
+  payload: PublicResponsePayload;
+  demoPersisted: boolean | null;
+};
+
+const retiredSubmissionError = () =>
+  new DOMException('La vista de la encuesta cambió antes de recibir su confirmación.', 'AbortError');
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -175,6 +185,7 @@ const parseLiveRequestParams = (): SurveyLiveRequestParams => {
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const hasTenantSelector =
@@ -185,11 +196,9 @@ const PublicSurveyPage = () => {
   const tenantSlug = rawTenantSlug?.trim() || null;
   const tenantSelectorInvalid = hasTenantSelector && !tenantSlug;
   const mode = searchParams.get('mode'); // 'embed' or undefined
-  const [submitted, setSubmitted] = useState(false);
   const [activeLiveView, setActiveLiveView] = useState<'participate' | 'results'>('participate');
-  const [demoSubmissionPersisted, setDemoSubmissionPersisted] = useState<boolean | null>(null);
   const [livePollTotalVotes, setLivePollTotalVotes] = useState<number | null>(null);
-  const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
+  const [completedParticipation, setCompletedParticipation] = useState<CompletedParticipation | null>(null);
   const {
     survey,
     isLoading,
@@ -208,6 +217,30 @@ const PublicSurveyPage = () => {
     submitErrorDetails,
     submitReasonCode,
   } = useSurveyPublic(tenantSelectorInvalid ? null : slug, { tenantSlug });
+
+  const participationScopeKey = JSON.stringify([
+    location.key, location.pathname, slug, hasTenantSelector, tenantSlug,
+    survey?.id, survey?.slug, survey?.tenant_slug, survey?.tenant?.slug,
+    typeof survey?.tenant?.id === 'string' || typeof survey?.tenant?.id === 'number'
+      ? survey.tenant.id : null,
+    survey?.instrument_revision,
+  ]);
+  const activeParticipationScope = useRef<ParticipationScope>({ key: participationScopeKey, active: false });
+  useLayoutEffect(() => {
+    // A new registration also retires A→B→A and a view that has unmounted.
+    const scope: ParticipationScope = { key: participationScopeKey, active: true };
+    activeParticipationScope.current = scope;
+    setCompletedParticipation(null);
+    setActiveLiveView('participate');
+    return () => { scope.active = false; };
+  }, [participationScopeKey]);
+  const currentParticipation = completedParticipation?.scope === activeParticipationScope.current
+    && activeParticipationScope.current.active
+    && activeParticipationScope.current.key === participationScopeKey
+    ? completedParticipation : null;
+  const submitted = currentParticipation !== null;
+  const lastSubmission = currentParticipation?.payload ?? null;
+  const demoSubmissionPersisted = currentParticipation?.demoPersisted ?? null;
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
   const [socketLiveDashboard, setSocketLiveDashboard] = useState<SurveyLivePublicResultsPayload | undefined>(undefined);
@@ -472,8 +505,13 @@ const PublicSurveyPage = () => {
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload, options?: PublicSurveySubmitOptions) => {
+      const scope = activeParticipationScope.current;
+      const isCurrentScope = () => scope.active
+        && activeParticipationScope.current === scope
+        && scope.key === participationScopeKey;
       let shouldRefreshLiveResults = false;
       try {
+        if (!isCurrentScope()) throw retiredSubmissionError();
         const finalPayload: PublicResponsePayload = {
           ...payload,
           ...metadata,
@@ -483,6 +521,7 @@ const PublicSurveyPage = () => {
             : {}),
         };
         const submissionAck = await submit(finalPayload, options);
+        if (!isCurrentScope()) throw retiredSubmissionError();
         const ackMatchesSurvey = isDemoParticipationSurvey
           ? submissionAck.ack_kind === 'synthetic_demo' || submissionAck.ack_kind === 'durable_demo'
           : submissionAck.ack_kind === 'durable_response';
@@ -493,11 +532,11 @@ const PublicSurveyPage = () => {
         }
         const persistedDemoInteraction = submissionAck.ack_kind === 'durable_demo';
         shouldRefreshLiveResults = submissionAck.ack_kind !== 'synthetic_demo';
-        setDemoSubmissionPersisted(
-          isDemoParticipationSurvey ? persistedDemoInteraction : null,
-        );
-        setLastSubmission(finalPayload);
-        setSubmitted(true);
+        setCompletedParticipation({
+          scope,
+          payload: finalPayload,
+          demoPersisted: isDemoParticipationSurvey ? persistedDemoInteraction : null,
+        });
         if (survey) {
           if (isDemoParticipationSurvey) {
             trackSurveyDemoInteraction({
@@ -529,7 +568,9 @@ const PublicSurveyPage = () => {
             : description,
         });
       } catch (err) {
-        setLastSubmission(null);
+        // Never turn a retired attempt into a valid ACK for the old form.
+        if (!isCurrentScope()) throw retiredSubmissionError();
+        setCompletedParticipation(null);
         if (isSurveyResponseDuplicateError(err)) {
           toast({
             title: textOr(votacionMessages?.toast_duplicate_title, SURVEY_RESPONSE_DUPLICATE_TITLE),
@@ -547,18 +588,16 @@ const PublicSurveyPage = () => {
       }
       if (shouldRefreshLiveResults) {
         void Promise.resolve()
-          .then(() => refetchLiveDashboard())
+          .then(() => isCurrentScope() ? refetchLiveDashboard() : undefined)
           .catch(() => undefined);
       }
     },
-    [isDemoParticipationSurvey, metadata, refetchLiveDashboard, submit, survey, submitError],
+    [isDemoParticipationSurvey, metadata, participationScopeKey, refetchLiveDashboard, submit, survey, submitError],
   );
 
   const handleReset = useCallback(() => {
-    setSubmitted(false);
     setActiveLiveView('participate');
-    setLastSubmission(null);
-    setDemoSubmissionPersisted(null);
+    setCompletedParticipation(null);
   }, []);
 
   // Embed Mode Styles
@@ -892,6 +931,7 @@ const PublicSurveyPage = () => {
               <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
                 <h3 className="mb-4 font-semibold text-lg">{textOr(votacionUi?.resultados_titulo, 'Resultados en vivo')}</h3>
                 <SurveyForm
+                  key={participationScopeKey}
                   survey={survey}
                   onSubmit={async () => {}}
                   loading={false}
@@ -952,6 +992,7 @@ const PublicSurveyPage = () => {
             </div>
             <div className="w-full max-w-2xl mx-auto text-left">
               <SurveyForm
+                key={participationScopeKey}
                 survey={survey}
                 onSubmit={async () => {}}
                 loading={false}
@@ -1382,6 +1423,7 @@ const PublicSurveyPage = () => {
 
               <div className={activeLiveView === 'participate' ? 'space-y-3' : 'hidden'} aria-hidden={activeLiveView !== 'participate'}>
                 <SurveyForm
+                  key={participationScopeKey}
                   survey={survey}
                   onSubmit={handleSubmit}
                   loading={isSubmitting}
@@ -1431,6 +1473,7 @@ const PublicSurveyPage = () => {
             </header>
           ) : null}
           <SurveyForm
+            key={participationScopeKey}
             survey={survey}
             onSubmit={handleSubmit}
             loading={isSubmitting}

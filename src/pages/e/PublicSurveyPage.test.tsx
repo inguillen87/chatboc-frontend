@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   useSurveyLiveResults: vi.fn(),
   trackSurveySubmission: vi.fn(),
   trackSurveyDemoInteraction: vi.fn(),
+  toast: vi.fn(),
+  formSubmissionResolved: vi.fn(),
+  formSubmissionRejected: vi.fn(),
   socketOptions: undefined as any,
 }));
 
@@ -26,6 +29,8 @@ vi.mock('@/hooks/useSurveySocket', () => ({
 vi.mock('@/hooks/usePageMetadata', () => ({
   usePageMetadata: vi.fn(),
 }));
+
+vi.mock('@/components/ui/use-toast', () => ({ toast: mocks.toast }));
 
 vi.mock('@/components/surveys/SurveyForm', () => ({
   SurveyForm: ({
@@ -52,7 +57,7 @@ vi.mock('@/components/surveys/SurveyForm', () => ({
           onClick={() => void onSubmit({
             submission_id: '018f4c8e-1e56-7f38-a4df-83fd68394876',
             respuestas: [{ pregunta_id: 1, opcion_ids: [10] }],
-          })}
+          }).then(mocks.formSubmissionResolved, mocks.formSubmissionRejected)}
         >
           {submitLabel || 'Enviar prueba'}
         </button>
@@ -73,6 +78,7 @@ vi.mock('@/utils/surveyAnalytics', () => ({
 
 import PublicSurveyPage, { resolvePublicSurveyBrandLabel } from './[slug]';
 import type { SurveyPublic } from '@/types/encuestas';
+import { ApiError } from '@/utils/api';
 
 const publicBrandSurvey = (
   tenant: SurveyPublic['tenant'],
@@ -132,6 +138,9 @@ describe('PublicSurveyPage loading experience', () => {
   beforeEach(() => {
     mocks.trackSurveySubmission.mockReset();
     mocks.trackSurveyDemoInteraction.mockReset();
+    mocks.toast.mockReset();
+    mocks.formSubmissionResolved.mockReset();
+    mocks.formSubmissionRejected.mockReset();
     mocks.useSurveyPublic.mockReset().mockReturnValue({
       survey: undefined,
       isLoading: true,
@@ -165,6 +174,190 @@ describe('PublicSurveyPage loading experience', () => {
       refetch: vi.fn(),
     });
   });
+
+  it.each([
+    { journey: 'A→B', returnToOriginalOrganization: false, rejectAck: false, retireByUnmount: false },
+    { journey: 'A→B→A', returnToOriginalOrganization: true, rejectAck: false, retireByUnmount: false },
+    { journey: 'A→B with rejection', returnToOriginalOrganization: false, rejectAck: true, retireByUnmount: false },
+    { journey: 'A→B→A with rejection', returnToOriginalOrganization: true, rejectAck: true, retireByUnmount: false },
+    { journey: 'unmount with acknowledgement', returnToOriginalOrganization: false, rejectAck: false, retireByUnmount: true },
+    { journey: 'unmount with rejection', returnToOriginalOrganization: false, rejectAck: true, retireByUnmount: true },
+  ])(
+    'ignores a deferred acknowledgement after organization $journey instead of replacing the current participation form',
+    async ({ returnToOriginalOrganization, rejectAck, retireByUnmount }) => {
+      const { useNavigate: useActualNavigate } = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+      const publicDefaults = mocks.useSurveyPublic();
+      const liveDefaults = mocks.useSurveyLiveResults();
+      let acknowledgeOriginal!: (ack: { ack_kind: 'durable_response' }) => void;
+      let rejectOriginal!: (error: Error) => void;
+      const pendingOriginal = new Promise<{ ack_kind: 'durable_response' }>((resolve, reject) => {
+        acknowledgeOriginal = resolve;
+        rejectOriginal = reject;
+      });
+      const submitOriginal = vi.fn().mockReturnValue(pendingOriginal);
+      const submitOther = vi.fn().mockResolvedValue({ ack_kind: 'durable_response' });
+      const refetchOriginal = vi.fn();
+      const refetchOther = vi.fn();
+
+      mocks.useSurveyPublic.mockImplementation((_slug: string, options: { tenantSlug: string }) => {
+        const original = options.tenantSlug === 'organizacion-a';
+        return {
+          ...publicDefaults,
+          survey: {
+            ...publicBrandSurvey(
+              { slug: options.tenantSlug, nombre: original ? 'Organización A' : 'Organización B' },
+              options.tenantSlug,
+            ),
+            public_state: { is_open: true, accepts_responses: true, server_time: '2026-01-01T00:00:00Z' },
+          },
+          isLoading: false,
+          submit: original ? submitOriginal : submitOther,
+        };
+      });
+      mocks.useSurveyLiveResults.mockImplementation((_slug: string, tenant: string) => ({
+        ...liveDefaults,
+        refetch: tenant === 'organizacion-a' ? refetchOriginal : refetchOther,
+      }));
+
+      function OrganizationNavigation() {
+        const navigate = useActualNavigate();
+        const [params] = useSearchParams();
+        return (
+          <div>
+            <output data-testid="current-public-survey-organization">{params.get('tenant_slug')}</output>
+            <button type="button" onClick={() => navigate('/e/consulta-publica?tenant_slug=organizacion-b')}>Cambiar a organización B</button>
+            <button type="button" onClick={() => navigate('/e/consulta-publica?tenant_slug=organizacion-a')}>Cambiar a organización A</button>
+          </div>
+        );
+      }
+
+      const view = render(
+        <MemoryRouter initialEntries={['/e/consulta-publica?tenant_slug=organizacion-a']}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <OrganizationNavigation />
+          <Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Enviar prueba' }));
+      expect(submitOriginal).toHaveBeenCalledTimes(1);
+      if (retireByUnmount) {
+        view.unmount();
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Cambiar a organización B' }));
+        await waitFor(() => expect(screen.getByTestId('current-public-survey-organization')).toHaveTextContent('organizacion-b'));
+        if (returnToOriginalOrganization) {
+          fireEvent.click(screen.getByRole('button', { name: 'Cambiar a organización A' }));
+          await waitFor(() => expect(screen.getByTestId('current-public-survey-organization')).toHaveTextContent('organizacion-a'));
+        }
+        expect(screen.getByTestId('mock-survey-form')).toBeVisible();
+      }
+
+      await act(async () => {
+        if (rejectAck) rejectOriginal(new Error('Original submission rejected'));
+        else acknowledgeOriginal({ ack_kind: 'durable_response' });
+        await pendingOriginal.catch(() => undefined);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByRole('heading', { name: '¡Gracias por participar!' })).not.toBeInTheDocument();
+      if (!retireByUnmount) expect(screen.getByTestId('mock-survey-form')).toBeVisible();
+      expect(mocks.formSubmissionResolved).not.toHaveBeenCalled();
+      expect(mocks.formSubmissionRejected).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: 'AbortError' }));
+      expect(mocks.toast).not.toHaveBeenCalled();
+      expect(mocks.trackSurveySubmission).not.toHaveBeenCalled();
+      expect(refetchOriginal).not.toHaveBeenCalled();
+      expect(refetchOther).not.toHaveBeenCalled();
+      expect(submitOriginal).toHaveBeenCalledTimes(1);
+      expect(submitOther).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['survey id', 'instrument revision', 'server tenant identity'])(
+    'retires a deferred acknowledgement when the %s changes in the same route',
+    async (change) => {
+      let acknowledge!: (ack: { ack_kind: 'durable_response' }) => void;
+      const submit = vi.fn().mockReturnValue(new Promise((resolve) => { acknowledge = resolve; }));
+      const defaults = mocks.useSurveyPublic();
+      let survey: SurveyPublic = {
+        ...publicBrandSurvey({ id: 12, slug: 'organizacion-a', nombre: 'Organización A' }, 'organizacion-a'),
+        id: 41, instrument_revision: 1,
+      };
+      mocks.useSurveyPublic.mockImplementation(() => ({ ...defaults, survey, isLoading: false, submit }));
+      const content = () => <MemoryRouter initialEntries={['/e/consulta-publica?tenant_slug=organizacion-a']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes></MemoryRouter>;
+      const view = render(content());
+      fireEvent.click(await screen.findByRole('button', { name: 'Enviar prueba' }));
+      survey = {
+        ...survey,
+        ...(change === 'survey id' ? { id: 42 } : {}),
+        ...(change === 'instrument revision' ? { instrument_revision: 2 } : {}),
+        ...(change === 'server tenant identity' ? { tenant: { ...survey.tenant!, id: 13 } } : {}),
+      };
+      view.rerender(content());
+      await act(async () => { acknowledge({ ack_kind: 'durable_response' }); });
+
+      expect(screen.queryByRole('heading', { name: '¡Gracias por participar!' })).not.toBeInTheDocument();
+      expect(screen.getByTestId('mock-survey-form')).toBeVisible();
+      expect(mocks.formSubmissionResolved).not.toHaveBeenCalled();
+      expect(mocks.formSubmissionRejected).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: 'AbortError' }));
+      expect(mocks.toast).not.toHaveBeenCalled();
+      expect(mocks.trackSurveySubmission).not.toHaveBeenCalled();
+      expect(mocks.useSurveyLiveResults().refetch).not.toHaveBeenCalled();
+      expect(submit).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('accepts the current durable acknowledgement once and resets completion for a newly published instrument', async () => {
+    const submit = vi.fn().mockResolvedValue({ ack_kind: 'durable_response' });
+    const defaults = mocks.useSurveyPublic();
+    let survey: SurveyPublic = {
+      ...publicBrandSurvey({ id: 12, slug: 'organizacion-a', nombre: 'Organización A' }, 'organizacion-a'),
+      id: 41, instrument_revision: 1,
+    };
+    mocks.useSurveyPublic.mockImplementation(() => ({ ...defaults, survey, isLoading: false, submit }));
+    const content = () => <MemoryRouter initialEntries={['/e/consulta-publica?tenant_slug=organizacion-a']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes></MemoryRouter>;
+    const view = render(content());
+    fireEvent.click(await screen.findByRole('button', { name: 'Enviar prueba' }));
+    expect(await screen.findByRole('heading', { name: '¡Gracias por participar!' })).toBeVisible();
+    expect(mocks.formSubmissionResolved).toHaveBeenCalledTimes(1);
+    expect(mocks.formSubmissionRejected).not.toHaveBeenCalled();
+    expect(mocks.trackSurveySubmission).toHaveBeenCalledTimes(1);
+    expect(mocks.toast).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.useSurveyLiveResults().refetch).toHaveBeenCalledTimes(1));
+
+    survey = { ...survey, instrument_revision: 2 };
+    view.rerender(content());
+    expect(screen.queryByRole('heading', { name: '¡Gracias por participar!' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('mock-survey-form')).toBeVisible();
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['ambiguous acknowledgement', 'duplicate response'])(
+    'preserves the current %s error without a success or another submission',
+    async (outcome) => {
+      const duplicate = new ApiError('Duplicate response', 409, { reason_code: 'survey_response_duplicate' });
+      const submit = outcome === 'duplicate response'
+        ? vi.fn().mockRejectedValue(duplicate)
+        : vi.fn().mockResolvedValue({ ack_kind: 'synthetic_demo' });
+      mocks.useSurveyPublic.mockReturnValue({
+        ...mocks.useSurveyPublic(), isLoading: false, submit,
+        survey: publicBrandSurvey({ slug: 'organizacion-a', nombre: 'Organización A' }, 'organizacion-a'),
+      });
+      render(<MemoryRouter initialEntries={['/e/consulta-publica?tenant_slug=organizacion-a']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes></MemoryRouter>);
+      fireEvent.click(await screen.findByRole('button', { name: 'Enviar prueba' }));
+      await waitFor(() => expect(mocks.formSubmissionRejected).toHaveBeenCalledTimes(1));
+      expect(mocks.formSubmissionRejected).toHaveBeenCalledWith(
+        outcome === 'duplicate response' ? duplicate : expect.objectContaining({ name: 'AmbiguousSurveySubmissionError' }),
+      );
+      expect(mocks.formSubmissionResolved).not.toHaveBeenCalled();
+      expect(screen.getByTestId('mock-survey-form')).toBeVisible();
+      expect(screen.queryByRole('heading', { name: '¡Gracias por participar!' })).not.toBeInTheDocument();
+      expect(mocks.trackSurveySubmission).not.toHaveBeenCalled();
+      expect(mocks.useSurveyLiveResults().refetch).not.toHaveBeenCalled();
+      expect(mocks.toast).toHaveBeenCalledTimes(1);
+      if (outcome === 'duplicate response') expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Ya registramos tu opinión' }));
+      expect(submit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('keeps the survey route informative and accessible while data loads', () => {
     render(

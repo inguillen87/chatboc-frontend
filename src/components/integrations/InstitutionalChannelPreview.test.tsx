@@ -302,6 +302,77 @@ describe('public institutional preview — local synthetic fixtures', () => {
     expect(screen.queryByText('Identidad intermedia')).not.toBeInTheDocument();
   });
 
+  it.each([
+    [503, { reason_code: 'temporary_failure' }, 'Reintentar contenido público'],
+    [404, { reason_code: 'knowledge_not_available' }, 'Volver a consultar contenido público'],
+  ])('keeps keyboard position across an explicit retry after HTTP %s', async (status, body, label) => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn().mockResolvedValueOnce(json(body, status)).mockReturnValueOnce(pending.promise);
+    render(fixture());
+    const retry = await screen.findByRole('button', { name: label });
+    retry.focus(); fireEvent.click(retry, { detail: 0 });
+    expect(screen.getByRole('status')).toHaveFocus();
+    await act(async () => pending.resolve(json(model())));
+    expect(screen.getByRole('heading', { name: '¿Sobre qué querés consultar?' })).toHaveFocus();
+    assertPublicReads();
+  });
+
+  it('does not reclaim retry focus after an outside control was focused and then blurred', async () => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn().mockResolvedValueOnce(json({ reason_code: 'temporary_failure' }, 503)).mockReturnValueOnce(pending.promise);
+    render(<><button type="button">Control externo</button>{fixture()}</>);
+    const retry = await screen.findByRole('button', { name: 'Reintentar contenido público' });
+    retry.focus(); fireEvent.click(retry, { detail: 0 });
+    const external = screen.getByRole('button', { name: 'Control externo' });
+    external.focus(); external.blur();
+    await act(async () => pending.resolve(json(model())));
+    expect(document.body).toHaveFocus();
+    expect(screen.getByRole('heading', { name: '¿Sobre qué querés consultar?' })).not.toHaveFocus();
+  });
+
+  it.each([
+    [403, { reason_code: 'forbidden' }, 'alert'],
+    [404, { reason_code: 'knowledge_not_available' }, 'status'],
+  ])('keeps an owned retry at the returned HTTP %s state instead of the removed loading control', async (status, body, role) => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn().mockResolvedValueOnce(json({ reason_code: 'temporary_failure' }, 503)).mockReturnValueOnce(pending.promise);
+    render(fixture());
+    const retry = await screen.findByRole('button', { name: 'Reintentar contenido público' });
+    retry.focus(); fireEvent.click(retry, { detail: 0 });
+    await act(async () => pending.resolve(json(body, status)));
+    expect(screen.getByRole(role)).toHaveFocus();
+    expect(screen.queryByTestId('institutional-chat-message')).not.toBeInTheDocument();
+    assertPublicReads();
+  });
+
+  it('retires retry focus across a batched panel-token A→B→A and never restores its late answer', async () => {
+    const pending = deferred<Response>();
+    global.fetch = vi.fn().mockResolvedValueOnce(json({ reason_code: 'temporary_failure' }, 503))
+      .mockReturnValueOnce(pending.promise).mockResolvedValueOnce(json(model('qa-office', 'Autoridad vigente')));
+    render(fixture());
+    const retry = await screen.findByRole('button', { name: 'Reintentar contenido público' });
+    retry.focus(); fireEvent.click(retry, { detail: 0 });
+    expect(screen.getByRole('status')).toHaveFocus();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    act(() => {
+      usePanelSessionStore.setState({ authToken: 'synthetic-rotated-session' });
+      usePanelSessionStore.setState({ authToken: 'synthetic-private-session' });
+    });
+    expect(await screen.findByText('Autoridad vigente')).toBeVisible();
+    expect(screen.getByRole('heading', { name: '¿Sobre qué querés consultar?' })).not.toHaveFocus();
+    await act(async () => pending.resolve(json(model('qa-office', 'Lectura anterior'))));
+    expect(screen.queryByText('Lectura anterior')).not.toBeInTheDocument();
+    assertPublicReads();
+  });
+
+  it('leaves initial reads with the existing outside focus', async () => {
+    const pending = deferred<Response>(); global.fetch = vi.fn().mockReturnValue(pending.promise);
+    render(<><button type="button">Control inicial externo</button>{fixture()}</>);
+    const external = screen.getByRole('button', { name: 'Control inicial externo' }); external.focus();
+    await act(async () => pending.resolve(json(model())));
+    expect(external).toHaveFocus();
+  });
+
   it('continues keyboard navigation at the new answer heading without stealing focus moved elsewhere', async () => {
     const pending = deferred<Response>();
     global.fetch = vi.fn().mockResolvedValueOnce(json(model())).mockReturnValueOnce(pending.promise);

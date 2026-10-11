@@ -1,5 +1,5 @@
 import React from 'react';
-import {act,cleanup,fireEvent,render,renderHook,screen} from '@testing-library/react';
+import {act,cleanup,fireEvent,render,renderHook,screen,within} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node} from '../../../tests/fixtures/institutional-assistant.synthetic';
 import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel,institutionalChatBootstrapPayload,institutionalNumericChatAction} from './institutionalChatMessage';
@@ -14,6 +14,7 @@ import InstitutionalChatMessage from '@/components/chat/InstitutionalChatMessage
 import AccessibilityToggle,{readAccessibilityPrefs} from '@/components/chat/AccessibilityToggle';
 import {ApiError} from '@/utils/api';
 import type {InstitutionalAudioReading} from '@/components/knowledge/institutionalAssistantAudio';
+import {advanceChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 
 function payload(){
  const w=structuredClone(workspace({visibility:'public',can_edit:false})),initial=node();
@@ -178,11 +179,105 @@ describe('actual embedded chat normalization and renderer',()=>{
  });
  it('moves focus from an activated menu to the next heading while preserving focus for typing elsewhere',()=>{
   const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
-  screen.getByRole('button',{name:'1 Documentación'}).focus();
-  mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'requirements',title:'Documentación necesaria'}]}} onButtonClick={()=>{}}/>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);
+  mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Documentación necesaria'}]}} onButtonClick={()=>{}}/>);
   expect(screen.getByRole('heading',{name:'Documentación necesaria'})).toHaveFocus();
   const input=document.createElement('input');document.body.append(input);input.focus();
   mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'health',title:'Salud y terapias'}]}} onButtonClick={()=>{}}/>);
   expect(input).toHaveFocus();input.remove();
+ });
+ it('does not take focus from another reader when a new institutional response mounts',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!;
+  const mounted=render(<><InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/></>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();
+  mounted.rerender(<><InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>
+   <InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'later',title:'Respuesta posterior'}]}} onButtonClick={()=>{}}/></>);
+  expect(origin.isConnected).toBe(true);expect(origin).toHaveFocus();
+ });
+ it('preserves the other reader choice when an earlier activated menu receives its delayed answer',()=>{
+  const a=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,b={...a,nodes:[{...a.nodes[0],id:'other-reader',title:'Otro lector'}]},onChoose=vi.fn();
+  const view=(answer:typeof a)=><><InstitutionalChatMessage answer={answer} onButtonClick={onChoose}/><InstitutionalChatMessage answer={b} onButtonClick={()=>{}}/></>;
+  const mounted=render(view(a)),readers=screen.getAllByTestId('institutional-chat-message');
+  const origin=within(readers[0]).getByRole('button',{name:'1 Documentación'}),external=within(readers[1]).getByRole('button',{name:'2 Salud y terapias'});
+  origin.focus();fireEvent.click(origin);external.focus();
+  mounted.rerender(view({...a,nodes:[{...a.nodes[0],id:'topic-0',title:'Respuesta demorada'}]}));
+  expect(external).toHaveFocus();expect(onChoose).toHaveBeenCalledOnce();
+ });
+ it('does not regain an old activation after keyboard focus leaves and returns to its menu',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,onChoose=vi.fn();
+  const mounted=render(<><input aria-label="Otra tarea"/><InstitutionalChatMessage answer={answer} onButtonClick={onChoose}/></>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);
+  screen.getByRole('textbox',{name:'Otra tarea'}).focus();origin.focus();
+  mounted.rerender(<><input aria-label="Otra tarea"/><InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Respuesta demorada'}]}} onButtonClick={onChoose}/></>);
+  expect(origin).toHaveFocus();expect(onChoose).toHaveBeenCalledOnce();
+ });
+ it('keeps an unactivated choice focused instead of treating focus alone as a request',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();
+  mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Otra respuesta'}]}} onButtonClick={()=>{}}/>);
+  expect(origin).toHaveFocus();
+ });
+ it('permits an explicit pointer activation from BODY without pretending that an external input belongs to it',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,onChoose=vi.fn(),view=(value:typeof answer)=><><input aria-label="Otra tarea"/><InstitutionalChatMessage answer={value} onButtonClick={onChoose}/></>;
+  const mounted=render(view(answer));expect(document.activeElement).toBe(document.body);
+  fireEvent.click(screen.getByRole('button',{name:'1 Documentación'}));
+  const next={...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Respuesta del primer clic'}]};mounted.rerender(view(next));
+  expect(screen.getByRole('heading',{name:'Respuesta del primer clic'})).toHaveFocus();
+  const external=screen.getByRole('textbox',{name:'Otra tarea'});external.focus();
+  fireEvent.click(screen.getByRole('button',{name:'2 Salud y terapias'}));
+  mounted.rerender(view({...next,nodes:[{...next.nodes[0],id:'topic-1',title:'Respuesta del segundo clic'}]}));
+  expect(external).toHaveFocus();expect(onChoose).toHaveBeenCalledTimes(2);
+ });
+ it('does not infer ownership from BODY after a voluntary blur of the connected origin',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);origin.blur();
+  mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Respuesta demorada',actions:[]}]}} onButtonClick={()=>{}}/>);
+  expect(origin.isConnected).toBe(false);expect(document.activeElement).toBe(document.body);
+ });
+ it.each(['owned','externally retired'] as const)('handles Chromium blur during React removal only for an %s activation',ownership=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,view=(value:typeof answer)=><><input aria-label="Otra tarea"/><InstitutionalChatMessage answer={value} onButtonClick={()=>{}}/></>;
+  const mounted=render(view(answer)),origin=screen.getByRole('button',{name:'1 Documentación'});
+  origin.focus();fireEvent.click(origin);
+  if(ownership==='externally retired'){const external=screen.getByRole('textbox',{name:'Otra tarea'});external.focus();external.blur();}
+  const removeChild=Node.prototype.removeChild;let connectedBlur=false;
+  const removal=vi.spyOn(Node.prototype,'removeChild').mockImplementation(function(this:Node,child:Node){
+   if(child===origin||child.contains(origin)){expect(origin.isConnected).toBe(true);connectedBlur=true;origin.blur();}
+   return removeChild.call(this,child);
+  });
+  try{
+   mounted.rerender(view({...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Respuesta tras retirar opción',actions:[]}]}));
+   expect(connectedBlur).toBe(true);expect(origin.isConnected).toBe(false);
+   if(ownership==='owned')expect(screen.getByRole('heading',{name:'Respuesta tras retirar opción'})).toHaveFocus();
+   else expect(document.activeElement).toBe(document.body);
+  }finally{removal.mockRestore();}
+ });
+ it.each(['id','slug','revision'] as const)('retires activation across a %s change and does not restore it when the old scope returns',kind=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);
+  const foreign={...answer,tenant:{...answer.tenant},nodes:[{...answer.nodes[0],id:'topic-0',title:'Otro contexto'}]};
+  if(kind==='id')foreign.tenant.id+=1;if(kind==='slug')foreign.tenant.slug='qa-other';if(kind==='revision')foreign.revision='c'.repeat(64);
+  mounted.rerender(<InstitutionalChatMessage answer={foreign} onButtonClick={()=>{}}/>);expect(origin).toHaveFocus();
+  mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Contexto anterior'}]}} onButtonClick={()=>{}}/>);expect(origin).toHaveFocus();
+ });
+ it('retires the local activation after the normal authority generation changes',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);
+  act(()=>{advanceChatbocSessionRevision();});
+  mounted.rerender(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Sesión siguiente'}]}} onButtonClick={()=>{}}/>);expect(origin).toHaveFocus();
+ });
+ it('cannot transfer an unmounted reader activation to a later reader',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);mounted.unmount();
+  render(<InstitutionalChatMessage answer={{...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Otro montaje'}]}} onButtonClick={()=>{}}/>);
+  expect(document.activeElement).toBe(document.body);
+ });
+ it('consumes the activation on an unrelated or repeated response without reviving it later',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,view=(value:typeof answer)=><InstitutionalChatMessage answer={value} onButtonClick={()=>{}}/>;
+  const mounted=render(view(answer));const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);
+  mounted.rerender(view({...answer}));expect(origin).toHaveFocus();
+  mounted.rerender(view({...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Resultado tardío'}]}));expect(origin).toHaveFocus();
+  fireEvent.click(origin);
+  mounted.rerender(view({...answer,nodes:[{...answer.nodes[0],id:'topic-1',title:'Resultado de otra opción'}]}));expect(origin).toHaveFocus();
+  mounted.rerender(view({...answer,nodes:[{...answer.nodes[0],id:'topic-0',title:'Resultado todavía más tarde'}]}));expect(origin).toHaveFocus();
  });
 });
