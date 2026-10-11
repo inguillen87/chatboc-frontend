@@ -3,6 +3,17 @@ import { panelReadOptions } from '@/utils/panelReadOptions';
 import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
+import {
+  readNotificationHooksSettings,
+  readNotificationHooksSettingsAck,
+  readLegacyNotificationSettings,
+  readLegacyNotificationSettingsAck,
+  serializeNotificationSettings,
+  serializeLegacyNotificationSettings,
+  type TenantNotificationSettings,
+  type TenantNotificationSettingsAck,
+  type TenantNotificationSettingsUpdate,
+} from '@/features/notifications/tenantNotificationSettingsContract';
 import { assessOrderAmounts, assessOrderItemAmounts } from '@/features/orders/orderAmounts';
 import type { PublishedValue } from '@/types/orderAmounts';
 import {
@@ -236,60 +247,6 @@ const callWidgetAuthEndpoint = async <T>(
     }
     return apiFetch<T>(legacyPath, options);
   }
-};
-
-const normalizeNotificationSettingsResponse = (value: unknown) => {
-  if (!isRecord(value)) return value;
-
-  const rawPreferences = value.preferences ?? value.notification_settings ?? value.settings ?? {};
-  const deliveryConfig = isRecord(value.delivery_config) ? value.delivery_config : {};
-  const notificationSettings: Record<string, unknown> = {};
-
-  if (Array.isArray(rawPreferences)) {
-    rawPreferences.forEach((item) => {
-      if (!isRecord(item)) return;
-      const key =
-        asStringOrUndefined(item.key) ??
-        asStringOrUndefined(item.id) ??
-        asStringOrUndefined(item.channel) ??
-        asStringOrUndefined(item.name);
-      if (!key) return;
-      notificationSettings[key] =
-        typeof item.enabled === 'boolean'
-          ? item.enabled
-          : typeof item.active === 'boolean'
-            ? item.active
-            : item.value;
-    });
-  } else if (isRecord(rawPreferences)) {
-    Object.entries(rawPreferences).forEach(([key, item]) => {
-      if (isRecord(item)) {
-        notificationSettings[key] =
-          typeof item.enabled === 'boolean'
-            ? item.enabled
-            : typeof item.active === 'boolean'
-              ? item.active
-              : item.value;
-      } else {
-        notificationSettings[key] = item;
-      }
-    });
-  }
-
-  return {
-    ...value,
-    owner_phone:
-      asStringOrUndefined(value.owner_phone) ??
-      asStringOrUndefined(deliveryConfig.owner_phone) ??
-      asStringOrUndefined(deliveryConfig.whatsapp_phone),
-    telegram_chat_id:
-      asStringOrUndefined(value.telegram_chat_id) ??
-      asStringOrUndefined(deliveryConfig.telegram_chat_id),
-    notification_settings: {
-      ...(isRecord(value.notification_settings) ? value.notification_settings : {}),
-      ...notificationSettings,
-    },
-  };
 };
 
 const normalizePublicTicketStatus = (value: unknown) => {
@@ -793,38 +750,36 @@ export const apiClient = {
     });
   },
 
-  adminGetNotificationSettings: async (tenantSlug: string): Promise<any> => {
+  adminGetNotificationSettings: async (tenantSlug: string): Promise<TenantNotificationSettings> => {
+    const options = { ...panelReadOptions(tenantSlug), suppressPanel401Redirect: true };
     try {
-      const response = await apiFetch<any>('/api/v2/notifications/hooks', { tenantSlug });
-      return normalizeNotificationSettingsResponse(response);
+      const response = await apiFetch<unknown>('/api/v2/notifications/hooks', options);
+      return readNotificationHooksSettings(response, tenantSlug);
     } catch (error) {
       if (!shouldFallbackToLegacyEndpoint(error)) throw error;
-      return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, { tenantSlug });
+      return readLegacyNotificationSettings(await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, options));
     }
   },
 
-  adminUpdateNotificationSettings: async (tenantSlug: string, settings: any): Promise<any> => {
+  adminUpdateNotificationSettings: async (tenantSlug: string, settings: TenantNotificationSettingsUpdate,
+    legacySnapshot?: TenantNotificationSettings): Promise<TenantNotificationSettingsAck> => {
+    const body = serializeNotificationSettings(settings);
+    // A lost or malformed acknowledgement never causes an automatic write replay.
+    const options = { ...panelReadOptions(tenantSlug), allowStartupRecovery: false, suppressPanel401Redirect: true };
     try {
-      const response = await apiFetch<any>('/api/v2/notifications/hooks', {
+      const response = await apiFetch<unknown>('/api/v2/notifications/hooks', {
+        ...options,
         method: 'POST',
-        body: {
-          preferences: settings?.notification_settings ?? settings?.preferences ?? {},
-          delivery_config: {
-            owner_phone: settings?.owner_phone,
-            telegram_chat_id: settings?.telegram_chat_id,
-          },
-          legacy_payload: settings,
-        },
-        tenantSlug,
+        body,
       });
-      return normalizeNotificationSettingsResponse(response);
+      return readNotificationHooksSettingsAck(response, tenantSlug, body);
     } catch (error) {
       if (!shouldFallbackToLegacyEndpoint(error)) throw error;
-      return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, {
+      return readLegacyNotificationSettingsAck(await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, {
+        ...options,
         method: 'PUT',
-        body: settings,
-        tenantSlug,
-      });
+        body: serializeLegacyNotificationSettings(settings, legacySnapshot),
+      }));
     }
   },
 

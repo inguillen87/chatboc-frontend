@@ -132,7 +132,7 @@ describe('notification drafts belong to the verified tenant/session', () => {
     await act(async () => { a.resolve(settings(true, 'A')); await a.promise; });
     expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
     await user.click(screen.getByRole('button', { name: 'Guardar Preferencias' }));
-    expect(api.adminUpdateNotificationSettings).toHaveBeenCalledWith('qa-b', settings(false, 'B'));
+    expect(api.adminUpdateNotificationSettings).toHaveBeenCalledWith('qa-b', { notification_settings: {} }, settings(false, 'B'));
   });
   it('does not allow saving a previous draft before B notification settings are read', async () => {
     const b = deferred<any>(); api.adminGetNotificationSettings.mockImplementation((slug: string) => slug === 'qa-a' ? Promise.resolve(settings(true, 'A')) : b.promise);
