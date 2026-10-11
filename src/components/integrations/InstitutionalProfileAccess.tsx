@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import type { TenantConfigBundle, TenantOrganizationProfile } from '@/types/Tena
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
 
 const readAuthorizedProfile = (bundle: TenantConfigBundle, slug: string): TenantOrganizationProfile | null => {
   const profile = bundle?.organization_profile;
@@ -21,7 +22,15 @@ const readAuthorizedProfile = (bundle: TenantConfigBundle, slug: string): Tenant
   return profile;
 };
 
-type RequestContext = { scopeKey: string; slug: string; sessionRevision: number };
+const actorAuthority = (value: unknown) => {
+  const actor = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return JSON.stringify([actor.id, actor.user_id, actor.clerk_user_id, actor.sub, actor.email,
+    actor.role, actor.rol, actor.permissions, actor.capabilities, actor.scopes, actor.tenantSlug, actor.tenant_slug]);
+};
+
+type RequestContext = { scopeKey: string; slug: string; sessionRevision: number; panelGeneration: number };
+type RetryFocus = { scopeKey: string; attempt: number; context: RequestContext | null;
+  origin: HTMLElement; retiring: boolean; cleanup: () => void };
 type ProfileRead = { context: RequestContext; status: 'ready'; name: string; profile: TenantOrganizationProfile } |
   { context: RequestContext; status: 'error' };
 
@@ -35,6 +44,34 @@ export default function InstitutionalProfileAccess({ includeDomainSettings = fal
   const descriptionId = useId();
   const [attempt, setAttempt] = useState(0);
   const [read, setRead] = useState<ProfileRead | null>(null);
+  const panelGenerationRef = useRef(0), requestFocus = useRef<RetryFocus | null>(null);
+  const loadingTarget = useRef<HTMLElement | null>(null), resultTarget = useRef<HTMLElement | null>(null);
+  const retireFocus = useCallback(() => {
+    const focus = requestFocus.current; requestFocus.current = null; focus?.cleanup();
+  }, []);
+  // Ref detachment identifies our own DOM replacement before Chromium blurs
+  // the outgoing control. A voluntary blur of a retained target never owns BODY.
+  const setLoadingTarget = useCallback((element: HTMLElement | null) => {
+    if (!element && requestFocus.current?.origin === loadingTarget.current) requestFocus.current.retiring = true;
+    loadingTarget.current = element;
+  }, []);
+  const setResultTarget = useCallback((element: HTMLElement | null) => {
+    if (!element && requestFocus.current?.origin === resultTarget.current) requestFocus.current.retiring = true;
+    resultTarget.current = element;
+  }, []);
+  const subscribePanelGeneration = useCallback((notify: () => void) => usePanelSessionStore.subscribe((next, previous) => {
+    // Tokens stay in memory and are only compared, never included in a key.
+    if (next.authToken !== previous.authToken || actorAuthority(next.user) !== actorAuthority(previous.user)) {
+      panelGenerationRef.current += 1;
+      retireFocus();
+      notify();
+    }
+  }), [retireFocus]);
+  const readPanelGeneration = useCallback(() => panelGenerationRef.current, []);
+  // Read the same synchronous snapshot as the store-backed user, including ABA
+  // whose final user object is unchanged. No intermediate state epoch is read.
+  const panelGeneration = useSyncExternalStore(subscribePanelGeneration, readPanelGeneration, readPanelGeneration);
+  useLayoutEffect(() => () => retireFocus(), [retireFocus]);
   const explicit = readExplicitTenantRequest(searchParams);
   const queryValues = ['tenant', 'tenant_slug'].flatMap(key => searchParams.getAll(key));
   const exactQueryValues = queryValues.map(normalizeProfileTenantSlug);
@@ -47,32 +84,73 @@ export default function InstitutionalProfileAccess({ includeDomainSettings = fal
   const coherent = target && currentSlug === target && publicTenant?.slug === target && !isLoadingTenant && !tenantError;
   const verified = !userLoading && organizationProfileVerified && coherent
     ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug: target, user }) : null;
-  const scopeKey = verified ? JSON.stringify([verified, sessionRevision]) : null;
+  const scopeKey = verified ? JSON.stringify([verified, actorAuthority(user), organizationProfileVerified, sessionRevision, panelGeneration]) : null;
   const context = useMemo<RequestContext | null>(() => scopeKey && target
-    ? { scopeKey, slug: target, sessionRevision } : null, [scopeKey, target, sessionRevision, attempt]);
+    ? { scopeKey, slug: target, sessionRevision, panelGeneration } : null, [scopeKey, target, sessionRevision, panelGeneration, attempt]);
   const activeContext = useRef<RequestContext | null>(null);
 
   useLayoutEffect(() => {
     activeContext.current = context;
+    const focus = requestFocus.current;
+    if (focus && context && focus.scopeKey === context.scopeKey && focus.attempt === attempt) focus.context = context;
+    else retireFocus();
     return () => { activeContext.current = null; };
-  }, [context]);
+  }, [context, attempt, retireFocus]);
+  const isCurrent = (candidate: RequestContext) => activeContext.current === candidate &&
+    candidate.panelGeneration === panelGenerationRef.current && isChatbocSessionRevisionCurrent(candidate.sessionRevision);
 
   useEffect(() => {
     if (!context) return;
     let retired = false;
-    const isCurrent = () => !retired && activeContext.current === context &&
-      isChatbocSessionRevisionCurrent(context.sessionRevision);
-    void tenantService.getTenantConfig(context.slug, { isCurrent }).then(bundle => {
-      if (!isCurrent()) return;
+    const current = () => !retired && isCurrent(context);
+    void tenantService.getTenantConfig(context.slug, { isCurrent: current }).then(bundle => {
+      if (!current()) return;
       const profile = readAuthorizedProfile(bundle, context.slug);
       if (!profile) throw new Error('organization_profile_unverified');
       setRead({ context, status: 'ready', profile,
         name: typeof bundle.tenant.nombre === 'string' ? bundle.tenant.nombre : context.slug });
     }).catch(() => {
-      if (isCurrent()) setRead({ context, status: 'error' });
+      if (current()) setRead({ context, status: 'error' });
     });
     return () => { retired = true; };
   }, [context]);
+
+  const matching = context && read?.context === context ? read : null;
+  useLayoutEffect(() => {
+    const focus = requestFocus.current;
+    if (!focus || !context || focus.context !== context || !isCurrent(context)) return;
+    const active = document.activeElement;
+    if (active !== focus.origin && !(active === document.body && focus.retiring)) { retireFocus(); return; }
+    const target = matching ? resultTarget.current : loadingTarget.current;
+    if (!target?.isConnected) { retireFocus(); return; }
+    focus.origin = target; focus.retiring = false;
+    target.focus({ preventScroll: true });
+    if (matching || document.activeElement !== target) retireFocus();
+  }, [context, matching, retireFocus]);
+  const retry = (origin: HTMLButtonElement) => {
+    if (!context || !isCurrent(context)) return;
+    retireFocus();
+    if (document.activeElement === origin) {
+      const focus: RetryFocus = { scopeKey: context.scopeKey, attempt: attempt + 1,
+        context: null, origin, retiring: false, cleanup: () => {} };
+      requestFocus.current = focus;
+      const trackFocus = (event: FocusEvent) => {
+        if (requestFocus.current === focus && event.target !== focus.origin) retireFocus();
+      };
+      const trackBlur = (event: FocusEvent) => {
+        if (requestFocus.current !== focus || event.target !== focus.origin) return;
+        if (focus.retiring && (event.relatedTarget === null || event.relatedTarget === document.body)) return;
+        retireFocus();
+      };
+      focus.cleanup = () => {
+        document.removeEventListener('focusin', trackFocus);
+        document.removeEventListener('focusout', trackBlur);
+      };
+      document.addEventListener('focusin', trackFocus);
+      document.addEventListener('focusout', trackBlur);
+    }
+    setAttempt(value => value + 1);
+  };
 
   if (!context) {
     const pending = userLoading || isLoadingTenant;
@@ -82,21 +160,21 @@ export default function InstitutionalProfileAccess({ includeDomainSettings = fal
           : 'El perfil institucional necesita una organización y una sesión verificadas. Revisá tu acceso antes de continuar.'}
     </p>;
   }
-  const matching = read?.context === context ? read : null;
-  if (!matching) return <p role="status" className="mt-4 text-sm text-muted-foreground">Verificando el perfil institucional.</p>;
+  if (!matching) return <p ref={setLoadingTarget} tabIndex={-1} role="status"
+    className="mt-4 rounded-sm text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-offset-2 forced-colors:focus-visible:outline-[Highlight]">Verificando el perfil institucional.</p>;
   if (matching.status === 'error') {
     return <div role="alert" className="mt-4 space-y-2 text-sm text-muted-foreground">
       <p>No pudimos verificar el acceso al perfil de esta organización.</p>
-      <Button type="button" variant="outline" className="min-h-11" onClick={() => setAttempt(value => value + 1)}>Reintentar</Button>
+      <Button ref={setResultTarget} type="button" variant="outline" className="min-h-11" onClick={event => retry(event.currentTarget)}>Reintentar</Button>
     </div>;
   }
   const href = `/perfil?${new URLSearchParams({ section: 'general', tenant_slug: context.slug }).toString()}`;
   return <div className="mt-4 space-y-2">
     <p className="break-words text-sm font-medium text-foreground">{matching.name}</p>
     <Button asChild variant="outline" className="min-h-11 h-auto max-w-full whitespace-normal text-left">
-      <a href={href} target="_blank" rel="noopener noreferrer" aria-describedby={descriptionId}
+      <a ref={setResultTarget} href={href} target="_blank" rel="noopener noreferrer" aria-describedby={descriptionId}
         onClick={event => {
-          if (activeContext.current !== context || !isChatbocSessionRevisionCurrent(context.sessionRevision)) event.preventDefault();
+          if (!isCurrent(context)) event.preventDefault();
         }}>
         Perfil institucional <ExternalLink className="ml-2 h-4 w-4 shrink-0" aria-hidden="true" />
       </a>
