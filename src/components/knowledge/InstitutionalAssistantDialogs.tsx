@@ -3,9 +3,8 @@ import {BookOpen,FileText,X} from 'lucide-react';
 import {Dialog,DialogClose,DialogContent,DialogDescription,DialogTitle} from '@/components/ui/dialog';
 import {knowledgeSourceExternalUrl,knowledgeSourceOriginalAllowed,type KnowledgeWorkspace} from './institutionalAssistantContract';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
-import {readKnowledgeSource,knowledgeSourceReadMessage,captureKnowledgeSourceAuthority,type KnowledgeSourceDocument} from './institutionalAssistantSource';
+import {readKnowledgeSource,knowledgeSourceReadMessage,subscribeKnowledgeSourceAuthority,type KnowledgeSourceDocument} from './institutionalAssistantSource';
 import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
-import {usePanelSessionStore} from '@/stores';
 export interface KnowledgeReview {operation:'import'|'publish'|'retire';bundle?:unknown;filename?:string}
 interface BaseProps {workspace:KnowledgeWorkspace;restoreFocus:()=>void;largeText?:boolean}
 export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,mode='admin',highlightedSourceId,largeText=false}:{open:boolean;onOpenChange:(open:boolean)=>void;mode?:'admin'|'public';highlightedSourceId?:string|null}&BaseProps){
@@ -34,21 +33,9 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
   };
   // Already displayed bytes need the same fence as in-flight reads, even when
   // the owner of this controlled dialog does not rerender for a session change.
-  let authority=captureKnowledgeSourceAuthority();
-  const unsubscribePanel=usePanelSessionStore.subscribe(()=>{
-   const next=captureKnowledgeSourceAuthority();
-   if(mode==='admin'&&next!==authority)retireAuthority();
-   authority=next;
-  });
+  const unsubscribeAuthority=mode==='admin'?subscribeKnowledgeSourceAuthority(retireAuthority):()=>{};
   const unsubscribeRevision=subscribeChatbocSessionRevision(retireAuthority);
-  const storageChanged=(event:StorageEvent)=>{
-   if(event.storageArea!==window.localStorage)return;
-   const next=captureKnowledgeSourceAuthority();
-   if(mode==='admin'&&next!==authority)retireAuthority();
-   authority=next;
-  };
-  window.addEventListener('storage',storageChanged);
-  return()=>{unsubscribePanel();unsubscribeRevision();window.removeEventListener('storage',storageChanged);};
+  return()=>{unsubscribeAuthority();unsubscribeRevision();};
  },[mode,onOpenChange]);
  const consult=async(id:string,trigger:HTMLButtonElement)=>{
   const source=workspace.knowledge?.sources.find(item=>item.id===id);if(!source||!visible.current||locked.current)return;
