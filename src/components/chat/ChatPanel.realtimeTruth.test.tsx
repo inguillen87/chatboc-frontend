@@ -107,7 +107,8 @@ const provisionedSession = {
   },
 };
 
-vi.mock("@/hooks/useChatLogic", () => ({
+vi.mock("@/hooks/useChatLogic", async importOriginal => ({
+  ...await importOriginal<typeof import('@/hooks/useChatLogic')>(),
   useChatLogic: () => chatLogic,
 }));
 
