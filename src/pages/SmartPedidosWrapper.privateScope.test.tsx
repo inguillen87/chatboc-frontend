@@ -1,8 +1,9 @@
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
+import { ApiError } from '@/utils/api';
 
 const state = vi.hoisted(() => ({
   user: null as any, loading: false, hasVerifiedSession: true, organizationProfileVerified: true,
@@ -129,9 +130,29 @@ describe('private order scope after a public tenant visit', () => {
     expect(state.summary).not.toHaveBeenCalled();
   });
   it('does not retry a company order denial without its original filters', async () => {
-    state.user = { ...state.user, rol: 'admin_pyme', tipo_chat: 'pyme' }; state.summary.mockRejectedValue({ status: 403 });
+    state.user = { ...state.user, rol: 'admin_pyme', tipo_chat: 'pyme' };
+    state.summary.mockRejectedValue(new ApiError('No tenés permisos para consultar pedidos.', 403));
     render(tree());
-    await screen.findByText('Sin pedidos');
+    const denial = await screen.findByRole('alert');
+    expect(within(denial).getByRole('heading', { name: 'Acceso denegado' })).toBeVisible();
+    expect(screen.queryByText('Sin pedidos')).not.toBeInTheDocument();
     expect(state.summary).toHaveBeenCalledExactlyOnceWith('private-municipality', { status: 'all', limit: 100 });
+    expect(state.list).not.toHaveBeenCalled();
+    expect(state.create).not.toHaveBeenCalled(); expect(state.update).not.toHaveBeenCalled();
+  });
+  it('retries a denied company read only explicitly with the same verified scope and original filters', async () => {
+    state.user = { ...state.user, rol: 'admin_pyme', tipo_chat: 'pyme' };
+    state.summary.mockRejectedValue(new ApiError('No tenés permisos para consultar pedidos.', 403));
+    render(tree());
+    const denial = await screen.findByRole('alert');
+    expect(state.summary).toHaveBeenCalledExactlyOnceWith('private-municipality', { status: 'all', limit: 100 });
+    fireEvent.click(within(denial).getByRole('button', { name: 'Reintentar' }));
+    await waitFor(() => expect(state.summary).toHaveBeenCalledTimes(2));
+    expect(state.summary.mock.calls).toEqual([
+      ['private-municipality', { status: 'all', limit: 100 }],
+      ['private-municipality', { status: 'all', limit: 100 }],
+    ]);
+    expect(state.list).not.toHaveBeenCalled();
+    expect(state.create).not.toHaveBeenCalled(); expect(state.update).not.toHaveBeenCalled();
   });
 });
