@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import WorkspaceModuleFinder from "@/components/navigation/WorkspaceModuleFinder";
 
 export type ProfileWorkspaceTabValue =
   | "perfil"
@@ -114,6 +115,7 @@ export const resolveProfileWorkspaceCapabilities = ({
 };
 
 interface ProfileWorkspaceNavigationProps {
+  contextKey?: string;
   activeTab: ProfileWorkspaceTabValue;
   activeActionId?: "billing" | "institution-profile";
   capabilities: ProfileWorkspaceCapabilities;
@@ -170,6 +172,7 @@ const ModuleMenuItem = ({
 };
 
 export default function ProfileWorkspaceNavigation({
+  contextKey = "profile-workspace",
   activeTab,
   activeActionId,
   capabilities,
@@ -388,6 +391,22 @@ export default function ProfileWorkspaceNavigation({
       className="rounded-xl border border-border/70 bg-card/95 p-1 shadow-sm backdrop-blur"
       data-testid="profile-workspace-navigation"
     >
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/60 px-2 pb-2 pt-1">
+        <p className="min-w-0 truncate text-sm font-semibold text-foreground" aria-live="polite">
+          <span className="sr-only">Módulo actual: </span>{activeModule?.label || "Inicio"}
+        </p>
+        <WorkspaceModuleFinder
+          contextKey={JSON.stringify([contextKey, isMunicipal, capabilities])}
+          items={[
+            { id: "home", label: "Inicio", group: "Centro de control", icon: LayoutDashboard, active: isHomeActive, onSelect: () => onTabChange("perfil") },
+            ...groups.flatMap(group => group.modules.map(module => ({
+              id: module.id, label: module.label, description: module.description, group: group.label, icon: module.icon,
+              active: module.tab === activeTab || (!module.tab && module.id === activeActionId),
+              onSelect: () => { if (module.tab) onTabChange(module.tab); else module.action?.(); },
+            }))),
+          ]}
+        />
+      </div>
       <div className="hidden items-center gap-1 lg:flex">
         <Button
           type="button"

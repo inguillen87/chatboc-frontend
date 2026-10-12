@@ -173,6 +173,9 @@ const Navbar: React.FC = () => {
   const ordersHref = ordersWorkspaceTenant
     ? `/perfil?tab=pedidos&tenant_slug=${encodeURIComponent(ordersWorkspaceTenant)}`
     : '/perfil?tab=pedidos';
+  const ticketDeskHref = ordersWorkspaceTenant
+    ? `${TICKET_DESK_PATH}&${new URLSearchParams({ tenant_slug: ordersWorkspaceTenant }).toString()}`
+    : TICKET_DESK_PATH;
   const surveyWorkspaceTenant = hasVerifiedSession && organizationProfileVerified && !userLoading
     ? ordersWorkspaceTenant : null;
   const surveysHref = surveyWorkspaceTenant
@@ -186,7 +189,7 @@ const Navbar: React.FC = () => {
     : authenticatedOrganization ? authenticatedOrganization.isMunicipal
       : !hasOrganizationContracts && effectiveUser?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
-  const liveChatPath = isAdminLike ? `${TICKET_DESK_PATH}&focus=live_chat` : "/chat";
+  const liveChatPath = isAdminLike ? `${ticketDeskHref}&focus=live_chat` : "/chat";
   const userDisplayName =
     String(effectiveUser?.nombre || effectiveUser?.name || effectiveUser?.nombre_empresa || effectiveUser?.email || "").trim() ||
     "Mi cuenta";
@@ -234,7 +237,7 @@ const Navbar: React.FC = () => {
 
     const links: AdminNavLink[] = [
       {
-        to: TICKET_DESK_PATH,
+        to: ticketDeskHref,
         label: isMunicipal ? "Reclamos" : "Tickets",
         icon: TicketIcon,
         roles: ["tenant_admin", "employee", "superadmin"],
@@ -306,7 +309,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref, hostBinding]);
+  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref, ticketDeskHref, hostBinding]);
 
   const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
   useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);

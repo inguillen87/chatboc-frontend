@@ -71,6 +71,46 @@ const canonicalOrganizationUser = (kind = 'municipio', slug = 'civic-workspace',
 });
 
 describe('Navbar account menu routing', () => {
+  it.each([
+    { kind: 'municipio', selected: true },
+    { kind: 'pyme', selected: true },
+    { kind: 'municipio', selected: false },
+    { kind: 'pyme', selected: false },
+  ])('preserves verified ticket and live-chat workspace: $kind selected=$selected', ({ kind, selected }) => {
+    const user = canonicalOrganizationUser(kind, 'actor-home');
+    if (selected) user.rol = 'superadmin';
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: true, loading: false });
+    useTenantMock.mockReturnValue(selected ? {
+      currentSlug: 'selected-organization', isLoadingTenant: false,
+      tenant: { slug: 'selected-organization', tipo: kind, publishedIdentity: { tenantId: 22, tenantSlug: 'selected-organization', name: 'Selected institution' } },
+    } : { currentSlug: 'foreign-public-organization' });
+    render(<MemoryRouter initialEntries={[selected ? '/admin/knowledge?tenant_slug=selected-organization' : '/perfil?tenant_slug=foreign-public-organization']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    const slug = selected ? 'selected-organization' : 'actor-home';
+    expect(screen.getByRole('link', { name: kind === 'municipio' ? 'Reclamos' : 'Tickets' })).toHaveAttribute('href', `/perfil?tab=tickets&tenant_slug=${slug}`);
+    const liveLinks = screen.getAllByRole('link', { name: 'Chat' });
+    liveLinks.forEach(link => expect(link).toHaveAttribute('href', `/perfil?tab=tickets&tenant_slug=${slug}&focus=live_chat`));
+  });
+
+  it.each(['pending', 'foreign', 'unverified', 'missing'])('does not derive a ticket scope from an unverified selected identity: %s', state => {
+    useUserMock.mockReturnValue({ organizationProfileVerified: state !== 'unverified', user: { id: 8, rol: 'superadmin' } });
+    useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', isLoadingTenant: state === 'pending', tenant: { slug: 'selected-organization', publishedIdentity: state === 'missing' ? null : { tenantId: 7, tenantSlug: state === 'foreign' ? 'other-organization' : 'selected-organization', name: 'Untrusted institution' } } });
+    render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
+    expect(screen.getByRole('link', { name: 'Tickets' })).toHaveAttribute('href', '/perfil?tab=tickets');
+    screen.getAllByRole('link', { name: 'Chat' }).forEach(link => expect(link).toHaveAttribute('href', '/perfil?tab=tickets&focus=live_chat'));
+  });
+
+  it.each(['municipio', 'pyme'])('preserves the selected ticket workspace on desktop: %s', async kind => {
+    const user = canonicalOrganizationUser(kind, 'actor-home'); user.rol = 'superadmin';
+    useUserMock.mockReturnValue({ user, organizationProfileVerified: true, loading: false });
+    useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', tenant: { slug: 'selected-organization', tipo: kind, publishedIdentity: { tenantId: 22, tenantSlug: 'selected-organization', name: 'Selected institution' } } });
+    render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
+    fireEvent.keyDown(screen.getByRole('button', { name: /Mi cuenta/i }), { key: 'Enter' });
+    expect(await screen.findByRole('menuitem', { name: kind === 'municipio' ? 'Reclamos' : 'Tickets' })).toHaveAttribute('href', '/perfil?tab=tickets&tenant_slug=selected-organization');
+    expect(screen.getByRole('menuitem', { name: 'Chat en vivo' })).toHaveAttribute('href', '/perfil?tab=tickets&tenant_slug=selected-organization&focus=live_chat');
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowRightLeft, ExternalLink, Globe, MessageCircle, Package, ShoppingBag } from 'lucide-react';
@@ -20,6 +20,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
+import {captureChatbocSessionRevision,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {ApiError,getErrorMessage} from '@/utils/api';
+import {ViewState} from '@/components/app-shell/ViewState';
 
 const STATUS_MAP: Record<string, string> = {
   nuevo: 'Recibido',
@@ -183,15 +186,23 @@ const UserOrdersPage = () => {
   const { user } = useUser();
   const { hasVerifiedSession } = useSessionAuthority();
   const { content, commerceSession, publicOrders, isLoading: portalLoading } = usePortalContent();
-  const privateScopeKey = buildVerifiedSessionScopeKey({
+  const sessionRevision=useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
+  const verifiedScope = buildVerifiedSessionScopeKey({
     hasVerifiedSession,
     tenantSlug: currentSlug,
     user,
   });
+  const authorityKey=JSON.stringify([verifiedScope,sessionRevision]);
+  const authorityEpoch=useRef({key:authorityKey,epoch:0});
+  if(authorityEpoch.current.key!==authorityKey)authorityEpoch.current={key:authorityKey,epoch:authorityEpoch.current.epoch+1};
+  const privateScopeKey=verifiedScope?JSON.stringify([authorityKey,authorityEpoch.current.epoch]):null;
   const activeScopeRef = useRef(privateScopeKey);
   activeScopeRef.current = privateScopeKey;
   const [ordersState, setOrdersState] = useState<{ scopeKey: string; items: Order[] } | null>(null);
   const [loadingScopeKey, setLoadingScopeKey] = useState<string | null>(null);
+  const [readError,setReadError]=useState<{scopeKey:string;message:string;denied:boolean}|null>(null);
+  const [retryRevision,setRetryRevision]=useState(0);
+  const retryPending=useRef(false);
   const orders = privateScopeKey && ordersState?.scopeKey === privateScopeKey
     ? ordersState.items
     : [];
@@ -207,40 +218,45 @@ const UserOrdersPage = () => {
     if (!requestTenantSlug || !requestScopeKey || publicOrders.length > 0) {
       setOrdersState(null);
       setLoadingScopeKey(null);
+      setReadError(null);retryPending.current=false;
       return;
     }
 
     setLoadingScopeKey(requestScopeKey);
+    setReadError(null);
     apiClient
       .listOrders(requestTenantSlug)
       .then((data) => {
         if (isCurrentRequest()) {
+          if(!Array.isArray(data))throw new Error('La respuesta de pedidos no pudo validarse.');
           setOrdersState({
             scopeKey: requestScopeKey,
-            items: Array.isArray(data) ? data : [],
+            items: data,
           });
         }
       })
       .catch((error) => {
-        console.error('Error loading orders:', error);
         if (isCurrentRequest()) {
-          setOrdersState({ scopeKey: requestScopeKey, items: [] });
+          const denied=error instanceof ApiError&&(error.status===401||error.status===403);
+          setReadError({scopeKey:requestScopeKey,message:getErrorMessage(error,'No pudimos cargar los pedidos.'),denied});
+          setOrdersState(previous=>({scopeKey:requestScopeKey,items:!denied&&previous?.scopeKey===requestScopeKey?previous.items:[]}));
         }
       })
       .finally(() => {
-        if (isCurrentRequest()) setLoadingScopeKey(null);
+        if (isCurrentRequest()){setLoadingScopeKey(null);retryPending.current=false;}
       });
 
     return () => {
       active = false;
     };
-  }, [currentSlug, privateScopeKey, publicOrders.length]);
+  }, [currentSlug, privateScopeKey, publicOrders.length,retryRevision]);
 
   const catalogPath = useMemo(() => buildTenantPath('/productos', currentSlug ?? undefined), [currentSlug]);
   const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
   const loading = portalLoading || legacyLoading;
   const hasPublicOrders = publicOrders.length > 0;
   const hasLegacyOrders = orders.length > 0;
+  const currentError=privateScopeKey&&readError?.scopeKey===privateScopeKey&&!hasPublicOrders?readError:null;
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 p-4">
@@ -253,11 +269,12 @@ const UserOrdersPage = () => {
         ) : null}
       </div>
 
+      {currentError?<div role="alert"><ViewState status={currentError.denied?'denied':hasLegacyOrders?'stale':'error'} description={currentError.message} action={<Button disabled={loading} onClick={()=>{if(loading||retryPending.current)return;retryPending.current=true;setRetryRevision(value=>value+1);}}>Reintentar</Button>}/></div>:null}
       {loading ? (
         <div className="space-y-4">
           {[1, 2].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg bg-muted/20" />)}
         </div>
-      ) : !hasPublicOrders && !hasLegacyOrders ? (
+      ) : !hasPublicOrders && !hasLegacyOrders && !currentError ? (
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
           <Package className="mb-4 h-12 w-12 opacity-20" />
           <p>No tenés pedidos registrados aún.</p>

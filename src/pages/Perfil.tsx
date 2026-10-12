@@ -2751,6 +2751,7 @@ export default function Perfil() {
   const isWorkspaceProfileTab = isViewportWorkspaceProfileTab || isWideWorkspaceProfileTab;
   const workspaceNavigation = backofficeNavigationStatus === 'ready' ? (
     <ProfileWorkspaceNavigation
+      contextKey={JSON.stringify([verifiedOrganizationNavigationTenantSlug, authenticatedOrganization?.tenantId, user?.id, user?.rol, organizationProfileVerified, hasVerifiedSession, Boolean(userLoading), (user as any)?.organization_profile?.revision])}
       activeTab={activeProfileTab}
       activeActionId={
         activeProfileTab === "perfil" && isInstitutionProfileOpen

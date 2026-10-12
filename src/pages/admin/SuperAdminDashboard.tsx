@@ -26,6 +26,7 @@ import { buildPlatformOverview } from "@/components/admin/platform/data";
 import { useUser } from '@/hooks/useUser';
 import { useCapabilities } from '@/context/CapabilitiesContext';
 import { normalizeProfileTenantSlug } from '@/utils/profileTenantAuthority';
+import WorkspaceModuleFinder from '@/components/navigation/WorkspaceModuleFinder';
 import "@/components/admin/platform/platform.css";
 
 const sections = [
@@ -48,7 +49,7 @@ const leadSummary = (lead: any) => {
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
   const navigate = useNavigate();
-  const { organizationProfileVerified, hasVerifiedSession } = useUser();
+  const { user, organizationProfileVerified, hasVerifiedSession } = useUser();
   const { hasCapability } = useCapabilities();
   const canOpenKnowledge = organizationProfileVerified && hasVerifiedSession && hasCapability('knowledge.read');
   const openKnowledge = (tenant: Tenant) => {
@@ -326,6 +327,10 @@ export default function SuperAdminDashboard() {
   return <div className="platform-workspace" data-testid="platform-workspace">
     <header className="platform-header"><div><div className="platform-eyebrow"><ShieldCheck size={15} aria-hidden="true" />Administración de plataforma</div><h1>Tu operación, en un solo lugar</h1><p>Organizaciones, relaciones comerciales y canales. Una vista compartida para decidir el próximo paso.</p></div><Button onClick={handleCreate}><Plus className="mr-2 h-4 w-4" />Nueva organización</Button></header>
     <nav className="platform-navigation" aria-label="Secciones de plataforma">{sections.map(({ id, label, icon: Icon }) => <Link key={id} to={{ search: `?${sectionUrl(id)}` }} aria-current={section === id ? 'page' : undefined}><Icon size={17} aria-hidden="true" />{label}</Link>)}</nav>
+    {hasVerifiedSession ? <div className="flex justify-end"><WorkspaceModuleFinder
+      contextKey={JSON.stringify(["platform", user?.id, user?.rol, hasVerifiedSession, organizationProfileVerified, selectedProfileSlug, section])}
+      items={sections.map(({ id, label, icon }) => ({ id, label, icon, group: "Plataforma", active: section === id, onSelect: () => openSection(id) }))}
+    /></div> : null}
     <motion.div key={section} initial={reducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : .18 }} className="platform-section" data-testid={`platform-section-${section}`}>
       {section === 'overview' && <PlatformOverview data={overview} directoryLoading={loading} crmLoading={crmLeadsLoading} healthLoading={executiveLoading} onOrganizations={() => openSection('organizations')} onCrm={() => openSection('crm')} onProfile={openProfile} onRefresh={() => { void Promise.all([fetchTenants(), fetchExecutive(), fetchCrmLeads()]); }} />}
       {section === 'organizations' && <>

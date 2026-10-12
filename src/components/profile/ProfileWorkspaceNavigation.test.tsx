@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import ProfileWorkspaceNavigation, {
@@ -7,6 +7,36 @@ import ProfileWorkspaceNavigation, {
 } from "@/components/profile/ProfileWorkspaceNavigation";
 
 describe("ProfileWorkspaceNavigation", () => {
+  it("finds only authorized modules using their existing callbacks and keeps the current label readable", () => {
+    const onTabChange = vi.fn();
+    render(<ProfileWorkspaceNavigation contextKey="verified-workspace-a" activeTab="usuarios" isMunicipal
+      capabilities={{ operation: true, participation: false, territory: true, contacts: true, reports: true, analytics: false, catalog: false, team: false, billing: false, implementation: false }}
+      onOpenPlan={vi.fn()} onOpenSurveys={vi.fn()} onTabChange={onTabChange} />);
+    expect(screen.getByText('Personas y contactos', { selector: 'p' })).toHaveClass('text-sm');
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
+    const dialog = screen.getByRole('dialog', { name: 'Buscar módulo' });
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'analitica avanzada' } });
+    expect(within(dialog).getByRole('status')).toHaveTextContent('No encontramos');
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'territorial' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Inteligencia territorial/ }));
+    expect(onTabChange).toHaveBeenCalledExactlyOnceWith('mapas');
+  });
+
+  it("retires open module results when the verified workspace or allowed inventory changes", () => {
+    const capabilities = { operation: true, participation: false, territory: true, contacts: false, reports: false, analytics: false, catalog: false, team: false, billing: false, implementation: false };
+    const props = { activeTab: 'tickets' as const, isMunicipal: true, capabilities, onOpenPlan: vi.fn(), onOpenSurveys: vi.fn(), onTabChange: vi.fn() };
+    const view = render(<ProfileWorkspaceNavigation {...props} contextKey="verified-a" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    view.rerender(<ProfileWorkspaceNavigation {...props} contextKey="verified-b" />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    view.rerender(<ProfileWorkspaceNavigation {...props} contextKey="verified-a" />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
+    view.rerender(<ProfileWorkspaceNavigation {...props} contextKey="verified-a" capabilities={{ ...capabilities, territory: false }} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(props.onTabChange).not.toHaveBeenCalled();
+  });
   it("fails closed until the backend contract is ready and honors the survey feature flag", () => {
     const enabledModuleIds = new Set([
       "operations",

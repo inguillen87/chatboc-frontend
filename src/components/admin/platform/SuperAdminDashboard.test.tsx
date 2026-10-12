@@ -40,6 +40,18 @@ beforeEach(() => {
 });
 
 describe('SuperAdminDashboard workspace', () => {
+  it('finds an existing platform section without inventing organization navigation', async () => {
+    mount('/superadmin?section=overview');
+    await screen.findByRole('heading', { name: 'Tu operación, en un solo lugar' });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
+    const dialog = screen.getByRole('dialog', { name: 'Buscar módulo' });
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'canales' } });
+    expect(within(dialog).queryByRole('button', { name: /Organizaciones/ })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: /Canales/ }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/superadmin?section=channels');
+    expect(screen.getByTestId('location')).not.toHaveTextContent('tenant_slug');
+    expect(screen.queryByRole('dialog', { name: 'Buscar módulo' })).not.toBeInTheDocument();
+  });
   it('takes the plan modal institutional action to the selected tenant revisioned profile rather than the actor home', async () => {
     mount('/superadmin?section=organizations');
     const row = (await screen.findByRole('button', { name: 'Colegio Norte' })).closest('tr')!;

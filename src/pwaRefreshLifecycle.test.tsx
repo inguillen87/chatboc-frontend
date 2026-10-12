@@ -2,6 +2,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster, toast } from 'sonner';
+import { Toaster as AppToaster } from './components/ui/sonner';
 
 const { registerSW, updateSW } = vi.hoisted(() => ({
   registerSW: vi.fn(),
@@ -14,6 +15,7 @@ describe('authenticated PWA update notification', () => {
   let originalWorker: PropertyDescriptor | undefined;
   let restoreDocumentVisibility: () => void;
   let originalStorage: Array<[Storage, string, string | null]>;
+  const fixtureNodes: HTMLElement[] = [];
   const deleteCache = vi.fn(async () => true);
   const unregister = vi.fn(async () => true);
   const getRegistrations = vi.fn(async () => [{ unregister }]);
@@ -67,8 +69,14 @@ describe('authenticated PWA update notification', () => {
   });
 
   afterEach(async () => {
+    fixtureNodes.splice(0).forEach(node => node.remove());
     await act(async () => {
-      toast.getToasts().forEach((entry) => toast.dismiss(entry.id));
+      toast.getToasts().forEach((entry) => {
+        toast.dismiss(entry.id);
+        // A notification missed before mounting cannot run renderer callbacks.
+        // Retire that fixture handle explicitly so later cases stay isolated.
+        entry.onDismiss?.(entry);
+      });
       await vi.advanceTimersByTimeAsync(50);
     });
     await act(async () => {
@@ -114,6 +122,65 @@ describe('authenticated PWA update notification', () => {
     expect(deleteCache).not.toHaveBeenCalled();
     expect(getRegistrations).not.toHaveBeenCalled();
     expect(unregister).not.toHaveBeenCalled();
+  });
+
+  it('renders an update that arrives before the application notification renderer mounts', async () => {
+    cleanup();
+    await publishUpdate();
+    expect(toast.getToasts().some(entry => entry.title === 'Nueva version disponible')).toBe(true);
+    await act(async () => {
+      render(<AppToaster />);
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    // The lazy renderer commits after the first act; Sonner then broadcasts
+    // through its own next-tick state update.
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(screen.getByRole('button', { name: 'Actualizar' })).toBeVisible();
+    expect(updateSW).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates renderer replay in StrictMode and keeps dismissal durable across remount', async () => {
+    cleanup();
+    await publishUpdate();
+    await act(async () => { render(<React.StrictMode><AppToaster /></React.StrictMode>); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    expect(screen.getAllByRole('button', { name: 'Actualizar' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Despues' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    cleanup();
+    await act(async () => { render(<AppToaster />); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    expect(screen.queryByRole('button', { name: 'Actualizar' })).not.toBeInTheDocument();
+    expect(updateSW).not.toHaveBeenCalled();
+  });
+
+  it.each(['/perfil?tab=crm', '/perfil?tab=pedidos', '/login'])(
+    'keeps a draft and the update decision available on %s', async path => {
+      window.history.replaceState({}, '', path);
+      const draft = document.createElement('textarea');
+      fixtureNodes.push(draft);
+      draft.value = 'Trabajo sin enviar';
+      document.body.append(draft);
+      await publishUpdate();
+      expect(updateSW).not.toHaveBeenCalled();
+      expect(draft.value).toBe('Trabajo sin enviar');
+      expect(screen.getByRole('button', { name: 'Actualizar' })).toBeVisible();
+      draft.remove();
+    },
+  );
+
+  it('keeps an open platform dialog instead of automatically replacing its page', async () => {
+    window.history.replaceState({}, '', '/perfil?tab=catalogo');
+    const dialog = document.createElement('div');
+    fixtureNodes.push(dialog);
+    dialog.setAttribute('role', 'dialog');
+    document.body.append(dialog);
+    await publishUpdate();
+    expect(updateSW).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Actualizar' })).toBeVisible();
+    dialog.remove();
   });
 
   it('deduplicates a waiting notification and can notify a new event after dismissal', async () => {

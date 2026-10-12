@@ -8,6 +8,7 @@ declare global {
 }
 
 let refreshToastId: string | number | undefined;
+let replayPendingRefreshToast: (() => void) | undefined;
 let ephemeralCleanupStarted = false;
 let pwaSetupStarted = false;
 let registrationErrorCount = 0;
@@ -20,12 +21,14 @@ const observePublicRefreshInteraction = () => {
   if (isPublicTenantEntry(window.location.pathname)) publicRefreshInteractionObserved = true;
 };
 
-const publicTenantRefreshHasWork = () => {
-  if (publicRefreshInteractionObserved) return true;
+const refreshHasWork = (includePublicInteraction = false) => {
+  if (includePublicInteraction && publicRefreshInteractionObserved) return true;
   // Open chats (including desktop), dialogs and pending reads retain the
   // explicit update action. Never dismiss the user's draft or audio reading.
   if (document.querySelector('.chat-root, [role="dialog"], [aria-busy="true"]')) return true;
   if (document.querySelector('audio[src], video[src]')) return true;
+  const active = document.activeElement;
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active?.closest('[contenteditable="true"]')) return true;
   return Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="hidden"]), textarea')).some(field => {
     if (field instanceof HTMLInputElement && (field.type === 'checkbox' || field.type === 'radio')) return field.checked !== field.defaultChecked;
     return field.value.trim().length > 0;
@@ -79,6 +82,7 @@ const PANEL_RUNTIME_PREFIXES = [
 const SAFE_AUTHENTICATED_REFRESH_PREFIXES = ['/perfil'];
 
 const dismissRefreshToast = () => {
+  replayPendingRefreshToast = undefined;
   if (refreshToastId === undefined) {
     return;
   }
@@ -90,7 +94,15 @@ const dismissRefreshToast = () => {
 const clearRefreshToastHandle = (closedToast: { id: string | number }) => {
   if (refreshToastId === closedToast.id) {
     refreshToastId = undefined;
+    replayPendingRefreshToast = undefined;
   }
+};
+
+// Registration starts before React and the lazy notification renderer. Sonner
+// does not replay notifications published before its subscription mounts.
+// Re-publish only this generic waiting-update notice, with its original ID.
+export const notifyPwaRefreshRendererReady = () => {
+  replayPendingRefreshToast?.();
 };
 
 export const shouldAutoApplyPublicRefresh = () => {
@@ -99,10 +111,12 @@ export const shouldAutoApplyPublicRefresh = () => {
   const pathname = window.location.pathname || '/';
   // Only the exact public organization entry is eligible. Tenant management,
   // surveys, checkout and all other nested routes keep the existing prompt.
-  if (isPublicTenantEntry(pathname)) return !publicTenantRefreshHasWork();
+  if (isPublicTenantEntry(pathname)) return !refreshHasWork(true);
   if (PANEL_RUNTIME_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return false;
   }
+
+  if (refreshHasWork()) return false;
 
   if (SAFE_AUTHENTICATED_REFRESH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return true;
@@ -289,8 +303,10 @@ const registerPwaWorker = () => {
               return;
             }
 
-            refreshToastId = toast('Nueva version disponible', {
-              description: 'Actualiza para recibir las ultimas mejoras.',
+            replayPendingRefreshToast = () => {
+              refreshToastId = toast('Nueva version disponible', {
+              id: refreshToastId,
+              description: 'Guardá tu trabajo antes de actualizar para recibir las últimas mejoras.',
               duration: Infinity,
               onDismiss: clearRefreshToastHandle,
               onAutoClose: clearRefreshToastHandle,
@@ -307,7 +323,9 @@ const registerPwaWorker = () => {
                   dismissRefreshToast();
                 },
               },
-            });
+              });
+            };
+            replayPendingRefreshToast();
           })
           // Fail closed for this privacy migration. This can auto-apply one
           // update if Cache Storage is unavailable, never unregister workers.

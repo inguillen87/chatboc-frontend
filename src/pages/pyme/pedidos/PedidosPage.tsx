@@ -1,5 +1,5 @@
 import AbandonedCartRecoveryPanel from '@/components/cart/AbandonedCartRecoveryPanel';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { apiClient } from '@/api/client';
 import { AdminOrdersResponse, CrmOperatorAction, CrmReviewCard, Order, OrderOperationalSummary } from '@/types/unified';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -24,6 +24,9 @@ import { cn } from '@/lib/utils';
 import IdentityAvatar from '@/components/identity/IdentityAvatar';
 import { useUser } from '@/hooks/useUser';
 import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {ApiError,getErrorMessage} from '@/utils/api';
+import {ViewState} from '@/components/app-shell/ViewState';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -697,6 +700,12 @@ const CrmOperatorActionsPanel = ({
 
 const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
   const { user, loading: profileLoading, organizationProfileVerified, hasVerifiedSession } = useUser();
+  const sessionRevision=useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
+  const canRead=Boolean(currentSlug&&hasVerifiedSession===true&&(user?.id||user?.email));
+  const authorityKey=JSON.stringify([currentSlug,user?.id??user?.email??null,hasVerifiedSession===true,sessionRevision]);
+  const authorityEpoch=useRef({key:authorityKey,epoch:0});
+  if(authorityEpoch.current.key!==authorityKey)authorityEpoch.current={key:authorityKey,epoch:authorityEpoch.current.epoch+1};
+  const readScope=JSON.stringify([authorityKey,authorityEpoch.current.epoch]);
   const organization = readVerifiedOrganizationIdentity(user, {
     hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(profileLoading),
   });
@@ -712,12 +721,12 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
     : isCompany ? 'Consultá y gestioná los pedidos de tu empresa.'
     : 'Consultá el estado de los pedidos registrados para esta organización.';
   const active = useRef(true);
-  const scope = useRef({ slug: currentSlug, generation: 0 });
-  if (scope.current.slug !== currentSlug) scope.current = { slug: currentSlug, generation: scope.current.generation + 1 };
+  const scope = useRef({ slug: currentSlug, key:readScope,generation: 0 });
+  if (scope.current.key !== readScope) scope.current = { slug: currentSlug,key:readScope, generation: scope.current.generation + 1 };
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const captureCurrentScope = () => {
     const generation = scope.current.generation;
-    return () => active.current && scope.current.slug === currentSlug && scope.current.generation === generation;
+    return () => canRead && active.current && scope.current.key===readScope && scope.current.generation === generation&&isChatbocSessionRevisionCurrent(sessionRevision);
   };
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -733,9 +742,16 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
       initialSearchTerm ||
       requestedOrderId,
   );
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [ordersSummary, setOrdersSummary] = useState<OrderOperationalSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [ordersState,setOrdersState]=useState<{scope:string;items:Order[];summary:OrderOperationalSummary|null}|null>(null);
+  const orders=ordersState?.scope===readScope?ordersState.items:[];
+  const ordersSummary=ordersState?.scope===readScope?ordersState.summary:null;
+  const setOrders=(next:React.SetStateAction<Order[]>)=>setOrdersState(previous=>({scope:readScope,items:typeof next==='function'?next(previous?.scope===readScope?previous.items:[]):next,summary:previous?.scope===readScope?previous.summary:null}));
+  const setOrdersSummary=(summary:OrderOperationalSummary|null)=>setOrdersState(previous=>({scope:readScope,items:previous?.scope===readScope?previous.items:[],summary}));
+  const [readState,setReadState]=useState<{scope:string;loading:boolean;error:string|null;denied:boolean}|null>(null);
+  const loading=canRead&&(!readState||readState.scope!==readScope||readState.loading);
+  const currentError=readState?.scope===readScope?readState.error:null;
+  const loadAttempt=useRef({scope:readScope,id:0,pending:false});
+  if(loadAttempt.current.scope!==readScope)loadAttempt.current={scope:readScope,id:0,pending:false};
   const [searchTerm, setSearchTerm] = useState(() => initialSearchTerm);
   const [channelFilter, setChannelFilter] = useState<string>(() =>
     normalizeChannelParam(searchParams.get('channel') || searchParams.get('canal')),
@@ -743,21 +759,34 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
   const [aiFilter, setAiFilter] = useState<string>(() =>
     normalizeAiFocusParam(searchParams.get('focus') || searchParams.get('queue') || searchParams.get('ai')),
   );
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderState,setSelectedOrderState]=useState<{scope:string;order:Order|null}|null>(null);
+  const selectedOrder=selectedOrderState?.scope===readScope?selectedOrderState.order:null;
+  const setSelectedOrder=(order:Order|null)=>setSelectedOrderState({scope:readScope,order});
   const [activeTab, setActiveTab] = useState<'pedidos' | 'abandonados'>('pedidos');
 
   // Manual Order State
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isAssistedUploadOpen, setIsAssistedUploadOpen] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
-  const [resolvingCatalogCandidateKey, setResolvingCatalogCandidateKey] = useState<string | null>(null);
+  const [createDialog,setCreateDialog]=useState<{scope:string;open:boolean}|null>(null);
+  const isCreateOpen=createDialog?.scope===readScope&&createDialog.open;
+  const setIsCreateOpen=(open:boolean)=>setCreateDialog({scope:readScope,open});
+  const [assistedDialog,setAssistedDialog]=useState<{scope:string;open:boolean}|null>(null);
+  const isAssistedUploadOpen=assistedDialog?.scope===readScope&&assistedDialog.open;
+  const setIsAssistedUploadOpen=(open:boolean)=>setAssistedDialog({scope:readScope,open});
+  const [createLoadingState,setCreateLoadingState]=useState<{scope:string;value:boolean}|null>(null);
+  const createLoading=createLoadingState?.scope===readScope&&createLoadingState.value;
+  const setCreateLoading=(value:boolean)=>setCreateLoadingState({scope:readScope,value});
+  const emptyItem={contact_name:'',product_name:'',price:'',quantity:'1'};
+  const [newItemState,setNewItemState]=useState<{scope:string;item:typeof emptyItem}|null>(null);
+  const newItem=newItemState?.scope===readScope?newItemState.item:emptyItem;
+  const setNewItem=(item:typeof emptyItem)=>setNewItemState({scope:readScope,item});
+  const [catalogPending,setCatalogPending]=useState<{scope:string;key:string|null}|null>(null);
+  const resolvingCatalogCandidateKey=catalogPending?.scope===readScope?catalogPending.key:null;
+  const setResolvingCatalogCandidateKey=(key:string|null)=>setCatalogPending({scope:readScope,key});
 
   useEffect(() => {
-    if (currentSlug) {
+    if (canRead) {
       loadOrders();
     }
-  }, [currentSlug]);
+  }, [readScope]);
 
   useEffect(() => {
     const nextSearchTerm = searchParams.get('q') || searchParams.get('search') || '';
@@ -771,30 +800,35 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
   }, [queryString, searchParams]);
 
   const loadOrders = async () => {
+    if(!canRead)return;
     const isCurrent = captureCurrentScope();
-    setLoading(true);
+    const attempt=++loadAttempt.current.id;loadAttempt.current.pending=true;
+    const currentRead=()=>isCurrent()&&loadAttempt.current.scope===readScope&&loadAttempt.current.id===attempt;
+    setReadState({scope:readScope,loading:true,error:null,denied:false});
     try {
       if (!currentSlug) return;
 
       const data = await listOrdersWithOptionalSummary(currentSlug, { status: 'all', limit: 100 });
-      if (!isCurrent()) return;
+      if (!currentRead()) return;
+      if(!Array.isArray(data.orders))throw new Error('La respuesta de pedidos no pudo validarse.');
       const normalized = normalizeOrders(data.orders);
       setOrders(normalized);
       setOrdersSummary(data.summary ?? null);
     } catch (error) {
-      if (!isCurrent()) return;
-      console.error('Error loading orders:', error);
-
-      setOrders([]);
-      setOrdersSummary(null);
+      if (!currentRead()) return;
+      const denied=error instanceof ApiError&&(error.status===401||error.status===403);
+      if(denied){setOrders([]);setOrdersSummary(null);setSelectedOrder(null);}
+      setReadState({scope:readScope,loading:false,error:getErrorMessage(error,'No pudimos cargar los pedidos.'),denied});
     } finally {
-      if (isCurrent()) setLoading(false);
+      if(currentRead()){loadAttempt.current.pending=false;setReadState(previous=>previous?.scope===readScope?{...previous,loading:false}:previous);}
     }
   };
+  const reloadOrders=()=>{if(loadAttempt.current.pending)return;return loadOrders();};
 
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
     if (!currentSlug) return;
     const isCurrent = captureCurrentScope();
+    if(!isCurrent())return;
     const currentOrders = Array.isArray(orders) ? orders : [];
     if (newStatus === 'cancelled' && !window.confirm('Confirmas cancelar este pedido?')) return;
 
@@ -826,6 +860,7 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
   ) => {
     if (!currentSlug) return;
     const isCurrent = captureCurrentScope();
+    if(!isCurrent())return;
     const resolutionKey = `${payload.lineId || payload.sourceName}:${payload.catalogItemId}`;
     setResolvingCatalogCandidateKey(resolutionKey);
     try {
@@ -857,6 +892,7 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
   const handleCreateOrder = async () => {
     if (!currentSlug) return;
     const isCurrent = captureCurrentScope();
+    if(!isCurrent())return;
     if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
       toast.error("Complete los campos obligatorios");
       return;
@@ -889,6 +925,7 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
   };
 
   const handleAssistedUploadProcessed = () => {
+    if(!captureCurrentScope()())return;
     toast.success('Solicitud IA creada en el CRM');
     setAiFilter('assisted');
     setIsAssistedUploadOpen(false);
@@ -1258,9 +1295,10 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0 relative">
         {/* Order List */}
         <div className={`md:col-span-1 overflow-y-auto pr-2 space-y-3 ${selectedOrder ? 'hidden md:block' : 'block'}`}>
-          {loading ? (
+          {currentError?<div role="alert"><ViewState status={readState?.denied?'denied':orders.length?'stale':'error'} description={currentError} action={<Button disabled={loading} onClick={reloadOrders}>Reintentar</Button>}/></div>:null}
+          {!canRead ? <ViewState status="denied" title="Necesitás una sesión verificada" description="Iniciá sesión para consultar los pedidos de esta organización."/> : loading ? (
              <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
-          ) : filteredOrders.length === 0 ? (
+          ) : filteredOrders.length === 0 && !currentError ? (
              <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-lg bg-muted/10">
                  <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
                      <Package className="h-6 w-6 text-muted-foreground" />
@@ -1276,7 +1314,7 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
                          Limpiar filtros
                      </Button>
                  )}
-                 <Button variant="outline" size="sm" onClick={loadOrders} className="mt-4 gap-2">
+                 <Button variant="outline" size="sm" onClick={reloadOrders} disabled={loading} className="mt-4 gap-2">
                     <RefreshCw className="h-4 w-4" />
                     Actualizar lista
                  </Button>
@@ -1302,6 +1340,7 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
               const customerPhone = getOrderCustomerPhone(order);
               const customerAvatar = getOrderCustomerAvatar(order);
               const selectOrder = () => {
+                if(!captureCurrentScope()())return;
                 if (window.innerWidth < 768) {
                   navigate(buildTenantPath(`/pedidos/${encodeURIComponent(String(order.id))}`, currentSlug));
                 } else {
