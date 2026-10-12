@@ -6,7 +6,7 @@ import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
-import {institutionalChoiceLabel} from '@/features/chat/institutionalChatMessage';
+import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
@@ -27,6 +27,7 @@ export default function InstitutionalAssistant(props:Props) {
 function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowledgeAvailability}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
+  const [presentation,setPresentation]=useState<InstitutionalPresentationMode>('answer');
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
   const [errorStatus,setErrorStatus]=useState<number|null>(null);
   const [failedAnswer,setFailedAnswer]=useState<{id:string;text?:string;revision:string|null;tenantId:number}|null>(null);
@@ -41,7 +42,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const dialog=useRef<'sources'|'review'|null>(null),review=useRef<KnowledgeReview|null>(null);
   const returnToHeading=useRef(false),frame=useRef<number|null>(null);
   const recoveryFocus=useRef<number|null>(null);
-  const requestFocus=useRef<{seq:number;origin:HTMLElement;owned:boolean;moved:boolean;disabledBlur:boolean;reviewCloseBlur:boolean;transferredPage:HTMLElement|null;retiringPageOrigin:boolean;review:boolean;completed:boolean}|null>(null);
+  const requestFocus=useRef<{seq:number;origin:HTMLElement;owned:boolean;moved:boolean;disabledBlur:boolean;choiceRetiring:boolean;reviewCloseBlur:boolean;transferredPage:HTMLElement|null;retiringPageOrigin:boolean;review:boolean;completed:boolean}|null>(null);
   const published=mode==='public'&&workspace?.visibility==='public'&&workspace.can_edit===false&&workspace.tenant.slug===tenantSlug&&workspace.knowledge?workspace:null;
   const publishedTenantId=published?.tenant.id??null,publishedRevision=published?.revision??null;
   useEffect(()=>{
@@ -51,7 +52,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const captureRequestFocus=(seq:number,origin:HTMLElement|null,fromReview=false)=>{
     if(frame.current!==null){cancelAnimationFrame(frame.current);frame.current=null;}
     const focused=document.activeElement;
-    requestFocus.current=origin?.isConnected?{seq,origin,owned:focused===origin||focused===document.body,moved:false,disabledBlur:false,reviewCloseBlur:false,transferredPage:null,retiringPageOrigin:false,review:fromReview,completed:false}:null;
+    requestFocus.current=origin?.isConnected?{seq,origin,owned:focused===origin||focused===document.body,moved:false,disabledBlur:false,choiceRetiring:false,reviewCloseBlur:false,transferredPage:null,retiringPageOrigin:false,review:fromReview,completed:false}:null;
   };
   const focusResult=(seq:number,fallbackToPage=false)=>{
     if(frame.current!==null)cancelAnimationFrame(frame.current);
@@ -96,8 +97,10 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const load=async(recovery=false,origin:HTMLElement|null=null)=>{
     if(recovery&&(!active.current||locked.current||dialog.current))return;
     recoveryFocus.current=null;
-    const seq=++serial.current;captureRequestFocus(seq,recovery?origin:null);locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setPending(null);review.current=null;dialog.current=null;setShowSources(false);
-    try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){if(recovery)recoveryFocus.current=seq;setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);setAsked('');setUncovered(false);}}
+    const seq=++serial.current;captureRequestFocus(seq,recovery?origin:null);locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setPresentation('answer');setPending(null);review.current=null;dialog.current=null;setShowSources(false);
+    try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){if(recovery)recoveryFocus.current=seq;setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);
+      setPresentation(mode==='public'&&data.knowledge&&data.revision?institutionalPresentationMode({tenant:data.tenant,revision:data.revision,nodes:[data.knowledge.initial]},institutionalInitialMenuContext(data,tenantSlug)):'answer');
+      setAsked('');setUncovered(false);}}
     catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;setErrorStatus(status===401||status===403?status:null);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
@@ -119,6 +122,9 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       // it. Record that exact transition; BODY alone never establishes ownership.
       if(request.owned&&!request.moved&&(event.relatedTarget===null||event.relatedTarget===document.body)){
         if(request.origin.matches(':disabled')){request.disabledBlur=true;return;}
+        // React cleared this exact focused choice ref before Chromium blurs
+        // its still-connected outgoing control during the busy render.
+        if(request.choiceRetiring&&document.activeElement===document.body)return;
         // Our confirmation closes a portalled dialog while its enabled control
         // can still be connected during the closing animation.
         if(request.review&&returnToHeading.current&&dialog.current===null){request.reviewCloseBlur=true;return;}
@@ -128,14 +134,21 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       }
       request.moved=true;
     };
+    const trackNavigation=()=>{const request=requestFocus.current;if(request&&!request.review)request.moved=true;};
+    const trackKeyboard=(event:KeyboardEvent)=>{
+      if(['Tab','Escape','PageDown','PageUp','Home','End','ArrowDown','ArrowUp'].includes(event.key))trackNavigation();
+    };
     document.addEventListener('focusin',trackFocus);document.addEventListener('focusout',trackBlur);active.current=true;void load();
-    return()=>{active.current=false;serial.current++;requestFocus.current=null;document.removeEventListener('focusin',trackFocus);document.removeEventListener('focusout',trackBlur);if(frame.current!==null)cancelAnimationFrame(frame.current);};
+    document.addEventListener('pointerdown',trackNavigation,true);document.addEventListener('wheel',trackNavigation,{capture:true,passive:true});document.addEventListener('keydown',trackKeyboard,true);
+    return()=>{active.current=false;serial.current++;requestFocus.current=null;document.removeEventListener('focusin',trackFocus);document.removeEventListener('focusout',trackBlur);document.removeEventListener('pointerdown',trackNavigation,true);document.removeEventListener('wheel',trackNavigation,true);document.removeEventListener('keydown',trackKeyboard,true);if(frame.current!==null)cancelAnimationFrame(frame.current);};
   },[]);
-  const navigate=async(id:string,text?:string,origin:HTMLElement|null=null)=>{
+  const navigate=async(id:string,text?:string,origin:HTMLElement|null=null,requestedPresentation:InstitutionalPresentationMode='answer')=>{
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
     locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setShowSources(false);const seq=++serial.current;captureRequestFocus(seq,origin);
     try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text}:{})});
-      if(active.current&&serial.current===seq){setNodes(response.nodes);setAsked(text??'');if(text)setQuestion('');setUncovered(!response.nodes.length);focusResult(seq);}}
+      if(active.current&&serial.current===seq){setNodes(response.nodes);
+        setPresentation(requestedPresentation==='initial-menu'&&mode==='public'?institutionalPresentationMode(response,institutionalInitialMenuContext(currentWorkspace,tenantSlug)):'answer');
+        setAsked(text??'');if(text)setQuestion('');setUncovered(!response.nodes.length);focusResult(seq);}}
     catch(cause){if(active.current&&serial.current===seq){
       setError(true);
       const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;
@@ -193,8 +206,26 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
     ?safeInstitutionLogo(publicIdentity.logoUrl):null;
   const actions=nodes.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
+  const initialMenu=presentation==='initial-menu';
+  const choices=!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={nodes}
+    disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
+    renderChoice={action=>{
+      const label=institutionalChoiceLabel(action.label);
+      let renderedChoice:HTMLButtonElement|null=null;
+      return <button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} ref={element=>{
+        const request=requestFocus.current;
+        if(!element&&request?.origin===renderedChoice&&request.seq===serial.current&&request.owned&&!request.moved&&document.activeElement===renderedChoice)request.choiceRetiring=true;
+        if(element&&request?.origin===element)request.choiceRetiring=false;
+        renderedChoice=element;
+      }} onClick={event=>navigate(action.target,undefined,event.currentTarget)}>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
+          {label.emoji?<span aria-hidden="true" className="shrink-0">{label.emoji}</span>:null}<span>{label.words}</span>
+        </span><ChevronRight size={16} aria-hidden="true"/>
+      </button>;
+    }}/>:null;
   const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(topic=><button type="button" key={topic.id} disabled={busy||Boolean(pending)} aria-current={current===topic.id?'page':undefined} onClick={event=>navigate(topic.id,undefined,event.currentTarget)}><span>{topic.label}</span><ChevronRight size={15}/></button>)}</nav>;
-  return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}`} data-testid="institutional-assistant" aria-label={ui.heading}>
+  return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
@@ -210,7 +241,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           {knowledge?<button type="button" disabled={busy||error||Boolean(pending)} onClick={event=>openReview({operation:workspace.visibility==='public'?'retire':'publish'},event.currentTarget)}>{workspace.visibility==='public'?ui.retire:ui.publish}</button>:null}</div>:null}
       </aside>:null}
       <div className="institutional-assistant__conversation">
-        <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget)}><ArrowLeft size={15}/>{ui.home}</button><span>{ui.evidence}</span></div>
+        <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget,mode==='public'?'initial-menu':'answer')}><ArrowLeft size={15}/>{ui.home}</button><span>{ui.evidence}</span></div>
         {mode==='public'&&knowledge&&current!==knowledge.start&&nodes.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
           {asked?<div className="institutional-assistant__question"><MessageSquare size={16}/><p>{asked}</p></div>:null}
@@ -219,7 +250,9 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32}/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
           {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{ui.unknown}</p>:null}
           {(!error||failedAnswer)&&nodes.map((node,index)=><article key={node.id} className="institutional-assistant__answer">
-            <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3><div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
+            <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3>
+            {initialMenu&&index===0?choices:null}
+            <div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15}/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15}/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
@@ -229,17 +262,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           </article>)}
           {mode==='public'&&!busy&&!error&&!showSources&&workspace.audio_reading&&workspace.revision&&nodes.length>0?
             <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading}/>:null}
-          {!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={nodes}
-            disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
-            renderChoice={action=>{
-              const label=institutionalChoiceLabel(action.label);
-              return <button type="button" key={`${action.target}:${action.label}`} disabled={Boolean(pending)} onClick={event=>navigate(action.target,undefined,event.currentTarget)}>
-                <span className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
-                  {label.emoji?<span aria-hidden="true" className="shrink-0">{label.emoji}</span>:null}<span>{label.words}</span>
-                </span><ChevronRight size={16} aria-hidden="true"/>
-              </button>;
-            }}/>:null}
+          {!initialMenu?choices:null}
         </div>
         {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{
           event.preventDefault();const submitter=(event.nativeEvent as SubmitEvent).submitter;

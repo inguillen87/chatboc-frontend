@@ -8,6 +8,28 @@ export interface InstitutionalChatMessage {
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
   ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string};
   audioReading?:InstitutionalAudioReading;
+  /** Local presentation authority from a validated public workspace, never a remote hint. */
+  initialMenu?:InstitutionalInitialMenuContext;
+}
+export type InstitutionalPresentationMode='initial-menu'|'answer';
+export interface InstitutionalInitialMenuContext {tenantId:number;tenantSlug:string;revision:string;startNodeId:string}
+
+/** Presentation uses the same canonical start node as the public bootstrap. */
+export function institutionalInitialMenuContext(value:unknown,tenantSlug:string):InstitutionalInitialMenuContext|null {
+  const workspace=parseWorkspace(value,tenantSlug,'public');
+  return workspace.knowledge&&workspace.revision
+    ?{tenantId:workspace.tenant.id,tenantSlug:workspace.tenant.slug,revision:workspace.revision,startNodeId:workspace.knowledge.start}:null;
+}
+/** Missing or mismatched local authority keeps ordinary answer reading order. */
+export function institutionalPresentationMode(
+  answer:Pick<InstitutionalChatMessage,'tenant'|'revision'|'nodes'>,
+  context?:InstitutionalInitialMenuContext|null,
+):InstitutionalPresentationMode {
+  return context&&Number.isSafeInteger(context.tenantId)&&context.tenantId>0&&
+    typeof context.startNodeId==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/.test(context.startNodeId)&&
+    /^[a-f0-9]{64}$/.test(context.revision)&&answer.tenant.id===context.tenantId&&answer.tenant.slug===context.tenantSlug&&
+    answer.revision===context.revision&&answer.nodes.length===1&&answer.nodes[0].id===context.startNodeId&&
+    institutionalChatActions(answer.nodes).length>0?'initial-menu':'answer';
 }
 const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 export const isInstitutionalChatPayload=(value:unknown):boolean=>record(value)&&typeof value.fuente==='string'&&value.fuente.startsWith('institutional_knowledge');

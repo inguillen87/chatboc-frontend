@@ -46,6 +46,7 @@
 .institutional-assistant__citations summary svg { flex-shrink:0; }
 .institutional-assistant__citations p { margin-top:10px; font-size:var(--institutional-detail-size); line-height:1.7; }.institutional-assistant__citations a{display:block;min-height:var(--institutional-target-size);padding-block:.5rem;text-decoration:underline;}
 .institutional-assistant__choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:25px; }
+.institutional-assistant--initial-menu .institutional-assistant__choices { margin-block:.5rem 1rem; }
 .institutional-assistant__choices button { justify-content:space-between; padding:13px 15px; min-height:54px; border:1px solid hsl(var(--border)); text-align:left; background:hsl(var(--background)); }
 .institutional-assistant__choices button span { overflow-wrap:anywhere; }.institutional-assistant__choices svg{flex-shrink:0;}
 .institutional-assistant .institutional-choices__status { margin-top:25px; color:hsl(var(--muted-foreground)); font-size:var(--institutional-detail-size); }

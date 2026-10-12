@@ -12,13 +12,15 @@ import ChatHeader from "./ChatHeader";
 import ChatHumanSupportBar from "./ChatHumanSupportBar";
 import type { Prefs } from "./AccessibilityToggle";
 import ChatMessage from "./ChatMessage";
+import {useInstitutionalMenuNavigation} from './useInstitutionalMenuNavigation';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
 import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
 import OwnerRealtimeVoicePanel from "./OwnerRealtimeVoicePanel";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
-import { useChatLogic, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
+import { useChatLogic, getChatBootstrapContinuityKey, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
 import { Rubro } from "@/types/rubro";
 import {
@@ -1144,7 +1146,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     "Seleccioná un rubro para personalizar la experiencia automáticamente.";
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const initialInstitutionalMenuRef = useRef<HTMLDivElement>(null);
+  const initialInstitutionalMenuRef = useRef<HTMLDivElement|null>(null);
+  const activeInstitutionalMessageRef = useRef<HTMLDivElement|null>(null);
   const anchoredInitialMenuRef = useRef<string|null>(null);
   const chatInputTextRef = useRef<HTMLInputElement>(null);
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
@@ -1597,11 +1600,16 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   const pendingActionScope = JSON.stringify([
     tipoChat, tenantSlug ?? null, propEntityToken ?? null,
-    resolvedSelectedRubro, mode ?? null, chatBootstrap?.endpoint ?? null,
-    chatBootstrap?.session?.chat_session_id ?? null,
-    chatBootstrap?.session?.demo_session_id ?? null,
+    resolvedSelectedRubro, mode ?? null, getChatBootstrapContinuityKey(chatBootstrap),
   ]);
   const pendingActionScopeRef = useRef(pendingActionScope);
+  const institutionalNavigation = useInstitutionalMenuNavigation({messages,tenantSlug,
+    scope:pendingActionScope,busy:isTyping,send:handleSend,container:chatContainerRef,anchor:activeInstitutionalMessageRef});
+  const initialInstitutionalMenu=initialInstitutionalMenuMessage(visibleMessages,tenantSlug);
+  const setInstitutionalMessageAnchor=useCallback((element:HTMLDivElement|null)=>{
+    activeInstitutionalMessageRef.current=element;
+    initialInstitutionalMenuRef.current=initialInstitutionalMenu?element:null;
+  },[initialInstitutionalMenu]);
   pendingActionScopeRef.current = pendingActionScope;
   const pendingActionRef = useRef<{
     scope: string;
@@ -3173,10 +3181,23 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [messages, sessionState]);
 
   useEffect(() => {
-    // FORCE SCROLL ON NEW MESSAGE
-    // Use a small timeout to allow layout to settle (e.g. images loading)
+    const scope=pendingActionScope,session=captureChatbocSessionRevision();
+    let abandoned=false;
+    const moved=()=>{abandoned=true;};
+    const keyboard=(event:KeyboardEvent)=>{
+      if(['Tab','Escape','PageDown','PageUp','Home','End','ArrowDown','ArrowUp'].includes(event.key))moved();
+    };
+    document.addEventListener('pointerdown',moved,true);
+    document.addEventListener('wheel',moved,{capture:true,passive:true});
+    document.addEventListener('keydown',keyboard,true);
+    // Wait for layout without overriding a visitor's subsequent navigation.
     const timer = setTimeout(() => {
+      if(abandoned||pendingActionScopeRef.current!==scope||!isChatbocSessionRevisionCurrent(session)||
+        institutionalNavigation.suppressAutoScroll(visibleMessages))return;
       if (chatContainerRef.current) {
+        // The explicit menu activation already placed its new heading at the
+        // reading edge. Do not undo it with the generic delayed bottom scroll.
+        if(institutionalNavigation.activeMessage?.id===institutionalNavigation.anchoredResponse.current)return;
         const initialMenu = initialInstitutionalMenuMessage(visibleMessages, tenantSlug);
         if (initialMenu && initialInstitutionalMenuRef.current) {
           const identity = `${tenantSlug}:${mode}:${initialMenu.id}:${initialMenu.institutional!.revision}`;
@@ -3203,31 +3224,22 @@ const ChatPanel = (props: ChatPanelProps) => {
         // 2. It's a short conversation (initial load)
         // 3. The user just sent a message (we want to see our own message)
         if (isCloseToBottom || isShortConversation || isLatestMessageMine) {
-          // Use 'auto' behavior to prevent layout trashing in iframes
-          scrollIntoViewIfSupported(messagesEndRef.current, {
-            behavior: "auto",
-            block: "end",
-          });
-          // Double check via container scrollTop for robustness
-          if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTop =
-              chatContainerRef.current.scrollHeight;
-          }
+          // Move only the reading pane, preserving the host page position.
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
           setShowScrollDown(false);
         } else {
           // User is scrolled up reading history
           setShowScrollDown(true);
         }
-      } else {
-        // Fallback if ref is not ready yet
-        scrollIntoViewIfSupported(messagesEndRef.current, {
-          behavior: "auto",
-          block: "end",
-        });
       }
     }, 100);
-    return () => clearTimeout(timer);
-  }, [messages, visibleMessages, tenantSlug, mode]);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown',moved,true);
+      document.removeEventListener('wheel',moved,true);
+      document.removeEventListener('keydown',keyboard,true);
+    };
+  }, [messages, visibleMessages, tenantSlug, mode, pendingActionScope, institutionalNavigation.activeMessage]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -4431,11 +4443,12 @@ const ChatPanel = (props: ChatPanelProps) => {
 
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
-            ref={initialInstitutionalMenuMessage(visibleMessages, tenantSlug)?.id === msg.id ? initialInstitutionalMenuRef : undefined}
+            ref={institutionalNavigation.activeMessage?.id === msg.id ? setInstitutionalMessageAnchor : undefined}
             message={msg}
             publicVisitorName={isPublicWidget ? scopedVisitorName || null : undefined}
             isTyping={isTyping}
-            onButtonClick={handleSend}
+            onButtonClick={payload=>institutionalNavigation.activate(msg,payload)}
+            institutionalInteractive={institutionalNavigation.activeMessage===msg&&!isTyping}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}

@@ -54,12 +54,13 @@ import {
   isLegacyDemoSelectorOptionTitle,
   isLegacyDemoSelectorText,
 } from "@/utils/legacyDemoSelector";
-import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt } from "@/features/chat/chatApi";
+import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt, getBootstrapSessionValues } from "@/features/chat/chatApi";
 import { audioRecoveryMessage, captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from '@/features/chat/audioRecovery';
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction} from '@/features/chat/institutionalChatMessage';
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
 import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
 import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 
 const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
@@ -240,6 +241,19 @@ interface UseChatLogicOptions {
   onTrialLimit?: (notice: ChatTrialLimitNotice) => void;
 }
 
+/** Internal equality key for the selected bootstrap route and effective actor.
+ * Never persist, transmit or log this key; authorization headers are excluded. */
+export function getChatBootstrapContinuityKey(bootstrap:ChatBootstrapConfig|null|undefined):string {
+  if(!bootstrap)return 'no-bootstrap';
+  const session=getBootstrapSessionValues(bootstrap);
+  return JSON.stringify([
+    bootstrap.contract_version??null,bootstrap.endpoint?.trim()??null,
+    bootstrap.same_origin_endpoint?.trim()??null,bootstrap.fallback_endpoint?.trim()??null,
+    bootstrap.method?.trim().toUpperCase()??null,
+    session.chatSessionId,session.demoSessionId,session.tenantSlug,session.anonId,
+  ]);
+}
+
 export function useChatLogic({
   tipoChat,
   entityToken: propToken,
@@ -310,7 +324,8 @@ export function useChatLogic({
   const initializationMountedRef=useRef(true);
   const conversationScopeGenerationRef=useRef(0);
   const typingRequestOwnerRef=useRef<symbol|null>(null);
-  const initializationScope=JSON.stringify([tipoChat,tenantSlug??null,entityToken??null]);
+  const sendSessionSubscriptionsRef=useRef(new Set<()=>void>());
+  const initializationScope=JSON.stringify([tipoChat,tenantSlug??null,entityToken??null,getChatBootstrapContinuityKey(chatBootstrap)]);
   const audioRequestScope=JSON.stringify([initializationScope,chatBootstrap??null]);
   const audioRequestScopeRef=useRef({scope:audioRequestScope,generation:0});
   if(audioRequestScopeRef.current.scope!==audioRequestScope){
@@ -340,6 +355,8 @@ export function useChatLogic({
       initializationGenerationRef.current+=1;
       conversationScopeGenerationRef.current+=1;
       initializationAbortRef.current?.abort();
+      sendSessionSubscriptionsRef.current.forEach(unsubscribe=>unsubscribe());
+      sendSessionSubscriptionsRef.current.clear();
       initSentRef.current=false;
       initPendingResponseRef.current=false;
     };
@@ -586,7 +603,8 @@ export function useChatLogic({
             const workspace=await loadWorkspace(tenantSlugForPayload,'public',{signal:abort.signal,isCurrent});
             if(!isCurrent())return;
             const initial=institutionalChatBootstrapPayload(workspace,tenantSlugForPayload);
-            processBotPayload(initial,{fallbackOnEmpty:true,fromInit:true,preserveConversationState:true});
+            processBotPayload(initial,{fallbackOnEmpty:true,fromInit:true,preserveConversationState:true,
+              institutionalInitialMenuContext:institutionalInitialMenuContext(workspace,tenantSlugForPayload)});
             setInstitutionalBootstrapStatus('available');
             return;
           }catch(error){
@@ -866,7 +884,9 @@ export function useChatLogic({
       fallbackOnEmpty,
       fromInit = false,
       preserveConversationState = false,
-    }: { fallbackOnEmpty: boolean; fromInit?: boolean; preserveConversationState?: boolean },
+      institutionalInitialMenuContext:initialMenuContext=null,
+      onInstitutionalResponse,
+    }: { fallbackOnEmpty: boolean; fromInit?: boolean; preserveConversationState?: boolean; institutionalInitialMenuContext?:InstitutionalInitialMenuContext|null; onInstitutionalResponse?:(messageId:Message['id'])=>void },
   ): boolean => {
     if(!initializationMountedRef.current||initializationScopeRef.current!==initializationScope)return false;
     if (!rawPayload) {
@@ -1549,7 +1569,10 @@ export function useChatLogic({
     }
 
     asArray.forEach((candidate: any) => {
-      const institutional=parseInstitutionalChatMessage(candidate,tenantSlug);
+      const parsedInstitutional=parseInstitutionalChatMessage(candidate,tenantSlug);
+      const institutional=parsedInstitutional&&initialMenuContext&&
+        institutionalPresentationMode(parsedInstitutional,initialMenuContext)==='initial-menu'
+        ?{...parsedInstitutional,initialMenu:initialMenuContext}:parsedInstitutional;
       const data=scopeInstitutionalPayload(candidate);
       if (!data || typeof data !== "object") {
         return;
@@ -2076,6 +2099,10 @@ export function useChatLogic({
         initSentRef.current = false;
       }
       setMessages((prev) => [...prev, ...normalizedMessages]);
+      // Local correlation belongs to this response batch. The caller waits for
+      // this exact message to mount; no presentation callback enters the API.
+      const institutionalResponse=normalizedMessages.filter(message=>message.institutional&&!message.isError).at(-1);
+      if(institutionalResponse)onInstitutionalResponse?.(institutionalResponse.id);
       if(!preserveConversationState)setIsTyping(false);
       return true;
     }
@@ -2717,13 +2744,15 @@ export function useChatLogic({
   );
 
   const handleSend = useCallback(
-    async (payload: string | TypeSendPayload) => {
+    async (payload: string | TypeSendPayload, presentation?:{onInstitutionalResponse?:(messageId:Message['id'])=>void}) => {
       // A dispatched mutation is never canceled or replayed. Its presentation
       // callbacks belong only to the mounted scope that initiated it.
       const scopeGeneration=conversationScopeGenerationRef.current;
-      const isCurrentSend=()=>initializationMountedRef.current&&
+      const sessionRevision=captureChatbocSessionRevision();
+      const isCurrentConversation=()=>initializationMountedRef.current&&
         initializationScopeRef.current===initializationScope&&
         conversationScopeGenerationRef.current===scopeGeneration;
+      const isCurrentSend=()=>isCurrentConversation()&&isChatbocSessionRevisionCurrent(sessionRevision);
       if(!isCurrentSend())return;
       const actualPayload: TypeSendPayload =
         typeof payload === "string"
@@ -2736,8 +2765,8 @@ export function useChatLogic({
         !actualPayload.location&&!actualPayload.ubicacion_usuario&&!actualPayload.archivo_url&&!actualPayload.payload){
         // Never recover an earlier menu behind an error, human reply or generic
         // response. The canonical button action carries its own revision.
-        const latestReply=messagesRef.current.filter(message=>message.isBot).at(-1);
-        const choice=!latestReply?.isError
+        const latestReply=messagesRef.current.at(-1);
+        const choice=latestReply?.isBot&&!latestReply.isError
           ?institutionalNumericChatAction(actualPayload.text||'',latestReply?.institutional,tenantSlug):null;
         if(choice){actualPayload.action=choice;actualPayload.action_id=choice;}
       }
@@ -3033,8 +3062,17 @@ export function useChatLogic({
       const releaseAudioTyping=()=>{
         if(typingRequestOwnerRef.current!==typingOwner)return;
         typingRequestOwnerRef.current=null;
-        if(isCurrentSend())setIsTyping(false);
+        if(isCurrentConversation())setIsTyping(false);
       };
+      const watchSendSession=()=>{
+        const stop=subscribeChatbocSessionRevision(()=>{
+          if(!isChatbocSessionRevisionCurrent(sessionRevision))releaseAudioTyping();
+        });
+        const cleanup=()=>{stop();sendSessionSubscriptionsRef.current.delete(cleanup);};
+        sendSessionSubscriptionsRef.current.add(cleanup);
+        return cleanup;
+      };
+      const stopSendSessionWatch=watchSendSession();
 
       let actionTelemetryTenantSlug: string | null = tenantSlug || null;
       let actionTelemetryTipoChat: "pyme" | "municipio" = tipoChat;
@@ -3051,17 +3089,19 @@ export function useChatLogic({
           typingRequestOwnerRef.current=typingOwner;
           setIsTyping(true);
           actualPayload.audioRecovery?.onPending?.(releaseAudioTyping);
+          const stopRecoverySessionWatch=watchSendSession();
           try{
             const recovered=await audioAttempt.run();
             if(!audioIsCurrent())return;
-            const rendered=processBotPayload(recovered,{fallbackOnEmpty:true});
+            const rendered=processBotPayload(recovered,{fallbackOnEmpty:true,
+              onInstitutionalResponse:messageId=>{if(audioIsCurrent())presentation?.onInstitutionalResponse?.(messageId);}});
             if(rendered)actualPayload.audioRecovery?.onSuccess();
             else actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(false)});
           }catch(recoveryError){
             if(!audioIsCurrent())return;
             reportAudioFailure(recoveryError);
             addSystemMessage(getErrorMessage(recoveryError,'No pudimos confirmar este envío.'),'error');
-          }finally{releaseAudioTyping();}
+          }finally{stopRecoverySessionWatch();releaseAudioTyping();}
         }}:{})});
       };
       if(hasAudioRecovery)actualPayload.audioRecovery?.onPending?.(releaseAudioTyping);
@@ -3259,6 +3299,9 @@ export function useChatLogic({
         if(!isCurrentSend()||(hasAudioRecovery&&!audioIsCurrent()))return;
         const renderedResponse = processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
+          onInstitutionalResponse:messageId=>{
+            if(isCurrentSend()&&(!hasAudioRecovery||audioIsCurrent()))presentation?.onInstitutionalResponse?.(messageId);
+          },
         });
         if(hasAudioRecovery&&audioIsCurrent()){
           if(renderedResponse)actualPayload.audioRecovery?.onSuccess();
@@ -3363,7 +3406,7 @@ export function useChatLogic({
         ]);
         setIsTyping(false);
       } finally {
-        if(hasAudioRecovery)releaseAudioTyping();
+        stopSendSessionWatch();releaseAudioTyping();
       }
     },
     [

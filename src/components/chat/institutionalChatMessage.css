@@ -7,7 +7,9 @@
 .institutional-chat-message :focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }
 .institutional-chat-message__text-size { margin-bottom:.5rem; }
 .institutional-chat-message__choices { display:grid; grid-template-columns:minmax(0,1fr); gap:.65rem; margin-top:1rem; }
+.institutional-chat-message--initial-menu .institutional-chat-message__choices { margin-block:.25rem 1rem; }
 .institutional-chat-message__choices button { width:100%; min-width:0; }
+.institutional-chat-message__choices button:disabled { opacity:.6; cursor:default; }
 .institutional-chat-message__choices button [aria-hidden] { flex-shrink:0; }
 .institutional-chat-message__choices button span:last-child { min-width:0; overflow-wrap:anywhere; }
 .institutional-chat-message .institutional-choices__status { margin-top:1rem; margin-bottom:0; color:hsl(var(--muted-foreground)); }
