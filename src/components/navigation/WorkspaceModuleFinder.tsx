@@ -163,7 +163,7 @@ function ModuleFinderSession({ items, triggerLabel = 'Buscar módulo', className
             />
           </div>
           <p role="status" className="text-sm text-muted-foreground">
-            {results.length ? `${results.length} módulos disponibles` : 'No encontramos módulos con esa búsqueda.'}
+            {results.length === 1 ? '1 módulo disponible' : results.length ? `${results.length} módulos disponibles` : 'No encontramos módulos con esa búsqueda.'}
           </p>
           <div className="min-h-0 space-y-1 overflow-y-auto overscroll-contain">
             {results.map((item, index) => {
