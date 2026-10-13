@@ -105,6 +105,8 @@ export interface TenantHealthCheck {
 export interface TenantHealthV2 {
   contract_version?: string;
   request_id?: string;
+  tenant?: UnknownRecord | null;
+  last_checked_at?: string;
   score?: number;
   health_score?: number;
   status?: string;
@@ -597,7 +599,9 @@ export interface SuperadminCommandCenterV2 {
 
 export interface ProductionSmokeCheck {
   id: string;
-  ok: boolean;
+  label?: string;
+  severity?: string;
+  ok?: boolean;
   status?: string;
   endpoint?: string;
   details?: UnknownRecord;
@@ -606,9 +610,9 @@ export interface ProductionSmokeCheck {
 
 export interface ProductionSmokeE2EFlow {
   id: string;
-  label: string;
+  label?: string;
   surface?: string;
-  ready: boolean;
+  ready?: boolean;
   status?: string;
   endpoint?: string;
   frontend_entry?: string;
@@ -634,6 +638,8 @@ export interface ProductionSmokeE2EReadiness {
 export interface ProductionSmokeV2 {
   contract_version?: string;
   request_id?: string;
+  tenant?: UnknownRecord | null;
+  generated_at?: string;
   status: string;
   summary: UnknownRecord;
   checks: ProductionSmokeCheck[];
@@ -754,6 +760,9 @@ const asString = (value: unknown): string | undefined => {
   return undefined;
 };
 
+const asText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
 const asNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim()) {
@@ -823,19 +832,10 @@ const arrayOfStrings = (value: unknown): string[] => {
   return value.map((item) => asString(item)).filter((item): item is string => Boolean(item));
 };
 
-const normalizeMaybeStringList = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (typeof item === 'string' || typeof item === 'number') return asString(item);
-        if (isRecord(item)) return asString(getFirst(item, ['label', 'title', 'text', 'description', 'id']));
-        return undefined;
-      })
-      .filter((item): item is string => Boolean(item));
-  }
-  const single = asString(value);
-  return single ? [single] : [];
-};
+const normalizeSmokeTextList = (value: unknown): string[] =>
+  (Array.isArray(value) ? value : [value])
+    .map(asText)
+    .filter((item): item is string => item !== undefined);
 
 const normalizeStringList = (value: unknown): string[] => {
   if (Array.isArray(value)) return arrayOfStrings(value);
@@ -1131,17 +1131,28 @@ export const normalizeEmployeeCoverageV2 = (response: unknown): EmployeeCoverage
 export const normalizeTenantHealthV2 = (response: unknown): TenantHealthV2 => {
   const source = getSource(response);
   const record = asRecord(source);
-  const score = asNumber(getFirst(record, ['score', 'health_score', 'healthScore']));
+  const health = record.health === undefined ? record : asRecord(record.health);
+  const reportsPoints = record.health !== undefined || record.contract_version === 'tenant.health.v1';
+  const scoreValue = getFirst(health, ['score', 'health_score', 'healthScore']);
+  const reportedScore = reportsPoints
+    ? typeof scoreValue === 'number' ? scoreValue : undefined
+    : asNumber(scoreValue);
+  const score = reportedScore !== undefined && reportedScore >= 0 && reportedScore <= 100
+    ? reportedScore
+    : undefined;
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
+    tenant: record.tenant === null ? null : isRecord(record.tenant) ? record.tenant : undefined,
+    last_checked_at: asText(getFirst(health, ['last_checked_at', 'lastCheckedAt'])),
     score,
-    health_score: normalizeRatio(score),
-    status: asString(getFirst(record, ['status', 'state'])),
-    checks: normalizeChecks(record.checks),
+    // Canonical health reports points; unversioned flat aliases retain their legacy ratio convention.
+    health_score: reportsPoints ? (score === undefined ? undefined : score / 100) : normalizeRatio(score),
+    status: asText(getFirst(health, ['status', 'state'])),
+    checks: normalizeChecks(health.checks),
     integrations: normalizeChecks(getFirst(record, ['integrations', 'integraciones'])),
     queues: normalizeChecks(getFirst(record, ['queues', 'colas'])),
-    recent_errors: normalizeChecks(getFirst(record, ['recent_errors', 'errors', 'errores_recientes'])),
+    recent_errors: normalizeChecks(getFirst(record, ['errors_recent', 'recent_errors', 'errors', 'errores_recientes'])),
     metrics: asRecord(record.metrics),
     recommended_actions: normalizeActions(getFirst(record, ['recommended_actions', 'actions', 'acciones_recomendadas'])),
     raw: response,
@@ -2090,8 +2101,10 @@ const normalizeProductionSmokeCheck = (value: unknown, index = 0): ProductionSmo
   const id = asString(getFirst(value, ['id', 'key', 'name', 'endpoint'])) ?? `check_${index + 1}`;
   return {
     id,
-    ok: Boolean(asBoolean(getFirst(value, ['ok', 'passed', 'success'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'pass'),
-    status: asString(getFirst(value, ['status', 'state'])),
+    label: asText(getFirst(value, ['label', 'title', 'name'])),
+    severity: asText(value.severity),
+    ok: asBoolean(getFirst(value, ['ok', 'passed', 'success'])),
+    status: asText(getFirst(value, ['status', 'state'])),
     endpoint: asString(value.endpoint),
     details: value.details ? asRecord(value.details) : undefined,
     raw: value,
@@ -2103,17 +2116,17 @@ const normalizeProductionSmokeE2EFlow = (value: unknown, index = 0): ProductionS
   const id = asString(getFirst(value, ['id', 'key', 'name', 'endpoint'])) ?? `flow_${index + 1}`;
   return {
     id,
-    label: asString(getFirst(value, ['label', 'title', 'name'])) ?? id,
-    surface: asString(value.surface),
-    ready: Boolean(asBoolean(getFirst(value, ['ready', 'ok', 'passed'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'ready'),
-    status: asString(getFirst(value, ['status', 'state'])),
+    label: asText(getFirst(value, ['label', 'title', 'name'])),
+    surface: asText(value.surface),
+    ready: asBoolean(getFirst(value, ['ready', 'ok', 'passed'])),
+    status: asText(getFirst(value, ['status', 'state'])),
     endpoint: asString(value.endpoint),
     frontend_entry: asString(getFirst(value, ['frontend_entry', 'frontend_route', 'route', 'href'])),
     qa_scenario_id: asString(value.qa_scenario_id),
-    meta_flow_ready: asBoolean(value.meta_flow_ready),
+    meta_flow_ready: value.meta_flow_ready === null ? null : asBoolean(value.meta_flow_ready),
     evidence: value.evidence ? asRecord(value.evidence) : undefined,
-    manual_test_steps: normalizeMaybeStringList(getFirst(value, ['manual_test_steps', 'manual_steps', 'test_steps'])),
-    acceptance_criteria: normalizeMaybeStringList(getFirst(value, ['acceptance_criteria', 'criteria'])),
+    manual_test_steps: normalizeSmokeTextList(getFirst(value, ['manual_test_steps', 'manual_steps', 'test_steps'])),
+    acceptance_criteria: normalizeSmokeTextList(getFirst(value, ['acceptance_criteria', 'criteria'])),
     automation: asRecord(value.automation),
     next_action: asString(value.next_action),
     raw: value,
@@ -2124,7 +2137,7 @@ const normalizeProductionSmokeE2EReadiness = (value: unknown): ProductionSmokeE2
   if (!isRecord(value)) return undefined;
   return {
     contract_version: asString(value.contract_version),
-    status: asString(getFirst(value, ['status', 'state'])) ?? 'unknown',
+    status: asText(getFirst(value, ['status', 'state'])) ?? 'unknown',
     summary: asRecord(value.summary),
     flows: asArray(value.flows)
       .map(normalizeProductionSmokeE2EFlow)
@@ -2140,7 +2153,9 @@ export const normalizeProductionSmokeV2 = (response: unknown): ProductionSmokeV2
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
-    status: asString(getFirst(record, ['status', 'state'])) ?? 'unknown',
+    tenant: record.tenant === null ? null : isRecord(record.tenant) ? record.tenant : undefined,
+    generated_at: asText(record.generated_at),
+    status: asText(getFirst(record, ['status', 'state'])) ?? 'unknown',
     summary: asRecord(record.summary),
     checks: asArray(record.checks)
       .map(normalizeProductionSmokeCheck)

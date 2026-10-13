@@ -69,12 +69,16 @@ function ModuleFinderSession({ items, triggerLabel = 'Buscar módulo', className
     restoreRef.current = null;
     setQuery('');
     setOpen(true);
+    // An interrupted exit retains the input without another mount autofocus.
+    const input = inputRef.current;
+    if (input?.isConnected && contentRef.current?.contains(input)) input.focus();
   };
 
   const closeFromOwnedControl = () => {
     const content = contentRef.current;
     const revision = openRevisionRef.current;
-    restoreRef.current = content?.contains(document.activeElement) && revision !== null && isChatbocSessionRevisionCurrent(revision)
+    if (!mountedRef.current || !open || revision === null || !isChatbocSessionRevisionCurrent(revision)) return;
+    restoreRef.current = content?.contains(document.activeElement)
       ? { session: sessionRef.current, revision, content } : null;
     setOpen(false);
   };
@@ -114,6 +118,13 @@ function ModuleFinderSession({ items, triggerLabel = 'Buscar módulo', className
           className="max-h-[min(85dvh,44rem)] w-[calc(100vw-1.5rem)] gap-3 overflow-hidden rounded-xl p-4 sm:p-6"
           onOpenAutoFocus={(event) => { event.preventDefault(); inputRef.current?.focus(); }}
           onEscapeKeyDown={(event) => { event.preventDefault(); closeFromOwnedControl(); }}
+          onKeyDown={(event) => {
+            // Focus can arrive before Radix's layer priority has updated. Handle
+            // only an unconsumed Escape from this dialog's own DOM in that gap.
+            if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || !(event.target instanceof Element) || event.target.closest('[role="dialog"]') !== event.currentTarget) return;
+            event.preventDefault();
+            closeFromOwnedControl();
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const request = restoreRef.current;

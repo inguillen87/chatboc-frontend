@@ -83,6 +83,53 @@ describe('WorkspaceModuleFinder', () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
+  it('closes the first local Escape on reopening before the layer capture listener is ready', async () => {
+    const addEventListener = document.addEventListener.bind(document);
+    const layerRegistration = vi.spyOn(document, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (type === 'keydown' && typeof options === 'object' && options.capture) return;
+      addEventListener(type, listener, options);
+    });
+    try {
+      const user = userEvent.setup();
+      const items = makeItems();
+      render(<WorkspaceModuleFinder items={items} contextKey="org-a" />);
+      const trigger = screen.getByRole('button', { name: 'Buscar módulo' });
+      await user.type(await openFinder(user), 'equipo');
+      const selectedInput = searchInput();
+      fireEvent.keyDown(selectedInput, { key: 'Enter' });
+      fireEvent.keyDown(selectedInput, { key: 'Enter' });
+      expect(items[2].onSelect).toHaveBeenCalledOnce();
+      await openFinder(user);
+      expect(searchInput()).toHaveFocus();
+      const consumedEscape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      consumedEscape.preventDefault();
+      fireEvent(searchInput(), consumedEscape);
+      expect(screen.getByRole('dialog')).toBeVisible();
+      const nestedDialog = document.createElement('div');
+      nestedDialog.setAttribute('role', 'dialog');
+      const nestedControl = document.createElement('button');
+      nestedDialog.append(nestedControl);
+      screen.getByRole('dialog').append(nestedDialog);
+      fireEvent.keyDown(nestedControl, { key: 'Escape' });
+      expect(screen.getByRole('dialog', { name: 'Buscar módulo' })).toBeVisible();
+      nestedDialog.remove();
+      fireEvent.keyDown(searchInput(), { key: 'Escape' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      await waitFor(() => expect(trigger).toHaveFocus());
+      await openFinder(user);
+      await user.click(screen.getByRole('button', { name: 'Cerrar buscador' }));
+      await openFinder(user);
+      expect(searchInput()).toHaveFocus();
+      fireEvent.keyDown(screen.getByRole('button', { name: /Reclamos/ }), { key: 'Escape' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(items[2].onSelect).toHaveBeenCalledOnce();
+    } finally {
+      cleanup();
+      layerRegistration.mockRestore();
+    }
+  });
+
   it('retires the open owner on a context change and never reopens after A to B to A', async () => {
     const user = userEvent.setup();
     const items = makeItems();
