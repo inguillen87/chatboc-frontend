@@ -70,6 +70,12 @@ interface PipelineResponse {
   avg_first_response_seconds?: number;
   items?: LeadItem[];
 }
+interface TenantBoardSnapshot { slug: string; version: number; rows: LeadItem[] }
+const normalizeBoardTenantSlug = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const slug = value.trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9_-]{0,79}$/.test(slug) ? slug : null;
+};
 const STAGES: LeadStage[] = [
   "nuevo",
   "contactado",
@@ -191,11 +197,21 @@ const SuperadminLeadsPipeline: React.FC = () => {
     useState<LeadItem | null>(null);
   const [timelineEvents, setTimelineEvents] = useState<Array<any>>([]);
   const [timelineNote, setTimelineNote] = useState("");
+  const timelineVersion = useRef(0);
+  const timelineBoard = useRef<TenantBoardSnapshot | null>(null);
   const [playbookPreview, setPlaybookPreview] = useState<any[]>([]);
   const [tenantBoardSlug, setTenantBoardSlug] = useState("");
   const [tenantLeads, setTenantLeads] = useState<any[]>([]);
   const [tenantAssignmentRouting, setTenantAssignmentRouting] = useState<LeadAssignmentRoutingSnapshot | null>(null);
   const tenantLeadsVersion = useRef(0);
+  const boardAlive = useRef(true);
+  const boardSnapshot = useRef<TenantBoardSnapshot | null>(null);
+  const [loadedBoard, setLoadedBoard] = useState<TenantBoardSnapshot | null>(null);
+  const [tenantBoardLoading, setTenantBoardLoading] = useState(false);
+  const [tenantBoardError, setTenantBoardError] = useState("");
+  const tenantBulkPending = useRef(false);
+  const [tenantBulkLoading, setTenantBulkLoading] = useState(false);
+  const unreadSummaryVersion = useRef(0);
   const currentTenantBoardSlug = useRef(tenantBoardSlug);
   currentTenantBoardSlug.current = tenantBoardSlug;
   const [tenantStageFilter, setTenantStageFilter] = useState("");
@@ -231,6 +247,26 @@ const SuperadminLeadsPipeline: React.FC = () => {
     items?: any[];
   }>({ total_tickets_with_unread: 0, items: [] });
   const [unreadSinceMinutes, setUnreadSinceMinutes] = useState(60);
+
+  const isCurrentBoard = (snapshot: TenantBoardSnapshot) => boardAlive.current
+    && boardSnapshot.current === snapshot && tenantLeadsVersion.current === snapshot.version
+    && normalizeBoardTenantSlug(currentTenantBoardSlug.current) === snapshot.slug;
+  const retireTenantBoard = () => {
+    tenantLeadsVersion.current += 1; unreadSummaryVersion.current += 1;
+    boardSnapshot.current = null; setLoadedBoard(null);
+    setTenantLeads([]); setTenantSelectedLeadKeys([]); setTenantAssignmentRouting(null);
+    setTenantEncuestas([]); setEmployeeWorkload([]);
+    setUnreadSummary({ total_tickets_with_unread: 0, items: [] });
+    setTenantBoardLoading(false); setTenantBoardError("");
+    if (timelineBoard.current) {
+      timelineVersion.current += 1; timelineBoard.current = null;
+      setSelectedTimelineLead(null); setTimelineEvents([]); setTimelineNote("");
+    }
+  };
+  useEffect(() => {
+    boardAlive.current = true;
+    return () => { boardAlive.current = false; tenantLeadsVersion.current += 1; unreadSummaryVersion.current += 1; timelineVersion.current += 1; boardSnapshot.current = null; };
+  }, []);
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -494,15 +530,23 @@ const SuperadminLeadsPipeline: React.FC = () => {
   };
 
   const handleOpenTimeline = async (item: LeadItem) => {
+    const snapshot = boardSnapshot.current?.rows.includes(item) ? boardSnapshot.current
+      : selectedTimelineLead === item ? timelineBoard.current : null;
+    if (snapshot && !isCurrentBoard(snapshot)) return;
+    const version = ++timelineVersion.current;
     const ticketId = item.nro_ticket || item.ticket_id;
     const ticketType = item.ticket_type || "municipio";
     const slug = resolveLeadTenantSlug(item);
     if (!ticketId) return;
-    setSelectedTimelineLead(item);
-    const resp = slug
-      ? await enterpriseService.getTenantLeadTimeline(slug, ticketType, ticketId)
-      : await enterpriseService.getLeadTimeline(ticketType, ticketId);
-    setTimelineEvents(resp?.items || resp?.timeline || []);
+    timelineBoard.current = snapshot;
+    setSelectedTimelineLead(item); setTimelineEvents([]); setTimelineNote("");
+    try {
+      const resp = slug
+        ? await enterpriseService.getTenantLeadTimeline(slug, ticketType, ticketId)
+        : await enterpriseService.getLeadTimeline(ticketType, ticketId);
+      if (!boardAlive.current || version !== timelineVersion.current || (snapshot && !isCurrentBoard(snapshot))) return;
+      setTimelineEvents(resp?.items || resp?.timeline || []);
+    } catch { if (boardAlive.current && version === timelineVersion.current) toast.error("No se pudo verificar el historial del caso."); }
   };
 
   const handleSuggestAssignee = async (item: LeadItem) => {
@@ -540,6 +584,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const handleAddTimelineNote = async () => {
     if (!selectedTimelineLead || !timelineNote.trim()) return;
+    const snapshot = timelineBoard.current;
+    if (snapshot && !isCurrentBoard(snapshot)) return;
     const ticketId =
       selectedTimelineLead.nro_ticket || selectedTimelineLead.ticket_id;
     const ticketType = selectedTimelineLead.ticket_type || "municipio";
@@ -554,6 +600,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
         note: timelineNote.trim(),
       });
     }
+    if (!boardAlive.current || (snapshot && !isCurrentBoard(snapshot))) return;
     setTimelineNote("");
     handleOpenTimeline(selectedTimelineLead);
   };
@@ -580,35 +627,50 @@ const SuperadminLeadsPipeline: React.FC = () => {
       "noopener,noreferrer",
     );
 
-  const fetchTenantLeads = async () => {
-    if (!tenantBoardSlug.trim()) return;
-    const version = ++tenantLeadsVersion.current;
-    setTenantAssignmentRouting(null);
+  const fetchTenantLeads = async (requestedSlug = currentTenantBoardSlug.current) => {
+    const slug = normalizeBoardTenantSlug(requestedSlug);
+    if (!slug || slug !== normalizeBoardTenantSlug(currentTenantBoardSlug.current) || !boardAlive.current) return;
+    retireTenantBoard();
+    const version = tenantLeadsVersion.current;
+    setTenantBoardLoading(true);
+    const isCurrent = () => boardAlive.current && version === tenantLeadsVersion.current
+      && slug === normalizeBoardTenantSlug(currentTenantBoardSlug.current);
     try {
-      const slug = tenantBoardSlug.trim();
       const [response, routing] = await Promise.all([
         enterpriseService.getTenantLeads(slug, { stage: tenantStageFilter || undefined, limit: 100 }),
         getEmployeeRoutingV2(slug).catch(() => null),
       ]);
-      if (version !== tenantLeadsVersion.current || slug !== currentTenantBoardSlug.current.trim()) return;
-      if (response.tenant_slug !== slug) throw new Error("La lista no corresponde a la organización seleccionada.");
-      setTenantLeads(response?.items || response?.leads || []);
+      if (!isCurrent()) return;
+      if (normalizeBoardTenantSlug(response.tenant_slug) !== slug) throw new Error("La lista no corresponde a la organización seleccionada.");
+      const receivedRows = response?.items || response?.leads || [];
+      if (!Array.isArray(receivedRows) || receivedRows.some(row => row.tenant_slug && normalizeBoardTenantSlug(row.tenant_slug) !== slug)) {
+        throw new Error("Los casos no corresponden a la organización seleccionada.");
+      }
+      const rows = receivedRows.map(row => ({ ...row, tenant_slug: slug }));
+      const snapshot = { slug, version, rows };
+      boardSnapshot.current = snapshot; setLoadedBoard(snapshot); setTenantLeads(rows);
       setTenantAssignmentRouting(routing ? { tenantSlug: slug, raw: routing.raw } : null);
-      const tenantSurveys =
-        await enterpriseService.getTenantEncuestasOverview(slug);
-      setTenantEncuestas(tenantSurveys?.items || []);
-      const workload = await enterpriseService.getTenantEmployeesWorkload(slug);
-      setEmployeeWorkload(workload?.items || []);
-      await fetchUnreadSummary(slug);
+      setTenantBoardLoading(false);
+      // Auxiliary outages do not revoke the independently verified cases.
+      const [surveys, workload] = await Promise.allSettled([
+        enterpriseService.getTenantEncuestasOverview(slug),
+        enterpriseService.getTenantEmployeesWorkload(slug),
+      ]);
+      if (!isCurrentBoard(snapshot)) return;
+      setTenantEncuestas(surveys.status === 'fulfilled' ? surveys.value?.items || [] : []);
+      setEmployeeWorkload(workload.status === 'fulfilled' ? workload.value?.items || [] : []);
     } catch (error) {
-      console.error(error);
-      toast.error("No se pudieron cargar leads del tenant.");
-    }
+      if (!isCurrent()) return;
+      retireTenantBoard();
+      setTenantBoardError("No se pudieron verificar los casos. Volvé a cargar esta organización.");
+      toast.error("No se pudieron cargar los casos de la organización.");
+    } finally { if (isCurrent()) setTenantBoardLoading(false); }
   };
 
   const handleTenantBulkStage = async () => {
-    if (!tenantBoardSlug.trim()) return;
-    const updates = tenantLeads
+    const snapshot = boardSnapshot.current;
+    if (!snapshot || !isCurrentBoard(snapshot) || tenantBoardLoading || tenantBulkPending.current) return;
+    const updates = snapshot.rows
       .filter((lead) => tenantSelectedLeadKeys.includes(leadKey(lead)))
       .map((lead) => ({
         ticket_type: (lead.ticket_type || "municipio") as string,
@@ -616,46 +678,52 @@ const SuperadminLeadsPipeline: React.FC = () => {
       }))
       .filter((item) => item.ticket_id);
     if (!updates.length) {
-      toast.error("Seleccioná leads tenant para bulk.");
+      toast.error("Seleccioná casos válidos de esta organización.");
       return;
     }
+    tenantBulkPending.current = true; setTenantBulkLoading(true);
     try {
       await enterpriseService.bulkUpdateTenantLeadStage(
-        tenantBoardSlug.trim(),
+        snapshot.slug,
         { stage: String(tenantBulkStage), updates },
       );
-      toast.success("Tenant bulk stage aplicado.");
+      if (!isCurrentBoard(snapshot)) return;
+      toast.success("Etapa actualizada.");
       setTenantSelectedLeadKeys([]);
-      fetchTenantLeads();
+      void fetchTenantLeads(snapshot.slug);
     } catch (error) {
-      console.error(error);
-      toast.error("No se pudo aplicar bulk tenant.");
-    }
+      if (isCurrentBoard(snapshot)) {
+        retireTenantBoard();
+        setTenantBoardError("No se confirmó el cambio. Volvé a cargar los casos antes de reintentar.");
+        toast.error("No se confirmó el cambio. Volvé a cargar los casos antes de reintentar.");
+      }
+    } finally { tenantBulkPending.current = false; if (boardAlive.current) setTenantBulkLoading(false); }
   };
 
-  const fetchUnreadSummary = async (slugOverride?: string) => {
-    const slug = (slugOverride || tenantBoardSlug || tenantSlug).trim();
-    if (!slug) return;
+  const fetchUnreadSummary = async (slug: string, isCurrent: () => boolean) => {
+    if (!boardAlive.current || !isCurrent()) return;
     try {
       const summary = await enterpriseService.getTenantUnreadSummary(slug, {
         since_minutes: unreadSinceMinutes,
       });
+      if (!boardAlive.current || !isCurrent()) return;
       setUnreadSummary({
         total_tickets_with_unread: summary?.total_tickets_with_unread || 0,
         items: summary?.items || [],
       });
-    } catch (error) {
-      console.error(error);
-    }
+    } catch { /* A failed periodic read cannot replace the verified board. */ }
   };
 
   useEffect(() => {
-    const slug = (tenantBoardSlug || tenantSlug).trim();
+    const version = ++unreadSummaryVersion.current;
+    const snapshot = loadedBoard;
+    const slug = snapshot?.slug || (!tenantBoardSlug.trim() ? normalizeBoardTenantSlug(tenantSlug) : null);
     if (!slug) return;
-    fetchUnreadSummary(slug);
-    const timer = window.setInterval(() => fetchUnreadSummary(slug), 30000);
-    return () => window.clearInterval(timer);
-  }, [tenantBoardSlug, tenantSlug, unreadSinceMinutes]);
+    const isCurrent = () => unreadSummaryVersion.current === version && (!snapshot || isCurrentBoard(snapshot));
+    void fetchUnreadSummary(slug, isCurrent);
+    const timer = window.setInterval(() => void fetchUnreadSummary(slug, isCurrent), 30000);
+    return () => { window.clearInterval(timer); unreadSummaryVersion.current += 1; };
+  }, [loadedBoard, tenantBoardSlug, tenantSlug, unreadSinceMinutes]);
 
   const handleUpdateEmployeeScope = async () => {
     if (!employeeScopeUserId.trim()) return;
@@ -1304,9 +1372,9 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Tenant board operativo</CardTitle>
+              <CardTitle>Casos de la organización</CardTitle>
               <CardDescription>
-                Acciones masivas por tenant + timeline.
+                Revisá la organización y los casos antes de actualizar su etapa.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1315,12 +1383,12 @@ const SuperadminLeadsPipeline: React.FC = () => {
                   className="h-9 rounded border px-3 text-sm"
                   placeholder="tenant slug"
                   value={tenantBoardSlug}
-                  onChange={(e) => setTenantBoardSlug(e.target.value)}
+                  onChange={(e) => { currentTenantBoardSlug.current = e.target.value; retireTenantBoard(); setTenantBoardSlug(e.target.value); }}
                 />
                 <select
                   className="h-9 rounded border px-2 text-sm"
                   value={tenantStageFilter}
-                  onChange={(e) => setTenantStageFilter(e.target.value)}
+                  onChange={(e) => { retireTenantBoard(); setTenantStageFilter(e.target.value); }}
                 >
                   <option value="">todas etapas</option>
                   {STAGES.map((s) => (
@@ -1329,10 +1397,11 @@ const SuperadminLeadsPipeline: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <Button size="sm" onClick={fetchTenantLeads}>
-                  Cargar tenant leads
+                <Button size="sm" disabled={tenantBoardLoading || tenantBulkLoading || !normalizeBoardTenantSlug(tenantBoardSlug)} onClick={() => void fetchTenantLeads()}>
+                  Cargar casos
                 </Button>
               </div>
+              {tenantBoardLoading ? <p role="status">Verificando casos de esta organización…</p> : tenantBoardError ? <p role="alert">{tenantBoardError}</p> : loadedBoard ? <p>Casos verificados de {loadedBoard.slug}.</p> : <p>Cargá la organización para verificar sus casos antes de operar.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <label className="inline-flex items-center gap-2 text-xs">
                   <input
@@ -1365,8 +1434,9 @@ const SuperadminLeadsPipeline: React.FC = () => {
                   size="sm"
                   variant="outline"
                   onClick={handleTenantBulkStage}
+                  disabled={!loadedBoard || tenantBoardLoading || tenantBulkLoading || !tenantSelectedLeadKeys.length}
                 >
-                  Aplicar bulk tenant
+                  Actualizar etapa
                 </Button>
               </div>
 
@@ -1451,6 +1521,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                         <td className="p-2">
                           <input
                             type="checkbox"
+                            disabled={tenantBoardLoading || tenantBulkLoading}
                             checked={tenantSelectedLeadKeys.includes(
                               leadKey(lead),
                             )}
@@ -1524,10 +1595,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
                         <td className="p-2">
                           <LeadAutoAssignmentButton
                             lead={lead}
-                            tenantSlug={tenantBoardSlug.trim()}
+                            tenantSlug={loadedBoard?.slug || ""}
                             routingSnapshot={tenantAssignmentRouting}
                             requiredPermission={requiredPermission}
-                            onConfirmed={fetchTenantLeads}
+                            onConfirmed={() => { if (loadedBoard && isCurrentBoard(loadedBoard)) return fetchTenantLeads(loadedBoard.slug); }}
                           />
                         </td>
                         <td className="p-2">

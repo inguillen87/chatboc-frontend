@@ -33,6 +33,8 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
   const [type, setType] = useState('all');
   const [status, setStatus] = useState('all');
   const [plan, setPlan] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
   const [commercialTenant, setCommercialTenant] = useState<Tenant | null>(null);
   const commercialTrigger = useRef<HTMLElement | null>(null);
   const [presence, setPresence] = useState<{id:number;slug:string}|null>(null);
@@ -47,6 +49,13 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
       && (status === 'all' || (status === 'active' ? tenant.is_active === true : tenant.is_active === false));
   }), [tenants, query, type, plan, status]);
   const hasFilters = Boolean(query || type !== 'all' || status !== 'all' || plan !== 'all');
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const firstRow = (currentPage - 1) * pageSize;
+  const pageRows = filtered.slice(firstRow, firstRow + pageSize);
+  // Clamp immediately for a shrinking result set; do not resurrect an old page
+  // if a subsequent refresh increases the list again.
+  useEffect(() => { setPage((value) => Math.min(value, pageCount)); }, [pageCount]);
 
   return <section className="platform-panel" aria-labelledby="organization-directory-title">
     <div className="platform-panel-heading">
@@ -54,21 +63,30 @@ export function OrganizationDirectory({ tenants, total, loading, error, onRefres
       <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => exportOrganizationsCsv(filtered)} disabled={loading || Boolean(error) || !filtered.length}>Exportar CSV</Button><Button variant="outline" onClick={onRefresh} disabled={loading}>Actualizar directorio</Button></div>
     </div>
     <div className="platform-directory-filters">
-      <label className="platform-search"><span className="sr-only">Buscar organizaciones</span><Search aria-hidden="true" size={17} /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre, identificador o correo" /></label>
-      <label><span>Tipo</span><select value={type} onChange={(event) => setType(event.target.value)}><option value="all">Todos los tipos</option>{types.map((value) => <option key={value} value={value}>{organizationTypeLabel(value, tenants.find((tenant) => tenant.tipo === value))}</option>)}</select></label>
-      <label><span>Plan</span><select value={plan} onChange={(event) => setPlan(event.target.value)}><option value="all">Todos los planes</option>{plans.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label><span>Estado</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
+      <label className="platform-search"><span className="sr-only">Buscar organizaciones</span><Search aria-hidden="true" size={17} /><Input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Nombre, identificador o correo" /></label>
+      <label><span>Tipo</span><select value={type} onChange={(event) => { setType(event.target.value); setPage(1); }}><option value="all">Todos los tipos</option>{types.map((value) => <option key={value} value={value}>{organizationTypeLabel(value, tenants.find((tenant) => tenant.tipo === value))}</option>)}</select></label>
+      <label><span>Plan</span><select value={plan} onChange={(event) => { setPlan(event.target.value); setPage(1); }}><option value="all">Todos los planes</option>{plans.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label><span>Estado</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
     </div>
     <div className="platform-directory-coverage" aria-live="polite">
       <span>{loading ? 'Cargando organizaciones…' : error ? 'Directorio no disponible' : `${filtered.length} ${filtered.length === 1 ? 'resultado' : 'resultados'} · ${tenants.length} ${tenants.length === 1 ? 'organización cargada' : 'organizaciones cargadas'}${total === null ? ' · total no disponible' : ` de ${total}`}`}</span>
-      {hasFilters && <button type="button" onClick={() => { setQuery(''); setType('all'); setPlan('all'); setStatus('all'); }}>Limpiar filtros</button>}
+      {hasFilters && <button type="button" onClick={() => { setQuery(''); setType('all'); setPlan('all'); setStatus('all'); setPage(1); }}>Limpiar filtros</button>}
     </div>
-    <p className="platform-note">La exportación incluye únicamente los resultados visibles.{total !== null && tenants.length < total && !error ? ' La búsqueda y los filtros se aplican a las organizaciones cargadas. Cargá más para ampliar los resultados.' : ''}</p>
+    <p className="platform-note">La exportación incluye todos los resultados filtrados de las organizaciones cargadas, aunque estén en otra página.{total !== null && tenants.length < total && !error ? ' La búsqueda y los filtros se aplican a las organizaciones cargadas. Cargá más para ampliar los resultados.' : ''}</p>
+    {!loading && !error && filtered.length > 0 && <nav className="platform-directory-pagination" aria-label="Páginas del directorio">
+      <label><span>Por página</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>{[8, 16, 32].map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+      <span role="status">Mostrando {firstRow + 1}–{firstRow + pageRows.length} de {filtered.length}</span>
+      <div className="platform-directory-page-actions">
+        <Button type="button" variant="outline" aria-label="Página anterior" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Anterior</Button>
+        <span>Página {currentPage} de {pageCount}</span>
+        <Button type="button" variant="outline" aria-label="Página siguiente" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Siguiente</Button>
+      </div>
+    </nav>}
     {error ? <div role="alert" className="platform-empty">{error}<Button variant="outline" onClick={onRefresh}>Reintentar</Button></div>
       : !loading && !filtered.length ? <div className="platform-empty">{hasFilters ? 'No hay coincidencias con estos filtros.' : 'No hay organizaciones en este listado.'}</div>
         : <div className="platform-directory-table"><table>
           <thead><tr><th>Organización</th><th>Plan</th><th>Estado</th><th>Responsable</th><th><span className="sr-only">Acciones</span></th></tr></thead>
-          <tbody>{filtered.map((tenant) => <tr key={tenant.id}>
+          <tbody>{pageRows.map((tenant) => <tr key={tenant.id}>
             <td><button type="button" className="platform-organization-name" onClick={() => onProfile(tenant.slug)}>{tenant.nombre || tenant.slug}<ArrowUpRight size={14} aria-hidden="true" /></button><span className="platform-row-detail">{organizationTypeLabel(tenant.tipo, tenant)} · {tenant.slug}</span>
               <Button type="button" variant="outline" size="sm" className="commercial-directory-action" disabled={loading || !tenant.slug} aria-label={`Abrir CRM de ${tenant.nombre || tenant.slug}`}
                 onClick={(event) => { commercialTrigger.current = event.currentTarget; setCommercialTenant(tenant); }}>Seguimiento comercial</Button>
