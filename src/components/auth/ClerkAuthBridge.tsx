@@ -330,7 +330,11 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
       } catch (error) {
         if (!isCurrentSync()) return;
         console.error('[ClerkAuthBridge] No se pudo sincronizar Clerk con Chatboc', error);
-        setSyncError(error instanceof Error ? error.message : 'No se pudo completar el acceso seguro.');
+        const interrupted = error !== null && typeof error === 'object' &&
+          'name' in error && error.name === 'AbortError';
+        setSyncError(interrupted
+          ? 'El acceso se interrumpió. Reintentá desde esta página.'
+          : error instanceof Error ? error.message : 'No se pudo completar el acceso seguro.');
         syncKeyRef.current = null;
       }
     };

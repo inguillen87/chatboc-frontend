@@ -258,6 +258,16 @@ const readStoredPublicAccess = () => {
   }
 };
 
+const getPublicHistoryNotice = (value: unknown): string | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const scope = value as Record<string, unknown>;
+  if (scope.contract_version !== "tickets.history_scope.v1" ||
+      scope.scope !== "ticket_comments_only" ||
+      scope.legacy_conversations_included !== false || scope.retryable !== false ||
+      typeof scope.notice !== "string" || !scope.notice.trim()) return null;
+  return scope.notice;
+};
+
 const InfoMetric = ({
   icon: Icon,
   label,
@@ -553,6 +563,7 @@ export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const lookupFormId = React.useId();
 
   const [inputTicketId, setInputTicketId] = useState(ticketId || "");
   const [inputPin, setInputPin] = useState(searchParams.get("pin") || "");
@@ -580,6 +591,7 @@ export default function TicketLookup() {
   const publicRefreshInFlightRef = useRef(false);
   const publicLookupsInFlightRef = useRef(0);
   const publicLookupRevisionRef = useRef(0);
+  const verifiedPublicAccessRef = useRef<{ revision: number; pin: string } | null>(null);
   const messageBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const [message, setMessage] = useState("");
   const [primaryImageUrl, setPrimaryImageUrl] = useState<string | null>(null);
@@ -594,7 +606,6 @@ export default function TicketLookup() {
   );
   const currentPin = useMemo(() => {
     const routePin = (searchParams.get("pin") || "").trim();
-    if (inputPin.trim()) return inputPin.trim();
     if (routePin) return routePin;
     const storedTicketId = String(storedPublicAccess?.ticketId || "");
     const storedTicketNumber = String(storedPublicAccess?.ticketNumber || "");
@@ -607,10 +618,12 @@ export default function TicketLookup() {
       return storedPublicAccess.pin.trim();
     }
     return "";
-  }, [inputPin, searchParams, storedPublicAccess, ticketId]);
+  }, [searchParams, storedPublicAccess, ticketId]);
 
   useEffect(() => {
     const routePin = (searchParams.get("pin") || "").trim();
+    setInputTicketId(ticketId || "");
+    setInputPin(currentPin);
     if (routePin) {
       setPublicAccessSource("url");
       return;
@@ -624,8 +637,6 @@ export default function TicketLookup() {
       typeof storedPublicAccess?.pin === "string" &&
       storedPublicAccess.pin.trim()
     ) {
-      const restoredPin = storedPublicAccess.pin.trim();
-      setInputPin((prev) => prev || restoredPin);
       setPublicAccessSource("restored");
       trackFrontendEvent("tracking_public_access_restored", {
         ticket_id: ticketId,
@@ -636,7 +647,7 @@ export default function TicketLookup() {
     }
 
     setPublicAccessSource("manual");
-  }, [searchParams, storedPublicAccess, ticketId]);
+  }, [currentPin, searchParams, storedPublicAccess, ticketId]);
 
   const syncPublicAccess = useCallback(
     (resolvedTicket: Ticket | null, pin: string) => {
@@ -764,14 +775,20 @@ export default function TicketLookup() {
       const pinVal = (searchPin || "").trim();
 
       if (!id) return;
+      const revision = ++publicLookupRevisionRef.current;
+      const isCurrent = () => publicLookupRevisionRef.current === revision;
+      verifiedPublicAccessRef.current = null;
+      setTicket(null);
+      setRefreshingConversation(false);
+      setSubmittingPublicMessage(false);
       if (!pinVal) {
         setError("El PIN es obligatorio para consultar el reclamo");
         setTicket(null);
+        setLoading(false);
         return;
       }
 
       publicLookupsInFlightRef.current += 1;
-      publicLookupRevisionRef.current += 1;
       setLoading(true);
       setError(null);
       setSupportRequestId(null);
@@ -783,11 +800,13 @@ export default function TicketLookup() {
 
       try {
         const data = await getTicketByNumber(id, pinVal);
+        if (!isCurrent()) return;
         const normalizedTicket = {
           ...data,
           history: data.history || [],
           messages: data.messages || [],
         };
+        verifiedPublicAccessRef.current = { revision, pin: pinVal };
         setTicket(normalizedTicket);
         setPublicMessages(normalizedTicket.messages || []);
         syncPublicAccess(normalizedTicket, pinVal);
@@ -803,8 +822,9 @@ export default function TicketLookup() {
           data.archivo_url || data.imagen_url || data.attachment_info?.url;
         if (img) setPrimaryImageUrl(img);
 
-        await loadConversationData(normalizedTicket, pinVal);
+        await loadConversationData(normalizedTicket, pinVal, false, isCurrent);
       } catch (err) {
+        if (!isCurrent()) return;
         const apiErr = err as ApiError;
         const resolvedRequestId =
           typeof apiErr?.requestId === "string" && apiErr.requestId.trim()
@@ -830,17 +850,26 @@ export default function TicketLookup() {
         }
       } finally {
         publicLookupsInFlightRef.current -= 1;
-        setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     },
     [loadConversationData, publicAccessSource, syncPublicAccess],
   );
 
   useEffect(() => {
+    setLoading(false);
+    setRefreshingConversation(false);
+    setSubmittingPublicMessage(false);
     const paramPin = searchParams.get("pin") || "";
     if (ticketId && (paramPin || currentPin)) {
       performSearch(ticketId, paramPin || currentPin);
+    } else {
+      verifiedPublicAccessRef.current = null;
+      setTicket(null);
+      setError(null);
+      setSupportRequestId(null);
     }
+    return () => { publicLookupRevisionRef.current += 1; };
   }, [ticketId, searchParams, performSearch, currentPin]);
 
   useEffect(() => {
@@ -878,6 +907,7 @@ export default function TicketLookup() {
   }, [isSupportOpen, supportMode]);
 
   const publicTicketNumber = resolvePublicTicketNumber(ticket, ticketId);
+  const publicHistoryNotice = getPublicHistoryNotice(ticket?.history_scope);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -893,11 +923,14 @@ export default function TicketLookup() {
   };
 
   const handleOpenChat = async () => {
-    if (!ticket) return;
+    const revision = publicLookupRevisionRef.current;
+    if (!ticket || loading || verifiedPublicAccessRef.current?.revision !== revision) return;
+    const isCurrent = () => publicLookupRevisionRef.current === revision;
     const tenantSlug = ticket?.tenant_slug || "municipio";
     let status = liveChatStatus;
     try {
       status = status || await getLiveChatScheduleStatus(tenantSlug);
+      if (!isCurrent()) return;
       setLiveChatStatus(status);
       trackFrontendEvent("tracking_live_chat_status_checked", {
         ticket_id: ticket.id,
@@ -911,6 +944,7 @@ export default function TicketLookup() {
           : "Podés dejar tu mensaje en el reclamo.",
       );
     } catch (statusError) {
+      if (!isCurrent()) return;
       console.warn("[ticketLookup] No se pudo confirmar horario de chat en vivo", statusError);
     }
 
@@ -949,7 +983,12 @@ export default function TicketLookup() {
       : "Horario administrativo");
 
   const handleSendMessage = useCallback(async () => {
-    if (!ticket || !currentPin || !message.trim()) return;
+    const access = verifiedPublicAccessRef.current;
+    if (!ticket || loading || submittingPublicMessage || !access ||
+        access.revision !== publicLookupRevisionRef.current || !message.trim()) return;
+    const revision = access.revision;
+    const isCurrent = () => publicLookupRevisionRef.current === revision;
+    const pin = access.pin;
     setSubmittingPublicMessage(true);
     try {
       const response = await sendMessage(
@@ -960,9 +999,10 @@ export default function TicketLookup() {
         undefined,
         {
           public: true,
-          pin: currentPin,
+          pin,
         },
       );
+      if (!isCurrent()) return;
       trackFrontendEvent("tracking_public_message_sent", {
         ticket_id: ticket.id,
         ticket_number: publicTicketNumber,
@@ -980,15 +1020,17 @@ export default function TicketLookup() {
             ? "Mensaje enviado al canal del reclamo."
             : "Mensaje guardado en este reclamo.";
       toast.success(responseMessage);
-      setMessage("");
-      await loadConversationData(ticket, currentPin, true);
+      setMessage((draft) => draft === message ? "" : draft);
+      await loadConversationData(ticket, pin, true, isCurrent);
+      if (!isCurrent()) return;
       setIsSupportOpen(false);
     } catch (sendError) {
+      if (!isCurrent()) return;
       toast.error(getErrorMessage(sendError, "No se pudo enviar el mensaje."));
     } finally {
-      setSubmittingPublicMessage(false);
+      if (isCurrent()) setSubmittingPublicMessage(false);
     }
-  }, [currentPin, liveChatAvailable, loadConversationData, message, publicTicketNumber, supportMode, ticket]);
+  }, [loading, submittingPublicMessage, liveChatAvailable, loadConversationData, message, publicTicketNumber, supportMode, ticket]);
 
   const copyToClipboard = () => {
     if (ticket && publicTicketNumber) {
@@ -1238,12 +1280,14 @@ export default function TicketLookup() {
           if (!prev) return data;
           if (
             prev.estado !== data.estado ||
-            prev.history?.length !== data.history?.length
+            prev.history?.length !== data.history?.length ||
+            getPublicHistoryNotice(prev.history_scope) !== getPublicHistoryNotice(data.history_scope)
           ) {
             return {
               ...prev,
               ...data,
               history: data.history || prev.history || [],
+              history_scope: data.history_scope,
             };
           }
           return prev;
@@ -1435,12 +1479,13 @@ export default function TicketLookup() {
                 <form onSubmit={handleSearchSubmit} className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-[minmax(0,1.3fr)_minmax(180px,0.7fr)]">
                     <div className="space-y-2 text-left">
-                      <label className="text-sm font-medium text-slate-700">
+                      <label htmlFor={`${lookupFormId}-ticket`} className="text-sm font-medium text-slate-700">
                         Número de Reclamo
                       </label>
                       <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <Input
+                          id={`${lookupFormId}-ticket`}
                           placeholder="Ej: REC-12345"
                           className="h-11 rounded-xl border-slate-200 bg-white pl-9 shadow-sm transition focus-visible:ring-2 focus-visible:ring-blue-200"
                           value={inputTicketId}
@@ -1449,10 +1494,11 @@ export default function TicketLookup() {
                       </div>
                     </div>
                     <div className="space-y-2 text-left">
-                      <label className="text-sm font-medium text-slate-700">
+                      <label htmlFor={`${lookupFormId}-pin`} className="text-sm font-medium text-slate-700">
                         PIN de Seguridad
                       </label>
                       <Input
+                        id={`${lookupFormId}-pin`}
                         placeholder="••••"
                         type="password"
                         className="h-11 rounded-xl border-slate-200 bg-white text-center tracking-[0.35em] shadow-sm transition focus-visible:ring-2 focus-visible:ring-blue-200"
@@ -1917,6 +1963,11 @@ export default function TicketLookup() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-6">
+                    {publicHistoryNotice ? (
+                      <p role="note" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        {publicHistoryNotice}
+                      </p>
+                    ) : null}
                     {hasTeamAttentionSignal ? (
                       <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 px-5 py-4 shadow-sm">
                         <div className="flex items-start gap-3">
@@ -2255,7 +2306,8 @@ export default function TicketLookup() {
                 <Button
                   className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-blue-50 dark:disabled:bg-blue-900/60 dark:disabled:text-blue-200"
                   onClick={handleSendMessage}
-                  disabled={!message.trim() || submittingPublicMessage}
+                  disabled={!message.trim() || submittingPublicMessage || loading ||
+                    verifiedPublicAccessRef.current?.revision !== publicLookupRevisionRef.current}
                 >
                   {submittingPublicMessage ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

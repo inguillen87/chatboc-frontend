@@ -510,6 +510,28 @@ describe('ClerkAuthBridge session lifecycle', () => {
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 
+  it('explains an interrupted current access and retries only after an explicit action', async () => {
+    const onSessionReady = vi.fn();
+    const interruptedError = new Error('Request context retired');
+    interruptedError.name = 'AbortError';
+    clerkMocks.syncClerkSession.mockRejectedValueOnce(interruptedError);
+
+    renderBridge('/ticket', { onSessionReady });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('El acceso se interrumpió. Reintentá desde esta página.');
+    expect(alert).not.toHaveTextContent('Request context retired');
+    expect(clerkMocks.syncClerkSession).toHaveBeenCalledTimes(1);
+    expect(onSessionReady).not.toHaveBeenCalled();
+    expect(usePanelSessionStore.getState().authToken).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    await waitFor(() => expect(onSessionReady).toHaveBeenCalledTimes(1));
+    expect(clerkMocks.syncClerkSession).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('clears user A before exposing pending onboarding for Clerk user B', async () => {
     const view = renderBridge();
 

@@ -36,7 +36,7 @@ export const hasUndispatchedStartupReceipt = async (response: Response): Promise
     })]);
   } finally {
     clearTimeout(timer);
-    void reader.cancel().catch(() => undefined);
+    void reader.cancel().catch((): undefined => undefined);
   }
 };
 

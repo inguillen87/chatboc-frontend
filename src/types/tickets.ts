@@ -275,7 +275,16 @@ export interface TicketWorkflowInstance {
   blocked_reason?: string | null;
 }
 
+export interface TicketHistoryScope {
+  contract_version: "tickets.history_scope.v1";
+  scope: "ticket_comments_only";
+  legacy_conversations_included: false;
+  retryable: false;
+  notice: string;
+}
+
 export interface Ticket {
+  history_scope?: TicketHistoryScope | null;
   id: number;
   tenant_id?: number; // Added for Pyme support
   tipo: "municipio" | "pyme";
