@@ -286,7 +286,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
     popupRef.current = null;
 
     const fetchComments = async () => {
-      if (cancelled || terminal || fetching) return;
+      if (cancelled || terminal || fetching || document.hidden) return;
       fetching = true;
       const revision = mutationRevisionRef.current;
       try {
@@ -309,15 +309,17 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
         fetching = false;
         if (!cancelled) {
           setLoading(false);
-          if (!terminal) refreshTimer = setTimeout(() => void fetchComments(), document.hidden ? 15000 : 8000);
+          if (!terminal && !document.hidden) refreshTimer = setTimeout(() => void fetchComments(), 8000);
         }
       }
     };
 
     const refreshOnFocus = () => {
-      if (document.hidden) return;
-      if (refreshTimer) clearTimeout(refreshTimer);
-      void fetchComments();
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      if (!document.hidden) void fetchComments();
     };
     void fetchComments();
     document.addEventListener('visibilitychange', refreshOnFocus);

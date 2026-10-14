@@ -41,6 +41,7 @@ describe('SurveyComments identity avatars', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSurveyComments).mockResolvedValue([]);
+    vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Network forbidden in comments tests'); }));
     vi.stubGlobal('Image', LoadedImageMock);
     vi.mocked(postSurveyComment).mockResolvedValue({
       id: 99,
@@ -119,6 +120,80 @@ describe('SurveyComments identity avatars', () => {
     expect(screen.queryByText('A retirar')).not.toBeInTheDocument();
   });
 
+  it('pauses hidden reads, preserves the draft and refreshes moderation once on resume', async () => {
+    vi.useFakeTimers();
+    let hidden = false;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    vi.mocked(getSurveyComments)
+      .mockResolvedValueOnce([{ id: 1, texto: 'A retirar al volver', fecha: '2026-10-02T12:00:00Z' }])
+      .mockResolvedValue([{ id: 2, texto: 'Lectura actualizada', fecha: '2026-10-02T12:01:00Z' }]);
+    const view = render(<SurveyComments slug="consulta" realtimeComments={[]} />);
+    await act(async () => {});
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Borrador conservado' } });
+
+    hidden = true;
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('A retirar al volver')).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toHaveValue('Borrador conservado');
+    view.rerender(<SurveyComments slug="consulta" realtimeComments={[{ id: 7, texto: 'Actualización recibida', fecha: '2026-10-02T12:01:00Z' }]} />);
+    expect(screen.getByText('Actualización recibida')).toBeInTheDocument();
+    expect(getSurveyComments).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('textbox')).toHaveValue('Borrador conservado');
+
+    hidden = false;
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+      fireEvent(window, new Event('focus'));
+    });
+    expect(getSurveyComments).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('A retirar al volver')).not.toBeInTheDocument();
+    expect(screen.getByText('Lectura actualizada')).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toHaveValue('Borrador conservado');
+    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(3);
+    view.unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(3);
+  });
+
+  it('waits for a visible tab before the initial comments read', async () => {
+    vi.useFakeTimers();
+    let hidden = true;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    render(<SurveyComments slug="consulta" tenantSlug="organizacion" realtimeComments={[]} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(getSurveyComments).not.toHaveBeenCalled();
+
+    hidden = false;
+    await act(async () => { fireEvent(document, new Event('visibilitychange')); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(1);
+    expect(getSurveyComments).toHaveBeenCalledWith('consulta', 'organizacion');
+    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not rearm hidden polling when an in-flight read completes', async () => {
+    vi.useFakeTimers();
+    let hidden = false;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    let resolveRead!: (comments: []) => void;
+    vi.mocked(getSurveyComments).mockReturnValueOnce(new Promise((resolve) => { resolveRead = resolve; }));
+    render(<SurveyComments slug="consulta" realtimeComments={[]} />);
+    expect(getSurveyComments).toHaveBeenCalledTimes(1);
+
+    hidden = true;
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => { resolveRead([]); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(1);
+
+    hidden = false;
+    await act(async () => { fireEvent(document, new Event('visibilitychange')); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(2);
+  });
+
   it('preserves the last successful read and shows failure instead of an invented empty state', async () => {
     vi.useFakeTimers();
     vi.mocked(getSurveyComments).mockResolvedValueOnce([{ id: 1, texto: 'Última lectura', fecha: '2026-10-02T12:00:00Z' }]).mockRejectedValueOnce(new Error('offline'));
@@ -159,6 +234,11 @@ describe('SurveyComments identity avatars', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Borrador conservado' } });
     expect(screen.getByRole('button', { name: 'Publicar comentario' })).toBeDisabled();
     await act(async () => { await vi.advanceTimersByTimeAsync(32000); });
+    expect(getSurveyComments).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+      fireEvent(window, new Event('focus'));
+    });
     expect(getSurveyComments).toHaveBeenCalledTimes(2);
   });
 
