@@ -577,6 +577,9 @@ export default function TicketLookup() {
   const [liveChatStatus, setLiveChatStatus] = useState<LiveChatScheduleStatus | null>(null);
   const presenceFailureCountRef = useRef(0);
   const presenceCircuitUntilRef = useRef(0);
+  const publicRefreshInFlightRef = useRef(false);
+  const publicLookupsInFlightRef = useRef(0);
+  const publicLookupRevisionRef = useRef(0);
   const messageBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const [message, setMessage] = useState("");
   const [primaryImageUrl, setPrimaryImageUrl] = useState<string | null>(null);
@@ -657,7 +660,7 @@ export default function TicketLookup() {
   );
 
   const loadConversationData = useCallback(
-    async (resolvedTicket: Ticket, pin: string, silent = false) => {
+    async (resolvedTicket: Ticket, pin: string, silent = false, isCurrent = () => true) => {
       if (!silent) {
         setRefreshingConversation(true);
       }
@@ -696,6 +699,7 @@ export default function TicketLookup() {
           }),
         ]);
 
+        if (!isCurrent()) return;
         setTimelineHistory(timeline.history || []);
         setUnifiedConversationStream(
           Array.isArray(timeline.unified_conversation_stream)
@@ -746,7 +750,7 @@ export default function TicketLookup() {
         );
         setLastSyncedAt(new Date());
       } finally {
-        if (!silent) {
+        if (!silent && isCurrent()) {
           setRefreshingConversation(false);
         }
       }
@@ -766,6 +770,8 @@ export default function TicketLookup() {
         return;
       }
 
+      publicLookupsInFlightRef.current += 1;
+      publicLookupRevisionRef.current += 1;
       setLoading(true);
       setError(null);
       setSupportRequestId(null);
@@ -823,6 +829,7 @@ export default function TicketLookup() {
           setError(getErrorMessage(err, "Error al consultar el reclamo"));
         }
       } finally {
+        publicLookupsInFlightRef.current -= 1;
         setLoading(false);
       }
     },
@@ -1192,47 +1199,92 @@ export default function TicketLookup() {
 
   useEffect(() => {
     if (!ticket || isResolved || !currentPin) return;
-    const interval = setInterval(() => {
-      const id = inputTicketId || ticketId || "";
-      if (!id) return;
-      getTicketByNumber(id, currentPin)
-        .then(async (data) => {
-          setTicket((prev) => {
-            if (!prev) return data;
-            if (
-              prev.estado !== data.estado ||
-              prev.history?.length !== data.history?.length
-            ) {
-              return {
-                ...prev,
-                ...data,
-                history: data.history || prev.history || [],
-              };
-            }
-            return prev;
-          });
-          syncPublicAccess(data, currentPin);
-          await loadConversationData(data, currentPin, true);
-        })
-        .catch((pollError) => {
-          const apiErr = pollError as ApiError;
-          trackFrontendEvent("tracking_public_refresh_failed", {
-            ticket_lookup: id,
-            status: apiErr?.status || "unknown",
-          });
-          if (apiErr?.status === 403) {
-            trackFrontendEvent("tracking_403_detected", {
-              ticket_lookup: id,
-              access_source: publicAccessSource,
-            });
+    const id = publicTicketNumber || inputTicketId || ticketId || "";
+    if (!id) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimer = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+    };
+    const schedule = () => {
+      clearTimer();
+      if (!cancelled && !document.hidden) timer = setTimeout(() => void refresh(), 10000);
+    };
+    const refresh = async () => {
+      clearTimer();
+      if (cancelled || document.hidden) return;
+      if (publicRefreshInFlightRef.current || publicLookupsInFlightRef.current > 0) {
+        schedule();
+        return;
+      }
+      const revision = publicLookupRevisionRef.current;
+      const isCurrent = () => !cancelled && publicLookupRevisionRef.current === revision;
+      const access = readStoredPublicAccess();
+      const matchesTicket = String(access?.ticketId) === String(ticket.id)
+        && access?.tipo === (ticket.tipo || "municipio")
+        && String(access?.ticketNumber) === resolvePublicTicketNumber(ticket)
+        && (!access?.tenantSlug || !ticket.tenant_slug || access.tenantSlug === ticket.tenant_slug);
+      const pin = matchesTicket && typeof access?.pin === "string"
+        ? access.pin.trim() || currentPin
+        : currentPin;
+      publicRefreshInFlightRef.current = true;
+      try {
+        const data = await getTicketByNumber(id, pin);
+        if (!isCurrent()) return;
+        if (!document.hidden) await loadConversationData(data, pin, true, isCurrent);
+        if (!isCurrent()) return;
+        setTicket((prev) => {
+          if (!prev) return data;
+          if (
+            prev.estado !== data.estado ||
+            prev.history?.length !== data.history?.length
+          ) {
+            return {
+              ...prev,
+              ...data,
+              history: data.history || prev.history || [],
+            };
           }
-          console.warn(pollError);
+          return prev;
         });
-    }, 10000);
-    return () => clearInterval(interval);
+        syncPublicAccess(data, pin);
+      } catch (pollError) {
+        if (!isCurrent()) return;
+        const apiErr = pollError as ApiError;
+        trackFrontendEvent("tracking_public_refresh_failed", {
+          ticket_lookup: id,
+          status: apiErr?.status || "unknown",
+        });
+        if (apiErr?.status === 403) {
+          trackFrontendEvent("tracking_403_detected", {
+            ticket_lookup: id,
+            access_source: publicAccessSource,
+          });
+        }
+        console.warn(pollError);
+      } finally {
+        publicRefreshInFlightRef.current = false;
+        schedule();
+      }
+    };
+    const visibilityChanged = () => {
+      clearTimer();
+      if (!document.hidden) void refresh();
+    };
+    schedule();
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      cancelled = true;
+      clearTimer();
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
   }, [
-    ticket,
+    ticket?.id,
+    ticket?.tipo,
+    ticket?.tenant_slug,
     isResolved,
+    publicTicketNumber,
     inputTicketId,
     ticketId,
     currentPin,
