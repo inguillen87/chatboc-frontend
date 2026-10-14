@@ -164,6 +164,21 @@ describe('manual public ticket context ownership', () => {
     expect(pins[0]).toHaveValue('1234'); expect(pins[1]).toHaveValue('9999');
   });
 
+  it('names the comment textbox through its visible label and keeps the labeled draft across closing and reopening', async () => {
+    render(<TicketLookup />); await flush();
+    fireEvent.click(screen.getAllByRole('button', { name: /Agregar comentario/i })[0]);
+    const field = screen.getByRole('textbox', { name: 'Mensaje para este reclamo' });
+    expect(screen.getByLabelText('Mensaje para este reclamo')).toBe(field);
+    expect((field as HTMLTextAreaElement).labels?.[0].htmlFor).toBe(field.id);
+    expect(field.id).not.toBe('');
+    fireEvent.change(field, { target: { value: 'Borrador sin enviar por prueba de nombre' } });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape', code: 'Escape' });
+    await flush();
+    fireEvent.click(screen.getAllByRole('button', { name: /Agregar comentario/i })[0]);
+    expect(screen.getByRole('textbox', { name: 'Mensaje para este reclamo' })).toHaveValue('Borrador sin enviar por prueba de nombre');
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
   it('does not replace a newer ticket or cache its old PIN when an initial lookup resolves late', async () => {
     const old = deferred<ReturnType<typeof ticket>>();
     state.lookup.mockImplementation((number: string) => number === 'M-400' ? old.promise : Promise.resolve(ticket(501)));
