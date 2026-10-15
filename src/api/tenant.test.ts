@@ -315,4 +315,31 @@ describe('submitTenantTicket', () => {
 
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
+
+  it.each(['retired', 'aborted'])('does not start a %s claim request', async (reason) => {
+    const controller = new AbortController();
+    if (reason === 'aborted') controller.abort();
+    await expect(submitTenantTicket('junin', { descripcion: 'Fixture' }, 'claim-intake-retired-1', {
+      signal: controller.signal,
+      isCurrent: () => reason !== 'retired',
+    })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('passes the initiating scope to dispatch and rejects a receipt after retirement', async () => {
+    let active = true;
+    const controller = new AbortController();
+    const isCurrent = () => active;
+    apiFetchMock.mockImplementationOnce(async () => {
+      active = false;
+      return validClaimReceipt;
+    });
+    await expect(submitTenantTicket('junin', { descripcion: 'Fixture' }, 'claim-intake-retired-2', {
+      signal: controller.signal, isCurrent,
+    })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/pwa/app/tickets', expect.objectContaining({
+      signal: controller.signal, isCurrent,
+      headers: { 'Idempotency-Key': 'claim-intake-retired-2' },
+    }));
+  });
 });

@@ -480,15 +480,28 @@ export async function getTenantPublicNavigation(slug: string): Promise<TenantPub
   return navigation;
 }
 
+export type TenantClaimRequestScope = {
+  signal?: AbortSignal;
+  isCurrent?: () => boolean;
+};
+
 export async function submitTenantTicket(
   slug: string,
   payload: TenantTicketPayload,
   idempotencyKey: string,
+  scope: TenantClaimRequestScope = {},
 ): Promise<TenantClaimIntakeReceipt> {
   const normalizedIdempotencyKey = idempotencyKey.trim();
   if (!/^[A-Za-z0-9_.:-]{8,128}$/.test(normalizedIdempotencyKey)) {
     throw new Error('No se pudo generar una clave segura para enviar el reclamo.');
   }
+
+  const assertCurrent = () => {
+    if (scope.signal?.aborted || scope.isCurrent?.() === false) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
+  };
+  assertCurrent();
 
   const response = await apiFetch<unknown>('/api/pwa/app/tickets', {
     method: 'POST',
@@ -497,8 +510,11 @@ export async function submitTenantTicket(
     tenantSlug: slug,
     omitChatSessionId: true,
     baseUrlOverride: SAME_ORIGIN_API_BASE,
+    ...(scope.signal ? { signal: scope.signal } : {}),
+    ...(scope.isCurrent ? { isCurrent: scope.isCurrent } : {}),
   });
 
+  assertCurrent();
   return normalizeTenantClaimIntakeReceipt(response);
 }
 
