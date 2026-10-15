@@ -46,7 +46,34 @@ describe('startup chunk boundaries',()=>{
 });
 
 
-it('runs the startup gates when any application source changes',()=>{
- const workflow=readFileSync('.github/workflows/startup-performance.yml','utf8');
- expect(workflow.split('\n').map(line=>line.trim())).toContain('- src/**');
+it('runs the startup gates for every pull request after shared verification',()=>{
+ const lines=readFileSync('.github/workflows/frontend-verification.yml','utf8').split(/\r?\n/);
+ const jobs=lines.indexOf('jobs:');
+ expect(jobs).toBeGreaterThan(0);
+ const trigger=lines.slice(0,jobs).join('\n');
+ expect(trigger).toMatch(/^['"]?on['"]?:$/m);
+ expect(trigger).toMatch(/^  pull_request:\s*(?:null)?$/m);
+ // Unfiltered PR verification includes every application source change.
+ expect(trigger).not.toMatch(/^\s+(?:paths|paths-ignore|branches|branches-ignore|types):/m);
+ const start=lines.indexOf('  startup_performance:');
+ expect(start).toBeGreaterThan(jobs);
+ const end=lines.findIndex((line,index)=>index>start && /^  [a-z_]+:$/.test(line));
+ const startup=lines.slice(start,end===-1?undefined:end).join('\n');
+ expect(startup).toContain('needs: verify_once');
+ expect(startup).toContain('if: ${{ !cancelled() }}');
+ expect(startup).toContain('if [[ "$COMMON_RESULT" != success ]]; then');
+ const verified=startup.indexOf('verified_build.py verify');
+ expect(verified).toBeGreaterThan(-1);
+ let previous=verified;
+ for(const command of [
+  'node scripts/startupGraph.mjs',
+  'node tests/startup-performance.browser.mjs',
+  'npx playwright test --config=playwright.pwa.config.ts --reporter=list,json',
+ ]){
+  const position=startup.indexOf(`run: ${command}`);
+  expect(position).toBeGreaterThan(previous);
+  previous=position;
+ }
+ expect(startup).toContain('PLAYWRIGHT_JSON_OUTPUT_FILE: .vercel/startup-evidence/pwa-results.json');
+ expect(startup).not.toContain('run: npm run build');
 });
