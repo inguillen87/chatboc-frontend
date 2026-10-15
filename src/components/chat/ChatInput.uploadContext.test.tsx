@@ -69,6 +69,7 @@ describe('ChatInput public demo upload context', () => {
           tenantSlug: 'municipio',
           demoSessionId: 'signed-demo-session',
           chatSessionId: 'sid_demo_session',
+          isCurrent: expect.any(Function),
         },
       );
     });
