@@ -17,6 +17,7 @@ import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { BackendBootstrapError, ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 import { fetchWithStartupContinuity, isClerkSessionRequest, isPanelCredentialLoginRequest, isStartupResponse } from '@/utils/backendRequestContinuity';
 import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { isNonRetryableSharedError } from '@/utils/retryTransientRead';
 import { readActiveTenantHostRuntime, requiresTenantHostBinding, tenantHostRequestMatches, TenantHostUnavailableError } from '@/utils/tenantHostBinding';
 
 export class NetworkError extends Error {
@@ -1430,9 +1431,15 @@ export async function apiFetch<T>(
         }
 
         if (isRetryableGatewayFailure && hasMoreBases) {
-          // A gateway failure is tied to the host/proxy, not to a legacy path
-          // alias on that same host. Move directly to the next backend base.
-          break;
+          const nonRetryableAvailability = candidateResponse.status === 503 &&
+            candidateContentType.includes('application/json') &&
+            isNonRetryableSharedError(await candidateResponse.clone().json().catch(() => null));
+          options.signal?.throwIfAborted();
+          if (!nonRetryableAvailability) {
+            // An untyped gateway failure can belong to the host/proxy. A typed
+            // application rejection must keep its original response and body.
+            break;
+          }
         }
 
         if (isMissingProxy || shouldTryNextCandidate) {

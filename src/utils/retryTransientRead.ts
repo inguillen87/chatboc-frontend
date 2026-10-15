@@ -2,9 +2,16 @@ const TRANSIENT_READ_STATUSES = new Set([500, 502, 503, 504]);
 const DEFAULT_RETRY_DELAYS_MS = [1_000, 1_500, 2_500, 4_000] as const;
 const MAX_SERVER_RETRY_AFTER_MS = 5_000;
 
+export const isNonRetryableSharedError = (body: unknown): boolean => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+  const payload = body as Record<string, unknown>;
+  return payload.contract_version === 'shared.error.v1' && payload.retryable === false;
+};
+
 const isTransientReadFailure = (error: unknown): boolean => {
   if (error && typeof error === 'object') {
-    const typedError = error as { name?: unknown; status?: unknown };
+    const typedError = error as { name?: unknown; status?: unknown; body?: unknown };
+    if (isNonRetryableSharedError(typedError.body)) return false;
     if (typedError.name === 'NetworkError' || typedError.name === 'TypeError') return true;
     const status = Number(typedError.status);
     return TRANSIENT_READ_STATUSES.has(status);
