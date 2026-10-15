@@ -1137,7 +1137,7 @@ export default function MunicipalAnalytics() {
       </section>
 
       {analyticsWarning && (
-        <Alert variant="destructive" className="bg-destructive/10 text-destructive">
+        <Alert variant="destructive" className="bg-destructive/10">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Analíticas limitadas</AlertTitle>
           <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1145,7 +1145,7 @@ export default function MunicipalAnalytics() {
             {analyticsDisabled && (
               <Button
                 variant="outline"
-                className="w-full sm:w-auto border-destructive text-destructive hover:bg-destructive/10"
+                className="w-full sm:w-auto border-destructive hover:bg-destructive/10"
                 onClick={handleRetryAnalytics}
               >
                 Reintentar analíticas

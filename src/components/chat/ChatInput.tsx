@@ -1,6 +1,6 @@
 // src/components/chat/ChatInput.tsx
-import React, { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useId, forwardRef, useImperativeHandle } from "react";
+import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles, AlertCircle } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
@@ -150,6 +150,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const inlineErrorId = useId();
+  useLayoutEffect(() => {
+    setInlineError(null);
+  }, [tenantSlug, demoSessionId, chatSessionId, validateBeforeSend]);
   const [draftRecovered, setDraftRecovered] = useState(false);
   const fallbackInputRef = useRef<HTMLInputElement>(null);
   const internalRef = inputRef || fallbackInputRef;
@@ -810,6 +814,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             onChange={(e) => {
               const val = e.target.value;
               setInput(val);
+              setInlineError(null);
               onTypingChange?.(val.trim().length > 0);
             }}
             onKeyDown={(e) => {
@@ -822,6 +827,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             autoComplete="off"
             maxLength={200}
             aria-label="Escribir mensaje"
+            aria-invalid={inlineError ? true : undefined}
+            aria-describedby={inlineError ? inlineErrorId : undefined}
             aria-keyshortcuts="Enter"
             inputMode="text"
             disabled={disabled || isTyping || isRecording}
@@ -877,7 +884,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
+                border border-border/60 bg-background text-foreground hover:-translate-y-0.5 hover:bg-secondary hover:text-secondary-foreground hover:shadow-lg
                 ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label={locationLabel}
@@ -916,9 +923,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
+                border border-border/60 hover:-translate-y-0.5 hover:shadow-lg
                 ${disabled || (!isRecording&&!isStarting&&(isTyping || isLocating || !!attachmentPreview)) ? "opacity-50 cursor-not-allowed" : ""}
-                ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
+                ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : "bg-background text-foreground hover:bg-secondary hover:text-secondary-foreground"}
               `}
               aria-label={isStarting ? "Cancelar grabación" : isRecording ? "Detener grabación" : audioLabel}
               title={isStarting ? "Cancelar grabación" : isRecording ? "Detener grabación" : audioLabel}
@@ -937,7 +944,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
+                border border-border/60 bg-background text-foreground hover:-translate-y-0.5 hover:bg-secondary hover:text-secondary-foreground hover:shadow-lg
                 ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label="Mostrar emojis"
@@ -968,18 +975,19 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
         </div>
         {(input.trim() || attachmentPreview || currentGuidedFieldLabel) ? (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 pb-1 text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
+            {(currentGuidedFieldLabel || !inlineError) ? <span className="inline-flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               {currentGuidedFieldLabel ? `Campo activo: ${currentGuidedFieldLabel}` : attachmentPreview ? 'Listo para enviar adjunto' : 'Mensaje listo para enviar'}
-            </span>
+            </span> : null}
             <span>{input.length}/200</span>
           </div>
         ) : null}
         </div>
       </div>
-      {inlineError ? (
-        <p className="mt-1 text-xs text-destructive">{inlineError}</p>
-      ) : null}
+      <div id={inlineErrorId} role="alert" aria-atomic="true"
+        className={inlineError ? "mt-1 flex items-start gap-2 rounded-lg border border-destructive/40 bg-background p-2 text-sm text-foreground" : "sr-only"}>
+        {inlineError ? <><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{inlineError}</span></> : null}
+      </div>
     </div>
   );
 });
