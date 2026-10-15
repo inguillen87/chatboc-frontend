@@ -167,7 +167,7 @@ class WorkflowContractTests(unittest.TestCase):
         for row in contract:
             job = jobs[row['job']]
             self.assertIn('    name: ' + row['name'] + '\n', job)
-            self.assertIn('    needs: verify_once\n    if: always()', job)
+            self.assertIn('    needs: verify_once\n    if: ${{ !cancelled() }}', job)
             self.assertLess(job.index('Require successful common verification'), job.index('actions/checkout@'))
             self.assertIn('exit 1', job[:job.index('actions/checkout@')])
             self.assertIn('artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}', job)

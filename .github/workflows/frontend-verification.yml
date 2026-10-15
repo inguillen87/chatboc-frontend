@@ -74,7 +74,7 @@ jobs:
   catalog_import_ux:
     name: Catalog import UX and safe errors
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -113,7 +113,7 @@ jobs:
   crm_followup_workspace:
     name: CRM persistent follow-up
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -176,7 +176,7 @@ jobs:
   geo_workspace:
     name: Geographic analytics workspace
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -230,7 +230,7 @@ jobs:
   inbox_workspace:
     name: Omnichannel inbox workspace
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -284,7 +284,7 @@ jobs:
   operations_workspace:
     name: Operations workspace and scoped reads
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -338,7 +338,7 @@ jobs:
   order_lifecycle:
     name: Order lifecycle and scoped operations
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -403,7 +403,7 @@ jobs:
   organization_presence:
     name: Organization brand and URLs
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -457,7 +457,7 @@ jobs:
   production_profile_layout:
     name: Production profile layout
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -500,7 +500,7 @@ jobs:
   section_recovery:
     name: Section recovery and preserved workspace
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -558,7 +558,7 @@ jobs:
   startup_performance:
     name: Application startup performance
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -618,7 +618,7 @@ jobs:
   superadmin_commercial_followup:
     name: SuperAdmin commercial follow-up
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -672,7 +672,7 @@ jobs:
   survey_card_production:
     name: Survey cards production verification
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -726,7 +726,7 @@ jobs:
   unified_organization_login:
     name: Unified organization login
     needs: verify_once
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
