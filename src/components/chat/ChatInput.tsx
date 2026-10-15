@@ -149,7 +149,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const [isLocating, setIsLocating] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
-  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<{ message: string; target: 'input' | 'attachment' } | null>(null);
   const inlineErrorId = useId();
   useLayoutEffect(() => {
     setInlineError(null);
@@ -465,7 +465,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
 
     const validationError = validateBeforeSend?.(nextPayload) ?? null;
     if (validationError) {
-      setInlineError(validationError);
+      setInlineError({ message: validationError, target: 'input' });
       return;
     }
 
@@ -488,7 +488,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       mode === 'image' ? undefined : ['application/pdf', 'video/*'],
     );
     if (validationError) {
-      setInlineError(validationError);
+      setInlineError({ message: validationError, target: 'attachment' });
       toast({ title: 'Archivo no permitido', description: validationError, variant: 'destructive' });
       return;
     }
@@ -827,7 +827,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             autoComplete="off"
             maxLength={200}
             aria-label="Escribir mensaje"
-            aria-invalid={inlineError ? true : undefined}
+            aria-invalid={inlineError?.target === 'input' ? true : undefined}
             aria-describedby={inlineError ? inlineErrorId : undefined}
             aria-keyshortcuts="Enter"
             inputMode="text"
@@ -986,7 +986,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       </div>
       <div id={inlineErrorId} role="alert" aria-atomic="true"
         className={inlineError ? "mt-1 flex items-start gap-2 rounded-lg border border-destructive/40 bg-background p-2 text-sm text-foreground" : "sr-only"}>
-        {inlineError ? <><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{inlineError}</span></> : null}
+        {inlineError ? <><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{inlineError.message}</span></> : null}
       </div>
     </div>
   );
