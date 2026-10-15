@@ -199,7 +199,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
             No pudimos cargar este espacio en este momento.
           </h1>
           <Alert variant="destructive" aria-labelledby={TENANT_SHELL_TITLE_ID}>
-            <AlertDescription>{sanitizePublicMessage(recoveryMessage)}</AlertDescription>
+            <AlertDescription className="break-words [overflow-wrap:anywhere]">{sanitizePublicMessage(recoveryMessage)}</AlertDescription>
           </Alert>
           <div className="flex flex-wrap items-center gap-2">
             <Button
