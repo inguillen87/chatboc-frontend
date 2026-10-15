@@ -383,11 +383,17 @@ export async function getTenantPublicInfoFlexible(
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
     } catch (slugError) {
-      if (!safeWidgetToken || slugError instanceof TenantProfileScopeError || isPwaTenantResolutionFailure(slugError)) {
+      // A token can resolve a compatible lookup/request-shape failure. It does
+      // not repair unavailable services, rate limits, authorization or an
+      // invalid response; preserve those failures without starting more reads.
+      const compatibleLookupFailure = slugError instanceof ApiError &&
+        (slugError.status === 400 || shouldTryTenantInfoFallback(slugError));
+      if (!safeWidgetToken || !compatibleLookupFailure ||
+          slugError instanceof TenantProfileScopeError || isPwaTenantResolutionFailure(slugError)) {
         throw slugError;
       }
 
-      // Si el slug falló, probamos con el widget token como alternativa.
+      // Conserva el slug explícito también en la alternativa compatible.
       const info = await resolveTenantInfo({
         slug: safeSlug,
         widgetToken: safeWidgetToken,
