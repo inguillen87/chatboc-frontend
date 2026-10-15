@@ -24,6 +24,7 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
+import { useProactiveGreeting, type ProactiveGreetingMessage } from './useProactiveGreeting';
 import { accessibleForegroundHsl, normalizeColorHsl } from "@/utils/color";
 import { applyWidgetThemeVariables, widgetThemeVariables } from "@/utils/widgetTheme";
 import { apiClient } from "@/api/client";
@@ -260,18 +261,31 @@ const pickMenuSource = (...sources: unknown[]) => {
   return null;
 };
 
-function normalizeCtaMessages(rawMessages: any): string[] {
+function normalizeCtaMessages(rawMessages: any): ProactiveGreetingMessage[] {
   if (!Array.isArray(rawMessages)) return [];
 
   return rawMessages
     .map((msg: any) => {
-      if (!msg) return '';
-      if (typeof msg === 'string') return msg;
-      return msg.text || msg.message || '';
+      if (typeof msg === 'string') return { text: msg.trim() };
+      const text = msg?.text || msg?.message;
+      return {
+        text: typeof text === 'string' ? text.trim() : '',
+        action: typeof msg?.action === 'string' ? msg.action : undefined,
+        payload: msg?.payload,
+      };
     })
-    .map((msg: string) => msg.trim())
-    .filter((msg: string) => msg.length > 0);
+    .filter((msg: ProactiveGreetingMessage) => msg.text.length > 0);
 }
+
+const resolveCtaMessages = (rawMessages: any, override?: string) => {
+  const messages = Array.isArray(rawMessages) ? rawMessages : [];
+  if (!override) return messages;
+  const matching = messages.find(message => {
+    const text = typeof message === 'string' ? message : message?.text || message?.message;
+    return typeof text === 'string' && text.trim() === override.trim();
+  });
+  return [matching ?? { text: override }];
+};
 
 function buildPlatformWidgetFallbackConfig() {
   const quickMenu = [
@@ -753,8 +767,6 @@ function ChatWidgetInner({
     };
   };
 
-  const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
   const [a11yPrefs, setA11yPrefs] = useState<Prefs>(readAccessibilityPrefs);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
@@ -1459,10 +1471,6 @@ function ChatWidgetInner({
     );
   }, [user]);
 
-  const [showCta, setShowCta] = useState(false);
-  const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
-  const [showProactiveBubble, setShowProactiveBubble] = useState(false);
-  const [proactiveCycle, setProactiveCycle] = useState(0);
   const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
   const applyWidgetFallbackProfile = useCallback(() => {
@@ -1546,44 +1554,39 @@ function ChatWidgetInner({
 
   const proactiveMessages = useMemo(() => {
     const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
-    const propMessage = typeof ctaMessage === 'string' && ctaMessage.trim().length > 0 ? [ctaMessage.trim()] : [];
-    return [...propMessage, ...backendMessages].filter((message, index, current) => current.indexOf(message) === index);
+    const propText = typeof ctaMessage === 'string' ? ctaMessage.trim() : '';
+    const propMessage = propText ? [backendMessages.find(message => message.text === propText) ?? { text: propText }] : [];
+    return [...propMessage, ...backendMessages].filter((message, index, current) => current.findIndex(item => item.text === message.text) === index);
   }, [entityInfo, ctaMessage]);
 
-  // Proactive Bubble Logic
-  useEffect(() => {
-    if (proactiveMessages.length === 0) {
-      setShowProactiveBubble(false);
-      setProactiveMessage(null);
-      return;
-    }
-
-    const shouldForceShow = entityInfo?.force_proactive === true;
-    if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
-      const timer = setTimeout(() => {
-        if (!isOpen) {
-          setProactiveMessage(proactiveMessages[0]);
-          setShowProactiveBubble(true);
-        }
-        safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-
-    const cycleTimer = setInterval(() => {
-      if (isOpen) return;
-
-      const nextIdx = (proactiveCycle + 1) % proactiveMessages.length;
-      setProactiveMessage(proactiveMessages[nextIdx]);
-      setProactiveCycle(nextIdx);
-
-      if (!showProactiveBubble) {
-        setShowProactiveBubble(true);
-      }
-    }, 6000);
-
-    return () => clearInterval(cycleTimer);
-  }, [isOpen, showProactiveBubble, proactiveCycle, proactiveMessages, entityInfo?.force_proactive]);
+  // Retire greeting callbacks on SPA navigation without changing chat identity.
+  const greetingRouteTenant = useMemo(() => {
+    try {
+      const query = new URLSearchParams(location.search);
+      const selected = sanitizeTenantSlug(query.get('tenant_slug') || query.get('tenant'));
+      if (selected) return selected;
+      const segments = location.pathname.split('/').filter(Boolean);
+      return TENANT_ROUTE_PREFIXES.includes(segments[0] as typeof TENANT_ROUTE_PREFIXES[number]) && segments[1]
+        ? sanitizeTenantSlug(decodeURIComponent(segments[1])) : null;
+    } catch { return null; }
+  }, [location.pathname, location.search]);
+  const greetingTenant = normalizeWidgetTenantScopeSlug(
+    hostBinding?.tenant.slug || contextOverride?.tenantSlug || explicitTenantSlug || greetingRouteTenant || chatTenantSlug,
+  ) || 'chatboc-platform';
+  const greetingProfileTenant = normalizeWidgetTenantScopeSlug(tenantSlugFromEntity || entityInfo?.slug) || 'chatboc-platform';
+  const proactiveGreeting = useProactiveGreeting({
+    scopeKey: JSON.stringify([widgetId, greetingTenant]),
+    bindingKey: `${location.pathname}${location.search}`,
+    messages: proactiveMessages,
+    ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant,
+    isOpen, isMobile: isMobileView, containerRef: widgetContainerRef,
+    initialDelay: entityInfo?.force_proactive === true ? 3000 : ctaMessage?.trim() ? 2500 : 6000,
+  });
+  const showProactiveBubble = Boolean(proactiveGreeting.message);
+  const dismissProactiveGreeting = useCallback((restoreFocus: boolean) => {
+    proactiveGreeting.dismiss();
+    if (restoreFocus) launcherButtonRef.current?.focus({ preventScroll: true });
+  }, [proactiveGreeting.dismiss]);
 
   const toggleChat = useCallback(() => {
     const sharedAudioContext =
@@ -1608,9 +1611,6 @@ function ChatWidgetInner({
       
       if (nextIsOpen) {
         trackWidgetEvent('widget_opened');
-        setShowProactiveBubble(false);
-        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       }
       return nextIsOpen;
     });
@@ -1694,30 +1694,17 @@ function ChatWidgetInner({
   }, [isOpen]);
 
   const handleProactiveClick = useCallback(() => {
-      let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
-      if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
-          const currentMsgObj = backendMessages[proactiveCycle % backendMessages.length];
-          if (currentMsgObj && typeof currentMsgObj === 'object' && currentMsgObj.action) {
-              setIsOpen(true);
-              trackWidgetEvent('lead_cta_clicked');
-              safeLocalStorage.setItem('pending_widget_action', JSON.stringify({
-                  action: currentMsgObj.action,
-                  payload: currentMsgObj.payload,
-                  text: currentMsgObj.text || currentMsgObj.message
-              }));
-              return;
-          }
-      }
-
-      // Ensure toggleChat opens the chat if closed
-      setIsOpen(true); // Explicitly open instead of toggle to be safe
-      trackWidgetEvent('widget_opened');
-
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      setShowProactiveBubble(false);
-
-  }, [entityInfo, proactiveCycle]);
+    const message = proactiveGreeting.message;
+    if (!message) return;
+    const activeElement = document.activeElement;
+    lastFocusedElementRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+      ? activeElement : launcherButtonRef.current;
+    if (message.action) {
+      safeLocalStorage.setItem('pending_widget_action', JSON.stringify({ action: message.action, payload: message.payload, text: message.text }));
+    }
+    setIsOpen(true);
+    trackWidgetEvent(message.action ? 'lead_cta_clicked' : 'widget_opened');
+  }, [proactiveGreeting.message]);
 
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | "portal" | null>(null);
@@ -2504,11 +2491,6 @@ function ChatWidgetInner({
 
   useEffect(() => {
     sendStateMessageToParent(isOpen);
-    if (isOpen) {
-      setShowProactiveBubble(false);
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-    }
   }, [isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
@@ -2516,40 +2498,6 @@ function ChatWidgetInner({
       sendStateMessageToParent(true);
     }
   }, [viewport, isOpen, sendStateMessageToParent]);
-
-  useEffect(() => {
-    if (isOpen || mode === 'standalone' || proactiveMessages.length === 0) {
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      setShowProactiveBubble(false);
-      return;
-    }
-    if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-    if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-
-    const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
-    if (alreadyShownProactive) return;
-
-    proactiveMessageTimeoutRef.current = setTimeout(() => {
-      const nextMessage = proactiveMessages[proactiveCycle % proactiveMessages.length];
-      if (!nextMessage) return;
-      setProactiveMessage(nextMessage);
-      setShowProactiveBubble(true);
-
-      safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
-
-      hideProactiveBubbleTimeoutRef.current = setTimeout(() => {
-        setShowProactiveBubble(false);
-        setProactiveCycle(prev => prev + 1);
-      }, 7000);
-
-    }, 10000);
-
-    return () => {
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-    };
-  }, [isOpen, proactiveCycle, mode, proactiveMessages]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -2644,21 +2592,6 @@ function ChatWidgetInner({
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId, mode]);
 
-  useEffect(() => {
-    if (!ctaMessage || isOpen || showProactiveBubble) {
-      setShowCta(false);
-      return;
-    }
-    if (safeLocalStorage.getItem("cta_seen") === "1") return;
-    const delay = setTimeout(() => {
-      setShowCta(true);
-      const hide = setTimeout(() => setShowCta(false), 8000);
-      safeLocalStorage.setItem("cta_seen", "1");
-      return () => clearTimeout(hide);
-    }, 2500);
-    return () => clearTimeout(delay);
-  }, [ctaMessage, isOpen, showProactiveBubble]);
-
 
   useEffect(() => {
     if (entityInfo?.default_open && !isOpen && !safeLocalStorage.getItem('widget_manually_closed')) {
@@ -2726,7 +2659,7 @@ function ChatWidgetInner({
                     // Priority Merge: Props > Backend Config
                     nombre_empresa: welcomeTitle || publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
                     logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url,
-                    cta_messages: ctaMessage ? [{ text: ctaMessage }] : (Array.isArray(publicConfig.cta_messages) ? publicConfig.cta_messages : []),
+                    cta_messages: resolveCtaMessages(publicConfig.cta_messages, ctaMessage),
                     theme_config: publicConfig.theme_config || {},
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
@@ -2880,7 +2813,7 @@ function ChatWidgetInner({
           ...publicConfig,
           nombre_empresa: welcomeTitle || publicConfig.tenant_name || platformTenant.nombre || publicConfig.name || publicConfig.nombre || "Chatboc",
           logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url || getChatbocBotAvatar(isDarkMode),
-          cta_messages: ctaMessage ? [{ text: ctaMessage }] : (Array.isArray(publicConfig.cta_messages) ? publicConfig.cta_messages : []),
+          cta_messages: resolveCtaMessages(publicConfig.cta_messages, ctaMessage),
           theme_config: publicConfig.theme_config || {},
           default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
           slug: platformTenant.slug || publicConfig.slug || "chatboc-platform",
@@ -3671,25 +3604,14 @@ function ChatWidgetInner({
             >
               <Suspense fallback={null}>
                   <ProactiveBubble
-                    message={proactiveMessage || ""}
+                    message={proactiveGreeting.message?.text || ""}
                     onClick={handleProactiveClick}
-                    visible={showProactiveBubble && !showCta}
+                    onDismiss={dismissProactiveGreeting}
+                    onInteractionChange={proactiveGreeting.setInteracting}
+                    visible={showProactiveBubble}
                   />
               </Suspense>
-              {showCta && ctaMessage && !showProactiveBubble && (
-                <motion.div
-                  key="chatboc-cta"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
-                  style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {ctaMessage}
-                </motion.div>
-              )}
-              {showCatalogCta && !showProactiveBubble && !showCta && (
+              {showCatalogCta && !showProactiveBubble && !proactiveGreeting.externalEditorFocused && (
                 <motion.button
                   type="button"
                   className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
