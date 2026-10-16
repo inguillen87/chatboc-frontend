@@ -9,6 +9,7 @@ import PricingSection from "@/components/sections/PricingSection";
 import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
 import CtaSection from "@/components/sections/CtaSection";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
+import { preferredScrollBehavior } from "@/utils/scrollPreference";
 
 const LegacyLandingAnchor = ({ id }: { id: string }) => (
   <span id={id} aria-hidden="true" className="block h-0 scroll-mt-24 overflow-hidden" />
@@ -26,13 +27,17 @@ const Index = () => {
 
     const sectionId = safeSessionStorage.getItem("pendingScrollSection");
     if (sectionId) {
-      setTimeout(() => {
+      const timer = window.setTimeout(() => {
+        if (safeSessionStorage.getItem("pendingScrollSection") !== sectionId) return;
         const el = document.getElementById(sectionId);
         if (el) {
-          el.scrollIntoView({ behavior: "smooth" });
+          el.scrollIntoView({ behavior: preferredScrollBehavior() });
         }
-        safeSessionStorage.removeItem("pendingScrollSection");
+        if (safeSessionStorage.getItem("pendingScrollSection") === sectionId) {
+          safeSessionStorage.removeItem("pendingScrollSection");
+        }
       }, 200);
+      return () => window.clearTimeout(timer);
     }
   }, []);
 
@@ -46,7 +51,7 @@ const Index = () => {
         <SolutionSection />
         <LegacyLandingAnchor id="publico-objetivo" />
         <LegacyLandingAnchor id="senales-valor" />
-        <DemoShowcaseSection />
+        <DemoShowcaseSection experience={landingExperience} />
         <LegacyLandingAnchor id="modulos" />
         <PricingSection />
         <CtaSection />

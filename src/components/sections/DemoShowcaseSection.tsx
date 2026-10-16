@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import "./enterpriseLanding.css";
 import {
   ArrowRight,
   Briefcase,
@@ -19,6 +20,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createDemoSession, getDemoCatalog } from "@/features/demo/demoApi";
 import type { DemoCatalogResponse, DemoSector, DemoSectorGroup } from "@/features/demo/demoTypes";
 import type { Rubro } from "@/types/rubro";
+import type { LandingExperience } from "@/api/landingExperience";
+
+type DemoShowcaseCopy = Partial<Record<
+  "eyebrow" | "title" | "description" | "loading_title" | "loading_description" |
+  "error_message" | "empty_message" | "retry_label" | "start_error_message" |
+  "starting_label" | "card_label" | "open_label", string
+>>;
+
+const readShowcaseCopy = (experience?: LandingExperience | null): DemoShowcaseCopy => {
+  const source = experience?.demo_showcase;
+  if (!source || typeof source !== "object" || Array.isArray(source)) return {};
+  return Object.fromEntries(Object.entries(source).flatMap(([key, value]) =>
+    typeof value === "string" && value.trim() ? [[key, value.trim()]] : [],
+  ));
+};
 
 const categoryIcons: Record<string, React.ReactNode> = {
   municipios_root: <Building2 className="h-5 w-5" />,
@@ -90,12 +106,13 @@ const readRubroSlug = (item: Rubro) =>
 const readRubroTenantSlug = (item: Rubro, group?: DemoSectorGroup) =>
   String((item as any).tenant_slug || (item as any).demo_tenant_slug || item.demo?.slug || (item as any).slug || group?.tenant_slug || '').trim() || null;
 
-const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; group?: DemoSectorGroup }) => {
+const DemoCard = ({ item, sector, group, copy }: { item: Rubro; sector: DemoSector; group?: DemoSectorGroup; copy: DemoShowcaseCopy }) => {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rubroLabel = readRubroLabel(item);
   const rubroDescription = readRubroDescription(item, group);
+  const openLabel = group?.cta_label?.trim() || copy.open_label;
   if (!rubroLabel) return null;
 
   const startDemo = async () => {
@@ -121,7 +138,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         },
       });
     } catch (err) {
-      setError("No pudimos abrir la demo real. Probá de nuevo en unos minutos.");
+      setError(copy.start_error_message || copy.error_message || null);
     } finally {
       setStarting(false);
     }
@@ -137,9 +154,9 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
           <CardTitle className="text-base font-semibold leading-snug transition-colors group-hover:text-primary">
             {rubroLabel}
           </CardTitle>
-          <Badge variant="secondary" className="h-5 rounded-[8px] px-2 text-[10px]">
-            Demo
-          </Badge>
+          {copy.card_label && <Badge variant="secondary" className="rounded-lg px-2 py-1 text-[10px]">
+            {copy.card_label}
+          </Badge>}
         </div>
         <CardDescription className="line-clamp-2 text-sm">
           {rubroDescription}
@@ -149,28 +166,29 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         {error ? <p className="rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
       </CardContent>
       <CardFooter className="pt-0">
-        <Button
+        {openLabel && <Button
           size="sm"
           className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold"
           onClick={startDemo}
           disabled={starting}
         >
-          {starting ? "Iniciando" : group?.cta_label?.trim() || "Probar demo"}
+          {starting ? copy.starting_label || openLabel : openLabel}
           {starting ? (
             <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
           ) : (
             <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
           )}
-        </Button>
+        </Button>}
       </CardFooter>
     </Card>
   );
 };
 
-const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSectorGroup }) => {
+const PillarDemoCard = ({ sector, group, copy }: { sector: DemoSector; group: DemoSectorGroup; copy: DemoShowcaseCopy }) => {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const openLabel = group.cta_label?.trim() || copy.open_label;
 
   const startDemo = async () => {
     setStarting(true);
@@ -201,7 +219,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         },
       });
     } catch (err) {
-      setError("No pudimos abrir la demo real. Probá de nuevo en unos minutos.");
+      setError(copy.start_error_message || copy.error_message || null);
     } finally {
       setStarting(false);
     }
@@ -220,46 +238,65 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         {error ? <p className="rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
       </CardContent>
       <CardFooter>
-        <Button size="sm" className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold" onClick={startDemo} disabled={starting}>
-          {starting ? "Iniciando" : group.cta_label?.trim() || "Probar demo"}
+        {openLabel && <Button size="sm" className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold" onClick={startDemo} disabled={starting}>
+          {starting ? copy.starting_label || openLabel : openLabel}
           {starting ? (
             <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
           ) : (
             <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
           )}
-        </Button>
+        </Button>}
       </CardFooter>
     </Card>
   );
 };
 
-const DemoShowcaseSection = () => {
+const DemoShowcaseSection = ({ experience }: { experience?: LandingExperience | null }) => {
+  const copy = readShowcaseCopy(experience);
   const [catalog, setCatalog] = useState<DemoCatalogResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const loadingRef = useRef(true);
+  const retryRequested = useRef(false);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const headingId = `demo-showcase-${React.useId().replace(/:/g, "")}`;
 
   useEffect(() => {
     let active = true;
+    loadingRef.current = true;
     setLoading(true);
     getDemoCatalog()
       .then((response) => {
         if (!active) return;
+        if (retryRequested.current && response.sector_groups?.length && document.activeElement === retryButtonRef.current) {
+          headingRef.current?.focus({ preventScroll: true });
+        }
         setCatalog(response);
-        setLoadError(null);
+        setLoadError(false);
       })
       .catch(() => {
         if (!active) return;
         setCatalog(null);
-        setLoadError("No pudimos cargar las demos reales en este momento.");
+        setLoadError(true);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!active) return;
+        loadingRef.current = false;
+        retryRequested.current = false;
+        setLoading(false);
       });
 
-    return () => {
-      active = false;
-    };
-  }, []);
+    return () => { active = false; };
+  }, [requestVersion]);
+
+  const retryCatalog = () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    retryRequested.current = true;
+    setRequestVersion((version) => version + 1);
+  };
 
   const roots = Array.isArray(catalog?.rubros) ? catalog.rubros : [];
   const groups = useMemo(() => {
@@ -272,30 +309,33 @@ const DemoShowcaseSection = () => {
   const defaultValue = groups[0]?.key ? String(groups[0].key) : undefined;
 
   return (
-    <section id="demos" className="relative overflow-hidden bg-background py-16 text-foreground md:py-24">
-      <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-primary/10 to-transparent" />
-      <div className="container relative mx-auto px-4">
-        <div className="mx-auto mb-10 max-w-4xl text-center">
-          <div className="chatboc-section-kicker mb-4">Demos</div>
-          <h2 className="chatboc-section-heading">Probá una conversación real por sector</h2>
-          <p className="chatboc-section-copy mt-4">
-            Elegí un rubro y abrí un recorrido publicado: el chat pide datos, recibe adjuntos y muestra cómo
-            queda la operación para el equipo.
-          </p>
+    <section id="demos" className="enterprise-demo-showcase py-16 text-foreground md:py-24" aria-labelledby={headingId} aria-busy={loading}>
+      <div className="container mx-auto px-4">
+        <div className="enterprise-demo-showcase__heading">
+          <div className="max-w-3xl">
+            {copy.eyebrow && <div className="chatboc-section-kicker mb-4">{copy.eyebrow}</div>}
+            <h2 ref={headingRef} id={headingId} tabIndex={-1} className="chatboc-section-heading focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{copy.title || "Demos"}</h2>
+            {copy.description && <p className="chatboc-section-copy mt-4">{copy.description}</p>}
+          </div>
+          {copy.retry_label && (retryRequested.current || loadError || (!loading && groups.length === 0)) && (
+            <Button ref={retryButtonRef} variant="outline" className="enterprise-demo-showcase__retry" aria-disabled={loading} onClick={retryCatalog}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              {copy.retry_label}
+            </Button>
+          )}
         </div>
 
         {loading ? (
-          <Alert className="mx-auto mb-6 max-w-5xl border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-            <AlertTitle>Cargando demos reales</AlertTitle>
-            <AlertDescription>
-              Estamos consultando las experiencias publicadas para iniciar una demo real.
-            </AlertDescription>
+          <Alert className="enterprise-demo-showcase__status" role="status">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            <div>{copy.loading_title && <AlertTitle>{copy.loading_title}</AlertTitle>}
+            {copy.loading_description && <AlertDescription>{copy.loading_description}</AlertDescription>}</div>
           </Alert>
         ) : null}
 
         {!loading && (loadError || groups.length === 0) ? (
-          <div className="mx-auto max-w-2xl rounded-[8px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
-            {loadError || "Todavía no hay demos publicadas para mostrar."}
+          <div className="enterprise-demo-showcase__status" role="status">
+            <p>{loadError ? copy.error_message : copy.empty_message}</p>
           </div>
         ) : null}
 
@@ -331,11 +371,7 @@ const DemoShowcaseSection = () => {
                       </div>
                       <h3 className="text-2xl font-bold">{group.label || String(group.key)}</h3>
                       {group.description ? <p className="mt-3 text-sm text-muted-foreground">{group.description}</p> : null}
-                      {cards.length ? (
-                        <p className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
-                          {cards.length} experiencias publicadas para iniciar desde este pilar.
-                        </p>
-                      ) : null}
+
                     </div>
 
                     {cards.length ? (
@@ -346,12 +382,13 @@ const DemoShowcaseSection = () => {
                             item={item as Rubro}
                             sector={sector}
                             group={group}
+                            copy={copy}
                           />
                         ))}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <PillarDemoCard sector={sector} group={group} />
+                        <PillarDemoCard sector={sector} group={group} copy={copy} />
                       </div>
                     )}
                   </div>

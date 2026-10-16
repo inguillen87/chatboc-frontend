@@ -12,6 +12,13 @@ import UserLogin from '@/pages/UserLogin';
 import UserRegister from '@/pages/UserRegister';
 const ClerkSsoCallbackPage = React.lazy(() => import('@/pages/ClerkSsoCallbackPage'));
 const Demo = React.lazy(() => import('@/pages/Demo'));
+const ContactPage = React.lazy(() => import('@/pages/ContactPage'));
+const DemoEntry = () => {
+  const location = useLocation();
+  return new URLSearchParams(location.search).get('intent') === 'ventas'
+    ? <Navigate to="/contacto" replace />
+    : <Demo />;
+};
 const DisabilityAIAgentDemoPage = React.lazy(
   () => import('@/pages/public/DisabilityAIAgentDemoPage'),
 );
@@ -541,8 +548,8 @@ const routes: RouteConfig[] = [
   { path: '/user/register', element: <UserRegister /> },
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
   { path: '/cuenta', element: <UserAccount /> },
-  { path: '/demo', element: <Demo /> },
-  { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
+  { path: '/demo', element: <DemoEntry /> },
+  { path: '/contacto', element: <ContactPage />, allowGuest: true },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
   {
     path: DISABILITY_AI_AGENT_DEMO_PATH,

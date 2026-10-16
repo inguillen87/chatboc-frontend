@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import "./enterpriseLanding.css";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -148,6 +149,17 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return defaultValue;
+};
+
+const isLegacyCtaLabel = (source: unknown, expected: string) => {
+  const declaredLabel = isRecord(source)
+    ? readRawText(source, ["label", "title", "text"])
+    : typeof source === "string" ? source : "";
+  // Recognize only the two historical labels before customer-copy cleaning.
+  // Custom labels and their declared destinations retain the normal path.
+  const normalize = (value: string) => value.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return normalize(declaredLabel) === normalize(expected);
 };
 
 const DEFAULT_HEADLINE = "Convertí conversaciones en operaciones reales";
@@ -812,20 +824,22 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     first(hero, ["proof_items", "trust_signals", "proof", "badges"]) ?? experience?.proof_bar,
   );
   const proofItems = publishedProofItems.length ? publishedProofItems : DEFAULT_PROOF_ITEMS;
-  const publishedPrimaryCta = normalizeCta(first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0], {
+  const primaryCtaSource = first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0];
+  const secondaryCtaSource = first(hero, ["secondary_cta", "secondaryCta"]) ?? asArray(experience?.ctas)[1];
+  const publishedPrimaryCta = normalizeCta(primaryCtaSource, {
     label: DEFAULT_PRIMARY_CTA.label,
     target: DEFAULT_PRIMARY_CTA.target,
   });
-  const publishedSecondaryCta = normalizeCta(first(hero, ["secondary_cta", "secondaryCta"]) ?? asArray(experience?.ctas)[1], {
+  const publishedSecondaryCta = normalizeCta(secondaryCtaSource, {
     label: DEFAULT_SECONDARY_CTA.label,
     target: DEFAULT_SECONDARY_CTA.target,
   });
   const primaryCta =
-    publishedPrimaryCta.label === LEGACY_PRIMARY_CTA_LABEL
+    isLegacyCtaLabel(primaryCtaSource, LEGACY_PRIMARY_CTA_LABEL)
       ? { label: DEFAULT_PRIMARY_CTA.label, target: publishedSecondaryCta.target || DEFAULT_PRIMARY_CTA.target }
       : publishedPrimaryCta;
   const secondaryCta =
-    publishedSecondaryCta.label === LEGACY_SECONDARY_CTA_LABEL
+    isLegacyCtaLabel(secondaryCtaSource, LEGACY_SECONDARY_CTA_LABEL)
       ? { label: DEFAULT_SECONDARY_CTA.label, target: publishedPrimaryCta.target || DEFAULT_SECONDARY_CTA.target }
       : publishedSecondaryCta;
   const publishedPreviewTitle = readText(hero, ["conversation_title", "demo_title", "preview_title", "dashboard_title"]);
@@ -906,6 +920,21 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   } as React.CSSProperties;
   const showHeroPreview =
     Boolean(activeFlow?.message && activeFlow?.response && (activeAction || activeFlow.resultTraceable));
+  const presentation = isRecord(hero.presentation) ? hero.presentation : undefined;
+  const presentationLabel = presentation?.kind === "illustrative_walkthrough"
+    ? readText(presentation, ["label"]) : "";
+  const presentationNotice = presentationLabel ? readText(presentation, ["notice"]) : "";
+  const overview = isRecord(hero.capability_overview) ? hero.capability_overview : undefined;
+  const overviewTitle = readText(overview, ["title"]);
+  const overviewSteps = asArray(overview?.steps).flatMap((value, index) => {
+    if (!isRecord(value)) return [];
+    const label = readText(value, ["label"]);
+    const detail = readText(value, ["detail"]);
+    return label && detail ? [{ id: readText(value, ["id"], String(index)), label, detail }] : [];
+  }).slice(0, 4);
+  const showCapabilityOverview = Boolean(!showHeroPreview && overviewTitle && overviewSteps.length);
+  const hasProductVisual = showHeroPreview || showCapabilityOverview;
+  const overviewTitleId = `${conversationDemoId}-overview-title`;
   const headlineWords = headline.split(/\s+/).filter(Boolean);
   const headlineLead = headlineWords.slice(0, Math.max(2, headlineWords.length - 3)).join(" ");
   const headlineAccent = headlineWords.slice(Math.max(2, headlineWords.length - 3)).join(" ");
@@ -922,13 +951,13 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   return (
     <section
       id="inicio"
-      className="chatboc-hero-grid relative overflow-visible pb-9 pt-10 text-foreground md:pb-12 md:pt-12"
+      className={`enterprise-hero ${hasProductVisual ? "enterprise-hero--with-visual" : "enterprise-hero--editorial"}`}
       style={accentStyle}
       data-chatboc-hero
     >
-      <div className="container mx-auto px-4 2xl:max-w-[1480px]">
-        <div className={`chatboc-hero-layout grid items-center gap-8 lg:!grid-cols-[minmax(0,0.92fr)_minmax(32rem,1.08fr)] lg:!gap-12 xl:!gap-16 ${showHeroPreview ? "" : "lg:!grid-cols-1"}`}>
-          <div className="min-w-0 max-w-2xl">
+      <div className="enterprise-hero__container">
+        <div className="enterprise-hero__layout">
+          <div className="enterprise-hero__copy">
             {eyebrow && (
               <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/15 bg-primary/[0.06] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
@@ -937,20 +966,20 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {headline && (
-              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.04] tracking-[-0.035em] text-foreground sm:text-5xl md:text-6xl lg:!max-w-[13ch] lg:!text-[clamp(3.35rem,3.8vw,4.6rem)]">
+              <h1 className="enterprise-hero__headline">
                 <span>{headlineLead}</span>{" "}
                 {headlineAccent && <span className="text-primary">{headlineAccent}</span>}
               </h1>
             )}
 
             {description && (
-              <p className="chatboc-hero-description mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+              <p className="enterprise-hero__description">
                 {description}
               </p>
             )}
 
             {(heroPrimaryCta.label || secondaryCta.label) && (
-              <div className="chatboc-hero-actions mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className="enterprise-hero__actions">
                 {heroPrimaryCta.label && (
                   <Button
                     size="lg"
@@ -976,7 +1005,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {proofItems.length > 0 && (
-              <div className="chatboc-hero-proof mt-6 flex flex-wrap gap-x-5 gap-y-2" aria-label="Capacidades de la plataforma">
+              <div className="enterprise-hero__proof" aria-label="Capacidades de la plataforma">
                 {proofItems.slice(0, 3).map((item) => (
                   <div
                     key={item}
@@ -991,14 +1020,19 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           </div>
 
           {showHeroPreview && (
-          <div className="relative min-w-0">
-            <div className="chatboc-hero-aura !opacity-50 motion-reduce:hidden" aria-hidden="true" />
-            <div className="chatboc-hero-stage !min-h-0 !w-full !min-w-0 !grid-cols-[minmax(0,1fr)] !p-0">
-              <div className="chatboc-hero-preview before:!hidden after:!hidden !m-0 !w-full !min-w-0 !max-w-full !transform-none !rounded-[24px] !p-px lg:!max-w-[43rem]">
+          <div className="enterprise-hero__product" data-presentation-kind={presentation?.kind}>
+            {presentationLabel && (
+              <div className="enterprise-hero__disclosure">
+                <span><ClipboardCheck className="h-4 w-4" aria-hidden="true" />{presentationLabel}</span>
+                {presentationNotice && <p>{presentationNotice}</p>}
+              </div>
+            )}
+            <div className="enterprise-hero__scene">
+              <div className="enterprise-hero__preview">
               {activeFlow && (
-                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)} !h-[31rem] !min-h-0 !rounded-[23px] sm:!h-[30rem]`}>
+                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)} enterprise-hero__workspace`}>
 
-                  <div className="chatboc-phone-demo__bar !min-h-[66px] !px-4 !py-3">
+                  <div className="chatboc-phone-demo__bar enterprise-hero__workspace-header">
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-primary/15 bg-primary/[0.08] text-primary">
                         <ActiveFlowIcon className="h-4 w-4" aria-hidden="true" />
@@ -1016,16 +1050,12 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         )}
                       </div>
                     </div>
-                    {readText(hero, ["status_label", "preview_status"]) && (
-                      <div className="chatboc-live-chip shrink-0 rounded-[8px] border border-primary/15 bg-primary/[0.07] px-2.5 py-1 text-[11px] font-semibold text-primary">
-                        {readText(hero, ["status_label", "preview_status"])}
-                      </div>
-                    )}
+
                   </div>
 
                   {conversationFlows.length > 1 && (
                     <div
-                      className="chatboc-phone-demo__tabs !gap-1.5 !px-3 !py-2"
+                      className="chatboc-phone-demo__tabs enterprise-hero__tabs"
                       role="tablist"
                       aria-label="Ejemplos de conversaciones operativas"
                     >
@@ -1041,7 +1071,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             aria-selected={isActive}
                             aria-controls={conversationPanelId}
                             tabIndex={isActive ? 0 : -1}
-                            className={`chatboc-phone-demo__tab !min-h-8 !gap-1.5 !px-2.5 !py-1 !text-[11px] ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
+                            className={`chatboc-phone-demo__tab enterprise-hero__tab ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
                             onClick={() => selectConversationFlow(index)}
                             onKeyDown={(event) => handleConversationTabKeyDown(event, index)}
                           >
@@ -1056,7 +1086,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   <div
                     key={activeFlow.id}
                     id={conversationFlows.length > 1 ? conversationPanelId : undefined}
-                    className="chatboc-phone-demo__screen !grid !grid-cols-1 !gap-3 !overflow-auto !p-3 sm:!grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                    className="chatboc-phone-demo__screen enterprise-hero__conversation-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                     role={conversationFlows.length > 1 ? "tabpanel" : "region"}
                     aria-labelledby={
                       conversationFlows.length > 1
@@ -1190,9 +1220,26 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             </div>
           </div>
           )}
+          {showCapabilityOverview && (
+            <aside className="enterprise-hero__product enterprise-hero__overview" aria-labelledby={overviewTitleId}>
+              {readText(overview, ["label"]) && <p className="enterprise-hero__overview-kicker">{readText(overview, ["label"])}</p>}
+              <h2 id={overviewTitleId}>{overviewTitle}</h2>
+              {readText(overview, ["description"]) && <p className="enterprise-hero__overview-description">{readText(overview, ["description"])}</p>}
+              <ol>
+                {overviewSteps.map((step, index) => (
+                  <li key={step.id}>
+                    <span className="enterprise-hero__step-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                    <div><h3>{step.label}</h3><p>{step.detail}</p></div>
+                    <ArrowRight className="enterprise-hero__step-arrow" aria-hidden="true" />
+                  </li>
+                ))}
+              </ol>
+              {presentationNotice && <p className="enterprise-hero__overview-notice">{presentationNotice}</p>}
+            </aside>
+          )}
         </div>
         <div
-          className="mx-auto mt-5 flex w-full max-w-5xl items-center gap-3 md:mt-7"
+          className="enterprise-hero__integration-note"
           role="group"
           aria-label="Integraciones disponibles por configuración"
         >

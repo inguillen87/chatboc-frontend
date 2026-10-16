@@ -6,6 +6,42 @@ import { describe, expect, it, vi } from 'vitest';
 import HeroSection from './HeroSection';
 
 describe('HeroSection backend-driven conversation demo', () => {
+  it('shows the published illustration notice without claiming an online service', () => {
+    render(<MemoryRouter><HeroSection experience={{ hero: {
+      presentation: { kind: 'illustrative_walkthrough', label: 'Ejemplo de recorrido', notice: 'Ilustración del proceso. No envía mensajes ni crea registros.' },
+      status_label: 'En línea ahora',
+      conversation_demo: { flows: [{ id: 'ejemplo', label: 'Consulta', user_message: 'Mensaje de ejemplo', agent_message: 'Respuesta de ejemplo', action: { label: 'Registro de ejemplo' } }] },
+    } }} /></MemoryRouter>);
+    expect(screen.getByText('Ejemplo de recorrido')).toBeInTheDocument();
+    expect(screen.getByText('Ilustración del proceso. No envía mensajes ni crea registros.')).toBeInTheDocument();
+    expect(screen.queryByText('En línea ahora')).not.toBeInTheDocument();
+  });
+
+  it('renders only published capability steps when no conversation is provided', () => {
+    const { container } = render(<MemoryRouter><HeroSection experience={{ hero: {
+      presentation: { kind: 'illustrative_walkthrough', label: 'Ejemplo de recorrido', notice: 'Sin envío de mensajes.' },
+      capability_overview: { label: 'Vista de capacidades', title: 'Del canal al equipo', description: 'Una orientación informativa.', steps: [
+        { id: 'entrada', label: 'Entrada', detail: 'Canales configurados por la organización.' },
+        { id: 'equipo', label: 'Equipo', detail: 'Responsables y seguimiento.' },
+      ] },
+    } }} /></MemoryRouter>);
+    expect(screen.getByRole('complementary', { name: 'Del canal al equipo' })).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByText('Sin envío de mensajes.')).toBeInTheDocument();
+    expect(container.querySelector('.chatboc-phone-demo')).toBeNull();
+    expect(container.querySelector('.enterprise-hero--with-visual')).not.toBeNull();
+    expect(screen.queryByText('Resultado en CRM')).not.toBeInTheDocument();
+  });
+
+  it('uses a deliberate one-column composition for an unavailable or incomplete contract', () => {
+    const { container, rerender } = render(<MemoryRouter><HeroSection experience={null} /></MemoryRouter>);
+    expect(container.querySelector('.enterprise-hero--editorial')).not.toBeNull();
+    expect(container.querySelector('.enterprise-hero__product')).toBeNull();
+    rerender(<MemoryRouter><HeroSection experience={{ hero: { capability_overview: { title: 'No inventar etapas', steps: [{ label: 'Sin detalle' }] } } }} /></MemoryRouter>);
+    expect(container.querySelector('.enterprise-hero--editorial')).not.toBeNull();
+    expect(screen.queryByText('No inventar etapas')).not.toBeInTheDocument();
+  });
+
   it('does not render the phone demo when backend does not publish a traceable result', () => {
     const { container } = render(
       <MemoryRouter>
