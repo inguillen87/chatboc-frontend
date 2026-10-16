@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as surveyGovernance from '@/utils/surveyGovernance';
 
 import type {
   SurveyGovernanceRelease,
@@ -567,19 +568,35 @@ describe('SurveyGovernancePanel', () => {
       expect(screen.getByLabelText('SHA-256 calculado con Web Crypto')).toHaveValue(CONSENT_SHA256),
     );
 
-    const createButton = screen.getByRole('button', { name: /Crear release borrador/i });
-    await act(async () => {
-      createButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      createButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-    expect(apiMocks.create).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      request.resolve(draftAck());
-      await request.promise;
-    });
-    expect(await screen.findByText(/Release borrador confirmado por el backend/i)).toBeInTheDocument();
+    // Preparation re-hashes consent asynchronously. Hold it explicitly so the
+    // synchronous double-click lock is tested independently of Web Crypto timing.
+    const prepared = await surveyGovernance.prepareSurveyConsentPublicText(CONSENT_TEXT);
+    const preparation = deferred<typeof prepared>();
+    const prepareSpy = vi.spyOn(surveyGovernance, 'prepareSurveyConsentPublicText')
+      .mockReturnValueOnce(preparation.promise);
+    try {
+      const createButton = screen.getByRole('button', { name: /Crear release borrador/i });
+      await act(async () => {
+        createButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        createButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await Promise.resolve();
+      });
+      expect(prepareSpy).toHaveBeenCalledTimes(1);
+      expect(apiMocks.create).not.toHaveBeenCalled();
+      await act(async () => {
+        preparation.resolve(prepared);
+        await preparation.promise;
+      });
+      await waitFor(() => expect(apiMocks.create).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        request.resolve(draftAck());
+        await request.promise;
+      });
+      expect(await screen.findByText(/Release borrador confirmado por el backend/i)).toBeInTheDocument();
+      expect(apiMocks.create).toHaveBeenCalledTimes(1);
+    } finally {
+      prepareSpy.mockRestore();
+    }
   });
 
   it('publishes and closes only when each release action is explicitly authorized', async () => {

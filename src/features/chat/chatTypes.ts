@@ -6,6 +6,7 @@ import type {
   ChatLeadCaptureConfig,
   ChatMediaCapabilities,
 } from '@/types/chat';
+import type { SurveyChatMenu } from './surveyChatMenu';
 
 export type ChatVertical = 'municipio' | 'pyme';
 
@@ -16,6 +17,7 @@ export interface ChatUiMessage {
   text: string;
   role: 'user' | 'assistant' | 'system';
   timestamp?: string;
+  surveyMenu?: SurveyChatMenu | null;
 }
 
 export interface QuickReplyItem {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Radio, Vote } from 'lucide-react';
-import { useTenant } from '@/context/TenantContext';
+import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
+import { ViewState } from '@/components/app-shell/ViewState';
 
 import { analyticsService, AnalyticsSummary, RealtimeHubResponse } from '@/services/analyticsService';
 import { enterpriseService, type LeadInteractionItem, type LeadInteractionsResponse } from '@/services/enterpriseService';
@@ -23,52 +24,12 @@ import { OperationsDashboardPanel } from '@/features/analytics/OperationsDashboa
 import { openExportAndTrack } from '@/utils/enterpriseExperience';
 import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { useUser } from '@/hooks/useUser';
-
-
-const resolveDefaultScope = (tenantType?: string | null) => {
-  try {
-    const rawUser = safeLocalStorage.getItem('user');
-    if (rawUser) {
-      const user = JSON.parse(rawUser);
-      if (user?.tipo_chat === 'pyme') return 'pyme';
-      if (user?.tipo_chat === 'municipio') return 'municipio';
-    }
-  } catch {
-    return 'municipio';
-  }
-
-  if (tenantType === 'pyme') return 'pyme';
-  if (tenantType === 'municipio' || tenantType === 'municipal') return 'municipio';
-
-  return 'municipio';
-};
-
-const resolveStoredPanelScope = () => {
-  try {
-    const rawUser = safeLocalStorage.getItem('user');
-    if (!rawUser) return null;
-    const user = JSON.parse(rawUser);
-    if (user?.tipo_chat === 'pyme') return 'pyme';
-    if (user?.tipo_chat === 'municipio') return 'municipio';
-  } catch {
-    return null;
-  }
-  return null;
-};
-
-const normalizeScopeCandidate = (value?: string | null) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'municipio' || normalized === 'municipal') return 'municipio';
-  if (normalized === 'pyme' || normalized === 'empresa' || normalized === 'ventas') return 'pyme';
-  return null;
-};
-
-const resolveRequestedScope = (value?: string | null) => {
-  return normalizeScopeCandidate(value);
-};
+import { BASE_API_URL } from '@/config';
+import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
+import { STARTUP_CONTINUITY_BUDGET_MS } from '@/utils/backendRequestContinuity';
+import { withAsyncTimeout } from '@/utils/asyncTimeout';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
 
@@ -109,36 +70,19 @@ const resolveRequestedAnalyticsTab = (searchParams: URLSearchParams): AnalyticsT
   return null;
 };
 
-const resolveInitialAnalyticsTab = (searchParams: URLSearchParams, isEmbeddedInProfile: boolean): AnalyticsTab =>
-  resolveRequestedAnalyticsTab(searchParams) || (isEmbeddedInProfile ? 'operations' : 'overview');
+const tabMatchesOrganization = (tab: AnalyticsTab, scope: 'municipio' | 'pyme') =>
+  tab !== (scope === 'municipio' ? 'pyme' : 'municipio');
 
-const ANALYTICS_HUB_TIMEOUT_MS = 3500;
-const ANALYTICS_SUMMARY_TIMEOUT_MS = 5500;
-
-const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
-  kpis: {
-    total_interactions: 0,
-    active_users: 0,
-    avg_response_time_s: 0,
-  },
-  top_categories: [],
-  volume_by_day: [],
-  heatmap_points: [],
-  insights: [],
+const resolveInitialAnalyticsTab = (searchParams: URLSearchParams, isEmbeddedInProfile: boolean, scope: 'municipio' | 'pyme'): AnalyticsTab => {
+  const requested = resolveRequestedAnalyticsTab(searchParams);
+  return requested && tabMatchesOrganization(requested, scope)
+    ? requested
+    : isEmbeddedInProfile ? 'operations' : 'overview';
 };
 
-const withAnalyticsTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(label)), timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-};
+export const ANALYTICS_RESPONSE_TIMEOUT_MS = 15_000;
+// Preserve readiness/recovery budgets, with a deliberate ceiling for the complete attempt.
+export const ANALYTICS_TOTAL_TIMEOUT_MS = 2 * STARTUP_CONTINUITY_BUDGET_MS + 2 * ANALYTICS_RESPONSE_TIMEOUT_MS;
 
 
 const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> = [
@@ -183,23 +127,23 @@ function ModelPolicyBadges({ policy }: { policy: Record<string, unknown> | null 
 
 
 const AnalyticsPage = () => {
+  const { scope, pending, key } = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso" />;
+  if (!scope || !scope.kind) return <ViewState status="empty" title="Seleccioná una organización" description="El análisis requiere un perfil y una organización verificados." />;
+  return <ScopedAnalyticsPage key={`${key}:${scope.kind}`} currentSlug={scope.tenantSlug} tenantId={scope.tenantId ?? 0} panelUserScope={scope.kind} platformAdmin={scope.platformAdmin} />;
+};
+const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAdmin }: { currentSlug: string; tenantId: number; panelUserScope: 'municipio' | 'pyme'; platformAdmin: boolean }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentSlug, tenant } = useTenant();
-  const { user } = useUser();
   const isEmbeddedInProfile = location.pathname === '/perfil';
-  const storedPanelScope = resolveStoredPanelScope();
-  const liveUserScope = normalizeScopeCandidate(user?.tipo_chat);
-  const panelUserScope = isEmbeddedInProfile
-    ? storedPanelScope || liveUserScope
-    : liveUserScope || storedPanelScope;
-
-  const tenantId = tenant?.id ? Number(tenant.id) : (parseInt(searchParams.get('tenant_id') || '0', 10));
 
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const summaryRequest = useRef(0);
+  const summaryAbort = useRef<AbortController | null>(null);
+  const realtimeRequest = useRef(0);
 
   const [timeRange, setTimeRange] = useState(searchParams.get('range') || '7d');
   const [channelFilter, setChannelFilter] = useState(searchParams.get('canal') || '');
@@ -208,7 +152,7 @@ const AnalyticsPage = () => {
   const [genderFilter, setGenderFilter] = useState(searchParams.get('genero') || searchParams.get('sexo') || '');
   const [ageRangeFilter, setAgeRangeFilter] = useState(searchParams.get('rango_edad') || '');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || searchParams.get('fuente') || '');
-  const [scope, setScope] = useState(() => resolveRequestedScope(searchParams.get('scope')) || resolveDefaultScope(tenant?.tipo));
+  const scope = panelUserScope;
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [executiveModelPolicy, setExecutiveModelPolicy] = useState<Record<string, unknown> | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -224,8 +168,11 @@ const AnalyticsPage = () => {
   const [realtimeHub, setRealtimeHub] = useState<RealtimeHubResponse | null>(null);
   const [loadingRealtimeHub, setLoadingRealtimeHub] = useState(false);
   const [autoRefreshRealtimeHub, setAutoRefreshRealtimeHub] = useState(true);
-  const requestedAnalyticsTab = useMemo(() => resolveRequestedAnalyticsTab(searchParams), [searchParams]);
-  const [activeTab, setActiveTab] = useState<AnalyticsTab>(() => resolveInitialAnalyticsTab(searchParams, isEmbeddedInProfile));
+  const requestedAnalyticsTab = useMemo(() => {
+    const requested = resolveRequestedAnalyticsTab(searchParams);
+    return requested && tabMatchesOrganization(requested, scope) ? requested : null;
+  }, [searchParams, scope]);
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>(() => resolveInitialAnalyticsTab(searchParams, isEmbeddedInProfile, scope));
 
   const hubEncuestasPath = useMemo(() => {
     const encuestasEntry = hubNavigation.find((item) => item?.key === 'encuestas' && typeof item?.path === 'string' && item.path);
@@ -251,21 +198,32 @@ const AnalyticsPage = () => {
       .filter(Boolean) as AnalyticsTab[];
 
     if (!tabsFromHub.length) {
-      return ['overview', 'operations', 'municipio', 'pyme', 'realtime'] as AnalyticsTab[];
+      return ['overview', 'operations', scope, 'realtime'] as AnalyticsTab[];
     }
 
-    const withOperations = tabsFromHub.includes('operations')
+    const withOperations: AnalyticsTab[] = tabsFromHub.includes('operations')
       ? tabsFromHub
       : [...tabsFromHub.slice(0, 1), 'operations', ...tabsFromHub.slice(1)];
 
-    const withRealtime = withOperations.includes('realtime')
+    const withRealtime: AnalyticsTab[] = withOperations.includes('realtime')
       ? withOperations
       : [...withOperations, 'realtime'];
 
-    return withRealtime.includes('operations')
-      ? withRealtime.filter((tab) => tab !== 'geo')
-      : withRealtime;
-  }, [hubSections]);
+    return Array.from(new Set(withRealtime)).filter((tab) =>
+      tabMatchesOrganization(tab, scope) && (!withRealtime.includes('operations') || tab !== 'geo'),
+    );
+  }, [hubSections, scope]);
+
+  const selectAnalyticsTab = (tab: AnalyticsTab) => {
+    if (!visibleTabs.includes(tab)) return;
+    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams);
+    // One canonical focus keeps a deliberate tab change consistent with deep links.
+    next.set('focus', tab);
+    next.delete('section');
+    next.delete('view');
+    navigate({ search: `?${next.toString()}` }, { replace: true });
+  };
 
   useEffect(() => {
     if (!visibleTabs.includes(activeTab)) {
@@ -284,7 +242,7 @@ const AnalyticsPage = () => {
     }
   }, [activeTab, requestedAnalyticsTab, visibleTabs]);
 
-  const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
+  const fireAndForgetTrackEvent = (payload: { tenant_profile_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
       .trackEvent(payload, currentSlug || undefined)
       .catch((trackError) => console.warn('[AnalyticsPage] tracking failed', trackError));
@@ -309,18 +267,6 @@ const AnalyticsPage = () => {
     }
   }, [timeRange, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter, scope, searchParams, navigate]);
 
-  useEffect(() => {
-    const requestedScope = resolveRequestedScope(searchParams.get('scope'));
-    setScope((prevScope) => {
-      const lockedProfileScope = isEmbeddedInProfile ? panelUserScope : null;
-      const nextScope =
-        lockedProfileScope ||
-        requestedScope ||
-        panelUserScope ||
-        resolveDefaultScope(tenant?.tipo ?? null);
-      return prevScope === nextScope ? prevScope : nextScope;
-    });
-  }, [isEmbeddedInProfile, panelUserScope, searchParams, tenant?.tipo]);
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -332,11 +278,18 @@ const AnalyticsPage = () => {
   }, [timeRange]);
 
   const fetchData = async () => {
+    summaryAbort.current?.abort();
+    const controller = new AbortController();
+    summaryAbort.current = controller;
+    const request = ++summaryRequest.current;
+    const sessionRevision = captureChatbocSessionRevision();
+    const ownsRequest = () => summaryRequest.current === request && isChatbocSessionRevisionCurrent(sessionRevision);
+    const isCurrent = () => ownsRequest() && !controller.signal.aborted;
     setLoading(true);
     setError(null);
     try {
       const requestPayload = {
-        tenant_id: tenantId,
+        tenant_profile_id: tenantId,
         tenantSlug: currentSlug || undefined,
         from: dateRange.from,
         to: dateRange.to,
@@ -349,46 +302,34 @@ const AnalyticsPage = () => {
         rango_edad: ageRangeFilter || undefined,
         source: sourceFilter || undefined,
       };
-      let result: AnalyticsSummary;
-
-      const hub = await withAnalyticsTimeout(
-        analyticsService.getHub(requestPayload).catch(() => null),
-        ANALYTICS_HUB_TIMEOUT_MS,
-        'analytics_hub_timeout',
-      ).catch(() => null);
-      const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
-      setHubNavigation(primaryNavigation);
-      setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
-
-      try {
-        result = await withAnalyticsTimeout(
-          analyticsService.getSummary(requestPayload, hub),
-          ANALYTICS_SUMMARY_TIMEOUT_MS,
-          'analytics_summary_timeout',
+      const read = async () => {
+        const hub = await withBackendReadTimeout(
+          () => analyticsService.getHub(requestPayload, { strictAccess: true, signal: controller.signal, isCurrent }),
+          ANALYTICS_RESPONSE_TIMEOUT_MS,
+          'Analytics hub',
+          BASE_API_URL,
+          isCurrent,
         );
-      } catch (err: any) {
-        const shouldTryAlternateScope =
-          err instanceof ApiError &&
-          err.status === 400 &&
-          (scope === 'municipio' || scope === 'pyme') &&
-          !resolveRequestedScope(searchParams.get('scope')) &&
-          !panelUserScope &&
-          tenant?.tipo !== 'municipio' &&
-          tenant?.tipo !== 'municipal';
+        if (!isCurrent()) throw new DOMException('Analytics read retired', 'AbortError');
+        const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
+        setHubNavigation(primaryNavigation);
+        setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
 
-        if (!shouldTryAlternateScope) {
-          throw err;
-        }
+        return withBackendReadTimeout(
+          () => analyticsService.getSummary(requestPayload, hub),
+          ANALYTICS_RESPONSE_TIMEOUT_MS,
+          'Analytics summary',
+          BASE_API_URL,
+          isCurrent,
+        );
+      };
+      const result = await withAsyncTimeout(read(), ANALYTICS_TOTAL_TIMEOUT_MS, 'Analytics dashboard');
 
-        const alternateScope = scope === 'municipio' ? 'pyme' : 'municipio';
-        result = await analyticsService.getSummary({ ...requestPayload, scope: alternateScope });
-        setScope(alternateScope);
-      }
-
+      if (!isCurrent()) return;
       setData(result);
       if (tenantId) {
         fireAndForgetTrackEvent({
-          tenant_id: tenantId,
+          tenant_profile_id: tenantId,
           event_name: 'dashboard_view',
           payload: { path: '/panel/analytics', source: 'web' },
           channel: 'web_widget',
@@ -396,16 +337,16 @@ const AnalyticsPage = () => {
         });
       }
     } catch (err: any) {
+      if (!isCurrent()) return;
+      controller.abort();
       console.error(err);
-      if (err instanceof Error && err.message === 'analytics_summary_timeout') {
-        setData(EMPTY_ANALYTICS_SUMMARY);
-        setError(null);
-        return;
-      }
+      setData(null);
+      setHubNavigation([]);
+      setHubSections({});
       const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err.status, 'load_analytics') : 'No se pudo cargar el dashboard.';
       setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
-      setLoading(false);
+      if (ownsRequest()) setLoading(false);
     }
   };
 
@@ -413,6 +354,7 @@ const AnalyticsPage = () => {
     if (tenantId || currentSlug) {
         fetchData();
     }
+    return () => { summaryRequest.current += 1; summaryAbort.current?.abort(); };
   }, [tenantId, currentSlug, dateRange, activeTab, scope, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter]);
 
   const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {
@@ -423,7 +365,7 @@ const AnalyticsPage = () => {
   };
 
   const fetchLeadInteractions = async (options?: { cursor?: string; append?: boolean }) => {
-    if (!tenantId) return;
+    if (!platformAdmin || !currentSlug) return;
     const isAppend = Boolean(options?.append);
     if (isAppend) {
       setLoadingMoreLeadInteractions(true);
@@ -434,7 +376,6 @@ const AnalyticsPage = () => {
     try {
       const response = await enterpriseService.getLeadInteractions(
         {
-          tenant_id: tenantId,
           limit: 20,
           cursor: options?.cursor,
           from: dateRange.from,
@@ -463,33 +404,39 @@ const AnalyticsPage = () => {
 
   useEffect(() => {
     fetchLeadInteractions();
-  }, [tenantId, currentSlug, dateRange.from, dateRange.to, scope]);
+  }, [platformAdmin, currentSlug, dateRange.from, dateRange.to, scope]);
 
   const fetchRealtimeHub = useMemo(
     () => async () => {
       if (!tenantId) return;
 
+      const request = ++realtimeRequest.current;
+      const sessionRevision = captureChatbocSessionRevision();
+      const isCurrent = () => realtimeRequest.current === request && isChatbocSessionRevisionCurrent(sessionRevision);
       const windowMinutes = timeRange === '24h' ? 60 : timeRange === '7d' ? 30 : 15;
       setLoadingRealtimeHub(true);
+      setRealtimeHub(null);
       analyticsService
         .getRealtimeHub({
-          tenant_id: tenantId,
+          tenant_profile_id: tenantId,
           scope,
           window_minutes: windowMinutes,
           tenantSlug: currentSlug || undefined,
         })
-        .then((response) => setRealtimeHub(response || null))
+        .then((response) => { if (isCurrent()) setRealtimeHub(response || null); })
         .catch((error) => {
+          if (!isCurrent()) return;
           console.warn('[AnalyticsPage] realtime hub unavailable', error);
           setRealtimeHub(null);
         })
-        .finally(() => setLoadingRealtimeHub(false));
+        .finally(() => { if (isCurrent()) setLoadingRealtimeHub(false); });
     },
     [tenantId, timeRange, scope, currentSlug],
   );
 
   useEffect(() => {
     fetchRealtimeHub();
+    return () => { realtimeRequest.current += 1; };
   }, [fetchRealtimeHub]);
 
   useEffect(() => {
@@ -510,7 +457,7 @@ const AnalyticsPage = () => {
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!tenantId) return;
     const filters = {
-      tenant_id: tenantId,
+      tenant_profile_id: tenantId,
       tenantSlug: currentSlug || undefined,
       scope,
       from: dateRange.from,
@@ -525,7 +472,7 @@ const AnalyticsPage = () => {
     const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
     openExportAndTrack(url, async () => {
       fireAndForgetTrackEvent({
-        tenant_id: tenantId,
+        tenant_profile_id: tenantId,
         event_name: 'export_click',
         payload: { format, scope },
         channel: 'web_widget',
@@ -542,7 +489,6 @@ const AnalyticsPage = () => {
     try {
       const response = await enterpriseService.getExecutiveSummary(
         {
-          tenant_id: tenantId,
           scope,
           from: dateRange.from,
           to: dateRange.to,
@@ -575,68 +521,22 @@ const AnalyticsPage = () => {
     }
   };
 
+  const activeFilterCount = [channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter].filter((value) => value.trim()).length;
   const filterControls = (
     <>
-      <Select value={timeRange} onValueChange={setTimeRange}>
-        <SelectTrigger className="w-full sm:w-[180px]">
-          <SelectValue placeholder="Periodo" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="24h">Ultimas 24 horas</SelectItem>
-          <SelectItem value="7d">Ultimos 7 dias</SelectItem>
-          <SelectItem value="30d">Ultimos 30 dias</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={scope} onValueChange={setScope}>
-        <SelectTrigger className="w-full sm:w-[180px]">
-          <SelectValue placeholder="Scope" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="municipio">Municipio</SelectItem>
-          <SelectItem value="pyme">Pyme</SelectItem>
-        </SelectContent>
-      </Select>
-      <Input
-        value={channelFilter}
-        onChange={(e) => setChannelFilter(e.target.value)}
-        placeholder="Canal"
-        className="w-full sm:w-[150px]"
-      />
-      <Input
-        value={categoryFilter}
-        onChange={(e) => setCategoryFilter(e.target.value)}
-        placeholder="Categoria"
-        className="w-full sm:w-[150px]"
-      />
-      <Input
-        value={zoneFilter}
-        onChange={(e) => setZoneFilter(e.target.value)}
-        placeholder="Zona"
-        className="w-full sm:w-[150px]"
-      />
-      <Input
-        value={genderFilter}
-        onChange={(e) => setGenderFilter(e.target.value)}
-        placeholder="Genero"
-        className="w-full sm:w-[150px]"
-      />
-      <Input
-        value={ageRangeFilter}
-        onChange={(e) => setAgeRangeFilter(e.target.value)}
-        placeholder="Rango edad"
-        className="w-full sm:w-[150px]"
-      />
-      <Input
-        value={sourceFilter}
-        onChange={(e) => setSourceFilter(e.target.value)}
-        placeholder="Fuente"
-        className="w-full sm:w-[150px]"
-      />
-      <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
-      <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
-      <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
-        {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
-      </Button>
+      {[
+        { label: 'Canal', value: channelFilter, setValue: setChannelFilter },
+        { label: 'Categoría', value: categoryFilter, setValue: setCategoryFilter },
+        { label: 'Zona', value: zoneFilter, setValue: setZoneFilter },
+        { label: 'Género', value: genderFilter, setValue: setGenderFilter },
+        { label: 'Rango de edad', value: ageRangeFilter, setValue: setAgeRangeFilter },
+        { label: 'Fuente', value: sourceFilter, setValue: setSourceFilter },
+      ].map(({ label, value, setValue }) => (
+        <label key={label} className="grid gap-1 text-xs font-medium text-muted-foreground">
+          {label}
+          <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder={label} />
+        </label>
+      ))}
     </>
   );
 
@@ -680,19 +580,19 @@ const AnalyticsPage = () => {
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('overview')}>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab('overview')}>
                 <Gauge className="h-4 w-4" />
                 Estado general
               </Button>
-              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('operations')}>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab('operations')}>
                 <BarChart3 className="h-4 w-4" />
                 Operaciones
               </Button>
-              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
                 <MapPinned className="h-4 w-4" />
                 Mapas de calor
               </Button>
-              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('realtime')}>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab('realtime')}>
                 <Radio className="h-4 w-4" />
                 Tiempo real
               </Button>
@@ -714,14 +614,14 @@ const AnalyticsPage = () => {
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Analitica operativa</p>
-              <h2 className="truncate text-base font-semibold text-foreground">Prioridades, mapas y metricas en vivo</h2>
+              <h2 className="truncate text-base font-semibold text-foreground">Prioridades, mapas y métricas</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('operations')}>
+              <Button type="button" variant="outline" size="sm" onClick={() => selectAnalyticsTab('operations')}>
                 <BarChart3 className="mr-1.5 h-4 w-4" />
                 Operaciones
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
+              <Button type="button" variant="outline" size="sm" onClick={() => selectAnalyticsTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
                 <MapPinned className="mr-1.5 h-4 w-4" />
                 Mapas
               </Button>
@@ -734,25 +634,11 @@ const AnalyticsPage = () => {
         </section>
       )}
 
-      {!isEmbeddedInProfile ? (
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="space-y-2">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">Filtros, IA y exportaciones</h2>
-            <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {!isEmbeddedInProfile ? (
-              <Button variant="outline" size="sm" onClick={() => navigate('/perfil')}>Perfil</Button>
-            ) : null}
-            <Button variant="outline" size="sm" onClick={() => navigate(hubEncuestasPath)}>Encuestas</Button>
-          </div>
-        </div>
-
-        <div className="sticky top-3 z-20 grid w-full gap-2 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:flex sm:w-auto sm:items-center sm:flex-wrap">
+      <section aria-label="Filtros del resumen" className="rounded-xl border border-border/70 bg-card/80 p-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Periodo" />
+            <SelectTrigger aria-label="Período del resumen" className="w-full sm:w-[190px]">
+              <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="24h">Últimas 24 horas</SelectItem>
@@ -760,68 +646,22 @@ const AnalyticsPage = () => {
               <SelectItem value="30d">Últimos 30 días</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Scope" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="municipio">Municipio</SelectItem>
-              <SelectItem value="pyme">Pyme</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Input
-            value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-            placeholder="Canal"
-            className="w-full sm:w-[150px]"
-          />
-          <Input
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            placeholder="Categoría"
-            className="w-full sm:w-[150px]"
-          />
-          <Input
-            value={zoneFilter}
-            onChange={(e) => setZoneFilter(e.target.value)}
-            placeholder="Zona"
-            className="w-full sm:w-[150px]"
-          />
-          <Input
-            value={genderFilter}
-            onChange={(e) => setGenderFilter(e.target.value)}
-            placeholder="Género"
-            className="w-full sm:w-[150px]"
-          />
-          <Input
-            value={ageRangeFilter}
-            onChange={(e) => setAgeRangeFilter(e.target.value)}
-            placeholder="Rango edad"
-            className="w-full sm:w-[150px]"
-          />
-          <Input
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            placeholder="Fuente"
-            className="w-full sm:w-[150px]"
-          />
-          <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
-          <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
-          <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
-            {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
-          </Button>
+          <Badge variant="outline">{scope === 'municipio' ? 'Gestión institucional' : 'Gestión comercial'}</Badge>
+          {activeFilterCount ? <Badge variant="secondary">{activeFilterCount} filtros activos</Badge> : null}
         </div>
-      </div>
-      ) : (
-        <details className="rounded-xl border border-border/70 bg-background/80 px-3 py-2 shadow-sm">
-          <summary className="cursor-pointer text-sm font-semibold text-foreground">Filtros, exportaciones y resumen IA</summary>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:flex xl:flex-wrap">
-            {filterControls}
+        <details className="mt-2">
+          <summary className="cursor-pointer rounded-md py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Segmentos, exportaciones y resumen IA</summary>
+          <p className="mt-2 text-xs text-muted-foreground">Estos filtros corresponden al resumen y sus exportaciones. Operaciones mantiene sus propios filtros y período.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filterControls}</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>Export CSV</Button>
+            <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}>Export PDF</Button>
+            <Button size="sm" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
+              {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
+            </Button>
           </div>
         </details>
-      )}
-
+      </section>
 
       {summaryError ? <p className="text-sm text-destructive">{summaryError}</p> : null}
 
@@ -856,7 +696,7 @@ const AnalyticsPage = () => {
       </details>
       ) : null}
 
-      <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
+      <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; selectAnalyticsTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_profile_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <div className="overflow-x-auto pb-1">
           <TabsList className="inline-flex min-w-max">
           {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
@@ -870,7 +710,7 @@ const AnalyticsPage = () => {
 
         <div className="mt-6">
           <TabsContent value="overview">
-            {activeTab === 'overview' && data ? <OverviewDashboard data={data} /> : null}
+            {activeTab === 'overview' && data ? <OverviewDashboard data={data} showSla={scope === 'municipio'} showConversion={scope === 'pyme'} /> : null}
           </TabsContent>
 
           <TabsContent value="municipio">
@@ -900,7 +740,7 @@ const AnalyticsPage = () => {
 
           <TabsContent value="operations">
             {activeTab === 'operations' ? (
-              <SectionErrorBoundary title="No pudimos cargar operaciones">
+              <SectionErrorBoundary title="No pudimos cargar operaciones" resetKeys={[currentSlug,tenantId]}>
                 <OperationsDashboardPanel />
               </SectionErrorBoundary>
             ) : null}
@@ -925,11 +765,12 @@ const AnalyticsPage = () => {
       </Tabs>
 
       {/* Insights Section always visible at bottom or side */}
-      <div className="mt-8">
-        <SectionErrorBoundary title="No pudimos cargar insights">
-          <InsightsDashboard tenantId={tenantId} />
+      <details open={activeTab !== 'operations'} className="rounded-xl border border-border/70 bg-card/80 p-3">
+        <summary className="cursor-pointer text-sm font-medium">Recomendaciones y análisis complementario</summary>
+        <SectionErrorBoundary title="No pudimos cargar insights" resetKeys={[currentSlug,tenantId]}>
+          <InsightsDashboard tenantProfileId={tenantId} tenantSlug={currentSlug} scope={scope} recommendations={realtimeHub?.recommendations} recommendationsLoading={loadingRealtimeHub} onRefreshRecommendations={fetchRealtimeHub} />
         </SectionErrorBoundary>
-      </div>
+      </details>
 
 
       {leadInteractions.length > 0 ? (
@@ -1008,7 +849,7 @@ const AnalyticsPage = () => {
       ) : null}
 
       <div className="mt-8">
-        <SectionErrorBoundary title="No pudimos cargar herramientas IA">
+        <SectionErrorBoundary title="No pudimos cargar herramientas IA" resetKeys={[currentSlug,tenantId,scope]}>
           <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
         </SectionErrorBoundary>
       </div>

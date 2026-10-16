@@ -1,10 +1,12 @@
 // src/pages/Integracion.tsx
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch, resolveTenantSlug } from "@/utils/api";
+import { apiFetch } from "@/utils/api";
+import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
+import { ViewState } from '@/components/app-shell/ViewState';
 import { useUser } from "@/hooks/useUser";
 import {
   Card,
@@ -25,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
   Check,
@@ -41,7 +42,9 @@ import {
   Globe,
   ShoppingCart
 } from "lucide-react";
-import { TenantConfigBundle } from "@/types/TenantConfig";
+import { TenantConfigBundle, TenantConfigUpdate } from "@/types/TenantConfig";
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
+import { captureChatbocSessionRevision, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import MetaAppReviewApproval from "@/components/brand/MetaAppReviewApproval";
 import { tenantService } from "@/services/tenantService";
@@ -49,17 +52,38 @@ import MenuBuilder from "@/components/tenant/MenuBuilder";
 import IntegracionesPage from "@/pages/pyme/integraciones/IntegracionesPage"; // Import new professional integrations page
 import { extractDemoExperienceSources, type DemoExperienceSources } from "@/utils/demoExperienceBlueprint";
 import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTechProviderOnboarding";
+import ChatCustomizer from '@/components/admin/ChatCustomizer';
+import { useTenant } from '@/context/TenantContext';
+import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
+import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
+
+const readInstitutionalProfile = (bundle: TenantConfigBundle | null, slug: string | null) => {
+  const profile = bundle?.organization_profile;
+  if (!slug || bundle?.tenant.slug !== slug || profile?.contract_version !== 'organization.profile_settings.v1' ||
+    profile.tenant?.slug !== slug || !Number.isInteger(profile.tenant.id) || profile.tenant.id < 1 ||
+    profile.tenant.id !== bundle.tenant.id || !/^[0-9a-f]{64}$/.test(profile.revision) ||
+    typeof profile.can_edit !== 'boolean' || !['editable', 'read_only'].includes(profile.editability?.mode) ||
+    typeof profile.values?.logo_url !== 'string') return null;
+  return profile;
+};
 
 const Integracion = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
+  const { currentSlug, tenant: publicTenant, tenantError, isLoadingTenant, refreshTenant } = useTenant();
+  const { tenant: routeTenant } = useParams();
   const channelParam = searchParams.get("channel");
   const focusAction = searchParams.get("action");
   const requestedTab = ["general", "marketplace", "whatsapp", "widget", "menus", "contacts"].includes(String(channelParam || ""))
     ? String(channelParam)
     : "general";
   const [config, setConfig] = useState<TenantConfigBundle | null>(null);
+  const [configScopeKey, setConfigScopeKey] = useState<string | null>(null);
+  const [appearanceDraft, setAppearanceDraft] = useState<{
+    scopeKey: string; logo_url: string;
+  } | null>(null);
+  const [appearanceError, setAppearanceError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(requestedTab);
@@ -79,7 +103,27 @@ const Integracion = () => {
   });
   const [activatingDemo, setActivatingDemo] = useState(false);
 
-  const tenantSlug = useMemo(() => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug), [user]);
+  const explicitQueryTenant = readExplicitTenantRequest(searchParams);
+  const normalizedRouteTenant = normalizeProfileTenantSlug(routeTenant);
+  const hasConflictingScope = !explicitQueryTenant.valid || Boolean(routeTenant && !normalizedRouteTenant) ||
+    Boolean(normalizedRouteTenant && explicitQueryTenant.slug && normalizedRouteTenant !== explicitQueryTenant.slug);
+  const tenantSlug = hasConflictingScope ? null : normalizedRouteTenant || explicitQueryTenant.slug ||
+    normalizeProfileTenantSlug(user?.tenant_slug || user?.tenantSlug);
+  const sessionRevision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
+  const verifiedScope = organizationProfileVerified ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user }) : null;
+  const scopeKey = verifiedScope ? JSON.stringify([verifiedScope, sessionRevision]) : null;
+  const activeScopeRef = useRef(scopeKey);
+  const mountedRef = useRef(true);
+  activeScopeRef.current = scopeKey;
+  useEffect(() => {
+    mountedRef.current = true;
+    activeScopeRef.current = scopeKey;
+    return () => { mountedRef.current = false; activeScopeRef.current = null; };
+  }, [scopeKey]);
+  const profile = readInstitutionalProfile(config, tenantSlug);
+  const institutionalLogo = profile ? profile.values.logo_url : config?.tenant.logo_url || '';
+  const canEditInstitutionalLogo = Boolean(scopeKey && configScopeKey === scopeKey &&
+    profile?.can_edit === true && profile.editability.mode === 'editable');
   const canManageLegacyWhatsappInventory = useMemo(() => {
     const currentUser = user as any;
     const roles = [
@@ -96,42 +140,58 @@ const Integracion = () => {
   }, [user]);
 
   const loadConfig = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !scopeKey) return;
+    const initiatingScope = scopeKey;
     try {
       setLoading(true);
+      setConfig(null);
+      setConfigScopeKey(null);
       const data = await tenantService.getTenantConfig(tenantSlug);
+      if (activeScopeRef.current !== initiatingScope) return;
+      if (data?.tenant?.slug !== tenantSlug) throw new Error('tenant_config_scope_mismatch');
       setConfig(data);
+      setConfigScopeKey(initiatingScope);
+      setAppearanceDraft(current => current?.scopeKey === initiatingScope ? current : {
+        scopeKey: initiatingScope,
+        logo_url: readInstitutionalProfile(data, tenantSlug)?.values.logo_url ?? data.tenant.logo_url ?? '',
+      });
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("Failed to load tenant config", error);
       toast.error("Error cargando configuración del tenant");
     } finally {
-      setLoading(false);
+      if (activeScopeRef.current === initiatingScope) setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeKey]);
 
   const loadWhatsappNumbers = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !scopeKey) return;
+    const initiatingScope = scopeKey;
     setWhatsappNumbersLoading(true);
     setWhatsappNumbersError(null);
     try {
       const data = await tenantService.listWhatsappNumbers(tenantSlug);
+      if (activeScopeRef.current !== initiatingScope) return;
       setWhatsappNumbers(data.numbers || []);
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("Failed to load WhatsApp numbers", error);
       setWhatsappNumbersError("No se pudieron cargar los números disponibles.");
       setWhatsappNumbers([]);
     } finally {
-      setWhatsappNumbersLoading(false);
+      if (activeScopeRef.current === initiatingScope) setWhatsappNumbersLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeKey]);
 
   const loadEmbedSnippet = useCallback(async () => {
-    if (!tenantSlug) return;
+    if (!tenantSlug || !scopeKey) return;
+    const initiatingScope = scopeKey;
     try {
       const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
       const integrationWidget = integrationData?.widget || {};
       const integrationSnippet = integrationWidget?.embed_snippet || "";
       const widgetData = await tenantService.getPublicWidgetConfig(tenantSlug);
+      if (activeScopeRef.current !== initiatingScope) return;
       const experienceSources = extractDemoExperienceSources(integrationData, widgetData);
       setDemoExperienceSources(experienceSources);
       if (integrationSnippet) {
@@ -143,11 +203,12 @@ const Integracion = () => {
       const snippet = builderConfig?.embed_snippet || widgetData?.embed_snippet || "";
       setEmbedSnippet(snippet);
     } catch (error) {
+      if (activeScopeRef.current !== initiatingScope) return;
       console.error("No se pudo cargar el snippet de embed", error);
       setEmbedSnippet("");
       setDemoExperienceSources({ quickMenu: [], onboardingQuickMenu: [] });
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scopeKey]);
 
   const handleReload = () => {
     loadConfig();
@@ -166,35 +227,57 @@ const Integracion = () => {
   }, [requestedTab]);
 
   useEffect(() => {
+    setSaving(false);
+    setAppearanceError(null);
+    setAppearanceDraft(null);
+  }, [scopeKey]);
+
+  useEffect(() => {
     if (activeTab === "whatsapp" && canManageLegacyWhatsappInventory) {
       loadWhatsappNumbers();
     }
   }, [activeTab, canManageLegacyWhatsappInventory, loadWhatsappNumbers]);
 
-  const handleSave = async (section: keyof TenantConfigBundle | "configs", data: any) => {
-    if (!tenantSlug || !config) return;
+  const handleSave = async (section: 'logo' | 'configs', data: any) => {
+    if (!mountedRef.current || !tenantSlug || !config || !scopeKey || activeScopeRef.current !== scopeKey || configScopeKey !== scopeKey || config.tenant.slug !== tenantSlug || saving) return;
+    if (section === 'logo' && (!profile || !canEditInstitutionalLogo || typeof data?.logo_url !== 'string')) return;
+    const logoToSave = section === 'logo' ? data.logo_url.trim() : null;
+    if (section === 'logo' && logoToSave === institutionalLogo) {
+      setAppearanceDraft({ scopeKey, logo_url: logoToSave });
+      return;
+    }
+    const initiatingScope = scopeKey;
+    const isSaveCurrent = () => mountedRef.current && activeScopeRef.current === initiatingScope;
+    const initiatingProfile = profile;
 
     setSaving(true);
+    if (section === 'logo') setAppearanceError(null);
     try {
-      const payload: Partial<TenantConfigBundle> = {};
+      const payload: TenantConfigUpdate = section === 'logo'
+        ? { expected_revision: initiatingProfile!.revision, organization_profile: { logo_url: logoToSave! } }
+        : { configs: { ...config.configs, ...data } };
 
-      if (section === "configs") {
-         payload.configs = { ...config.configs, ...data };
-      } else if (section === "tenant") {
-         payload.tenant = { ...config.tenant, ...data };
-      } else {
-         // @ts-ignore
-         payload[section] = data;
-      }
-
-      const updated = await tenantService.updateTenantConfig(tenantSlug, payload);
+      const updated = await tenantService.updateTenantConfig(tenantSlug, payload, { isCurrent: isSaveCurrent });
+      if (!isSaveCurrent()) return;
+      if (updated?.tenant?.slug !== tenantSlug) throw new Error('tenant_config_scope_mismatch');
+      const savedProfile = readInstitutionalProfile(updated, tenantSlug);
+      if (section === 'logo' && (updated.tenant.logo_url !== logoToSave ||
+        updated.tenant.id !== initiatingProfile!.tenant.id || savedProfile?.tenant.id !== initiatingProfile!.tenant.id ||
+        savedProfile.values.logo_url !== logoToSave)) throw new Error('organization_logo_save_unconfirmed');
       setConfig(updated);
+      setConfigScopeKey(initiatingScope);
+      if (section === 'logo') setAppearanceDraft({
+        scopeKey: initiatingScope,
+        logo_url: updated.tenant.logo_url || '',
+      });
       toast.success("Cambios guardados correctamente");
     } catch (error) {
+      if (!isSaveCurrent()) return;
       console.error("Failed to save config", error);
+      if (section === 'logo') setAppearanceError('No pudimos confirmar el guardado. Conservamos tus cambios: usá Recargar para revisar la versión actual antes de volver a guardar, o descartalos.');
       toast.error("Error al guardar cambios");
     } finally {
-      setSaving(false);
+      if (isSaveCurrent()) setSaving(false);
     }
   };
 
@@ -324,24 +407,35 @@ const Integracion = () => {
       }
   };
 
-  if (userLoading || loading) {
+  if (!userLoading && !scopeKey) {
+    return <ViewState status="error" title="No pudimos validar la organización"
+      action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
+  if (userLoading || loading || (config && (config.tenant.slug !== tenantSlug || configScopeKey !== scopeKey))) {
     return <div className="p-8 text-center">Cargando configuración...</div>;
   }
 
   if (!config) {
-    return <div className="p-8 text-center text-destructive">No se pudo cargar la configuración del tenant.</div>;
+    return <ViewState status="error" title="No se pudo cargar la configuración de la organización"
+      action={<Button onClick={handleReload}>Reintentar</Button>} />;
   }
 
   // Helpers to safely access nested config
-  const getWidgetConfig = () => config.configs?.widget?.["default"] || {};
   const getContactsConfig = () => config.configs?.contacts?.["default"] || {};
   const getLinksConfig = () => config.configs?.links?.["default"] || { items: [] };
   const getMenuConfig = () =>
     config.configs?.menu?.["default"] || { version: 1, main_menu: [], submenus: {} };
+  const appearanceHasChanges = appearanceDraft?.scopeKey === scopeKey && appearanceDraft.logo_url !== institutionalLogo;
+  const editAppearance = (value: string) => {
+    if (saving || !canEditInstitutionalLogo || !scopeKey || activeScopeRef.current !== scopeKey) return;
+    setAppearanceDraft(current => current?.scopeKey === scopeKey ? { ...current, logo_url: value } : current);
+  };
+  const canOpenChatAppearance = !isLoadingTenant && !tenantError && currentSlug === tenantSlug &&
+    publicTenant?.slug === tenantSlug && configScopeKey === scopeKey;
 
   return (
-    <div className="container mx-auto max-w-7xl p-6">
-      <header className="mb-8 flex items-center justify-between">
+    <div className="container mx-auto max-w-7xl p-4 sm:p-6">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center">
             <Settings className="mr-3 h-8 w-8" />
@@ -351,7 +445,7 @@ const Integracion = () => {
             Gestiona la apariencia, menús y canales de tu organización ({config.tenant.nombre}).
           </p>
         </div>
-        <Button onClick={handleReload} variant="outline" size="sm" disabled={loading}>
+        <Button onClick={handleReload} variant="outline" className="min-h-11" disabled={loading || saving}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Recargar
         </Button>
@@ -384,55 +478,86 @@ const Integracion = () => {
           <TabsContent value="general">
             <Card>
               <CardHeader>
-                <CardTitle>Información del Tenant</CardTitle>
+                <CardTitle>Información de la organización</CardTitle>
                 <CardDescription>Datos básicos de la organización.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Nombre / Razón Social</Label>
+                    <Label htmlFor="integration-institution-name">Nombre / Razón Social</Label>
                     <Input
+                      id="integration-institution-name"
                       value={config.tenant.nombre}
-                      onChange={(e) => handleSave("tenant", { nombre: e.target.value })}
+                      readOnly
+                      aria-describedby="integration-institution-name-help"
                     />
+                    <p id="integration-institution-name-help" className="text-sm text-muted-foreground">
+                      El nombre, contacto y rubro se actualizan en el perfil institucional.
+                    </p>
+                    <Button type="button" variant="outline" className="min-h-11 h-auto max-w-full whitespace-normal"
+                      disabled={saving || appearanceHasChanges}
+                      onClick={() => {
+                        if (scopeKey && activeScopeRef.current === scopeKey && configScopeKey === scopeKey && config.tenant.slug === tenantSlug) {
+                          navigate(`/perfil?section=general&tenant_slug=${encodeURIComponent(tenantSlug)}`);
+                        }
+                      }}>
+                      {canEditInstitutionalLogo ? 'Editar datos institucionales' : 'Consultar datos institucionales'}
+                    </Button>
+                    {appearanceHasChanges ? <p className="text-sm text-muted-foreground">Guardá o descartá el logo pendiente antes de abrir el perfil.</p> : null}
                   </div>
                   <div className="space-y-2">
                     <Label>Slug (Identificador)</Label>
                     <Input value={config.tenant.slug} disabled className="bg-muted" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Input value={config.tenant.tipo} disabled className="bg-muted" />
+                    <Label htmlFor="integration-organization-sector">Sector</Label>
+                    <Input id="integration-organization-sector" value={organizationTypeLabel(config.tenant.tipo, config.tenant)} disabled className="bg-muted" />
                   </div>
                   <div className="space-y-2">
                     <Label>Plan</Label>
                     <Input value={config.tenant.plan} disabled className="bg-muted" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Color Primario</Label>
-                    <div className="flex gap-2">
-                       <Input
-                          type="color"
-                          className="w-12 p-1"
-                          value={config.tenant.color_primario || "#000000"}
-                          onChange={(e) => handleSave("tenant", { color_primario: e.target.value })}
-                       />
-                       <Input
-                          value={config.tenant.color_primario || ""}
-                          onChange={(e) => handleSave("tenant", { color_primario: e.target.value })}
-                       />
-                    </div>
+                    <p className="text-sm text-muted-foreground">Los colores, el nombre y el avatar del asistente se configuran en Apariencia del chat.</p>
+                    <Button type="button" variant="outline" className="min-h-11 h-auto max-w-full whitespace-normal" disabled={saving}
+                      onClick={() => { if (activeScopeRef.current === scopeKey && configScopeKey === scopeKey) setActiveTab('widget'); }}>
+                      Apariencia del chat
+                    </Button>
                   </div>
                   <div className="space-y-2">
-                      <Label>Logo URL</Label>
+                      <Label htmlFor="integration-logo-url">Logo institucional (URL)</Label>
                       <Input
-                          value={config.tenant.logo_url || ""}
-                          onChange={(e) => handleSave("tenant", { logo_url: e.target.value })}
+                          id="integration-logo-url"
+                          value={appearanceDraft?.logo_url || ""}
+                          disabled={saving || !canEditInstitutionalLogo}
+                          onChange={(e) => editAppearance(e.target.value)}
                       />
+                  </div>
+                </div>
+                <div className="space-y-3 border-t pt-4">
+                  <p className="text-sm text-muted-foreground">El logo institucional se guarda al elegir Guardar logo. El avatar del asistente se configura por separado en Apariencia del chat.</p>
+                  {!canEditInstitutionalLogo ? <p className="text-sm text-muted-foreground">El perfil institucional está disponible para consulta. Recargá para verificar si tu cuenta puede editarlo.</p> : null}
+                  {appearanceError ? <p role="alert" className="text-sm text-destructive">{appearanceError}</p> : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" className="min-h-11 h-auto whitespace-normal"
+                      disabled={saving || !canEditInstitutionalLogo || !appearanceHasChanges}
+                      onClick={() => void handleSave('logo', { logo_url: appearanceDraft?.logo_url })}>
+                      {saving ? 'Guardando logo...' : 'Guardar logo'}
+                    </Button>
+                    <Button type="button" variant="outline" className="min-h-11 h-auto whitespace-normal"
+                      disabled={saving || !appearanceHasChanges}
+                      onClick={() => {
+                        if (!scopeKey || activeScopeRef.current !== scopeKey || configScopeKey !== scopeKey) return;
+                        setAppearanceDraft({ scopeKey, logo_url: institutionalLogo });
+                        setAppearanceError(null);
+                      }}>
+                      Descartar cambios
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
+            {profile && scopeKey && configScopeKey === scopeKey ? <TenantDomainSettings key={scopeKey} tenant={profile.tenant} scopeKey={scopeKey} /> : null}
           </TabsContent>
 
           {/* --- MARKETPLACE & INTEGRATIONS (NEW PRO FEATURES) --- */}
@@ -456,7 +581,7 @@ const Integracion = () => {
               <CardContent className="space-y-6">
                 <MetaAppReviewApproval />
 
-                <WhatsappTechProviderOnboarding tenantSlug={tenantSlug} focusAction={focusAction} />
+                <WhatsappTechProviderOnboarding key={scopeKey} tenantSlug={tenantSlug} focusAction={focusAction} />
 
                 <Separator />
 
@@ -714,33 +839,17 @@ const Integracion = () => {
 
           {/* --- WIDGET TAB --- */}
           <TabsContent value="widget">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-6">
               <Card>
                  <CardHeader>
-                    <CardTitle>Personalización del Widget</CardTitle>
+                    <CardTitle>Apariencia del chat</CardTitle>
+                    <CardDescription>Colores, avatar y mensajes del asistente para esta organización.</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                       <Label>Título de Bienvenida</Label>
-                       <Input
-                          value={getWidgetConfig().welcome_title || ""}
-                          onChange={(e) => handleSave("configs", { widget: { default: { ...getWidgetConfig(), welcome_title: e.target.value } } })}
-                       />
-                    </div>
-                    <div className="space-y-2">
-                       <Label>Subtítulo</Label>
-                       <Input
-                          value={getWidgetConfig().welcome_subtitle || ""}
-                          onChange={(e) => handleSave("configs", { widget: { default: { ...getWidgetConfig(), welcome_subtitle: e.target.value } } })}
-                       />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                       <Label>Abrir por defecto</Label>
-                       <Switch
-                          checked={getWidgetConfig().default_open}
-                          onCheckedChange={(checked) => handleSave("configs", { widget: { default: { ...getWidgetConfig(), default_open: checked } } })}
-                       />
-                    </div>
+                    {canOpenChatAppearance ? <ChatCustomizer key={scopeKey} /> : <ViewState
+                      status={isLoadingTenant ? 'loading' : 'error'} title="Verificando la organización del chat"
+                      description="Necesitamos confirmar la misma organización antes de abrir su editor de apariencia."
+                      action={<Button className="min-h-11" disabled={isLoadingTenant} onClick={() => void refreshTenant().catch(() => toast.error('No pudimos verificar la organización del chat. Volvé a intentar.'))}>Reintentar</Button>} />}
                  </CardContent>
               </Card>
 

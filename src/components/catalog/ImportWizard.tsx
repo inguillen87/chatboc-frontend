@@ -8,6 +8,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
+import {catalogImportUserError,safeCatalogImportDetail,type CatalogImportUserError} from '@/utils/catalogImportError';
 import { useTenant } from '@/context/TenantContext';
 import {
   getPreviewFallbackValue,
@@ -34,7 +35,8 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<CatalogImportUserError | null>(null);
+  const [commitError, setCommitError] = useState<CatalogImportUserError | null>(null);
 
   const previewCount = preview?.items_preview.length ?? 0;
   const effectiveDetected = preview?.total_detected ?? previewCount;
@@ -141,12 +143,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       setPreview(previewData);
       setCatalogUploadId(previewData.upload_id ?? null);
       setPreviewError(null);
+      setCommitError(null);
       setStep(2);
       setIsPreviewModalOpen(true);
     } catch (e) {
       console.error(e);
       setPreview(null);
-      setPreviewError((e as Error)?.message || null);
+      setPreviewError(catalogImportUserError(e,'upload'));
     } finally {
       setLoading(false);
     }
@@ -171,10 +174,11 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
         processor
       );
       setResult(res);
+      setCommitError(null);
       setStep(3);
     } catch (e) {
       console.error(e);
-      alert("Error saving catalog");
+      setCommitError(catalogImportUserError(e,'commit'));
     } finally {
       setLoading(false);
     }
@@ -192,7 +196,8 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
             {previewError && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{previewError}</AlertDescription>
+                <AlertTitle>{previewError.title}</AlertTitle>
+                <AlertDescription><p>{previewError.message}</p><p className="mt-1 text-sm">{previewError.action}</p></AlertDescription>
               </Alert>
             )}
             <div
@@ -284,10 +289,18 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                 <AlertDescription>
                   <ul>
                     {preview.errors.map((error, index) => (
-                      <li key={index}>{error}</li>
+                      <li key={index}>{safeCatalogImportDetail(error,'Hay un dato que necesita revisi?n.')}</li>
                     ))}
                   </ul>
                 </AlertDescription>
+              </Alert>
+            )}
+
+            {commitError && (
+              <Alert variant="destructive" role="alert">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>{commitError.title}</AlertTitle>
+                <AlertDescription><p>{commitError.message}</p><p className="mt-1">{commitError.action}</p></AlertDescription>
               </Alert>
             )}
 
@@ -359,6 +372,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     {renderPreviewTable("border rounded-md max-h-[55vh] overflow-y-auto")}
                   </div>
                 </div>
+                {commitError && (
+                  <Alert variant="destructive" role="alert">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>{commitError.title}</AlertTitle>
+                    <AlertDescription><p>{commitError.message}</p><p className="mt-1">{commitError.action}</p></AlertDescription>
+                  </Alert>
+                )}
                 <DialogFooter className="gap-2 sm:justify-between">
                   <Button variant="outline" onClick={() => setIsPreviewModalOpen(false)}>
                     Editar

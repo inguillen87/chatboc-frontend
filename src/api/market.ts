@@ -124,6 +124,30 @@ const resolveMarketCartEndpoint = (
   return endpointIsGuestSafe(endpoint, tenantSlug) ? endpoint?.endpoint ?? null : null;
 };
 
+const resolveMarketCheckoutEndpoint = (tenantSlug: string): string | null => {
+  const key = normalizeTenantContractKey(tenantSlug);
+  const contract = key ? marketPublicApiContracts.get(key) : null;
+  const checkout = contract?.checkout;
+  const start = checkout?.start;
+  const endpoint = start?.endpoint?.trim();
+  const method = start?.method?.trim().toUpperCase() || 'POST';
+  const checkoutIsGuestSafe =
+    start?.guest_safe === true ||
+    (contract?.guest_safe === true && checkout?.guest_safe === true);
+
+  if (
+    !endpoint ||
+    !endpoint.startsWith('/api/') ||
+    endpoint.startsWith('//') ||
+    method !== 'POST' ||
+    !checkoutIsGuestSafe
+  ) {
+    return null;
+  }
+
+  return endpoint;
+};
+
 const marketCartFetchOptions = (endpoint: string, tenantSlug: string) => ({
   tenantSlug,
   suppressPanel401Redirect: true,
@@ -1270,6 +1294,19 @@ export async function startMarketCheckout(tenantSlug: string, payload: CheckoutS
     suppressPanel401Redirect: true,
     omitChatSessionId: true,
   };
+
+  const publicContractEndpoint = resolveMarketCheckoutEndpoint(tenantSlug);
+  if (publicContractEndpoint) {
+    try {
+      const response = await apiFetch<unknown>(publicContractEndpoint, options);
+      return normalizeCheckoutStartResponse(response);
+    } catch (error) {
+      if (!shouldFallbackCheckoutEndpoint(error)) {
+        console.error("Error starting public checkout:", error);
+        throw error;
+      }
+    }
+  }
 
   try {
     const response = await apiFetch<unknown>('/api/v2/payments/checkout-session', options);

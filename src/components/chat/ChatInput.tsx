@@ -1,11 +1,11 @@
 // src/components/chat/ChatInput.tsx
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useId, forwardRef, useImperativeHandle } from "react";
+import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles, AlertCircle } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
-import useAudioRecorder from "@/hooks/useAudioRecorder";
+import useAudioRecorder, {recordedAudioFilename} from "@/hooks/useAudioRecorder";
 import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
 import { ChatMediaCapabilities, ChatUxChannelCapabilities, ChatWidgetUiHints, SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,10 @@ import {
   UploadResponseLike,
 } from "@/utils/uploadResponse";
 import { ensureAbsoluteUrl } from "@/utils/chatButtons";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { uploadChatAttachment } from "@/features/chat/uploadChatAttachment";
+import { useChatInputDraft } from './useChatInputDraft';
+import { uploadChatAttachment, createChatAttachmentUploadAttempt } from "@/features/chat/uploadChatAttachment";
+import { audioRecoveryMessage, type AudioRecoveryNotice } from '@/features/chat/audioRecovery';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {
   getChatAttachmentAcceptedTypes,
   getChatAttachmentMaxFileMb,
@@ -48,6 +50,10 @@ interface Props {
     fields?: string[];
   } | null;
   supportsMultimodalIntake?: boolean;
+  tenantSlug?: string | null;
+  demoSessionId?: string | null;
+  chatSessionId?: string | null;
+  audioContextKey?: string;
 }
 
 
@@ -70,7 +76,6 @@ const QUICK_EMOJIS = [
   { emoji: "🧹", category: "limpieza" },
   { emoji: "🗑️", category: "limpieza" },
 ];
-const CHAT_INPUT_DRAFT_KEY = "chat_widget_input_draft_v1";
 
 type UploadResponse = UploadResponseLike;
 
@@ -119,17 +124,42 @@ const mediaActionLabel = (
   fallback: string,
 ) => mediaCapabilities?.composer?.actions?.find((action) => action?.type === mode)?.label?.trim() || fallback;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, disabled = false, disabledReason = null, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, uiHints, guidedFlow, supportsMultimodalIntake = true }, ref) => {
-  const [input, setInput] = useState("");
+const ChatInput = forwardRef<ChatInputHandle, Props>(({
+  onSendMessage,
+  isTyping,
+  disabled = false,
+  disabledReason = null,
+  inputRef,
+  onTypingChange,
+  onSystemMessage,
+  validateBeforeSend,
+  channelCapabilities,
+  mediaCapabilities,
+  uiHints,
+  guidedFlow,
+  supportsMultimodalIntake = true,
+  tenantSlug,
+  demoSessionId,
+  chatSessionId,
+  audioContextKey,
+}, ref) => {
+  const { input, setInput, draftRecovered, clearDraft } = useChatInputDraft({ tenantSlug, demoSessionId, chatSessionId, onTypingChange });
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
-  const [inlineError, setInlineError] = useState<string | null>(null);
-  const [draftRecovered, setDraftRecovered] = useState(false);
+  const [inlineError, setInlineError] = useState<{ message: string; target: 'input' | 'attachment' } | null>(null);
+  const inlineErrorId = useId();
+  useLayoutEffect(() => {
+    setInlineError(null);
+  }, [tenantSlug, demoSessionId, chatSessionId, validateBeforeSend]);
   const fallbackInputRef = useRef<HTMLInputElement>(null);
   const internalRef = inputRef || fallbackInputRef;
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const audioCompletion=useRef<{token:symbol;isCurrent:()=>boolean}|null>(null);
+  const [recordingDraft,setRecordingDraft]=useState<{blob:Blob;isCurrent:()=>boolean;recovery?:AudioRecoveryNotice;pending?:boolean;discard?:()=>void}|null>(null);
+  const recordingDraftRef=useRef(recordingDraft);
+  recordingDraftRef.current=recordingDraft;
+  const typingNow=useRef(isTyping);typingNow.current=isTyping;
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
   const supportsAudioInput =
     supportsMultimodalIntake &&
@@ -208,6 +238,83 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const showAttachAction = allowedFileTypes.length > 0 && shouldShowToolbarAction("attach_file");
   const showLocationAction = supportsLocationShare && shouldShowToolbarAction("share_location");
   const showAudioAction = supportsAudioInput && shouldShowToolbarAction("record_audio");
+  const [isSendingAttachment, setIsSendingAttachment] = useState(false);
+  const sendScopeKey = JSON.stringify([
+    tenantSlug ?? null, demoSessionId ?? null, chatSessionId ?? null,
+    audioContextKey ?? null, disabled, isTyping, showAttachAction,
+    supportsImageInput, supportsFileUpload, imageMode ?? null, fileMode ?? null,
+  ]);
+  const sendGeneration = useRef(0);
+  const sendMounted = useRef(false);
+  const sendAttempt = useRef<{ generation: number; session: number; input: string; attachment: typeof attachmentPreview } | null>(null);
+  const committedSendDraft = useRef({ input, attachment: attachmentPreview });
+  const attachmentBindingKey = JSON.stringify([tenantSlug ?? null, demoSessionId ?? null, chatSessionId ?? null]);
+  const attachmentBinding = useRef(attachmentBindingKey);
+  const canSendSelectedAttachment = !attachmentPreview || (showAttachAction
+    && (isChatImageFile(attachmentPreview.file) ? supportsImageInput : supportsFileUpload));
+  // Only committed context changes retire a request; an abandoned render does not.
+  useLayoutEffect(() => {
+    sendGeneration.current += 1;
+    sendMounted.current = true;
+    sendAttempt.current = null;
+    setIsSendingAttachment(false);
+    return () => {
+      sendGeneration.current += 1;
+      sendMounted.current = false;
+      sendAttempt.current = null;
+    };
+  }, [sendScopeKey, validateBeforeSend]);
+  useLayoutEffect(() => {
+    committedSendDraft.current = { input, attachment: attachmentPreview };
+    // File identity matters even if the replacement has the same name.
+    if (sendAttempt.current && sendAttempt.current.attachment !== attachmentPreview) {
+      sendAttempt.current = null;
+      setIsSendingAttachment(false);
+    }
+  }, [input, attachmentPreview]);
+  useLayoutEffect(() => {
+    if (attachmentBinding.current === attachmentBindingKey) return;
+    attachmentBinding.current = attachmentBindingKey;
+    const previous = committedSendDraft.current.attachment;
+    if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
+    setAttachmentPreview(null);
+  }, [attachmentBindingKey]);
+  useLayoutEffect(() => subscribeChatbocSessionRevision(() => {
+    sendGeneration.current += 1;
+    sendAttempt.current = null;
+    setIsSendingAttachment(false);
+    const previous = committedSendDraft.current.attachment;
+    if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
+    setAttachmentPreview(null);
+  }), []);
+  const locationScopeKey = JSON.stringify([
+    tenantSlug ?? null, demoSessionId ?? null, chatSessionId ?? null,
+    audioContextKey ?? null, showLocationAction, disabled, isTyping,
+  ]);
+  const locationGeneration = useRef(0);
+  const locationMounted = useRef(true);
+  const locationAttempt = useRef<{ generation: number; session: number } | null>(null);
+  useLayoutEffect(() => {
+    // Only a committed context retires the visible composer. A suspended,
+    // abandoned render must not strand its existing location request.
+    locationGeneration.current += 1;
+    locationMounted.current = true;
+    locationAttempt.current = null;
+    setIsLocating(false);
+    return () => { locationMounted.current = false; locationAttempt.current = null; };
+  }, [locationScopeKey]);
+  useLayoutEffect(() => subscribeChatbocSessionRevision(() => {
+    locationGeneration.current += 1;
+    locationAttempt.current = null;
+    setIsLocating(false);
+  }), []);
+  const audioScopeKey=JSON.stringify([tenantSlug??null,demoSessionId??null,chatSessionId??null,
+    showAudioAction,disabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null,audioContextKey??null,mediaCapabilities??null,channelCapabilities??null]);
+  const {isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:showAudioAction&&!disabled});
+  if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
+  const currentRecordingDraft=recordingDraft?.isCurrent()?recordingDraft:null;
+  useLayoutEffect(()=>{setRecordingDraft(null);return()=>{recordingDraftRef.current?.discard?.();};},[audioScopeKey]);
+  useLayoutEffect(()=>subscribeChatbocSessionRevision(()=>{recordingDraftRef.current?.discard?.();setRecordingDraft(null);audioCompletion.current=null;}),[]);
   const showEmojiAction = shouldShowToolbarAction("emoji");
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const resolvedPlaceholder =
@@ -229,11 +336,6 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const guidedProgress = guidedFields.length > 0 && currentGuidedStepIndex >= 0
     ? ((currentGuidedStepIndex + 1) / guidedFields.length) * 100
     : 0;
-  const draftStorageKey = React.useMemo(() => {
-    if (typeof window === "undefined") return CHAT_INPUT_DRAFT_KEY;
-    const scope = window.location.pathname.replace(/[^a-z0-9/_-]+/gi, "_").toLowerCase() || "root";
-    return `${CHAT_INPUT_DRAFT_KEY}:${scope}`;
-  }, []);
 
   useImperativeHandle(ref, () => ({
     openFilePicker: () => {
@@ -249,194 +351,218 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const savedDraft = safeLocalStorage.getItem(draftStorageKey);
-    if (!savedDraft) return;
-    setInput(savedDraft);
-    onTypingChange?.(savedDraft.trim().length > 0);
-    setDraftRecovered(true);
-  }, [draftStorageKey, onTypingChange]);
-
-  useEffect(() => {
-    if (!draftRecovered) return;
-    const timer = window.setTimeout(() => setDraftRecovered(false), 3200);
-    return () => window.clearTimeout(timer);
-  }, [draftRecovered]);
-
-  useEffect(() => {
-    if (!input) {
-      safeLocalStorage.removeItem(draftStorageKey);
-      return;
-    }
-    safeLocalStorage.setItem(draftStorageKey, input);
-  }, [draftStorageKey, input]);
 
   const handleSend = async () => {
-    if ((!input.trim() && !attachmentPreview) || isTyping || disabled) return;
-
-    let attachmentData: AttachmentInfo | undefined = undefined;
-    let legacyArchivoUrl: string | undefined;
-    let legacyEsFoto = false;
-
+    if ((!input.trim() && !attachmentPreview) || isTyping || disabled || sendAttempt.current || !canSendSelectedAttachment) return;
     if (attachmentPreview) {
-      toast({ title: "Subiendo archivo...", description: attachmentPreview.file.name });
-      const createUploadFormData = () => {
-        const formData = new FormData();
-        formData.append('file', attachmentPreview.file);
-        return formData;
-      };
-      const selectedMode = isChatImageFile(attachmentPreview.file) ? imageMode : fileMode;
-      const uploadEndpoint = selectedMode?.upload_endpoint || '/archivos/upload/chat_attachment';
-      const uploadResponseKey = selectedMode?.upload_response_key || 'attachmentInfo';
-
-      try {
-        const response = await uploadChatAttachment<UploadResponse>(
-          uploadEndpoint,
-          createUploadFormData,
-        );
-        const originalFile = attachmentPreview.file;
-        const uploadRaw =
-          response && typeof response === 'object'
-            ? ((response as Record<string, unknown>)[uploadResponseKey] as UploadResponse | undefined) ?? response
-            : response;
-        const normalized = normalizeUploadResponse(uploadRaw);
-        const responsePayload =
-          uploadRaw && typeof uploadRaw === 'object'
-            ? (uploadRaw as UploadResponsePayload)
-            : undefined;
-        const fallbackRawUrl =
-          coalesceString(
-            responsePayload?.url,
-            responsePayload?.attachmentUrl,
-            responsePayload?.attachment_url,
-            responsePayload?.fileUrl,
-            responsePayload?.file_url,
-            responsePayload?.archivo_url,
-            responsePayload?.public_url,
-            responsePayload?.publicUrl,
-            responsePayload?.secure_url,
-            responsePayload?.fallbackUrl,
-            responsePayload?.fallback_url,
-            responsePayload?.fallbackPublicUrl,
-            responsePayload?.fallback_public_url,
-            responsePayload?.local_url,
-            responsePayload?.localUrl,
-            responsePayload?.local_path,
-            responsePayload?.localPath,
-            responsePayload?.local_relative_path,
-            responsePayload?.localRelativePath,
-            responsePayload?.storage_path,
-            responsePayload?.storagePath,
-            responsePayload?.storage_url,
-            responsePayload?.storageUrl,
-            responsePayload?.static_url,
-            responsePayload?.staticUrl,
-            responsePayload?.relative_url,
-            responsePayload?.relativeUrl,
-            responsePayload?.full_path,
-            responsePayload?.fullPath,
-            responsePayload?.public_path,
-            responsePayload?.publicPath,
-            responsePayload?.path,
-            responsePayload?.web_path,
-            responsePayload?.webPath,
-            typeof uploadRaw === 'string' ? uploadRaw : undefined,
-          );
-        const uploadedUrlCandidate =
-          normalized.url ||
-          (fallbackRawUrl
-            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
-            : undefined);
-        const absoluteUploadedUrl =
-          uploadedUrlCandidate
-            ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
-            : undefined;
-
-        if (!absoluteUploadedUrl) {
-          throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
-        }
-
-        const uploadedName =
-          normalized.name ||
-          coalesceString(
-            responsePayload?.name,
-            responsePayload?.filename,
-            responsePayload?.fileName,
-          ) ||
-          originalFile.name;
-        const uploadedMime =
-          normalized.mimeType ||
-          coalesceString(
-            responsePayload?.mimeType,
-            responsePayload?.mime_type,
-            originalFile.type,
-          );
-        const uploadedSize =
-          normalized.size ??
-          coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
-          originalFile.size;
-        const uploadedThumbCandidate =
-          normalized.thumbUrl ||
-          coalesceString(
-            responsePayload?.thumbUrl,
-            responsePayload?.thumb_url,
-            responsePayload?.thumbnailUrl,
-            responsePayload?.thumbnail_url,
-          );
-        const resolvedThumb =
-          uploadedThumbCandidate
-            ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
-            : undefined;
-
-        const derivedAttachment = deriveAttachmentInfo(
-          absoluteUploadedUrl,
-          uploadedName,
-          uploadedMime,
-          uploadedSize,
-          resolvedThumb,
-        );
-
-        attachmentData = {
-          ...derivedAttachment,
-          ...(normalized.id ? { id: normalized.id } : {}),
-        };
-        legacyArchivoUrl = absoluteUploadedUrl;
-        legacyEsFoto = derivedAttachment.type === 'image';
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        toast({ title: "Error de subida", description: "No se pudo subir el archivo.", variant: "destructive" });
-        setAttachmentPreview(null); // Clear preview on error
+      const mode = isChatImageFile(attachmentPreview.file) ? 'image' : 'file';
+      const validationError = validateChatAttachment(
+        attachmentPreview.file,
+        mode === 'image' ? imageMode : fileMode,
+        mode,
+        mode === 'image' ? undefined : ['application/pdf', 'video/*'],
+      );
+      if (validationError) {
+        setInlineError({ message: validationError, target: 'attachment' });
+        toast({ title: 'Archivo no permitido', description: validationError, variant: 'destructive' });
         return;
       }
     }
-
-    const finalAttachment = attachmentData;
-    const finalArchivoUrl = legacyArchivoUrl || finalAttachment?.url;
-    const finalEsFoto =
-      legacyEsFoto || ((finalAttachment?.mimeType || '').toLowerCase().startsWith('image/'));
-
-    const nextPayload: SendPayload = {
-      text: input.trim(),
-      attachmentInfo: finalAttachment,
-      ...(finalArchivoUrl ? { archivo_url: finalArchivoUrl } : {}),
-      ...(finalEsFoto ? { es_foto: true } : {}),
-      source: 'input',
+    const submittedInput = input;
+    const submittedAttachment = attachmentPreview;
+    const attempt = {
+      generation: sendGeneration.current,
+      session: captureChatbocSessionRevision(),
+      input: submittedInput,
+      attachment: submittedAttachment,
     };
+    sendAttempt.current = attempt;
+    const isCurrent = () => sendMounted.current && sendAttempt.current === attempt
+      && sendGeneration.current === attempt.generation
+      && isChatbocSessionRevisionCurrent(attempt.session);
+    if (submittedAttachment) setIsSendingAttachment(true);
+    try {
 
-    const validationError = validateBeforeSend?.(nextPayload) ?? null;
-    if (validationError) {
-      setInlineError(validationError);
-      return;
+      let attachmentData: AttachmentInfo | undefined = undefined;
+      let legacyArchivoUrl: string | undefined;
+      let legacyEsFoto = false;
+
+      if (submittedAttachment) {
+        toast({ title: "Subiendo archivo...", description: submittedAttachment.file.name });
+        const createUploadFormData = () => {
+          const formData = new FormData();
+          formData.append('file', submittedAttachment.file);
+          return formData;
+        };
+        const selectedMode = isChatImageFile(submittedAttachment.file) ? imageMode : fileMode;
+        const uploadEndpoint = selectedMode?.upload_endpoint || '/archivos/upload/chat_attachment';
+        const uploadResponseKey = selectedMode?.upload_response_key || 'attachmentInfo';
+
+        try {
+          const response = await uploadChatAttachment<UploadResponse>(
+            uploadEndpoint,
+            createUploadFormData,
+            { tenantSlug, demoSessionId, chatSessionId, isCurrent },
+          );
+          if (!isCurrent()) return;
+          const originalFile = submittedAttachment.file;
+          const uploadRaw =
+            response && typeof response === 'object'
+              ? ((response as Record<string, unknown>)[uploadResponseKey] as UploadResponse | undefined) ?? response
+              : response;
+          const normalized = normalizeUploadResponse(uploadRaw);
+          const responsePayload =
+            uploadRaw && typeof uploadRaw === 'object'
+              ? (uploadRaw as UploadResponsePayload)
+              : undefined;
+          const fallbackRawUrl =
+            coalesceString(
+              responsePayload?.url,
+              responsePayload?.attachmentUrl,
+              responsePayload?.attachment_url,
+              responsePayload?.fileUrl,
+              responsePayload?.file_url,
+              responsePayload?.archivo_url,
+              responsePayload?.public_url,
+              responsePayload?.publicUrl,
+              responsePayload?.secure_url,
+              responsePayload?.fallbackUrl,
+              responsePayload?.fallback_url,
+              responsePayload?.fallbackPublicUrl,
+              responsePayload?.fallback_public_url,
+              responsePayload?.local_url,
+              responsePayload?.localUrl,
+              responsePayload?.local_path,
+              responsePayload?.localPath,
+              responsePayload?.local_relative_path,
+              responsePayload?.localRelativePath,
+              responsePayload?.storage_path,
+              responsePayload?.storagePath,
+              responsePayload?.storage_url,
+              responsePayload?.storageUrl,
+              responsePayload?.static_url,
+              responsePayload?.staticUrl,
+              responsePayload?.relative_url,
+              responsePayload?.relativeUrl,
+              responsePayload?.full_path,
+              responsePayload?.fullPath,
+              responsePayload?.public_path,
+              responsePayload?.publicPath,
+              responsePayload?.path,
+              responsePayload?.web_path,
+              responsePayload?.webPath,
+              typeof uploadRaw === 'string' ? uploadRaw : undefined,
+            );
+          const uploadedUrlCandidate =
+            normalized.url ||
+            (fallbackRawUrl
+              ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
+              : undefined);
+          const absoluteUploadedUrl =
+            uploadedUrlCandidate
+              ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
+              : undefined;
+
+          if (!absoluteUploadedUrl) {
+            throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
+          }
+
+          const uploadedName =
+            normalized.name ||
+            coalesceString(
+              responsePayload?.name,
+              responsePayload?.filename,
+              responsePayload?.fileName,
+            ) ||
+            originalFile.name;
+          const uploadedMime =
+            normalized.mimeType ||
+            coalesceString(
+              responsePayload?.mimeType,
+              responsePayload?.mime_type,
+              originalFile.type,
+            );
+          const uploadedSize =
+            normalized.size ??
+            coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
+            originalFile.size;
+          const uploadedThumbCandidate =
+            normalized.thumbUrl ||
+            coalesceString(
+              responsePayload?.thumbUrl,
+              responsePayload?.thumb_url,
+              responsePayload?.thumbnailUrl,
+              responsePayload?.thumbnail_url,
+            );
+          const resolvedThumb =
+            uploadedThumbCandidate
+              ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
+              : undefined;
+
+          const derivedAttachment = deriveAttachmentInfo(
+            absoluteUploadedUrl,
+            uploadedName,
+            uploadedMime,
+            uploadedSize,
+            resolvedThumb,
+          );
+
+          attachmentData = {
+            ...derivedAttachment,
+            ...(normalized.id ? { id: normalized.id } : {}),
+          };
+          legacyArchivoUrl = absoluteUploadedUrl;
+          legacyEsFoto = derivedAttachment.type === 'image';
+        } catch (error) {
+          if (!isCurrent()) return;
+          console.error("Error uploading file:", error);
+          toast({ title: "Error de subida", description: "No se pudo subir el archivo.", variant: "destructive" });
+          return;
+        }
+      }
+
+      const finalAttachment = attachmentData;
+      const finalArchivoUrl = legacyArchivoUrl || finalAttachment?.url;
+      const finalEsFoto =
+        legacyEsFoto || ((finalAttachment?.mimeType || '').toLowerCase().startsWith('image/'));
+
+      const nextPayload: SendPayload = {
+        text: submittedInput.trim(),
+        attachmentInfo: finalAttachment,
+        ...(finalArchivoUrl ? { archivo_url: finalArchivoUrl } : {}),
+        ...(finalEsFoto ? { es_foto: true } : {}),
+        source: 'input',
+      };
+
+      if (!isCurrent()) return;
+      const validationError = validateBeforeSend?.(nextPayload) ?? null;
+      if (validationError) {
+        if (committedSendDraft.current.input === submittedInput) {
+          setInlineError({ message: validationError, target: 'input' });
+        }
+        return;
+      }
+
+      if (!isCurrent()) return;
+      onSendMessage(nextPayload);
+      if (!isCurrent()) return;
+      const unchangedText = committedSendDraft.current.input === submittedInput;
+      if (unchangedText) {
+        clearDraft();
+        onTypingChange?.(false);
+      }
+      setInlineError(null);
+      if (committedSendDraft.current.attachment === submittedAttachment) setAttachmentPreview(null);
+      setShowEmojis(false);
+      // A delayed upload must not take focus back from the user's next control.
+      if (!submittedAttachment) internalRef.current?.focus();
+    } finally {
+      // An old completion must never unlock a newer attempt.
+      if (sendAttempt.current === attempt) {
+        sendAttempt.current = null;
+        setIsSendingAttachment(false);
+      }
     }
-
-    onSendMessage(nextPayload);
-    setInput("");
-    setInlineError(null);
-    setAttachmentPreview(null);
-    setShowEmojis(false);
-    onTypingChange?.(false);
-    safeLocalStorage.removeItem(draftStorageKey);
-    internalRef.current?.focus();
   };
 
   const handleFileSelected = (file: File) => {
@@ -448,7 +574,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       mode === 'image' ? undefined : ['application/pdf', 'video/*'],
     );
     if (validationError) {
-      setInlineError(validationError);
+      setInlineError({ message: validationError, target: 'attachment' });
       toast({ title: 'Archivo no permitido', description: validationError, variant: 'destructive' });
       return;
     }
@@ -464,38 +590,61 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   const handleShareLocation = async () => {
-    if (isTyping || isLocating || disabled) return;
+    if (isTyping || disabled || !showLocationAction || locationAttempt.current) return;
+    const attempt = {
+      generation: locationGeneration.current,
+      session: captureChatbocSessionRevision(),
+    };
+    locationAttempt.current = attempt;
+    const isCurrent = () => locationMounted.current && locationAttempt.current === attempt
+      && locationGeneration.current === attempt.generation
+      && isChatbocSessionRevisionCurrent(attempt.session);
     setIsLocating(true);
     toast({ title: "Obteniendo ubicación...", description: "Por favor, acepta la solicitud de GPS.", duration: 2000 });
     try {
       const coords = await requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+      if (!isCurrent()) return;
       if (coords) {
         onSendMessage({
           text: "", // Texto vacío como pide el backend
           location: { lat: coords.latitud, lon: coords.longitud }, // Usar el nuevo formato
           source: 'system',
         });
-        toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida.", duration: 3000 });
+        if (isCurrent()) toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida.", duration: 3000 });
       } else {
         toast({ title: "Ubicación no disponible", description: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https).", variant: "destructive", duration: 5000 });
       }
     } catch (error) {
+      if (!isCurrent()) return;
       console.error("Error al obtener ubicación:", error);
       toast({ title: "Error al obtener ubicación", description: "Hubo un problema al intentar obtener tu ubicación.", variant: "destructive", duration: 5000 });
     } finally {
-      setIsLocating(false);
+      if (isCurrent()) {
+        locationAttempt.current = null;
+        setIsLocating(false);
+      }
     }
-    setInput("");
-    setInlineError(null);
-    onTypingChange?.(false);
-    safeLocalStorage.removeItem(draftStorageKey);
   };
 
-  const handleSendAudio = async (audioBlob: Blob) => {
-    if (isTyping || disabled) return;
+  const handleSendAudio = async (audioBlob: Blob,isCurrent:()=>boolean) => {
+    if (disabled || !isCurrent()) return;
+    if(typingNow.current){setRecordingDraft({blob:audioBlob,isCurrent});return;}
+    const recordedOwner=isCurrent;
+    let retained=true;
+    let retirePending:()=>void=()=>{};
+    isCurrent=()=>retained&&recordedOwner();
+    const discard=()=>{retained=false;retirePending();};
+    const recoveryCallbacks={
+      isCurrent,
+      onPending:(retire:()=>void)=>{retirePending=retire;},
+      onFailure:(recovery:AudioRecoveryNotice)=>{if(isCurrent())setRecordingDraft({blob:audioBlob,isCurrent,recovery,discard});},
+      onSuccess:()=>{if(isCurrent())setRecordingDraft(current=>current?.blob===audioBlob?null:current);},
+    };
+    setRecordingDraft({blob:audioBlob,isCurrent,discard,pending:true,recovery:{message:'Enviando tu grabación. Podés descartarla mientras esperamos la confirmación.'}});
     onSystemMessage?.('Enviando audio...', 'info');
+    if(!isCurrent())return;
 
-    const filename = `audio-grabado-${Date.now()}.webm`;
+    const filename = recordedAudioFilename(audioBlob);
     const audioMode = mediaCapabilities?.input_modes?.audio;
     if (audioMode && audioMode.enabled !== false) {
       onSendMessage({
@@ -504,6 +653,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         audioFilename: filename,
         audioField: audioMode.multipart_field || 'audio_file',
         audioEndpoint: audioMode.chat_endpoint || '/ask',
+        audioRecovery: recoveryCallbacks,
         source: 'input',
       });
       return;
@@ -515,11 +665,16 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       return formData;
     };
 
-    try {
-      const data = await uploadChatAttachment<UploadResponse>(
+    const attempt = createChatAttachmentUploadAttempt<UploadResponse>(
         '/archivos/upload/chat_attachment',
         createAudioUploadFormData,
+        { tenantSlug, demoSessionId, chatSessionId,isCurrent },
       );
+    const execute = async (): Promise<void> => {
+    try {
+      const data = await attempt.run();
+
+      if(!isCurrent())return;
 
       const normalized = normalizeUploadResponse(data);
       const responsePayload =
@@ -587,7 +742,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       const uploadedMime =
         normalized.mimeType ||
         coalesceString(responsePayload?.mimeType, responsePayload?.mime_type) ||
-        'audio/webm';
+        audioBlob.type || 'audio/webm';
       const uploadedSize =
         normalized.size ??
         coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
@@ -613,6 +768,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         resolvedThumb,
       );
 
+      if(!isCurrent())return;
       onSendMessage({
         text: '',
         attachmentInfo: {
@@ -620,15 +776,22 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           ...(normalized.id ? { id: normalized.id } : {}),
         },
         archivo_url: absoluteUploadedUrl,
+        audioRecovery:recoveryCallbacks,
         source: 'input',
       });
       // Optional: a success system message could be sent here, but it might be noisy.
       // onSystemMessage?.('Audio enviado con éxito.', 'info');
     } catch (error) {
+      if(!isCurrent())return;
       console.error("Error al enviar audio:", error);
       const friendlyError = getErrorMessage(error, "Hubo un problema al subir tu grabación.");
       onSystemMessage?.(friendlyError, 'error');
+      const retryable = attempt.canRetry(error);
+      setRecordingDraft({blob:audioBlob,isCurrent,discard,recovery:{message:audioRecoveryMessage(retryable),
+        ...(retryable?{retry:execute}:{})}});
     }
+    };
+    await execute();
   };
 
   return (
@@ -638,6 +801,25 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           {disabledReason}
         </div>
       ) : null}
+      {currentRecordingDraft?<div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
+        <p role="status">{currentRecordingDraft.recovery?.message||(isTyping?'Guardamos tu grabación mientras termina la respuesta. Podés enviarla cuando esté disponible.':'Tu grabación está lista. Podés enviarla o descartarla.')}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {!currentRecordingDraft.recovery||currentRecordingDraft.recovery.retry?
+          <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            disabled={isTyping||disabled||currentRecordingDraft.pending} onClick={async()=>{
+              const draft=currentRecordingDraft;
+              if(!draft.isCurrent()||typingNow.current||audioCompletion.current?.isCurrent())return;
+              const completion=Symbol('recording-draft');audioCompletion.current={token:completion,isCurrent:draft.isCurrent};
+              setRecordingDraft({...draft,pending:true});
+              try{if(draft.recovery?.retry)await draft.recovery.retry();else await handleSendAudio(draft.blob,draft.isCurrent);}finally{
+                if(audioCompletion.current?.token===completion)audioCompletion.current=null;
+                if(draft.isCurrent())setRecordingDraft(current=>current?.blob===draft.blob?{...current,pending:false}:current);
+              }
+            }}>{currentRecordingDraft.recovery?'Comprobar envío':'Enviar grabación'}</button>:null}
+          <button type="button" className="rounded-lg border border-border bg-background px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            onClick={()=>{currentRecordingDraft.discard?.();setRecordingDraft(null);}}>Descartar grabación</button>
+        </div>
+      </div>:null}
       {draftRecovered ? (
         <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
           Recuperamos tu borrador anterior automáticamente.
@@ -695,7 +877,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             variant="ghost"
             size="icon"
             className="absolute top-1 right-1 w-6 h-6"
-            onClick={() => setAttachmentPreview(null)}
+            onClick={() => {
+              setAttachmentPreview(null);
+              setInlineError(current => current?.target === 'attachment' ? null : current);
+            }}
             aria-label="Quitar adjunto"
           >
             <X className="w-4 h-4" />
@@ -727,6 +912,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             onChange={(e) => {
               const val = e.target.value;
               setInput(val);
+              setInlineError(null);
               onTypingChange?.(val.trim().length > 0);
             }}
             onKeyDown={(e) => {
@@ -739,6 +925,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             autoComplete="off"
             maxLength={200}
             aria-label="Escribir mensaje"
+            aria-invalid={inlineError?.target === 'input' ? true : undefined}
+            aria-describedby={inlineError ? inlineErrorId : undefined}
             aria-keyshortcuts="Enter"
             inputMode="text"
             disabled={disabled || isTyping || isRecording}
@@ -794,7 +982,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
+                border border-border/60 bg-background text-foreground hover:-translate-y-0.5 hover:bg-secondary hover:text-secondary-foreground hover:shadow-lg
                 ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label={locationLabel}
@@ -807,32 +995,38 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             {showAudioAction ? (
             <button
               onClick={async () => {
+                if(audioCompletion.current?.isCurrent())return;
+                audioCompletion.current=null;
+                if(isStarting){cancelRecording();return;}
+                const isCurrent=captureRecordingOwner();
                 if (isRecording) {
-                  const audioBlob = await stopRecording();
-                  if (audioBlob) {
-                    handleSendAudio(audioBlob);
-                  }
+                  const completion=Symbol('recording-completion');audioCompletion.current={token:completion,isCurrent};
+                  try{
+                    const audioBlob=await stopRecording();
+                    if(audioBlob&&isCurrent())await handleSendAudio(audioBlob,isCurrent);
+                  }finally{if(audioCompletion.current?.token===completion)audioCompletion.current=null;}
                 } else {
                   try {
                     await startRecording();
                   } catch (error) {
+                    if(!isCurrent())return;
                     toast({ title: "Error al grabar", description: "No se pudo iniciar la grabación. Verifica los permisos del micrófono.", variant: "destructive" });
                   }
                 }
               }}
-              disabled={disabled || isTyping || isLocating || !!attachmentPreview}
+              disabled={disabled || Boolean(currentRecordingDraft) || (!isRecording&&!isStarting&&(isTyping || isLocating || !!attachmentPreview))}
               className={`
                 flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
                 rounded-full p-2 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
-                ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
-                ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
+                border border-border/60 hover:-translate-y-0.5 hover:shadow-lg
+                ${disabled || (!isRecording&&!isStarting&&(isTyping || isLocating || !!attachmentPreview)) ? "opacity-50 cursor-not-allowed" : ""}
+                ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : "bg-background text-foreground hover:bg-secondary hover:text-secondary-foreground"}
               `}
-              aria-label={isRecording ? "Detener grabación" : audioLabel}
-              title={audioLabel}
+              aria-label={isStarting ? "Cancelar grabación" : isRecording ? "Detener grabación" : audioLabel}
+              title={isStarting ? "Cancelar grabación" : isRecording ? "Detener grabación" : audioLabel}
               type="button"
             >
               {isRecording ? <MicOff className="h-4 w-4 sm:h-5 sm:w-5" /> : <Mic className="h-4 w-4 sm:h-5 sm:w-5" />}
@@ -848,7 +1042,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
+                border border-border/60 bg-background text-foreground hover:-translate-y-0.5 hover:bg-secondary hover:text-secondary-foreground hover:shadow-lg
                 ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label="Mostrar emojis"
@@ -871,6 +1065,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             `}
             onClick={handleSend}
             disabled={disabled || (!input.trim() && !attachmentPreview) || isTyping || isRecording}
+            aria-disabled={isSendingAttachment || !canSendSelectedAttachment || undefined}
+            aria-busy={isSendingAttachment || undefined}
             aria-label="Enviar mensaje"
             type="button"
           >
@@ -879,18 +1075,19 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         </div>
         {(input.trim() || attachmentPreview || currentGuidedFieldLabel) ? (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 pb-1 text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
+            {(currentGuidedFieldLabel || !inlineError) ? <span className="inline-flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               {currentGuidedFieldLabel ? `Campo activo: ${currentGuidedFieldLabel}` : attachmentPreview ? 'Listo para enviar adjunto' : 'Mensaje listo para enviar'}
-            </span>
+            </span> : null}
             <span>{input.length}/200</span>
           </div>
         ) : null}
         </div>
       </div>
-      {inlineError ? (
-        <p className="mt-1 text-xs text-destructive">{inlineError}</p>
-      ) : null}
+      <div id={inlineErrorId} role="alert" aria-atomic="true"
+        className={inlineError ? "mt-1 flex items-start gap-2 rounded-lg border border-destructive/40 bg-background p-2 text-sm text-foreground" : "sr-only"}>
+        {inlineError ? <><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{inlineError.message}</span></> : null}
+      </div>
     </div>
   );
 });

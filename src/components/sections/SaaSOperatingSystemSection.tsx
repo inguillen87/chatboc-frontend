@@ -1,142 +1,200 @@
 import React from "react";
-import {
-  BarChart3,
-  BrainCircuit,
-  FileUp,
-  Gift,
-  Map,
-  MessageCircle,
-  PhoneCall,
-  ShieldCheck,
-  ShoppingCart,
-  Store,
-  UserRoundCheck,
-  Vote,
-} from "lucide-react";
 
-const platformLoops = [
-  {
-    icon: FileUp,
-    title: "Del archivo al marketplace",
-    detail:
-      "La organizacion sube PDF, Excel, CSV, TXT o listas comerciales. La IA extrae productos, precios, stock, descripciones e imagenes cuando existen.",
-  },
-  {
-    icon: Store,
-    title: "Del marketplace a la venta",
-    detail:
-      "El equipo completa fichas, agrega imagenes, publica productos y deja carrito, pedido, checkout y seguimiento listos para operar.",
-  },
-  {
-    icon: UserRoundCheck,
-    title: "Del visitante al portal",
-    detail:
-      "La persona puede entrar por WhatsApp o widget, comprar como invitada, asociar su cuenta y recuperar historial por organizacion.",
-  },
-  {
-    icon: Gift,
-    title: "De la compra a fidelizacion",
-    detail:
-      "Beneficios, recompensas, encuestas y acciones de participacion conectan cada experiencia con retencion y comunidad.",
-  },
-];
+const ServiceJourneyFlow = React.lazy(() => import("./ServiceJourneyFlow"));
 
-const intelligenceRows = [
-  { icon: MessageCircle, label: "Entiende texto, audio, imagenes y archivos", tone: "blue" },
-  { icon: Map, label: "Convierte ubicaciones en mapas y zonas de accion", tone: "green" },
-  { icon: Vote, label: "Mide encuestas, sondeos, votos y comentarios", tone: "amber" },
-  { icon: PhoneCall, label: "Puede sumar llamadas cuando el canal esta habilitado", tone: "purple" },
-  { icon: BarChart3, label: "Resume actividad real para decidir mejor", tone: "cyan" },
-  { icon: ShieldCheck, label: "Deriva a humanos con contexto completo", tone: "emerald" },
-];
+const journeyStages = [
+  {
+    eyebrow: "01 · Entrada",
+    title: "Canales ciudadanos",
+    description: "WhatsApp, web, voz y formularios accesibles.",
+  },
+  {
+    eyebrow: "02 · Comprensión",
+    title: "Agente conversacional",
+    description: "Ordena la solicitud, solicita lo necesario y conserva el contexto.",
+  },
+  {
+    eyebrow: "03 · Resolución",
+    title: "Equipo y automatizaciones",
+    description: "Asigna responsables, controla plazos y habilita la atención humana.",
+  },
+  {
+    eyebrow: "04 · Gestión",
+    title: "CRM y analítica",
+    description: "Reúne trazabilidad, resultados y señales para decidir mejor.",
+  },
+] as const;
 
-const verticalOutcomes = [
-  {
-    title: "Pymes",
-    items: ["Catalogo importado con IA", "Carrito invitado o registrado", "Pedidos, pagos, comprobantes y seguimiento"],
-  },
-  {
-    title: "Gobiernos",
-    items: ["Reclamos con foto, audio y ubicacion", "Mapa operativo y zonas calientes", "Sondeos, votaciones y comentarios"],
-  },
-  {
-    title: "Colegios",
-    items: ["Familias, staff y secretaria en un mismo canal", "Inasistencias, certificados, pagos y admisiones", "Casos sensibles con derivacion humana"],
-  },
-];
+const JourneyFlowLoading = () => (
+  <div
+    className="mt-9 overflow-hidden rounded-[16px] border border-border bg-card shadow-sm"
+    aria-label="Cargando recorrido conectado"
+    role="status"
+  >
+    <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
+      <div className="space-y-2">
+        <div className="h-4 w-36 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+        <div className="h-3 w-64 max-w-[70vw] animate-pulse rounded bg-muted/70 motion-reduce:animate-none" />
+      </div>
+      <div className="hidden h-10 w-44 animate-pulse rounded-[10px] bg-muted sm:block motion-reduce:animate-none" />
+    </div>
+    <div className="grid gap-3 p-4 sm:grid-cols-4 sm:p-6">
+      {["Canales", "Agente", "Operación", "Gestión"].map((label) => (
+        <div key={label} className="rounded-[12px] border border-border bg-background p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.11em] text-primary">{label}</p>
+          <div className="mt-3 h-3 w-4/5 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+type JourneyFlowStaticReason = "offline" | "load-error";
+
+const JourneyFlowStatic = ({ reason }: { reason: JourneyFlowStaticReason }) => {
+  const content = reason === "offline"
+    ? {
+        label: "Guía del recorrido sin conexión",
+        description: "Contenido informativo disponible sin conexión. Las acciones, integraciones y los datos en vivo requieren conectividad.",
+        badge: "Modo informativo sin conexión",
+      }
+    : {
+        label: "Vista interactiva no disponible",
+        description: "No se pudo cargar el diagrama interactivo. Mostramos una referencia informativa sin acciones ni datos en vivo.",
+        badge: "Modo informativo",
+      };
+
+  return (
+    <div
+      className="mt-9 overflow-hidden rounded-[16px] border border-border bg-card shadow-sm"
+      aria-label={content.label}
+      role="region"
+    >
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{content.label}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{content.description}</p>
+        </div>
+        <span className="w-fit rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+          {content.badge}
+        </span>
+      </div>
+
+      <ol className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4" aria-label="Etapas informativas del recorrido">
+        {journeyStages.map((stage) => (
+          <li key={stage.title} className="relative rounded-[12px] border border-border bg-background p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-primary">{stage.eyebrow}</p>
+            <h3 className="mt-2 text-base font-semibold text-foreground">{stage.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.description}</p>
+          </li>
+        ))}
+      </ol>
+
+      <p className="border-t border-border bg-muted/25 px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-6">
+        Referencia de capacidades. Los canales, integraciones y automatizaciones se habilitan según la configuración contratada y requieren conexión para operar.
+      </p>
+    </div>
+  );
+};
+
+type JourneyFlowErrorBoundaryProps = {
+  children: React.ReactNode;
+};
+
+type JourneyFlowErrorBoundaryState = {
+  hasError: boolean;
+};
+
+class JourneyFlowErrorBoundaryImpl extends (React.Component as any)<
+  JourneyFlowErrorBoundaryProps,
+  JourneyFlowErrorBoundaryState
+> {
+  constructor(props: JourneyFlowErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): JourneyFlowErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("SaaS journey flow failed to load", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <>
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            La vista interactiva no pudo cargarse. Se muestra una guía informativa.
+          </p>
+          <JourneyFlowStatic reason="load-error" />
+        </>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export const JourneyFlowErrorBoundary = JourneyFlowErrorBoundaryImpl as unknown as React.ComponentType<
+  JourneyFlowErrorBoundaryProps
+>;
+
+const subscribeToConnectivity = (onStoreChange: () => void) => {
+  if (typeof window === "undefined") return () => undefined;
+
+  window.addEventListener("online", onStoreChange);
+  window.addEventListener("offline", onStoreChange);
+
+  return () => {
+    window.removeEventListener("online", onStoreChange);
+    window.removeEventListener("offline", onStoreChange);
+  };
+};
+
+const readConnectivity = () => typeof navigator === "undefined" || navigator.onLine !== false;
 
 const SaaSOperatingSystemSection = () => {
+  const isOnline = React.useSyncExternalStore(subscribeToConnectivity, readConnectivity, () => true);
+
   return (
-    <section id="sistema-operativo" className="scroll-mt-24 bg-muted/25 py-16 text-foreground md:py-24">
+    <section
+      id="sistema-operativo"
+      aria-labelledby="operating-system-title"
+      className="scroll-mt-24 border-y border-border/60 bg-background py-14 text-foreground md:py-20"
+    >
       <div className="container mx-auto px-4">
-        <div className="mx-auto max-w-3xl text-center">
-          <div className="chatboc-section-kicker mb-4">La diferencia que vende</div>
-          <h2 className="chatboc-section-heading">No es solo chat. Es un sistema completo para operar, vender y aprender.</h2>
-          <p className="chatboc-section-copy mt-4">
-            Chatboc une consultoria, IA, canales, marketplace, portal de usuario, participacion y analiticas. Cada modulo
-            se activa con informacion real de la organizacion, sin inventar resultados.
+        <div className="mx-auto max-w-6xl">
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {isOnline
+              ? "Conexión disponible. Se intentará mostrar el recorrido interactivo."
+              : "Sin conexión detectada. Se muestra una guía informativa sin acciones ni datos en vivo."}
           </p>
-        </div>
 
-        <div className="mt-10 grid gap-4 lg:grid-cols-4">
-          {platformLoops.map((item) => {
-            const Icon = item.icon;
-            return (
-              <article key={item.title} className="chatboc-landing-panel chatboc-hover-lift p-5">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.detail}</p>
-              </article>
-            );
-          })}
-        </div>
-
-        <div className="mt-10 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch">
-          <div className="chatboc-command-shell p-5 md:p-6">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                <BrainCircuit className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">IA aplicada a procesos reales</h3>
-                <p className="text-sm text-muted-foreground">La demo debe mostrar acciones que el equipo pueda continuar.</p>
-              </div>
+          <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-end lg:gap-12">
+            <div>
+              <div className="chatboc-section-kicker mb-4">Operación conectada</div>
+              <h2 id="operating-system-title" className="chatboc-section-heading max-w-xl">
+                Recibir, resolver y medir en un mismo flujo
+              </h2>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {intelligenceRows.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="rounded-[8px] border border-border/70 bg-background/75 p-3">
-                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <p className="text-sm font-medium leading-5 text-foreground">{item.label}</p>
-                  </div>
-                );
-              })}
-            </div>
+            <p className="chatboc-section-copy max-w-2xl lg:pb-1">
+              Chatboc conecta la atención con el trabajo del equipo y mantiene el contexto disponible durante todo el
+              recorrido.
+            </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1">
-            {verticalOutcomes.map((vertical) => (
-              <article key={vertical.title} className="rounded-[8px] border border-border/70 bg-card/85 p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-foreground">{vertical.title}</h3>
-                  <ShoppingCart className="h-4 w-4 text-primary" />
-                </div>
-                <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
-                  {vertical.items.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-success" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
+          {isOnline ? (
+            <JourneyFlowErrorBoundary>
+              <React.Suspense fallback={<JourneyFlowLoading />}>
+                <ServiceJourneyFlow />
+              </React.Suspense>
+            </JourneyFlowErrorBoundary>
+          ) : (
+            <JourneyFlowStatic reason="offline" />
+          )}
         </div>
       </div>
     </section>

@@ -45,12 +45,16 @@ import {
   sha256SurveyConsentText,
   validateSurveyConsentPublicText,
 } from '@/utils/surveyGovernance';
+import { validateSurveyGovernanceReleaseList } from '@/utils/surveyGovernanceContract';
 
-const RELEASE_LIST_CONTRACT = 'surveys.governance_releases.v1';
+export {
+  SurveyGovernanceContractError,
+  validateSurveyGovernanceReleaseList,
+} from '@/utils/surveyGovernanceContract';
+
 const RELEASE_CONTRACT = 'surveys.governance_release.v1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/i;
 const OPAQUE_REVIEW_REFERENCE_PATTERN = /^[a-z][a-z0-9_.-]{1,31}:[A-Za-z][A-Za-z0-9_.:-]{7,127}$/;
-const RELEASE_STATUSES = new Set(['draft', 'published', 'closed']);
 
 type GovernanceOperation = 'create' | 'publish' | 'close';
 
@@ -67,23 +71,6 @@ type ConsentDigestState = {
   codePointLength: number;
   error?: string;
 };
-
-type SurveyGovernanceContractErrorKind = 'absent' | 'malformed';
-
-export class SurveyGovernanceContractError extends Error {
-  readonly kind: SurveyGovernanceContractErrorKind;
-
-  constructor(kind: SurveyGovernanceContractErrorKind) {
-    super(
-      kind === 'absent'
-        ? 'El backend no expuso el contrato versionado de gobernanza. Las acciones quedaron bloqueadas.'
-        : 'El backend devolvió un contrato de gobernanza inconsistente. Las acciones quedaron bloqueadas.',
-    );
-    this.name = 'SurveyGovernanceContractError';
-    this.kind = kind;
-    Object.setPrototypeOf(this, SurveyGovernanceContractError.prototype);
-  }
-}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -247,89 +234,6 @@ export const isSurveyGovernanceMutationAck = (
     manifest.assurance.result_certified === false &&
     manifest.assurance.external_anchor_verified === false
   );
-};
-
-export const validateSurveyGovernanceReleaseList = (
-  value: unknown,
-  expected: { surveyId: number; tenantSlug: string },
-): SurveyGovernanceReleaseList => {
-  if (!isRecord(value) || !Object.prototype.hasOwnProperty.call(value, 'contract_version')) {
-    throw new SurveyGovernanceContractError('absent');
-  }
-  if (value.contract_version !== RELEASE_LIST_CONTRACT) {
-    throw new SurveyGovernanceContractError('malformed');
-  }
-  const tenantSlug = expected.tenantSlug.trim();
-  const tenant = value.tenant;
-  const items = value.items;
-  const capabilities = value.capabilities;
-  if (
-    !tenantSlug ||
-    value.ok !== true ||
-    !isRecord(tenant) ||
-    !isPositiveSafeInteger(tenant.id) ||
-    typeof tenant.slug !== 'string' ||
-    tenant.slug.trim().toLowerCase() !== tenantSlug.toLowerCase() ||
-    value.survey_id !== expected.surveyId ||
-    !Array.isArray(items) ||
-    !isNonNegativeSafeInteger(value.total) ||
-    value.total !== items.length ||
-    !isRecord(capabilities) ||
-    capabilities.read !== true ||
-    capabilities.manage !== true ||
-    typeof capabilities.plan_allows_write !== 'boolean' ||
-    typeof capabilities.create_release !== 'boolean' ||
-    capabilities.required_for_mutation !== 'survey.governance.manage'
-  ) {
-    throw new SurveyGovernanceContractError('malformed');
-  }
-
-  const releaseIds = new Set<number>();
-  const versionNumbers = new Set<number>();
-  let previousVersion = Number.POSITIVE_INFINITY;
-  const publishedReleaseIds: number[] = [];
-  for (const item of items) {
-    if (
-      !isRecord(item) ||
-      item.contract_version !== RELEASE_CONTRACT ||
-      item.survey_id !== expected.surveyId ||
-      !isPositiveSafeInteger(item.release_id) ||
-      !isPositiveSafeInteger(item.version_number) ||
-      item.version_number >= previousVersion ||
-      releaseIds.has(item.release_id) ||
-      versionNumbers.has(item.version_number) ||
-      !RELEASE_STATUSES.has(String(item.status)) ||
-      typeof item.snapshot_sha256 !== 'string' ||
-      !SHA256_PATTERN.test(item.snapshot_sha256) ||
-      typeof item.policy_sha256 !== 'string' ||
-      !SHA256_PATTERN.test(item.policy_sha256) ||
-      !isRecord(item.assurance) ||
-      item.assurance.regulated_election_certified !== false ||
-      item.assurance.result_certified !== false ||
-      !isRecord(item.capabilities) ||
-      typeof item.capabilities.can_publish !== 'boolean' ||
-      typeof item.capabilities.can_close !== 'boolean'
-    ) {
-      throw new SurveyGovernanceContractError('malformed');
-    }
-    releaseIds.add(item.release_id);
-    versionNumbers.add(item.version_number);
-    previousVersion = item.version_number;
-    if (item.status === 'published') publishedReleaseIds.push(item.release_id);
-  }
-
-  const expectedLatestReleaseId = items.length > 0
-    ? (items[0] as Record<string, unknown>).release_id
-    : null;
-  if (
-    publishedReleaseIds.length > 1 ||
-    value.active_release_id !== (publishedReleaseIds[0] ?? null) ||
-    value.latest_release_id !== expectedLatestReleaseId
-  ) {
-    throw new SurveyGovernanceContractError('malformed');
-  }
-
-  return value as unknown as SurveyGovernanceReleaseList;
 };
 
 const releaseHasHonestAssurance = (release: SurveyGovernanceRelease) =>

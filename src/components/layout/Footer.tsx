@@ -1,6 +1,9 @@
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
+import {PrivateWorkspaceFooter} from '@/components/brand/PrivateWorkspaceBrand';
 // src/components/Footer.tsx
 
 import { useState } from "react";
+import { useTenant } from '@/context/TenantContext';
 import { Link } from "react-router-dom";
 import {
   Copy,
@@ -22,7 +25,7 @@ const afipDataFiscalHref = "https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
 const afipDataFiscalImage = "https://www.afip.gob.ar/images/f960/DATAWEB.jpg";
 const mipymeCertificateHref = "/certificados/certificado-mipyme-intellitech.pdf";
 
-const Footer = () => {
+const MarketingFooter = () => {
   const scrollToSection = useScrollToSection();
   const [copied, setCopied] = useState(false);
   const email = "info@chatboc.ar";
@@ -66,7 +69,7 @@ const Footer = () => {
                 <button
                   type="button"
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
-                  onClick={() => scrollToSection("solution")}
+                  onClick={() => scrollToSection("solucion")}
                 >
                   Que hace
                 </button>
@@ -75,7 +78,7 @@ const Footer = () => {
                 <button
                   type="button"
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
-                  onClick={() => scrollToSection("pricing")}
+                  onClick={() => scrollToSection("precios")}
                 >
                   Planes
                 </button>
@@ -242,4 +245,13 @@ const Footer = () => {
   );
 };
 
+const Footer=()=>{
+  const presentation=usePrivateWorkspacePresentation();
+  const {hostBinding}=useTenant();
+  if(hostBinding)return <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 border-t px-6 py-5 text-sm text-muted-foreground" aria-label="Información del espacio">
+    <Link to={hostBinding.paths.home} className="min-h-11 py-3 font-medium">{hostBinding.tenant.nombre}</Link>
+    <nav className="flex flex-wrap gap-4" aria-label="Información legal de la plataforma"><Link className="min-h-11 py-3" to="/privacidad">Privacidad de la plataforma</Link><Link className="min-h-11 py-3" to="/terminos">Términos de la plataforma</Link></nav>
+  </footer>;
+  return presentation.active?<PrivateWorkspaceFooter identity={presentation.identity}/>:<MarketingFooter/>;
+};
 export default Footer;

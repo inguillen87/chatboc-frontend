@@ -7,30 +7,30 @@ const steps = [
   {
     number: "01",
     icon: UploadCloud,
-    title: "Ordenamos tu operacion",
+    title: "Relevamiento operativo",
     description:
-      "Relevamos consultas, reclamos, pedidos, encuestas, catalogos, politicas y rutas de derivacion para armar un recorrido claro.",
+      "Documentamos consultas, reclamos, pedidos, encuestas, catálogos, políticas y rutas de derivación antes de configurar el servicio.",
   },
   {
     number: "02",
     icon: Bot,
-    title: "Chatboc prepara el recorrido",
+    title: "Configuración del servicio",
     description:
-      "Menus, medios, botones, casos y metricas indican que necesita ver cada persona para avanzar.",
+      "Definimos menús, datos requeridos, permisos, responsables y criterios de atención para cada recorrido.",
   },
   {
     number: "03",
     icon: Rocket,
-    title: "El usuario conversa y avanza",
+    title: "Puesta en marcha controlada",
     description:
-      "El agente responde, pide datos, recibe adjuntos, toma ubicacion, deriva a humano o abre una accion concreta.",
+      "Validamos conversaciones, adjuntos, ubicación consentida, derivaciones y acciones concretas antes de ampliar el alcance.",
   },
   {
     number: "04",
     icon: BarChart3,
-    title: "El equipo mide y mejora",
+    title: "Medición y mejora continua",
     description:
-      "Paneles, mapas, tiempos de atencion, resultados de encuestas y prioridades ayudan a operar con informacion actual.",
+      "El equipo revisa estados, tiempos, encuestas, mapas y prioridades con trazabilidad para ajustar la operación.",
   },
 ];
 
@@ -38,14 +38,20 @@ const HowItWorksSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="como-funciona" className="chatboc-muted-band py-16 text-foreground md:py-24">
+    <section
+      id="como-funciona"
+      aria-labelledby="implementation-title"
+      className="chatboc-muted-band py-16 text-foreground md:py-24"
+    >
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="chatboc-section-kicker mb-4">Como funciona</div>
-          <h2 className="chatboc-section-heading">Menos improvisacion, mas sistema funcionando</h2>
+          <div className="chatboc-section-kicker mb-4">Implementación</div>
+          <h2 id="implementation-title" className="chatboc-section-heading">
+            Un recorrido operativo, de punta a punta
+          </h2>
           <p className="chatboc-section-copy mt-4">
-            El flujo esta pensado para que una organizacion pueda empezar simple y escalar hacia chat, WhatsApp, voz,
-            catalogo, casos, encuestas, mapas y analiticas sin perder orden.
+            Cada canal se incorpora con alcance, responsables y criterios de validación definidos. La organización puede
+            comenzar con un proceso y sumar capacidades sin perder contexto ni trazabilidad.
           </p>
         </div>
 
@@ -55,11 +61,11 @@ const HowItWorksSection = () => {
             const Icon = step.icon;
             return (
               <article key={step.number} className="chatboc-landing-panel chatboc-hover-lift relative overflow-hidden p-5 md:p-6">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-amber-500 opacity-80" />
+                <div className="absolute inset-x-0 top-0 h-1 bg-primary/80" />
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <span className="text-sm font-bold text-primary">{step.number}</span>
                   <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-5 w-5" aria-hidden="true" />
                   </div>
                 </div>
                 <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
@@ -76,7 +82,7 @@ const HowItWorksSection = () => {
             onClick={() => navigate("/demo")}
           >
             Ver demo interactiva
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
           </Button>
         </div>
       </div>

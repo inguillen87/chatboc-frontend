@@ -3,12 +3,18 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useTenantHostBinding } from '@/hooks/useTenantHostBinding';
+import { publishTenantHostRuntime, tenantHostRouteMatches, TenantHostUnavailableError } from '@/utils/tenantHostBinding';
+import type { TenantHostBinding } from '@/types/tenantHost';
+import { applyWidgetThemeVariables, widgetThemeVariables } from '@/utils/widgetTheme';
+import { resolvePublicDemoPreloadTarget } from '@/config/publicPresentationRoutes';
 
 import {
   followTenant as followTenantRequest,
@@ -35,6 +41,7 @@ import {
 const LOCAL_PLACEHOLDER_SLUGS = new Set([...TENANT_PLACEHOLDER_SLUGS, 'e']);
 
 interface TenantContextValue {
+  hostBinding?: TenantHostBinding | null;
   currentSlug: string | null;
   tenant: TenantPublicInfo | null;
   isLoadingTenant: boolean;
@@ -86,7 +93,11 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
 const isTenantIndependentPath = (pathname: string) => {
   const normalized = pathname.trim().toLowerCase().replace(/\/+$/, '') || '/';
-  return normalized === '/superadmin' || normalized.startsWith('/superadmin/');
+  return (
+    normalized === '/superadmin' ||
+    normalized.startsWith('/superadmin/') ||
+    resolvePublicDemoPreloadTarget(normalized) !== null
+  );
 };
 const PORTAL_SECTION_SEGMENTS = new Set([
   'dashboard',
@@ -145,6 +156,8 @@ const readTenantFromConfig = (): { slug: string | null; widgetToken: string | nu
 };
 
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
+  const rehearsal = pathname.match(/^\/pruebas\/encuestas\/([a-z0-9][a-z0-9-]{0,99})\/rehearsal_[a-f0-9]{32}\/?$/);
+  if (rehearsal) return sanitizeTenantSlug(rehearsal[1]);
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
     try {
@@ -290,8 +303,12 @@ export const TenantProvider = ({
   bootstrapEnabled?: boolean;
 }) => {
   const location = useLocation();
+  const hostResolution = useTenantHostBinding();
+  const hostBinding = hostResolution.binding;
+  const hostScopeMismatch = Boolean(hostBinding && !tenantHostRouteMatches(hostBinding, location.pathname, location.search));
   const tenantBootstrapSuppressed =
     !bootstrapEnabled || isTenantIndependentPath(location.pathname);
+  const isPublicTenantLanding = hostResolution.required || /^\/t\/[^/]+\/?$/i.test(location.pathname);
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
@@ -319,13 +336,16 @@ export const TenantProvider = ({
 
     try {
       const info = await getTenantPublicInfoFlexible(slug, token);
+      if (hostBinding && (info.publishedIdentity?.tenantId !== hostBinding.tenant.id || info.publishedIdentity?.tenantSlug !== hostBinding.tenant.slug || info.slug !== hostBinding.tenant.slug)) {
+        throw new TenantHostUnavailableError();
+      }
 
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
         if (info?.slug) {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
-           useTenantStore.getState().setTenant(info.slug, info);
+           if (!isPublicTenantLanding) useTenantStore.getState().setTenant(info.slug, info);
            if (token) {
              const scopedToken = resolveWidgetTokenForTenant(token, info.slug);
              if (scopedToken) {
@@ -340,14 +360,15 @@ export const TenantProvider = ({
 
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
-        const recoverable = isRecoverableTenantError(error);
-        setTenant(DEFAULT_TENANT_INFO);
-        setTenantError(recoverable ? null : getErrorMessage(error));
+        if (hostResolution.required) publishTenantHostRuntime(null);
+        const recoverable = !hostResolution.required && isRecoverableTenantError(error);
+        setTenant(hostResolution.required ? null : DEFAULT_TENANT_INFO);
+        setTenantError(hostResolution.required ? 'No pudimos confirmar la información de este dominio.' : recoverable ? null : getErrorMessage(error));
 
         if (recoverable) {
           setCurrentSlug(null);
           currentSlugRef.current = null;
-          useTenantStore.getState().clearTenant();
+          if (!isPublicTenantLanding) useTenantStore.getState().clearTenant();
         }
 
       }
@@ -359,11 +380,23 @@ export const TenantProvider = ({
         setIsLoadingTenant(false);
       }
     }
-  }, [isRecoverableTenantError]);
+  }, [isRecoverableTenantError, isPublicTenantLanding, hostBinding, hostResolution.required]);
 
   useEffect(() => {
+    if (hostResolution.required && (hostResolution.status !== 'active' || hostScopeMismatch)) {
+      activeTenantRequest.current += 1;
+      currentSlugRef.current = null;
+      setCurrentSlug(null);
+      setTenant(null);
+      setWidgetToken(null);
+      setTenantError(null);
+      setIsLoadingTenant(hostResolution.status === 'loading');
+      setFollowedTenants([]);
+      return;
+    }
     const { slug, widgetToken: token } = tenantBootstrapSuppressed
       ? { slug: null, widgetToken: null }
+      : hostBinding ? { slug: hostBinding.tenant.slug, widgetToken: null }
       : resolveTenantBootstrap(location.pathname, location.search);
     currentSlugRef.current = slug;
     setCurrentSlug(slug);
@@ -397,38 +430,46 @@ export const TenantProvider = ({
         console.warn('[TenantContext] No se pudo cargar la información pública del tenant', error);
       }
     });
-  }, [fetchTenant, location.pathname, location.search, tenantBootstrapSuppressed]);
+  }, [fetchTenant, location.pathname, location.search, tenantBootstrapSuppressed, hostBinding, hostResolution.required, hostResolution.status, hostScopeMismatch]);
 
   const refreshTenant = useCallback(async () => {
+    if (hostResolution.required) { hostResolution.refresh(); return; }
     if (!currentSlugRef.current && !widgetToken) return;
     try {
       await fetchTenant(currentSlugRef.current, widgetToken);
     } catch {
       // el estado ya quedó manejado por fetchTenant
     }
-  }, [fetchTenant, widgetToken]);
+  }, [fetchTenant, widgetToken, hostResolution.required, hostResolution.refresh]);
 
   useEffect(() => {
-    if (tenantBootstrapSuppressed) return;
+    if (tenantBootstrapSuppressed || (hostResolution.required && (!hostBinding || hostScopeMismatch))) return;
     ensureRemoteAnonId({ tenantSlug: currentSlugRef.current, widgetToken }).catch((error) => {
       console.warn('[TenantContext] No se pudo asegurar anon_id remoto', error);
     });
-  }, [tenantBootstrapSuppressed, widgetToken]);
+  }, [tenantBootstrapSuppressed, widgetToken, hostBinding, hostResolution.required, hostScopeMismatch]);
 
   useEffect(() => {
-    if (tenantBootstrapSuppressed) return;
+    if (tenantBootstrapSuppressed || isPublicTenantLanding) return;
     const sanitized = sanitizeTenantSlug(currentSlugRef.current);
     if (sanitized) {
       safeLocalStorage.setItem('tenantSlug', sanitized);
     } else {
       safeLocalStorage.removeItem('tenantSlug');
     }
-  }, [currentSlug, tenantBootstrapSuppressed]);
+  }, [currentSlug, tenantBootstrapSuppressed, isPublicTenantLanding]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     (window as any).currentTenantSlug = currentSlug ?? null;
   }, [currentSlug]);
+
+  useLayoutEffect(() => {
+    if (!hostBinding || hostScopeMismatch) return;
+    return applyWidgetThemeVariables(document.documentElement, widgetThemeVariables({}, {
+      primary: hostBinding.brand.primary_color, secondary: hostBinding.brand.accent_color,
+    }));
+  }, [hostBinding, hostScopeMismatch]);
 
   useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;
@@ -509,6 +550,7 @@ export const TenantProvider = ({
   }, [refreshFollowedTenants]);
 
   const value = useMemo<TenantContextValue>(() => ({
+    hostBinding,
     currentSlug,
     tenant: tenant ?? DEFAULT_TENANT_INFO,
     isLoadingTenant,
@@ -523,7 +565,7 @@ export const TenantProvider = ({
     followCurrentTenant,
     unfollowCurrentTenant,
     setTenantSlug: (slug: string) => {
-        if (tenantBootstrapSuppressed) return;
+        if (tenantBootstrapSuppressed || hostResolution.required) return;
         const sanitized = sanitizeTenantSlug(slug);
         setCurrentSlug(sanitized);
         currentSlugRef.current = sanitized;
@@ -545,8 +587,19 @@ export const TenantProvider = ({
     followCurrentTenant,
     unfollowCurrentTenant,
     tenantBootstrapSuppressed,
+    hostBinding,
+    hostResolution.required,
   ]);
 
+  const hostProfilePending = !tenantBootstrapSuppressed && (!tenant || isLoadingTenant || currentSlug !== hostBinding?.tenant.slug);
+  if (hostResolution.required && (hostResolution.status !== 'active' || hostScopeMismatch || tenantError || hostProfilePending)) {
+    const loading = hostResolution.status === 'loading' || (hostResolution.status === 'active' && hostProfilePending && !hostScopeMismatch && !tenantError);
+    return <main id="main-content" className="mx-auto flex min-h-[65vh] max-w-2xl flex-col justify-center gap-4 px-6 py-12" aria-busy={loading}>
+      <h1 className="text-2xl font-semibold">{loading ? 'Cargando espacio' : 'Este dominio no está disponible'}</h1>
+      <p role={loading ? 'status' : 'alert'}>{loading ? 'Estamos comprobando la organización de este dominio.' : hostScopeMismatch ? 'La dirección solicitada no corresponde a la organización de este dominio.' : 'No pudimos confirmar un espacio activo y verificado. Reintentá en unos minutos.'}</p>
+      {!loading ? <button type="button" className="min-h-11 rounded-lg border px-4 py-2 text-sm font-semibold" onClick={hostResolution.refresh}>Reintentar</button> : null}
+    </main>;
+  }
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 };
 

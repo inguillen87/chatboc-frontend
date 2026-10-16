@@ -1,9 +1,15 @@
-import React, { useEffect, useState, useCallback, FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { OrderAmountBreakdown } from '@/components/orders/OrderAmountBreakdown';
+import { OrderAmountCoverage } from '@/components/orders/OrderAmountCoverage';
+import { summarizeOrderAmounts } from '@/features/orders/orderAmounts';
+import React, { useEffect, useState, useCallback, useRef, FC } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { getErrorMessage } from '@/utils/api';
 import { apiClient } from '@/api/client';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
+import { useUser } from '@/hooks/useUser';
+import { buildVerifiedSessionScopeKey, useSessionAuthority } from '@/components/access/SessionAuthorityContext';
+import { hasRequiredRole } from '@/utils/roles';
+import { ViewState } from '@/components/app-shell/ViewState';
 import { Order } from '@/types/unified';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +23,7 @@ import { fmtAR } from '@/utils/date';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { LOCALE_OPTIONS } from '@/utils/localeOptions';
 import { TICKET_DESK_PATH } from '@/utils/backofficeRoutes';
+import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 import {
   Select,
   SelectContent,
@@ -121,21 +128,7 @@ const PedidoDetail: FC<{ pedido: Order; onClose: () => void; onStatusChange: (ne
           </SelectContent>
         </Select>
       </div>
-      {pedido.items && pedido.items.length > 0 && (
-        <div className="mb-4">
-          <h4 className="font-semibold mb-1">Items</h4>
-          <ul className="list-disc list-inside space-y-1 text-sm">
-            {(pedido.items || []).map((item, idx) => (
-              <li key={idx}>
-                {item.quantity} x {item.name}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {pedido.total !== null && (
-        <p className="font-bold text-right">Total: ${pedido.total.toFixed(2)}</p>
-      )}
+      <OrderAmountBreakdown order={pedido} />
     </div>
   );
 };
@@ -242,7 +235,7 @@ const PedidoMetricCard = ({
   </Card>
 );
 
-const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
+const PageHeader: FC<{ onLogout: () => void; title: string }> = ({ onLogout, title }) => {
   const navigate = useNavigate();
   const { locale, updateSettings } = useDateSettings();
   return (
@@ -251,7 +244,7 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
         <ChevronLeft className="w-5 h-5 mr-2" /> Volver al Perfil
       </Button>
       <h1 className="text-3xl sm:text-4xl font-extrabold text-primary leading-tight text-center flex-1 hidden sm:block">
-        Panel de Pedidos
+        {title}
       </h1>
       <Button
         variant="ghost"
@@ -293,8 +286,30 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
 };
 
 // ---------- Página Principal ----------
-export default function PedidosPage() {
+export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false }: { tenantSlug?: string; embedded?: boolean } = {}) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { tenant: routeTenant } = useParams();
+  const { user, loading: profileLoading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
+  const { clerkStatus } = useSessionAuthority();
+  const sessionPending = profileLoading || clerkStatus === 'loading' || clerkStatus === 'syncing';
+  const canReadOrders = hasVerifiedSession && organizationProfileVerified &&
+    hasRequiredRole(user?.rol, ['tenant_admin', 'employee', 'superadmin']);
+  const candidateTenant = scopedTenant || routeTenant || new URLSearchParams(location.search).get('tenant_slug') ||
+    user?.tenant_slug || user?.tenantSlug;
+  const tenantSlug = typeof candidateTenant === 'string' && /^[a-z0-9][a-z0-9_-]{0,127}$/i.test(candidateTenant.trim())
+    ? candidateTenant.trim().toLowerCase() : null;
+  const organization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(profileLoading),
+  });
+  const isMunicipal = organization?.tenantSlug === tenantSlug && organization.isMunicipal;
+  const pageTitle = isMunicipal ? 'Tareas y gestión' : 'Operacion de pedidos';
+  const pageDescription = isMunicipal
+    ? 'Consultá y gestioná los pedidos institucionales de esta organización.'
+    : 'Estados, detalle y seguimiento comercial en una vista simple para el equipo.';
+  const requestScopeKey = canReadOrders ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user }) : null;
+  const currentScopeRef = useRef(requestScopeKey);
+  currentScopeRef.current = requestScopeKey;
   const { timezone, locale, updateSettings } = useDateSettings();
   const [categorizedPedidos, setCategorizedPedidos] = useState<CategorizedPedidos>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -303,22 +318,24 @@ export default function PedidosPage() {
   const [selectedPedidoId, setSelectedPedidoId] = useState<number | string | null>(null);
   const [search, setSearch] = useState('');
 
-  const handleLogout = useCallback(async () => {
-    await logoutChatbocSession();
+  const handleLogout = useCallback(() => {
+    void logoutChatbocSession();
     navigate('/login', { replace: true });
   }, [navigate]);
 
   const fetchPedidos = useCallback(async () => {
-    const tenantSlug = safeLocalStorage.getItem('tenantSlug');
+    if (!canReadOrders || !requestScopeKey) return;
     if (!tenantSlug) {
       setError('No se pudo identificar al tenant para cargar los pedidos.');
       setIsLoading(false);
       return;
     }
 
+    setError(null);
     try {
       // Pass { status: 'all' } to get everything, similar to Pyme page
       const data = await apiClient.adminListOrders(tenantSlug, { status: 'all' });
+      if (currentScopeRef.current !== requestScopeKey) return;
       if (Array.isArray(data)) {
         const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
           acc[p.status] = acc[p.status] ? [...acc[p.status], p] : [p];
@@ -332,21 +349,26 @@ export default function PedidosPage() {
         setOpenCategories(new Set());
       }
     } catch (err) {
+      if (currentScopeRef.current !== requestScopeKey) return;
       console.error('Error fetching pedidos:', err);
       setError(getErrorMessage(err, 'Error al cargar los pedidos.'));
     } finally {
-      setIsLoading(false);
+      if (currentScopeRef.current === requestScopeKey) setIsLoading(false);
     }
-  }, []);
+  }, [canReadOrders, requestScopeKey, tenantSlug]);
 
   useEffect(() => {
-    const token = safeLocalStorage.getItem('authToken');
-    if (!token) {
-      navigate('/login');
+    setCategorizedPedidos({});
+    setSelectedPedidoId(null);
+    setError(null);
+    setIsLoading(true);
+    if (sessionPending) return;
+    if (!hasVerifiedSession) {
+      navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
       return;
     }
-    fetchPedidos();
-  }, [fetchPedidos, navigate]);
+    if (canReadOrders) void fetchPedidos();
+  }, [canReadOrders, fetchPedidos, hasVerifiedSession, location.pathname, location.search, navigate, requestScopeKey, sessionPending]);
 
   const sortedCategories = (Object.entries(categorizedPedidos) as [string, Order[]][]).sort(([a], [b]) => {
     const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a);
@@ -384,10 +406,7 @@ export default function PedidosPage() {
 
   const activePedidosCount = allPedidos.filter((pedido) => !isFinalOrderStatus(pedido.status)).length;
   const finalPedidosCount = allPedidos.length - activePedidosCount;
-  const totalRevenue = allPedidos.reduce((sum, pedido) => {
-    const total = Number(pedido.total);
-    return Number.isFinite(total) ? sum + total : sum;
-  }, 0);
+  const amountCoverage = summarizeOrderAmounts(allPedidos);
 
   const toggleCategory = (estado: string) => {
     setOpenCategories((prev) => {
@@ -402,20 +421,36 @@ export default function PedidosPage() {
   };
 
   const handleStatusChange = async (pedidoId: number | string, newStatus: string) => {
-    const tenantSlug = safeLocalStorage.getItem('tenantSlug');
-    if (!tenantSlug) {
+    if (!canReadOrders || !tenantSlug || !requestScopeKey) {
       setError('No se pudo identificar al tenant.');
       return;
     }
 
     try {
       await apiClient.adminUpdateOrder(tenantSlug, pedidoId, { status: newStatus });
+      if (currentScopeRef.current !== requestScopeKey) return;
       fetchPedidos(); // Re-fetch all pedidos to reflect the change
     } catch (err) {
+      if (currentScopeRef.current !== requestScopeKey) return;
       setError(getErrorMessage(err, 'Error al actualizar el estado del pedido.'));
     }
   };
 
+  if (sessionPending || !hasVerifiedSession) {
+    return <ViewState status="loading" title="Validando acceso" />;
+  }
+  if (!organizationProfileVerified || !user) {
+    return <ViewState status="error" title="No pudimos validar el acceso"
+      action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
+  if (!canReadOrders) {
+    return <ViewState status="error" title="No tenés acceso a los pedidos"
+      action={<Button onClick={() => navigate('/perfil')}>Volver a mi perfil</Button>} />;
+  }
+  if (!tenantSlug) {
+    return <ViewState status="error" title="No pudimos identificar la organización"
+      action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
+  }
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
@@ -430,15 +465,15 @@ export default function PedidosPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-4 md:px-6 lg:px-8">
-      <PageHeader onLogout={handleLogout} />
-      <main className="w-full max-w-7xl mx-auto space-y-4">
+    <div className={cn('flex flex-col text-foreground', embedded ? 'min-h-0' : 'min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 py-8 px-4 md:px-6 lg:px-8')}>
+      {!embedded && <PageHeader onLogout={handleLogout} title={isMunicipal ? pageTitle : 'Panel de Pedidos'} />}
+      <section aria-label={pageTitle} className="w-full max-w-7xl mx-auto space-y-4">
         <section className="rounded-[28px] border border-border/70 bg-card/85 p-4 shadow-sm md:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Operacion de pedidos</h2>
+              <h2 className="text-2xl font-bold tracking-tight">{pageTitle}</h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Estados, detalle y seguimiento comercial en una vista simple para el equipo.
+                {pageDescription}
               </p>
             </div>
             <div className="relative w-full lg:max-w-sm">
@@ -446,7 +481,7 @@ export default function PedidosPage() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar cliente, pedido o producto"
+                placeholder={isMunicipal ? 'Buscar pedido o contacto' : 'Buscar cliente, pedido o producto'}
                 className="h-10 pl-9"
               />
             </div>
@@ -455,8 +490,9 @@ export default function PedidosPage() {
             <PedidoMetricCard label="Pedidos" value={allPedidos.length.toLocaleString('es-AR')} helper="Total recibido" icon={ShoppingCart} />
             <PedidoMetricCard label="Activos" value={activePedidosCount.toLocaleString('es-AR')} helper="Requieren seguimiento" icon={Clock} />
             <PedidoMetricCard label="Finalizados" value={finalPedidosCount.toLocaleString('es-AR')} helper="Entregados o cerrados" icon={CheckCircle2} />
-            <PedidoMetricCard label="Total visible" value={`$${totalRevenue.toLocaleString('es-AR')}`} helper="Suma de pedidos con total" icon={Inbox} />
+            <PedidoMetricCard label="Importes completos" value={amountCoverage.includedCount.toLocaleString('es-AR')} helper="Con total y moneda informados" icon={Inbox} />
           </div>
+          <OrderAmountCoverage orders={allPedidos} />
         </section>
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -467,8 +503,8 @@ export default function PedidosPage() {
         ) : filteredCategories.length === 0 ? (
           <div className="text-center text-muted-foreground text-lg mt-16">
             <Inbox className="w-20 h-20 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-2xl font-semibold text-foreground">No hay pedidos</h3>
-            <p>Aún no se han registrado pedidos. Los nuevos pedidos aparecerán aquí.</p>
+            <h3 className="text-2xl font-semibold text-foreground">{isMunicipal ? 'No hay pedidos institucionales' : 'No hay pedidos'}</h3>
+            <p>{isMunicipal ? 'Los pedidos institucionales registrados aparecerán aquí.' : 'Aún no se han registrado pedidos. Los nuevos pedidos aparecerán aquí.'}</p>
           </div>
         ) : (
           filteredCategories.map(([estado, pedidos]) => (
@@ -486,7 +522,7 @@ export default function PedidosPage() {
             />
           ))
         )}
-      </main>
+      </section>
     </div>
   );
 }

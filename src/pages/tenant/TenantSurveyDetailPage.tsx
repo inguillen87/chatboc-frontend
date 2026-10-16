@@ -11,18 +11,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import {
+  AmbiguousSurveySubmissionError,
   SURVEY_RESPONSE_DUPLICATE_MESSAGE,
   SURVEY_RESPONSE_DUPLICATE_TITLE,
   isSurveyResponseDuplicateError,
 } from '@/utils/surveySubmissionErrors';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
-import { trackSurveySubmission } from '@/utils/surveyAnalytics';
+import { resolveSurveyResponseProvenance } from '@/components/surveys/SurveyResponseProvenanceBadge';
+import { trackSurveyDemoInteraction, trackSurveySubmission } from '@/utils/surveyAnalytics';
 
 const TenantSurveyDetailPage = () => {
   const { slug: surveySlug } = useParams<{ slug: string }>();
   const { tenant, currentSlug } = useTenant();
   const [submitted, setSubmitted] = useState(false);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
+  const [demoSubmissionPersisted, setDemoSubmissionPersisted] = useState<boolean | null>(null);
 
   const tenantSlug = useMemo(() => {
     const fromContext = tenant?.slug ?? currentSlug;
@@ -49,19 +52,56 @@ const TenantSurveyDetailPage = () => {
     submitReasonCode,
   } = useSurveyPublic(surveySlug, { tenantSlug });
 
+  const isSyntheticDemo = Boolean(
+    survey?.demo_mode === true ||
+      resolveSurveyResponseProvenance(survey?.resultados_envivo, survey)?.mode === 'synthetic',
+  );
+
   const metadata = useMemo(() => ({ tenant: tenantSlug ?? undefined }), [tenantSlug]);
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload) => {
       try {
         const finalPayload: PublicResponsePayload = { ...payload, metadata: { ...payload.metadata, ...metadata } };
-        await submit(finalPayload);
-        setLastSubmission(finalPayload);
+        const submissionAck = await submit(finalPayload);
+        const ackMatchesSurvey = isSyntheticDemo
+          ? submissionAck.ack_kind === 'synthetic_demo' || submissionAck.ack_kind === 'durable_demo'
+          : submissionAck.ack_kind === 'durable_response';
+        if (!ackMatchesSurvey) {
+          throw new AmbiguousSurveySubmissionError(
+            'La confirmación del servidor no coincide con el tipo de encuesta publicada. Reintenta con la misma respuesta.',
+          );
+        }
+        const persistedDemoInteraction = submissionAck.ack_kind === 'durable_demo';
+        setDemoSubmissionPersisted(isSyntheticDemo ? persistedDemoInteraction : null);
+        setLastSubmission(
+          isSyntheticDemo && !persistedDemoInteraction ? null : finalPayload,
+        );
         setSubmitted(true);
         if (survey) {
-          trackSurveySubmission({ survey, payload: finalPayload });
+          if (isSyntheticDemo) {
+            trackSurveyDemoInteraction({
+              survey,
+              payload: finalPayload,
+              persisted: persistedDemoInteraction,
+              durable: persistedDemoInteraction,
+            });
+          } else {
+            trackSurveySubmission({ survey, payload: finalPayload });
+          }
         }
-        toast({ title: '¡Gracias por participar!', description: 'Registramos tu respuesta correctamente.' });
+        toast({
+          title: isSyntheticDemo
+            ? persistedDemoInteraction
+              ? 'Participación demo guardada en Preview'
+              : 'Simulación completada'
+            : '¡Gracias por participar!',
+          description: isSyntheticDemo
+            ? persistedDemoInteraction
+              ? 'La interacción de prueba quedó separada de cualquier dato ciudadano.'
+              : 'La selección no se guardó ni modificó datos ciudadanos.'
+            : 'Registramos tu respuesta correctamente.',
+        });
       } catch (err) {
         setLastSubmission(null);
         if (isSurveyResponseDuplicateError(err)) {
@@ -80,12 +120,13 @@ const TenantSurveyDetailPage = () => {
         throw err;
       }
     },
-    [metadata, submit, submitError, survey],
+    [isSyntheticDemo, metadata, submit, submitError, survey],
   );
 
   const handleReset = useCallback(() => {
     setSubmitted(false);
     setLastSubmission(null);
+    setDemoSubmissionPersisted(null);
   }, []);
 
   return (
@@ -123,14 +164,24 @@ const TenantSurveyDetailPage = () => {
         <Card>
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-2xl font-semibold">¡Gracias por participar!</h1>
+              <h1 className="text-2xl font-semibold">
+                {isSyntheticDemo
+                  ? demoSubmissionPersisted
+                    ? 'Participación demo guardada en Preview'
+                    : 'Simulación interactiva completada'
+                  : '¡Gracias por participar!'}
+              </h1>
               <p className="text-muted-foreground">
-                Tu respuesta se registró correctamente. Compartí esta encuesta para invitar a más personas a sumarse.
+                {isSyntheticDemo
+                  ? demoSubmissionPersisted
+                    ? 'La interacción quedó registrada únicamente como dato de prueba y no forma parte de resultados ciudadanos.'
+                    : 'La selección no se guardó ni alteró datos ciudadanos.'
+                  : 'Tu respuesta se registró correctamente. Compartí esta encuesta para invitar a más personas a sumarse.'}
               </p>
             </div>
             <PublicSurveyShareActions
               survey={survey}
-              submission={lastSubmission}
+              submission={isSyntheticDemo ? null : lastSubmission}
               tenantSlug={tenantSlug}
             />
             <div className="flex flex-wrap items-center justify-center gap-3">

@@ -83,12 +83,18 @@ const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean 
     '/admin/encuestas',
     '/public/encuestas',
     '/403',
+    '/iframe',
   ];
 
   const segments = normalized.split('/').filter(Boolean);
+  // Tenant home and its published knowledge belong to the public widget.
+  // Keep authenticated panel aliases such as /t/junin/perfil available.
+  if (segments[0] === 't' && (segments.length <= 2 || segments[2] === 'knowledge')) return false;
   const knownRootSegments = new Set(['login', 'register', 'demo', 'e', 'encuestas', 'admin', 'public']);
   const tenantScopedPath =
-    segments.length > 1 && !knownRootSegments.has(segments[0])
+    segments[0] === 't'
+      ? `/${segments.slice(2).join('/')}`
+      : segments.length > 1 && !knownRootSegments.has(segments[0])
       ? `/${segments.slice(1).join('/')}`
       : normalized;
 
@@ -113,7 +119,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     // Only connect if we have a user/tenant context or if it's required globally
     // For now, we follow the pattern in useTicketUpdates
-    const tenantSlug = resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug);
+    const principalSlug = user?.tenantSlug || (user as any)?.tenant_slug;
+    const tenantSlug = typeof principalSlug === 'string' && principalSlug.trim()
+      ? resolveTenantSlug(principalSlug)
+      : null;
 
     // If we want to allow anonymous connection (e.g. for widget), logic might differ.
     // But this context is primarily for the Admin App (TicketPanel, etc).
@@ -122,10 +131,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // We should avoid double connections if useChatLogic is also active.
     // However, SocketProvider is likely at App root.
 
-    const token =
-      safeLocalStorage.getItem('authToken') ||
-      safeLocalStorage.getItem('chatAuthToken');
-    const hasAuthenticatedSession = Boolean(token || hasPersistedClerkSession());
+    const token = safeLocalStorage.getItem('authToken');
+    const clerkCookieSession = safeLocalStorage.getItem('authProvider') === 'clerk' &&
+      safeLocalStorage.getItem('clerkSessionTransport') === 'cookie' &&
+      hasPersistedClerkSession();
+    const hasAuthenticatedSession = Boolean(token || clerkCookieSession);
 
     const pathname = location.pathname || '';
     if (!shouldEnableGlobalSocket(pathname, hasAuthenticatedSession)) {
@@ -135,7 +145,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const socketOptions: Partial<ManagerOptions & SocketOptions> = {
-      transports: ['polling', 'websocket'],
+      // Vercel pins the upgraded connection; polling can reach another instance.
+      transports: ['websocket'],
       withCredentials: true,
       path: socketPath,
       reconnectionAttempts: 4,
@@ -160,7 +171,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socketOptions.auth = authPayload;
     }
 
-    const newSocket = io(SOCKET_URL ?? undefined, socketOptions);
+    // The HttpOnly session belongs to the frontend origin, including its proxy.
+    // withCredentials cannot transfer that cookie to a backend deployment host.
+    const connectionUrl = clerkCookieSession && typeof window !== 'undefined'
+      ? normalizeSocketUrl(window.location.origin)
+      : SOCKET_URL;
+    const newSocket = io(connectionUrl ?? undefined, socketOptions);
 
     newSocket.on('connect', () => {
       if (import.meta.env.DEV) {

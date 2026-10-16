@@ -26,12 +26,15 @@ describe('SurveyLiveHeatmapPreview', () => {
     );
 
     const preview = screen.getByTestId('survey-live-heatmap-preview');
-    expect(preview).toHaveTextContent('Mapa de calor ciudadano');
-    expect(preview).toHaveTextContent('Puntos: 2');
-    expect(preview).toHaveTextContent('Celdas: 1');
+    expect(preview).toHaveTextContent('Distribución territorial de respuestas');
+    expect(screen.getByTestId('survey-live-heatmap-points-count')).toHaveTextContent('2');
+    expect(screen.getByTestId('survey-live-heatmap-cells-count')).toHaveTextContent('1');
     expect(screen.getByTestId('mock-survey-live-maplibre')).toHaveAttribute('data-points', '2');
-    expect(screen.getByText('En vivo')).toBeInTheDocument();
-    expect(screen.getByText('Intensidad por volumen de respuestas')).toBeInTheDocument();
+    expect(screen.getByTestId('survey-live-heatmap-quantitative-legend')).toHaveTextContent(
+      'Densidad y volumen combinados',
+    );
+    expect(screen.getByTestId('survey-live-heatmap-zone-ranking')).toHaveTextContent('Centro');
+    expect(preview).not.toHaveTextContent(/radar/i);
   });
 
   it('renders a professional empty state when there are no geolocated results', () => {

@@ -15,12 +15,16 @@ import { io, Socket } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, parseRubro } from "@/utils/chatEndpoints";
+import {
+  createMunicipalChatIdempotencyKey,
+  resolveMunicipalInitIdempotencyState,
+  resolveMunicipalChatIdempotencyKey,
+} from "@/utils/municipalChatIdempotency";
 import { extractRubroKey } from "@/utils/rubros";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId, { resetChatSessionId } from "@/utils/chatSessionId";
 import { getIframeToken } from "@/utils/config";
-import { v4 as uuidv4 } from "uuid";
 import {
   MunicipioContext,
   updateMunicipioContext,
@@ -28,7 +32,7 @@ import {
 } from "@/utils/contexto_municipio";
 import { useUser } from "./useUser";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { getVisitorName, setVisitorName } from "@/utils/visitorName";
+import { setVisitorName } from "@/utils/visitorName";
 import {
   ensureAbsoluteUrl,
   mergeButtons,
@@ -36,7 +40,6 @@ import {
 } from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
-import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { readBackendFlag } from "@/utils/backendFlags";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
@@ -51,8 +54,13 @@ import {
   isLegacyDemoSelectorOptionTitle,
   isLegacyDemoSelectorText,
 } from "@/utils/legacyDemoSelector";
-import { sendChatBootstrapMessage } from "@/features/chat/chatApi";
+import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt, getBootstrapSessionValues } from "@/features/chat/chatApi";
+import { audioRecoveryMessage, captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from '@/features/chat/audioRecovery';
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
+import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
+import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 
 const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
@@ -166,19 +174,6 @@ const findCategoryFromEmoji = (text: string): string | undefined => {
 
 const LIVE_CHAT_STATUSES = new Set(["esperando_agente_en_vivo", "en_vivo"]);
 
-const HIGH_INTENT_PATTERNS = [
-  "hablar con un representante",
-  "hablar con un agente",
-  "hablar con ventas",
-  "quiero comprar",
-  "necesito asesor",
-  "cotizacion",
-  "cotización",
-  "presupuesto",
-  "contacto",
-  "whatsapp",
-];
-
 const URGENT_PATTERNS = [
   "urgente",
   "emergencia",
@@ -246,6 +241,19 @@ interface UseChatLogicOptions {
   onTrialLimit?: (notice: ChatTrialLimitNotice) => void;
 }
 
+/** Internal equality key for the selected bootstrap route and effective actor.
+ * Never persist, transmit or log this key; authorization headers are excluded. */
+export function getChatBootstrapContinuityKey(bootstrap:ChatBootstrapConfig|null|undefined):string {
+  if(!bootstrap)return 'no-bootstrap';
+  const session=getBootstrapSessionValues(bootstrap);
+  return JSON.stringify([
+    bootstrap.contract_version??null,bootstrap.endpoint?.trim()??null,
+    bootstrap.same_origin_endpoint?.trim()??null,bootstrap.fallback_endpoint?.trim()??null,
+    bootstrap.method?.trim().toUpperCase()??null,
+    session.chatSessionId,session.demoSessionId,session.tenantSlug,session.anonId,
+  ]);
+}
+
 export function useChatLogic({
   tipoChat,
   entityToken: propToken,
@@ -301,10 +309,37 @@ export function useChatLogic({
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<
     string | null
   >(null);
+  const currentClaimIdempotencyKeyRef = useRef<string | null>(null);
+  const municipalInitIdempotencyRef = useRef<{
+    scope: string;
+    key: string;
+  } | null>(null);
   const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const initSentRef = useRef(false);
   const initPendingResponseRef = useRef(false);
+  const [institutionalBootstrapStatus,setInstitutionalBootstrapStatus]=useState<'idle'|'loading'|'available'|'legacy'|'unavailable'>('idle');
+  const initializationGenerationRef=useRef(0);
+  const initializationAbortRef=useRef<AbortController|null>(null);
+  const initializationMountedRef=useRef(true);
+  const conversationScopeGenerationRef=useRef(0);
+  const typingRequestOwnerRef=useRef<symbol|null>(null);
+  const sendSessionSubscriptionsRef=useRef(new Set<()=>void>());
+  const initializationScope=JSON.stringify([tipoChat,tenantSlug??null,entityToken??null,getChatBootstrapContinuityKey(chatBootstrap)]);
+  const audioRequestScope=JSON.stringify([initializationScope,chatBootstrap??null]);
+  const audioRequestScopeRef=useRef({scope:audioRequestScope,generation:0});
+  if(audioRequestScopeRef.current.scope!==audioRequestScope){
+    audioRequestScopeRef.current={scope:audioRequestScope,generation:audioRequestScopeRef.current.generation+1};
+  }
+  const visitorNameRef=useRef<{scope:string;name:string}|null>(null);
+  const initializationScopeRef=useRef(initializationScope);
+  if(initializationScopeRef.current!==initializationScope){
+    initializationScopeRef.current=initializationScope;
+    initializationGenerationRef.current+=1;
+    conversationScopeGenerationRef.current+=1;
+  }
+  const previousInitializationScopeRef=useRef(initializationScope);
+  const canDiscoverInstitutionalWorkspace=Boolean(tenantSlug?.trim()&&!TENANT_PLACEHOLDER_SLUGS.has(tenantSlug.trim().toLowerCase())&&!chatBootstrap);
   const firstRealQuestionSentRef = useRef(false);
   const leadCompletionTrackedTicketsRef = useRef<Set<string>>(new Set());
   const lastUxTelemetryStateRef = useRef<string | null>(null);
@@ -312,6 +347,50 @@ export function useChatLogic({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(()=>{
+    initializationMountedRef.current=true;
+    return ()=>{
+      initializationMountedRef.current=false;
+      initializationGenerationRef.current+=1;
+      conversationScopeGenerationRef.current+=1;
+      initializationAbortRef.current?.abort();
+      sendSessionSubscriptionsRef.current.forEach(unsubscribe=>unsubscribe());
+      sendSessionSubscriptionsRef.current.clear();
+      initSentRef.current=false;
+      initPendingResponseRef.current=false;
+    };
+  },[]);
+
+  useEffect(()=>{
+    if(previousInitializationScopeRef.current===initializationScope)return;
+    previousInitializationScopeRef.current=initializationScope;
+    initializationAbortRef.current?.abort();initializationAbortRef.current=null;
+    initSentRef.current=false;initPendingResponseRef.current=false;
+    messagesRef.current=[];setMessages([]);setContexto(getInitialMunicipioContext());
+    visitorNameRef.current=null;
+    setIsTyping(false);seenMessageFingerprintsRef.current.clear();
+    setActiveTicketId(null);setLiveChatTicketId(null);setLiveChatSocketRoom(null);
+    setLiveChatAccessToken(null);setLiveChatStatus(null);setUxContext(null);
+    setInstitutionalBootstrapStatus('idle');
+  },[initializationScope]);
+
+  const getMunicipalInitIdempotencyKey = useCallback(
+    (sessionId: string, resolvedTenantSlug?: string | null) => {
+      const scope = `${sessionId}:${resolvedTenantSlug?.trim().toLowerCase() || "tenant"}`;
+      const next = resolveMunicipalInitIdempotencyState({
+        tipoChat: "municipio",
+        scope,
+        current: municipalInitIdempotencyRef.current,
+      });
+      if (!next) {
+        throw new Error("No se pudo preparar la inicializacion municipal.");
+      }
+      municipalInitIdempotencyRef.current = next;
+      return next.key;
+    },
+    [],
+  );
 
 	  const sanitizeRubroValue = (value: unknown): string | null => {
     const key = extractRubroKey(value);
@@ -383,7 +462,8 @@ export function useChatLogic({
       resetMessages?: boolean;
       force?: boolean;
     }) => {
-      if (!options?.force && messagesRef.current.length > 0) {
+      if (!options?.force && messagesRef.current.length > 0 &&
+          (!canDiscoverInstitutionalWorkspace || institutionalBootstrapStatus !== 'idle')) {
         return;
       }
 
@@ -467,27 +547,15 @@ export function useChatLogic({
         return;
       }
 
-      if (options?.resetMessages) {
-        setMessages([]);
-        setActiveTicketId(null);
-        setLiveChatTicketId(null);
-        setLiveChatSocketRoom(null);
-        setLiveChatAccessToken(null);
-        setLiveChatStatus(null);
-        seenMessageFingerprintsRef.current.clear();
-      }
-
+      const messagesBeforeBootstrap = messagesRef.current;
       const shouldResetContext =
         options?.resetContext ?? messagesRef.current.length === 0;
       const contextToSend = shouldResetContext
         ? getInitialMunicipioContext()
         : contexto;
-      if (shouldResetContext) {
-        setContexto(contextToSend);
-        seenMessageFingerprintsRef.current.clear();
-      }
 
-      const visitorName = getVisitorName();
+      const visitorName = visitorNameRef.current?.scope===initializationScope
+        ? visitorNameRef.current.name : "";
       const endpoint = getAskEndpoint({
         tipoChat: tipoChatFinal,
         rubro: normalizedRubro || null,
@@ -508,19 +576,72 @@ export function useChatLogic({
                 : undefined;
 
       const sessionId = getOrCreateChatSessionId();
+      const initIdempotencyKey =
+        tipoChatFinal === "municipio"
+          ? getMunicipalInitIdempotencyKey(sessionId, tenantSlugForPayload)
+          : null;
 
-      setIsTyping(true);
+      if(!canDiscoverInstitutionalWorkspace)setIsTyping(true);
       initSentRef.current = true;
       initPendingResponseRef.current = true;
+      const generation=++initializationGenerationRef.current;
+      const isCurrent=()=>initializationMountedRef.current&&initializationScopeRef.current===initializationScope&&initializationGenerationRef.current===generation;
+      const abort=new AbortController();
+      initializationAbortRef.current?.abort();initializationAbortRef.current=abort;
+      let publicBootstrapFailed=false;
 
       const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
       try {
+        // This read is independent of a previous operational/demo context. A
+        // published menu joins the conversation without retiring its identity,
+        // messages or an unfinished claim.
+        if(canDiscoverInstitutionalWorkspace&&tenantSlugForPayload){
+          setInstitutionalBootstrapStatus('loading');
+          try{
+            const workspace=await loadWorkspace(tenantSlugForPayload,'public',{signal:abort.signal,isCurrent});
+            if(!isCurrent())return;
+            const initial=institutionalChatBootstrapPayload(workspace,tenantSlugForPayload);
+            processBotPayload(initial,{fallbackOnEmpty:true,fromInit:true,preserveConversationState:true,
+              institutionalInitialMenuContext:institutionalInitialMenuContext(workspace,tenantSlugForPayload)});
+            setInstitutionalBootstrapStatus('available');
+            return;
+          }catch(error){
+            if(!isCurrent())return;
+            if(!isInstitutionalWorkspaceUnavailable(error)){
+              setInstitutionalBootstrapStatus('unavailable');
+              publicBootstrapFailed=true;
+              throw error;
+            }
+          }
+        }
+        if(!isCurrent())return;
+        setInstitutionalBootstrapStatus('legacy');
+        if(!options?.force && messagesRef.current.length > 0){
+          initPendingResponseRef.current=false;
+          return;
+        }
+        // Explicit legacy resets happen only after publication is unavailable.
+        // Do not erase a message entered while the public read was pending.
+        if(options?.resetMessages && messagesRef.current===messagesBeforeBootstrap){
+          setMessages([]);
+          setActiveTicketId(null);
+          setLiveChatTicketId(null);
+          setLiveChatSocketRoom(null);
+          setLiveChatAccessToken(null);
+          setLiveChatStatus(null);
+          seenMessageFingerprintsRef.current.clear();
+        }
+        if(shouldResetContext && messagesRef.current===messagesBeforeBootstrap){
+          setContexto(contextToSend);
+          seenMessageFingerprintsRef.current.clear();
+        }
         const publicChatContext = resolvePersistentPublicContext(
           tipoChatFinal,
           tenantSlug,
         );
+        setIsTyping(true);
         const initPayload = {
           pregunta: "__INIT__",
           action: "initial_greeting",
@@ -538,6 +659,9 @@ export function useChatLogic({
               {
                 text: "__INIT__",
                 extraPayload: initPayload,
+                ...(initIdempotencyKey
+                  ? { idempotencyKey: initIdempotencyKey }
+                  : {}),
               },
               tenantSlug,
             )
@@ -547,20 +671,25 @@ export function useChatLogic({
               isWidgetRequest: true,
               tenantSlug: tenantSlug,
               entityToken,
+              headers: initIdempotencyKey
+                ? { "Idempotency-Key": initIdempotencyKey }
+                : undefined,
+              signal:abort.signal,isCurrent,
               body: initPayload,
             });
+        if(!isCurrent())return;
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
           fromInit: true,
         });
       } catch (error) {
+        if(!isCurrent())return;
         console.error(
           "Error sending initial greeting:",
           getErrorMessage(error),
         );
-        const errorMsg = getErrorMessage(
-          error,
-          "⚠️ No se pudo cargar el menú inicial.",
+        const errorMsg = publicBootstrapFailed?"⚠️ No se pudo cargar el menú inicial.":getErrorMessage(
+          error,"⚠️ No se pudo cargar el menú inicial.",
         );
         setMessages((prev) => [
           ...prev,
@@ -572,10 +701,13 @@ export function useChatLogic({
             isError: true,
           },
         ]);
-        setIsTyping(false);
+        if(!publicBootstrapFailed)setIsTyping(false);
         initPendingResponseRef.current = false;
       } finally {
-        initSentRef.current = false;
+        if(isCurrent()){
+          initSentRef.current = false;
+          initializationAbortRef.current=null;
+        }
       }
     },
     [
@@ -588,6 +720,8 @@ export function useChatLogic({
       chatBootstrap,
       shouldUsePublicFlow,
       resolvePersistentPublicContext,
+      getMunicipalInitIdempotencyKey,
+      initializationScope,canDiscoverInstitutionalWorkspace,institutionalBootstrapStatus,
     ],
   );
 
@@ -603,7 +737,7 @@ export function useChatLogic({
     }
 
     if (
-      messagesRef.current.length > 0 ||
+      (messagesRef.current.length > 0 && !canDiscoverInstitutionalWorkspace) ||
       initSentRef.current ||
       initPendingResponseRef.current
     )
@@ -611,7 +745,7 @@ export function useChatLogic({
 
     const bootstrapTimer = setTimeout(() => {
       if (
-        messagesRef.current.length > 0 ||
+        (messagesRef.current.length > 0 && !canDiscoverInstitutionalWorkspace) ||
         initSentRef.current ||
         initPendingResponseRef.current
       )
@@ -620,7 +754,7 @@ export function useChatLogic({
     }, 180);
 
     return () => clearTimeout(bootstrapTimer);
-  }, [autoInitEnabled, tipoChat, tenantSlug, selectedRubro, chatBootstrap]);
+  }, [autoInitEnabled, tipoChat, tenantSlug, selectedRubro, chatBootstrap,initializationScope,canDiscoverInstitutionalWorkspace]);
 
   const token = skipAuth ? null : getValidStoredToken(tokenKey);
   const isAnonimo = skipAuth || !token;
@@ -628,7 +762,6 @@ export function useChatLogic({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
   const clientMessageIdCounter = useRef(0);
-  const leadCaptureSentRef = useRef(false);
 
   const generateClientMessageId = () => {
     clientMessageIdCounter.current += 1;
@@ -750,23 +883,36 @@ export function useChatLogic({
     {
       fallbackOnEmpty,
       fromInit = false,
-    }: { fallbackOnEmpty: boolean; fromInit?: boolean },
+      preserveConversationState = false,
+      institutionalInitialMenuContext:initialMenuContext=null,
+      onInstitutionalResponse,
+    }: { fallbackOnEmpty: boolean; fromInit?: boolean; preserveConversationState?: boolean; institutionalInitialMenuContext?:InstitutionalInitialMenuContext|null; onInstitutionalResponse?:(messageId:Message['id'])=>void },
   ): boolean => {
+    if(!initializationMountedRef.current||initializationScopeRef.current!==initializationScope)return false;
     if (!rawPayload) {
       console.warn("useChatLogic: Received empty payload from backend.");
       if (fromInit) {
         initPendingResponseRef.current = false;
         initSentRef.current = false;
       }
-      if (fallbackOnEmpty) {
+      if (fallbackOnEmpty && !preserveConversationState) {
         setIsTyping(false);
       }
       return false;
     }
 
-    setContexto((prevContext) =>
-      updateMunicipioContext(prevContext, { llmResponse: rawPayload }),
-    );
+    const scopeInstitutionalPayload=(value:any)=>isInstitutionalChatPayload(value)&&!parseInstitutionalChatMessage(value,tenantSlug)
+      ? {message_body:'No pudimos verificar la información de esta organización. Volvé a consultar el menú.',fuente:'institutional_knowledge_unavailable'}
+      : value;
+    // Retire an incoherent envelope before it can update operational context,
+    // room identity or other presentation state as well as message content.
+    rawPayload=Array.isArray(rawPayload)?rawPayload.map(scopeInstitutionalPayload):scopeInstitutionalPayload(rawPayload);
+
+    if(!preserveConversationState){
+      setContexto((prevContext) =>
+        updateMunicipioContext(prevContext, { llmResponse: rawPayload }),
+      );
+    }
 
     const normalizeStringList = (value: unknown): string[] | undefined => {
       if (!Array.isArray(value)) return undefined;
@@ -1309,7 +1455,9 @@ export function useChatLogic({
 
     const asArray = Array.isArray(rawPayload)
       ? rawPayload
-      : Array.isArray(rawPayload?.messages)
+      : isInstitutionalChatPayload(rawPayload)
+        ? [rawPayload]
+        : Array.isArray(rawPayload?.messages)
         ? rawPayload.messages
         : Array.isArray(rawPayload?.chat_messages)
           ? rawPayload.chat_messages
@@ -1420,7 +1568,12 @@ export function useChatLogic({
       setLiveChatStatus(envelopeStatus);
     }
 
-    asArray.forEach((data: any) => {
+    asArray.forEach((candidate: any) => {
+      const parsedInstitutional=parseInstitutionalChatMessage(candidate,tenantSlug);
+      const institutional=parsedInstitutional&&initialMenuContext&&
+        institutionalPresentationMode(parsedInstitutional,initialMenuContext)==='initial-menu'
+        ?{...parsedInstitutional,initialMenu:initialMenuContext}:parsedInstitutional;
+      const data=scopeInstitutionalPayload(candidate);
       if (!data || typeof data !== "object") {
         return;
       }
@@ -1906,6 +2059,7 @@ export function useChatLogic({
         ...(messageType ? { messageType } : {}),
         ...(action ? { action } : {}),
         ...(dataPayload ? { data: dataPayload } : {}),
+        ...(institutional ? {institutional} : {}),
         ...(botones.length ? { botones } : {}),
         ...(categorias.length ? { categorias } : {}),
         ...(mediaUrl ? { mediaUrl } : {}),
@@ -1945,7 +2099,11 @@ export function useChatLogic({
         initSentRef.current = false;
       }
       setMessages((prev) => [...prev, ...normalizedMessages]);
-      setIsTyping(false);
+      // Local correlation belongs to this response batch. The caller waits for
+      // this exact message to mount; no presentation callback enters the API.
+      const institutionalResponse=normalizedMessages.filter(message=>message.institutional&&!message.isError).at(-1);
+      if(institutionalResponse)onInstitutionalResponse?.(institutionalResponse.id);
+      if(!preserveConversationState)setIsTyping(false);
       return true;
     }
 
@@ -1956,9 +2114,9 @@ export function useChatLogic({
 
     if (fallbackOnEmpty && droppedLegacyDemoMessages === 0) {
       console.warn("useChatLogic: Normalized payload produced no messages.");
-      setIsTyping(false);
+      if(!preserveConversationState)setIsTyping(false);
     } else if (droppedLegacyDemoMessages > 0) {
-      setIsTyping(false);
+      if(!preserveConversationState)setIsTyping(false);
     }
 
     return false;
@@ -2554,9 +2712,20 @@ export function useChatLogic({
       contexto.estado_conversacion === "confirmando_reclamo" &&
       !activeTicketId
     ) {
-      const newKey = uuidv4();
-      setCurrentClaimIdempotencyKey(newKey);
+      const key =
+        currentClaimIdempotencyKeyRef.current ||
+        createMunicipalChatIdempotencyKey();
+      currentClaimIdempotencyKeyRef.current = key;
+      setCurrentClaimIdempotencyKey((current) =>
+        current === key ? current : key,
+      );
+      return;
     }
+
+    currentClaimIdempotencyKeyRef.current = null;
+    setCurrentClaimIdempotencyKey((current) =>
+      current === null ? current : null,
+    );
   }, [contexto.estado_conversacion, activeTicketId]);
 
   const addSystemMessage = useCallback(
@@ -2575,11 +2744,32 @@ export function useChatLogic({
   );
 
   const handleSend = useCallback(
-    async (payload: string | TypeSendPayload) => {
+    async (payload: string | TypeSendPayload, presentation?:{onInstitutionalResponse?:(messageId:Message['id'])=>void}) => {
+      // A dispatched mutation is never canceled or replayed. Its presentation
+      // callbacks belong only to the mounted scope that initiated it.
+      const scopeGeneration=conversationScopeGenerationRef.current;
+      const sessionRevision=captureChatbocSessionRevision();
+      const isCurrentConversation=()=>initializationMountedRef.current&&
+        initializationScopeRef.current===initializationScope&&
+        conversationScopeGenerationRef.current===scopeGeneration;
+      const isCurrentSend=()=>isCurrentConversation()&&isChatbocSessionRevisionCurrent(sessionRevision);
+      if(!isCurrentSend())return;
       const actualPayload: TypeSendPayload =
         typeof payload === "string"
           ? { text: payload.trim(), source: "system" }
           : { ...payload, text: payload.text?.trim() || "" };
+
+      const plainTypedInput=typeof payload==='string'||actualPayload.source==='input'||actualPayload.source===undefined;
+      if(plainTypedInput&&!actualPayload.action&&!actualPayload.action_id&&!isTyping&&!initPendingResponseRef.current&&
+        institutionalBootstrapStatus!=='loading'&&!actualPayload.attachmentInfo&&!actualPayload.audioBlob&&
+        !actualPayload.location&&!actualPayload.ubicacion_usuario&&!actualPayload.archivo_url&&!actualPayload.payload){
+        // Never recover an earlier menu behind an error, human reply or generic
+        // response. The canonical button action carries its own revision.
+        const latestReply=messagesRef.current.at(-1);
+        const choice=latestReply?.isBot&&!latestReply.isError
+          ?institutionalNumericChatAction(actualPayload.text||'',latestReply?.institutional,tenantSlug):null;
+        if(choice){actualPayload.action=choice;actualPayload.action_id=choice;}
+      }
 
       const originalText = actualPayload.text || "";
 
@@ -2749,56 +2939,8 @@ export function useChatLogic({
         ["submit_personal_data", "set_user_name"].includes(normalizedAction) &&
         payloadNombre
       ) {
+        visitorNameRef.current={scope:initializationScope,name:payloadNombre};
         setVisitorName(payloadNombre);
-      }
-
-      const isHighIntent = HIGH_INTENT_PATTERNS.some((keyword) =>
-        normalizedForMatching.includes(keyword),
-      );
-      if (isHighIntent && !leadCaptureSentRef.current) {
-        const storedUser = JSON.parse(
-          safeLocalStorage.getItem("user") || "null",
-        );
-        const leadName = pickFirstString(
-          actionPayload?.nombre,
-          storedUser?.name,
-          storedUser?.nombre,
-          getVisitorName(),
-        );
-        const leadEmail = pickFirstString(
-          actionPayload?.email,
-          storedUser?.email,
-        );
-        const leadPhone = pickFirstString(
-          actionPayload?.telefono,
-          storedUser?.telefono,
-          storedUser?.phone,
-          storedUser?.whatsapp,
-          storedUser?.celular,
-        );
-
-        if (leadName || leadEmail || leadPhone) {
-          leadCaptureSentRef.current = true;
-            enterpriseService
-              .captureLead({
-                tenant_slug: tenantSlug || undefined,
-                chat_session_id: getOrCreateChatSessionId(),
-                channel: "web",
-                trigger: resolvedAction || "high_intent",
-                intent: resolvedAction || undefined,
-                name: leadName,
-                email: leadEmail,
-                phone: leadPhone,
-              interest: userMessageText || normalizedQuestionBase,
-              message: originalText,
-              source: "widget_chat",
-              metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
-            })
-            .catch((captureError) => {
-              leadCaptureSentRef.current = false;
-              console.warn("Lead capture failed", captureError);
-            });
-        }
       }
 
       const isUrgentMessage = URGENT_PATTERNS.some((keyword) =>
@@ -2814,9 +2956,12 @@ export function useChatLogic({
       }
 
       if (resolvedAction === "iniciar_creacion_reclamo") {
-        // Check for existing user data
-        const userData =
-          user || JSON.parse(safeLocalStorage.getItem("user") || "null");
+        // Public visitors never inherit the administrative profile. Reuse only
+        // their current conversation, or the authenticated user in a private flow.
+        const visitorData=contexto.datos_reclamo;
+        const userData=visitorData.nombre_ciudadano&&visitorData.email_ciudadano
+          ? {name:visitorData.nombre_ciudadano,email:visitorData.email_ciudadano}
+          : isAnonimo ? null : user;
         if (userData?.name && userData?.email) {
           // Assume phone and DNI are not available in user object
           setContexto((prev) => ({
@@ -2912,9 +3057,54 @@ export function useChatLogic({
       }
 
       setIsTyping(true);
+      const typingOwner=Symbol('chat-request');
+      typingRequestOwnerRef.current=typingOwner;
+      const releaseAudioTyping=()=>{
+        if(typingRequestOwnerRef.current!==typingOwner)return;
+        typingRequestOwnerRef.current=null;
+        if(isCurrentConversation())setIsTyping(false);
+      };
+      const watchSendSession=()=>{
+        const stop=subscribeChatbocSessionRevision(()=>{
+          if(!isChatbocSessionRevisionCurrent(sessionRevision))releaseAudioTyping();
+        });
+        const cleanup=()=>{stop();sendSessionSubscriptionsRef.current.delete(cleanup);};
+        sendSessionSubscriptionsRef.current.add(cleanup);
+        return cleanup;
+      };
+      const stopSendSessionWatch=watchSendSession();
 
       let actionTelemetryTenantSlug: string | null = tenantSlug || null;
       let actionTelemetryTipoChat: "pyme" | "municipio" = tipoChat;
+      let audioAttempt: RecoverableAudioAttempt<any> | null = null;
+      const audioGeneration=audioRequestScopeRef.current.generation;
+      const hasAudioRecovery=Boolean(audioBlob||actualPayload.audioRecovery);
+      const audioIsCurrent=()=>isCurrentSend()&&audioRequestScopeRef.current.scope===audioRequestScope&&
+        audioRequestScopeRef.current.generation===audioGeneration&&actualPayload.audioRecovery?.isCurrent()!==false;
+      const reportAudioFailure=(error:unknown) => {
+        if(!hasAudioRecovery||!audioIsCurrent())return;
+        const retryable=audioAttempt?.canRetry(error)===true;
+        actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(retryable),...(retryable?{retry:async()=>{
+          if(!audioIsCurrent()||!audioAttempt)return;
+          typingRequestOwnerRef.current=typingOwner;
+          setIsTyping(true);
+          actualPayload.audioRecovery?.onPending?.(releaseAudioTyping);
+          const stopRecoverySessionWatch=watchSendSession();
+          try{
+            const recovered=await audioAttempt.run();
+            if(!audioIsCurrent())return;
+            const rendered=processBotPayload(recovered,{fallbackOnEmpty:true,
+              onInstitutionalResponse:messageId=>{if(audioIsCurrent())presentation?.onInstitutionalResponse?.(messageId);}});
+            if(rendered)actualPayload.audioRecovery?.onSuccess();
+            else actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(false)});
+          }catch(recoveryError){
+            if(!audioIsCurrent())return;
+            reportAudioFailure(recoveryError);
+            addSystemMessage(getErrorMessage(recoveryError,'No pudimos confirmar este envío.'),'error');
+          }finally{stopRecoverySessionWatch();releaseAudioTyping();}
+        }}:{})});
+      };
+      if(hasAudioRecovery)actualPayload.audioRecovery?.onPending?.(releaseAudioTyping);
 
       try {
         const allowRubroInference = tipoChat !== "municipio";
@@ -2932,6 +3122,24 @@ export function useChatLogic({
         const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
         const rubro = tipoChatFinal === "pyme" ? resolvedRubro : null;
         actionTelemetryTipoChat = tipoChatFinal;
+        const requestIdempotencyKey = resolveMunicipalChatIdempotencyKey({
+          tipoChat: tipoChatFinal,
+          action: typeof resolvedAction === "string" ? resolvedAction : null,
+          currentClaimIdempotencyKey:
+            currentClaimIdempotencyKeyRef.current ||
+            currentClaimIdempotencyKey,
+        });
+        if (
+          resolvedAction === "confirmar_reclamo" &&
+          requestIdempotencyKey
+        ) {
+          currentClaimIdempotencyKeyRef.current = requestIdempotencyKey;
+          setCurrentClaimIdempotencyKey((current) =>
+            current === requestIdempotencyKey
+              ? current
+              : requestIdempotencyKey,
+          );
+        }
 
         const updatedContext = updateMunicipioContext(contexto, {
           userInput: userMessageText,
@@ -2939,7 +3147,8 @@ export function useChatLogic({
         });
         setContexto(updatedContext);
 
-        const visitorName = getVisitorName();
+        const visitorName = visitorNameRef.current?.scope===initializationScope
+          ? visitorNameRef.current.name : "";
 
         const sessionId = getOrCreateChatSessionId();
         const publicChatContext = resolvePersistentPublicContext(
@@ -2971,8 +3180,8 @@ export function useChatLogic({
           ...(actionPayload && { payload: actionPayload }),
           ...(publicChatContext || {}),
           ...(resolvedAction === "confirmar_reclamo" &&
-            currentClaimIdempotencyKey && {
-              idempotency_key: currentClaimIdempotencyKey,
+            requestIdempotencyKey && {
+              idempotency_key: requestIdempotencyKey,
             }),
           ...(visitorName && { nombre_usuario: visitorName }),
           session_id: sessionId,
@@ -3018,9 +3227,7 @@ export function useChatLogic({
 
         let response: any;
         if (chatBootstrap) {
-          response = await sendChatBootstrapMessage(
-            chatBootstrap,
-            {
+          const bootstrapPayload = {
               text: questionForBackend,
               intent: typeof resolvedAction === "string" ? resolvedAction : null,
               payload:
@@ -3034,9 +3241,14 @@ export function useChatLogic({
               audioField,
               audioEndpoint,
               extraPayload: requestBody,
-            },
-            tenantSlug,
-          );
+              isCurrent:hasAudioRecovery?audioIsCurrent:isCurrentSend,
+              ...(hasAudioRecovery?{singleAttempt:true}:{}),
+              ...(requestIdempotencyKey
+                ? { idempotencyKey: requestIdempotencyKey }
+                : {}),
+            };
+          if(audioBlob){audioAttempt=createChatBootstrapAudioAttempt(chatBootstrap,bootstrapPayload);response=await audioAttempt.run();}
+          else response=await sendChatBootstrapMessage(chatBootstrap,bootstrapPayload,tenantSlug);
         } else if (audioBlob) {
           const formData = new FormData();
           formData.append(audioField || "audio_file", audioBlob, audioFilename || `audio-${Date.now()}.webm`);
@@ -3052,14 +3264,23 @@ export function useChatLogic({
             }
             formData.append(key, String(value));
           });
-          response = await apiFetch<any>(endpoint, {
+          const owner=captureAudioRecoveryOwner(audioIsCurrent);
+          const municipalEndpoint=/^\/(?:api\/)?ask\/municipio\/?$/.test(endpoint.split(/[?#]/,1)[0]);
+          audioAttempt=createRecoverableAudioAttempt(()=>apiFetch<any>(endpoint, {
             method: "POST",
             body: formData,
             skipAuth: effectiveSkipAuth,
             isWidgetRequest: true,
             tenantSlug: tenantSlug,
             entityToken,
-          });
+            headers: requestIdempotencyKey
+              ? { "Idempotency-Key": requestIdempotencyKey }
+              : undefined,
+            chatSessionId:sessionId,
+            singleAttempt:true,
+            isCurrent:owner,
+          }),owner,error=>Boolean(requestIdempotencyKey)&&municipalEndpoint&&canReconcileMunicipalAudioError(error));
+          response=await audioAttempt.run();
         } else {
           response = await apiFetch<any>(endpoint, {
             method: "POST",
@@ -3068,11 +3289,24 @@ export function useChatLogic({
             isWidgetRequest: true,
             tenantSlug: tenantSlug,
             entityToken,
+            headers: requestIdempotencyKey
+              ? { "Idempotency-Key": requestIdempotencyKey }
+              : undefined,
+            isCurrent:isCurrentSend,
+            ...(hasAudioRecovery?{singleAttempt:true,isCurrent:audioIsCurrent}:{}),
           });
         }
+        if(!isCurrentSend()||(hasAudioRecovery&&!audioIsCurrent()))return;
         const renderedResponse = processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
+          onInstitutionalResponse:messageId=>{
+            if(isCurrentSend()&&(!hasAudioRecovery||audioIsCurrent()))presentation?.onInstitutionalResponse?.(messageId);
+          },
         });
+        if(hasAudioRecovery&&audioIsCurrent()){
+          if(renderedResponse)actualPayload.audioRecovery?.onSuccess();
+          else actualPayload.audioRecovery?.onFailure({message:audioRecoveryMessage(false)});
+        }
         if (resolvedAction || resolvedActionId) {
           trackWidgetEvent(
             renderedResponse
@@ -3098,7 +3332,9 @@ export function useChatLogic({
           }
         }
       } catch (error: any) {
-        if (error instanceof ApiError && error.status === 409) {
+        if(!isCurrentSend()||(hasAudioRecovery&&!audioIsCurrent()))return;
+        reportAudioFailure(error);
+        if (!hasAudioRecovery && error instanceof ApiError && error.status === 409) {
           resetChatSessionId();
         }
         const trialLimitNotice = readChatTrialLimitNotice(error);
@@ -3169,6 +3405,8 @@ export function useChatLogic({
           },
         ]);
         setIsTyping(false);
+      } finally {
+        stopSendSessionWatch();releaseAudioTyping();
       }
     },
     [
@@ -3177,6 +3415,7 @@ export function useChatLogic({
       liveChatTicketId,
       liveChatAccessToken,
       isTyping,
+      institutionalBootstrapStatus,
       isAnonimo,
       currentClaimIdempotencyKey,
       tipoChat,
@@ -3187,8 +3426,10 @@ export function useChatLogic({
       shouldUsePublicFlow,
       liveChatAvailable,
       chatBootstrap,
+      audioRequestScope,
       resolvePersistentPublicContext,
       onTrialLimit,
+      initializationScope,
     ],
   );
 
@@ -3235,6 +3476,9 @@ export function useChatLogic({
 
   return {
     messages,
+    visitorName:visitorNameRef.current?.scope===initializationScope ? visitorNameRef.current.name : null,
+    institutionalBootstrapPending:canDiscoverInstitutionalWorkspace&&(institutionalBootstrapStatus==='idle'||institutionalBootstrapStatus==='loading'),
+    suppressLegacyInitialMenu:canDiscoverInstitutionalWorkspace&&institutionalBootstrapStatus!=='legacy',
     isTyping,
     handleSend,
     activeTicketId,

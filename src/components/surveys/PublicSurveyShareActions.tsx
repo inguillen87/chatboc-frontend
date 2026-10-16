@@ -353,9 +353,9 @@ export const PublicSurveyShareActions = ({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Difusion operativa
               </p>
-              <h3 className="mt-1 text-lg font-semibold tracking-normal text-foreground">
+              <h2 className="mt-1 text-lg font-semibold tracking-normal text-foreground">
                 QR, share y resultados listos para operar
-              </h3>
+              </h2>
             </div>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700">
@@ -424,7 +424,7 @@ export const PublicSurveyShareActions = ({
             <p className="break-all">
               Enlace directo:
               {' '}
-              <code className="rounded bg-muted px-1 py-0.5">{shareUrl}</code>
+              <code className="rounded bg-muted px-1 py-0.5 text-foreground">{shareUrl}</code>
             </p>
             <Button variant="outline" size="sm" asChild className="w-full">
               <a href={qrPageUrl} target="_blank" rel="noreferrer">
@@ -437,7 +437,7 @@ export const PublicSurveyShareActions = ({
           <div className="flex items-center gap-2 text-left">
             <TrendingUp className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Analíticas capturadas
+              {submission ? 'Analíticas capturadas' : 'Analíticas preparadas'}
             </span>
           </div>
           {analyticsHighlights.length ? (
@@ -451,7 +451,7 @@ export const PublicSurveyShareActions = ({
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">
-              La respuesta se integró a los tableros en tiempo real con sus metadatos de difusión, demografía y ubicación.
+              Al responder, el tablero recibirá los metadatos autorizados de difusión, demografía y ubicación.
             </p>
           )}
         </div>

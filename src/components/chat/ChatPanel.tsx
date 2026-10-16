@@ -9,14 +9,18 @@ import React, {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader";
+import ChatHumanSupportBar from "./ChatHumanSupportBar";
 import type { Prefs } from "./AccessibilityToggle";
 import ChatMessage from "./ChatMessage";
+import {useInstitutionalMenuNavigation} from './useInstitutionalMenuNavigation';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
+import OwnerRealtimeVoicePanel from "./OwnerRealtimeVoicePanel";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
-import { useChatLogic, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
+import { useChatLogic, getChatBootstrapContinuityKey, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
 import { Rubro } from "@/types/rubro";
 import {
@@ -43,6 +47,7 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
+import ChatStartupErrorState, {describeChatStartupFailure, type ChatStartupFailure} from './ChatStartupErrorState';
 import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
@@ -53,6 +58,7 @@ import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import {
   createLeadCaptureIdempotencyKey,
+  getBootstrapSessionValues,
   submitLeadCapture,
   type LeadCaptureNextAction,
 } from "@/features/chat/chatApi";
@@ -65,6 +71,7 @@ import {
 } from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { readBackendFlag } from "@/utils/backendFlags";
+import { resolveBoundChatAttachmentUploadContext } from "@/features/chat/uploadChatAttachment";
 import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
 import { resolveLiveChatRequestAction } from "@/utils/liveChatCta";
@@ -128,6 +135,7 @@ import {
 import { isBackofficeRole } from "@/utils/roles";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 import type { WidgetCommerceHistory, WidgetCommerceSession } from "@/types/widgetCommerce";
+import {initialInstitutionalMenuMessage} from '@/features/chat/institutionalChatMessage';
 
 export const scrollIntoViewIfSupported = (
   element: Element | null,
@@ -186,24 +194,6 @@ const readFirstString = (...values: unknown[]) => {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return "";
-};
-
-const readStoredLeadContact = () => {
-  try {
-    const storedUser = JSON.parse(safeLocalStorage.getItem("user") || "null");
-    return {
-      name: readFirstString(storedUser?.name, storedUser?.nombre),
-      email: readFirstString(storedUser?.email),
-      phone: readFirstString(
-        storedUser?.telefono,
-        storedUser?.phone,
-        storedUser?.whatsapp,
-        storedUser?.celular,
-      ),
-    };
-  } catch {
-    return { name: "", email: "", phone: "" };
-  }
 };
 
 const readFirstNumber = (...values: unknown[]) => {
@@ -1149,7 +1139,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     experienceBlueprint,
   } = props;
   const isMobile = useIsMobile();
-  const { user } = useUser();
+  const { user, hasVerifiedSession } = useUser();
   const isBackofficeUser = isBackofficeRole(user?.rol);
   const fallbackRubroTitle = welcomeTitle || "Chatboc";
   const fallbackRubroSubtitle =
@@ -1157,6 +1147,9 @@ const ChatPanel = (props: ChatPanelProps) => {
     "Seleccioná un rubro para personalizar la experiencia automáticamente.";
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialInstitutionalMenuRef = useRef<HTMLDivElement|null>(null);
+  const activeInstitutionalMessageRef = useRef<HTMLDivElement|null>(null);
+  const anchoredInitialMenuRef = useRef<string|null>(null);
   const chatInputTextRef = useRef<HTMLInputElement>(null);
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -1179,6 +1172,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";
+  const isPublicWidget = mode !== undefined || Boolean(chatBootstrap);
   const liveChatMarkedAvailable = Boolean(
     supportChannels?.live_chat?.available ??
     supportChannels?.live_chat?.realtime,
@@ -1239,7 +1233,10 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [storedVisitorName, setStoredVisitorName] = useState(() => getVisitorName());
   const {
     messages,
+    visitorName: scopedVisitorName,
     isTyping,
+    institutionalBootstrapPending,
+    suppressLegacyInitialMenu,
     handleSend,
     activeTicketId,
     liveChatTicketId,
@@ -1602,58 +1599,192 @@ const ChatPanel = (props: ChatPanelProps) => {
     : [];
 
 
-  // Check for pending widget action from CTA bubble
+  const pendingActionScope = JSON.stringify([
+    tipoChat, tenantSlug ?? null, propEntityToken ?? null,
+    resolvedSelectedRubro, mode ?? null, getChatBootstrapContinuityKey(chatBootstrap),
+  ]);
+  const pendingActionScopeRef = useRef(pendingActionScope);
+  const institutionalNavigation = useInstitutionalMenuNavigation({messages,tenantSlug,
+    scope:pendingActionScope,busy:isTyping,send:handleSend,container:chatContainerRef,anchor:activeInstitutionalMessageRef});
+  const initialInstitutionalMenu=initialInstitutionalMenuMessage(visibleMessages,tenantSlug);
+  const setInstitutionalMessageAnchor=useCallback((element:HTMLDivElement|null)=>{
+    activeInstitutionalMessageRef.current=element;
+    initialInstitutionalMenuRef.current=initialInstitutionalMenu?element:null;
+  },[initialInstitutionalMenu]);
+  pendingActionScopeRef.current = pendingActionScope;
+  const pendingActionRef = useRef<{
+    scope: string;
+    payload: Parameters<typeof handleSend>[0];
+  } | null>(null);
+  const pendingActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingActionSenderRef = useRef(handleSend);
+  useEffect(() => { pendingActionSenderRef.current = handleSend; }, [handleSend]);
+  useEffect(() => {
+    if (pendingActionRef.current?.scope !== pendingActionScope) {
+      pendingActionRef.current = null;
+    }
+    return () => {
+      if (pendingActionTimerRef.current !== null) {
+        clearTimeout(pendingActionTimerRef.current);
+        pendingActionTimerRef.current = null;
+      }
+    };
+  }, [pendingActionScope]);
+
+  // A queued CTA belongs to this mounted conversation. Tracking uses its own
+  // ticket/PIN dialog and must never enter the generic chat action dispatcher.
   useEffect(() => {
     const pendingAction = safeLocalStorage.getItem(PENDING_WIDGET_ACTION);
     if (pendingAction) {
       safeLocalStorage.removeItem(PENDING_WIDGET_ACTION);
       try {
         const actionData = JSON.parse(pendingAction);
+        const trackingActions = ["ticket_public_tracking", "ticket_live_or_offline_message"];
+        if ([actionData?.action, actionData?.action_id, actionData?.type,
+          actionData?.payload?.action, actionData?.payload?.action_id, actionData?.payload?.type]
+          .some((value) => trackingActions.includes(value))) {
+          addSystemMessage(
+            "Para escribir sobre tu reclamo, abrí su página de seguimiento con el número y el PIN.",
+            "info",
+          );
+          return;
+        }
         if (actionData && actionData.action) {
-          // Allow slight delay for component initialization
-          setTimeout(() => {
-            handleSend({
+          if (pendingActionTimerRef.current !== null) {
+            clearTimeout(pendingActionTimerRef.current);
+            pendingActionTimerRef.current = null;
+          }
+          pendingActionRef.current = {
+            scope: pendingActionScope,
+            payload: {
               text: actionData.text || actionData.action, // Fallback text if just action
               action: actionData.action,
               action_id: actionData.action_id,
               payload: actionData.payload,
-            });
-          }, 500);
+            },
+          };
         }
-      } catch (e) {
-        console.error("Error parsing pending widget action", e);
+      } catch {
+        // Parsing errors can contain pieces of the stored ticket/PIN payload.
+        console.warn("No se pudo leer la acción pendiente del chat.");
       }
     }
-  }, [handleSend]);
+    const pending = pendingActionRef.current;
+    if (pending?.scope === pendingActionScope && pendingActionTimerRef.current === null) {
+      pendingActionTimerRef.current = setTimeout(() => {
+        pendingActionTimerRef.current = null;
+        if (pendingActionScopeRef.current !== pending.scope || pendingActionRef.current !== pending) return;
+        pendingActionRef.current = null;
+        pendingActionSenderRef.current(pending.payload);
+      }, 500);
+    }
+  }, [handleSend, addSystemMessage, pendingActionScope]);
 
   const rubrosEnabled = tipoChat === "pyme" && !isPlatformOnboarding;
-  const [rubros, setRubros] = useState<Rubro[]>([]);
-  const [isLoadingRubros, setIsLoadingRubros] = useState(false);
-  const [rubrosError, setRubrosError] = useState<string | null>(null);
+  const rubrosSessionRevision = React.useSyncExternalStore(subscribeChatbocSessionRevision,
+    captureChatbocSessionRevision, captureChatbocSessionRevision);
+  const rubrosScope = JSON.stringify([rubrosEnabled, pendingActionScope, rubrosSessionRevision]);
+  const rubrosBoundaryRef = useRef({scope: rubrosScope});
+  if (rubrosBoundaryRef.current.scope !== rubrosScope) rubrosBoundaryRef.current = {scope: rubrosScope};
+  type RubrosAttempt = {boundary: {scope: string}; session: number};
+  type RubrosLoad = {boundary: {scope: string}; attempt: RubrosAttempt | null; items: Rubro[]; pending: boolean; loaded: boolean; error: ChatStartupFailure | null};
+  const [rubrosLoad, setRubrosLoad] = useState<RubrosLoad>({boundary: rubrosBoundaryRef.current, attempt: null, items: [], pending: false, loaded: false, error: null});
+  const currentRubros = rubrosLoad.boundary === rubrosBoundaryRef.current ? rubrosLoad : null;
+  const rubros = currentRubros?.items ?? [];
+  const isLoadingRubros = currentRubros?.pending ?? false;
+  const rubrosError = currentRubros?.error ?? null;
+  const hasLoadedRubros = currentRubros?.loaded ?? false;
+  const loadingRubrosRef = useRef<RubrosAttempt | null>(null);
+  const rubrosResultHeading = useRef<HTMLHeadingElement | null>(null);
+  const rubrosRetryControl = useRef<HTMLButtonElement | null>(null);
+  const rubrosRetryFocus = useRef<{attempt: RubrosAttempt; origin: HTMLButtonElement;
+    retiring: boolean; cleanup: () => void} | null>(null);
+  const retireRubrosFocus = useCallback(() => {
+    const focus = rubrosRetryFocus.current; rubrosRetryFocus.current = null; focus?.cleanup();
+  }, []);
+  const setRubrosRetryControl = useCallback((element: HTMLButtonElement | null) => {
+    const focus = rubrosRetryFocus.current;
+    if (!element && focus && focus.origin === rubrosRetryControl.current && document.activeElement === focus.origin) {
+      // Ref detachment precedes the native blur of our own retiring button.
+      // A voluntary blur while it remains mounted never owns BODY.
+      focus.retiring = true;
+    }
+    rubrosRetryControl.current = element;
+  }, []);
+  const rubrosMountedRef = useRef(true);
+  React.useLayoutEffect(() => () => retireRubrosFocus(), [retireRubrosFocus]);
+  React.useLayoutEffect(() => {
+    const focus = rubrosRetryFocus.current;
+    if (!focus) return;
+    if (focus.attempt.boundary !== rubrosBoundaryRef.current || !isChatbocSessionRevisionCurrent(focus.attempt.session)) {
+      retireRubrosFocus(); return;
+    }
+    if (!currentRubros || currentRubros.pending) return;
+    if (!currentRubros.loaded || currentRubros.attempt !== focus.attempt) {retireRubrosFocus(); return;}
+    const active = document.activeElement;
+    const target = rubrosResultHeading.current;
+    const ownsRetirement = active === focus.origin || (active === document.body && focus.retiring);
+    retireRubrosFocus();
+    if (ownsRetirement && target?.isConnected) target.focus({preventScroll: true});
+  }, [currentRubros, rubrosScope, retireRubrosFocus]);
+  useEffect(() => {
+    rubrosMountedRef.current = true;
+    return () => {rubrosMountedRef.current = false; loadingRubrosRef.current = null;};
+  }, []);
   const lastInitializedRubro = useRef<string | null>(null);
 
-  const loadRubros = useCallback(() => {
-    setIsLoadingRubros(true);
-    setRubrosError(null);
+  const loadRubros = useCallback((origin?: HTMLButtonElement) => {
+    const boundary = rubrosBoundaryRef.current;
+    if (loadingRubrosRef.current?.boundary === boundary) return;
+    const attempt = {boundary, session: captureChatbocSessionRevision()};
+    loadingRubrosRef.current = attempt;
+    retireRubrosFocus();
+    if (origin && document.activeElement === origin) {
+      const focus = {attempt, origin, retiring: false, cleanup: () => {}};
+      rubrosRetryFocus.current = focus;
+      const trackFocus = (event: FocusEvent) => {
+        if (rubrosRetryFocus.current === focus && event.target !== origin) retireRubrosFocus();
+      };
+      const trackBlur = (event: FocusEvent) => {
+        if (rubrosRetryFocus.current !== focus || event.target !== origin) return;
+        if (focus.retiring && (event.relatedTarget === null || event.relatedTarget === document.body)) return;
+        retireRubrosFocus();
+      };
+      const trackPointer = (event: PointerEvent) => {
+        if (rubrosRetryFocus.current === focus && event.target instanceof Node && !origin.contains(event.target)) retireRubrosFocus();
+      };
+      focus.cleanup = () => {
+        document.removeEventListener('focusin', trackFocus);
+        document.removeEventListener('focusout', trackBlur);
+        document.removeEventListener('pointerdown', trackPointer, true);
+      };
+      document.addEventListener('focusin', trackFocus);
+      document.addEventListener('focusout', trackBlur);
+      document.addEventListener('pointerdown', trackPointer, true);
+    }
+    const isCurrent = () => rubrosMountedRef.current && loadingRubrosRef.current === attempt
+      && rubrosBoundaryRef.current === boundary && isChatbocSessionRevisionCurrent(attempt.session);
+    setRubrosLoad(previous => ({boundary, attempt,
+      items: previous.boundary === boundary ? previous.items : [],
+      error: previous.boundary === boundary ? previous.error : null,
+      loaded: previous.boundary === boundary ? previous.loaded : false, pending: true}));
     getRubrosHierarchy()
       .then((data) => {
-        if (Array.isArray(data)) {
-          // getRubrosHierarchy already returns the tree
-          setRubros(data);
-        } else {
-          setRubros([]);
-        }
+        if (!isCurrent()) return;
+        // The legitimate empty catalog is a completed result, not a trigger to
+        // fetch continuously. getRubrosHierarchy already returns the tree.
+        setRubrosLoad({boundary, attempt, items: Array.isArray(data) ? data : [],
+          pending: false, loaded: true, error: null});
       })
       .catch((error) => {
-        setRubros([]);
-        setRubrosError(
-          getErrorMessage(error, "No se pudieron cargar los rubros."),
-        );
+        if (!isCurrent()) return;
+        setRubrosLoad({boundary, attempt, items: [], pending: false,
+          loaded: false, error: describeChatStartupFailure(error)});
       })
       .finally(() => {
-        setIsLoadingRubros(false);
+        if (isCurrent()) loadingRubrosRef.current = null;
       });
-  }, []);
+  }, [retireRubrosFocus]);
 
   useEffect(() => {
     if (!rubrosEnabled) {
@@ -1708,14 +1839,16 @@ const ChatPanel = (props: ChatPanelProps) => {
     if (!rubrosEnabled || localRubro) {
       return;
     }
-    if (isLoadingRubros || rubros.length > 0 || rubrosError) {
+    if (isLoadingRubros || hasLoadedRubros || rubros.length > 0 || rubrosError) {
       return;
     }
     loadRubros();
   }, [
     rubrosEnabled,
+    rubrosScope,
     localRubro,
     isLoadingRubros,
+    hasLoadedRubros,
     rubros.length,
     rubrosError,
     loadRubros,
@@ -2199,11 +2332,14 @@ const ChatPanel = (props: ChatPanelProps) => {
     (channel) => channel.toLowerCase() === "whatsapp",
   );
   const canRenderWhatsAppBridge = Boolean(
-    (boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction) ||
-      (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
-        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
-      hasRecommendedWhatsAppHandoff,
+    supportChannels?.whatsapp?.enabled !== false &&
+      ((boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction) ||
+        (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
+          boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
+        hasRecommendedWhatsAppHandoff),
   );
+  const showLiveChatSupport = canRenderLiveChat && !isToolbarActionCollapsed("live_chat");
+  const showWhatsAppSupport = canRenderWhatsAppBridge && !isToolbarActionCollapsed("whatsapp");
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
   const effectiveRealtimeVoice =
@@ -2952,24 +3088,6 @@ const ChatPanel = (props: ChatPanelProps) => {
       tone: action.active ? "primary" : "default",
     }));
 
-  if (!activeTicketId && canRenderLiveChat && !isToolbarActionCollapsed("live_chat")) {
-    compactFooterActions.push({
-      id: "live_chat",
-      label: liveChatButtonLabel,
-      icon: UserRound,
-      onClick: handleLiveChatRequest,
-    });
-  }
-
-  if (!activeTicketId && canRenderWhatsAppBridge && !isToolbarActionCollapsed("whatsapp")) {
-    compactFooterActions.push({
-      id: "whatsapp",
-      label: whatsappButtonLabel,
-      icon: MessageSquare,
-      onClick: handleWhatsAppBridge,
-    });
-  }
-
   if (!activeTicketId && realtimeVoiceEnabled && !isToolbarActionCollapsed("voice_call")) {
     compactFooterActions.push({
       id: "voice_call",
@@ -3143,10 +3261,35 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [messages, sessionState]);
 
   useEffect(() => {
-    // FORCE SCROLL ON NEW MESSAGE
-    // Use a small timeout to allow layout to settle (e.g. images loading)
+    const scope=pendingActionScope,session=captureChatbocSessionRevision();
+    let abandoned=false;
+    const moved=()=>{abandoned=true;};
+    const keyboard=(event:KeyboardEvent)=>{
+      if(['Tab','Escape','PageDown','PageUp','Home','End','ArrowDown','ArrowUp'].includes(event.key))moved();
+    };
+    document.addEventListener('pointerdown',moved,true);
+    document.addEventListener('wheel',moved,{capture:true,passive:true});
+    document.addEventListener('keydown',keyboard,true);
+    // Wait for layout without overriding a visitor's subsequent navigation.
     const timer = setTimeout(() => {
+      if(abandoned||pendingActionScopeRef.current!==scope||!isChatbocSessionRevisionCurrent(session)||
+        institutionalNavigation.suppressAutoScroll(visibleMessages))return;
       if (chatContainerRef.current) {
+        // The explicit menu activation already placed its new heading at the
+        // reading edge. Do not undo it with the generic delayed bottom scroll.
+        if(institutionalNavigation.activeMessage?.id===institutionalNavigation.anchoredResponse.current)return;
+        const initialMenu = initialInstitutionalMenuMessage(visibleMessages, tenantSlug);
+        if (initialMenu && initialInstitutionalMenuRef.current) {
+          const identity = `${tenantSlug}:${mode}:${initialMenu.id}:${initialMenu.institutional!.revision}`;
+          if (anchoredInitialMenuRef.current !== identity) {
+            const container = chatContainerRef.current, anchor = initialInstitutionalMenuRef.current;
+            // Scroll only the widget; scrollIntoView would also move the host page.
+            container.scrollTop += anchor.getBoundingClientRect().top - container.getBoundingClientRect().top;
+            anchoredInitialMenuRef.current = identity;
+          }
+          // Do not undo a visitor's manual scroll on same-menu re-renders.
+          return;
+        }
         const { scrollHeight, scrollTop, clientHeight } =
           chatContainerRef.current;
 
@@ -3161,31 +3304,22 @@ const ChatPanel = (props: ChatPanelProps) => {
         // 2. It's a short conversation (initial load)
         // 3. The user just sent a message (we want to see our own message)
         if (isCloseToBottom || isShortConversation || isLatestMessageMine) {
-          // Use 'auto' behavior to prevent layout trashing in iframes
-          scrollIntoViewIfSupported(messagesEndRef.current, {
-            behavior: "auto",
-            block: "end",
-          });
-          // Double check via container scrollTop for robustness
-          if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTop =
-              chatContainerRef.current.scrollHeight;
-          }
+          // Move only the reading pane, preserving the host page position.
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
           setShowScrollDown(false);
         } else {
           // User is scrolled up reading history
           setShowScrollDown(true);
         }
-      } else {
-        // Fallback if ref is not ready yet
-        scrollIntoViewIfSupported(messagesEndRef.current, {
-          behavior: "auto",
-          block: "end",
-        });
       }
     }, 100);
-    return () => clearTimeout(timer);
-  }, [messages]);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown',moved,true);
+      document.removeEventListener('wheel',moved,true);
+      document.removeEventListener('keydown',keyboard,true);
+    };
+  }, [messages, visibleMessages, tenantSlug, mode, pendingActionScope, institutionalNavigation.activeMessage]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -3345,7 +3479,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const emptyStateDescription =
     readExperienceDescription(resolvedEmptyBlock) ||
     "Escribí tu consulta abajo o usá las opciones del menú.";
-  const visitorDisplayName = readFirstString(
+  const visitorDisplayName = isPublicWidget ? scopedVisitorName : readFirstString(
     user?.nombre,
     user?.name,
     user?.displayName,
@@ -3370,6 +3504,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     ? null
     : "Para atenderte mejor, primero podes decirme tu nombre.";
   const bootstrapPayload = chatBootstrap?.payload as Record<string, unknown> | undefined;
+  const attachmentUploadContext = useMemo(() => {
+    const bootstrapSession = chatBootstrap
+      ? getBootstrapSessionValues(chatBootstrap)
+      : {};
+    return resolveBoundChatAttachmentUploadContext(tenantSlug, bootstrapSession);
+  }, [chatBootstrap, tenantSlug]);
   const bootstrapDemoMetadata = bootstrapPayload?.demo_metadata as Record<string, unknown> | undefined;
   const bootstrapWorkspace = bootstrapPayload?.workspace as Record<string, unknown> | undefined;
   const demoWorkspace = bootstrapDemoMetadata?.workspace as Record<string, unknown> | undefined;
@@ -3477,8 +3617,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     quickMenu,
   ]);
   const visibleDefaultMenuButtons = useMemo(
-    () => defaultMenuButtons.slice(0, defaultMenuMaxVisible),
-    [defaultMenuButtons, defaultMenuMaxVisible],
+    () => suppressLegacyInitialMenu?[]:defaultMenuButtons.slice(0, defaultMenuMaxVisible),
+    [defaultMenuButtons, defaultMenuMaxVisible,suppressLegacyInitialMenu],
   );
   const sendDefaultMenuButton = useCallback(
     (item: (typeof defaultMenuButtons)[number], placement: "empty" | "persistent") => {
@@ -3600,15 +3740,15 @@ const ChatPanel = (props: ChatPanelProps) => {
         (effectiveLeadCapture?.fields?.length ?? 0) === 0;
 
       if (shouldPostLead) {
-        const storedContact = readStoredLeadContact();
+        const visitorContact = contexto?.datos_reclamo;
         const actionPayload = action.payload ?? {};
-        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, storedContact.name);
-        const leadEmail = readFirstString(actionPayload.email, storedContact.email);
+        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, visitorContact?.nombre_ciudadano);
+        const leadEmail = readFirstString(actionPayload.email, visitorContact?.email_ciudadano);
         const leadPhone = readFirstString(
           actionPayload.telefono,
           actionPayload.phone,
           actionPayload.whatsapp,
-          storedContact.phone,
+          visitorContact?.telefono_ciudadano,
         );
 
         if (!leadName && !leadEmail && !leadPhone) {
@@ -3709,7 +3849,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [addSystemMessage, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
+    [addSystemMessage, contexto, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
   );
 
   const persistentLeadButton = [...messages]
@@ -3785,22 +3925,19 @@ const ChatPanel = (props: ChatPanelProps) => {
                   "/favicon/favicon-48x48.png";
               }}
             />
-            <h2 className="text-xl font-semibold text-primary mt-3">
+            <h2 ref={rubrosResultHeading} tabIndex={-1} className="text-xl font-semibold text-primary mt-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               {fallbackRubroTitle}
             </h2>
             <p className="text-sm text-muted-foreground">
               {fallbackRubroSubtitle}
             </p>
-            {isLoadingRubros ? (
+            {rubrosError ? (
+              <div className="min-h-0 flex-1 overflow-y-auto py-4">
+                <ChatStartupErrorState failure={rubrosError} pending={isLoadingRubros} onRetry={loadRubros} retryRef={setRubrosRetryControl}/>
+              </div>
+            ) : isLoadingRubros ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : rubrosError ? (
-              <div className="space-y-4">
-                <p className="text-sm text-destructive">{rubrosError}</p>
-                <Button onClick={loadRubros} className="w-full">
-                  Reintentar
-                </Button>
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-hidden pt-2">
@@ -3925,6 +4062,19 @@ const ChatPanel = (props: ChatPanelProps) => {
         recommendationLabel={recommendedExperienceLabel}
         compactActions={compactHeaderActions}
       />
+      {!activeTicketId && (showLiveChatSupport || showWhatsAppSupport) ? (
+        <ChatHumanSupportBar
+          liveChatLabel={showLiveChatSupport ? liveChatButtonLabel : null}
+          liveChatStatus={showLiveChatSupport ? availabilityLabel : null}
+          liveChatAvailable={Boolean(showLiveChatSupport && liveChatIsAvailable && isLiveChatEnabled)}
+          onLiveChat={showLiveChatSupport ? handleLiveChatRequest : undefined}
+          whatsappLabel={showWhatsAppSupport ? whatsappButtonLabel : null}
+          onWhatsApp={showWhatsAppSupport ? handleWhatsAppBridge : undefined}
+        />
+      ) : null}
+      {hasVerifiedSession && user && tenantSlug && channelMode === "chat" ? (
+        <OwnerRealtimeVoicePanel tenantSlug={tenantSlug} logoUrl={headerLogoUrl || undefined} reducedMotion={Boolean(a11yPrefs?.reducedMotion)} />
+      ) : null}
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
           <div className={cn(chatContentMaxWidthClass, "rounded-2xl border border-border/70 bg-background/90 p-3 shadow-sm")}>
@@ -4275,7 +4425,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       >
         <div className="hidden sm:block sm:flex-1" />
 
-        {visibleMessages.length === 0 ? (
+        {institutionalBootstrapPending&&visibleMessages.length===0?(
+          <div className="flex flex-1 items-center justify-center" role="status" aria-label="Cargando conversación">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          </div>
+        ):visibleMessages.length === 0 ? (
              <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
                    <MessageSquare className="w-8 h-8" />
@@ -4366,9 +4520,12 @@ const ChatPanel = (props: ChatPanelProps) => {
 
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
+            ref={institutionalNavigation.activeMessage?.id === msg.id ? setInstitutionalMessageAnchor : undefined}
             message={msg}
+            publicVisitorName={isPublicWidget ? scopedVisitorName || null : undefined}
             isTyping={isTyping}
-            onButtonClick={handleSend}
+            onButtonClick={payload=>institutionalNavigation.activate(msg,payload)}
+            institutionalInteractive={institutionalNavigation.activeMessage===msg&&!isTyping}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
@@ -4427,7 +4584,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="chatboc-chat-footer relative w-full min-w-0 shrink-0 border-t bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] backdrop-blur-sm sm:px-2.5 sm:py-1.5">
+      <div className="chatboc-chat-footer sticky bottom-0 z-10 w-full min-w-0 shrink-0 border-t bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] backdrop-blur-sm sm:px-2.5 sm:py-1.5">
         {smartHint && (
           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
             <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">
@@ -4821,6 +4978,10 @@ const ChatPanel = (props: ChatPanelProps) => {
             uiHints={uiHints}
             guidedFlow={guidedFlow}
             supportsMultimodalIntake={supportsMultimodalIntake}
+            tenantSlug={attachmentUploadContext.tenantSlug}
+            demoSessionId={attachmentUploadContext.demoSessionId}
+            chatSessionId={attachmentUploadContext.chatSessionId}
+            audioContextKey={JSON.stringify(chatBootstrap??null)}
           />
         )}
       </div>

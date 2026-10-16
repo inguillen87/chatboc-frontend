@@ -71,16 +71,10 @@ const UserPortalLayout: React.FC = () => {
     }
   }, [active]);
 
-  const handleLogout = async () => {
-    const redirectTenantSlug = user?.tenantSlug || user?.tenant_slug || effectiveSlug;
+  const handleLogout = () => {
     setMobileMenuOpen(false);
-    await logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
-
-    if (redirectTenantSlug) {
-      navigate(buildTenantPath('/user/login', redirectTenantSlug), { replace: true });
-    } else {
-      navigate('/login', { replace: true });
-    }
+    void logoutChatbocSession({ clerkEnabled: clerkRuntime.enabled });
+    navigate('/login', { replace: true });
   };
 
   return (

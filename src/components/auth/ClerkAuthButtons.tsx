@@ -4,6 +4,7 @@ import {
   SignedOut,
   SignInButton,
   SignUpButton,
+  useClerk,
   useSignIn,
   useSignUp,
 } from '@clerk/clerk-react';
@@ -15,6 +16,8 @@ import { useClerkRuntime, type ClerkRuntimeValue } from '@/components/auth/Clerk
 import GoogleIcon from '@/components/auth/GoogleIcon';
 import { cn } from '@/lib/utils';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {isActiveClerkSessionRetired,readActiveClerkSessionId} from '@/utils/sessionRetirement';
 import {
   persistClerkAuthContext,
   sanitizeClerkReturnPath,
@@ -88,10 +91,22 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
 }) => {
   const signInApi = useSignIn();
   const signUpApi = useSignUp();
+  const clerk = useClerk();
+  React.useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
+  const retiredClerkSession=isActiveClerkSessionRetired();
+  const SignedOutBoundary=retiredClerkSession?React.Fragment:SignedOut;
   const navigate = useNavigate();
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [loggingOut, setLoggingOut] = React.useState(false);
   const [oauthError, setOauthError] = React.useState<string | null>(null);
+  const oauthPending = React.useRef(false);
+  const mounted = React.useRef(true);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const currentIntent = React.useRef('');
+  currentIntent.current = JSON.stringify([mode, authIntent, tenantSlug, returnTo, disabled]);
 
   const providerLabel = socialProviderLabel(clerkRuntime.socialProviders);
   const emailFallbackLabel = mode === 'register' ? 'Crear con email' : 'Ingresar con email';
@@ -109,47 +124,76 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   }, [authIntent, returnTo, tenantSlug]);
 
   const runOAuthRedirect = async (provider: ClerkOAuthProvider) => {
-    if (disabled) return;
+    if (disabled || oauthPending.current) return;
     const strategy = OAUTH_STRATEGY_BY_PROVIDER[provider];
     if (!strategy) return;
     const authResource = mode === 'register' ? signUpApi.signUp : signInApi.signIn;
     const isLoaded = mode === 'register' ? signUpApi.isLoaded : signInApi.isLoaded;
     if (!isLoaded || !authResource) return;
 
+    const revision = captureChatbocSessionRevision();
+    const retiringSdk = isActiveClerkSessionRetired();
+    const intent = currentIntent.current;
+    const isCurrent = () => mounted.current && isChatbocSessionRevisionCurrent(revision)
+      && currentIntent.current === intent;
+    oauthPending.current = true;
     setOauthError(null);
     setLoadingProvider(provider);
     try {
+      if (retiringSdk) {
+        // Retire only the SDK session captured by the earlier explicit logout.
+        // Never sign out another session or re-authorize the retired identity.
+        const sessionId = readActiveClerkSessionId();
+        if (!sessionId || clerk.session?.id !== sessionId) {
+          throw new Error('retired_sdk_identity_changed');
+        }
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            clerk.signOut(() => {}, { sessionId }),
+            new Promise<never>((_, reject) => {
+              deadline = setTimeout(() => reject(new Error('sdk_signout_unconfirmed')), 10_000);
+            }),
+          ]);
+        } finally {
+          if (deadline !== undefined) clearTimeout(deadline);
+        }
+        if (!isCurrent()) return;
+        if (clerk.session) throw new Error('sdk_signout_unconfirmed');
+      }
+      if (!isCurrent()) return;
       rememberAuthContext();
       const origin = window.location.origin;
       const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}` || '/perfil';
       const callbackPath = clerkRuntime.oauthCallbackPath || '/sso-callback';
-      await authResource.authenticateWithRedirect({
+      const currentResource = mode === 'register' ? clerk.client?.signUp : clerk.client?.signIn;
+      if (retiringSdk && !currentResource) throw new Error('fresh_auth_resource_unavailable');
+      await (currentResource || authResource).authenticateWithRedirect({
         strategy,
         redirectUrl: `${origin}${callbackPath.startsWith('/') ? callbackPath : `/${callbackPath}`}`,
         redirectUrlComplete: `${origin}${currentPath}`,
       });
     } catch (error) {
-      console.error('[ClerkAuthButtons] No se pudo iniciar OAuth', error);
+      if (!isCurrent()) return;
+      console.error('[ClerkAuthButtons] No se pudo iniciar OAuth');
       const label = SOCIAL_PROVIDER_LABELS[provider] || provider;
       setOauthError(`No se pudo abrir ${label}. Probá con email o intentá nuevamente.`);
-      setLoadingProvider(null);
+    } finally {
+      oauthPending.current = false;
+      if (mounted.current) setLoadingProvider(null);
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await logoutChatbocSession();
-      navigate('/login', { replace: true });
-    } finally {
-      setLoggingOut(false);
-    }
+    void logoutChatbocSession();
+    navigate('/login', { replace: true });
   };
 
   return (
     <div className={cn('space-y-3', className)}>
-      <SignedOut>
+      <SignedOutBoundary>
         <div className="grid gap-2">
           {socialProviders.length ? (
             <div className="grid gap-2" aria-label={`Acceso social: ${providerLabel}`}>
@@ -212,8 +256,8 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
             </p>
           ) : null}
         </div>
-      </SignedOut>
-      <SignedIn>
+      </SignedOutBoundary>
+      {!retiredClerkSession&&<SignedIn>
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
           <span className="text-sm font-medium text-foreground">Cuenta conectada</span>
           <Button
@@ -234,7 +278,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
             {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
           </Button>
         </div>
-      </SignedIn>
+      </SignedIn>}
     </div>
   );
 };

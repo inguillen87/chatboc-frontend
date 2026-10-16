@@ -1,0 +1,795 @@
+# One PR merge build and regression; every acceptance runs for every PR.
+name: Frontend verification
+'on':
+  pull_request: null
+permissions:
+  contents: read
+concurrency:
+  group: frontend-verification-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+env:
+  CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+  CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  CI_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+  PYTHONDONTWRITEBYTECODE: '1'
+jobs:
+  verify_once:
+    name: verify_once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      artifact_id: ${{ steps.bundle.outputs.artifact-id }}
+      artifact_digest: ${{ steps.bundle.outputs.artifact-digest }}
+      manifest_sha256: ${{ steps.package.outputs.manifest_sha256 }}
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: CI artifact contract negatives
+      run: python3 -B -m unittest discover -s scripts/ci -p 'test_*.py' -v
+    - name: Common evidence directory
+      run: mkdir -p .ci/common-evidence
+    - name: Preview policy and existing build guards
+      run: npx vitest run scripts/ignoreVercelGitPreview.test.mjs scripts/guardVercelPreviewRewrites.test.mjs scripts/verifyVercelProductionBuild.test.mjs
+        --maxWorkers=2 --reporter=default --reporter=json --outputFile=.ci/common-evidence/guards.json
+    - name: TypeScript
+      run: npm run typecheck
+    - name: Catalog import focused regression
+      run: npx vitest run src/utils/catalogImportError.test.ts src/components/catalog/ImportWizard.error.test.tsx --maxWorkers=2
+        --reporter=default --reporter=json --outputFile=.ci/common-evidence/catalog.json
+    - name: One complete frontend regression
+      shell: bash
+      run: |-
+        set -o pipefail
+        npm test -- --maxWorkers=2 --reporter=default --reporter=json --outputFile=.ci/common-evidence/vitest.json 2>&1 | tee .ci/common-evidence/vitest.log
+    - name: One production build with existing rewrite guard
+      run: npm run build
+    - name: Bind build and test evidence to this PR merge
+      id: package
+      run: python3 scripts/ci/verified_build.py package
+    - name: Immutable verified build
+      id: bundle
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: verified-frontend-${{ github.run_id }}-${{ github.run_attempt }}
+        path: .ci/shared-payload/
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 7
+    - name: Common regression diagnostics
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: frontend-common-evidence
+        path: .ci/common-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  catalog_import_ux:
+    name: Catalog import UX and safe errors
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify
+    - name: Catalog focus executed once in shared verification
+      run: python3 -c "import json; r=json.load(open('.ci/verified/evidence/catalog.json')); print('Shared catalog regression:',
+        r['numPassedTests'], 'tests; build provenance verified')"
+  crm_followup_workspace:
+    name: CRM persistent follow-up
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/followup-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Follow-up UI and verification protocol
+      run: node tests/followup-workspace.browser.mjs
+    - name: History identity and recovery
+      run: node tests/crm-history.browser.mjs
+    - name: Directory pagination identity and recovery
+      run: node tests/crm-directory.browser.mjs
+    - name: Evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: crm-followup-evidence
+        path: |
+          .vercel/followup-evidence/
+          .vercel/history-evidence/
+          .vercel/directory-evidence/browser-results.json
+          .vercel/directory-evidence/*.png
+          .vercel/directory-evidence/*-axe.json
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  geo_workspace:
+    name: Geographic analytics workspace
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/geo-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: MapLibre, scoped filters and privacy
+      run: node tests/geo-workspace.browser.mjs
+    - name: Evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: geographic-workspace-evidence
+        path: .vercel/geo-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  inbox_workspace:
+    name: Omnichannel inbox workspace
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/inbox-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Responsive and guarded inbox flows
+      run: node tests/inbox-workspace.browser.mjs
+    - name: Test evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: inbox-workspace-evidence
+        path: .vercel/inbox-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  operations_workspace:
+    name: Operations workspace and scoped reads
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/operations-live-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Responsive sources, navigation and batched reads
+      run: node tests/operations-workspace.browser.mjs
+    - name: Evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: operations-live-evidence
+        path: .vercel/operations-live-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  order_lifecycle:
+    name: Order lifecycle and scoped operations
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/order-lifecycle-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Responsive order lifecycle and guarded writes
+      run: node tests/order-lifecycle.browser.mjs
+    - name: Checkout session and payment-link boundary
+      run: node tests/checkout-session.browser.mjs
+    - name: Cart consistency and retired responses
+      run: node tests/cart-session.browser.mjs
+    - name: Browser evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: order-lifecycle-evidence
+        path: |
+          .vercel/order-lifecycle-evidence/
+          .vercel/checkout-evidence/browser-results.json
+          .vercel/checkout-evidence/*.png
+          .vercel/checkout-evidence/*-axe.json
+          .vercel/cart-evidence/browser-results.json
+          .vercel/cart-evidence/*.png
+          .vercel/cart-evidence/*-axe.json
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  organization_presence:
+    name: Organization brand and URLs
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/presence-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Browser setup
+      run: npx playwright install --with-deps chromium
+    - name: Brand and URL workspace
+      run: node tests/organization-presence.browser.mjs
+    - name: Evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: organization-presence-evidence
+        path: .vercel/presence-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  production_profile_layout:
+    name: Production profile layout
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - run: npx playwright install --with-deps chromium
+    - run: node tests/production-profile.browser.mjs
+  section_recovery:
+    name: Section recovery and preserved workspace
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/section-recovery-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Real page recovery with synthetic faults
+      run: node tests/section-recovery.browser.mjs
+    - name: Alert contrast across public themes
+      run: node tests/alert-contrast.browser.mjs
+    - name: Recovery evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: section-recovery-evidence
+        path: |
+          .vercel/section-recovery-evidence/
+          .vercel/alert-contrast-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  startup_performance:
+    name: Application startup performance
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/startup-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Static startup and offline budgets
+      run: node scripts/startupGraph.mjs
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Compiled entry and lazy-chart regression
+      run: node tests/startup-performance.browser.mjs
+    - name: Existing offline lifecycle and privacy upgrade
+      run: npx playwright test --config=playwright.pwa.config.ts --reporter=list,json
+      env:
+        PLAYWRIGHT_JSON_OUTPUT_FILE: .vercel/startup-evidence/pwa-results.json
+    - name: Startup evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: startup-performance-evidence
+        path: .vercel/startup-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  superadmin_commercial_followup:
+    name: SuperAdmin commercial follow-up
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Responsive CRM, accessibility and safe writes
+      run: node tests/commercial-insights.browser.mjs
+    - name: Browser evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: commercial-insights-evidence
+        path: .vercel/commercial-insights-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  survey_card_production:
+    name: Survey cards production verification
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/survey-session-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install Chromium
+      run: npx playwright install --with-deps chromium
+    - name: Survey cards on desktop and mobile
+      run: node tests/survey-card-production.browser.mjs
+    - name: Verification evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: survey-card-production-evidence
+        path: .vercel/survey-session-evidence/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+  unified_organization_login:
+    name: Unified organization login
+    needs: verify_once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COMMON_RESULT: ${{ needs.verify_once.result }}
+      SHARED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      DOWNLOADED_ARTIFACT_ID: ${{ needs.verify_once.outputs.artifact_id }}
+      SHARED_ARTIFACT_DIGEST: ${{ needs.verify_once.outputs.artifact_digest }}
+      SHARED_MANIFEST_SHA256: ${{ needs.verify_once.outputs.manifest_sha256 }}
+    steps:
+    - name: Require successful common verification
+      shell: bash
+      run: |-
+        if [[ "$COMMON_RESULT" != success ]]; then
+          echo "::error::Shared verification is $COMMON_RESULT; acceptance did not execute."
+          exit 1
+        fi
+        [[ "$SHARED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+        [[ "$SHARED_ARTIFACT_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+        [[ "$SHARED_MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - name: Download this run artifact by immutable ID
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        artifact-ids: ${{ needs.verify_once.outputs.artifact_id }}
+        path: .ci/download/
+        skip-decompress: true
+        digest-mismatch: error
+    - name: Verify ZIP digest, merge, attempt, lock and all files before use
+      run: python3 scripts/ci/verified_build.py verify --legacy-evidence .vercel/unified-login-evidence
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '24'
+        cache: npm
+    - run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Install browser
+      run: npx playwright install --with-deps chromium
+    - name: Private navigation and organization identity
+      run: node tests/private-navigation.browser.mjs
+    - name: Private guide contract and lifecycle
+      run: node tests/private-guide.browser.mjs
+    - name: Private guide administration and confirmation
+      run: node tests/guide-control.browser.mjs
+    - name: Native institutional knowledge workspace
+      run: node tests/institutional-assistant.browser.mjs
+    - name: Evidence
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: unified-login-evidence
+        path: |
+          .vercel/unified-login-evidence/
+          .vercel/private-navigation-evidence/
+          .vercel/private-guide-evidence/browser-results.json
+          .vercel/private-guide-evidence/*.png
+          .vercel/institutional-assistant-evidence/browser-results.json
+          .vercel/institutional-assistant-evidence/*.png
+          .vercel/institutional-assistant-evidence/*-axe.json
+          .vercel/guide-control-evidence/browser-results.json
+          .vercel/guide-control-evidence/*.png
+          .vercel/guide-control-evidence/*-axe.json
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7

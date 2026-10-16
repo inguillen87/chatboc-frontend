@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Download, X } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
 import {
   getMobileNavigationServerSnapshot,
@@ -33,6 +34,8 @@ function isStandaloneDisplay() {
 }
 
 export function PwaInstallPrompt() {
+  const { pathname } = useLocation();
+  const suppressOnPresentationRoute = pathname === "/demo" || pathname.startsWith("/demo/");
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(isStandaloneDisplay);
   const [dismissed, setDismissed] = useState(recentlyDismissed);
@@ -45,7 +48,7 @@ export function PwaInstallPrompt() {
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
-      if (recentlyDismissed() || isStandaloneDisplay()) return;
+      if (suppressOnPresentationRoute || recentlyDismissed() || isStandaloneDisplay()) return;
       setInstallEvent(event as BeforeInstallPromptEvent);
       setDismissed(false);
     };
@@ -62,9 +65,17 @@ export function PwaInstallPrompt() {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);
     };
-  }, []);
+  }, [suppressOnPresentationRoute]);
 
-  if (!installEvent || dismissed || isInstalled || mobileNavigationOpen) return null;
+  if (
+    suppressOnPresentationRoute ||
+    !installEvent ||
+    dismissed ||
+    isInstalled ||
+    mobileNavigationOpen
+  ) {
+    return null;
+  }
 
   const dismiss = () => {
     safeLocalStorage.setItem(DISMISSED_KEY, String(Date.now()));
@@ -88,7 +99,7 @@ export function PwaInstallPrompt() {
         <p id="chatboc-pwa-install-title" className="text-sm font-semibold text-foreground">
           Instalar Chatboc
         </p>
-        <p className="text-xs leading-5 text-muted-foreground">
+        <p className="hidden text-xs leading-5 text-muted-foreground sm:block">
           Acceso rápido, pantalla completa y mejor experiencia móvil.
         </p>
       </div>

@@ -3,14 +3,13 @@ interface FranchisePartnerConfig {
   salesUrl?: string;
 }
 
-const fromEnv = (key: string) => {
-  const value = (import.meta.env as Record<string, string | undefined>)[key];
+const readText = (value: unknown) => {
   return typeof value === 'string' ? value.trim() : '';
 };
 
 export const getFranchisePartnerConfig = (): FranchisePartnerConfig => {
-  const partnerName = fromEnv('VITE_FRANCHISE_PARTNER_NAME');
-  const salesUrl = fromEnv('VITE_FRANCHISE_SALES_URL');
+  const partnerName = readText(import.meta.env.VITE_FRANCHISE_PARTNER_NAME);
+  const salesUrl = readText(import.meta.env.VITE_FRANCHISE_SALES_URL);
 
   return {
     partnerName: partnerName || undefined,

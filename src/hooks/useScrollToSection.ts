@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { safeSessionStorage } from "@/utils/safeLocalStorage";
+import { preferredScrollBehavior } from "@/utils/scrollPreference";
 
 export const useScrollToSection = () => {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ export const useScrollToSection = () => {
     if (location.pathname === "/") {
       const section = document.getElementById(sectionId);
       if (section) {
-        section.scrollIntoView({ behavior: "smooth" });
+        section.scrollIntoView({ behavior: preferredScrollBehavior() });
       }
     } else {
       // Guarda la sección deseada y redirige

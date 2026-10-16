@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ChatUiMessage } from './chatTypes';
+import SurveyChatMenuCard from './SurveyChatMenuCard';
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 
@@ -28,13 +29,14 @@ const renderMessageText = (text: string) =>
 
 export default function ChatMessageList({ messages }: { messages: ChatUiMessage[] }) {
   return (
-    <div className="space-y-2" aria-label="Lista de mensajes">
+    <div className="space-y-2" role="log" aria-label="Lista de mensajes" aria-live="polite">
       {messages.map((message) => (
         <div
           key={message.id}
           className={`whitespace-pre-wrap break-words rounded-lg p-2 text-sm leading-5 ${message.role === 'assistant' ? 'bg-muted/40' : 'bg-primary/10'}`}
         >
           {renderMessageText(message.text)}
+          {message.surveyMenu ? <SurveyChatMenuCard menu={message.surveyMenu} /> : null}
         </div>
       ))}
     </div>

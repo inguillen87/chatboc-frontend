@@ -80,6 +80,13 @@
     return trimmed ? trimmed : fallback;
   };
 
+  const normalizeZIndex = (value, fallback) => {
+    const parsed = Number.parseInt(String(value || ""), 10);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 2147483647
+      ? parsed
+      : fallback;
+  };
+
   const cfg = {
     host: chatbocDomain,
     iframePath: ds.iframePath || "/iframe",
@@ -100,7 +107,10 @@
     closedWidth: normalizeLength(ds.closedWidth, "72px"),
     closedHeight: normalizeLength(ds.closedHeight, "72px"),
     bottom: normalizeLength(ds.bottom, "20px"),
+    position: ds.position === "left" ? "left" : "right",
+    left: normalizeLength(ds.left || ds.sideOffset, "20px"),
     right: normalizeLength(ds.right, "20px"),
+    zIndex: normalizeZIndex(ds.zIndex, 100000),
     primaryColor: normalizeColor(ds.primaryColor, "#007aff"),
     accentColor: normalizeColor(ds.accentColor, ""),
     logoUrl: normalizeColor(ds.logoUrl, ""),
@@ -108,6 +118,7 @@
     logoAnimation: normalizeColor(ds.logoAnimation, ""),
     welcomeTitle: normalizeColor(ds.welcomeTitle, ""),
     welcomeSubtitle: normalizeColor(ds.welcomeSubtitle, ""),
+    borderRadius: normalizeColor(ds.borderRadius, ""),
   };
 
   const qs = new URLSearchParams({
@@ -120,6 +131,9 @@
     closedHeight: cfg.closedHeight,
     bottom: cfg.bottom,
     right: cfg.right,
+    position: cfg.position,
+    sideOffset: cfg.position === "left" ? cfg.left : cfg.right,
+    zIndex: String(cfg.zIndex),
     widgetId: iframeId,
     hostDomain: window.location.origin,
     primaryColor: cfg.primaryColor,
@@ -129,6 +143,7 @@
     logoAnimation: cfg.logoAnimation,
     welcomeTitle: cfg.welcomeTitle,
     welcomeSubtitle: cfg.welcomeSubtitle,
+    borderRadius: cfg.borderRadius,
   });
 
   if (cfg.tenantSlug) {
@@ -168,10 +183,11 @@
     :host {
       position: fixed;
       bottom: ${cfg.bottom};
-      right: ${cfg.right};
+      right: ${cfg.position === "right" ? cfg.right : "auto"};
+      left: ${cfg.position === "left" ? cfg.left : "auto"};
       width: ${cfg.closedWidth};
       height: ${cfg.closedHeight};
-      z-index: 2147483647;
+      z-index: ${cfg.zIndex};
       border: none;
       background: transparent;
       overflow: visible;
@@ -187,8 +203,8 @@
   function applyDims(dims) {
     const host = shadow.host;
     const desiredWidth = parseInt(dims.width, 10);
-    const rightOffset = parseInt(cfg.right, 10);
-    const maxWidth = window.innerWidth - (isNaN(rightOffset) ? 20 : rightOffset);
+    const sideOffset = parseInt(cfg.position === "left" ? cfg.left : cfg.right, 10);
+    const maxWidth = window.innerWidth - (isNaN(sideOffset) ? 20 : sideOffset);
     host.style.width =
       !isNaN(desiredWidth)
         ? Math.min(desiredWidth, maxWidth) + "px"

@@ -12,6 +12,8 @@ describe('tenant hostname resolution', () => {
     'chatboc-frontend-git-codex-ju-14e8e5-marcelos-projects-c26aa499.vercel.app',
     'chatboc-frontend.vercel.app',
     'vercel.app',
+    'preview.chatboc.ar',
+    ' PREVIEW.Chatboc.ar. ',
   ])('keeps Vercel deployment host %s unscoped', (hostname) => {
     expect(isDeploymentPlatformHostname(hostname)).toBe(true);
     expect(readTenantSlugFromHostname(hostname)).toBeNull();
@@ -21,6 +23,7 @@ describe('tenant hostname resolution', () => {
     expect(readTenantSlugFromHostname('junin.chatboc.ar')).toBe('junin');
     expect(readTenantSlugFromHostname('Rio-Grande.chatboc.ar.')).toBe('rio-grande');
     expect(readTenantSlugFromHostname('municipio.organismo.gob.ar')).toBe('municipio');
+    expect(readTenantSlugFromHostname('another-preview.chatboc.ar')).toBe('another-preview');
   });
 
   it.each([
@@ -49,5 +52,11 @@ describe('tenant hostname resolution', () => {
         'www.chatboc.ar',
       ),
     ).toBe(false);
+  });
+
+  it('retires only the ambient Preview alias mirror without reserving the slug elsewhere', () => {
+    expect(isTenantSlugDeploymentHostnameMirror('preview', 'preview.chatboc.ar')).toBe(true);
+    expect(isTenantSlugDeploymentHostnameMirror('junin', 'preview.chatboc.ar')).toBe(false);
+    expect(isTenantSlugDeploymentHostnameMirror('preview', 'junin.chatboc.ar')).toBe(false);
   });
 });

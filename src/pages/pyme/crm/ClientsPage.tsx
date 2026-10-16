@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
@@ -11,6 +11,10 @@ import { Loader2, Search, User, Eye } from 'lucide-react';
 import { formatCurrency } from '@/utils/currency';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import {useUser} from '@/hooks/useUser';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {ApiError,getErrorMessage} from '@/utils/api';
+import {ViewState} from '@/components/app-shell/ViewState';
 
 interface Contact {
   id: string;
@@ -24,34 +28,55 @@ interface Contact {
 
 const ClientsPage = () => {
   const { currentSlug } = useTenant();
+  const {user,hasVerifiedSession}=useUser();
+  const sessionRevision=useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
+  const canRead=Boolean(currentSlug&&hasVerifiedSession===true&&(user?.id||user?.email));
+  const authorityKey=JSON.stringify([currentSlug??null,user?.id??user?.email??null,hasVerifiedSession===true,sessionRevision]);
+  const authorityEpoch=useRef({key:authorityKey,epoch:0});
+  if(authorityEpoch.current.key!==authorityKey)authorityEpoch.current={key:authorityKey,epoch:authorityEpoch.current.epoch+1};
+  const scopeKey=JSON.stringify([authorityKey,authorityEpoch.current.epoch]);
+  const scope=useRef({key:scopeKey,generation:0,attempt:0,pending:false});
+  if(scope.current.key!==scopeKey)scope.current={key:scopeKey,generation:scope.current.generation+1,attempt:0,pending:false};
+  const mounted=useRef(true);
   const navigate = useNavigate();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [read,setRead]=useState<{scope:string;items:Contact[];loading:boolean;error:string|null;denied:boolean}|null>(null);
+  const currentRead=read?.scope===scopeKey?read:null;
+  const contacts=currentRead?.items??[];
+  const loading=canRead&&(!currentRead||currentRead.loading);
+  const [searchState,setSearchState]=useState<{scope:string;value:string}|null>(null);
+  const searchTerm=searchState?.scope===scopeKey?searchState.value:'';
+  const setSearchTerm=(value:string)=>setSearchState({scope:scopeKey,value});
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;scope.current.generation++;scope.current.attempt++;scope.current.pending=false;};},[]);
 
   useEffect(() => {
-    if (currentSlug) {
+    if (canRead) {
       loadContacts();
     }
-  }, [currentSlug]);
+  }, [scopeKey]);
 
   const loadContacts = async () => {
-    setLoading(true);
+    if(!canRead||!currentSlug||scope.current.pending)return;
+    const generation=scope.current.generation,attempt=++scope.current.attempt;
+    const isCurrent=()=>mounted.current&&scope.current.key===scopeKey&&scope.current.generation===generation&&scope.current.attempt===attempt&&isChatbocSessionRevisionCurrent(sessionRevision);
+    scope.current.pending=true;
+    setRead(previous=>({scope:scopeKey,items:previous?.scope===scopeKey?previous.items:[],loading:true,error:null,denied:false}));
     try {
-      if (!currentSlug) return;
       const response = await apiClient.adminListContacts(currentSlug);
-      // Assuming response structure { contacts: [...] }
-      setContacts(response.contacts || []);
+      if(!isCurrent())return;
+      if(!Array.isArray(response?.contacts))throw new Error('La respuesta de contactos no pudo validarse.');
+      setRead({scope:scopeKey,items:response.contacts,loading:false,error:null,denied:false});
     } catch (error) {
-      console.error("Failed to load contacts", error);
+      if(!isCurrent())return;
+      const denied=error instanceof ApiError&&(error.status===401||error.status===403);
+      setRead(previous=>({scope:scopeKey,items:!denied&&previous?.scope===scopeKey?previous.items:[],loading:false,error:getErrorMessage(error,'No pudimos cargar los contactos.'),denied}));
     } finally {
-      setLoading(false);
+      if(isCurrent())scope.current.pending=false;
     }
   };
 
   const filteredContacts = contacts.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm)
+    (c.name||'').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.phone||'').includes(searchTerm)
   );
 
   return (
@@ -61,7 +86,7 @@ const ClientsPage = () => {
           <h1 className="text-3xl font-bold tracking-tight">Clientes / CRM</h1>
           <p className="text-muted-foreground">Gestión de contactos y memoria.</p>
         </div>
-        <Button onClick={loadContacts} variant="outline" size="sm">
+        <Button onClick={loadContacts} disabled={loading||!canRead} variant="outline" size="sm">
             Recargar
         </Button>
       </div>
@@ -79,9 +104,10 @@ const ClientsPage = () => {
             </div>
         </CardHeader>
         <CardContent>
-            {loading ? (
+            {currentRead?.error?<div role="alert" className="mb-4"><ViewState status={currentRead.denied?'denied':contacts.length?'stale':'error'} description={currentRead.error} action={<Button onClick={loadContacts} disabled={loading}>Reintentar</Button>}/></div>:null}
+            {!canRead ? <ViewState status="denied" title="Necesitás una sesión verificada" description="Iniciá sesión para consultar los contactos de esta organización."/> : loading ? (
                 <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-            ) : (
+            ) : (!currentRead?.error||contacts.length>0) ? (
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
@@ -128,7 +154,7 @@ const ClientsPage = () => {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => navigate(`/${currentSlug}/crm/clientes/${contact.id}`)}
+                                                onClick={() => {if(canRead&&mounted.current&&scope.current.key===scopeKey&&isChatbocSessionRevisionCurrent(sessionRevision))navigate(`/${currentSlug}/crm/clientes/${encodeURIComponent(contact.id)}`);}}
                                             >
                                                 <Eye className="h-4 w-4 mr-2" /> Ver
                                             </Button>
@@ -139,7 +165,7 @@ const ClientsPage = () => {
                         </TableBody>
                     </Table>
                 </div>
-            )}
+            ) : null}
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,23 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
+import { assertOrderReceipt } from '@/features/orders/orderLifecycle';
+import {
+  readNotificationHooksSettings,
+  readNotificationHooksSettingsAck,
+  readLegacyNotificationSettings,
+  readLegacyNotificationSettingsAck,
+  serializeNotificationSettings,
+  serializeLegacyNotificationSettings,
+  assertNotificationSettingsAuthority,
+  type NotificationSettingsRequestAuthority,
+  type TenantNotificationSettings,
+  type TenantNotificationSettingsAck,
+  type TenantNotificationSettingsUpdate,
+} from '@/features/notifications/tenantNotificationSettingsContract';
+import { assessOrderAmounts, assessOrderItemAmounts } from '@/features/orders/orderAmounts';
+import type { PublishedValue } from '@/types/orderAmounts';
 import {
   AdminOrdersResponse,
   Order,
@@ -58,10 +76,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
-const normalizeAdminOrderItem = (value: unknown, index: number) => {
+const normalizeAdminOrderItem = (value: unknown, index: number, orderCurrency: PublishedValue<string>) => {
   const record = isRecord(value) ? value : {};
-  const quantity = asNumberOrUndefined(record.quantity ?? record.cantidad) ?? 1;
-  const price = asNumberOrUndefined(record.price ?? record.unit_price ?? record.precio_float ?? record.precio) ?? 0;
+  const evidence = assessOrderItemAmounts(record, orderCurrency);
+  const quantity = evidence.quantity.value;
+  const price = evidence.price.value;
   const name =
     asStringOrUndefined(record.name) ||
     asStringOrUndefined(record.title) ||
@@ -77,30 +96,29 @@ const normalizeAdminOrderItem = (value: unknown, index: number) => {
     title: asStringOrUndefined(record.title) || name,
     quantity,
     price,
-    unit_price: asNumberOrUndefined(record.unit_price) ?? price,
-    subtotal: asNumberOrUndefined(record.subtotal) ?? price * quantity,
+    unit_price: price,
+    subtotal: evidence.subtotal.value,
+    amount_evidence: evidence,
     sku: asStringOrUndefined(record.sku),
-    currency: asStringOrUndefined(record.currency ?? record.currency_id) || 'ARS',
+    currency: evidence.currency.value,
   };
 };
 
 const normalizeAdminOrder = (value: unknown): Order => {
   const record = isRecord(value) ? value : {};
-  const totals = isRecord(record.totals) ? record.totals : {};
-  const items = asArray(record.items).map((item, index) => normalizeAdminOrderItem(item, index));
-  const total =
-    asNumberOrUndefined(record.total) ??
-    asNumberOrUndefined(totals.monetary) ??
-    asNumberOrUndefined(totals.total) ??
-    items.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
+  const evidence = assessOrderAmounts(record);
+  const items = asArray(record.items).map((item, index) => normalizeAdminOrderItem(item, index, evidence.currency));
+  const total = evidence.total.value;
 
   return {
     ...(record as Record<string, unknown>),
     id: (record.id as string | number | undefined) ?? (record.source_id as string | number | undefined) ?? 'order',
     total,
-    status: asStringOrUndefined(record.status) || 'nuevo',
+    currency: evidence.currency.value,
+    amount_evidence: evidence,
+    status: asStringOrUndefined(record.status) || '',
     items,
-    created_at: asStringOrUndefined(record.created_at) || new Date().toISOString(),
+    created_at: asStringOrUndefined(record.created_at) || '',
     updated_at: asStringOrUndefined(record.updated_at),
     channel: asStringOrUndefined(record.channel),
     notes: asStringOrUndefined(record.notes),
@@ -231,60 +249,6 @@ const callWidgetAuthEndpoint = async <T>(
     }
     return apiFetch<T>(legacyPath, options);
   }
-};
-
-const normalizeNotificationSettingsResponse = (value: unknown) => {
-  if (!isRecord(value)) return value;
-
-  const rawPreferences = value.preferences ?? value.notification_settings ?? value.settings ?? {};
-  const deliveryConfig = isRecord(value.delivery_config) ? value.delivery_config : {};
-  const notificationSettings: Record<string, unknown> = {};
-
-  if (Array.isArray(rawPreferences)) {
-    rawPreferences.forEach((item) => {
-      if (!isRecord(item)) return;
-      const key =
-        asStringOrUndefined(item.key) ??
-        asStringOrUndefined(item.id) ??
-        asStringOrUndefined(item.channel) ??
-        asStringOrUndefined(item.name);
-      if (!key) return;
-      notificationSettings[key] =
-        typeof item.enabled === 'boolean'
-          ? item.enabled
-          : typeof item.active === 'boolean'
-            ? item.active
-            : item.value;
-    });
-  } else if (isRecord(rawPreferences)) {
-    Object.entries(rawPreferences).forEach(([key, item]) => {
-      if (isRecord(item)) {
-        notificationSettings[key] =
-          typeof item.enabled === 'boolean'
-            ? item.enabled
-            : typeof item.active === 'boolean'
-              ? item.active
-              : item.value;
-      } else {
-        notificationSettings[key] = item;
-      }
-    });
-  }
-
-  return {
-    ...value,
-    owner_phone:
-      asStringOrUndefined(value.owner_phone) ??
-      asStringOrUndefined(deliveryConfig.owner_phone) ??
-      asStringOrUndefined(deliveryConfig.whatsapp_phone),
-    telegram_chat_id:
-      asStringOrUndefined(value.telegram_chat_id) ??
-      asStringOrUndefined(deliveryConfig.telegram_chat_id),
-    notification_settings: {
-      ...(isRecord(value.notification_settings) ? value.notification_settings : {}),
-      ...notificationSettings,
-    },
-  };
 };
 
 const normalizePublicTicketStatus = (value: unknown) => {
@@ -598,10 +562,8 @@ export const apiClient = {
 
   getTicketWorkflowMetadata: async (tenantSlug?: string) => {
     const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', {
-      tenantSlug,
+      ...panelReadOptions(tenantSlug),
       suppressPanel401Redirect: true,
-      omitCredentials: true,
-      omitChatSessionId: true,
     });
     return normalizeTicketWorkflowMetadata(response);
   },
@@ -613,7 +575,8 @@ export const apiClient = {
   },
 
   listOrders: async (tenantSlug: string): Promise<Order[]> => {
-    return apiFetch<Order[]>(`/api/v1/portal/${tenantSlug}/orders`, { tenantSlug });
+    const response = await apiFetch<unknown>(`/api/v1/portal/${tenantSlug}/orders`, { tenantSlug });
+    return normalizeAdminOrdersResponse(response);
   },
 
   getOrderDetail: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
@@ -698,13 +661,15 @@ export const apiClient = {
     }
     const params = new URLSearchParams(normalizedFilters);
     const suffix = params.toString() ? `?${params.toString()}` : '';
-    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders${suffix}`, panelReadOptions(tenantSlug));
     return normalizeAdminOrdersEnvelope(raw);
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
     const encodedId = encodeURIComponent(String(orderId));
-    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/admin/tenants/${tenantSlug}/orders/${encodedId}`, panelReadOptions(tenantSlug));
+    // Validate the transport receipt before display defaults can disguise a missing identity or state.
+    assertOrderReceipt(raw, String(orderId), undefined, tenantSlug);
     return normalizeAdminOrder(raw);
   },
 
@@ -787,38 +752,49 @@ export const apiClient = {
     });
   },
 
-  adminGetNotificationSettings: async (tenantSlug: string): Promise<any> => {
+  adminGetNotificationSettings: async (tenantSlug: string, authority?: NotificationSettingsRequestAuthority): Promise<TenantNotificationSettings> => {
+    const options = { ...panelReadOptions(tenantSlug), suppressPanel401Redirect: true,
+      ...(authority?.isCurrent ? { isCurrent: authority.isCurrent } : {}) };
+    assertNotificationSettingsAuthority(authority);
     try {
-      const response = await apiFetch<any>('/api/v2/notifications/hooks', { tenantSlug });
-      return normalizeNotificationSettingsResponse(response);
+      const response = await apiFetch<unknown>('/api/v2/notifications/hooks', options);
+      assertNotificationSettingsAuthority(authority);
+      return readNotificationHooksSettings(response, tenantSlug, authority?.expectedTenantId);
     } catch (error) {
       if (!shouldFallbackToLegacyEndpoint(error)) throw error;
-      return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, { tenantSlug });
+      assertNotificationSettingsAuthority(authority);
+      const response = await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, options);
+      assertNotificationSettingsAuthority(authority);
+      // Legacy DTOs have no tenant ID; compatibility remains bound to the requested route and current scope.
+      return readLegacyNotificationSettings(response);
     }
   },
 
-  adminUpdateNotificationSettings: async (tenantSlug: string, settings: any): Promise<any> => {
+  adminUpdateNotificationSettings: async (tenantSlug: string, settings: TenantNotificationSettingsUpdate,
+    legacySnapshot?: TenantNotificationSettings, authority?: NotificationSettingsRequestAuthority): Promise<TenantNotificationSettingsAck> => {
+    assertNotificationSettingsAuthority(authority);
+    const body = serializeNotificationSettings(settings);
+    // A lost or malformed acknowledgement never causes an automatic write replay.
+    const options = { ...panelReadOptions(tenantSlug), allowStartupRecovery: false, suppressPanel401Redirect: true,
+      ...(authority?.isCurrent ? { isCurrent: authority.isCurrent } : {}) };
     try {
-      const response = await apiFetch<any>('/api/v2/notifications/hooks', {
+      const response = await apiFetch<unknown>('/api/v2/notifications/hooks', {
+        ...options,
         method: 'POST',
-        body: {
-          preferences: settings?.notification_settings ?? settings?.preferences ?? {},
-          delivery_config: {
-            owner_phone: settings?.owner_phone,
-            telegram_chat_id: settings?.telegram_chat_id,
-          },
-          legacy_payload: settings,
-        },
-        tenantSlug,
+        body,
       });
-      return normalizeNotificationSettingsResponse(response);
+      assertNotificationSettingsAuthority(authority);
+      return readNotificationHooksSettingsAck(response, tenantSlug, body, authority?.expectedTenantId);
     } catch (error) {
       if (!shouldFallbackToLegacyEndpoint(error)) throw error;
-      return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, {
+      assertNotificationSettingsAuthority(authority);
+      const response = await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/notifications`, {
+        ...options,
         method: 'PUT',
-        body: settings,
-        tenantSlug,
+        body: serializeLegacyNotificationSettings(settings, legacySnapshot),
       });
+      assertNotificationSettingsAuthority(authority);
+      return readLegacyNotificationSettingsAck(response);
     }
   },
 
@@ -931,9 +907,13 @@ export const apiClient = {
 
   adminListProducts: async (tenantSlug: string, filters?: Record<string, any>): Promise<any[]> => {
       const params = new URLSearchParams(filters);
-      return apiFetch<any[]>(`/api/catalog?${params.toString()}`, {
+      const query = params.toString();
+      return apiFetch<any[]>(
+        `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/catalog/items${query ? `?${query}` : ''}`,
+        {
           tenantSlug
-      });
+        },
+      );
   },
 
   adminUpdateProduct: async (tenantSlug: string, productId: string | number, data: any): Promise<any> => {
@@ -1059,7 +1039,10 @@ export const apiClient = {
   // --- Super Admin Methods ---
 
   superAdminListTenants: async (page = 1, perPage = 20): Promise<{ tenants: Tenant[], total: number }> => {
-    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`);
+    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`, {
+      omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    });
   },
 
   superAdminCreateTenant: async (data: CreateTenantDTO): Promise<Tenant> => {
@@ -1080,6 +1063,7 @@ export const apiClient = {
       tenantSlug,
       body: data,
     });
+    assertOrderReceipt(raw, String(orderId), data.status, tenantSlug);
     return normalizeAdminOrder(raw);
   },
 
@@ -1113,9 +1097,10 @@ export const apiClient = {
     });
   },
 
-  superAdminImpersonate: async (slug: string): Promise<{ token: string; redirect_url: string }> => {
-    return apiFetch<{ token: string; redirect_url: string }>(`/api/admin/tenants/${slug}/impersonate`, {
+  superAdminImpersonate: async (slug: string,isCurrent?:()=>boolean): Promise<{ token: string; redirect_url: string;session_retirement:SessionRetirementProof }> => {
+    return apiFetch<{ token: string; redirect_url: string;session_retirement:SessionRetirementProof }>(`/api/admin/tenants/${slug}/impersonate`, {
       method: 'POST',
+      ...panelReadOptions(),allowStartupRecovery:false,preserveAuthOn401:true,suppressPanel401Redirect:true,isCurrent,
     });
   },
 
@@ -1147,7 +1132,10 @@ export const apiClient = {
     if (filters?.tenant_slug) params.append('tenant_slug', filters.tenant_slug);
     if (filters?.prefix) params.append('prefix', filters.prefix);
     const suffix = params.toString();
-    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`);
+    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`, {
+      omitTenant: true, omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      singleAttempt: true, allowStartupRecovery: true,
+    });
   },
 
   superAdminCreateWhatsappNumber: async (payload: WhatsappNumberCreatePayload): Promise<any> => {
@@ -1188,13 +1176,12 @@ export const apiClient = {
   // --- Widget & Theme Methods ---
 
   getChatTheme: async (tenantSlug: string): Promise<any> => {
-    // Use the admin config endpoint which includes theme_config
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
+    // WidgetSettings is the runtime source consumed by the public widget.
+    return apiFetch<any>('/api/tenant/config', { tenantSlug });
   },
 
   updateChatTheme: async (tenantSlug: string, data: any): Promise<any> => {
-    // Update the tenant config (merges with existing)
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
+    return apiFetch<any>('/api/tenant/config', {
       method: 'PUT',
       body: data,
       tenantSlug

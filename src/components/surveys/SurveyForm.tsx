@@ -309,6 +309,7 @@ interface SurveyFormProps {
   showHeader?: boolean;
   variant?: 'default' | 'votacion';
   submitLabel?: string;
+  demographicsPresentation?: 'expanded' | 'collapsed' | 'hidden';
   /**
    * Runs the participant experience as an isolated, in-memory simulation.
    * Preview mode never persists a draft, emits analytics, requests identity/location,
@@ -375,6 +376,7 @@ export const SurveyForm = ({
   showHeader = true,
   variant = 'default',
   submitLabel,
+  demographicsPresentation = 'expanded',
   previewMode = false,
 }: SurveyFormProps) => {
   const { user, loading: authLoading } = useUser();
@@ -410,6 +412,7 @@ export const SurveyForm = ({
   const [phone, setPhone] = useState('');
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [demographics, setDemographics] = useState<SurveyDemographicMetadata>({});
+  const [demographicsOpen, setDemographicsOpen] = useState(demographicsPresentation === 'expanded');
   const [customGender, setCustomGender] = useState('');
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
@@ -434,6 +437,9 @@ export const SurveyForm = ({
   const submissionAttemptRef = useRef<SubmissionAttempt | null>(null);
   const submissionInFlightScopeRef = useRef<string | null>(null);
   const eligibilityCredentialInputRef = useRef<HTMLInputElement | null>(null);
+  const dniInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const questionContainerRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const isDuplicateSubmission = submitReasonCode === SURVEY_RESPONSE_DUPLICATE_REASON_CODE;
   const currentErrorKey = useMemo(
     () => (submitErrorMessage
@@ -506,6 +512,7 @@ export const SurveyForm = ({
     setPhone('');
     setIdentityError(null);
     setDemographics({});
+    setDemographicsOpen(demographicsPresentation === 'expanded');
     setCustomGender('');
     setGeoStatus('idle');
     setGeoMessage(null);
@@ -525,7 +532,7 @@ export const SurveyForm = ({
     lastTrackedSubmitErrorKeyRef.current = null;
     submissionAttemptRef.current = null;
     submissionInFlightScopeRef.current = null;
-  }, [initialState, publicEligibility.required, submissionScopeKey]);
+  }, [demographicsPresentation, initialState, publicEligibility.required, submissionScopeKey]);
 
   useEffect(
     () => () => {
@@ -958,6 +965,12 @@ export const SurveyForm = ({
   const handleRadioChange = (pregunta: SurveyPregunta, value: string) => {
     const normalizedOptionId = normalizeOptionId(value);
     if (previewMode) setPreviewValidated(false);
+    setErrors((current) => {
+      if (!current[pregunta.id]) return current;
+      const next = { ...current };
+      delete next[pregunta.id];
+      return next;
+    });
     setAnswers((prev) => ({
       ...prev,
       [pregunta.id]: { ...prev[pregunta.id], opcionIds: normalizedOptionId === '' ? [] : [normalizedOptionId] },
@@ -977,6 +990,12 @@ export const SurveyForm = ({
 
   const handleCheckboxToggle = (pregunta: SurveyPregunta, optionId: SurveyOptionId, checked: boolean) => {
     if (previewMode) setPreviewValidated(false);
+    setErrors((current) => {
+      if (!current[pregunta.id]) return current;
+      const next = { ...current };
+      delete next[pregunta.id];
+      return next;
+    });
     setAnswers((prev) => {
       const current = prev[pregunta.id] ?? { opcionIds: [] };
       const normalizedOptionId = normalizeOptionId(optionId);
@@ -1000,6 +1019,12 @@ export const SurveyForm = ({
 
   const handleTextChange = (pregunta: SurveyPregunta, value: string) => {
     if (previewMode) setPreviewValidated(false);
+    setErrors((current) => {
+      if (!current[pregunta.id]) return current;
+      const next = { ...current };
+      delete next[pregunta.id];
+      return next;
+    });
     setAnswers((prev) => ({
       ...prev,
       [pregunta.id]: { ...prev[pregunta.id], texto: value },
@@ -1064,6 +1089,27 @@ export const SurveyForm = ({
 
     setErrors(newErrors);
     setIdentityError(newIdentityError);
+
+    if (newIdentityError || Object.keys(newErrors).length > 0) {
+      queueMicrotask(() => {
+        if (newIdentityError) {
+          const identityField = requireDni
+            ? dniInputRef.current
+            : requirePhone
+              ? phoneInputRef.current
+              : dniInputRef.current ?? phoneInputRef.current;
+          identityField?.focus();
+          return;
+        }
+
+        const firstInvalidQuestion = visibleQuestions.find((question) => Boolean(newErrors[question.id]));
+        if (!firstInvalidQuestion) return;
+        const container = questionContainerRefs.current.get(firstInvalidQuestion.id);
+        container
+          ?.querySelector<HTMLElement>('[data-survey-question-control="true"]:not([disabled])')
+          ?.focus();
+      });
+    }
     return Object.keys(newErrors).length === 0 && !newIdentityError;
   };
 
@@ -1427,7 +1473,7 @@ export const SurveyForm = ({
     <Card className={isVotingVariant ? 'w-full border border-border/70 bg-background/80 shadow-sm' : 'w-full'}>
       {showHeader && (
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold">{survey.titulo}</CardTitle>
+          <h1 className="text-2xl font-semibold tracking-tight">{survey.titulo}</h1>
           {survey.descripcion && (
             <CardDescription className="max-w-3xl whitespace-pre-line text-base text-muted-foreground">
               {survey.descripcion}
@@ -1435,10 +1481,10 @@ export const SurveyForm = ({
           )}
           <div className="text-sm text-muted-foreground flex flex-col gap-1">
             <span>
-              Vigencia: {new Date(survey.inicio_at).toLocaleDateString()} –{' '}
-              {survey.fin_at ? new Date(survey.fin_at).toLocaleDateString() : 'Sin fecha de cierre'}
+              Vigencia: {new Date(survey.inicio_at).toLocaleDateString('es-AR')} –{' '}
+              {survey.fin_at ? new Date(survey.fin_at).toLocaleDateString('es-AR') : 'Sin fecha de cierre'}
             </span>
-            <span>Tipo: {survey.tipo}</span>
+            {!isVotingVariant ? <span>Tipo: {survey.tipo}</span> : null}
           </div>
         </CardHeader>
       )}
@@ -1654,7 +1700,7 @@ export const SurveyForm = ({
             </Alert>
           )
         ) : null}
-        {!readOnly && (
+        {!readOnly && totalQuestionsCount > 1 && (
           <div
             className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3"
             aria-live="polite"
@@ -1668,7 +1714,13 @@ export const SurveyForm = ({
           </div>
         )}
         {submissionErrorTitle && (
-          <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-left">
+          <Alert
+            variant="destructive"
+            className="border-destructive/40 bg-destructive/10 text-left"
+            role="alert"
+            aria-live="assertive"
+            aria-atomic="true"
+          >
             <div className="flex flex-col gap-3">
               <div>
                 <AlertTitle>{submissionErrorTitle}</AlertTitle>
@@ -1706,7 +1758,7 @@ export const SurveyForm = ({
             <p className="text-sm font-medium">
               Validación de participación
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p id="survey-identity-help" className="text-xs text-muted-foreground">
               {requireDni
                 ? 'Ingresá tu número de documento para validar tu participación.'
                 : requirePhone
@@ -1718,11 +1770,17 @@ export const SurveyForm = ({
                 <Label htmlFor="survey-dni">Documento</Label>
                 <Input
                   id="survey-dni"
+                  ref={dniInputRef}
                   inputMode="numeric"
                   value={dni}
-                  onChange={(event) => setDni(event.target.value)}
+                  onChange={(event) => {
+                    setDni(event.target.value);
+                    setIdentityError(null);
+                  }}
                   placeholder="Ingresá tu número de documento"
                   disabled={readOnly}
+                  aria-invalid={Boolean(identityError)}
+                  aria-describedby={identityError ? 'survey-identity-help survey-identity-error' : 'survey-identity-help'}
                 />
               </div>
             )}
@@ -1731,25 +1789,48 @@ export const SurveyForm = ({
                 <Label htmlFor="survey-phone">Teléfono</Label>
                 <Input
                   id="survey-phone"
+                  ref={phoneInputRef}
                   inputMode="tel"
                   value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  onChange={(event) => {
+                    setPhone(event.target.value);
+                    setIdentityError(null);
+                  }}
                   placeholder="Ingresá tu número de teléfono"
                   disabled={readOnly}
+                  aria-invalid={Boolean(identityError)}
+                  aria-describedby={identityError ? 'survey-identity-help survey-identity-error' : 'survey-identity-help'}
                 />
               </div>
             )}
-            {identityError && <p className="text-sm text-destructive">{identityError}</p>}
+            {identityError && (
+              <p
+                id="survey-identity-error"
+                className="text-sm text-destructive"
+                role="alert"
+                aria-live="assertive"
+                aria-atomic="true"
+              >
+                {identityError}
+              </p>
+            )}
           </div>
         )}
-        {!readOnly && !previewMode && (
-        <div className="rounded-lg border border-border bg-card/40 p-4 space-y-4">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Datos demográficos y territoriales (opcional)</p>
-            <p className="text-xs text-muted-foreground">
-              Esta información complementaria permite construir métricas segmentadas, mapas de calor y tableros en tiempo real.
-            </p>
-          </div>
+        {!readOnly && !previewMode && demographicsPresentation !== 'hidden' && (
+        <details
+          className="group rounded-lg border border-border bg-card/40"
+          open={demographicsOpen}
+          onToggle={(event) => setDemographicsOpen(event.currentTarget.open)}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+            <span>
+              <span className="block text-sm font-medium">Agregar información opcional</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">Barrio, ubicación y perfil demográfico.</span>
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground group-open:hidden">Abrir</span>
+            <span className="hidden text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground group-open:inline">Cerrar</span>
+          </summary>
+          <div className="space-y-4 border-t border-border/70 p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="survey-age-range">Rango etario</Label>
@@ -1945,11 +2026,24 @@ export const SurveyForm = ({
               Coordenadas registradas: {demographics.ubicacion.lat.toFixed(4)}, {demographics.ubicacion.lng.toFixed(4)}
             </p>
           ) : null}
-        </div>
+          </div>
+        </details>
         )}
-        {visibleQuestions.map((pregunta) => (
+        {visibleQuestions.map((pregunta) => {
+          const questionTitleId = `survey-question-${pregunta.id}-title`;
+          const questionMetadataId = `survey-question-${pregunta.id}-metadata`;
+          const questionErrorId = `survey-question-${pregunta.id}-error`;
+          const questionDescription = errors[pregunta.id]
+            ? `${questionMetadataId} ${questionErrorId}`
+            : questionMetadataId;
+
+          return (
           <div
             key={pregunta.id}
+            ref={(node) => {
+              if (node) questionContainerRefs.current.set(pregunta.id, node);
+              else questionContainerRefs.current.delete(pregunta.id);
+            }}
             className={
               isVotingVariant
                 ? 'space-y-3 rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 px-4 py-4 shadow-sm transition-all duration-300 hover:shadow-md md:px-5'
@@ -1957,11 +2051,12 @@ export const SurveyForm = ({
             }
           >
             <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-medium">
-                {pregunta.orden}. {toDisplayText(pregunta.texto)}
+              <h3 id={questionTitleId} className="text-lg font-medium">
+                {pregunta.orden ? `${pregunta.orden}. ` : ''}{toDisplayText(pregunta.texto)}
               </h3>
-              <p className="text-sm text-muted-foreground">
-                {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'} · Tipo: {pregunta.tipo}
+              <p id={questionMetadataId} className="text-sm text-muted-foreground">
+                {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'}
+                {!isVotingVariant ? ` · Tipo: ${pregunta.tipo}` : ''}
               </p>
             </div>
             {(pregunta.tipo === 'opcion_unica' || pregunta.tipo === 'rating_emoji') && (
@@ -1969,6 +2064,10 @@ export const SurveyForm = ({
                 value={(answers[pregunta.id]?.opcionIds?.[0] ?? '').toString()}
                 onValueChange={(value) => handleRadioChange(pregunta, value)}
                 className={pregunta.tipo === 'rating_emoji' ? "flex flex-wrap gap-4 justify-center py-4" : "space-y-2.5"}
+                aria-labelledby={questionTitleId}
+                aria-describedby={questionDescription}
+                aria-invalid={Boolean(errors[pregunta.id])}
+                aria-required={pregunta.obligatoria}
               >
                 {pregunta.opciones?.map((opcion) => {
                   // Live results calculation
@@ -1993,6 +2092,9 @@ export const SurveyForm = ({
                           value={opcion.id.toString()}
                           className="z-10"
                           disabled={readOnly}
+                          data-survey-question-control="true"
+                          aria-describedby={questionDescription}
+                          aria-invalid={Boolean(errors[pregunta.id])}
                         />
                       )}
 
@@ -2002,6 +2104,9 @@ export const SurveyForm = ({
                             id={`preg-${pregunta.id}-opc-${opcion.id}`}
                             value={opcion.id.toString()}
                             disabled={readOnly}
+                            data-survey-question-control="true"
+                            aria-describedby={questionDescription}
+                            aria-invalid={Boolean(errors[pregunta.id])}
                           />
                         </div>
                       )}
@@ -2034,7 +2139,12 @@ export const SurveyForm = ({
               </RadioGroup>
             )}
             {pregunta.tipo === 'multiple' && (
-              <div className="flex flex-col gap-2">
+              <fieldset
+                className="flex flex-col gap-2"
+                aria-describedby={questionDescription}
+                aria-invalid={Boolean(errors[pregunta.id])}
+              >
+                <legend className="sr-only">{toDisplayText(pregunta.texto)}</legend>
                 {pregunta.opciones?.map((opcion) => {
                   const checked =
                     answers[pregunta.id]?.opcionIds?.some((id) => optionIdsEqual(id, opcion.id)) ?? false;
@@ -2058,6 +2168,9 @@ export const SurveyForm = ({
                         }
                         className="z-10"
                         disabled={readOnly}
+                        data-survey-question-control="true"
+                        aria-describedby={questionDescription}
+                        aria-invalid={Boolean(errors[pregunta.id])}
                       />
                       <span className="z-10 relative">{toDisplayText(opcion.texto)}</span>
 
@@ -2080,22 +2193,42 @@ export const SurveyForm = ({
                   {pregunta.min_selecciones && `Mínimo ${pregunta.min_selecciones}. `}
                   {pregunta.max_selecciones && `Máximo ${pregunta.max_selecciones}.`}
                 </p>
-              </div>
+              </fieldset>
             )}
             {pregunta.tipo === 'abierta' && (
-              <Textarea
-                value={answers[pregunta.id]?.texto ?? ''}
-                onChange={(event) => handleTextChange(pregunta, event.target.value)}
-                placeholder="Escribí tu respuesta"
-                className="min-h-[120px]"
-                disabled={readOnly}
-              />
+              <div>
+                <Label htmlFor={`survey-question-${pregunta.id}-answer`} className="sr-only">
+                  Respuesta abierta
+                </Label>
+                <Textarea
+                  id={`survey-question-${pregunta.id}-answer`}
+                  value={answers[pregunta.id]?.texto ?? ''}
+                  onChange={(event) => handleTextChange(pregunta, event.target.value)}
+                  placeholder="Escribí tu respuesta"
+                  className="min-h-[120px]"
+                  disabled={readOnly}
+                  data-survey-question-control="true"
+                  aria-labelledby={questionTitleId}
+                  aria-describedby={questionDescription}
+                  aria-invalid={Boolean(errors[pregunta.id])}
+                  aria-required={pregunta.obligatoria}
+                />
+              </div>
             )}
             {errors[pregunta.id] && (
-              <p className="text-sm text-destructive">{errors[pregunta.id]}</p>
+              <p
+                id={questionErrorId}
+                className="text-sm text-destructive"
+                role="alert"
+                aria-live="assertive"
+                aria-atomic="true"
+              >
+                {errors[pregunta.id]}
+              </p>
             )}
           </div>
-        ))}
+          );
+        })}
 
         {!readOnly && (
           <div className="space-y-3">

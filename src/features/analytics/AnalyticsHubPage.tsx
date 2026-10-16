@@ -6,7 +6,9 @@ import { ViewState } from '@/components/app-shell/ViewState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTenant } from '@/context/TenantContext';
+import { usePrivateAnalyticsScope } from './usePrivateAnalyticsScope';
+import { visibleOperationsQuery } from './operationsReadState';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { getErrorMessage } from '@/utils/api';
 
@@ -36,14 +38,20 @@ const METRICS: Array<{
 ];
 
 export default function AnalyticsHubPage() {
-  const { currentSlug } = useTenant();
+  const { scope, pending, key } = usePrivateAnalyticsScope();
+  if (pending) return <ViewState status="loading" title="Validando acceso" />;
+  if (!scope) return <ViewState status="empty" title="Seleccioná una organización" description="Los indicadores requieren un perfil y una organización verificados." />;
+  return <ScopedAnalyticsHub key={key} tenantSlug={scope.tenantSlug} sessionScopeKey={scope.scopeKey} />;
+}
+function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: string; sessionScopeKey: string }) {
   const { isOnline } = useNetworkStatus();
-  const overviewQuery = useQuery({
-    queryKey: ['v2-analytics-overview', currentSlug],
-    queryFn: () => getAnalyticsOverviewV2(currentSlug),
+  const sessionRevision = captureChatbocSessionRevision();
+  const overviewQuery = visibleOperationsQuery(useQuery({
+    queryKey: ['v2-analytics-overview', tenantSlug, sessionScopeKey, sessionRevision],
+    queryFn: ({ signal }) => getAnalyticsOverviewV2(tenantSlug, () => !signal.aborted && isChatbocSessionRevisionCurrent(sessionRevision)),
     retry: 0,
     staleTime: 30_000,
-  });
+  }));
   const data = overviewQuery.data;
   const metricCards = data
     ? METRICS.map((metric) => ({
@@ -106,7 +114,7 @@ export default function AnalyticsHubPage() {
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics v2</p>
           <h1 className="text-2xl font-semibold tracking-tight">Hub ejecutivo</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">KPIs normalizados por tenant, listos para contratos top-level o summary.</p>
+          <p className="max-w-2xl text-sm text-muted-foreground">Actividad y resultados de la organización para decidir con datos disponibles.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!isOnline ? <Badge variant="destructive">Offline</Badge> : null}
@@ -119,7 +127,7 @@ export default function AnalyticsHubPage() {
         <ViewState
           status="partial"
           title="Metricas parciales"
-          description="Frontend ya tolera campos ausentes. Backend puede completar el summary para activar el panel completo."
+          description="Algunos indicadores todavía no tienen datos verificables y se muestran sin valor."
           className="min-h-[120px]"
         />
       ) : null}

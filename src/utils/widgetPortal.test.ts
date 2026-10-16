@@ -111,8 +111,8 @@ describe('widgetPortal public contract normalizers', () => {
       trackingUrl: '/tracking/order/PED-44',
     });
     expect(orders[0].items).toEqual([
-      { id: 'MALBEC', name: 'MALBEC', quantity: 2, price: 12000 },
-      { id: 'CABERNET', name: 'CABERNET', quantity: 1, price: 11000 },
+      { id: 'MALBEC', name: 'MALBEC', quantity: 2, price: 12000, amount_evidence: { quantity: {state:'reported',value:2}, price: {state:'reported',value:12000}, subtotal: {state:'missing',value:null}, currency: {state:'missing',value:null} } },
+      { id: 'CABERNET', name: 'CABERNET', quantity: 1, price: 11000, amount_evidence: { quantity: {state:'reported',value:1}, price: {state:'reported',value:11000}, subtotal: {state:'missing',value:null}, currency: {state:'missing',value:null} } },
     ]);
   });
 
