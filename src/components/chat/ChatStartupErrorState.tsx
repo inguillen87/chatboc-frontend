@@ -35,10 +35,11 @@ export function describeChatStartupFailure(error: unknown): ChatStartupFailure {
   return {...fallback, ...diagnostics};
 }
 
-export default function ChatStartupErrorState({failure, pending, onRetry}: {
+export default function ChatStartupErrorState({failure, pending, onRetry, retryRef}: {
   failure: ChatStartupFailure;
   pending: boolean;
-  onRetry: () => void;
+  onRetry: (origin: HTMLButtonElement) => void;
+  retryRef?: React.Ref<HTMLButtonElement>;
 }) {
   const id = useId();
   return (
@@ -60,8 +61,8 @@ export default function ChatStartupErrorState({failure, pending, onRetry}: {
           </div>
         </details>
       ) : null}
-      <Button type="button" className="min-h-11 w-full" aria-disabled={pending} aria-busy={pending}
-        onClick={() => {if (!pending) onRetry();}}>
+      <Button ref={retryRef} type="button" className="min-h-11 w-full" aria-disabled={pending} aria-busy={pending}
+        onClick={event => {if (!pending) onRetry(event.currentTarget);}}>
         {pending ? 'Comprobando disponibilidad…' : 'Reintentar'}
       </Button>
       {pending ? <p role="status" className="text-sm leading-6">Comprobando disponibilidad. Esperá un momento.</p> : null}
