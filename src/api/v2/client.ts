@@ -12,6 +12,10 @@ export interface V2RequestOptions {
   skipAuth?: boolean;
   omitCredentials?: boolean;
   isWidgetRequest?: boolean;
+  omitTenant?: boolean;
+  omitEntityToken?: boolean;
+  omitChatSessionId?: boolean;
+  persistTenantSlug?: boolean;
   legacyFallbackPath?: string;
   baseUrlOverride?: string | null;
   allowSafeBaseFallback?: boolean;
@@ -41,6 +45,10 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     skipAuth,
     omitCredentials,
     isWidgetRequest,
+    omitTenant,
+    omitEntityToken,
+    omitChatSessionId,
+    persistTenantSlug,
     legacyFallbackPath,
     baseUrlOverride,
     allowSafeBaseFallback,
@@ -56,15 +64,16 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     tenantSlug,
     headers: withTenantHeader(headers, tenantSlug),
     cache,
-    omitTenant: !tenantSlug,
+    omitTenant: omitTenant ?? !tenantSlug,
+    ...(omitEntityToken !== undefined ? { omitEntityToken } : {}),
+    ...(omitChatSessionId !== undefined ? { omitChatSessionId } : {}),
+    ...(persistTenantSlug !== undefined ? { persistTenantSlug } : {}),
     baseUrlOverride,
     allowSafeBaseFallback,
     ...(!skipAuth && !isWidgetRequest && method === 'GET'
       ? panelReadOptions(tenantSlug)
       : {}),
-    ...(!skipAuth && !isWidgetRequest && method === 'GET' && isCurrent
-      ? { isCurrent }
-      : {}),
+    ...(isCurrent ? { isCurrent } : {}),
   };
 
   try {

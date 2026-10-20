@@ -28,7 +28,7 @@ export function useLandingExperience(options: UseLandingExperienceOptions = {}) 
     }
 
     setLoading(true);
-    getLandingExperience({ tenant, tenantSlug, slug, widgetToken })
+    getLandingExperience({ tenant, tenantSlug, slug, widgetToken }, { isCurrent: () => alive })
       .then((payload) => {
         if (alive) setExperience(payload);
       })

@@ -37,12 +37,19 @@ const buildLandingExperiencePath = (query: LandingExperienceQuery = {}) => {
 
 export async function getLandingExperience(
   query: LandingExperienceQuery = {},
+  options: { isCurrent?: () => boolean } = {},
 ): Promise<LandingExperience | null> {
+  const tenantSlug = query.tenantSlug || query.tenant || query.slug || null;
   try {
     return await publicApi.get<LandingExperience>(buildLandingExperiencePath(query), {
-      tenantSlug: query.tenantSlug || query.tenant || query.slug || null,
+      tenantSlug,
       isWidgetRequest: true,
       omitCredentials: true,
+      omitTenant: tenantSlug === null,
+      omitEntityToken: true,
+      omitChatSessionId: true,
+      persistTenantSlug: false,
+      isCurrent: options.isCurrent ?? (() => true),
     });
   } catch (error) {
     if (error instanceof ApiError && [404, 405, 501].includes(error.status)) {

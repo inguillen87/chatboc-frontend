@@ -50,4 +50,17 @@ describe('API tenant binding on custom hosts',()=>{
     expect(fetchMock).not.toHaveBeenCalled();
     await apiFetch('/api/me',isolated);expect(fetchMock).toHaveBeenCalledOnce();
   });
+
+  it('validates host and foreign query before the explicitly anonymous global landing read', async () => {
+    publishTenantHostRuntime(tenantHostFixture());
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const landing = { method: 'GET' as const, tenantSlug: null, omitTenant: true,
+      skipAuth: true, omitCredentials: true, omitEntityToken: true, omitChatSessionId: true,
+      persistTenantSlug: false, isCurrent: () => true };
+    await expect(apiFetch('/api/public/landing-experience?tenant_slug=old-workspace', landing)).rejects.toThrow();
+    await expect(apiFetch('https://api.chatboc.ar/api/public/landing-experience', landing)).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem('tenantSlug')).toBe('old-workspace');
+  });
 });

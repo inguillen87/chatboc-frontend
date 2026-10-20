@@ -63,9 +63,17 @@ export const cleanLandingCopy = (value: string) => {
     value,
   );
 
+  const agreedCustomerCopy = customerCopy.replace(/\b(del|al|el)\s+tenant\b/gi, (phrase, article: string) => {
+    const replacement = article.toLowerCase() === 'del' ? 'de la organización'
+      : article.toLowerCase() === 'al' ? 'a la organización' : 'la organización';
+    if (phrase === phrase.toUpperCase()) return replacement.toUpperCase();
+    return phrase[0] === phrase[0].toUpperCase()
+      ? replacement[0].toUpperCase() + replacement.slice(1) : replacement;
+  });
+
   return TECHNICAL_COPY_REPLACEMENTS.reduce(
     (text, [pattern, replacement]) => text.replace(pattern, replacement),
-    customerCopy,
+    agreedCustomerCopy,
   )
     .replace(/\bdatos informacion\b/gi, "informacion")
     .replace(/\brecorridos listo para operar\b/gi, "recorridos listos para operar")

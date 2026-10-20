@@ -31,4 +31,22 @@ describe("landing contract refresh", () => {
     act(() => result.current.reload());
     expect(get).not.toHaveBeenCalled();
   });
+
+  it('retires the transport lifetime on query change and unmount without an automatic retry', async () => {
+    get.mockImplementation(() => new Promise(() => {}));
+    const view = renderHook(({ tenantSlug }) => useLandingExperience({ tenantSlug }), {
+      initialProps: { tenantSlug: 'synthetic-a' },
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+    const firstCurrent = get.mock.calls[0][1].isCurrent as () => boolean;
+    expect(firstCurrent()).toBe(true);
+    view.rerender({ tenantSlug: 'synthetic-b' });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    const secondCurrent = get.mock.calls[1][1].isCurrent as () => boolean;
+    expect(firstCurrent()).toBe(false);
+    expect(secondCurrent()).toBe(true);
+    view.unmount();
+    expect(secondCurrent()).toBe(false);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
 });

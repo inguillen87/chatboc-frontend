@@ -1092,6 +1092,16 @@ export async function apiFetch<T>(
     skipAuth === true && omitCredentials === true &&
     omitEntityToken === true && omitChatSessionId === true && persistTenantSlug === false &&
     typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug);
+  // The anonymous global landing has no selected tenant or browser actor. This
+  // explicit envelope must not inherit parallel widget/panel presentation state.
+  // Other public and implicit requests retain their existing identity guards.
+  const isIsolatedGlobalLandingRead = method === 'GET' &&
+    (path === '/api/public/landing-experience' || path.startsWith('/api/public/landing-experience?')) &&
+    tenantSlug === null && omitTenant === true && skipAuth === true && omitCredentials === true &&
+    omitEntityToken === true && omitChatSessionId === true && persistTenantSlug === false &&
+    typeof options.isCurrent === 'function' &&
+    !Object.keys(options.headers ?? {}).some(name =>
+      ['authorization', 'x-token', 'x-entity-token', 'x-chat-session-id'].includes(name.toLowerCase()));
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   const storedRole = readStoredWidgetRole();
@@ -1368,6 +1378,8 @@ export async function apiFetch<T>(
 
   const readRequestIdentity = () => isIsolatedPublicTenantRead
     ? JSON.stringify(['public-tenant-read', effectiveTenantSlug])
+    : isIsolatedGlobalLandingRead
+      ? JSON.stringify(['public-global-landing-read', path])
     : JSON.stringify([
     usePanelSessionStore.getState().authToken, hasIndependentRequestIdentity ? null : useWidgetSessionStore.getState().chatAuthToken,
     safeLocalStorage.getItem('authToken'), hasIndependentRequestIdentity ? effectiveTenantSlug : safeLocalStorage.getItem('tenantSlug'),
