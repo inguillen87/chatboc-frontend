@@ -2,6 +2,7 @@ import { apiFetch } from '@/utils/api';
 import type { ChannelActivationContract } from '@/api/v2/channelActivation';
 import type { ClerkAuthIntent } from '@/utils/clerkAuthContext';
 import type {SessionRetirementProof} from '@/utils/sessionRetirement';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 export interface ClerkEmailAddressPayload {
   id?: string | null;
@@ -219,16 +220,24 @@ export const syncClerkSession = (
   user: ClerkUserProfilePayload,
   context: { intent?: ClerkAuthIntent; tenant_slug?: string | null } = {},
   signal?: AbortSignal,
-) =>
-  apiFetch<ClerkSessionResponse>('/api/auth/clerk/session', {
+  isCurrent?: () => boolean,
+) => {
+  const revision = captureChatbocSessionRevision();
+  return apiFetch<ClerkSessionResponse>('/api/auth/clerk/session', {
     method: 'POST',
     skipAuth: true,
     omitTenant: true,
     omitCredentials: false,
+    omitEntityToken: true,
+    omitChatSessionId: true,
+    isWidgetRequest: false,
+    persistTenantSlug: false,
+    isCurrent: () => isChatbocSessionRevisionCurrent(revision) && isCurrent?.() !== false,
     headers: clerkHeaders(token),
     body: { user, ...context },
     ...(signal ? { signal } : {}),
   });
+};
 
 export const completeClerkOnboarding = (token: string, payload: ClerkOnboardingPayload) =>
   apiFetch<ClerkSessionResponse>('/api/auth/clerk/onboarding', {

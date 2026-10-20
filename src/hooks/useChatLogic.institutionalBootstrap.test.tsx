@@ -110,6 +110,7 @@ describe('shared institutional bootstrap',()=>{
   const hook=renderHook(()=>useChatLogic(options()));let bootstrap!:Promise<void>,question!:Promise<void>;
   act(()=>{bootstrap=hook.result.current.initializeConversation({force:true,resetContext:true,resetMessages:true});});
   act(()=>{question=hook.result.current.handleSend('Mi consulta ingresada durante la carga');});
+  await waitFor(()=>expect(resolveQuestion).toBeTypeOf('function'));
   const reply={message_body:'Respuesta operativa vigente',accion_backend:'crear_reclamo',pedir_info:true,datos_estructura:{descripcion:'Detalle que conserva el flujo'}};
   if(order==='before'){
    await act(async()=>{resolveWorkspace(published());await bootstrap;});
@@ -209,11 +210,13 @@ describe('shared institutional bootstrap',()=>{
   const hook=renderHook(({slug})=>useChatLogic({...options(slug),onTrialLimit}),{initialProps:{slug:'qa-a'}});
   let a!:Promise<void>,b!:Promise<void>;
   act(()=>{a=hook.result.current.handleSend('Pregunta de A');});
+  await waitFor(()=>expect(rejectA).toBeTypeOf('function'));
   hook.rerender({slug:'qa-b'});
   expect(hook.result.current.isTyping).toBe(false);
   window.localStorage.setItem('chat_session_id','active-b-session');
   await act(async()=>{await hook.result.current.initializeConversation();});
   act(()=>{b=hook.result.current.handleSend('Pregunta vigente de B');});
+  await waitFor(()=>expect(resolveB).toBeTypeOf('function'));
   const messagesB=hook.result.current.messages;
   expect(hook.result.current.isTyping).toBe(true);
   await act(async()=>{rejectA(new ApiError('Retired error',status,status===403?{reason_code:'demo_message_limit_reached',message:'RETIRADO_A'}:{reason_code:'session_conflict'}));await a;});
@@ -234,6 +237,7 @@ describe('shared institutional bootstrap',()=>{
   mocks.fetch.mockImplementationOnce(()=>new Promise(resolve=>{resolveA=resolve;}));
   let pendingA!:Promise<void>;
   act(()=>{pendingA=hook.result.current.handleSend('Consulta pendiente de A');});
+  await waitFor(()=>expect(resolveA).toBeTypeOf('function'));
   hook.rerender({slug:'qa-b'});expect(hook.result.current.isTyping).toBe(false);
   mocks.fetch.mockResolvedValueOnce(published('qa-b'));
   await act(async()=>{await hook.result.current.initializeConversation();});
@@ -250,6 +254,7 @@ describe('shared institutional bootstrap',()=>{
   mocks.fetch.mockImplementationOnce(()=>new Promise((_resolve,fail)=>{reject=fail;}));
   const hook=renderHook(({slug})=>useChatLogic({...options(slug),onTrialLimit}),{initialProps:{slug:'qa-a'}});
   let pending!:Promise<void>;act(()=>{pending=hook.result.current.handleSend('Consulta retirada');});
+  await waitFor(()=>expect(reject).toBeTypeOf('function'));
   hook.rerender({slug:'qa-b'});hook.rerender({slug:'qa-a'});
   window.localStorage.setItem('chat_session_id','returned-a-session');
   await act(async()=>{reject(new ApiError('Retired conflict',409,{reason_code:'session_conflict'}));await pending;});
@@ -262,6 +267,7 @@ describe('shared institutional bootstrap',()=>{
   mocks.fetch.mockImplementationOnce(()=>new Promise((_resolve,fail)=>{reject=fail;}));
   const hook=renderHook(()=>useChatLogic(options()));let pending!:Promise<void>;
   act(()=>{pending=hook.result.current.handleSend('Consulta saliente');});
+  await waitFor(()=>expect(reject).toBeTypeOf('function'));
   hook.unmount();window.localStorage.setItem('chat_session_id','another-mounted-session');
   await act(async()=>{reject(new ApiError('Retired conflict',409,{reason_code:'session_conflict'}));await pending;});
   expect(window.localStorage.getItem('chat_session_id')).toBe('another-mounted-session');

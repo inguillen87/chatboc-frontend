@@ -72,12 +72,13 @@ describe('public visitor contact isolation',()=>{
   expect(hook.result.current.contexto).toMatchObject({estado_conversacion:'recolectando_datos_personales',datos_reclamo:{nombre_ciudadano:null,email_ciudadano:null}});
   expect(hook.result.current.messages.some(message=>message.text.includes(panelUser.name))).toBe(false);
  });
- it('preserves the current authenticated user in the existing private claim flow',async()=>{
+ it('keeps an excluded administrative panel profile out of a normal public claim even when skipAuth is false',async()=>{
   safeLocalStorage.setItem('authToken','synthetic-private-token');
   const hook=renderHook(()=>useChatLogic({...options(),skipAuth:false}));
   await act(async()=>{await hook.result.current.handleSend({action:'iniciar_creacion_reclamo'});});
   expect(global.fetch).not.toHaveBeenCalled();
-  expect(hook.result.current.contexto).toMatchObject({estado_conversacion:'confirmando_reclamo',datos_reclamo:{nombre_ciudadano:panelUser.name,email_ciudadano:panelUser.email}});
+  expect(hook.result.current.contexto).toMatchObject({estado_conversacion:'recolectando_datos_personales',datos_reclamo:{nombre_ciudadano:null,email_ciudadano:null}});
+  expect(hook.result.current.messages.some(message=>message.text.includes(panelUser.name))).toBe(false);
  });
  it('preserves explicit visitor form data for the current claim and never carries it into another tenant',async()=>{
   const hook=renderHook(({slug})=>useChatLogic(options(slug)),{initialProps:{slug:'qa-visitor'}});

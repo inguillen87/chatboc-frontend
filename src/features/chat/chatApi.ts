@@ -129,6 +129,9 @@ export interface OperationalMediaUnderstanding {
 interface LeadCaptureSubmitOptions {
   idempotencyKey?: string | null;
   persistTenantSlug?: boolean;
+  chatSessionId?: string | null;
+  anonId?: string | null;
+  isCurrent?: () => boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -927,20 +930,23 @@ export const submitLeadCapture = async (
   tenantSlug?: string | null,
   options: LeadCaptureSubmitOptions = {},
 ): Promise<LeadCaptureResponse> => {
+  const assertCurrent=()=>{if(options.isCurrent?.()===false)throw new DOMException('Lead capture retired','AbortError');};
+  assertCurrent();
   const endpoint = config.endpoint?.trim() || '/api/public/lead-capture';
   const idempotencyKey = options.idempotencyKey?.trim();
-  const response = await apiFetch(endpoint, {
-    method: 'POST',
-    body: payload,
-    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
-    skipAuth: true,
-    isWidgetRequest: true,
-    tenantSlug,
-    persistTenantSlug: options.persistTenantSlug,
-    suppressPanel401Redirect: true,
-    sendAnonId: true,
-  });
-  return normalizeLeadCaptureResponse(response);
+  if(options.chatSessionId!=null&&payload.chat_session_id!==options.chatSessionId)throw new TypeError('Lead session binding mismatch');
+  if(options.anonId!=null&&payload.anon_id!==options.anonId)throw new TypeError('Lead actor binding mismatch');
+  try{
+    const response = await apiFetch(endpoint, {
+      method: 'POST',body: payload,
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+      skipAuth: true,isWidgetRequest: true,tenantSlug,
+      persistTenantSlug: options.persistTenantSlug,suppressPanel401Redirect: true,sendAnonId: true,
+      chatSessionId:options.chatSessionId,anonId:options.anonId,isCurrent:options.isCurrent,
+    });
+    assertCurrent();
+    return normalizeLeadCaptureResponse(response);
+  }catch(error){assertCurrent();throw error;}
 };
 
 export const sendChatBootstrapMessage = async (

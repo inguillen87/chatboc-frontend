@@ -35,4 +35,23 @@ describe('Clerk same-origin API contracts', () => {
       '/api/auth/clerk/onboarding',
     ]);
   });
+
+  it('isolates only session sync while preserving its explicit bearer and cookie transport', async () => {
+    const controller = new AbortController();
+    let current = true;
+    await syncClerkSession('synthetic-clerk-bearer', { id: 'synthetic-user' },
+      { intent: 'tenant_owner' }, controller.signal, () => current);
+    const [path, options] = apiFetchMock.mock.calls[0];
+    expect(path).toBe('/api/auth/clerk/session');
+    expect(options).toMatchObject({
+      method: 'POST', skipAuth: true, omitTenant: true, omitCredentials: false,
+      omitEntityToken: true, omitChatSessionId: true, isWidgetRequest: false,
+      persistTenantSlug: false, signal: controller.signal,
+      headers: { Authorization: 'Bearer synthetic-clerk-bearer' },
+      body: { user: { id: 'synthetic-user' }, intent: 'tenant_owner' },
+    });
+    expect(options.isCurrent()).toBe(true);
+    current = false;
+    expect(options.isCurrent()).toBe(false);
+  });
 });

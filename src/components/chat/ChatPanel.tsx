@@ -104,6 +104,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import getOrCreateChatSessionId, { resetChatSessionId } from "@/utils/chatSessionId";
+import { captureWidgetConversationScope } from '@/utils/widgetConversationScope';
 import { getOrCreateAnonId } from "@/utils/anonId";
 import { extractSmartHint } from "@/utils/smartHints";
 import {
@@ -1250,6 +1251,9 @@ const ChatPanel = (props: ChatPanelProps) => {
     uxContext,
     addSystemMessage,
     initializeConversation,
+    conversationHandle,
+    captureConversation,
+    resetConversation,
   } = useChatLogic({
     tipoChat: tipoChat,
     entityToken: propEntityToken,
@@ -1910,7 +1914,8 @@ const ChatPanel = (props: ChatPanelProps) => {
         safeLocalStorage.removeItem("rubroSeleccionado_label");
       }
       setLocalRubro(rubroKey);
-      resetChatSessionId();
+      if(tenantSlug?.trim()&&!chatBootstrap)resetConversation();
+      else resetChatSessionId();
       setMessages([]);
       setActiveTicketId(null);
       setContexto(getInitialMunicipioContext());
@@ -3507,9 +3512,14 @@ const ChatPanel = (props: ChatPanelProps) => {
   const attachmentUploadContext = useMemo(() => {
     const bootstrapSession = chatBootstrap
       ? getBootstrapSessionValues(chatBootstrap)
-      : {};
+      : tenantSlug?.trim() ? {
+        tenantSlug,chatSessionId:conversationHandle?.sessionId,anonId:conversationHandle?.anonId,
+        conversationOwner:conversationHandle??undefined,skipAuth:conversationHandle ? !conversationHandle.authority.token : true,
+        omitCredentials:conversationHandle?.authority.omitCredentials,
+        isCurrent:()=>conversationHandle?.isCurrent()===true,
+      } : {};
     return resolveBoundChatAttachmentUploadContext(tenantSlug, bootstrapSession);
-  }, [chatBootstrap, tenantSlug]);
+  }, [chatBootstrap, tenantSlug, conversationHandle, skipAuth]);
   const bootstrapDemoMetadata = bootstrapPayload?.demo_metadata as Record<string, unknown> | undefined;
   const bootstrapWorkspace = bootstrapPayload?.workspace as Record<string, unknown> | undefined;
   const demoWorkspace = bootstrapDemoMetadata?.workspace as Record<string, unknown> | undefined;
@@ -3769,9 +3779,17 @@ const ChatPanel = (props: ChatPanelProps) => {
           return;
         }
 
+        const leadScope=pendingActionScope;
+        const leadRevision=captureChatbocSessionRevision();
+        const initiatingConversation=conversationHandle;
+        const isCurrentLead=()=>pendingActionScopeRef.current===leadScope&&isChatbocSessionRevisionCurrent(leadRevision)&&initiatingConversation?.isCurrent()!==false;
         try {
-          const chatSessionId = getOrCreateChatSessionId();
-          const anonId = getOrCreateAnonId();
+          const captured=tenantSlug?.trim()&&!chatBootstrap
+            ? {handle:await captureWidgetConversationScope({tenantSlug,entityToken:propEntityToken,skipAuth:true,isCurrent:isCurrentLead}),sessionId:''}
+            : await captureConversation();
+          if(captured.handle?.isCurrent()===false)return;
+          const chatSessionId = captured.handle?.sessionId||captured.sessionId;
+          const anonId = captured.handle?.anonId||getOrCreateAnonId();
           const trigger = action.intent || action.id || "lead_capture";
           const idempotencyKey = createLeadCaptureIdempotencyKey(
             tenantSlug,
@@ -3802,8 +3820,9 @@ const ChatPanel = (props: ChatPanelProps) => {
               payload: action.payload ?? undefined,
             },
             tenantSlug,
-            { idempotencyKey },
+            { idempotencyKey,chatSessionId,anonId,isCurrent:()=>isCurrentLead()&&captured.handle?.isCurrent()!==false },
           );
+          if(!isCurrentLead()||captured.handle?.isCurrent()===false)return;
           const success =
             response.message_body?.trim() ||
             effectiveLeadCapture?.success_message?.trim();
@@ -3834,6 +3853,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           }
           return;
         } catch (error) {
+          if(!isCurrentLead()||(error as Error)?.name==='AbortError')return;
           addSystemMessage(getErrorMessage(error, "No se pudo guardar el seguimiento."), "error");
           return;
         }
@@ -3849,7 +3869,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [addSystemMessage, contexto, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
+    [addSystemMessage, contexto, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat,conversationHandle,captureConversation,pendingActionScope,chatBootstrap,propEntityToken],
   );
 
   const persistentLeadButton = [...messages]

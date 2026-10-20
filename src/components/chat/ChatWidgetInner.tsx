@@ -39,6 +39,7 @@ import { createDemoSession, persistDemoRuntimeSession } from "@/features/demo/de
 import { normalizeRequestedDemoTenantSlug } from "@/features/demo/demoTenantSelection";
 import { clearDemoRuntimeStorage } from "@/features/demo/demoStorage";
 import getOrCreateChatSessionId, { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
+import {useWidgetConversationScope,type WidgetConversationHandle} from "@/utils/widgetConversationScope";
 import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
 import {
   isTenantSlugDeploymentHostnameMirror,
@@ -802,9 +803,10 @@ function ChatWidgetInner({
   const [chatPanelResetKey, setChatPanelResetKey] = useState(0);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
-  const [widgetCommerceSession, setWidgetCommerceSession] = useState<WidgetCommerceSession | null>(null);
-  const [widgetCommerceHistory, setWidgetCommerceHistory] = useState<WidgetCommerceHistory | null>(null);
-  const [widgetCommerceCart, setWidgetCommerceCart] = useState<WidgetCommerceCartSnapshot | null>(null);
+  type CommerceSnapshot<T>={owner:WidgetConversationHandle|null;context:string;value:T};
+  const [commerceSessionSnapshot, setCommerceSessionSnapshot] = useState<CommerceSnapshot<WidgetCommerceSession> | null>(null);
+  const [commerceHistorySnapshot, setCommerceHistorySnapshot] = useState<CommerceSnapshot<WidgetCommerceHistory> | null>(null);
+  const [commerceCartSnapshot, setCommerceCartSnapshot] = useState<CommerceSnapshot<WidgetCommerceCartSnapshot> | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
   const isEmbedded = mode !== "standalone";
@@ -1274,6 +1276,25 @@ function ChatWidgetInner({
       }
     };
   }, [isPublicDemoSurveyRoute, publicDemoSurveyBootstrap?.key]);
+  const scopedCommerceEnabled=Boolean(chatTenantSlug?.trim()&&!chatBootstrap&&entityInfo?.onboarding?.mode!=="demo_session");
+  const commerceConversation=useWidgetConversationScope(scopedCommerceEnabled ? {
+    tenantSlug:chatTenantSlug!,entityToken:resolvedOwnerToken,skipAuth:true,
+  } : null);
+  const commerceOwner=scopedCommerceEnabled?commerceConversation.handle:null;
+  const commerceContext=scopedCommerceEnabled?commerceConversation.contextKey:'legacy';
+  const visibleCommerceSnapshot=<T,>(snapshot:CommerceSnapshot<T>|null):T|null=>snapshot&&
+    snapshot.context===commerceContext&&(!scopedCommerceEnabled||(commerceOwner?.isCurrent()&&snapshot.owner===commerceOwner))?snapshot.value:null;
+  // Retire visible DTOs synchronously with their captured owner, before they
+  // can supply a previous tenant's endpoints or session token to a new request.
+  const widgetCommerceSession=visibleCommerceSnapshot<WidgetCommerceSession>(commerceSessionSnapshot);
+  const widgetCommerceHistory=visibleCommerceSnapshot<WidgetCommerceHistory>(commerceHistorySnapshot);
+  const widgetCommerceCart=visibleCommerceSnapshot<WidgetCommerceCartSnapshot>(commerceCartSnapshot);
+  const setWidgetCommerceSession=useCallback((value:WidgetCommerceSession|null)=>setCommerceSessionSnapshot(
+    value?{owner:commerceOwner,context:commerceContext,value}:null),[commerceOwner,commerceContext]);
+  const setWidgetCommerceHistory=useCallback((value:WidgetCommerceHistory|null)=>setCommerceHistorySnapshot(
+    value?{owner:commerceOwner,context:commerceContext,value}:null),[commerceOwner,commerceContext]);
+  const setWidgetCommerceCart=useCallback((value:WidgetCommerceCartSnapshot|null)=>setCommerceCartSnapshot(
+    value?{owner:commerceOwner,context:commerceContext,value}:null),[commerceOwner,commerceContext]);
   const effectiveUiHints: ChatWidgetUiHints | null = useMemo(() => {
     const base = (entityInfo?.ui_hints ?? widgetCommerceSession?.ui_hints ?? null) as ChatWidgetUiHints | null;
     const accessibility =
@@ -1301,6 +1322,21 @@ function ChatWidgetInner({
     widgetCommerceSession?.tenant?.tenant_slug,
     chatTenantSlug,
   );
+  const commerceAdoptions=useRef(new Map<string,string>());
+  const adoptCommerceIdentity=useCallback((value:unknown,owner:WidgetConversationHandle|null)=>{
+    const response=value&&typeof value==='object'?value as Record<string,unknown>:{};
+    const session=response.session&&typeof response.session==='object'?response.session as Record<string,unknown>:{};
+    const id=typeof session.chat_session_id==='string'?session.chat_session_id:'';
+    if(!id)return true;
+    if(!owner){persistChatSessionId(id);return true;}
+    if(!owner.isCurrent())return false;
+    if(id===owner.sessionId)return true;
+    if(normalizeWidgetTenantScopeSlug(readResponseTenantSlug(value))!==owner.tenantSlug)return false;
+    const previous=commerceAdoptions.current.get(owner.scopeKey);
+    if(previous===owner.sessionId)return false; // Never follow an endless sequence of new-ID ACKs.
+    if(!owner.adoptConfirmed(id))return false;
+    commerceAdoptions.current.set(owner.scopeKey,id);return true;
+  },[]);
 
   useEffect(() => {
     if (hostBinding) return;
@@ -2897,6 +2933,9 @@ function ChatWidgetInner({
 
   useEffect(() => {
     let isActive = true;
+    const conversationOwner=commerceConversation.handle;
+    const isCurrent=()=>isActive&&(!scopedCommerceEnabled||conversationOwner?.isCurrent()===true);
+    if(scopedCommerceEnabled&&!conversationOwner)return;
     const tenantSlug = sanitizeTenantSlug(chatTenantSlug);
     const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
     const isPlatformTenant = tenantSlug === "chatboc-platform";
@@ -2913,14 +2952,15 @@ function ChatWidgetInner({
     const request = {
       tenantSlug: tenantSlug && !isPlatformTenant ? tenantSlug : null,
       widgetToken,
-      chatSessionId: getOrCreateChatSessionId(),
-      anonId: getOrCreateAnonId(),
+      chatSessionId: conversationOwner?.sessionId||getOrCreateChatSessionId(),
+      anonId: conversationOwner?.anonId||getOrCreateAnonId(),
+      isCurrent,
     };
 
     const loadCommerceSession = (activeRequest: typeof request): Promise<void> =>
       getWidgetCommerceSession(activeRequest)
       .then((session) => {
-        if (!isActive) return;
+        if (!isCurrent()) return;
         if (!responseMatchesTenant(session, tenantSlug)) {
           if (activeRequest.widgetToken) clearCachedWidgetToken();
           setWidgetCommerceSession(null);
@@ -2928,15 +2968,13 @@ function ChatWidgetInner({
           setWidgetCommerceCart(null);
           return;
         }
-        if (session?.session?.chat_session_id) {
-          persistChatSessionId(session.session.chat_session_id);
-        }
+        if(!adoptCommerceIdentity(session,conversationOwner))return;
         setWidgetCommerceSession(session);
       });
 
     loadCommerceSession(request)
       .catch(() => {
-        if (!isActive) return;
+        if (!isCurrent()) return;
         setWidgetCommerceSession(null);
         setWidgetCommerceHistory(null);
         setWidgetCommerceCart(null);
@@ -2945,10 +2983,14 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [chatTenantSlug, entityInfo?.onboarding?.mode, resolvedOwnerToken]);
+  }, [chatTenantSlug, entityInfo?.onboarding?.mode, resolvedOwnerToken,commerceConversation.contextKey,commerceOwner,
+    adoptCommerceIdentity,setWidgetCommerceSession,setWidgetCommerceHistory,setWidgetCommerceCart]);
 
   useEffect(() => {
     let isActive = true;
+    const conversationOwner=commerceConversation.handle;
+    const isCurrent=()=>isActive&&(!scopedCommerceEnabled||conversationOwner?.isCurrent()===true);
+    if(scopedCommerceEnabled&&!conversationOwner)return;
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
     if (isDemoSession) {
       setWidgetCommerceHistory(null);
@@ -2973,29 +3015,28 @@ function ChatWidgetInner({
     const historyRequest = {
       tenantSlug,
       widgetToken,
-      chatSessionId: getOrCreateChatSessionId(),
-      anonId: getOrCreateAnonId(),
+      chatSessionId: conversationOwner?.sessionId||getOrCreateChatSessionId(),
+      anonId: conversationOwner?.anonId||getOrCreateAnonId(),
+      isCurrent,
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     };
     const loadTenantHistory = (activeRequest: typeof historyRequest): Promise<void> =>
       getWidgetTenantHistory(historyEndpoint || null, activeRequest)
       .then((history) => {
-        if (isActive) {
+        if (isCurrent()) {
           if (!responseMatchesTenant(history, tenantSlug)) {
             if (activeRequest.widgetToken) clearCachedWidgetToken();
             setWidgetCommerceHistory(null);
             return;
           }
-          if (history?.session?.chat_session_id) {
-            persistChatSessionId(history.session.chat_session_id);
-          }
+          if(!adoptCommerceIdentity(history,conversationOwner))return;
           setWidgetCommerceHistory(history);
         }
       });
 
     loadTenantHistory(historyRequest)
       .catch(() => {
-        if (isActive) setWidgetCommerceHistory(null);
+        if (isCurrent()) setWidgetCommerceHistory(null);
       });
 
     return () => {
@@ -3004,6 +3045,11 @@ function ChatWidgetInner({
   }, [
     commerceTenantSlug,
     resolvedOwnerToken,
+    commerceConversation.contextKey,
+    commerceConversation.handle?.scopeKey,
+    commerceConversation.handle?.sessionId,
+    commerceOwner,
+    adoptCommerceIdentity,setWidgetCommerceHistory,
     widgetCommerceSession?.history?.endpoint,
     widgetCommerceSession?.history?.history_endpoint,
     widgetCommerceSession?.portal?.history_endpoint,
@@ -3013,6 +3059,9 @@ function ChatWidgetInner({
 
   useEffect(() => {
     let isActive = true;
+    const conversationOwner=commerceConversation.handle;
+    const isCurrent=()=>isActive&&(!scopedCommerceEnabled||conversationOwner?.isCurrent()===true);
+    if(scopedCommerceEnabled&&!conversationOwner)return;
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
     if (isDemoSession) {
       setWidgetCommerceCart(null);
@@ -3037,14 +3086,15 @@ function ChatWidgetInner({
     const cartRequest = {
       tenantSlug,
       widgetToken,
-      chatSessionId: getOrCreateChatSessionId(),
-      anonId: getOrCreateAnonId(),
+      chatSessionId: conversationOwner?.sessionId||getOrCreateChatSessionId(),
+      anonId: conversationOwner?.anonId||getOrCreateAnonId(),
+      isCurrent,
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     };
     const loadCartSnapshot = (activeRequest: typeof cartRequest, retried = false): Promise<void> =>
       getWidgetCartSnapshot(cartEndpoint || null, activeRequest)
       .then((cart) => {
-        if (isActive) {
+        if (isCurrent()) {
           if (!responseMatchesTenant(cart, tenantSlug)) {
             if (!retried && activeRequest.widgetToken) {
               clearCachedWidgetToken();
@@ -3053,16 +3103,14 @@ function ChatWidgetInner({
             setWidgetCommerceCart(null);
             return;
           }
-          if (cart?.session?.chat_session_id) {
-            persistChatSessionId(cart.session.chat_session_id);
-          }
+          if(!adoptCommerceIdentity(cart,conversationOwner))return;
           setWidgetCommerceCart(cart);
         }
       });
 
     loadCartSnapshot(cartRequest)
       .catch(() => {
-        if (isActive) setWidgetCommerceCart(null);
+        if (isCurrent()) setWidgetCommerceCart(null);
       });
 
     return () => {
@@ -3071,6 +3119,11 @@ function ChatWidgetInner({
   }, [
     commerceTenantSlug,
     resolvedOwnerToken,
+    commerceConversation.contextKey,
+    commerceConversation.handle?.scopeKey,
+    commerceConversation.handle?.sessionId,
+    commerceOwner,
+    adoptCommerceIdentity,setWidgetCommerceCart,
     widgetCommerceSession?.cart?.endpoint,
     widgetCommerceSession?.cart?.items_endpoint,
     widgetCommerceSession?.cart?.legacy_endpoint,

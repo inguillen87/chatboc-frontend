@@ -1,4 +1,5 @@
 import React from 'react';
+import {webcrypto} from 'node:crypto';
 import {act, cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {node,workspace} from '../../../tests/fixtures/institutional-assistant.synthetic';
@@ -153,7 +154,35 @@ describe('pending widget action retirement',()=>{
     safeLocalStorage.setItem(key,JSON.stringify(ordinaryAction));
     render(<React.StrictMode>{panel()}</React.StrictMode>);
     await settle();await advance();
-    expect(chatPosts().length).toBe(1);
+    await act(async()=>{await vi.waitFor(()=>expect(chatPosts()).toHaveLength(1));});
+    await advance(1500);expect(chatPosts()).toHaveLength(1);
+  });
+
+  it('keeps the StrictMode queued action pending through deferred WebCrypto capture and dispatches it once after identity is ready',async()=>{
+    const releases:Array<()=>Promise<void>>=[];
+    const digest=webcrypto.subtle.digest.bind(webcrypto.subtle);
+    const heldDigest=vi.fn((algorithm:Parameters<typeof digest>[0],bytes:Parameters<typeof digest>[1])=>new Promise<ArrayBuffer>(resolve=>{
+      releases.push(async()=>resolve(await digest(algorithm,bytes)));
+    }));
+    vi.stubGlobal('crypto',{subtle:{digest:heldDigest},getRandomValues:webcrypto.getRandomValues.bind(webcrypto),randomUUID:webcrypto.randomUUID.bind(webcrypto)});
+    try{
+      safeLocalStorage.setItem(key,JSON.stringify(ordinaryAction));
+      render(<React.StrictMode>{panel()}</React.StrictMode>);await settle();
+      const preparationCalls=heldDigest.mock.calls.length;
+      expect(preparationCalls).toBeGreaterThan(0);
+      await advance();
+      // The timer consumed its action and reached capture, not an HTTP dispatch.
+      expect(heldDigest.mock.calls.length).toBeGreaterThan(preparationCalls);
+      expect(chatPosts()).toHaveLength(0);
+      for(let round=0;round<5&&releases.length;round++){
+        const pending=releases.splice(0);
+        await act(async()=>{await Promise.all(pending.map(release=>release()));});
+      }
+      await settle();
+      expect(chatPosts()).toHaveLength(1);
+      expect(lastBody()).toMatchObject({action:ordinaryAction.action,tenant_slug:'qa-visitor'});
+      await advance(1500);expect(chatPosts()).toHaveLength(1);
+    }finally{vi.unstubAllGlobals();}
   });
 
   it('does not revive the queued mutation after A → B → A',async()=>{

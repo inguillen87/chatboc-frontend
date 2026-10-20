@@ -277,7 +277,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
         const session = await syncClerkSession(token, nextProfile, {
           intent: authContext.intent,
           tenant_slug: authContext.tenantSlug,
-        }, syncController.signal);
+        }, syncController.signal, isCurrentSync);
         if (!isCurrentSync()) return;
 
         if (session.onboarding?.required) {

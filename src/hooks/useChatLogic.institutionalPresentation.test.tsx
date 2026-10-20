@@ -1,4 +1,4 @@
-import {act,cleanup,renderHook} from '@testing-library/react';
+import {act,cleanup,renderHook,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace} from '../../tests/fixtures/institutional-assistant.synthetic';
 import {institutionalChatBootstrapPayload,institutionalInitialMenuContext,institutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
@@ -63,6 +63,7 @@ describe('local bootstrap presentation and response correlation',()=>{
   let resolve!:(value:unknown)=>void;mocks.fetch.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
   const hook=renderHook(({slug})=>useChatLogic(options(slug)),{initialProps:{slug:'qa-knowledge'}}),respond=vi.fn();
   let pending!:Promise<void>;act(()=>{pending=hook.result.current.handleSend('Consulta retirada',{onInstitutionalResponse:respond});});
+  await waitFor(()=>expect(resolve).toBeTypeOf('function'));
   if(kind==='unmount')hook.unmount();else{hook.rerender({slug:'qa-another'});if(kind==='aba')hook.rerender({slug:'qa-knowledge'});}
   await act(async()=>{resolve(answer());await pending;});
   expect(respond).not.toHaveBeenCalled();expect(mocks.fetch).toHaveBeenCalledOnce();
@@ -99,6 +100,7 @@ describe('local bootstrap presentation and response correlation',()=>{
   let resolve!:(value:unknown)=>void;mocks.fetch.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
   const hook=renderHook(({contract})=>useChatLogic({...options(),chatBootstrap:contract}),{initialProps:{contract:initial}});
   let pending!:Promise<void>;act(()=>{pending=hook.result.current.handleSend('Consulta retirada',{onInstitutionalResponse:respond});});
+  await waitFor(()=>expect(resolve).toBeTypeOf('function'));
   expect(hook.result.current.isTyping).toBe(true);
   hook.rerender({contract:changed});expect(hook.result.current.isTyping).toBe(false);
   await act(async()=>{resolve(answer());await pending;});
@@ -110,6 +112,7 @@ describe('local bootstrap presentation and response correlation',()=>{
   let resolve!:(value:unknown)=>void;mocks.fetch.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
   const hook=renderHook(({contract})=>useChatLogic({...options(),chatBootstrap:contract}),{initialProps:{contract:initial}}),respond=vi.fn();
   let pending!:Promise<void>;act(()=>{pending=hook.result.current.handleSend('Consulta retirada',{onInstitutionalResponse:respond});});
+  await waitFor(()=>expect(resolve).toBeTypeOf('function'));
   hook.rerender({contract:changed});hook.rerender({contract:initial});
   await act(async()=>{resolve(answer());await pending;});
   expect(respond).not.toHaveBeenCalled();expect(hook.result.current.messages).toHaveLength(0);expect(hook.result.current.isTyping).toBe(false);
@@ -118,6 +121,7 @@ describe('local bootstrap presentation and response correlation',()=>{
   const initial=bootstrap();let resolve!:(value:unknown)=>void;mocks.fetch.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
   const hook=renderHook(({contract})=>useChatLogic({...options(),chatBootstrap:contract}),{initialProps:{contract:initial}}),respond=vi.fn();
   let pending!:Promise<void>;act(()=>{pending=hook.result.current.handleSend('Consulta vigente',{onInstitutionalResponse:respond});});
+  await waitFor(()=>expect(resolve).toBeTypeOf('function'));
   hook.rerender({contract:structuredClone(initial)});expect(hook.result.current.isTyping).toBe(true);
   await act(async()=>{resolve(answer());await pending;});
   expect(respond).toHaveBeenCalledWith('turn-response');expect(hook.result.current.messages.at(-1)?.id).toBe('turn-response');
@@ -126,6 +130,7 @@ describe('local bootstrap presentation and response correlation',()=>{
   let resolve!:(value:unknown)=>void;mocks.fetch.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
   const hook=renderHook(()=>useChatLogic(options())),respond=vi.fn();
   let pending!:Promise<void>;act(()=>{pending=hook.result.current.handleSend('Consulta de sesión retirada',{onInstitutionalResponse:respond});});
+  await waitFor(()=>expect(resolve).toBeTypeOf('function'));
   act(()=>{advanceChatbocSessionRevision();});
   expect(hook.result.current.isTyping).toBe(false);
   await act(async()=>{resolve(answer());await pending;});
@@ -137,8 +142,10 @@ describe('local bootstrap presentation and response correlation',()=>{
   mocks.fetch.mockImplementationOnce(()=>new Promise(done=>{resolveA=done;})).mockImplementationOnce(()=>new Promise(done=>{resolveB=done;}));
   const hook=renderHook(()=>useChatLogic(options())),respondA=vi.fn(),respondB=vi.fn();
   let a!:Promise<void>,b!:Promise<void>;act(()=>{a=hook.result.current.handleSend('Consulta de A',{onInstitutionalResponse:respondA});});
+  await waitFor(()=>expect(resolveA).toBeTypeOf('function'));
   act(()=>{advanceChatbocSessionRevision();});
   act(()=>{b=hook.result.current.handleSend('Consulta de B',{onInstitutionalResponse:respondB});});
+  await waitFor(()=>expect(resolveB).toBeTypeOf('function'));
   expect(hook.result.current.isTyping).toBe(true);
   await act(async()=>{resolveA(answer('qa-knowledge','retired-session-a'));await a;});
   expect(hook.result.current.isTyping).toBe(true);expect(respondA).not.toHaveBeenCalled();

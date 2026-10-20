@@ -697,6 +697,8 @@ interface ApiFetchOptions {
    */
   preserveAuthOn401?: boolean;
   sendAnonId?: boolean;
+  /** Reuse the anonymous identity captured with an explicit conversation handle. */
+  anonId?: string | null;
   /**
    * Legacy compatibility flag used by widget/public modules.
    * apiFetch already sends X-Entity-Token when a token is available unless
@@ -798,6 +800,62 @@ const parseStoredJsonRecord = (key: string): Record<string, unknown> | null => {
     return null;
   }
 };
+
+export interface WidgetRequestAuthority {
+  /** Selected credential in memory only; never persist or log this snapshot. */
+  token: string | null;
+  tokenSource: 'authToken' | 'chatAuthToken' | null;
+  omitCredentials: boolean;
+}
+
+/** Resolve the existing widget policy without treating panel metadata as a grant. */
+export function resolveWidgetRequestAuthority({
+  skipAuth = false,
+  omitCredentials = true,
+  chatAuthToken = null,
+  panelAuthToken = null,
+  storedRole = null,
+}: {
+  skipAuth?: boolean;
+  omitCredentials?: boolean;
+  chatAuthToken?: string | null;
+  panelAuthToken?: string | null;
+  storedRole?: string | null;
+} = {}): WidgetRequestAuthority {
+  const normalizedRole = storedRole?.toLowerCase() || null;
+  const allowsPanelToken = !chatAuthToken && Boolean(panelAuthToken) &&
+    (normalizedRole === 'usuario' || normalizedRole === 'ciudadano' ||
+      normalizedRole === 'vecino' || normalizedRole === 'neighbor');
+  if (!skipAuth && chatAuthToken) {
+    return { token: chatAuthToken, tokenSource: 'chatAuthToken', omitCredentials };
+  }
+  if (!skipAuth && allowsPanelToken) {
+    return { token: panelAuthToken, tokenSource: 'authToken', omitCredentials };
+  }
+  return { token: null, tokenSource: null, omitCredentials };
+}
+
+const readStoredWidgetRole = (): string | null => {
+  const user = parseStoredJsonRecord('user');
+  return typeof user?.rol === 'string' ? user.rol : null;
+};
+
+/** The same effective widget actor used by apiFetch; raw credentials stay in RAM. */
+export function captureWidgetRequestAuthority(options: {
+  skipAuth?: boolean;
+  omitCredentials?: boolean;
+} = {}): WidgetRequestAuthority {
+  return resolveWidgetRequestAuthority({
+    ...options,
+    panelAuthToken: usePanelSessionStore.getState().authToken || safeLocalStorage.getItem('authToken'),
+    chatAuthToken: useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem('chatAuthToken'),
+    storedRole: readStoredWidgetRole(),
+  });
+}
+
+/** Private equality value only: hash it before deriving a persisted partition. */
+export const widgetRequestAuthorityKey = (authority: WidgetRequestAuthority): string =>
+  JSON.stringify([authority.tokenSource, authority.token, authority.omitCredentials]);
 
 interface OmnichannelIdentitySnapshot {
   contactKey?: string | null;
@@ -930,6 +988,7 @@ export async function apiFetch<T>(
     suppressPanel401Redirect,
     preserveAuthOn401,
     sendAnonId,
+    anonId: explicitAnonId,
     entityToken,
     cache,
     onResponse,
@@ -1017,7 +1076,15 @@ export async function apiFetch<T>(
     isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
     persistTenantSlug === false && typeof options.isCurrent === 'function' &&
     typeof body?.email === 'string' && Boolean(body.email) && typeof body?.password === 'string' && Boolean(body.password);
-  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin;
+  // This exchange owns an explicit Clerk bearer and caller lifetime. Widget boot
+  // may change presentation tenant/token state while its response is pending.
+  // Keep the exception restricted to this fully isolated session-exchange caller.
+  const isIsolatedClerkSessionExchange = path === '/api/auth/clerk/session' && method === 'POST' &&
+    skipAuth === true && omitTenant === true && omitCredentials === false &&
+    isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
+    persistTenantSlug === false && typeof options.isCurrent === 'function' &&
+    /^Bearer\s+\S+$/i.test(normalizeHeaderValue(options.headers?.Authorization ?? options.headers?.authorization) ?? '');
+  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin || isIsolatedClerkSessionExchange;
   // An explicit anonymous tenant read does not carry the panel identity. A
   // concurrent /me refresh must not retire it or select that private tenant.
   // Its caller's signal/isCurrent still retires the public route itself.
@@ -1027,37 +1094,19 @@ export async function apiFetch<T>(
     typeof tenantSlug === 'string' && Boolean(resolvedTenantSlug);
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
-  let storedRole: string | null = null;
-  try {
-    const rawUser = safeLocalStorage.getItem("user");
-    if (rawUser) {
-      const parsed = JSON.parse(rawUser);
-      if (parsed && typeof parsed === "object" && typeof parsed.rol === "string") {
-        storedRole = parsed.rol;
-      }
-    }
-  } catch {
-    storedRole = null;
-  }
+  const storedRole = readStoredWidgetRole();
   const normalizedRole = storedRole?.toLowerCase() || null;
-  const widgetAllowsPanelToken =
-    treatAsWidget && !chatToken && !!panelToken &&
-    (normalizedRole === "usuario" ||
-      normalizedRole === "ciudadano" ||
-      normalizedRole === "vecino" ||
-      normalizedRole === "neighbor");
+  const widgetAuthority = treatAsWidget ? resolveWidgetRequestAuthority({
+    skipAuth, omitCredentials, chatAuthToken: chatToken,
+    panelAuthToken: panelToken, storedRole,
+  }) : null;
   let token: string | null = null;
   let tokenSource: "authToken" | "chatAuthToken" | null = null;
 
   if (!skipAuth) {
     if (treatAsWidget) {
-      if (chatToken) {
-        token = chatToken;
-        tokenSource = "chatAuthToken";
-      } else if (widgetAllowsPanelToken) {
-        token = panelToken;
-        tokenSource = "authToken";
-      }
+      token = widgetAuthority!.token;
+      tokenSource = widgetAuthority!.tokenSource;
     } else {
       if (panelToken) {
         token = panelToken;
@@ -1073,7 +1122,12 @@ export async function apiFetch<T>(
     ? normalizeHeaderValue(explicitChatSessionId) || getOrCreateChatSessionId()
     : null;
 
-  const anonId = getOrCreateAnonId();
+  const capturedAnonId = normalizeHeaderValue(explicitAnonId);
+  if (explicitAnonId != null && (!capturedAnonId ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(capturedAnonId))) {
+    throw new TypeError('Invalid captured anonymous identity');
+  }
+  const anonId = capturedAnonId || getOrCreateAnonId();
 
   const appendTenantQueryParams = (rawPath: string, slug: string | null) => {
     // If omitTenant is true, we should NOT append any tenant params, regardless of slug existence.
@@ -1298,10 +1352,10 @@ export async function apiFetch<T>(
     );
   }
 
-  const shouldOmitCredentials =
+  const shouldOmitCredentials = widgetAuthority?.omitCredentials ?? (
     omitCredentials !== undefined
       ? omitCredentials
-      : treatAsWidget;
+      : treatAsWidget);
 
   const requestInit: RequestInit = {
     method,

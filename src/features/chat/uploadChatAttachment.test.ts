@@ -50,13 +50,12 @@ describe("uploadChatAttachment direct R2 transport", () => {
   });
 
   it("fails closed when the active tenant and signed bootstrap tenant disagree", () => {
-    expect(
-      resolveBoundChatAttachmentUploadContext("tenant-active", {
+    const context = resolveBoundChatAttachmentUploadContext("tenant-active", {
         tenantSlug: "tenant-stale",
         demoSessionId: "signed-stale-demo",
         chatSessionId: "sid_stale",
-      }),
-    ).toEqual({
+      });
+    expect(context).toEqual({
       tenantSlug: "tenant-active",
       demoSessionId: null,
       chatSessionId: null,

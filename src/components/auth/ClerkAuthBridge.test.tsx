@@ -11,6 +11,7 @@ import {persistPanelLoginSession} from '@/utils/panelLoginSession';
 import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
 import { persistClerkAuthContext } from '@/utils/clerkAuthContext';
 import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { completeClerkOnboarding } from '@/api/clerkAuth';
 import ClerkAuthBridge from './ClerkAuthBridge';
 import { ClerkRuntimeProvider } from './ClerkRuntimeContext';
@@ -355,8 +356,36 @@ describe('ClerkAuthBridge session lifecycle', () => {
       expect.any(Object),
       { intent: 'tenant_portal', tenant_slug: 'junin' },
       expect.any(AbortSignal),
+      expect.any(Function),
     );
     expect(safeLocalStorage.getItem('clerkAuthIntent')).toBe('tenant_portal');
+  });
+
+  it('passes its owned actor/session lifetime into transport and retires it on revision change or unmount', async () => {
+    const lateSync = deferred<Record<string, unknown>>();
+    clerkMocks.syncClerkSession.mockReturnValueOnce(lateSync.promise);
+    const view = renderBridge();
+    await waitFor(() => expect(clerkMocks.syncClerkSession).toHaveBeenCalledOnce());
+    const signal = clerkMocks.syncClerkSession.mock.calls[0][3] as AbortSignal;
+    const isCurrent = clerkMocks.syncClerkSession.mock.calls[0][4] as () => boolean;
+    expect(isCurrent()).toBe(true);
+    act(() => {
+      safeLocalStorage.setItem('tenantSlug', 'synthetic-public-tenant');
+      useWidgetSessionStore.setState({ chatAuthToken: 'synthetic-widget-only' });
+    });
+    expect(isCurrent()).toBe(true);
+    act(() => { advanceChatbocSessionRevision(); });
+    expect(isCurrent()).toBe(false);
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    expect(isCurrent()).toBe(false);
+    await act(async () => {
+      lateSync.resolve({ contract_version: 'auth.clerk.v1', auth_provider: 'clerk',
+        token: 'synthetic-retired-response', user: { id: 901 } });
+      await lateSync.promise;
+    });
+    expect(usePanelSessionStore.getState().authToken).toBeNull();
+    expect(safeLocalStorage.getItem('authToken')).toBeNull();
   });
 
   it('preserves the WhatsApp return path until the completed tenant handoff is confirmed', async () => {

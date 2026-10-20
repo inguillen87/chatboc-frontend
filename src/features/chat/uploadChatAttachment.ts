@@ -1,4 +1,5 @@
-import { ApiError, apiFetch } from "@/utils/api";
+import { ApiError, apiFetch, captureWidgetRequestAuthority, widgetRequestAuthorityKey } from "@/utils/api";
+import type { WidgetConversationHandle } from '@/utils/widgetConversationScope';
 import { captureAudioRecoveryOwner, createRecoverableAudioAttempt, type RecoverableAudioAttempt } from './audioRecovery';
 
 const UPLOAD_ALIAS_RETRY_STATUSES = new Set([404, 405, 501]);
@@ -28,13 +29,25 @@ export type ChatAttachmentUploadContext = {
   tenantSlug?: string | null;
   demoSessionId?: string | null;
   chatSessionId?: string | null;
+  anonId?: string | null;
+  conversationOwner?: WidgetConversationHandle;
+  skipAuth?: boolean;
+  omitCredentials?: boolean;
   /** A retired recording may not start another upload stage or accept its ACK. */
   isCurrent?: () => boolean;
   singleAttempt?: boolean;
 };
 
 const assertUploadCurrent = (context: ChatAttachmentUploadContext) => {
-  if (context.isCurrent?.() === false) {
+  const owner = context.conversationOwner;
+  if (context.isCurrent?.() === false || (owner && (
+    !owner.isCurrent() || normalizeContextValue(context.tenantSlug) !== owner.tenantSlug ||
+    normalizeContextValue(context.chatSessionId) !== owner.sessionId ||
+    normalizeContextValue(context.anonId) !== owner.anonId ||
+    widgetRequestAuthorityKey(captureWidgetRequestAuthority({
+      skipAuth: context.skipAuth, omitCredentials: context.omitCredentials,
+    })) !== widgetRequestAuthorityKey(owner.authority)
+  ))) {
     throw new DOMException("Upload retired", "AbortError");
   }
 };
@@ -58,8 +71,19 @@ export const resolveBoundChatAttachmentUploadContext = (
     chatSessionId: tenantContextMatches
       ? normalizeContextValue(bootstrapContext.chatSessionId)
       : null,
+    ...(tenantContextMatches ? {
+      ...(bootstrapContext.conversationOwner ? { conversationOwner: bootstrapContext.conversationOwner } : {}),
+      ...(bootstrapContext.anonId !== undefined ? { anonId: normalizeContextValue(bootstrapContext.anonId) } : {}),
+      ...(bootstrapContext.isCurrent ? { isCurrent: bootstrapContext.isCurrent } : {}),
+      ...(bootstrapContext.skipAuth !== undefined ? { skipAuth: bootstrapContext.skipAuth } : {}),
+      ...(bootstrapContext.omitCredentials !== undefined ? { omitCredentials: bootstrapContext.omitCredentials } : {}),
+      ...(bootstrapContext.singleAttempt !== undefined ? { singleAttempt: bootstrapContext.singleAttempt } : {}),
+    } : (bootstrapContext.conversationOwner || bootstrapContext.isCurrent
+      ? { isCurrent: () => false } : {})),
   };
 };
+
+const captureUploadContext = (context: ChatAttachmentUploadContext): ChatAttachmentUploadContext => ({ ...context });
 
 const normalizeEndpointPath = (endpoint: string) => {
   const trimmed = endpoint.trim();
@@ -106,6 +130,9 @@ const postUploadApi = async <T>(
   assertUploadCurrent(context);
   const demoSessionId = context.demoSessionId?.trim() || "";
   const tenantSlug = context.tenantSlug?.trim() || undefined;
+  const isCurrent = context.conversationOwner ? () => {
+    try { assertUploadCurrent(context); return true; } catch { return false; }
+  } : context.isCurrent;
   const headers = demoSessionId
     ? { "X-Demo-Session-Id": demoSessionId }
     : undefined;
@@ -118,8 +145,11 @@ const postUploadApi = async <T>(
       tenantSlug,
       persistTenantSlug: false,
       chatSessionId: context.chatSessionId,
+      anonId: context.anonId,
+      skipAuth: context.skipAuth,
+      omitCredentials: context.omitCredentials,
       baseUrlOverride: resolveRootUploadBase(endpoint),
-      ...(context.isCurrent ? { isCurrent: context.isCurrent } : {}),
+      ...(isCurrent ? { isCurrent } : {}),
       singleAttempt: context.singleAttempt,
     });
     assertUploadCurrent(context);
@@ -140,7 +170,10 @@ const postUploadApi = async <T>(
         tenantSlug,
         persistTenantSlug: false,
         chatSessionId: context.chatSessionId,
-        ...(context.isCurrent ? { isCurrent: context.isCurrent } : {}),
+        anonId: context.anonId,
+        skipAuth: context.skipAuth,
+        omitCredentials: context.omitCredentials,
+        ...(isCurrent ? { isCurrent } : {}),
       });
       assertUploadCurrent(context);
       return response;
@@ -157,7 +190,7 @@ export const createChatAttachmentUploadAttempt = <T>(
   createFormData: () => FormData,
   context: ChatAttachmentUploadContext = {},
 ): RecoverableAudioAttempt<T> => {
-  const owner = captureAudioRecoveryOwner(context.isCurrent);
+  const owner = captureAudioRecoveryOwner(context.isCurrent, context.conversationOwner);
   const frozenContext = { ...context, isCurrent: owner, singleAttempt: true };
   const initialFormData = createFormData();
   const file = readUploadFile(initialFormData);
@@ -363,6 +396,7 @@ export const uploadChatAttachment = async <T>(
   createFormData: () => FormData,
   context: ChatAttachmentUploadContext = {},
 ): Promise<T> => {
+  context = captureUploadContext(context);
   assertUploadCurrent(context);
   if (!supportsDirectChatAttachmentUpload(endpoint)) {
     return uploadWithLegacyMultipart<T>(endpoint, createFormData, context);

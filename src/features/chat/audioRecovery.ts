@@ -23,8 +23,23 @@ export interface RecoverableAudioAttempt<T> {
   canRetry: (error: unknown) => boolean;
 }
 
-export const captureAudioRecoveryOwner = (isCurrent: () => boolean = () => true) => {
+type AudioRecoveryConversationOwner = {
+  sessionId: string;
+  anonId: string;
+  isCurrent: () => boolean;
+};
+
+export const captureAudioRecoveryOwner = (
+  isCurrent: () => boolean = () => true,
+  owner?: AudioRecoveryConversationOwner,
+) => {
   const revision = captureChatbocSessionRevision();
+  if (owner) {
+    const ownerIsCurrent = owner.isCurrent;
+    // A scoped conversation owns its own actor/session checks. The legacy
+    // installation-wide keys may belong to a different widget or bootstrap.
+    return () => isCurrent() && isChatbocSessionRevisionCurrent(revision) && ownerIsCurrent();
+  }
   const anonId = getOrCreateAnonId();
   const sessionId = getOrCreateChatSessionId();
   return () => isCurrent() && isChatbocSessionRevisionCurrent(revision) &&

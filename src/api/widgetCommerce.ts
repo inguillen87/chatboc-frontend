@@ -13,6 +13,7 @@ export type WidgetCommerceRequest = {
   chatSessionId?: string | null;
   anonId?: string | null;
   widgetSessionToken?: string | null;
+  isCurrent?: () => boolean;
 };
 
 export const hasWidgetCommerceCredential = (request: WidgetCommerceRequest): boolean =>
@@ -63,7 +64,11 @@ const publicWidgetOptions = (request: WidgetCommerceRequest) => ({
   omitEntityToken: true,
   sendAnonId: true,
   tenantSlug: request.tenantSlug,
+  persistTenantSlug: false,
   headers: widgetHeaders(request),
+  chatSessionId:request.chatSessionId,
+  anonId:request.anonId,
+  isCurrent:request.isCurrent,
 });
 
 export async function getWidgetCommerceSession(

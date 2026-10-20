@@ -6,6 +6,8 @@ import {createChatAttachmentUploadAttempt} from './uploadChatAttachment';
 import {resetBackendBootstrapGateForTests} from '@/utils/backendBootstrapGate';
 import {usePanelSessionStore,useWidgetSessionStore} from '@/stores';
 import {safeLocalStorage} from '@/utils/safeLocalStorage';
+import {captureWidgetRequestAuthority} from '@/utils/api';
+import type {WidgetConversationHandle} from '@/utils/widgetConversationScope';
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 const bootstrap=()=>({contract_version:'demo.chat_bootstrap.v1',endpoint:'/api/ask/municipio',method:'POST',
@@ -58,5 +60,36 @@ describe('audio recovery with the actual API transport and synthetic HTTP',()=>{
     let failure:unknown;try{await attempt.run();}catch(error){failure=error;}
     safeLocalStorage.setItem('chatboc_anon_id','different-synthetic-identity');expect(attempt.canRetry(failure)).toBe(false);
     await expect(attempt.run()).rejects.toMatchObject({name:'AbortError'});expect(transport).toHaveBeenCalledOnce();
+  });
+  it('uses explicit scoped headers and anonymous policy through prepare and completion recovery without the legacy session',async()=>{
+    const transport=vi.fn().mockResolvedValueOnce(json(prepare)).mockResolvedValueOnce(new Response('',{status:200}))
+      .mockRejectedValueOnce(new TypeError('synthetic_completion_ack_lost')).mockResolvedValueOnce(json({ok:true,id:7}));
+    vi.stubGlobal('fetch',transport);
+    safeLocalStorage.setItem('chat_session_id','11111111-1111-4111-8111-111111111111');
+    const owner={scopeKey:'synthetic-owned-scope',tenantSlug:'synthetic-tdf',
+      sessionId:'22222222-2222-4222-8222-222222222222',anonId:'synthetic-owned-anon',
+      isCurrent:()=>true,retire:()=>false,adoptConfirmed:()=>false,
+      authority:captureWidgetRequestAuthority({skipAuth:true,omitCredentials:true})} satisfies WidgetConversationHandle;
+    const form=()=>{const value=new FormData();value.append('file',new Blob(['synthetic-bytes'],{type:'audio/webm'}),'owned.webm');return value;};
+    const attempt=createChatAttachmentUploadAttempt('/archivos/upload/chat_attachment',form,{
+      tenantSlug:owner.tenantSlug,chatSessionId:owner.sessionId,anonId:owner.anonId,
+      conversationOwner:owner,isCurrent:()=>true,skipAuth:true,omitCredentials:true,
+    });
+    const failure=await attempt.run().catch(error=>error);
+    safeLocalStorage.setItem('chat_session_id','33333333-3333-4333-8333-333333333333');
+    expect(attempt.canRetry(failure)).toBe(true);
+    await expect(attempt.run()).resolves.toMatchObject({id:7});
+    expect(transport).toHaveBeenCalledTimes(4);
+    const applicationRequests=transport.mock.calls.filter(([,options])=>options.method==='POST');
+    expect(applicationRequests).toHaveLength(3);
+    for(const [,options] of applicationRequests){
+      const headers=new Headers(options.headers);
+      expect(headers.get('X-Chat-Session-Id')).toBe(owner.sessionId);
+      expect(headers.get('X-Anon-Id')).toBe(owner.anonId);
+      expect(headers.has('Authorization')).toBe(false);
+      expect(options.credentials).toBe('omit');
+    }
+    expect(transport.mock.calls.filter(([,options])=>options.method==='PUT')).toHaveLength(1);
+    expect(applicationRequests[2][1].body).toBe(applicationRequests[1][1].body);
   });
 });
