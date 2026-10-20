@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useMemo, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -144,6 +144,18 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
   const summaryRequest = useRef(0);
   const summaryAbort = useRef<AbortController | null>(null);
   const realtimeRequest = useRef(0);
+  const mounted = useRef(false);
+  const leadRequest = useRef(0);
+  const leadPending = useRef<{ append: boolean } | null>(null);
+  const leadContext = useRef<{ key: string; revision: number } | null>(null);
+  const executiveRequest = useRef(0);
+  const executivePending = useRef(false);
+  const executiveContext = useRef<{ key: string; revision: number } | null>(null);
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const [timeRange, setTimeRange] = useState(searchParams.get('range') || '7d');
   const [channelFilter, setChannelFilter] = useState(searchParams.get('canal') || '');
@@ -277,6 +289,47 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     return { from: from.toISOString(), to: to.toISOString() };
   }, [timeRange]);
 
+  const sessionRevision = captureChatbocSessionRevision();
+  const leadContextKey = JSON.stringify([currentSlug, tenantId, scope, platformAdmin, dateRange.from, dateRange.to, sessionRevision]);
+  const executiveContextKey = JSON.stringify([leadContextKey, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter]);
+
+  useLayoutEffect(() => {
+    // Each committed context owns a distinct token, including A -> B -> A.
+    const context = { key: leadContextKey, revision: sessionRevision };
+    leadContext.current = context;
+    leadRequest.current += 1;
+    leadPending.current = null;
+    setLeadInteractions([]);
+    setLeadCursor(null);
+    setLoadingLeadInteractions(false);
+    setLoadingMoreLeadInteractions(false);
+    return () => {
+      if (leadContext.current === context) {
+        leadContext.current = null;
+        leadRequest.current += 1;
+        leadPending.current = null;
+      }
+    };
+  }, [leadContextKey]);
+
+  useLayoutEffect(() => {
+    const context = { key: executiveContextKey, revision: sessionRevision };
+    executiveContext.current = context;
+    executiveRequest.current += 1;
+    executivePending.current = false;
+    setExecutiveSummary('');
+    setExecutiveModelPolicy(null);
+    setSummaryError(null);
+    setLoadingSummary(false);
+    return () => {
+      if (executiveContext.current === context) {
+        executiveContext.current = null;
+        executiveRequest.current += 1;
+        executivePending.current = false;
+      }
+    };
+  }, [executiveContextKey]);
+
   const fetchData = async () => {
     summaryAbort.current?.abort();
     const controller = new AbortController();
@@ -365,11 +418,21 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
   };
 
   const fetchLeadInteractions = async (options?: { cursor?: string; append?: boolean }) => {
-    if (!platformAdmin || !currentSlug) return;
+    const context = leadContext.current;
+    if (!mounted.current || !platformAdmin || !currentSlug || !context || context.key !== leadContextKey
+      || !isChatbocSessionRevisionCurrent(context.revision)) return;
     const isAppend = Boolean(options?.append);
+    if (isAppend && (leadPending.current || !options?.cursor || options.cursor !== leadCursor)) return;
+    if (!isAppend && leadPending.current && !leadPending.current.append) return;
+    const request = ++leadRequest.current;
+    leadPending.current = { append: isAppend };
+    const isCurrent = () => mounted.current && leadContext.current === context
+      && leadRequest.current === request && isChatbocSessionRevisionCurrent(context.revision);
     if (isAppend) {
       setLoadingMoreLeadInteractions(true);
     } else {
+      // Refresh supersedes pagination from the previous snapshot.
+      setLoadingMoreLeadInteractions(false);
       setLoadingLeadInteractions(true);
     }
 
@@ -384,27 +447,32 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         },
         currentSlug || undefined,
       );
+      if (!isCurrent()) return;
       const items = normalizeLeadInteractions(response);
       setLeadInteractions((prev) => (isAppend ? [...prev, ...items] : items));
       setLeadCursor(response?.next_cursor || response?.cursor || null);
     } catch (leadError) {
+      if (!isCurrent()) return;
       console.warn('[AnalyticsPage] lead interactions unavailable', leadError);
       if (!isAppend) {
         setLeadInteractions([]);
         setLeadCursor(null);
       }
     } finally {
-      if (isAppend) {
-        setLoadingMoreLeadInteractions(false);
-      } else {
-        setLoadingLeadInteractions(false);
+      if (isCurrent()) {
+        leadPending.current = null;
+        if (isAppend) {
+          setLoadingMoreLeadInteractions(false);
+        } else {
+          setLoadingLeadInteractions(false);
+        }
       }
     }
   };
 
   useEffect(() => {
     fetchLeadInteractions();
-  }, [platformAdmin, currentSlug, dateRange.from, dateRange.to, scope]);
+  }, [leadContextKey]);
 
   const fetchRealtimeHub = useMemo(
     () => async () => {
@@ -483,7 +551,13 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
 
 
   const handleGenerateExecutiveSummary = async () => {
-    if (!tenantId) return;
+    const context = executiveContext.current;
+    if (!mounted.current || !tenantId || !context || context.key !== executiveContextKey || executivePending.current
+      || !isChatbocSessionRevisionCurrent(context.revision)) return;
+    const request = ++executiveRequest.current;
+    executivePending.current = true;
+    const isCurrent = () => mounted.current && executiveContext.current === context
+      && executiveRequest.current === request && isChatbocSessionRevisionCurrent(context.revision);
     setLoadingSummary(true);
     setSummaryError(null);
     try {
@@ -502,6 +576,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         },
         currentSlug || undefined,
       );
+      if (!isCurrent()) return;
       const summaryText = response?.summary || response?.text || '';
       setExecutiveSummary(summaryText);
       setExecutiveModelPolicy(response?.model_policy && typeof response.model_policy === 'object' ? response.model_policy : null);
@@ -511,13 +586,17 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         setSummaryError('No hay datos suficientes para generar el resumen en este período.');
       }
     } catch (err) {
+      if (!isCurrent()) return;
       console.error(err);
       setExecutiveSummary('');
       setExecutiveModelPolicy(null);
       const status = err instanceof ApiError ? err.status : undefined;
       setSummaryError(getEnterpriseErrorMessage(status, 'executive_summary'));
     } finally {
-      setLoadingSummary(false);
+      if (isCurrent()) {
+        executivePending.current = false;
+        setLoadingSummary(false);
+      }
     }
   };
 
@@ -839,7 +918,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
               <Button
                 variant="outline"
                 onClick={() => fetchLeadInteractions({ cursor: leadCursor, append: true })}
-                disabled={loadingMoreLeadInteractions}
+                disabled={loadingLeadInteractions || loadingMoreLeadInteractions}
               >
                 {loadingMoreLeadInteractions ? 'Cargando...' : 'Cargar más'}
               </Button>
