@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 const apiFetchMock = vi.fn();
+const privateReadMock = vi.fn();
+vi.mock('@/utils/privateBackendRead', () => ({
+  privateBackendRead: (...args: unknown[]) => privateReadMock(...args),
+}));
 
 vi.mock('@/utils/api', () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
@@ -20,10 +25,11 @@ import { backofficeService } from '@/services/backofficeService';
 describe('backofficeService', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+    privateReadMock.mockReset();
   });
 
   it('loads inbox summary with tenant and scope and validates contract', async () => {
-    apiFetchMock.mockResolvedValueOnce({
+    privateReadMock.mockResolvedValueOnce({
       contract_version: 'backoffice.inbox_summary.v1',
       request_id: 'req-inbox-1',
       tenant_slug: 'junin-1',
@@ -36,34 +42,67 @@ describe('backofficeService', () => {
 
     expect(result.summary?.sla_risk).toBe(6);
     expect(result.recommended_views?.[0]?.label).toBe('Riesgo SLA');
-    expect(apiFetchMock).toHaveBeenCalledWith(
+    expect(privateReadMock).toHaveBeenCalledWith(
       '/api/v2/backoffice/operations/inbox-summary?tenant_slug=junin-1&scope=municipio',
-      { tenantSlug: 'junin-1' },
+      'junin-1', {},
     );
   });
 
   it('rejects inbox summary when contract_version is not the expected one', async () => {
-    apiFetchMock.mockResolvedValueOnce({ contract_version: 'legacy' });
+    privateReadMock.mockResolvedValueOnce({ contract_version: 'legacy' });
 
     await expect(backofficeService.getInboxSummary({ tenantSlug: 'junin-1' })).rejects.toMatchObject({ status: 502 });
   });
 
+  it('requires the inbox tenant envelope and forwards the caller lifecycle', async () => {
+    const lifecycle = { isCurrent: () => true };
+    privateReadMock.mockResolvedValueOnce({ contract_version: 'backoffice.inbox_summary.v1', tenant_slug: 'tenant-b' });
+    await expect(backofficeService.getInboxSummary({ tenantSlug: 'tenant-a' }, lifecycle)).rejects.toMatchObject({ status: 502 });
+    expect(privateReadMock).toHaveBeenCalledWith('/api/v2/backoffice/operations/inbox-summary?tenant_slug=tenant-a', 'tenant-a', lifecycle);
+    privateReadMock.mockResolvedValueOnce({ contract_version: 'backoffice.inbox_summary.v1' });
+    await expect(backofficeService.getInboxSummary({ tenantSlug: 'tenant-a' })).rejects.toMatchObject({ status: 502 });
+  });
+
   it('loads orders, contacts and team summaries from the CRM endpoints', async () => {
-    apiFetchMock
-      .mockResolvedValueOnce({ request_id: 'req-orders', active_orders: 3 })
-      .mockResolvedValueOnce({ request_id: 'req-contacts', total_contacts: 20, segments: { canal: [] } })
-      .mockResolvedValueOnce({ request_id: 'req-team', active_employees: 5 });
+    privateReadMock
+      .mockResolvedValueOnce({
+        contract_version: 'backoffice.orders_summary.v1', tenant_slug: 'tenant-a', request_id: 'req-orders',
+        summary: { active: 3, unassigned: null }, active_orders: [{ id: 1 }],
+      })
+      .mockResolvedValueOnce({
+        contract_version: 'backoffice.contacts_summary.v1', tenant_slug: 'tenant-a', request_id: 'req-contacts',
+        summary: { total: 20 }, segments: { channels: [] },
+      })
+      .mockResolvedValueOnce({
+        contract_version: 'backoffice.team_coverage_summary.v1', tenant_slug: 'tenant-a', request_id: 'req-team',
+        summary: { active_employees: 5 },
+      });
 
     const orders = await backofficeService.getOrdersSummary('tenant-a');
     const contacts = await backofficeService.getContactsSummary('tenant-a');
     const team = await backofficeService.getTeamCoverageSummary('tenant-a');
 
-    expect(orders.active_orders).toBe(3);
-    expect(contacts.total_contacts).toBe(20);
-    expect(team.active_employees).toBe(5);
-    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/v2/backoffice/orders/summary?tenant_slug=tenant-a', { tenantSlug: 'tenant-a' });
-    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/v2/backoffice/contacts/summary?tenant_slug=tenant-a', { tenantSlug: 'tenant-a' });
-    expect(apiFetchMock).toHaveBeenNthCalledWith(3, '/api/v2/backoffice/team/coverage-summary?tenant_slug=tenant-a', { tenantSlug: 'tenant-a' });
+    expect(orders.summary?.active).toBe(3);
+    expect(orders.summary?.unassigned).toBeNull();
+    expect(orders.active_orders).toEqual([{ id: 1 }]);
+    expect(contacts.summary?.total).toBe(20);
+    expect(team.summary?.active_employees).toBe(5);
+    expect(privateReadMock).toHaveBeenNthCalledWith(1, '/api/v2/backoffice/orders/summary?tenant_slug=tenant-a', 'tenant-a', {});
+    expect(privateReadMock).toHaveBeenNthCalledWith(2, '/api/v2/backoffice/contacts/summary?tenant_slug=tenant-a', 'tenant-a', {});
+    expect(privateReadMock).toHaveBeenNthCalledWith(3, '/api/v2/backoffice/team/coverage-summary?tenant_slug=tenant-a', 'tenant-a', {});
+  });
+
+  it.each([
+    ['getOrdersSummary', 'backoffice.orders_summary.v1'],
+    ['getContactsSummary', 'backoffice.contacts_summary.v1'],
+    ['getTeamCoverageSummary', 'backoffice.team_coverage_summary.v1'],
+  ] as const)('rejects invalid versions and foreign tenant envelopes for %s', async (method, contractVersion) => {
+    privateReadMock.mockResolvedValueOnce({ contract_version: 'legacy', tenant_slug: 'tenant-a', summary: { total: 0 } });
+    await expect(backofficeService[method]('tenant-a')).rejects.toMatchObject({ status: 502 });
+    privateReadMock.mockResolvedValueOnce({ contract_version: contractVersion, tenant_slug: 'tenant-b', summary: { total: 0 } });
+    await expect(backofficeService[method]('tenant-a')).rejects.toMatchObject({ status: 502 });
+    privateReadMock.mockResolvedValueOnce({ contract_version: contractVersion, summary: { total: 0 } });
+    await expect(backofficeService[method]('tenant-a')).rejects.toMatchObject({ status: 502 });
   });
 
   it('requests export and validates download_url', async () => {
@@ -84,6 +123,7 @@ describe('backofficeService', () => {
 
     expect(result.download_url).toBe('https://files.example/export.pdf');
     expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/backoffice/export', {
+      ...panelReadOptions('tenant-a'),
       method: 'POST',
       body: {
         tenant_slug: 'tenant-a',
@@ -92,7 +132,9 @@ describe('backofficeService', () => {
         filters: { status: 'open' },
         include_ai_summary: true,
       },
-      tenantSlug: 'tenant-a',
+      singleAttempt: true,
+      allowStartupRecovery: false,
+      isCurrent: undefined,
     });
   });
 

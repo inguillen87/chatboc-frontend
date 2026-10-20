@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Boton, Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
+import InstitutionalChatMessage from './InstitutionalChatMessage';
 import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
 import { motion } from "framer-motion";
@@ -362,11 +363,12 @@ const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?:
   </motion.div>
 );
 
-const UserChatAvatar: React.FC = () => {
+const UserChatAvatar: React.FC<{ publicVisitorName?: string | null }> = ({ publicVisitorName }) => {
   const { user } = useUser();
+  const isPublicVisitor = publicVisitorName !== undefined;
   const resolvedAvatar = useMemo(
-    () => resolveConsentedAvatar(user as Record<string, unknown> | null | undefined),
-    [user],
+    () => resolveConsentedAvatar(isPublicVisitor ? null : user as Record<string, unknown> | null | undefined),
+    [isPublicVisitor, user],
   );
 
   return (
@@ -377,7 +379,7 @@ const UserChatAvatar: React.FC = () => {
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
       <IdentityAvatar
-        name={user?.name || user?.email || "Usuario"}
+        name={isPublicVisitor ? publicVisitorName || "Usuario" : user?.name || user?.email || "Usuario"}
         avatarUrl={resolvedAvatar.avatarUrl}
         source={resolvedAvatar.source}
         consented={resolvedAvatar.consented}
@@ -448,6 +450,8 @@ const StructuredContentDisplay: React.FC<{ items: StructuredContentItem[] }> = (
 
 export interface ChatMessageBaseProps {
   message: Message;
+  // Undefined keeps the private profile; null identifies an unnamed public visitor.
+  publicVisitorName?: string | null;
   isTyping: boolean;
   onButtonClick: (valueToSend: SendPayload) => void;
   onInternalAction?: (action: string) => void;
@@ -459,11 +463,13 @@ export interface ChatMessageBaseProps {
   logoBadgeStyle?: string;
   maxVisibleQuickReplies?: number;
   collapseExtraQuickReplies?: boolean;
+  institutionalInteractive?: boolean;
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
   {
     message,
+    publicVisitorName,
     isTyping,
     onButtonClick,
     onInternalAction,
@@ -474,6 +480,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     logoBadgeStyle,
     maxVisibleQuickReplies,
     collapseExtraQuickReplies,
+    institutionalInteractive = true,
     // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
@@ -730,6 +737,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const botBadgeClass = logoBadgeStyle === 'rounded-square' ? 'rounded-2xl' : 'rounded-full';
 
+  if(isBot&&message.institutional)return <InstitutionalChatMessage ref={ref} answer={message.institutional} onButtonClick={onButtonClick} interactive={institutionalInteractive}/>;
+
   return (
     <motion.div
       ref={ref}
@@ -972,7 +981,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           ) : null}
         </MessageBubble>
 
-        {!isBot && <UserChatAvatar />}
+        {!isBot && <UserChatAvatar publicVisitorName={publicVisitorName} />}
       </div>
     </motion.div>
   );

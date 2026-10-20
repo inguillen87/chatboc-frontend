@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/utils/api";
+import {
+  readAssignmentTarget,
+  readAssignmentPreview,
+  requireAssignmentTenant,
+  requireConfirmedAutoAssignments,
+  type AssignmentPreview,
+} from "@/utils/ticketAssignmentSnapshot";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -75,9 +82,12 @@ const AssignmentResultSummary = ({ result }: { result: AnyRecord }) => {
     return <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{asString(result.error)}</p>;
   }
 
-  const assigned = asString(first(result, ["assigned", "assigned_count", "updated", "updated_count"])) || "0";
-  const reviewed = asString(first(result, ["total", "processed", "preview_count", "matched_count"])) || assigned;
+  const items = asArray(result.items);
   const dryRun = Boolean(first(result, ["dry_run", "preview"]));
+  const assigned = dryRun
+    ? String(items.filter((item) => Boolean((item as AnyRecord)?.suggested_assignee)).length)
+    : asString(result.applied_count) || "0";
+  const reviewed = String(items.length);
 
   return (
     <div className="rounded-xl border bg-muted/20 p-3 text-sm">
@@ -103,9 +113,6 @@ const readPreviewAssignments = (result: AnyRecord | null) => {
     .filter((item): item is AnyRecord => Boolean(item));
 };
 
-const isDryRunResult = (result: AnyRecord | null) =>
-  Boolean(result && !result.error && (result.dry_run === true || result.preview === true || result.mode === "preview"));
-
 interface EmployeeRoutingMatrixProps {
   tenantSlug?: string | null;
 }
@@ -125,24 +132,45 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
   const [scopeMessage, setScopeMessage] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignResult, setAssignResult] = useState<AnyRecord | null>(null);
+  const [assignmentPreview, setAssignmentPreview] = useState<AssignmentPreview | null>(null);
+  const assignmentInFlight = useRef(false);
+  const routingVersion = useRef(0);
+  const scopeRequestVersion = useRef(0);
+  const selectedSlug = tenantSlug?.trim() || "";
+  const currentSlug = useRef(selectedSlug);
+  currentSlug.current = selectedSlug;
   const previewAssignments = useMemo(() => readPreviewAssignments(assignResult), [assignResult]);
-  const canApplyPreview = isDryRunResult(assignResult) || previewAssignments.length > 0;
+  const canApplyPreview = Boolean(assignmentPreview && assignmentPreview.tenantSlug === selectedSlug);
 
-  const loadRouting = async () => {
+  const loadRouting = async (preserveAssignmentResult = false) => {
+    // A continuation from an older tenant must not invalidate the active load.
+    if (selectedSlug !== currentSlug.current) return;
+    const version = ++routingVersion.current;
+    const slug = selectedSlug;
+    setAssignmentPreview(null);
+    if (!preserveAssignmentResult) setAssignResult(null);
     setLoading(true);
     setError(null);
+    setRouting(null);
+    setSelectedEmployee(null);
+    setScopeForm({ categorias: "", zonas: "", channels: "", permisos: "" });
+    setScopeMessage(null);
     try {
-      const response = await getEmployeeRoutingV2(tenantSlug);
+      const response = await getEmployeeRoutingV2(slug);
+      if (version !== routingVersion.current || slug !== currentSlug.current) return;
       setRouting(response);
     } catch (err) {
+      if (version !== routingVersion.current || slug !== currentSlug.current) return;
       setError(getErrorMessage(err, "No se pudo cargar la matriz de asignacion."));
       setRouting(null);
     } finally {
-      setLoading(false);
+      if (version === routingVersion.current && slug === currentSlug.current) setLoading(false);
     }
   };
 
   useEffect(() => {
+    ++scopeRequestVersion.current;
+    setSavingScope(false);
     loadRouting();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug]);
@@ -162,10 +190,17 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
 
   const handleSaveScope = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedEmployee) return;
+    if (!selectedEmployee || savingScope || loading || assignmentInFlight.current || !routing?.employees.includes(selectedEmployee)) return;
+    const slug = selectedSlug;
+    const routingSnapshotVersion = routingVersion.current;
+    const requestVersion = ++scopeRequestVersion.current;
+    const isCurrent = () => slug === currentSlug.current && requestVersion === scopeRequestVersion.current;
+    setAssignmentPreview(null);
+    setAssignResult(null);
     setSavingScope(true);
     setScopeMessage(null);
     try {
+      requireAssignmentTenant(routing.raw, slug);
       await patchEmployeeRoutingScopeV2(
         selectedEmployee.id,
         {
@@ -174,31 +209,61 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
           channels: parseCsv(scopeForm.channels),
           permisos: parseCsv(scopeForm.permisos),
         },
-        tenantSlug,
+        slug,
       );
+      if (!isCurrent() || routingSnapshotVersion !== routingVersion.current) return;
       setScopeMessage("Cobertura actualizada. Refrescando equipo...");
       await loadRouting();
     } catch (err) {
-      setScopeMessage(getErrorMessage(err, "No se pudo actualizar la cobertura."));
+      if (isCurrent()) setScopeMessage(getErrorMessage(err, "No se pudo actualizar la cobertura."));
     } finally {
-      setSavingScope(false);
+      if (isCurrent()) setSavingScope(false);
     }
   };
 
   const handleAutoAssign = async (dryRun: boolean) => {
+    if (assignmentInFlight.current || loading || savingScope) return;
     if (!dryRun && !canApplyPreview) return;
     if (!dryRun && typeof window !== "undefined" && !window.confirm("Aplicar la asignacion sugerida por el preview?")) {
       return;
     }
+    assignmentInFlight.current = true;
+    const version = routingVersion.current;
+    const slug = selectedSlug;
+    const isCurrent = () => version === routingVersion.current && slug === currentSlug.current;
+    const preview = assignmentPreview;
+    setAssignmentPreview(null);
+    setAssignResult(null);
     setAssignLoading(true);
-    if (dryRun) setAssignResult(null);
     try {
-      const response = await postEmployeeRoutingAutoAssignV2({ dry_run: dryRun }, tenantSlug);
-      setAssignResult(response && typeof response === "object" ? (response as AnyRecord) : { response });
-      if (!dryRun) await loadRouting();
+      if (dryRun) {
+        requireAssignmentTenant(routing?.raw, slug);
+        const targets = (routing?.queues.unassigned ?? []).slice(0, 25).map(readAssignmentTarget);
+        if (!targets.length) throw new Error("No hay casos verificables sin asignar para previsualizar.");
+        const response = await postEmployeeRoutingAutoAssignV2({ dry_run: true, tickets: targets, limit: targets.length }, slug);
+        if (!isCurrent()) return;
+        const confirmedPreview = readAssignmentPreview(response, slug, targets);
+        setAssignmentPreview(confirmedPreview);
+        setAssignResult(response as AnyRecord);
+      } else if (preview) {
+        const payload = { tickets: preview.targets, limit: preview.targets.length };
+        // Re-check the exact reviewed set. The apply request never takes targets
+        // from a newer routing list or silently expands to newly arrived cases.
+        const refreshed = await postEmployeeRoutingAutoAssignV2({ ...payload, dry_run: true }, slug);
+        if (!isCurrent()) return;
+        if (readAssignmentPreview(refreshed, slug, preview.targets).signature !== preview.signature) {
+          throw new Error("La lista o sus sugerencias cambiaron. Volvé a previsualizar antes de aplicar.");
+        }
+        const response = await postEmployeeRoutingAutoAssignV2({ ...payload, dry_run: false }, slug);
+        if (!isCurrent()) return;
+        requireConfirmedAutoAssignments(response, preview);
+        setAssignResult(response as AnyRecord);
+        await loadRouting(true);
+      }
     } catch (err) {
-      setAssignResult({ error: getErrorMessage(err, "No se pudo ejecutar la asignacion.") });
+      if (isCurrent()) setAssignResult({ error: getErrorMessage(err, "No se pudo ejecutar la asignacion.") });
     } finally {
+      assignmentInFlight.current = false;
       setAssignLoading(false);
     }
   };
@@ -212,7 +277,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
             Cobertura por categorias, zonas, channels, permisos y carga de trabajo.
           </CardDescription>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={loadRouting} disabled={loading}>
+        <Button type="button" variant="outline" size="sm" onClick={() => void loadRouting()} disabled={loading || assignLoading || savingScope}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Actualizar
         </Button>
@@ -335,7 +400,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                   onChange={(event) => setScopeForm((prev) => ({ ...prev, permisos: event.target.value }))}
                   placeholder="permisos separados por coma"
                 />
-                <Button type="submit" className="w-full" disabled={savingScope}>
+                <Button type="submit" className="w-full" disabled={savingScope || assignLoading}>
                   <Save className="mr-2 h-4 w-4" />
                   {savingScope ? "Guardando..." : "Guardar cobertura"}
                 </Button>
@@ -357,10 +422,10 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                 <p className="text-xs text-muted-foreground">Primero revisa el resultado sin aplicar cambios.</p>
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={assignLoading} onClick={() => handleAutoAssign(true)}>
+                <Button type="button" variant="outline" size="sm" disabled={assignLoading || loading || savingScope} onClick={() => handleAutoAssign(true)}>
                   Previsualizar
                 </Button>
-                <Button type="button" size="sm" disabled={assignLoading || !canApplyPreview} onClick={() => handleAutoAssign(false)}>
+                <Button type="button" size="sm" disabled={assignLoading || loading || savingScope || !canApplyPreview} onClick={() => handleAutoAssign(false)}>
                   Aplicar preview
                 </Button>
               </div>

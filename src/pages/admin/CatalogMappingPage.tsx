@@ -479,8 +479,9 @@ const CatalogMappingPage: React.FC = () => {
   return (
     <SectionErrorBoundary
       title="No pudimos cargar el mapeo de catálogo"
-      description="Reintentá la carga o volvé al inicio mientras recuperamos la administración del marketplace."
-      onRetry={() => window.location.reload()}
+      description="Volvé a intentar cargar esta vista sin recargar toda la aplicación."
+      resetKeys={[entityType, entityId, mappingId]}
+      fallbackAction={<a href="/perfil">Volver al panel</a>}
     >
       <div className="container mx-auto p-4 md:p-8">
         <Button variant="outline" size="sm" onClick={() => navigate('/perfil')} className="mb-4">

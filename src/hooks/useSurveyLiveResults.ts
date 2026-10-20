@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getPublicSurveyLiveResults } from '@/api/encuestas';
 import type { SurveyLivePublicResultsPayload } from '@/types/encuestas';
-import { getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const BASE_INTERVAL = 5000;
@@ -54,6 +54,50 @@ const parseCachedPayload = (key: string): SurveyLivePublicResultsPayload | undef
 };
 
 const getTrend = (payload?: SurveyLivePublicResultsPayload) => payload?.momentum?.trend;
+const isAccessWithdrawn = (error: unknown): error is ApiError =>
+  error instanceof ApiError && [401, 403, 404].includes(error.status);
+
+interface PublicResultsAccessState {
+  requestGeneration: number;
+  lastSuccessGeneration: number;
+  rejectionBarrier: number;
+  rejection: ApiError | null;
+  acceptedGenerations: Record<string, number>;
+  observedMarker: string | null;
+}
+
+interface WithdrawalMarker { value: string; status: number }
+const parseWithdrawalMarker = (value: string | null): WithdrawalMarker | null => {
+  if (value === null) return null;
+  // Retain compatibility with notices written by an older open tab.
+  if (['401', '403', '404'].includes(value)) return { value, status: Number(value) };
+  try {
+    const marker = JSON.parse(value);
+    if (marker?.v === 1 && [401, 403, 404].includes(marker.status) &&
+        typeof marker.id === 'string' && /^[a-zA-Z0-9-]{1,128}$/.test(marker.id)) {
+      return { value, status: marker.status };
+    }
+  } catch { /* Ignore unrelated or corrupt storage values. */ }
+  return null;
+};
+const createWithdrawalMarker = (status: number): WithdrawalMarker => {
+  const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return { status, value: JSON.stringify({ v: 1, status, id }) };
+};
+
+const initialAccessState = (storageKey: string): PublicResultsAccessState => {
+  const marker = parseWithdrawalMarker(safeLocalStorage.getItem(storageKey));
+  const withdrawn = Boolean(marker);
+  return {
+    // A persisted withdrawal also invalidates every older filter cache after
+    // recovery. Start beyond zero so each filter needs its own fresh success.
+    requestGeneration: withdrawn ? 1 : 0, lastSuccessGeneration: 0,
+    rejectionBarrier: withdrawn ? 1 : 0,
+    rejection: marker ? new ApiError('Resultados no disponibles', marker.status) : null,
+    acceptedGenerations: {},
+    observedMarker: marker?.value ?? null,
+  };
+};
 
 const toFiniteNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
@@ -150,9 +194,9 @@ export const resolveSurveyLiveStatus = ({
     };
   }
 
-  if (consecutiveErrors > 2 && hasData) {
+  if (hasError && hasData) {
     return {
-      status: 'reconnecting',
+      status: consecutiveErrors > 2 ? 'reconnecting' : 'stale',
       label: 'Reintentando',
       description: 'Se muestran datos previos mientras vuelve la conexion.',
     };
@@ -204,15 +248,58 @@ export const useSurveyLiveResults = (
 ) => {
   const normalizedSlug = slug?.trim() ?? '';
   const normalizedTenant = tenantSlug?.trim() ?? '';
+  const queryClient = useQueryClient();
+  const accessStorageKey = `survey-live-results-access:${JSON.stringify([normalizedTenant, normalizedSlug])}`;
+  const accessQueryKey = useMemo(
+    () => ['survey-public-live-results-access', normalizedSlug, normalizedTenant],
+    [normalizedSlug, normalizedTenant],
+  );
+  // Visibility belongs to the survey and organization, not the selected filter.
+  // Retain a rejection through remounts and across persistent cache hydration.
+  const accessQuery = useQuery({
+    queryKey: accessQueryKey,
+    enabled: false,
+    queryFn: () => initialAccessState(accessStorageKey),
+    initialData: () => initialAccessState(accessStorageKey),
+    gcTime: Infinity,
+  });
+  const observeWithdrawal = useCallback((marker: WithdrawalMarker) => {
+    queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+      const state = previous ?? initialAccessState(accessStorageKey);
+      if (state.observedMarker === marker.value) return state;
+      const barrier = Math.max(1, state.requestGeneration);
+      return {
+        ...state, observedMarker: marker.value,
+        requestGeneration: barrier, rejectionBarrier: barrier,
+        rejection: new ApiError('Resultados no disponibles', marker.status),
+      };
+    });
+  }, [queryClient, accessQueryKey, accessStorageKey]);
+  useEffect(() => {
+    const current = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+    if (current) observeWithdrawal(current);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== accessStorageKey || !event.newValue) return;
+      try { if (event.storageArea !== window.localStorage) return; } catch { return; }
+      // A delayed notice that has already been superseded cannot retire newer
+      // results. Removing a notice never verifies access in this tab.
+      if (safeLocalStorage.getItem(accessStorageKey) !== event.newValue) return;
+      const marker = parseWithdrawalMarker(event.newValue);
+      if (marker) observeWithdrawal(marker);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [accessStorageKey, observeWithdrawal]);
   const serializedParams = useMemo(() => JSON.stringify(params ?? {}), [params]);
   const cacheKey = useMemo(
-    () => `survey-live-results:${normalizedTenant || 'default'}:${normalizedSlug}:${serializedParams}`,
+    () => `survey-live-results:${JSON.stringify([normalizedTenant, normalizedSlug, serializedParams])}`,
     [normalizedSlug, normalizedTenant, serializedParams],
   );
   const [isDocumentHidden, setIsDocumentHidden] = useState<boolean>(() =>
     typeof document === 'undefined' ? false : document.hidden,
   );
-  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+  const [errorState, setErrorState] = useState({ scope: cacheKey, count: 0 });
+  const consecutiveErrors = errorState.scope === cacheKey ? errorState.count : 0;
 
   useEffect(() => {
     const onVisibilityChange = () => setIsDocumentHidden(document.hidden);
@@ -224,55 +311,110 @@ export const useSurveyLiveResults = (
     queryKey: ['survey-public-live-results', normalizedSlug, normalizedTenant, serializedParams],
     enabled: Boolean(normalizedSlug),
     queryFn: async () => {
-      const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined, params);
-      safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
-      return data;
+      const requestMarker = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+      if (requestMarker) observeWithdrawal(requestMarker);
+      let generation = 0;
+      queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+        const state = previous ?? initialAccessState(accessStorageKey);
+        generation = state.requestGeneration + 1;
+        return { ...state, requestGeneration: generation };
+      });
+      try {
+        const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined, params);
+        // Another tab can write its denial before the browser delivers the
+        // storage event. Check at settlement as well as in the event listener.
+        const currentMarker = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+        if (currentMarker && currentMarker.value !== requestMarker?.value) observeWithdrawal(currentMarker);
+        let accepted = false;
+        queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+          const state = previous ?? initialAccessState(accessStorageKey);
+          if (generation < (state.acceptedGenerations[serializedParams] ?? 0) || generation <= state.rejectionBarrier) return state;
+          accepted = true;
+          return {
+            ...state, lastSuccessGeneration: Math.max(state.lastSuccessGeneration, generation), rejection: null,
+            acceptedGenerations: { ...state.acceptedGenerations, [serializedParams]: generation },
+          };
+        });
+        if (accepted) {
+          const latestMarker = parseWithdrawalMarker(safeLocalStorage.getItem(accessStorageKey));
+          if (latestMarker && latestMarker.value !== requestMarker?.value) observeWithdrawal(latestMarker);
+          else safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+          // Keep the last opaque notice. Clearing shared storage here could
+          // erase a simultaneous denial or revive another tab's older cache.
+        }
+        return data;
+      } catch (error) {
+        if (isAccessWithdrawn(error)) {
+          queryClient.setQueryData<PublicResultsAccessState>(accessQueryKey, (previous) => {
+            const state = previous ?? initialAccessState(accessStorageKey);
+            if (generation < state.lastSuccessGeneration) return state;
+            const marker = createWithdrawalMarker(error.status);
+            safeLocalStorage.setItem(accessStorageKey, marker.value);
+            safeLocalStorage.removeItem(cacheKey);
+            return { ...state, rejection: error, rejectionBarrier: state.requestGeneration, observedMarker: marker.value };
+          });
+        }
+        throw error;
+      }
     },
-    initialData: () => parseCachedPayload(cacheKey),
+    initialData: () => accessQuery.data.rejection ? undefined : parseCachedPayload(cacheKey),
     retry: false,
     refetchInterval: (context) => {
+      if (queryClient.getQueryData<PublicResultsAccessState>(accessQueryKey)?.rejection) return false;
       return getSurveyLivePollingInterval(
         context.state.data as SurveyLivePublicResultsPayload | undefined,
         isDocumentHidden,
         consecutiveErrors,
       );
     },
-    refetchOnWindowFocus: true,
+    retryOnMount: false,
+    refetchOnWindowFocus: () => !queryClient.getQueryData<PublicResultsAccessState>(accessQueryKey)?.rejection,
+    refetchOnReconnect: () => !queryClient.getQueryData<PublicResultsAccessState>(accessQueryKey)?.rejection,
   });
+  const accessError = accessQuery.data.rejection;
+  const accessWithdrawn = Boolean(accessError);
+  // A recovery in another filter cannot publish this filter's older response.
+  const filterVerified = accessQuery.data.rejectionBarrier === 0 ||
+    (accessQuery.data.acceptedGenerations[serializedParams] ?? 0) > accessQuery.data.rejectionBarrier;
+  const visibleResults = accessWithdrawn || !filterVerified ? undefined : query.data;
 
   useEffect(() => {
-    if (query.isError) {
-      setConsecutiveErrors((prev) => prev + 1);
-      return;
-    }
+    if (accessWithdrawn) safeLocalStorage.removeItem(cacheKey);
+  }, [accessWithdrawn, cacheKey]);
 
-    if (query.data) {
-      setConsecutiveErrors(0);
-    }
-  }, [query.isError, query.dataUpdatedAt]);
+  useEffect(() => {
+    setErrorState((previous) => ({
+      scope: cacheKey,
+      count: query.isError ? (previous.scope === cacheKey ? previous.count : 0) + 1 : 0,
+    }));
+  }, [cacheKey, query.isError, query.errorUpdatedAt, query.dataUpdatedAt]);
 
   const pollingIntervalMs = useMemo(
-    () => getSurveyLivePollingInterval(query.data, isDocumentHidden, consecutiveErrors),
-    [consecutiveErrors, isDocumentHidden, query.data],
+    () => accessWithdrawn ? null : getSurveyLivePollingInterval(visibleResults, isDocumentHidden, consecutiveErrors),
+    [accessWithdrawn, consecutiveErrors, isDocumentHidden, visibleResults],
   );
 
   const liveStatus = useMemo(
-    () =>
-      resolveSurveyLiveStatus({
+    () => accessWithdrawn ? {
+      status: 'error' as const,
+      label: 'Resultados no disponibles',
+      description: 'La organización no tiene habilitados los resultados públicos de esta encuesta.',
+    } : resolveSurveyLiveStatus({
         enabled: Boolean(normalizedSlug),
         isLoading: query.isLoading,
         isFetching: query.isFetching,
-        hasData: Boolean(query.data),
-        hasActivity: hasSurveyLiveActivity(query.data),
+        hasData: Boolean(visibleResults),
+        hasActivity: hasSurveyLiveActivity(visibleResults),
         hasError: query.isError,
         consecutiveErrors,
         isDocumentHidden,
       }),
     [
       consecutiveErrors,
+      accessWithdrawn,
       isDocumentHidden,
       normalizedSlug,
-      query.data,
+      visibleResults,
       query.isError,
       query.isFetching,
       query.isLoading,
@@ -280,10 +422,11 @@ export const useSurveyLiveResults = (
   );
 
   return {
-    liveResults: query.data,
+    liveResults: visibleResults,
+    accessWithdrawn,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
-    error: query.error ? getErrorMessage(query.error) : null,
+    error: accessError ? getErrorMessage(accessError) : query.error ? getErrorMessage(query.error) : null,
     consecutiveErrors,
     liveStatus,
     pollingIntervalMs,

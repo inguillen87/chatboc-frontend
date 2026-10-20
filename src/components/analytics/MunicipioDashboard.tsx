@@ -9,14 +9,17 @@ interface Props {
   data: AnalyticsSummary;
 }
 
+const formatOptionalCount = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 'No disponible';
+
 const MunicipioDashboard: React.FC<Props> = ({ data }) => {
   const kpis = data?.kpis ?? {
     total_interactions: 0,
     active_users: 0,
     avg_response_time_s: 0,
-    conversion_rate: 0,
-    backlog_open: 0,
-    sla_breaches: 0,
+    conversion_rate: undefined,
+    backlog_open: undefined,
+    sla_breaches: undefined,
   };
   const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
 
@@ -30,7 +33,7 @@ const MunicipioDashboard: React.FC<Props> = ({ data }) => {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{kpis.backlog_open || 0}</div>
+            <div className="text-2xl font-bold">{formatOptionalCount(kpis.backlog_open)}</div>
             <p className="text-xs text-muted-foreground mt-1">Pendientes de resolución</p>
           </CardContent>
         </Card>
@@ -41,7 +44,7 @@ const MunicipioDashboard: React.FC<Props> = ({ data }) => {
             <AlertCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{kpis.sla_breaches || 0}</div>
+            <div className="text-2xl font-bold text-red-600">{formatOptionalCount(kpis.sla_breaches)}</div>
             <p className="text-xs text-muted-foreground mt-1">Tickets fuera de tiempo</p>
           </CardContent>
         </Card>

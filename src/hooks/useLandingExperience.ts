@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   getLandingExperience,
@@ -14,6 +14,8 @@ export function useLandingExperience(options: UseLandingExperienceOptions = {}) 
   const { enabled = true, tenant, tenantSlug, slug, widgetToken } = options;
   const [experience, setExperience] = useState<LandingExperience | null>(null);
   const [loading, setLoading] = useState(Boolean(enabled));
+  const [refresh, setRefresh] = useState(0);
+  const reload = useCallback(() => setRefresh((value) => value + 1), []);
 
   useEffect(() => {
     let alive = true;
@@ -26,7 +28,7 @@ export function useLandingExperience(options: UseLandingExperienceOptions = {}) 
     }
 
     setLoading(true);
-    getLandingExperience({ tenant, tenantSlug, slug, widgetToken })
+    getLandingExperience({ tenant, tenantSlug, slug, widgetToken }, { isCurrent: () => alive })
       .then((payload) => {
         if (alive) setExperience(payload);
       })
@@ -40,8 +42,8 @@ export function useLandingExperience(options: UseLandingExperienceOptions = {}) 
     return () => {
       alive = false;
     };
-  }, [enabled, tenant, tenantSlug, slug, widgetToken]);
+  }, [enabled, tenant, tenantSlug, slug, widgetToken, refresh]);
 
-  return { experience, loading };
+  return { experience, loading, reload };
 }
 

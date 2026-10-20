@@ -137,4 +137,110 @@ describe('normalizeDemoRubroTools', () => {
     });
     expect(tools[0].fields).toContainEqual({ label: 'address', value: 'Av. San Martin 100' });
   });
+
+  it('deduplicates tools mirrored in enabled_tools and tools while preserving backend order', () => {
+    const primaryCatalog = {
+      id: 'catalog',
+      kind: 'rubro_tool',
+      label: 'Catalogo',
+      enabled: true,
+      description: 'Recursos publicados para tramites.',
+      action_label: 'Abrir catalogo',
+      items: [{ url: '/api/v2/demo/catalogo.pdf' }],
+      fields: [{ label: 'Recursos', value: 4 }],
+    };
+    const location = {
+      id: 'location',
+      kind: 'rubro_tool',
+      label: 'Ubicacion',
+      enabled: true,
+      action_label: 'Consultar ubicacion',
+      items: [{ maps_url: 'https://www.google.com/maps?q=junin' }],
+      fields: [{ label: 'Ubicaciones', value: 1 }],
+    };
+    const workspace = {
+      rubro_tools: {
+        enabled_tools: [primaryCatalog, location],
+        tools: [
+          { ...primaryCatalog, description: 'Copia del contrato completo.' },
+          { ...location },
+        ],
+      },
+    } as DemoWorkspaceConfig;
+
+    const tools = normalizeDemoRubroTools(workspace);
+
+    expect(tools.map((tool) => tool.id)).toEqual(['catalog', 'location']);
+    expect(tools[0].description).toBe('Recursos publicados para tramites.');
+  });
+
+  it('deduplicates equivalent tools across workspace sources without relying on ids', () => {
+    const workspace = {
+      business_tools: [
+        {
+          id: 'primary-location',
+          kind: 'location',
+          label: 'Ubicacion municipal',
+          enabled: true,
+          action_label: 'Abrir mapa',
+          url: 'https://www.google.com/maps?q=junin',
+          fields: [
+            { label: 'Dirección', value: 'Av. San Martin 100' },
+            { label: 'Sedes', value: 1 },
+          ],
+        },
+      ],
+      experience_blueprint: {
+        operational_tools: [
+          {
+            id: 'mirrored-location',
+            kind: 'location',
+            label: '  UBICACION   MUNICIPAL ',
+            enabled: true,
+            action_label: 'Ver ubicacion',
+            url: 'https://www.google.com/maps?q=junin',
+            fields: [
+              { label: 'sedes', value: 1 },
+              { label: 'direccion', value: 'Av. San Martin 100' },
+            ],
+          },
+        ],
+      },
+    } as DemoWorkspaceConfig;
+
+    const tools = normalizeDemoRubroTools(workspace);
+
+    expect(tools).toHaveLength(1);
+    expect(tools[0]).toMatchObject({
+      id: 'primary-location',
+      label: 'Ubicacion municipal',
+      actionLabel: 'Abrir mapa',
+    });
+  });
+
+  it('keeps tools with the same label when their operational targets differ', () => {
+    const workspace = {
+      operational_tools: [
+        {
+          id: 'north-office',
+          kind: 'location',
+          label: 'Sede municipal',
+          enabled: true,
+          url: 'https://www.google.com/maps?q=sede-norte',
+        },
+        {
+          id: 'south-office',
+          kind: 'location',
+          label: 'Sede municipal',
+          enabled: true,
+          url: 'https://www.google.com/maps?q=sede-sur',
+        },
+      ],
+    } as DemoWorkspaceConfig;
+
+    const tools = normalizeDemoRubroTools(workspace);
+
+    expect(tools).toHaveLength(2);
+    expect(tools.map((tool) => tool.id)).toEqual(['north-office', 'south-office']);
+  });
 });

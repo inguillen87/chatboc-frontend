@@ -107,6 +107,7 @@ const TicketsPanelPage = ({
   identityCoverageDelayMs,
 }: TicketsPanelPageProps) => {
   const { user } = useUser();
+  const { currentSlug } = useTenant();
   const { capabilities, hasAnyCapability } = useCapabilities();
 
   const hasDeclaredCapabilities = capabilities.length > 0;
@@ -163,9 +164,10 @@ const TicketsPanelPage = ({
               data-testid="tickets-panel-viewport"
             >
               <SectionErrorBoundary
-                title="Ocurrio un problema al cargar reclamos"
-                description="Recarga la pagina o vuelve a la seccion principal del panel."
-                onRetry={() => window.location.reload()}
+                title="Ocurrió un problema al cargar reclamos"
+                description="Volvé a cargar la mesa de reclamos sin recargar el resto del panel."
+                resetKeys={[tenantSlugOverride ?? currentSlug, user?.id]}
+                fallbackAction={<a href="/perfil">Volver al panel</a>}
               >
                 <TicketProvider tenantSlugOverride={tenantSlugOverride}>
                   <NewTicketsPanel embedded={embedded} />

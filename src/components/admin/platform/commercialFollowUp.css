@@ -1,0 +1,41 @@
+.commercial-workspace { width: calc(100vw - 2rem) !important; max-width: 1160px !important; max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1.5rem; }
+.commercial-layout { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(0, 1.3fr); gap: 1.5rem; align-items: start; }
+.commercial-list, .commercial-editor, .commercial-start { min-width: 0; }
+.commercial-list label, .commercial-form label { display: grid; gap: .4rem; margin-block: .8rem; font-size: .875rem; font-weight: 500; }
+.commercial-workspace :where(input, select, textarea) { width: 100%; min-width: 0; min-height: 44px; padding: .65rem .75rem; border: 1px solid hsl(var(--border)); border-radius: .6rem; background: hsl(var(--background)); color: hsl(var(--foreground)); }
+.commercial-workspace textarea { resize: vertical; }
+.commercial-workspace button { min-height: 44px; }
+.commercial-workspace :where(input, select, textarea, button):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.commercial-toolbar, .commercial-history-heading { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; align-items: center; }
+.commercial-case-list { list-style: none; margin: .75rem 0 0; padding: 0; display: grid; gap: .6rem; }
+.commercial-case-list button { width: 100%; border: 1px solid hsl(var(--border)); border-radius: .75rem; padding: .85rem; text-align: left; display: grid; gap: .35rem; overflow-wrap: anywhere; transition: background-color .15s ease, border-color .15s ease; }
+.commercial-case-list button:hover, .commercial-case-list button.is-selected { background: hsl(var(--accent)); border-color: hsl(var(--ring)); }
+.commercial-case-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; font-weight: 600; }
+.commercial-stage { display: inline-block; font-size: .75rem; line-height: 1.4; padding: .25rem .6rem; border: 1px solid hsl(var(--border)); border-radius: 999px; background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.commercial-editor { border-left: 1px solid hsl(var(--border)); padding-left: 1.5rem; overflow-wrap: anywhere; }
+.commercial-editor-heading { display: grid; gap: .5rem; }
+.commercial-editor-heading button { justify-self: start; }
+.commercial-editor h3, .commercial-start h3 { font-size: 1.1rem; font-weight: 650; }
+.commercial-editor h4 { font-size: .95rem; font-weight: 650; }
+.commercial-editor-heading p, .commercial-case-list span { font-size: .85rem; }
+.commercial-form, .commercial-history { margin-top: 1.15rem; padding-top: 1rem; border-top: 1px solid hsl(var(--border)); }
+.commercial-hint { font-size: .78rem; line-height: 1.5; color: hsl(var(--muted-foreground)); margin-block: .5rem; }
+.commercial-warning { padding: .85rem; margin-block: .75rem; border: 1px solid hsl(var(--destructive)); border-radius: .6rem; font-size: .85rem; }
+.commercial-event-note { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflow-y: auto; }
+.commercial-history ol { list-style: none; display: grid; gap: .75rem; padding: 0; margin-top: .75rem; }
+.commercial-history li { border-left: 2px solid hsl(var(--border)); padding: .5rem .75rem; font-size: .85rem; }
+.commercial-history li > p { margin-top: .25rem; }
+.commercial-start { align-self: center; padding: 1.5rem; border: 1px dashed hsl(var(--border)); border-radius: 1rem; line-height: 1.6; }
+.commercial-directory-action { margin-top: .35rem; }
+@media (max-width: 700px) {
+  .commercial-workspace { width: calc(100vw - 1rem) !important; max-height: calc(100dvh - 1rem); padding: 1rem; }
+  .commercial-layout { grid-template-columns: minmax(0, 1fr); }
+  .commercial-layout.has-selection .commercial-list, .commercial-start { display: none; }
+  .commercial-editor { border-left: 0; padding-left: 0; }
+  .commercial-toolbar > button { flex: 1 1 120px; white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) { .commercial-case-list button { transition: none; } }
+[data-reduce-motion="true"] .commercial-case-list button { transition: none; }
+
+.commercial-confirm { max-height: 85dvh; max-width: min(34rem, calc(100vw - 2rem)); overflow-y: auto; overflow-wrap: anywhere; }
+.commercial-confirm button, button.commercial-directory-action { min-height: 44px; }

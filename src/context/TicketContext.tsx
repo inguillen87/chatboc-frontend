@@ -19,6 +19,11 @@ import { safeLocalStorage, safeSessionStorage } from '@/utils/safeLocalStorage';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import { getNextOperationalTicket } from '@/utils/ticketOperationalQueue';
 import { hasRequiredRole } from '@/utils/roles';
+import {
+  isTicketSlaOverdue,
+  normalizeTicketSla,
+  resolveTicketSlaSource,
+} from '@/utils/ticketSla';
 
 
 interface TicketInboxFilters {
@@ -57,7 +62,7 @@ export type TicketTargetResolutionStatus =
   | 'error';
 
 export interface TicketTargetResolution {
-  ticketId: number | null;
+  ticketId: string | null;
   sourceModel: TicketInboxSourceModel | null;
   status: TicketTargetResolutionStatus;
   ticket: Ticket | null;
@@ -421,11 +426,15 @@ interface TicketContextType {
   selectTicket: (ticketId: number | null) => void;
   ticketTargetResolution: TicketTargetResolution;
   resolveTicketTarget: (
-    ticketId: number,
+    ticketId: string | number,
     sourceModel?: TicketInboxSourceModel | null,
   ) => Promise<Ticket | null>;
   clearTicketTarget: () => void;
-  updateTicket: (ticketId: number, updates: Partial<Ticket>) => void;
+  updateTicket: (
+    ticketId: number,
+    updates: Partial<Ticket>,
+    sourceModel?: string | null,
+  ) => void;
   loading: boolean;
   error: string | null;
   errorDetails: TicketInboxErrorDetails | null;
@@ -585,7 +594,11 @@ const resolveAgentFilterId = (ticket: Ticket): string => {
   return candidate === null || candidate === undefined ? '' : String(candidate);
 };
 
-const resolveSlaFilterValue = (ticket: Ticket): string => normalizeFilterValue(ticket.sla_status || 'sin_sla');
+const resolveSlaFilterValue = (ticket: Ticket): string => {
+  const slaSource = resolveTicketSlaSource(ticket);
+  if (slaSource) return normalizeTicketSla(slaSource).state;
+  return normalizeFilterValue(ticket.sla_status || 'sin_sla');
+};
 const hasUnreadState = (ticket: Ticket): boolean =>
   Boolean(
     ticket.hasUnreadMessages ||
@@ -668,11 +681,22 @@ const normalizeAssignedAgent = (ticket: any): User | undefined => {
   return undefined;
 };
 
-const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
+const readTicketCategory = (ticket: Partial<Ticket>): string | undefined => {
+  const candidate =
+    ticket.categoria ||
+    ticket.categoria_reclamo ||
+    ticket.categoria_principal ||
+    ticket.categoria_simple ||
+    ticket.categoria_secundaria;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : undefined;
+};
+
+export const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
   const assignedAgent = normalizeAssignedAgent(ticket);
+  const category = readTicketCategory(ticket);
   return {
     ...ticket,
-    categoria: mapToKnownCategory(ticket.categoria, ticket.categories),
+    categoria: category ? mapToKnownCategory(category, ticket.categories) : undefined,
     assignedAgent,
     assignedAgentId:
       ticket.assignedAgentId ||
@@ -682,22 +706,40 @@ const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
   } as Ticket;
 };
 
-const normalizeTicketTargetId = (value: unknown): number | null => {
+export const mergeTicketInboxRecord = (current: Ticket, updates: Partial<Ticket>): Ticket => {
+  const publishedCategory = readTicketCategory(updates);
+  const merged = { ...current, ...updates } as Ticket;
+  return {
+    ...merged,
+    categoria: publishedCategory
+      ? mapToKnownCategory(publishedCategory, updates.categories ?? current.categories)
+      : current.categoria,
+  };
+};
+
+const normalizeTicketTargetId = (
+  value: unknown,
+  preserveOpaqueValue = false,
+): string | null => {
   if (value === undefined || value === null) return null;
-  const normalized = String(value).trim().replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, '');
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) return null;
+  const raw = String(value);
+  if (!raw || raw !== raw.trim()) return null;
+  const normalized = preserveOpaqueValue
+    ? raw
+    : raw.replace(/^#/, '').replace(/^M-/i, '').replace(/^P-/i, '');
   if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
+  return preserveOpaqueValue || /^\d+$/.test(normalized) ? normalized : null;
 };
 
 const ticketMatchesTarget = (
   ticket: Ticket | null | undefined,
-  ticketId: number,
+  ticketId: string,
   sourceModel: TicketInboxSourceModel | null = null,
 ): boolean => {
   if (!ticket) return false;
   const idMatches = [ticket.id, (ticket as any).ticket_id]
-    .map(normalizeTicketTargetId)
+    .map((candidate) => normalizeTicketTargetId(candidate, sourceModel !== null))
     .some((candidateId) => candidateId === ticketId);
   if (!idMatches || !sourceModel) return idMatches;
   const ticketSourceModel = ticket.source_model ?? (ticket as any).sourceModel;
@@ -714,6 +756,8 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   tenantSlugOverride,
 }) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const ticketsRef = React.useRef<Ticket[]>([]);
+  const ticketsTenantScopeRef = React.useRef<string | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMoreTickets, setLoadingMoreTickets] = useState(false);
@@ -729,7 +773,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const ticketTargetResolutionRef = React.useRef<TicketTargetResolution>(IDLE_TICKET_TARGET_RESOLUTION);
   const ticketTargetRequestSequenceRef = React.useRef(0);
   const ticketTargetInflightRef = React.useRef<{
-    ticketId: number;
+    ticketId: string;
     sourceModel: TicketInboxSourceModel | null;
     promise: Promise<Ticket | null>;
   } | null>(null);
@@ -738,6 +782,10 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     lastLabel: null,
     lastAt: null,
   });
+
+  useEffect(() => {
+    ticketsRef.current = tickets;
+  }, [tickets]);
   const { user } = useUser();
   const { currentSlug } = useTenant();
   const userTenantSlug = React.useMemo(
@@ -925,15 +973,15 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   }, [updateTicketTargetResolution]);
 
   const resolveTicketTarget = useCallback((
-    ticketId: number,
+    ticketId: string | number,
     sourceModel?: TicketInboxSourceModel | null,
   ): Promise<Ticket | null> => {
-    const normalizedTicketId = normalizeTicketTargetId(ticketId);
     const normalizedSourceModel = sourceModel == null
       ? null
       : isTicketInboxSourceModel(sourceModel)
         ? sourceModel
         : null;
+    const normalizedTicketId = normalizeTicketTargetId(ticketId, normalizedSourceModel !== null);
     if (normalizedTicketId === null || (sourceModel != null && normalizedSourceModel === null)) {
       updateTicketTargetResolution({
         ticketId: null,
@@ -1074,13 +1122,14 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     return promise;
   }, [activeTenantSlug, filterTicketsForUser, tickets, updateTicketTargetResolution]);
 
-  const fetchTickets = useCallback(async (options: { force?: boolean } = {}) => {
+  const fetchTickets = useCallback(async (options: { force?: boolean; silent?: boolean } = {}) => {
     const tenantSlug = activeTenantSlug;
     const viewerKey = resolveTicketInboxViewerKey(userAccessProfile);
     const useCache = !serverTicketFiltersActive;
     const forceLive = options.force === true;
 
     if (!tenantSlug) {
+      ticketsTenantScopeRef.current = null;
       setError(null);
       setErrorDetails(null);
       setTickets([]);
@@ -1102,6 +1151,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       );
       if (cachedTickets.length > 0) {
         cacheWasApplied = true;
+        ticketsTenantScopeRef.current = tenantSlug;
         setTickets((current) => (current.length > 0 ? current : cachedTickets));
         setPagination((current) => current || cachedInbox.pagination || null);
         setSelectedTicket((current) => {
@@ -1115,7 +1165,16 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       }
     }
 
-    setLoading(true);
+    // Only the first hydration owns the blocking loading state. Revalidations
+    // keep the inbox, conversation and composer mounted while fresh data is in
+    // flight so an operator never loses visual context or an in-progress reply.
+    const shouldBlockWorkspace =
+      options.silent !== true &&
+      !cacheWasApplied &&
+      (ticketsTenantScopeRef.current !== tenantSlug || ticketsRef.current.length === 0);
+    if (shouldBlockWorkspace) {
+      setLoading(true);
+    }
     setError(null);
     setErrorDetails(null);
 
@@ -1137,6 +1196,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         const nextTickets = resolvedTarget && filterTicketsForUser([resolvedTarget]).length > 0
           ? mergeTicketPages(filteredTickets, [resolvedTarget])
           : filteredTickets;
+        ticketsTenantScopeRef.current = tenantSlug;
         setServerFacets((apiResponse as any)?.facets || null);
         setTickets(nextTickets);
         setPagination(nextPagination);
@@ -1175,6 +1235,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         if (!cacheWasApplied) {
+          ticketsTenantScopeRef.current = tenantSlug;
           setTickets([]);
           setPagination(null);
           setServerFacets(null);
@@ -1194,6 +1255,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       setError(nextError);
       setErrorDetails(nextErrorDetails);
       setTickets([]);
+      ticketsTenantScopeRef.current = tenantSlug;
       setPagination(null);
       setServerFacets(null);
     } finally {
@@ -1297,16 +1359,26 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     setSelectedTicket(ticket || null);
   }, [tickets]);
 
-  const updateTicket = useCallback((ticketId: number, updates: Partial<Ticket>) => {
+  const updateTicket = useCallback((
+    ticketId: number,
+    updates: Partial<Ticket>,
+    sourceModel?: string | null,
+  ) => {
+    const normalizedSourceModel = String(sourceModel ?? '').trim().toLowerCase();
+    const matchesIdentity = (ticket: Ticket) => {
+      if (ticket.id !== ticketId) return false;
+      if (!normalizedSourceModel) return true;
+      return String(ticket.source_model ?? '').trim().toLowerCase() === normalizedSourceModel;
+    };
     setTickets(prevTickets =>
       prevTickets.map(ticket =>
-        ticket.id === ticketId ? { ...ticket, ...updates } : ticket
+        matchesIdentity(ticket) ? mergeTicketInboxRecord(ticket, updates) : ticket
       )
     );
-    if (selectedTicket && selectedTicket.id === ticketId) {
-      setSelectedTicket(prev => prev ? { ...prev, ...updates } : null);
-    }
-  }, [selectedTicket]);
+    setSelectedTicket(prev =>
+      prev && matchesIdentity(prev) ? mergeTicketInboxRecord(prev, updates) : prev,
+    );
+  }, []);
 
   const upsertTicket = useCallback((rawTicket: Ticket): boolean => {
     const normalizedTicket = normalizeTicketForInbox(rawTicket);
@@ -1320,19 +1392,13 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         return [nextTicket, ...prevTickets];
       }
       const nextTickets = [...prevTickets];
-      nextTickets[existingIndex] = {
-        ...nextTickets[existingIndex],
-        ...nextTicket,
-      };
+      nextTickets[existingIndex] = mergeTicketInboxRecord(nextTickets[existingIndex], nextTicket);
       return nextTickets;
     });
 
     setSelectedTicket((prev) => {
       if (!prev || prev.id !== normalizedTicket.id) return prev;
-      return {
-        ...prev,
-        ...normalizedTicket,
-      };
+      return mergeTicketInboxRecord(prev, normalizedTicket);
     });
 
     return true;
@@ -1340,7 +1406,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
 
   useTicketUpdates({
     onCollectionInvalidated: () => {
-      fetchTickets();
+      void fetchTickets({ force: true, silent: true });
     },
     onNewTicket: (data) => {
       // Optimistic addition if we have enough data, otherwise fetch
@@ -1358,7 +1424,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
             return;
         }
       }
-      fetchTickets();
+      void fetchTickets({ force: true, silent: true });
     },
     onNewComment: (data) => {
       // Si la data incluye cambios de estado u otros campos del ticket, actualizarlos
@@ -1481,14 +1547,7 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       if (filters.sla !== 'all') {
         const slaValue = resolveSlaFilterValue(ticket);
         if (filters.sla === 'risk') {
-          const priority = normalizeFilterValue(ticket.priority);
-          const isRisk =
-            slaValue.includes('breach') ||
-            slaValue.includes('venc') ||
-            slaValue.includes('overdue') ||
-            priority.includes('alta') ||
-            priority.includes('urgent') ||
-            priority.includes('urgente');
+          const isRisk = isTicketSlaOverdue(resolveTicketSlaSource(ticket));
           if (!isRisk) return false;
         } else if (slaValue !== filters.sla) {
           return false;

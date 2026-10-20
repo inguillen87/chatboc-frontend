@@ -13,6 +13,18 @@ const LocationProbe = () => {
 };
 
 describe('legacy route redirects', () => {
+  it('opens the contact destination for the legacy sales intent instead of starting a demo', async () => {
+    const demoRoute = routes.find((route) => route.path === '/demo');
+    render(
+      <MemoryRouter initialEntries={['/demo?intent=ventas']}>
+        <Routes>
+          <Route path="/demo" element={demoRoute!.element} />
+          <Route path="/contacto" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('/contacto')).toBeInTheDocument();
+  });
   it('preserves search and hash when redirecting Twilio ticket links', async () => {
     const redirectRoute = routes.find((route) => route.path === '/t/chat/:ticketId');
 

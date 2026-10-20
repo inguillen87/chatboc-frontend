@@ -1,3 +1,4 @@
+import { TicketInboxPage } from "@/components/tickets/inbox/TicketInboxPage";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -455,7 +456,8 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
             <TransactionsModulePanel experience={whatsappExperience ?? bundle.whatsapp} />
           ) : null}
 
-          <Card className="border-border/60">
+          {activeModule === "inbox" ? <TicketInboxPage expectedTenantSlug={effectiveSlug} /> : null}
+          {activeModule !== "inbox" && <Card className="border-border/60">
             <CardHeader>
               <CardTitle className="text-base">
                 {String(modules.find((item) => item.id === activeModule)?.label || "Resumen operativo")}
@@ -534,9 +536,9 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
               </div>
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
-          {leadItems.length ? (
+          {activeModule !== "inbox" && leadItems.length ? (
             <Card className="border-border/60">
               <CardHeader className="gap-2 lg:flex-row lg:items-start lg:justify-between">
                 <div>

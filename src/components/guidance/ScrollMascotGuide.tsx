@@ -38,7 +38,6 @@ const HERO_SECTION_SELECTOR = "[data-chatboc-hero]";
 
 const PUBLIC_GUIDE_EXACT_PATHS = new Set([
   "/",
-  "/demo",
   "/educacion",
   "/chatpos",
   "/chatcrm",
@@ -48,7 +47,7 @@ const PUBLIC_GUIDE_EXACT_PATHS = new Set([
   "/encuestas",
 ]);
 
-const PUBLIC_GUIDE_PREFIXES = ["/demo/", "/encuestas/"];
+const PUBLIC_GUIDE_PREFIXES = ["/encuestas/"];
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -59,7 +58,7 @@ function truncateText(value: string, maxLength = 136) {
   return `${value.slice(0, maxLength - 3).trim()}...`;
 }
 
-function shouldShowGuideForPath(pathname: string) {
+export function shouldShowGuideForPath(pathname: string) {
   const normalizedPath = pathname.toLowerCase();
   if (PUBLIC_GUIDE_EXACT_PATHS.has(normalizedPath)) return true;
   return PUBLIC_GUIDE_PREFIXES.some((prefix) => normalizedPath.startsWith(prefix));

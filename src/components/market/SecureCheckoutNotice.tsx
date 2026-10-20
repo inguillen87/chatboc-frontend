@@ -55,9 +55,9 @@ export default function SecureCheckoutNotice({
       : 'Checkout seguro disponible cuando el plan y el proveedor de pago esten configurados.');
 
   const toneClass = blockedReason
-    ? 'border-amber-200 bg-amber-50 text-amber-900'
+    ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100'
     : isReady
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100'
       : 'border-border bg-muted/30 text-foreground';
 
   return (

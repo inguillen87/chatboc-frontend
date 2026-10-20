@@ -1,3 +1,4 @@
+import { assertInboxTenantEnvelope } from '@/components/tickets/inbox/inboxWorkspaceModel';
 import { panelApi } from '@/api/v2/client';
 import {
   parseWhatsappWorkflowStudioContract,
@@ -8,6 +9,8 @@ import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
+import type { TicketCategoryAuthority, TicketSlaContract } from '@/types/tickets';
+import { normalizeTicketSla } from '@/utils/ticketSla';
 
 type UnknownRecord = Record<string, unknown>;
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
@@ -25,8 +28,20 @@ export interface SaasAction {
   payload?: unknown;
   payload_defaults?: UnknownRecord;
   payloadDefaults?: UnknownRecord;
+  delivery_mode?: string;
+  delivery_modes?: string[];
+  external_dispatch?: boolean;
+  direct_external_dispatch?: boolean;
+  may_queue_external_delivery?: boolean;
+  action_response_delivery_authoritative?: boolean;
+  final_delivery_authority?: string;
+  delivery_contract_version?: string;
+  input_schema?: UnknownRecord;
+  idempotency?: UnknownRecord;
+  enabled?: boolean;
   disabled?: boolean;
   disabled_reason?: string;
+  reason_code?: string;
   destructive?: boolean;
   raw?: unknown;
 }
@@ -90,6 +105,8 @@ export interface TenantHealthCheck {
 export interface TenantHealthV2 {
   contract_version?: string;
   request_id?: string;
+  tenant?: UnknownRecord | null;
+  last_checked_at?: string;
   score?: number;
   health_score?: number;
   status?: string;
@@ -212,6 +229,8 @@ export interface OmnichannelInboxItem {
   id: string;
   legacy_id?: string;
   ticket_id?: string;
+  tenant_id?: string | number;
+  tenant_slug?: string;
   nro_ticket?: string;
   source_model?: string;
   legacy_kind?: string;
@@ -223,6 +242,9 @@ export interface OmnichannelInboxItem {
   priority?: string;
   channel?: string;
   category?: string;
+  authoritative_category?: string | null;
+  authoritativeCategory?: string | null;
+  category_authority?: TicketCategoryAuthority | null;
   intent?: string;
   sensitivity?: string;
   lastMessageAt: string;
@@ -235,7 +257,7 @@ export interface OmnichannelInboxItem {
   foto_url_directa?: string;
   archivos_count?: number;
   attachments: UnknownRecord[];
-  sla?: UnknownRecord;
+  sla?: TicketSlaContract;
   school_case?: EducationCaseAlias | null;
   presence: OmnichannelPresenceUser[];
   timeline: OmnichannelTimelineEvent[];
@@ -245,6 +267,8 @@ export interface OmnichannelInboxItem {
   next_steps: string[];
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
+  reply_contract?: OmnichannelReplyContract;
+  reply_deliveries?: OmnichannelReplyDeliveryRecord[];
   source_metadata?: UnknownRecord;
   handoff?: UnknownRecord;
   live_chat?: OmnichannelLiveChatStatus;
@@ -272,18 +296,83 @@ export interface OmnichannelInboxDetailV2 {
 export interface OmnichannelInboxActionPayload {
   action: 'assign' | 'reply' | 'handoff' | 'close' | 'reopen' | 'set_priority' | string;
   ticket_id?: string | number;
+  source_model?: 'TenantTicket' | 'MunicipioTicket';
+  legacy_model?: 'TenantTicket' | 'MunicipioTicket';
   endpoint?: string;
   body?: string;
   message?: string;
   client_message_id?: string;
   idempotency_key?: string;
   visibility?: string;
+  template_registry_id?: string | number;
+  template_variables?: UnknownRecord;
   payload?: UnknownRecord;
 }
 
+const ARTIFACT_ACTION_IDS = new Set([
+  'attach_file', 'send_attachment', 'share_attachment',
+  'share_location', 'send_location', 'share_form', 'send_form',
+]);
+
+const normalizeActionTicketIdentity = (value: unknown): string | null => {
+  const raw = asString(value);
+  if (!raw) return null;
+  const match = raw.match(/^(?:municipio|tenant):(.+)$/i);
+  return (match?.[1] || raw).trim() || null;
+};
+
+const routeSourceModel = (ticketId: string): 'TenantTicket' | 'MunicipioTicket' | null => {
+  if (/^municipio:/i.test(ticketId)) return 'MunicipioTicket';
+  if (/^tenant:/i.test(ticketId)) return 'TenantTicket';
+  return null;
+};
+
+const requireExactArtifactIdentity = (
+  ticketId: string,
+  payload: OmnichannelInboxActionPayload,
+  nestedPayload: UnknownRecord,
+) => {
+  const sources = [payload.source_model, nestedPayload.source_model]
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()));
+  const distinctSources = new Set(sources);
+  const sourceModel = sources[0];
+  const routeSource = routeSourceModel(ticketId);
+  const payloadIds = [payload.ticket_id, nestedPayload.ticket_id, nestedPayload.legacy_id]
+    .map(normalizeActionTicketIdentity)
+    .filter((value): value is string => Boolean(value));
+  const expectedId = normalizeActionTicketIdentity(ticketId);
+  if (
+    distinctSources.size !== 1 ||
+    (sourceModel !== 'TenantTicket' && sourceModel !== 'MunicipioTicket') ||
+    (routeSource && routeSource !== sourceModel) ||
+    !expectedId ||
+    payloadIds.length === 0 ||
+    payloadIds.some((value) => value !== expectedId)
+  ) {
+    throw new ApiError(
+      'La acción no coincide exactamente con la identidad source_model + ticket_id seleccionada.',
+      400,
+      { code: 'artifact_ticket_identity_mismatch' },
+    );
+  }
+  return { sourceModel, ticketId: expectedId };
+};
+
 export interface OmnichannelFinalDeliveryEvidence {
+  contract_version?: string;
   status?: string;
   authoritative_source?: string;
+  provider_message_id?: string | null;
+  provider_status?: string | null;
+  error_code?: string | null;
+  updated_at?: string | null;
+  raw?: unknown;
+}
+
+export interface OmnichannelReplyDeliveryRecord {
+  event_id?: string;
+  channel?: string;
+  delivery?: OmnichannelFinalDeliveryEvidence;
   raw?: unknown;
 }
 
@@ -303,6 +392,55 @@ export interface OmnichannelReplyOutboxEvidence {
   raw?: unknown;
 }
 
+export type OmnichannelReplyCapability = Record<string, unknown> & {
+  enabled?: boolean;
+  disabled_reason?: string;
+  reason_code?: string;
+};
+
+export type OmnichannelReplyDeliveryChannel = Record<string, unknown> & {
+  id?: string;
+  enabled?: boolean;
+  disabled_reason?: string;
+  reason_code?: string;
+  evidence?: string;
+  acceptance_semantics?: string;
+};
+
+export type OmnichannelReplyDeliveryEvidence = Record<string, unknown> & {
+  contract_version?: string;
+  saved_in_crm?: boolean;
+  dispatch_attempted?: boolean;
+  provider_accepted?: boolean;
+  delivered?: boolean;
+  failed?: boolean;
+  delivered_requires?: string;
+};
+
+export type OmnichannelReplyDeliveryStateMachine = Record<string, unknown> & {
+  contract_version?: string;
+  states?: string[];
+  delivered_requires?: string;
+  latest_evidence?: OmnichannelReplyDeliveryEvidence;
+};
+
+export type OmnichannelReplyContract = Record<string, unknown> & {
+  contract_version?: string;
+  source_model?: string;
+  ticket_id?: string;
+  channel?: string;
+  endpoint?: string;
+  method?: string;
+  enabled?: boolean;
+  disabled_reason?: string;
+  reason_code?: string;
+  idempotency?: UnknownRecord;
+  supported_message_types?: Record<string, OmnichannelReplyCapability>;
+  delivery_channels?: OmnichannelReplyDeliveryChannel[];
+  delivery_state_machine?: OmnichannelReplyDeliveryStateMachine;
+  handoff?: OmnichannelReplyCapability & { supported_channels?: string[] };
+};
+
 export interface OmnichannelActionDelivery {
   contract_version?: string;
   legacy_contract_version?: string;
@@ -313,12 +451,22 @@ export interface OmnichannelActionDelivery {
   reason?: string;
   fallback?: string;
   external_dispatch?: boolean;
+  saved_in_crm?: boolean;
+  dispatch_attempted?: boolean;
+  provider_accepted?: boolean;
+  delivered?: boolean;
+  failed?: boolean;
+  receipt_persisted?: boolean;
+  idempotent_replay?: boolean;
   timeline_updated?: boolean;
   reply_status?: string;
   evidence_stage?: string;
+  reply_event_id?: string | number;
+  recipient_available?: boolean;
   final_delivery?: OmnichannelFinalDeliveryEvidence;
   idempotency?: OmnichannelReplyIdempotencyEvidence;
   outbox?: OmnichannelReplyOutboxEvidence;
+  evidence?: OmnichannelReplyDeliveryEvidence;
   delivery_results?: Record<string, boolean>;
   delivery_results_semantics?: string;
   requested_channels?: string[];
@@ -451,7 +599,9 @@ export interface SuperadminCommandCenterV2 {
 
 export interface ProductionSmokeCheck {
   id: string;
-  ok: boolean;
+  label?: string;
+  severity?: string;
+  ok?: boolean;
   status?: string;
   endpoint?: string;
   details?: UnknownRecord;
@@ -460,9 +610,9 @@ export interface ProductionSmokeCheck {
 
 export interface ProductionSmokeE2EFlow {
   id: string;
-  label: string;
+  label?: string;
   surface?: string;
-  ready: boolean;
+  ready?: boolean;
   status?: string;
   endpoint?: string;
   frontend_entry?: string;
@@ -488,6 +638,8 @@ export interface ProductionSmokeE2EReadiness {
 export interface ProductionSmokeV2 {
   contract_version?: string;
   request_id?: string;
+  tenant?: UnknownRecord | null;
+  generated_at?: string;
   status: string;
   summary: UnknownRecord;
   checks: ProductionSmokeCheck[];
@@ -568,6 +720,7 @@ export interface EmployeeRoutingV2 {
   dimensions: Record<string, string[]>;
   employees: EmployeeRoutingEmployee[];
   queues: {
+    open: UnknownRecord[];
     unassigned: UnknownRecord[];
     unassigned_count: number;
     raw: UnknownRecord;
@@ -586,7 +739,12 @@ export interface EmployeeRoutingScopePayload {
 
 export interface EmployeeRoutingAutoAssignPayload {
   dry_run?: boolean;
-  ticket_ids?: Array<string | number>;
+  tickets?: Array<{
+    source_model: string;
+    id: string | number;
+    expected_assignee_id?: string | number | null;
+    expected_suggested_assignee_id?: string | number;
+  }>;
   limit?: number;
 }
 
@@ -601,6 +759,9 @@ const asString = (value: unknown): string | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
 };
+
+const asText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
 const asNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -671,19 +832,10 @@ const arrayOfStrings = (value: unknown): string[] => {
   return value.map((item) => asString(item)).filter((item): item is string => Boolean(item));
 };
 
-const normalizeMaybeStringList = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (typeof item === 'string' || typeof item === 'number') return asString(item);
-        if (isRecord(item)) return asString(getFirst(item, ['label', 'title', 'text', 'description', 'id']));
-        return undefined;
-      })
-      .filter((item): item is string => Boolean(item));
-  }
-  const single = asString(value);
-  return single ? [single] : [];
-};
+const normalizeSmokeTextList = (value: unknown): string[] =>
+  (Array.isArray(value) ? value : [value])
+    .map(asText)
+    .filter((item): item is string => item !== undefined);
 
 const normalizeStringList = (value: unknown): string[] => {
   if (Array.isArray(value)) return arrayOfStrings(value);
@@ -736,6 +888,9 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     : isRecord(value.payloadDefaults)
       ? value.payloadDefaults
       : undefined;
+  const inputSchemaCandidate = getFirst(value, ['input_schema', 'inputSchema']);
+  const inputSchema = isRecord(inputSchemaCandidate) ? inputSchemaCandidate : undefined;
+  const idempotency = isRecord(value.idempotency) ? value.idempotency : undefined;
   return {
     id,
     label,
@@ -749,6 +904,32 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
     payload: value.payload ?? payloadDefaults,
     payload_defaults: payloadDefaults,
     payloadDefaults,
+    delivery_mode: asString(getFirst(value, ['delivery_mode', 'deliveryMode'])),
+    delivery_modes: asArray(getFirst(value, ['delivery_modes', 'deliveryModes']))
+      .map(asString)
+      .filter((mode): mode is string => Boolean(mode)),
+    external_dispatch: asBoolean(getFirst(value, ['external_dispatch', 'externalDispatch'])),
+    direct_external_dispatch: asBoolean(
+      getFirst(value, ['direct_external_dispatch', 'directExternalDispatch']),
+    ),
+    may_queue_external_delivery: asBoolean(
+      getFirst(value, ['may_queue_external_delivery', 'mayQueueExternalDelivery']),
+    ),
+    action_response_delivery_authoritative: asBoolean(
+      getFirst(value, [
+        'action_response_delivery_authoritative',
+        'actionResponseDeliveryAuthoritative',
+      ]),
+    ),
+    final_delivery_authority: asString(
+      getFirst(value, ['final_delivery_authority', 'finalDeliveryAuthority']),
+    ),
+    delivery_contract_version: asString(
+      getFirst(value, ['delivery_contract_version', 'deliveryContractVersion']),
+    ),
+    input_schema: inputSchema,
+    idempotency,
+    enabled: asBoolean(value.enabled),
     disabled: asBoolean(value.disabled),
     disabled_reason: asString(
       getFirst(value, [
@@ -761,10 +942,17 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
         'reason',
       ]),
     ),
+    reason_code: asString(getFirst(value, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
     destructive: asBoolean(value.destructive),
     raw: value,
   };
 };
+
+export const buildSaasActionPayload = (action: SaasAction): UnknownRecord => ({
+  ...(isRecord(action.payload_defaults) ? action.payload_defaults : {}),
+  ...(isRecord(action.payloadDefaults) ? action.payloadDefaults : {}),
+  ...(isRecord(action.payload) ? action.payload : {}),
+});
 
 export const normalizeSaasActions = (value: unknown): SaasAction[] => {
   const rawActions = Array.isArray(value)
@@ -943,17 +1131,28 @@ export const normalizeEmployeeCoverageV2 = (response: unknown): EmployeeCoverage
 export const normalizeTenantHealthV2 = (response: unknown): TenantHealthV2 => {
   const source = getSource(response);
   const record = asRecord(source);
-  const score = asNumber(getFirst(record, ['score', 'health_score', 'healthScore']));
+  const health = record.health === undefined ? record : asRecord(record.health);
+  const reportsPoints = record.health !== undefined || record.contract_version === 'tenant.health.v1';
+  const scoreValue = getFirst(health, ['score', 'health_score', 'healthScore']);
+  const reportedScore = reportsPoints
+    ? typeof scoreValue === 'number' ? scoreValue : undefined
+    : asNumber(scoreValue);
+  const score = reportedScore !== undefined && reportedScore >= 0 && reportedScore <= 100
+    ? reportedScore
+    : undefined;
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
+    tenant: record.tenant === null ? null : isRecord(record.tenant) ? record.tenant : undefined,
+    last_checked_at: asText(getFirst(health, ['last_checked_at', 'lastCheckedAt'])),
     score,
-    health_score: normalizeRatio(score),
-    status: asString(getFirst(record, ['status', 'state'])),
-    checks: normalizeChecks(record.checks),
+    // Canonical health reports points; unversioned flat aliases retain their legacy ratio convention.
+    health_score: reportsPoints ? (score === undefined ? undefined : score / 100) : normalizeRatio(score),
+    status: asText(getFirst(health, ['status', 'state'])),
+    checks: normalizeChecks(health.checks),
     integrations: normalizeChecks(getFirst(record, ['integrations', 'integraciones'])),
     queues: normalizeChecks(getFirst(record, ['queues', 'colas'])),
-    recent_errors: normalizeChecks(getFirst(record, ['recent_errors', 'errors', 'errores_recientes'])),
+    recent_errors: normalizeChecks(getFirst(record, ['errors_recent', 'recent_errors', 'errors', 'errores_recientes'])),
     metrics: asRecord(record.metrics),
     recommended_actions: normalizeActions(getFirst(record, ['recommended_actions', 'actions', 'acciones_recomendadas'])),
     raw: response,
@@ -1115,9 +1314,10 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
     const record = asRecord(item);
     const actorRecord = asRecord(record.actor);
     const rawType = asString(getFirst(record, ['type', 'event_type', 'kind'])) ?? '';
-    const content = getFirst(record, ['content', 'text', 'message', 'mensaje', 'comentario', 'preview_text']);
+    const eventPayload = asRecord(record.payload);
+    const content = getFirst(record, ['content', 'text', 'message', 'mensaje', 'comentario', 'preview_text']) ?? getFirst(eventPayload, ['content', 'text', 'message']);
     const type: OmnichannelTimelineEvent['type'] =
-      rawType === 'assignment_changed'
+      rawType === 'message_created' ? 'message_created' : rawType === 'status_changed' ? 'status_changed' : rawType === 'assignment_changed'
         ? 'assignment_changed'
         : rawType === 'presence_changed'
           ? 'presence_changed'
@@ -1139,7 +1339,7 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
       id: asString(getFirst(record, ['id', 'event_id', 'message_id'])) ?? `${ticketId}:event:${index + 1}`,
       ticket_id: ticketId,
       type,
-      timestamp: asString(getFirst(record, ['timestamp', 'created_at', 'date', 'fecha'])) ?? new Date().toISOString(),
+      timestamp: asString(getFirst(record, ['timestamp', 'created_at', 'date', 'fecha'])) ?? '',
       actor: {
         id: asString(getFirst(actorRecord, ['id', 'user_id'])) ?? asString(record.actor_id) ?? 'system',
         type: actorType,
@@ -1147,9 +1347,10 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
       },
       payload: {
         ...record,
+        ...eventPayload,
         content,
-        new_status: getFirst(record, ['new_status', 'status', 'estado']),
-        new_assignee_name: getFirst(record, ['new_assignee_name', 'assignee_name']),
+        new_status: getFirst(record, ['new_status', 'status', 'estado']) ?? getFirst(eventPayload, ['new_status', 'status', 'estado']),
+        new_assignee_name: getFirst(record, ['new_assignee_name', 'assignee_name']) ?? getFirst(eventPayload, ['new_assignee_name', 'assignee_name']),
       },
     };
   });
@@ -1282,6 +1483,122 @@ const normalizeInboxLocation = (value: UnknownRecord): UnknownRecord => {
   };
 };
 
+const normalizeReplyCapability = (value: unknown): OmnichannelReplyCapability | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    enabled: asBoolean(value.enabled),
+    disabled_reason: asString(getFirst(value, ['disabled_reason', 'disabledReason', 'reason'])),
+    reason_code: asString(getFirst(value, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
+  };
+};
+
+const normalizeReplyDeliveryEvidence = (
+  value: unknown,
+): OmnichannelFinalDeliveryEvidence | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    contract_version: asString(value.contract_version),
+    status: asString(value.status),
+    authoritative_source: asString(value.authoritative_source),
+    provider_message_id: value.provider_message_id == null ? null : asString(value.provider_message_id),
+    provider_status: value.provider_status == null ? null : asString(value.provider_status),
+    error_code: value.error_code == null ? null : asString(value.error_code),
+    updated_at: value.updated_at == null ? null : asString(value.updated_at),
+    raw: value,
+  };
+};
+
+const normalizeReplyDeliveryRecords = (value: unknown): OmnichannelReplyDeliveryRecord[] =>
+  (Array.isArray(value) ? value : [])
+    .map((candidate): OmnichannelReplyDeliveryRecord | null => {
+      if (!isRecord(candidate)) return null;
+      const deliveryCandidate = getFirst(candidate, ['delivery', 'final_delivery']) ?? candidate;
+      const delivery = normalizeReplyDeliveryEvidence(deliveryCandidate);
+      if (!delivery) return null;
+      return {
+        event_id: asString(getFirst(candidate, ['event_id', 'eventId'])),
+        channel: asString(candidate.channel),
+        delivery,
+        raw: candidate,
+      };
+    })
+    .filter((record): record is OmnichannelReplyDeliveryRecord => Boolean(record));
+
+export const normalizeOmnichannelReplyContract = (
+  value: unknown,
+): OmnichannelReplyContract | undefined => {
+  if (!isRecord(value)) return undefined;
+  const supportedMessageTypes = asRecord(value.supported_message_types);
+  const deliveryChannels = asArray(value.delivery_channels).flatMap((candidate) => {
+    if (!isRecord(candidate)) return [];
+    return [{
+      ...candidate,
+      id: asString(candidate.id),
+      enabled: asBoolean(candidate.enabled),
+      disabled_reason: asString(getFirst(candidate, ['disabled_reason', 'disabledReason', 'reason'])),
+      reason_code: asString(getFirst(candidate, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
+      evidence: asString(candidate.evidence),
+      acceptance_semantics: asString(candidate.acceptance_semantics),
+    } satisfies OmnichannelReplyDeliveryChannel];
+  });
+  const deliveryStateMachine = asRecord(value.delivery_state_machine);
+  const latestEvidence = asRecord(deliveryStateMachine.latest_evidence);
+  const handoff = normalizeReplyCapability(value.handoff);
+  const supportedChannels = asArray(asRecord(value.handoff).supported_channels)
+    .map(asString)
+    .filter((channel): channel is string => Boolean(channel));
+
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    source_model: asString(value.source_model),
+    ticket_id: asString(value.ticket_id),
+    channel: asString(value.channel),
+    endpoint: asString(value.endpoint),
+    method: asString(value.method),
+    enabled: asBoolean(value.enabled),
+    disabled_reason: asString(getFirst(value, ['disabled_reason', 'disabledReason', 'reason'])),
+    reason_code: asString(getFirst(value, ['reason_code', 'reasonCode', 'disabled_reason_code'])),
+    idempotency: isRecord(value.idempotency) ? value.idempotency : undefined,
+    supported_message_types: Object.fromEntries(
+      Object.entries(supportedMessageTypes).flatMap(([key, candidate]) => {
+        const capability = normalizeReplyCapability(candidate);
+        return capability ? [[key, capability]] : [];
+      }),
+    ),
+    delivery_channels: deliveryChannels,
+    delivery_state_machine: Object.keys(deliveryStateMachine).length
+      ? {
+          ...deliveryStateMachine,
+          contract_version: asString(deliveryStateMachine.contract_version),
+          states: asArray(deliveryStateMachine.states)
+            .map(asString)
+            .filter((state): state is string => Boolean(state)),
+          delivered_requires: asString(deliveryStateMachine.delivered_requires),
+          latest_evidence: Object.keys(latestEvidence).length
+            ? {
+                ...latestEvidence,
+                contract_version: asString(latestEvidence.contract_version),
+                saved_in_crm: asBoolean(latestEvidence.saved_in_crm),
+                dispatch_attempted: asBoolean(latestEvidence.dispatch_attempted),
+                provider_accepted: asBoolean(latestEvidence.provider_accepted),
+                delivered: asBoolean(latestEvidence.delivered),
+                failed: asBoolean(latestEvidence.failed),
+                delivered_requires: asString(latestEvidence.delivered_requires),
+              }
+            : undefined,
+        }
+      : undefined,
+    handoff: handoff
+      ? {
+          ...handoff,
+          supported_channels: supportedChannels,
+        }
+      : undefined,
+  };
+};
+
 export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): OmnichannelInboxItem | null => {
   if (!isRecord(value)) return null;
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
@@ -1302,10 +1619,15 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     asRecord(asRecord(experienceBlueprint.agent_copilot).suggestions).items ??
     asRecord(experienceBlueprint.agent_copilot).suggestions;
   const normalizedActions = normalizeActions(getFirst(value, ['allowed_actions', 'actions', 'botones']));
+  const replyContract = normalizeOmnichannelReplyContract(
+    getFirst(value, ['reply_contract', 'replyContract']),
+  );
   return {
     id,
     legacy_id: asString(getFirst(value, ['legacy_id', 'legacyId'])),
     ticket_id: ticketId,
+    tenant_id: asNumber(getFirst(value, ['tenant_id', 'tenantId'])) ?? asString(getFirst(value, ['tenant_id', 'tenantId'])),
+    tenant_slug: asString(getFirst(value, ['tenant_slug', 'tenantSlug'])),
     nro_ticket: asString(getFirst(value, ['nro_ticket', 'ticket_number'])),
     source_model: asString(getFirst(value, ['source_model', 'sourceModel'])),
     legacy_kind: asString(getFirst(value, ['legacy_kind', 'legacyKind'])),
@@ -1320,9 +1642,18 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     priority: asString(getFirst(value, ['priority', 'prioridad'])),
     channel: asString(getFirst(value, ['channel', 'canal', 'canal_ingreso'])),
     category: asString(getFirst(value, ['category', 'categoria'])),
+    ...(Object.prototype.hasOwnProperty.call(value, 'authoritative_category') ? {
+      authoritative_category: typeof value.authoritative_category === 'string' ? value.authoritative_category : null,
+    } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'authoritativeCategory') ? {
+      authoritativeCategory: typeof value.authoritativeCategory === 'string' ? value.authoritativeCategory : null,
+    } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'category_authority') ? {
+      category_authority: isRecord(value.category_authority) ? value.category_authority as unknown as TicketCategoryAuthority : null,
+    } : {}),
     intent: asString(getFirst(value, ['intent', 'intencion', 'intent_id'])),
     sensitivity: asString(getFirst(value, ['sensitivity', 'priority', 'prioridad'])),
-    lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? new Date().toISOString(),
+    lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? '',
     unreadCount: asNumber(getFirst(value, ['unread_count', 'unreadCount'])) ?? 0,
     assignee: value.assignee ? asRecord(value.assignee) : undefined,
     contact: Object.keys(contact).length ? contact : undefined,
@@ -1332,7 +1663,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     foto_url_directa: asString(getFirst(value, ['foto_url_directa', 'foto_url', 'image_url', 'photo_url'])),
     archivos_count: archivosCount,
     attachments,
-    sla: value.sla ? asRecord(value.sla) : undefined,
+    sla: normalizeTicketSla(getFirst(value, ['sla', 'sla_evaluation'])),
     school_case: schoolCase,
     presence: normalizePresence(getFirst(value, ['presence', 'viewers', 'active_viewers'])),
     timeline: normalizeTimeline(timelineSource, id),
@@ -1342,6 +1673,10 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     next_steps: arrayOfStrings(getFirst(value, ['next_steps', 'suggested_next_steps'])),
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
     agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
+    reply_contract: replyContract,
+    reply_deliveries: normalizeReplyDeliveryRecords(
+      getFirst(value, ['reply_deliveries', 'replyDeliveries']),
+    ),
     source_metadata: value.source_metadata ? asRecord(value.source_metadata) : undefined,
     handoff: value.handoff ? asRecord(value.handoff) : undefined,
     live_chat: normalizeLiveChatStatus(value.live_chat),
@@ -1386,7 +1721,9 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
   const finalDelivery = asRecord(value.final_delivery);
   const idempotency = asRecord(value.idempotency);
   const outbox = asRecord(value.outbox);
+  const evidence = asRecord(value.evidence);
   const deliveryResults = asRecord(value.delivery_results);
+  const deliverySkipped = asRecord(value.delivery_skipped);
   return {
     contract_version: asString(value.contract_version),
     legacy_contract_version: asString(value.legacy_contract_version),
@@ -1397,15 +1734,22 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
     reason: asString(value.reason),
     fallback: asString(value.fallback),
     external_dispatch: asBoolean(value.external_dispatch),
+    saved_in_crm: asBoolean(value.saved_in_crm),
+    dispatch_attempted: asBoolean(value.dispatch_attempted),
+    provider_accepted: asBoolean(value.provider_accepted),
+    delivered: asBoolean(value.delivered),
+    failed: asBoolean(value.failed),
+    receipt_persisted: asBoolean(value.receipt_persisted),
+    idempotent_replay: asBoolean(value.idempotent_replay),
     timeline_updated: asBoolean(value.timeline_updated),
     reply_status: asString(value.reply_status),
     evidence_stage: asString(value.evidence_stage),
+    reply_event_id: asNumber(value.reply_event_id) ?? asString(value.reply_event_id),
+    recipient_available: asBoolean(value.recipient_available) ?? (
+      deliverySkipped.whatsapp === 'contact_phone_missing' ? false : undefined
+    ),
     final_delivery: Object.keys(finalDelivery).length
-      ? {
-          status: asString(finalDelivery.status),
-          authoritative_source: asString(finalDelivery.authoritative_source),
-          raw: finalDelivery,
-        }
+      ? normalizeReplyDeliveryEvidence(finalDelivery)
       : undefined,
     idempotency: Object.keys(idempotency).length
       ? {
@@ -1425,6 +1769,18 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
           raw: outbox,
         }
       : undefined,
+    evidence: Object.keys(evidence).length
+      ? {
+          ...evidence,
+          contract_version: asString(evidence.contract_version),
+          saved_in_crm: asBoolean(evidence.saved_in_crm),
+          dispatch_attempted: asBoolean(evidence.dispatch_attempted),
+          provider_accepted: asBoolean(evidence.provider_accepted),
+          delivered: asBoolean(evidence.delivered),
+          failed: asBoolean(evidence.failed),
+          delivered_requires: asString(evidence.delivered_requires),
+        }
+      : undefined,
     delivery_results: Object.keys(deliveryResults).length
       ? Object.fromEntries(
           Object.entries(deliveryResults)
@@ -1435,7 +1791,7 @@ const normalizeOmnichannelActionDelivery = (value: unknown): OmnichannelActionDe
     requested_channels: asArray(value.requested_channels)
       .map(asString)
       .filter((channel): channel is string => Boolean(channel)),
-    delivery_skipped: isRecord(value.delivery_skipped) ? value.delivery_skipped : undefined,
+    delivery_skipped: Object.keys(deliverySkipped).length ? deliverySkipped : undefined,
     admin_surface: asString(value.admin_surface),
     source_model: asString(value.source_model),
     operator_message: asString(value.operator_message),
@@ -1471,21 +1827,21 @@ export const normalizeOmnichannelInboxActionV2 = (
   };
 };
 
-export const getEmployeeCoverageV2 = async (tenantSlug?: string | null) => {
+export const getEmployeeCoverageV2 = async (tenantSlug?: string | null, lifecycle: { isCurrent?: () => boolean } = {}) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/employee-coverage` : '/api/v2/employee-coverage',
-      { tenantSlug },
+      { tenantSlug, ...lifecycle },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
     try {
-      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug });
+      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug, ...lifecycle });
     } catch (fallbackError) {
       if (!shouldFallbackEndpoint(fallbackError)) throw fallbackError;
-      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug });
+      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug, ...lifecycle });
     }
   }
   return normalizeEmployeeCoverageV2(response);
@@ -1745,8 +2101,10 @@ const normalizeProductionSmokeCheck = (value: unknown, index = 0): ProductionSmo
   const id = asString(getFirst(value, ['id', 'key', 'name', 'endpoint'])) ?? `check_${index + 1}`;
   return {
     id,
-    ok: Boolean(asBoolean(getFirst(value, ['ok', 'passed', 'success'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'pass'),
-    status: asString(getFirst(value, ['status', 'state'])),
+    label: asText(getFirst(value, ['label', 'title', 'name'])),
+    severity: asText(value.severity),
+    ok: asBoolean(getFirst(value, ['ok', 'passed', 'success'])),
+    status: asText(getFirst(value, ['status', 'state'])),
     endpoint: asString(value.endpoint),
     details: value.details ? asRecord(value.details) : undefined,
     raw: value,
@@ -1758,17 +2116,17 @@ const normalizeProductionSmokeE2EFlow = (value: unknown, index = 0): ProductionS
   const id = asString(getFirst(value, ['id', 'key', 'name', 'endpoint'])) ?? `flow_${index + 1}`;
   return {
     id,
-    label: asString(getFirst(value, ['label', 'title', 'name'])) ?? id,
-    surface: asString(value.surface),
-    ready: Boolean(asBoolean(getFirst(value, ['ready', 'ok', 'passed'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'ready'),
-    status: asString(getFirst(value, ['status', 'state'])),
+    label: asText(getFirst(value, ['label', 'title', 'name'])),
+    surface: asText(value.surface),
+    ready: asBoolean(getFirst(value, ['ready', 'ok', 'passed'])),
+    status: asText(getFirst(value, ['status', 'state'])),
     endpoint: asString(value.endpoint),
     frontend_entry: asString(getFirst(value, ['frontend_entry', 'frontend_route', 'route', 'href'])),
     qa_scenario_id: asString(value.qa_scenario_id),
-    meta_flow_ready: asBoolean(value.meta_flow_ready),
+    meta_flow_ready: value.meta_flow_ready === null ? null : asBoolean(value.meta_flow_ready),
     evidence: value.evidence ? asRecord(value.evidence) : undefined,
-    manual_test_steps: normalizeMaybeStringList(getFirst(value, ['manual_test_steps', 'manual_steps', 'test_steps'])),
-    acceptance_criteria: normalizeMaybeStringList(getFirst(value, ['acceptance_criteria', 'criteria'])),
+    manual_test_steps: normalizeSmokeTextList(getFirst(value, ['manual_test_steps', 'manual_steps', 'test_steps'])),
+    acceptance_criteria: normalizeSmokeTextList(getFirst(value, ['acceptance_criteria', 'criteria'])),
     automation: asRecord(value.automation),
     next_action: asString(value.next_action),
     raw: value,
@@ -1779,7 +2137,7 @@ const normalizeProductionSmokeE2EReadiness = (value: unknown): ProductionSmokeE2
   if (!isRecord(value)) return undefined;
   return {
     contract_version: asString(value.contract_version),
-    status: asString(getFirst(value, ['status', 'state'])) ?? 'unknown',
+    status: asText(getFirst(value, ['status', 'state'])) ?? 'unknown',
     summary: asRecord(value.summary),
     flows: asArray(value.flows)
       .map(normalizeProductionSmokeE2EFlow)
@@ -1795,7 +2153,9 @@ export const normalizeProductionSmokeV2 = (response: unknown): ProductionSmokeV2
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
-    status: asString(getFirst(record, ['status', 'state'])) ?? 'unknown',
+    tenant: record.tenant === null ? null : isRecord(record.tenant) ? record.tenant : undefined,
+    generated_at: asText(record.generated_at),
+    status: asText(getFirst(record, ['status', 'state'])) ?? 'unknown',
     summary: asRecord(record.summary),
     checks: asArray(record.checks)
       .map(normalizeProductionSmokeCheck)
@@ -1946,6 +2306,7 @@ export const normalizeEmployeeRoutingV2 = (response: unknown): EmployeeRoutingV2
       .map(normalizeRoutingEmployee)
       .filter((item): item is EmployeeRoutingEmployee => Boolean(item)),
     queues: {
+      open: asArray(queues.open).map(asRecord),
       unassigned: asArray(queues.unassigned).map(asRecord),
       unassigned_count: asNumber(getFirst(queues, ['unassigned_count', 'count'])) ?? asArray(queues.unassigned).length,
       raw: queues,
@@ -1958,17 +2319,17 @@ export const normalizeEmployeeRoutingV2 = (response: unknown): EmployeeRoutingV2
   };
 };
 
-export const getEmployeeRoutingV2 = async (tenantSlug?: string | null) => {
+export const getEmployeeRoutingV2 = async (tenantSlug?: string | null, lifecycle: { isCurrent?: () => boolean } = {}) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/employee-routing` : '/api/v2/employee-routing',
-      { tenantSlug },
+      { tenantSlug, ...lifecycle },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
-    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug });
+    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug, ...lifecycle });
   }
   return normalizeEmployeeRoutingV2(response);
 };
@@ -2004,36 +2365,85 @@ export const getNotificationDeliveryStatusV2 = async (tenantSlug?: string | null
 
 export const getOmnichannelInboxV2 = async (tenantSlug?: string | null) => {
   const response = await panelApi.get<unknown>('/api/v2/inbox/omnichannel', { tenantSlug });
+  assertInboxTenantEnvelope(response, tenantSlug);
   return normalizeOmnichannelInboxV2(response);
+};
+
+const isExactMunicipalLegacyDetail = (
+  detail: OmnichannelInboxDetailV2,
+  ticketId: string,
+  tenantSlug: string | null | undefined,
+  endpoint: string,
+) => {
+  // A municipal claim has a numeric legacy route and a namespaced inbox identity.
+  // Accept this one server contract only when every identity and scope agrees.
+  const expectedEndpoint = `/api/v2/inbox/omnichannel/${ticketId}?source_model=MunicipioTicket`;
+  const item = detail.item;
+  const envelopeTenant = asRecord(asRecord(detail.raw).tenant);
+  return /^[1-9]\d*$/.test(ticketId) && Boolean(tenantSlug) &&
+    detail.contract_version === 'inbox.omnichannel.detail.v1' &&
+    envelopeTenant.slug === tenantSlug && /^[1-9]\d*$/.test(String(envelopeTenant.id)) &&
+    endpoint === expectedEndpoint && item.detail_endpoint === expectedEndpoint &&
+    item.id === `municipio:${ticketId}` && item.ticket_id === ticketId && item.legacy_id === ticketId &&
+    item.source_model === 'MunicipioTicket' && item.legacy_kind === 'claim' &&
+    (item.tenant_slug === undefined || item.tenant_slug === tenantSlug);
 };
 
 export const getOmnichannelInboxDetailV2 = async (
   ticketId: string | number,
   tenantSlug?: string | null,
   detailEndpoint?: string | null,
+  options?: { isCurrent?: () => boolean },
 ) => {
   const encodedTicketId = encodeURIComponent(String(ticketId));
-  const endpoint = detailEndpoint && detailEndpoint.startsWith('/')
-    ? detailEndpoint
-    : `/api/v2/inbox/omnichannel/${encodedTicketId}`;
-  const response = await panelApi.get<unknown>(endpoint, { tenantSlug });
-  return normalizeOmnichannelInboxDetailV2(response);
+  if (detailEndpoint) {
+    let decoded: string;
+    try { decoded = decodeURIComponent(detailEndpoint); } catch { throw new ApiError('Ruta de detalle inválida.', 400); }
+    if (!decoded.startsWith('/api/') || /[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.split(/[/?#]/).includes('..')) throw new ApiError('Ruta de detalle inválida.', 400);
+  }
+  const endpoint = detailEndpoint || `/api/v2/inbox/omnichannel/${encodedTicketId}`;
+  const response = await panelApi.get<unknown>(endpoint, { tenantSlug, isCurrent: options?.isCurrent });
+  assertInboxTenantEnvelope(response, tenantSlug);
+  const result = normalizeOmnichannelInboxDetailV2(response);
+  if (result.item.id !== String(ticketId) && !isExactMunicipalLegacyDetail(result, String(ticketId), tenantSlug, endpoint)) {
+    throw new ApiError("El detalle no corresponde a esta conversación.", 502);
+  }
+  return result;
 };
 
-export const createOmnichannelReplyClientMessageId = () => {
+const IDEMPOTENT_OMNICHANNEL_ACTION_IDS = new Set([
+  'reply',
+  'attach_file',
+  'send_attachment',
+  'share_attachment',
+  'share_location',
+  'send_location',
+  'share_form',
+  'send_form',
+]);
+
+export const createOmnichannelActionClientMessageId = (action: string) => {
+  const normalizedAction = action.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  if (!IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction)) {
+    throw new Error(`La acción ${action || 'desconocida'} no publica identidad idempotente.`);
+  }
   const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
   if (typeof cryptoApi?.randomUUID === 'function') {
-    return `crm-reply:${cryptoApi.randomUUID()}`;
+    return `crm-${normalizedAction}:${cryptoApi.randomUUID()}`;
   }
   if (typeof cryptoApi?.getRandomValues === 'function') {
     const bytes = new Uint8Array(16);
     cryptoApi.getRandomValues(bytes);
-    return `crm-reply:${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
+    return `crm-${normalizedAction}:${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
   }
-  throw new Error('Este navegador no ofrece criptografía segura para identificar la respuesta.');
+  throw new Error('Este navegador no ofrece criptografía segura para identificar la acción.');
 };
 
-const resolveOmnichannelReplyClientMessageId = (
+export const createOmnichannelReplyClientMessageId = () =>
+  createOmnichannelActionClientMessageId('reply');
+
+const resolveOmnichannelActionClientMessageId = (
+  action: string,
   payload: OmnichannelInboxActionPayload,
   nestedPayload: UnknownRecord,
 ) => {
@@ -2048,20 +2458,20 @@ const resolveOmnichannelReplyClientMessageId = (
     throw new ApiError(
       'client_message_id e Idempotency-Key deben coincidir.',
       400,
-      { code: 'reply_idempotency_key_mismatch' },
+      { code: `${action}_idempotency_key_mismatch` },
     );
   }
   const clientMessageId = identities[0];
   if (
     !clientMessageId ||
     clientMessageId.length < 8 ||
-    clientMessageId.length > 256 ||
+    clientMessageId.length > 128 ||
     /[\u0000-\u001f]/.test(clientMessageId)
   ) {
     throw new ApiError(
-      'La respuesta requiere un client_message_id estable y válido.',
+      'La acción requiere un client_message_id estable y válido.',
       400,
-      { code: 'reply_idempotency_key_required' },
+      { code: `${action}_idempotency_key_required` },
     );
   }
   return clientMessageId;
@@ -2071,6 +2481,7 @@ export const postOmnichannelInboxActionV2 = async (
   ticketId: string,
   payload: OmnichannelInboxActionPayload,
   tenantSlug?: string | null,
+  expectedTenantId?: string | number | null,
 ) => {
   const encodedTicketId = encodeURIComponent(ticketId);
   const nestedPayload =
@@ -2080,9 +2491,33 @@ export const postOmnichannelInboxActionV2 = async (
   const explicitEndpoint =
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
-  const isReply = payload.action.trim().toLowerCase() === 'reply';
-  const replyClientMessageId = isReply
-    ? resolveOmnichannelReplyClientMessageId(payload, nestedPayload)
+  const normalizedAction = payload.action.trim().toLowerCase();
+  const actionIdentity = (normalizedAction === 'reply' || ARTIFACT_ACTION_IDS.has(normalizedAction))
+    ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
+    : null;
+  if (
+    normalizedAction === 'claim' ||
+    normalizedAction === 'assign' ||
+    ARTIFACT_ACTION_IDS.has(normalizedAction)
+  ) {
+    const sourceModel = asString(payload.source_model) ||
+      asString(nestedPayload.source_model);
+    if (sourceModel !== 'TenantTicket' && sourceModel !== 'MunicipioTicket') {
+      throw new ApiError(
+        'La acción requiere la identidad exacta source_model + ticket_id.',
+        400,
+        { code: 'source_model_required' },
+      );
+    }
+  }
+  const isOwnershipAction = normalizedAction === 'claim' || normalizedAction === 'assign';
+  const ownershipIdentity = isOwnershipAction
+    ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
+    : null;
+  const isReply = normalizedAction === 'reply';
+  const requiresStableIdentity = IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction);
+  const actionClientMessageId = requiresStableIdentity
+    ? resolveOmnichannelActionClientMessageId(normalizedAction, payload, nestedPayload)
     : undefined;
   const payloadWithTicket = {
     ...nestedPayload,
@@ -2091,10 +2526,10 @@ export const postOmnichannelInboxActionV2 = async (
       ? {
           body: payload.body ?? payload.message ?? nestedPayload.body ?? nestedPayload.message,
           message: payload.message ?? payload.body ?? nestedPayload.message ?? nestedPayload.body,
-          client_message_id: replyClientMessageId,
           visibility: payload.visibility ?? nestedPayload.visibility ?? 'public',
         }
       : {}),
+    ...(actionClientMessageId ? { client_message_id: actionClientMessageId } : {}),
     ticket_id: payload.ticket_id ?? nestedPayload.ticket_id ?? nestedPayload.legacy_id ?? ticketId,
   };
   delete (payloadWithTicket as UnknownRecord).endpoint;
@@ -2102,8 +2537,8 @@ export const postOmnichannelInboxActionV2 = async (
   delete (payloadWithTicket as UnknownRecord).idempotency_key;
   const requestOptions = {
     tenantSlug,
-    ...(replyClientMessageId
-      ? { headers: { 'Idempotency-Key': replyClientMessageId } }
+    ...(actionClientMessageId
+      ? { headers: { 'Idempotency-Key': actionClientMessageId } }
       : {}),
   };
   let response: unknown;
@@ -2116,12 +2551,83 @@ export const postOmnichannelInboxActionV2 = async (
       requestOptions,
     );
   } catch (error) {
+    // Claim and supervised assignment are identity-bound writes. Retrying
+    // either mutation against the compatibility collection endpoint would
+    // discard the ticket identity carried by the scoped path and could turn
+    // a safe 404/405 into a write against a different contract.
+    if (normalizedAction === 'claim' || normalizedAction === 'assign') throw error;
     if (!shouldFallbackEndpoint(error)) throw error;
     response = await panelApi.post<unknown>(
       '/api/v2/inbox/omnichannel/actions',
       payloadWithTicket,
       requestOptions,
     );
+  }
+  if (actionIdentity) {
+    const rawResponse = getSource(response);
+    const rawResponseRecord = asRecord(rawResponse);
+    const rawTicketRecord = asRecord(
+      getFirst(rawResponseRecord, ['ticket', 'item', 'conversation', 'data']) ?? rawResponse,
+    );
+    const responseSources = [rawTicketRecord.source_model, rawResponseRecord.source_model]
+      .map(asString)
+      .filter((value): value is string => Boolean(value));
+    const responseIds = [rawTicketRecord.ticket_id, rawTicketRecord.legacy_id, rawTicketRecord.id]
+      .map(normalizeActionTicketIdentity)
+      .filter((value): value is string => Boolean(value));
+    const hasExactReplyTicketId = normalizedAction !== 'reply' || (
+      Boolean(normalizeActionTicketIdentity(rawTicketRecord.ticket_id)) &&
+      normalizeActionTicketIdentity(rawTicketRecord.ticket_id) === actionIdentity.ticketId
+    );
+    const responseTenantSlug = asString(
+      rawTicketRecord.tenant_slug ?? rawResponseRecord.tenant_slug,
+    )?.toLowerCase();
+    const selectedTenantSlug = asString(tenantSlug)?.toLowerCase();
+    const responseTenantId = normalizeActionTicketIdentity(
+      rawTicketRecord.tenant_id ?? rawResponseRecord.tenant_id,
+    );
+    const selectedTenantId = normalizeActionTicketIdentity(expectedTenantId);
+    const tenantMismatch =
+      (Boolean(responseTenantSlug) && responseTenantSlug !== selectedTenantSlug) ||
+      (Boolean(responseTenantId) && responseTenantId !== selectedTenantId);
+    if (
+      responseSources.length === 0 ||
+      responseSources.some((source) => source !== actionIdentity.sourceModel) ||
+      responseIds.length === 0 ||
+      responseIds.some((responseId) => responseId !== actionIdentity.ticketId) ||
+      !hasExactReplyTicketId ||
+      tenantMismatch
+    ) {
+      const isReplyIdentityMismatch = normalizedAction === 'reply';
+      throw new ApiError(
+        'La respuesta backend no coincide con el ticket seleccionado; se descartó por seguridad.',
+        isReplyIdentityMismatch ? 502 : 409,
+        { code: isReplyIdentityMismatch ? 'reply_response_identity_mismatch' : 'artifact_response_identity_mismatch' },
+      );
+    }
+  }
+  assertInboxTenantEnvelope(response, tenantSlug);
+  const receipt = asRecord(getSource(response));
+  const candidate = asRecord(getFirst(receipt, ['ticket', 'item', 'conversation']) ?? receipt);
+  const receiptId = asString(getFirst(candidate, ['id', 'ticket_id', 'conversation_id']));
+  if (ownershipIdentity) {
+    // The backend accepts a numeric route, but publishes municipio:<id> in
+    // legacy receipts. Compare the full model + backing id, not strings alone.
+    const receiptIds = ['id', 'ticket_id', 'legacy_id']
+      .filter(key => Object.prototype.hasOwnProperty.call(candidate, key))
+      .map(key => asString(candidate[key]));
+    const idsMatch = receiptIds.length > 0 && receiptIds.every(id => Boolean(id) &&
+      normalizeActionTicketIdentity(id) === ownershipIdentity.ticketId &&
+      (!routeSourceModel(id!) || routeSourceModel(id!) === ownershipIdentity.sourceModel));
+    const sourceMatches = asString(candidate.source_model) === ownershipIdentity.sourceModel &&
+      (receipt.source_model === undefined || asString(receipt.source_model) === ownershipIdentity.sourceModel);
+    if (!idsMatch || !sourceMatches || receipt.ok === false || asString(receipt.action) !== normalizedAction) {
+      throw new ApiError('El servidor no confirmó la asignación para este caso.', 502, {
+        code: 'assignment_response_identity_mismatch',
+      });
+    }
+  } else if (!receiptId || receiptId !== ticketId) {
+    throw new ApiError('El servidor no confirmó la acción para esta conversación.', 502);
   }
   return normalizeOmnichannelInboxActionV2(response, ticketId);
 };

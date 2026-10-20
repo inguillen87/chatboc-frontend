@@ -58,6 +58,7 @@ import { getValidStoredToken } from '../src/utils/authTokens';
 import { persistEntityToken } from '../src/utils/entityToken';
 import { clearLocalChatbocSession } from '../src/utils/sessionLogout';
 import { usePanelSessionStore, useWidgetSessionStore } from '../src/stores';
+import { SessionAuthorityProvider } from '../src/components/access/SessionAuthorityContext';
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -183,19 +184,22 @@ describe('useUser Session Stability', () => {
     expect(safeLocalStorage.setItem).not.toHaveBeenCalledWith('tenantSlug', 'tenant-a');
   });
 
-  it('does not apply a late /api/me response after the bearer changes', async () => {
+  it.each(['old-first', 'new-first'] as const)('does not apply another bearer profile when requests finish %s', async order => {
     let activeToken = 'token-a';
     (getValidStoredToken as any).mockImplementation((key: string) =>
       key === 'authToken' ? activeToken : null,
     );
-    const response = deferred<any>();
-    (apiFetch as any).mockReturnValue(response.promise);
+    const responseA = deferred<any>();
+    const responseB = deferred<any>();
+    (apiFetch as any).mockReturnValueOnce(responseA.promise).mockReturnValueOnce(responseB.promise);
     usePanelSessionStore.setState({
       authToken: 'token-a',
       user: { id: 'user-a', email: 'a@chatboc.test', rol: 'admin', rubro: 'pyme' } as any,
     });
 
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UserProvider>{children}</UserProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <UserProvider>
+      <SessionAuthorityProvider value={{ clerkStatus: 'disabled', hasBearerSession: true, hasVerifiedSession: true }}>{children}</SessionAuthorityProvider>
+    </UserProvider>;
     const { result } = renderHook(() => useUser(), { wrapper });
     let refreshPromise!: Promise<void>;
     act(() => {
@@ -210,21 +214,39 @@ describe('useUser Session Stability', () => {
         user: { id: 'user-b', email: 'b@chatboc.test', rol: 'admin', rubro: 'pyme' } as any,
       });
     });
-    await act(async () => {
-      response.resolve({
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
+    expect(result.current.organizationProfileVerified).toBe(false);
+    const finishA = async () => act(async () => {
+      responseA.resolve({
         id: 'user-a',
+        rol: 'admin', tipo_chat: 'pyme',
         rubro: 'pyme',
         entityToken: 'entity-a',
         tenant_slug: 'tenant-a',
       });
       await refreshPromise;
     });
+    const finishB = async () => act(async () => {
+      responseB.resolve({ id: 'user-b', email: 'b@chatboc.test', rol: 'admin', tipo_chat: 'pyme', rubro: 'pyme', tenant_slug: 'tenant-b' });
+    });
+    if (order === 'old-first') {
+      await finishA();
+      expect(usePanelSessionStore.getState().user?.id).toBe('user-b');
+      expect(result.current.organizationProfileVerified).toBe(false);
+      await finishB();
+    } else {
+      await finishB();
+      expect(result.current.organizationProfileVerified).toBe(true);
+      await finishA();
+    }
 
     expect(persistEntityToken).not.toHaveBeenCalled();
     expect(usePanelSessionStore.getState()).toMatchObject({
       authToken: 'token-b',
       user: { id: 'user-b' },
     });
+    expect(result.current.organizationProfileVerified).toBe(true);
+    expect(apiFetch).toHaveBeenCalledTimes(2);
     expect(safeLocalStorage.setItem).not.toHaveBeenCalledWith('tenantSlug', 'tenant-a');
   });
 });

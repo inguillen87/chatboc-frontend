@@ -30,8 +30,10 @@ vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'org-demo' }),
 }));
 vi.mock('@/components/surveys/SurveyEditor', () => ({
-  SurveyEditor: ({ tenantSlug }: { tenantSlug?: string | null }) => (
-    <div data-testid="survey-editor" data-tenant-slug={tenantSlug ?? ''} />
+  SurveyEditor: ({ tenantSlug, onPublish }: { tenantSlug?: string | null; onPublish?: () => void }) => (
+    <div data-testid="survey-editor" data-tenant-slug={tenantSlug ?? ''}>
+      {onPublish ? <button type="button" onClick={onPublish}>Publicar desde editor</button> : null}
+    </div>
   ),
 }));
 vi.mock('@/components/surveys/SurveyGovernancePanel', () => ({
@@ -61,6 +63,39 @@ const adminState = (overrides: Record<string, unknown> = {}) => ({
   refetchSurvey: vi.fn(),
   tenantSlug: 'org-demo',
   ...overrides,
+});
+
+const governedDraft = (gate: Record<string, unknown> | undefined) => ({
+  id: 42,
+  tenant_id: 22,
+  titulo: 'Consulta institucional',
+  estado: 'borrador',
+  admin_scope: {
+    contract_version: 'surveys.admin_scope.v1',
+    jurisdiction: {
+      contract_version: 'surveys.admin_jurisdiction_scope.v1',
+      status: 'compatible',
+      compatible: true,
+      reason_code: 'survey_jurisdiction_compatible',
+      action_hint: null,
+      tenant_verified_ref: 'ar:ba:junin',
+      survey_ref: 'ar:ba:junin',
+      authoritative_source: 'server_owned_persisted_refs',
+      content_review_included: false,
+    },
+    separation: { required: false, reason_code: null },
+  },
+  admin_lifecycle: {
+    phase: 'draft',
+    jurisdiction: {
+      status: 'compatible',
+      reason_code: 'survey_jurisdiction_compatible',
+      content_review_included: false,
+    },
+    government_survey_evidence_gate: gate,
+    capabilities: { can_publish: true },
+    actions: { publish: { disabled_reason_code: null } },
+  },
 });
 
 const renderPage = () =>
@@ -141,5 +176,73 @@ describe('SurveyDetailPage synthetic demo data', () => {
       description: SURVEY_RESPONSE_DUPLICATE_ADMIN_MESSAGE,
     });
     expect(JSON.stringify(mocks.toast.mock.calls)).not.toContain(technicalMessage);
+  });
+
+  it('blocks an individual draft with a missing gate and explains the next step', () => {
+    mocks.useSurveyAdmin.mockReturnValue(adminState({ survey: governedDraft(undefined) }));
+
+    renderPage();
+
+    expect(screen.getByRole('status', {
+      name: 'Publicación bloqueada para Consulta institucional',
+    })).toHaveTextContent(/Vinculá y verificá la jurisdicción/i);
+    expect(screen.queryByRole('button', { name: 'Publicar desde editor' })).not.toBeInTheDocument();
+  });
+
+  it('translates backend action codes on the individual government draft', () => {
+    mocks.useSurveyAdmin.mockReturnValue(adminState({
+      survey: governedDraft({
+        contract_version: 'surveys.government_evidence_gate.v1',
+        required: true,
+        ready: false,
+        reason_code: 'survey_content_review_required',
+        next_action: 'review_exact_survey_content',
+      }),
+    }));
+
+    renderPage();
+
+    const state = screen.getByRole('status', {
+      name: 'Publicación bloqueada para Consulta institucional',
+    });
+    expect(state).toHaveTextContent('Revisá y aprobá el contenido exacto');
+    expect(state).not.toHaveTextContent('review_exact_survey_content');
+  });
+
+  it('keeps an explicit non-government draft publishable from the individual editor', () => {
+    const survey = governedDraft({
+      contract_version: 'surveys.government_evidence_gate.v1',
+      required: false,
+      ready: false,
+      reason_code: 'survey_government_evidence_not_required',
+      next_action: null,
+    });
+    mocks.useSurveyAdmin.mockReturnValue(adminState({ survey }));
+
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Publicar desde editor' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', {
+      name: 'Publicación bloqueada para Consulta institucional',
+    })).not.toBeInTheDocument();
+  });
+
+  it('does not show a jurisdiction warning when a non-government draft is blocked for another reason', () => {
+    const survey = governedDraft({
+      contract_version: 'surveys.government_evidence_gate.v1',
+      required: false,
+      ready: false,
+      reason_code: 'survey_government_evidence_not_required',
+      next_action: null,
+    });
+    survey.admin_lifecycle.capabilities.can_publish = false;
+    mocks.useSurveyAdmin.mockReturnValue(adminState({ survey }));
+
+    renderPage();
+
+    expect(screen.queryByRole('status', {
+      name: 'Publicación bloqueada para Consulta institucional',
+    })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Publicar desde editor' })).not.toBeInTheDocument();
   });
 });

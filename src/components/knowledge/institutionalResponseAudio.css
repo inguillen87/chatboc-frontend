@@ -1,0 +1,5 @@
+.institutional-response-audio { margin-block:.5rem 1rem; padding:.75rem; border:1px solid hsl(var(--border)); border-radius:.75rem; background:hsl(var(--muted)/.25); }
+.institutional-response-audio__controls { display:flex; flex-wrap:wrap; gap:.65rem; }
+.institutional-response-audio p { margin-bottom:.5rem; line-height:1.6; overflow-wrap:anywhere; }
+.institutional-response-audio button { min-height:48px; min-width:48px; border:1px solid hsl(var(--border)); border-radius:.75rem; padding:.65rem .85rem; font:inherit; white-space:normal; text-align:left; background:hsl(var(--background)); }
+.institutional-response-audio button:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }

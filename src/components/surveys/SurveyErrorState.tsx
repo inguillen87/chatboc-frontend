@@ -36,7 +36,7 @@ export const SurveyErrorState = ({
 }: SurveyErrorStateProps) => {
   const Icon = pickIcon(reasonCode);
   return (
-    <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
+    <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-2xl items-center justify-center px-3">
       <Card className="w-full">
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
           <span className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-border/70 bg-muted/40">

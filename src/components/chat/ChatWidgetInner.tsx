@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
+import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import { ACCESSIBILITY_EVENT, readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -23,7 +24,9 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
-import { hexToHsl, getContrastColorHsl } from "@/utils/color";
+import { useProactiveGreeting, type ProactiveGreetingMessage } from './useProactiveGreeting';
+import { accessibleForegroundHsl, normalizeColorHsl } from "@/utils/color";
+import { applyWidgetThemeVariables, widgetThemeVariables } from "@/utils/widgetTheme";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import {
@@ -32,9 +35,11 @@ import {
   CHATBOC_AGENT_MARK,
   getChatbocBotAvatar,
 } from "@/utils/brandAssets";
-import { createDemoSession } from "@/features/demo/demoApi";
+import { createDemoSession, persistDemoRuntimeSession } from "@/features/demo/demoApi";
+import { normalizeRequestedDemoTenantSlug } from "@/features/demo/demoTenantSelection";
 import { clearDemoRuntimeStorage } from "@/features/demo/demoStorage";
 import getOrCreateChatSessionId, { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
+import {useWidgetConversationScope,type WidgetConversationHandle} from "@/utils/widgetConversationScope";
 import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
 import {
   isTenantSlugDeploymentHostnameMirror,
@@ -71,6 +76,17 @@ const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 
 const MOBILE_PORTAL_NAV_BREAKPOINT_PX = 768;
 const MOBILE_PORTAL_NAV_HEIGHT = "4rem";
+
+export const STANDALONE_MOBILE_OPEN_VIEWPORT = Object.freeze({
+  left: 0,
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: "100dvw",
+  height: "100dvh",
+  maxWidth: "100dvw",
+  maxHeight: "100dvh",
+} satisfies React.CSSProperties);
 
 export const isUserPortalSurfacePath = (pathname: string) => {
   const segments = pathname
@@ -111,6 +127,23 @@ export const resolveStandaloneLauncherBottom = ({
     : `${closedOffsetBottom}px`;
 };
 
+export const restoreDialogFocus = (
+  previousElement: HTMLElement | null,
+  launcherElement: HTMLElement | null,
+) => {
+  const candidates = [previousElement, launcherElement].filter(
+    (element, index, elements): element is HTMLElement =>
+      Boolean(element?.isConnected) && elements.indexOf(element) === index,
+  );
+
+  for (const candidate of candidates) {
+    candidate.focus({ preventScroll: true });
+    if (document.activeElement === candidate) return true;
+  }
+
+  return false;
+};
+
 const readFirstString = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -145,6 +178,13 @@ const readCssPixelValue = (value: string) => {
   if (/^\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed);
   const match = trimmed.match(/^(\d+(?:\.\d+)?)px$/);
   return match ? Number(match[1]) : null;
+};
+
+export const resolveIframeOpenWidth = (requestedWidth: string, viewportWidth: number) => {
+  const desired = readCssPixelValue(requestedWidth);
+  return desired !== null && Number.isFinite(viewportWidth) && viewportWidth > 0
+    ? `${Math.min(desired, viewportWidth)}px`
+    : requestedWidth;
 };
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
@@ -222,18 +262,31 @@ const pickMenuSource = (...sources: unknown[]) => {
   return null;
 };
 
-function normalizeCtaMessages(rawMessages: any): string[] {
+function normalizeCtaMessages(rawMessages: any): ProactiveGreetingMessage[] {
   if (!Array.isArray(rawMessages)) return [];
 
   return rawMessages
     .map((msg: any) => {
-      if (!msg) return '';
-      if (typeof msg === 'string') return msg;
-      return msg.text || msg.message || '';
+      if (typeof msg === 'string') return { text: msg.trim() };
+      const text = msg?.text || msg?.message;
+      return {
+        text: typeof text === 'string' ? text.trim() : '',
+        action: typeof msg?.action === 'string' ? msg.action : undefined,
+        payload: msg?.payload,
+      };
     })
-    .map((msg: string) => msg.trim())
-    .filter((msg: string) => msg.length > 0);
+    .filter((msg: ProactiveGreetingMessage) => msg.text.length > 0);
 }
+
+const resolveCtaMessages = (rawMessages: any, override?: string) => {
+  const messages = Array.isArray(rawMessages) ? rawMessages : [];
+  if (!override) return messages;
+  const matching = messages.find(message => {
+    const text = typeof message === 'string' ? message : message?.text || message?.message;
+    return typeof text === 'string' && text.trim() === override.trim();
+  });
+  return [matching ?? { text: override }];
+};
 
 function buildPlatformWidgetFallbackConfig() {
   const quickMenu = [
@@ -368,7 +421,6 @@ function SafeAnimatePresence({ children = null, ...rest }: React.PropsWithChildr
 }
 
 const ChatHeader = React.lazy(() => import("./ChatHeader"));
-const ChatPanel = React.lazy(() => import("@/features/chat/ChatPanel"));
 const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
 const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
@@ -399,6 +451,181 @@ function sanitizeTenantSlug(slug?: string | null) {
     return null;
   }
 }
+
+export type PublicDemoSurveyBootstrap = {
+  key: string;
+  sector: "gobierno" | "empresas" | "educacion";
+  tenantSlug: string;
+  rubro: string;
+};
+
+const PUBLIC_DEMO_SURVEY_PATH = /^\/e\/demo-(gobierno|empresas|educacion)(?:-|\/|$)/;
+
+export const isPublicDemoSurveyPath = (pathname: string) =>
+  PUBLIC_DEMO_SURVEY_PATH.test(String(pathname || "").toLowerCase());
+
+export const resolvePublicDemoSurveyBootstrap = (
+  pathname: string,
+  search: string,
+): PublicDemoSurveyBootstrap | null => {
+  const match = String(pathname || "")
+    .toLowerCase()
+    .match(PUBLIC_DEMO_SURVEY_PATH);
+  if (!match) return null;
+
+  const params = new URLSearchParams(search || "");
+  const explicitTenantValues = [
+    ...params.getAll("tenant_slug"),
+    ...params.getAll("tenant"),
+  ];
+  if (!explicitTenantValues.length) return null;
+
+  const normalizedTenantValues = explicitTenantValues.map((value) =>
+    normalizeRequestedDemoTenantSlug(value),
+  );
+  if (normalizedTenantValues.some((value) => !value)) return null;
+
+  const uniqueTenantValues = new Set(normalizedTenantValues as string[]);
+  if (uniqueTenantValues.size !== 1) return null;
+  const normalizedTenant = normalizedTenantValues[0] as string;
+
+  const sector = match[1] as PublicDemoSurveyBootstrap["sector"];
+  return {
+    key: `${sector}:${normalizedTenant}`,
+    sector,
+    tenantSlug: normalizedTenant,
+    rubro: normalizedTenant,
+  };
+};
+
+const readCaseInsensitiveHeaders = (
+  headers: Record<string, unknown>,
+  headerName: string,
+) => {
+  return Object.entries(headers)
+    .filter(([key]) => key.toLowerCase() === headerName.toLowerCase())
+    .map(([, value]) => readFirstString(value));
+};
+
+const collectPublicDemoBootstrapTenantScopes = (bootstrap: unknown) => {
+  const values: unknown[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 8) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (!isPlainRecord(value)) return;
+    for (const [key, nestedValue] of Object.entries(value)) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey === "tenant_slug" ||
+        normalizedKey === "tenantslug" ||
+        normalizedKey === "x-tenant-slug"
+      ) {
+        values.push(nestedValue);
+      } else if (normalizedKey === "tenant") {
+        if (typeof nestedValue === "string") {
+          values.push(nestedValue);
+        } else if (isPlainRecord(nestedValue)) {
+          values.push(
+            nestedValue.slug,
+            nestedValue.tenant_slug,
+            nestedValue.tenantSlug,
+          );
+        }
+      }
+      visit(nestedValue, depth + 1);
+    }
+  };
+  visit(bootstrap, 0);
+  return values.filter((value) => value !== undefined && value !== null);
+};
+
+const collectPublicDemoBootstrapSessionIds = (
+  bootstrap: unknown,
+  targetKey: "chat_session_id" | "demo_session_id",
+) => {
+  const values: string[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 8) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, depth + 1));
+      return;
+    }
+    if (!isPlainRecord(value)) return;
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (key.toLowerCase() === targetKey) {
+        values.push(readFirstString(nestedValue));
+      }
+      visit(nestedValue, depth + 1);
+    }
+  };
+  visit(bootstrap, 0);
+  return values;
+};
+
+export const isPublicDemoChatBootstrapReady = ({
+  activeTenantSlug,
+  bootstrap,
+  chatSessionId,
+  demoSessionId,
+  expectedTenantSlug,
+}: {
+  activeTenantSlug?: string | null;
+  bootstrap?: unknown;
+  chatSessionId?: string | null;
+  demoSessionId?: string | null;
+  expectedTenantSlug?: string | null;
+}) => {
+  const expected = normalizeRequestedDemoTenantSlug(expectedTenantSlug);
+  const active = normalizeRequestedDemoTenantSlug(activeTenantSlug);
+  if (!expected || active !== expected || !isPlainRecord(bootstrap)) return false;
+
+  const headers = isPlainRecord(bootstrap.headers) ? bootstrap.headers : {};
+  const headerTenantValues = readCaseInsensitiveHeaders(headers, "X-Tenant-Slug");
+  if (
+    !headerTenantValues.length ||
+    headerTenantValues.some(
+      (value) => normalizeRequestedDemoTenantSlug(value) !== expected,
+    )
+  ) {
+    return false;
+  }
+
+  const optionalTenantScopes = collectPublicDemoBootstrapTenantScopes(bootstrap);
+  if (
+    optionalTenantScopes.some(
+      (value) => normalizeRequestedDemoTenantSlug(String(value)) !== expected,
+    )
+  ) {
+    return false;
+  }
+
+  const demoSessionHeaders = [
+    ...readCaseInsensitiveHeaders(headers, "X-Demo-Session-Id"),
+    ...readCaseInsensitiveHeaders(headers, "X-Demo-Session"),
+  ];
+  const chatSessionHeaders = readCaseInsensitiveHeaders(headers, "X-Chat-Session-Id");
+  const demoSessionValues = [
+    ...demoSessionHeaders,
+    ...collectPublicDemoBootstrapSessionIds(bootstrap, "demo_session_id"),
+    ...(demoSessionId ? [demoSessionId] : []),
+  ];
+  const chatSessionValues = [
+    ...chatSessionHeaders,
+    ...collectPublicDemoBootstrapSessionIds(bootstrap, "chat_session_id"),
+    ...(chatSessionId ? [chatSessionId] : []),
+  ];
+  return Boolean(
+    demoSessionHeaders.length &&
+      chatSessionHeaders.length &&
+      demoSessionValues.every(Boolean) &&
+      chatSessionValues.every(Boolean) &&
+      new Set(demoSessionValues).size === 1 &&
+      new Set(chatSessionValues).size === 1,
+  );
+};
 
 const readResponseTenantSlug = (value: unknown): string | null => {
   if (!isPlainRecord(value)) return null;
@@ -458,7 +685,7 @@ function ChatWidgetInner({
   defaultOpen = false,
   initialView = 'chat',
   widgetId = "chatboc-widget-iframe",
-  ownerToken,
+  ownerToken: suppliedOwnerToken,
   initialRubro,
   openWidth = "420px",
   openHeight = "680px",
@@ -481,6 +708,9 @@ function ChatWidgetInner({
   fontFamily,
 }: ChatWidgetProps) {
   const location = useLocation();
+  const { tenant, currentSlug, hostBinding } = useTenant();
+  // A bound domain starts from its canonical public profile, not an ambient owner token.
+  const ownerToken = hostBinding ? undefined : suppliedOwnerToken;
   const CHATBOC_WIDGET_STATIC = CHATBOC_AGENT_LAUNCHER_STATIC;
   const CHATBOC_WIDGET_PNG_FALLBACK = CHATBOC_AGENT_MARK;
   const CHATBOC_WIDGET_FALLBACK = CHATBOC_AGENT_AVATAR;
@@ -538,9 +768,8 @@ function ChatWidgetInner({
     };
   };
 
-  const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
+  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(readAccessibilityPrefs);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
   const [isOpen, setIsOpen] = useState(() => {
@@ -566,19 +795,25 @@ function ChatWidgetInner({
   const [platformSelectionLoadingId, setPlatformSelectionLoadingId] = useState<string | null>(null);
   const [platformSelectionError, setPlatformSelectionError] = useState<string | null>(null);
   const [activeDemoTenantSlug, setActiveDemoTenantSlug] = useState<string | null>(null);
+  const autoDemoBootstrapAttemptRef = useRef<string | null>(null);
+  const publicDemoScopeKeyRef = useRef<string | null>(null);
+  const publicDemoManagedSessionRef = useRef(false);
+  const publicDemoRouteCleanupRef = useRef(false);
+  const [publicDemoBootstrapRetryNonce, setPublicDemoBootstrapRetryNonce] = useState(0);
   const [chatPanelResetKey, setChatPanelResetKey] = useState(0);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
-  const [widgetCommerceSession, setWidgetCommerceSession] = useState<WidgetCommerceSession | null>(null);
-  const [widgetCommerceHistory, setWidgetCommerceHistory] = useState<WidgetCommerceHistory | null>(null);
-  const [widgetCommerceCart, setWidgetCommerceCart] = useState<WidgetCommerceCartSnapshot | null>(null);
+  type CommerceSnapshot<T>={owner:WidgetConversationHandle|null;context:string;value:T};
+  const [commerceSessionSnapshot, setCommerceSessionSnapshot] = useState<CommerceSnapshot<WidgetCommerceSession> | null>(null);
+  const [commerceHistorySnapshot, setCommerceHistorySnapshot] = useState<CommerceSnapshot<WidgetCommerceHistory> | null>(null);
+  const [commerceCartSnapshot, setCommerceCartSnapshot] = useState<CommerceSnapshot<WidgetCommerceCartSnapshot> | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
   const isEmbedded = mode !== "standalone";
   const isPublicPlatformSurface = useMemo(() => {
-    if (typeof window === "undefined" || isEmbedded) return false;
+    if (typeof window === "undefined" || isEmbedded || hostBinding) return false;
     return isPublicPlatformSurfacePath(window.location.pathname);
-  }, [isEmbedded]);
+  }, [isEmbedded, hostBinding]);
 
   const resolvedOwnerToken = useMemo(() => {
     const isDemoSessionContext =
@@ -599,6 +834,18 @@ function ChatWidgetInner({
   const openPanelRef = useRef<HTMLDivElement>(null);
   const launcherButtonRef = useRef<HTMLButtonElement>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const restoreFocusPendingRef = useRef(false);
+  const wasOpenRef = useRef(isOpen);
+  const registerLauncherButton = useCallback((button: HTMLButtonElement | null) => {
+    launcherButtonRef.current = button;
+    if (
+      button &&
+      restoreFocusPendingRef.current &&
+      restoreDialogFocus(lastFocusedElementRef.current, button)
+    ) {
+      restoreFocusPendingRef.current = false;
+    }
+  }, []);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -607,7 +854,6 @@ function ChatWidgetInner({
   const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_STATIC);
   const [hideClosedLauncherForHeroPreview, setHideClosedLauncherForHeroPreview] = useState(false);
 
-  const { tenant, currentSlug } = useTenant();
   const storedTenantSlug = useMemo(() => {
     const candidate = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
     if (
@@ -848,8 +1094,25 @@ function ChatWidgetInner({
     (typeof entityInfo?.slogan === "string" && entityInfo.slogan.trim()) ||
     "";
 
-  const headerTitle = isEmbedded ? (welcomeTitle || derivedEntityTitle) : welcomeTitle;
-  const headerSubtitle = isEmbedded ? (welcomeSubtitle || derivedEntitySubtitle) : welcomeSubtitle;
+  // The public appearance contract stores the assistant name below the greeting.
+  const hasPublicAppearance = entityInfo?.contract_version === 'public.widget_config.v1';
+  const publicHeaderTitle = hasPublicAppearance && typeof entityInfo?.welcome_subtitle === 'string'
+    ? entityInfo.welcome_subtitle.trim()
+    : '';
+  const publicHeaderSubtitle = hasPublicAppearance && typeof entityInfo?.welcome_title === 'string'
+    ? entityInfo.welcome_title.trim()
+    : '';
+  const useScopedStandaloneAppearance = !isEmbedded && !isPublicPlatformSurface && hasPublicAppearance;
+  const headerTitle = isEmbedded
+    ? (welcomeTitle || publicHeaderTitle || derivedEntityTitle)
+    : useScopedStandaloneAppearance
+      ? (publicHeaderTitle || derivedEntityTitle || welcomeTitle)
+      : welcomeTitle;
+  const headerSubtitle = isEmbedded
+    ? (welcomeSubtitle || publicHeaderSubtitle || derivedEntitySubtitle)
+    : useScopedStandaloneAppearance
+      ? (publicHeaderSubtitle || derivedEntitySubtitle || welcomeSubtitle)
+      : welcomeSubtitle;
 
   const tenantSlugFromEntity = useMemo(() => {
     if (entityInfo?.onboarding?.mode === "demo_session") return null;
@@ -916,6 +1179,7 @@ function ChatWidgetInner({
   }, []);
 
   const explicitResolvedTenantSlug = useMemo(() => {
+    if (hostBinding) return hostBinding.tenant.slug;
     const candidates = [
       contextOverride?.tenantSlug,
       explicitTenantSlug,
@@ -933,6 +1197,7 @@ function ChatWidgetInner({
 
     return null;
   }, [
+    hostBinding,
     contextOverride,
     explicitTenantSlug,
     tenantSlugFromEntity,
@@ -970,6 +1235,66 @@ function ChatWidgetInner({
   }, [embeddedTenantSlug, isEmbedded, isPublicPlatformSurface, storedTenantSlug]);
   const chatTenantSlug = activeDemoTenantSlug || resolvedTenantSlug;
   const chatBootstrap = entityInfo?.chat_bootstrap ?? entityInfo?.workspace?.chat_bootstrap ?? null;
+  const publicDemoSurveyBootstrap = useMemo(
+    () => resolvePublicDemoSurveyBootstrap(location.pathname, location.search),
+    [location.pathname, location.search],
+  );
+  const isPublicDemoSurveyRoute = isPublicDemoSurveyPath(location.pathname);
+  publicDemoScopeKeyRef.current = publicDemoSurveyBootstrap?.key ?? null;
+  const publicDemoScopeReady = Boolean(
+    publicDemoSurveyBootstrap &&
+      isPublicDemoChatBootstrapReady({
+        activeTenantSlug: activeDemoTenantSlug,
+        bootstrap: chatBootstrap,
+        expectedTenantSlug: publicDemoSurveyBootstrap.tenantSlug,
+      }),
+  );
+  const isRetiringPublicDemoSession =
+    !isPublicDemoSurveyRoute && publicDemoManagedSessionRef.current;
+  useEffect(() => {
+    if (!isPublicDemoSurveyRoute) {
+      if (!publicDemoRouteCleanupRef.current) return;
+      publicDemoRouteCleanupRef.current = false;
+      setEntityInfo(null);
+      setActiveDemoTenantSlug(null);
+      setSelectedRubro(null);
+      setChatPanelResetKey((current) => current + 1);
+      return;
+    }
+
+    publicDemoRouteCleanupRef.current = false;
+    clearDemoRuntimeStorage();
+    setEntityInfo(null);
+    setActiveDemoTenantSlug(null);
+    return () => {
+      publicDemoRouteCleanupRef.current = true;
+      autoDemoBootstrapAttemptRef.current = null;
+      clearDemoRuntimeStorage();
+      if (publicDemoManagedSessionRef.current) {
+        resetChatSessionId();
+        publicDemoManagedSessionRef.current = false;
+      }
+    };
+  }, [isPublicDemoSurveyRoute, publicDemoSurveyBootstrap?.key]);
+  const scopedCommerceEnabled=Boolean(chatTenantSlug?.trim()&&!chatBootstrap&&entityInfo?.onboarding?.mode!=="demo_session");
+  const commerceConversation=useWidgetConversationScope(scopedCommerceEnabled ? {
+    tenantSlug:chatTenantSlug!,entityToken:resolvedOwnerToken,skipAuth:true,
+  } : null);
+  const commerceOwner=scopedCommerceEnabled?commerceConversation.handle:null;
+  const commerceContext=scopedCommerceEnabled?commerceConversation.contextKey:'legacy';
+  const visibleCommerceSnapshot=<T,>(snapshot:CommerceSnapshot<T>|null):T|null=>snapshot&&
+    snapshot.context===commerceContext&&(!scopedCommerceEnabled||(commerceOwner?.isCurrent()&&snapshot.owner===commerceOwner))?snapshot.value:null;
+  // Retire visible DTOs synchronously with their captured owner, before they
+  // can supply a previous tenant's endpoints or session token to a new request.
+  const widgetCommerceSession=visibleCommerceSnapshot<WidgetCommerceSession>(commerceSessionSnapshot);
+  const widgetCommerceHistory=visibleCommerceSnapshot<WidgetCommerceHistory>(commerceHistorySnapshot);
+  const widgetCommerceCart=visibleCommerceSnapshot<WidgetCommerceCartSnapshot>(commerceCartSnapshot);
+  const setWidgetCommerceSession=useCallback((value:WidgetCommerceSession|null)=>setCommerceSessionSnapshot(
+    value?{owner:commerceOwner,context:commerceContext,value}:null),[commerceOwner,commerceContext]);
+  const setWidgetCommerceHistory=useCallback((value:WidgetCommerceHistory|null)=>setCommerceHistorySnapshot(
+    value?{owner:commerceOwner,context:commerceContext,value}:null),[commerceOwner,commerceContext]);
+  const setWidgetCommerceCart=useCallback((value:WidgetCommerceCartSnapshot|null)=>setCommerceCartSnapshot(
+    value?{owner:commerceOwner,context:commerceContext,value}:null),[commerceOwner,commerceContext]);
   const effectiveUiHints: ChatWidgetUiHints | null = useMemo(() => {
     const base = (entityInfo?.ui_hints ?? widgetCommerceSession?.ui_hints ?? null) as ChatWidgetUiHints | null;
     const accessibility =
@@ -997,8 +1322,24 @@ function ChatWidgetInner({
     widgetCommerceSession?.tenant?.tenant_slug,
     chatTenantSlug,
   );
+  const commerceAdoptions=useRef(new Map<string,string>());
+  const adoptCommerceIdentity=useCallback((value:unknown,owner:WidgetConversationHandle|null)=>{
+    const response=value&&typeof value==='object'?value as Record<string,unknown>:{};
+    const session=response.session&&typeof response.session==='object'?response.session as Record<string,unknown>:{};
+    const id=typeof session.chat_session_id==='string'?session.chat_session_id:'';
+    if(!id)return true;
+    if(!owner){persistChatSessionId(id);return true;}
+    if(!owner.isCurrent())return false;
+    if(id===owner.sessionId)return true;
+    if(normalizeWidgetTenantScopeSlug(readResponseTenantSlug(value))!==owner.tenantSlug)return false;
+    const previous=commerceAdoptions.current.get(owner.scopeKey);
+    if(previous===owner.sessionId)return false; // Never follow an endless sequence of new-ID ACKs.
+    if(!owner.adoptConfirmed(id))return false;
+    commerceAdoptions.current.set(owner.scopeKey,id);return true;
+  },[]);
 
   useEffect(() => {
+    if (hostBinding) return;
     if (entityInfo?.onboarding?.mode === "demo_session") return;
 
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
@@ -1010,7 +1351,7 @@ function ChatWidgetInner({
     if (isEmbedded || isPublicPlatformSurface) {
       safeLocalStorage.removeItem("tenantSlug");
     }
-  }, [entityInfo?.onboarding?.mode, isEmbedded, isPublicPlatformSurface, resolvedTenantSlug]);
+  }, [entityInfo?.onboarding?.mode, isEmbedded, isPublicPlatformSurface, resolvedTenantSlug, hostBinding]);
 
   useEffect(() => {
     if (!isEmbedded) return;
@@ -1166,10 +1507,6 @@ function ChatWidgetInner({
     );
   }, [user]);
 
-  const [showCta, setShowCta] = useState(false);
-  const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
-  const [showProactiveBubble, setShowProactiveBubble] = useState(false);
-  const [proactiveCycle, setProactiveCycle] = useState(0);
   const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
   const applyWidgetFallbackProfile = useCallback(() => {
@@ -1207,58 +1544,32 @@ function ChatWidgetInner({
     // This prevents the widget from polluting the host page's global styles (like dark mode background).
     const target = mode === 'iframe' ? root : widgetContainerRef.current;
 
-    // First, apply the base theme from entity config (if available) to ensure background/text are correct
-    if (entityInfo?.theme_config) {
-      try {
-        const modeTheme = entityInfo.theme_config.mode;
-        const isDark = modeTheme === 'dark' || (modeTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        const theme = isDark ? entityInfo.theme_config.dark : entityInfo.theme_config.light;
-
-        if (theme) {
-          Object.entries(theme).forEach(([key, value]) => {
-            // Apply only to the widget container if standalone, or global root if iframe
-             if (target) {
-                if (key === 'primary') {
-                    target.style.setProperty('--primary', value as string);
-                    // Assume value is HSL or can be converted. If from theme config, it might already be HSL?
-                    // Usually theme config has raw colors. Assuming HSL for now as per ShadCN convention.
-                }
-                if (key === 'secondary') target.style.setProperty('--secondary', value as string);
-                if (key === 'background') target.style.setProperty('--background', value as string);
-                if (key === 'text') target.style.setProperty('--foreground', value as string);
-             }
-          });
-        }
-      } catch (e) {
-        console.warn("Error applying theme config:", e);
-      }
-    }
-
-    // Then, override primary/secondary colors if explicitly passed via props (URL/Iframe)
-    // Note: We avoid setting these on 'root' globally if we are in standalone mode on the main landing page,
-    // to prevent breaking the landing page styles. The widget container itself will handle scoped styles via inline styles or class isolation if needed.
-    // However, ShadCN components rely on CSS variables.
-    // If we are in 'iframe' mode, it's safe to set on root.
-    if (primaryColor && target) {
-        target.style.setProperty('--primary', hexToHsl(primaryColor));
-        target.style.setProperty('--primary-foreground', getContrastColorHsl(primaryColor));
-    }
-    if (accentColor && target) {
-        target.style.setProperty('--secondary', hexToHsl(accentColor));
-        target.style.setProperty('--secondary-foreground', getContrastColorHsl(accentColor));
-    }
+    if (!target) return;
+    // The host/iframe already resolves the user's theme preference. The saved
+    // organization default must not force a light surface into their dark UI.
+    const palette = isDarkMode ? entityInfo?.theme_config?.dark : entityInfo?.theme_config?.light;
+    const alternate = isDarkMode ? entityInfo?.theme_config?.light : entityInfo?.theme_config?.dark;
+    const theme = {
+      ...(palette && typeof palette === 'object' && !Array.isArray(palette) ? palette : {}),
+      primary: normalizeColorHsl(palette?.primary) ?? normalizeColorHsl(alternate?.primary),
+      secondary: normalizeColorHsl(palette?.secondary) ?? normalizeColorHsl(alternate?.secondary),
+    };
+    // A missing palette inherits the host's semantic surfaces while retaining
+    // available published brand colors; high contrast owns the text choice.
+    const variables = widgetThemeVariables(theme, {primary: primaryColor, secondary: accentColor, highContrast: a11yPrefs.highContrast});
 
     // Additional Customizations
     if (target) {
-        if (userMsgColor) {
-             target.style.setProperty('--user-msg-bg', userMsgColor);
-             target.style.setProperty('--user-msg-fg', getContrastColorHsl(userMsgColor));
+        const userMessageColor = normalizeColorHsl(userMsgColor);
+        if (userMessageColor) {
+             variables['--user-msg-bg'] = `hsl(${userMessageColor})`;
+             variables['--user-msg-fg'] = `hsl(${accessibleForegroundHsl(userMessageColor)})`;
         }
         if (chatBackground) {
-             target.style.setProperty('--chat-bg', chatBackground);
+             variables['--chat-bg'] = chatBackground;
         }
         if (borderRadius !== undefined) {
-             target.style.setProperty('--radius', `${borderRadius}px`);
+             variables['--radius'] = `${borderRadius}px`;
         }
         if (fontFamily) {
              // Basic font mapping or direct usage
@@ -1267,54 +1578,51 @@ function ChatWidgetInner({
              if (fontFamily === 'Montserrat') fontStack = 'Montserrat, sans-serif';
              if (fontFamily === 'Open Sans') fontStack = '"Open Sans", sans-serif';
 
-             target.style.setProperty('--font-sans', fontStack);
-             // Also force on body/container just in case
-             target.style.fontFamily = fontStack;
+             variables['--font-sans'] = fontStack;
         }
     }
+    const previousFont = target.style.fontFamily;
+    const restore = applyWidgetThemeVariables(target, variables);
+    if (variables['--font-sans']) target.style.fontFamily = variables['--font-sans'];
+    return () => { restore(); target.style.fontFamily = previousFont; };
 
-  }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
+  }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 
   const proactiveMessages = useMemo(() => {
     const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
-    const propMessage = typeof ctaMessage === 'string' && ctaMessage.trim().length > 0 ? [ctaMessage.trim()] : [];
-    return [...propMessage, ...backendMessages].filter((message, index, current) => current.indexOf(message) === index);
+    const propText = typeof ctaMessage === 'string' ? ctaMessage.trim() : '';
+    const propMessage = propText ? [backendMessages.find(message => message.text === propText) ?? { text: propText }] : [];
+    return [...propMessage, ...backendMessages].filter((message, index, current) => current.findIndex(item => item.text === message.text) === index);
   }, [entityInfo, ctaMessage]);
 
-  // Proactive Bubble Logic
-  useEffect(() => {
-    if (proactiveMessages.length === 0) {
-      setShowProactiveBubble(false);
-      setProactiveMessage(null);
-      return;
-    }
-
-    const shouldForceShow = entityInfo?.force_proactive === true;
-    if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
-      const timer = setTimeout(() => {
-        if (!isOpen) {
-          setProactiveMessage(proactiveMessages[0]);
-          setShowProactiveBubble(true);
-        }
-        safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-
-    const cycleTimer = setInterval(() => {
-      if (isOpen) return;
-
-      const nextIdx = (proactiveCycle + 1) % proactiveMessages.length;
-      setProactiveMessage(proactiveMessages[nextIdx]);
-      setProactiveCycle(nextIdx);
-
-      if (!showProactiveBubble) {
-        setShowProactiveBubble(true);
-      }
-    }, 6000);
-
-    return () => clearInterval(cycleTimer);
-  }, [isOpen, showProactiveBubble, proactiveCycle, proactiveMessages, entityInfo?.force_proactive]);
+  // Retire greeting callbacks on SPA navigation without changing chat identity.
+  const greetingRouteTenant = useMemo(() => {
+    try {
+      const query = new URLSearchParams(location.search);
+      const selected = sanitizeTenantSlug(query.get('tenant_slug') || query.get('tenant'));
+      if (selected) return selected;
+      const segments = location.pathname.split('/').filter(Boolean);
+      return TENANT_ROUTE_PREFIXES.includes(segments[0] as typeof TENANT_ROUTE_PREFIXES[number]) && segments[1]
+        ? sanitizeTenantSlug(decodeURIComponent(segments[1])) : null;
+    } catch { return null; }
+  }, [location.pathname, location.search]);
+  const greetingTenant = normalizeWidgetTenantScopeSlug(
+    hostBinding?.tenant.slug || contextOverride?.tenantSlug || explicitTenantSlug || greetingRouteTenant || chatTenantSlug,
+  ) || 'chatboc-platform';
+  const greetingProfileTenant = normalizeWidgetTenantScopeSlug(tenantSlugFromEntity || entityInfo?.slug) || 'chatboc-platform';
+  const proactiveGreeting = useProactiveGreeting({
+    scopeKey: JSON.stringify([widgetId, greetingTenant]),
+    bindingKey: `${location.pathname}${location.search}`,
+    messages: proactiveMessages,
+    ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant,
+    isOpen, isMobile: isMobileView, containerRef: widgetContainerRef,
+    initialDelay: entityInfo?.force_proactive === true ? 3000 : ctaMessage?.trim() ? 2500 : 6000,
+  });
+  const showProactiveBubble = Boolean(proactiveGreeting.message);
+  const dismissProactiveGreeting = useCallback((restoreFocus: boolean) => {
+    proactiveGreeting.dismiss();
+    if (restoreFocus) launcherButtonRef.current?.focus({ preventScroll: true });
+  }, [proactiveGreeting.dismiss]);
 
   const toggleChat = useCallback(() => {
     const sharedAudioContext =
@@ -1328,8 +1636,9 @@ function ChatWidgetInner({
     setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
       if (nextIsOpen && typeof document !== "undefined") {
-        lastFocusedElementRef.current = document.activeElement instanceof HTMLElement
-          ? document.activeElement
+        const activeElement = document.activeElement;
+        lastFocusedElementRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+          ? activeElement
           : launcherButtonRef.current;
       }
       if (!nextIsOpen) {
@@ -1338,9 +1647,6 @@ function ChatWidgetInner({
       
       if (nextIsOpen) {
         trackWidgetEvent('widget_opened');
-        setShowProactiveBubble(false);
-        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       }
       return nextIsOpen;
     });
@@ -1348,6 +1654,7 @@ function ChatWidgetInner({
 
   const handleOpenPanelKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
+      if (event.defaultPrevented) return;
       event.preventDefault();
       setIsOpen(false);
       safeLocalStorage.setItem('widget_manually_closed', '1');
@@ -1384,48 +1691,56 @@ function ChatWidgetInner({
   }, []);
 
   useEffect(() => {
+    const didClose = wasOpenRef.current && !isOpen;
+    wasOpenRef.current = isOpen;
+
     if (!isOpen) {
-      lastFocusedElementRef.current?.focus?.();
+      if (!didClose) return;
+
+      restoreFocusPendingRef.current = true;
+      if (restoreDialogFocus(lastFocusedElementRef.current, launcherButtonRef.current)) {
+        restoreFocusPendingRef.current = false;
+      }
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      const panel = openPanelRef.current;
-      if (!panel) return;
-      const firstFocusable = panel.querySelector<HTMLElement>(
-        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      );
-      (firstFocusable ?? panel).focus();
-    }, 0);
+    restoreFocusPendingRef.current = false;
 
-    return () => window.clearTimeout(timer);
+    let frameId = 0;
+    let attempts = 0;
+    const focusOpenPanel = () => {
+      const panel = openPanelRef.current;
+      if (!panel && attempts < 12) {
+        attempts += 1;
+        frameId = window.requestAnimationFrame(focusOpenPanel);
+        return;
+      }
+      if (!panel) return;
+      const focusableElements = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ) as HTMLElement[];
+      const firstFocusable = focusableElements.find((element) => element.offsetParent !== null);
+      (firstFocusable ?? panel).focus();
+    };
+    frameId = window.requestAnimationFrame(focusOpenPanel);
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [isOpen]);
 
   const handleProactiveClick = useCallback(() => {
-      let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
-      if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
-          const currentMsgObj = backendMessages[proactiveCycle % backendMessages.length];
-          if (currentMsgObj && typeof currentMsgObj === 'object' && currentMsgObj.action) {
-              setIsOpen(true);
-              trackWidgetEvent('lead_cta_clicked');
-              safeLocalStorage.setItem('pending_widget_action', JSON.stringify({
-                  action: currentMsgObj.action,
-                  payload: currentMsgObj.payload,
-                  text: currentMsgObj.text || currentMsgObj.message
-              }));
-              return;
-          }
-      }
-
-      // Ensure toggleChat opens the chat if closed
-      setIsOpen(true); // Explicitly open instead of toggle to be safe
-      trackWidgetEvent('widget_opened');
-
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      setShowProactiveBubble(false);
-
-  }, [entityInfo, proactiveCycle]);
+    const message = proactiveGreeting.message;
+    if (!message) return;
+    const activeElement = document.activeElement;
+    lastFocusedElementRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+      ? activeElement : launcherButtonRef.current;
+    if (message.action) {
+      safeLocalStorage.setItem('pending_widget_action', JSON.stringify({ action: message.action, payload: message.payload, text: message.text }));
+    }
+    setIsOpen(true);
+    trackWidgetEvent(message.action ? 'lead_cta_clicked' : 'widget_opened');
+  }, [proactiveGreeting.message]);
 
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | "portal" | null>(null);
@@ -1498,8 +1813,6 @@ function ChatWidgetInner({
     const normalized = extractRubroKey(rawRubro);
     return normalized;
   }, [entityInfo]);
-  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(readAccessibilityPrefs);
-
   useEffect(() => {
     const handleStorage = () => {
       setA11yPrefs(readAccessibilityPrefs());
@@ -1781,7 +2094,13 @@ function ChatWidgetInner({
     setSelectedRubro(normalized ?? null);
   }, []);
 
-  const handlePlatformSelection = useCallback(async (option: any) => {
+  const handlePlatformSelection = useCallback(async (
+    option: any,
+    constraints: {
+      expectedScopeKey?: string | null;
+      expectedTenantSlug?: string | null;
+    } = {},
+  ) => {
     if (!option || typeof option !== "object") return;
     if (platformSelectionLoadingId) return;
     const optionId = String(option.id || option.sector || option.label || "platform_option");
@@ -1809,6 +2128,10 @@ function ChatWidgetInner({
               ? option.sector
               : undefined;
     const tenantSlug = typeof option.tenant_slug === "string" ? option.tenant_slug : undefined;
+    const expectedTenantSlug = normalizeRequestedDemoTenantSlug(
+      constraints.expectedTenantSlug,
+    );
+    const selectionEntityInfo = expectedTenantSlug ? null : entityInfo;
     const optionPayload = isPlainRecord(option.payload) ? option.payload : {};
     const rubro = extractRubroKey(
       readFirstString(
@@ -1821,13 +2144,13 @@ function ChatWidgetInner({
       ),
     ) || (typeof tenantSlug === "string" ? tenantSlug : undefined);
     const isRubroSelectorStep =
-      entityInfo?.onboarding?.mode === "demo_rubro_selector" ||
-      entityInfo?.widget_onboarding?.status === "select_rubro" ||
-      entityInfo?.frontend_contract?.next_step === "select_rubro";
+      selectionEntityInfo?.onboarding?.mode === "demo_rubro_selector" ||
+      selectionEntityInfo?.widget_onboarding?.status === "select_rubro" ||
+      selectionEntityInfo?.frontend_contract?.next_step === "select_rubro";
     const isPlatformSectorSelector =
-      entityInfo?.onboarding?.mode === "platform_sector_selector" ||
-      entityInfo?.tenant?.tipo === "platform" ||
-      entityInfo?.tenant?.slug === "chatboc-platform";
+      selectionEntityInfo?.onboarding?.mode === "platform_sector_selector" ||
+      selectionEntityInfo?.tenant?.tipo === "platform" ||
+      selectionEntityInfo?.tenant?.slug === "chatboc-platform";
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
     setWidgetCommerceSession(null);
@@ -1837,7 +2160,9 @@ function ChatWidgetInner({
     clearDemoRuntimeStorage();
     try {
       const label = readFirstString(option.label, option.title, option.name, option.sector, sector);
-      const chatSessionIdForDemo = resetChatSessionId();
+      const chatSessionIdForDemo = constraints.expectedScopeKey
+        ? null
+        : resetChatSessionId();
       const sessionPayload = isPlatformSectorSelector || isRubroSelectorStep
         ? {
             surface: "widget",
@@ -1845,37 +2170,85 @@ function ChatWidgetInner({
             sector: isRubroSelectorStep ? "empresas" : sector,
             label,
             ...(isRubroSelectorStep && rubro ? { rubro } : {}),
+            ...(expectedTenantSlug ? { tenant_slug: expectedTenantSlug } : {}),
             anon_id: getOrCreateAnonId() || null,
             chat_session_id: chatSessionIdForDemo || null,
           }
         : {
             sector,
-            tenant_slug: tenantSlug || null,
+            tenant_slug: expectedTenantSlug || tenantSlug || null,
             rubro,
           };
       const session = await createDemoSession(sessionPayload, {
-        strictSelection: !isPlatformSectorSelector,
+        strictSelection: Boolean(expectedTenantSlug) || !isPlatformSectorSelector,
+        expectedTenantSlug,
+        persistSession: !constraints.expectedScopeKey,
       });
+      if (expectedTenantSlug && isRubroSelectionDemoSession(session)) {
+        throw new Error('La demo solicitada no devolvió una conversación utilizable.');
+      }
+      if (
+        constraints.expectedScopeKey &&
+        publicDemoScopeKeyRef.current !== constraints.expectedScopeKey
+      ) {
+        return;
+      }
       const workspace = session.workspace || {};
+      const demoTenantSlug =
+        session.tenant?.slug ||
+        session.tenant_slug ||
+        session.session?.tenant_slug ||
+        (!expectedTenantSlug && !isPlatformSectorSelector ? tenantSlug : null) ||
+        null;
+      const demoChatSessionId =
+        session.session?.chat_session_id ||
+        session.chat_session_id ||
+        workspace.chat_bootstrap?.session?.chat_session_id ||
+        null;
+      const demoSessionIdForBootstrap =
+        session.demo_session_id ||
+        session.session?.demo_session_id ||
+        workspace.chat_bootstrap?.session?.demo_session_id ||
+        null;
+      const candidateChatBootstrap =
+        workspace.chat_bootstrap || session.chat_bootstrap || null;
+      if (
+        expectedTenantSlug &&
+        !isPublicDemoChatBootstrapReady({
+          activeTenantSlug: demoTenantSlug,
+          bootstrap: candidateChatBootstrap,
+          chatSessionId: demoChatSessionId,
+          demoSessionId: demoSessionIdForBootstrap,
+          expectedTenantSlug,
+        })
+      ) {
+        throw new Error('La demo no devolvió una sesión firmada y verificable.');
+      }
+      if (constraints.expectedScopeKey) {
+        publicDemoManagedSessionRef.current = true;
+      }
+      if (constraints.expectedScopeKey && !isRubroSelectionDemoSession(session)) {
+        persistDemoRuntimeSession(session);
+      }
       if (isRubroSelectionDemoSession(session)) {
         const selector = getSessionRubroSelector(session);
         const rubroOptions = normalizeRubroSelectorOptions(selector);
         const nextInfo = {
-          ...(entityInfo || {}),
+          ...(selectionEntityInfo || {}),
           ...workspace,
-          tenant: entityInfo?.tenant || session.tenant || null,
-          slug: entityInfo?.slug || null,
+          tenant: selectionEntityInfo?.tenant || session.tenant || null,
+          slug: selectionEntityInfo?.slug || null,
           tenant_slug: null,
           tipo_chat: "pyme",
           chat_bootstrap: null,
           quick_menu: rubroOptions,
           onboarding: {
-            ...(entityInfo?.onboarding || {}),
+            ...(selectionEntityInfo?.onboarding || {}),
             ...(session.widget_onboarding || {}),
             mode: "demo_rubro_selector",
             title:
-              readFirstString((selector as any)?.title, session.widget_onboarding?.title, entityInfo?.onboarding?.title) ||
-              entityInfo?.onboarding?.title ||
+              readFirstString((selector as any)?.title, session.widget_onboarding?.title, selectionEntityInfo?.onboarding?.title) ||
+              selectionEntityInfo?.onboarding?.title ||
               null,
             entry_question:
               readFirstString(
@@ -1883,8 +2256,8 @@ function ChatWidgetInner({
                 (selector as any)?.question,
                 (selector as any)?.label,
                 session.widget_onboarding?.entry_question,
-                entityInfo?.onboarding?.entry_question,
-              ) || entityInfo?.onboarding?.entry_question || null,
+                selectionEntityInfo?.onboarding?.entry_question,
+              ) || selectionEntityInfo?.onboarding?.entry_question || null,
             quick_menu: rubroOptions,
           },
           widget_onboarding: session.widget_onboarding || null,
@@ -1897,10 +2270,6 @@ function ChatWidgetInner({
         setResolvedTipoChat("pyme");
         return;
       }
-      const demoTenantSlug =
-        session.tenant?.slug || session.tenant_slug || session.session?.tenant_slug || (!isPlatformSectorSelector ? tenantSlug : null) || null;
-      const demoChatSessionId =
-        session.session?.chat_session_id || session.chat_session_id || workspace.chat_bootstrap?.session?.chat_session_id || null;
       if (demoChatSessionId) {
         persistChatSessionId(demoChatSessionId);
       }
@@ -1937,34 +2306,34 @@ function ChatWidgetInner({
               ? workspace.quick_replies
               : workspaceActionMenu;
       const nextInfo = {
-        ...(entityInfo || {}),
+        ...(selectionEntityInfo || {}),
         ...workspace,
-        tenant: session.tenant || entityInfo?.tenant || null,
-        slug: demoTenantSlug || entityInfo?.slug || null,
+        tenant: session.tenant || selectionEntityInfo?.tenant || null,
+        slug: demoTenantSlug || selectionEntityInfo?.slug || null,
         tenant_slug: demoTenantSlug,
-        nombre_empresa: workspace.title || session.tenant?.nombre || entityInfo?.nombre_empresa || "Chatboc",
+        nombre_empresa: workspace.title || session.tenant?.nombre || selectionEntityInfo?.nombre_empresa || "Chatboc",
         tipo_chat: nextTipo,
-        rubro: backendRubro || rubro || entityInfo?.rubro || null,
-        rubro_clave: backendRubro || rubro || entityInfo?.rubro_clave || null,
+        rubro: backendRubro || rubro || selectionEntityInfo?.rubro || null,
+        rubro_clave: backendRubro || rubro || selectionEntityInfo?.rubro_clave || null,
         default_menu: primaryDefaultMenu,
         quick_menu: primaryQuickMenu,
         rubro_context: workspace.rubro_context || null,
         onboarding: {
-          ...(entityInfo?.onboarding || {}),
+          ...(selectionEntityInfo?.onboarding || {}),
           mode: "demo_session",
         },
-        ui_hints: entityInfo?.ui_hints || null,
+        ui_hints: selectionEntityInfo?.ui_hints || null,
         chat_bootstrap: workspace.chat_bootstrap || session.chat_bootstrap || null,
         widget_onboarding: session.widget_onboarding || null,
-        experience_blueprint: workspace.experience_blueprint || entityInfo?.experience_blueprint || null,
-        first_visit: workspace.first_visit || entityInfo?.first_visit || null,
-        sample_conversations: workspace.sample_conversations || entityInfo?.sample_conversations || [],
-        trust_signals: workspace.trust_signals || entityInfo?.trust_signals || [],
-        lead_capture: workspace.lead_capture || entityInfo?.lead_capture || null,
-        media_capabilities: workspace.media_capabilities || entityInfo?.media_capabilities || null,
-        conversion_ctas: workspace.conversion_ctas || entityInfo?.conversion_ctas || null,
-        animation_tokens: workspace.animation_tokens || entityInfo?.animation_tokens || null,
-        empty_states: workspace.empty_states || entityInfo?.empty_states || null,
+        experience_blueprint: workspace.experience_blueprint || selectionEntityInfo?.experience_blueprint || null,
+        first_visit: workspace.first_visit || selectionEntityInfo?.first_visit || null,
+        sample_conversations: workspace.sample_conversations || selectionEntityInfo?.sample_conversations || [],
+        trust_signals: workspace.trust_signals || selectionEntityInfo?.trust_signals || [],
+        lead_capture: workspace.lead_capture || selectionEntityInfo?.lead_capture || null,
+        media_capabilities: workspace.media_capabilities || selectionEntityInfo?.media_capabilities || null,
+        conversion_ctas: workspace.conversion_ctas || selectionEntityInfo?.conversion_ctas || null,
+        animation_tokens: workspace.animation_tokens || selectionEntityInfo?.animation_tokens || null,
+        empty_states: workspace.empty_states || selectionEntityInfo?.empty_states || null,
         rubro_tools:
           workspace.rubro_tools ||
           workspace.business_tools ||
@@ -1986,6 +2355,44 @@ function ChatWidgetInner({
       setPlatformSelectionLoadingId(null);
     }
   }, [entityInfo, platformSelectionLoadingId]);
+
+  useEffect(() => {
+    const descriptor = publicDemoSurveyBootstrap;
+    if (!descriptor) {
+      autoDemoBootstrapAttemptRef.current = null;
+      return;
+    }
+    if (
+      mode !== "standalone" ||
+      isProfileLoading ||
+      publicDemoScopeReady ||
+      platformSelectionLoadingId ||
+      autoDemoBootstrapAttemptRef.current === descriptor.key
+    ) {
+      return;
+    }
+
+    autoDemoBootstrapAttemptRef.current = descriptor.key;
+    void handlePlatformSelection({
+      id: `public-demo-survey:${descriptor.key}`,
+      sector: descriptor.sector,
+      tenant_slug: descriptor.tenantSlug,
+      rubro: descriptor.rubro,
+    }, {
+      expectedScopeKey: descriptor.key,
+      expectedTenantSlug: descriptor.tenantSlug,
+    });
+  }, [
+    activeDemoTenantSlug,
+    chatBootstrap,
+    handlePlatformSelection,
+    isProfileLoading,
+    mode,
+    platformSelectionLoadingId,
+    publicDemoBootstrapRetryNonce,
+    publicDemoScopeReady,
+    publicDemoSurveyBootstrap,
+  ]);
 
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
@@ -2013,11 +2420,7 @@ function ChatWidgetInner({
   const finalOpenWidth = useMemo(() => {
     const desired = readCssPixelValue(openWidth);
     if (mode === "iframe") {
-      if (desired === null) return openWidth;
-      if (viewport.width >= 320) {
-        return `${Math.min(desired, viewport.width)}px`;
-      }
-      return `${desired}px`;
+      return resolveIframeOpenWidth(openWidth, viewport.width);
     }
     if (isMobileView) {
       return "100dvw";
@@ -2042,7 +2445,7 @@ function ChatWidgetInner({
     }
 
     if (isMobileView) {
-      return "calc(100dvh - max(4.5rem, env(safe-area-inset-top)) - 0.75rem)";
+      return "100dvh";
     }
 
     // In Standalone mode (Landing page), use aggressive height
@@ -2124,11 +2527,6 @@ function ChatWidgetInner({
 
   useEffect(() => {
     sendStateMessageToParent(isOpen);
-    if (isOpen) {
-      setShowProactiveBubble(false);
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-    }
   }, [isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
@@ -2136,40 +2534,6 @@ function ChatWidgetInner({
       sendStateMessageToParent(true);
     }
   }, [viewport, isOpen, sendStateMessageToParent]);
-
-  useEffect(() => {
-    if (isOpen || mode === 'standalone' || proactiveMessages.length === 0) {
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      setShowProactiveBubble(false);
-      return;
-    }
-    if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-    if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-
-    const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
-    if (alreadyShownProactive) return;
-
-    proactiveMessageTimeoutRef.current = setTimeout(() => {
-      const nextMessage = proactiveMessages[proactiveCycle % proactiveMessages.length];
-      if (!nextMessage) return;
-      setProactiveMessage(nextMessage);
-      setShowProactiveBubble(true);
-
-      safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
-
-      hideProactiveBubbleTimeoutRef.current = setTimeout(() => {
-        setShowProactiveBubble(false);
-        setProactiveCycle(prev => prev + 1);
-      }, 7000);
-
-    }, 10000);
-
-    return () => {
-      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-    };
-  }, [isOpen, proactiveCycle, mode, proactiveMessages]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -2264,21 +2628,6 @@ function ChatWidgetInner({
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId, mode]);
 
-  useEffect(() => {
-    if (!ctaMessage || isOpen || showProactiveBubble) {
-      setShowCta(false);
-      return;
-    }
-    if (safeLocalStorage.getItem("cta_seen") === "1") return;
-    const delay = setTimeout(() => {
-      setShowCta(true);
-      const hide = setTimeout(() => setShowCta(false), 8000);
-      safeLocalStorage.setItem("cta_seen", "1");
-      return () => clearTimeout(hide);
-    }, 2500);
-    return () => clearTimeout(delay);
-  }, [ctaMessage, isOpen, showProactiveBubble]);
-
 
   useEffect(() => {
     if (entityInfo?.default_open && !isOpen && !safeLocalStorage.getItem('widget_manually_closed')) {
@@ -2287,6 +2636,15 @@ function ChatWidgetInner({
   }, [entityInfo, isOpen]);
 
   useEffect(() => {
+    let isActive = true;
+    if (isPublicDemoSurveyRoute) {
+      setProfileError(null);
+      setProfileLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+
     async function fetchEntityProfile() {
       if (resolvedTenantSlug) {
         setProfileLoading(true);
@@ -2295,6 +2653,7 @@ function ChatWidgetInner({
           if (resolvedTenantSlug) {
              try {
                 const rawPublicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                if (!isActive) return;
                 const publicConfigBase =
                   rawPublicConfig && typeof rawPublicConfig === 'object'
                     ? (rawPublicConfig as Record<string, any>)
@@ -2336,7 +2695,7 @@ function ChatWidgetInner({
                     // Priority Merge: Props > Backend Config
                     nombre_empresa: welcomeTitle || publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
                     logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url,
-                    cta_messages: ctaMessage ? [{ text: ctaMessage }] : (Array.isArray(publicConfig.cta_messages) ? publicConfig.cta_messages : []),
+                    cta_messages: resolveCtaMessages(publicConfig.cta_messages, ctaMessage),
                     theme_config: publicConfig.theme_config || {},
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
@@ -2419,6 +2778,7 @@ function ChatWidgetInner({
                     setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                 }
              } catch (err) {
+                if (!isActive) return;
                 console.warn("Failed to fetch public widget config; trying ownerToken profile if available", err);
 
                   // If the public config is unavailable, keep the widget in a degraded no-content state.
@@ -2427,10 +2787,11 @@ function ChatWidgetInner({
                   if (is500 || !ownerToken) {
                      applyWidgetFallbackProfile();
                   } else if (ownerToken) {
-                     const data = await apiFetch<any>("/perfil", {
+                    const data = await apiFetch<any>("/perfil", {
                       entityToken: ownerToken,
                       isWidgetRequest: true,
                     });
+                    if (!isActive) return;
                     if (data && typeof data.esPublico === "boolean") {
                       setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
                     } else if (data && data.tipo_chat) {
@@ -2446,6 +2807,7 @@ function ChatWidgetInner({
               entityToken: ownerToken,
               isWidgetRequest: true,
             });
+            if (!isActive) return;
             if (data && typeof data.esPublico === "boolean") {
               setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
             } else if (data && data.tipo_chat) {
@@ -2454,10 +2816,11 @@ function ChatWidgetInner({
             setEntityInfo(data);
           }
         } catch (e) {
+          if (!isActive) return;
           console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
           applyWidgetFallbackProfile();
         } finally {
-          setProfileLoading(false);
+          if (isActive) setProfileLoading(false);
         }
         return;
       }
@@ -2467,6 +2830,7 @@ function ChatWidgetInner({
           console.warn("ChatWidget: no se pudo cargar widget-config plataforma.", error);
           return null;
         });
+        if (!isActive) return;
         const publicConfig: any = normalizePlatformWidgetConfig(rawPlatformConfig);
         if (!publicConfig) {
           applyWidgetFallbackProfile();
@@ -2485,7 +2849,7 @@ function ChatWidgetInner({
           ...publicConfig,
           nombre_empresa: welcomeTitle || publicConfig.tenant_name || platformTenant.nombre || publicConfig.name || publicConfig.nombre || "Chatboc",
           logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url || getChatbocBotAvatar(isDarkMode),
-          cta_messages: ctaMessage ? [{ text: ctaMessage }] : (Array.isArray(publicConfig.cta_messages) ? publicConfig.cta_messages : []),
+          cta_messages: resolveCtaMessages(publicConfig.cta_messages, ctaMessage),
           theme_config: publicConfig.theme_config || {},
           default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
           slug: platformTenant.slug || publicConfig.slug || "chatboc-platform",
@@ -2518,6 +2882,7 @@ function ChatWidgetInner({
           entityToken: ownerToken,
           isWidgetRequest: true,
         });
+        if (!isActive) return;
         console.log("ChatWidget: Perfil recibido:", data);
         if (data && typeof data.esPublico === "boolean") {
           setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
@@ -2526,14 +2891,18 @@ function ChatWidgetInner({
         }
         setEntityInfo(data);
       } catch (e) {
+        if (!isActive) return;
         console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
         applyWidgetFallbackProfile();
       } finally {
-        setProfileLoading(false);
+        if (isActive) setProfileLoading(false);
       }
     }
     fetchEntityProfile();
-  }, [ownerToken, resolvedTenantSlug]);
+    return () => {
+      isActive = false;
+    };
+  }, [isPublicDemoSurveyRoute, ownerToken, resolvedTenantSlug]);
 
   useEffect(() => {
     let isActive = true;
@@ -2564,48 +2933,48 @@ function ChatWidgetInner({
 
   useEffect(() => {
     let isActive = true;
+    const conversationOwner=commerceConversation.handle;
+    const isCurrent=()=>isActive&&(!scopedCommerceEnabled||conversationOwner?.isCurrent()===true);
+    if(scopedCommerceEnabled&&!conversationOwner)return;
     const tenantSlug = sanitizeTenantSlug(chatTenantSlug);
     const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
     const isPlatformTenant = tenantSlug === "chatboc-platform";
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
 
-      if (isDemoSession || ((!tenantSlug || isPlatformTenant) && !widgetToken)) {
-        setWidgetCommerceSession(null);
-        setWidgetCommerceHistory(null);
-        setWidgetCommerceCart(null);
-        return;
-      }
+    // tenantSlug is public routing context, never authorization for commerce/session data.
+    if (isDemoSession || !widgetToken) {
+      setWidgetCommerceSession(null);
+      setWidgetCommerceHistory(null);
+      setWidgetCommerceCart(null);
+      return;
+    }
 
     const request = {
       tenantSlug: tenantSlug && !isPlatformTenant ? tenantSlug : null,
       widgetToken,
-      chatSessionId: getOrCreateChatSessionId(),
-      anonId: getOrCreateAnonId(),
+      chatSessionId: conversationOwner?.sessionId||getOrCreateChatSessionId(),
+      anonId: conversationOwner?.anonId||getOrCreateAnonId(),
+      isCurrent,
     };
 
-    const loadCommerceSession = (activeRequest: typeof request, retried = false): Promise<void> =>
+    const loadCommerceSession = (activeRequest: typeof request): Promise<void> =>
       getWidgetCommerceSession(activeRequest)
       .then((session) => {
-        if (!isActive) return;
+        if (!isCurrent()) return;
         if (!responseMatchesTenant(session, tenantSlug)) {
-          if (!retried && activeRequest.widgetToken) {
-            clearCachedWidgetToken();
-            return loadCommerceSession({ ...activeRequest, widgetToken: null }, true);
-          }
+          if (activeRequest.widgetToken) clearCachedWidgetToken();
           setWidgetCommerceSession(null);
           setWidgetCommerceHistory(null);
           setWidgetCommerceCart(null);
           return;
         }
-        if (session?.session?.chat_session_id) {
-          persistChatSessionId(session.session.chat_session_id);
-        }
+        if(!adoptCommerceIdentity(session,conversationOwner))return;
         setWidgetCommerceSession(session);
       });
 
     loadCommerceSession(request)
       .catch(() => {
-        if (!isActive) return;
+        if (!isCurrent()) return;
         setWidgetCommerceSession(null);
         setWidgetCommerceHistory(null);
         setWidgetCommerceCart(null);
@@ -2614,10 +2983,14 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [chatTenantSlug, entityInfo?.onboarding?.mode, resolvedOwnerToken]);
+  }, [chatTenantSlug, entityInfo?.onboarding?.mode, resolvedOwnerToken,commerceConversation.contextKey,commerceOwner,
+    adoptCommerceIdentity,setWidgetCommerceSession,setWidgetCommerceHistory,setWidgetCommerceCart]);
 
   useEffect(() => {
     let isActive = true;
+    const conversationOwner=commerceConversation.handle;
+    const isCurrent=()=>isActive&&(!scopedCommerceEnabled||conversationOwner?.isCurrent()===true);
+    if(scopedCommerceEnabled&&!conversationOwner)return;
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
     if (isDemoSession) {
       setWidgetCommerceHistory(null);
@@ -2633,7 +3006,8 @@ function ChatWidgetInner({
     const tenantSlug = sanitizeTenantSlug(commerceTenantSlug);
     const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
 
-    if (!historyEndpoint && !tenantSlug && !widgetToken) {
+    // History is user-scoped: do not downgrade a missing/invalid token to an anonymous request.
+    if (isDemoSession || !widgetToken) {
       setWidgetCommerceHistory(null);
       return;
     }
@@ -2641,32 +3015,28 @@ function ChatWidgetInner({
     const historyRequest = {
       tenantSlug,
       widgetToken,
-      chatSessionId: getOrCreateChatSessionId(),
-      anonId: getOrCreateAnonId(),
+      chatSessionId: conversationOwner?.sessionId||getOrCreateChatSessionId(),
+      anonId: conversationOwner?.anonId||getOrCreateAnonId(),
+      isCurrent,
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     };
-    const loadTenantHistory = (activeRequest: typeof historyRequest, retried = false): Promise<void> =>
+    const loadTenantHistory = (activeRequest: typeof historyRequest): Promise<void> =>
       getWidgetTenantHistory(historyEndpoint || null, activeRequest)
       .then((history) => {
-        if (isActive) {
+        if (isCurrent()) {
           if (!responseMatchesTenant(history, tenantSlug)) {
-            if (!retried && activeRequest.widgetToken) {
-              clearCachedWidgetToken();
-              return loadTenantHistory({ ...activeRequest, widgetToken: null }, true);
-            }
+            if (activeRequest.widgetToken) clearCachedWidgetToken();
             setWidgetCommerceHistory(null);
             return;
           }
-          if (history?.session?.chat_session_id) {
-            persistChatSessionId(history.session.chat_session_id);
-          }
+          if(!adoptCommerceIdentity(history,conversationOwner))return;
           setWidgetCommerceHistory(history);
         }
       });
 
     loadTenantHistory(historyRequest)
       .catch(() => {
-        if (isActive) setWidgetCommerceHistory(null);
+        if (isCurrent()) setWidgetCommerceHistory(null);
       });
 
     return () => {
@@ -2675,6 +3045,11 @@ function ChatWidgetInner({
   }, [
     commerceTenantSlug,
     resolvedOwnerToken,
+    commerceConversation.contextKey,
+    commerceConversation.handle?.scopeKey,
+    commerceConversation.handle?.sessionId,
+    commerceOwner,
+    adoptCommerceIdentity,setWidgetCommerceHistory,
     widgetCommerceSession?.history?.endpoint,
     widgetCommerceSession?.history?.history_endpoint,
     widgetCommerceSession?.portal?.history_endpoint,
@@ -2684,6 +3059,9 @@ function ChatWidgetInner({
 
   useEffect(() => {
     let isActive = true;
+    const conversationOwner=commerceConversation.handle;
+    const isCurrent=()=>isActive&&(!scopedCommerceEnabled||conversationOwner?.isCurrent()===true);
+    if(scopedCommerceEnabled&&!conversationOwner)return;
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
     if (isDemoSession) {
       setWidgetCommerceCart(null);
@@ -2708,14 +3086,15 @@ function ChatWidgetInner({
     const cartRequest = {
       tenantSlug,
       widgetToken,
-      chatSessionId: getOrCreateChatSessionId(),
-      anonId: getOrCreateAnonId(),
+      chatSessionId: conversationOwner?.sessionId||getOrCreateChatSessionId(),
+      anonId: conversationOwner?.anonId||getOrCreateAnonId(),
+      isCurrent,
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     };
     const loadCartSnapshot = (activeRequest: typeof cartRequest, retried = false): Promise<void> =>
       getWidgetCartSnapshot(cartEndpoint || null, activeRequest)
       .then((cart) => {
-        if (isActive) {
+        if (isCurrent()) {
           if (!responseMatchesTenant(cart, tenantSlug)) {
             if (!retried && activeRequest.widgetToken) {
               clearCachedWidgetToken();
@@ -2724,16 +3103,14 @@ function ChatWidgetInner({
             setWidgetCommerceCart(null);
             return;
           }
-          if (cart?.session?.chat_session_id) {
-            persistChatSessionId(cart.session.chat_session_id);
-          }
+          if(!adoptCommerceIdentity(cart,conversationOwner))return;
           setWidgetCommerceCart(cart);
         }
       });
 
     loadCartSnapshot(cartRequest)
       .catch(() => {
-        if (isActive) setWidgetCommerceCart(null);
+        if (isCurrent()) setWidgetCommerceCart(null);
       });
 
     return () => {
@@ -2742,6 +3119,11 @@ function ChatWidgetInner({
   }, [
     commerceTenantSlug,
     resolvedOwnerToken,
+    commerceConversation.contextKey,
+    commerceConversation.handle?.scopeKey,
+    commerceConversation.handle?.sessionId,
+    commerceOwner,
+    adoptCommerceIdentity,setWidgetCommerceCart,
     widgetCommerceSession?.cart?.endpoint,
     widgetCommerceSession?.cart?.items_endpoint,
     widgetCommerceSession?.cart?.legacy_endpoint,
@@ -2765,17 +3147,11 @@ function ChatWidgetInner({
     if (mode === "standalone") {
       if (isOpen && isMobileView) {
         return {
-          left: 0,
-          right: 0,
-          top: "auto",
-          bottom: 0,
-          width: finalOpenWidth,
-          height: finalOpenHeight,
-          maxWidth: "100dvw",
-          maxHeight: "calc(100dvh - max(4.75rem, env(safe-area-inset-top)))",
+          ...STANDALONE_MOBILE_OPEN_VIEWPORT,
           zIndex: 999999,
           transition: "opacity 0.18s ease",
           transform: "none",
+          borderRadius: 0,
         };
       }
 
@@ -2821,15 +3197,15 @@ function ChatWidgetInner({
       };
     }
     if (mode === "iframe") {
-      const width = isOpen ? finalOpenWidth : launcherSize;
+      const width = isOpen ? `min(100%, ${finalOpenWidth})` : launcherSize;
       const height = isOpen ? finalOpenHeight : launcherHeight;
       return {
         position: "relative",
         width,
         height,
-        minWidth: width,
+        minWidth: 0,
         minHeight: height,
-        maxWidth: "100dvw",
+        maxWidth: "min(100%, 100dvw)",
         maxHeight: "100dvh",
         overflow: "hidden",
         transition: "width 0.24s ease, height 0.24s ease, opacity 0.18s ease",
@@ -3013,18 +3389,29 @@ function ChatWidgetInner({
 
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading && isOpen ? (
-          <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-border/60 bg-card text-card-foreground shadow-xl">
+          <div
+            ref={openPanelRef}
+            id={`${widgetId}-panel`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Cargando asistente Chatboc"
+            aria-busy="true"
+            tabIndex={-1}
+            onKeyDown={handleOpenPanelKeyDown}
+            className="h-full min-h-0 w-full overflow-hidden rounded-[inherit] border border-border/60 bg-card text-card-foreground shadow-xl"
+          >
             {isOpen ? (
               <div className="flex h-full min-h-0 flex-col">
-                <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/15" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="h-3 w-28 rounded bg-muted" />
-                    <div className="h-2 w-40 max-w-full rounded bg-muted/70" />
-                  </div>
-                </div>
+                <ChatHeader
+                  onClose={toggleChat}
+                  showProfile={false}
+                  logoUrl={headerLogoUrl || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
+                  title={headerTitle}
+                  subtitle={headerSubtitle}
+                  compactActions={isMobileView}
+                />
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent motion-safe:animate-spin"></div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">Cargando asistente Chatboc</p>
                     <p className="mt-1 text-xs text-muted-foreground">Preparando mensajes, menu y accesibilidad.</p>
@@ -3041,9 +3428,28 @@ function ChatWidgetInner({
             )}
           </div>
         ) : profileError && isOpen ? (
-          <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-card rounded-2xl">
-            <p className="text-destructive font-semibold">Error</p>
-            <p className="text-sm text-muted-foreground">{profileError}</p>
+          <div
+            ref={openPanelRef}
+            id={`${widgetId}-panel`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="No pudimos abrir el asistente Chatboc"
+            tabIndex={-1}
+            onKeyDown={handleOpenPanelKeyDown}
+            className="flex h-full w-full flex-col overflow-hidden rounded-[inherit] bg-card"
+          >
+            <ChatHeader
+              onClose={toggleChat}
+              showProfile={false}
+              logoUrl={headerLogoUrl || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
+              title={headerTitle}
+              subtitle={headerSubtitle}
+              compactActions={isMobileView}
+            />
+            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center" role="alert">
+              <p className="font-semibold text-foreground">No pudimos abrir el asistente</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">{profileError}</p>
+            </div>
           </div>
         ) : (
           <SafeAnimatePresence mode="wait" initial={false}>
@@ -3055,11 +3461,12 @@ function ChatWidgetInner({
               role="dialog"
               aria-modal="true"
               aria-label="Chatboc asistente virtual"
+              id={`${widgetId}-panel`}
               tabIndex={-1}
               onKeyDown={handleOpenPanelKeyDown}
               style={{
                   borderRadius: isMobileView
-                    ? "24px 24px 0 0"
+                    ? "0"
                     : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
                   background: chatBackground || (widgetUx.glassmorphism
                     ? presetVisualProfile.panelGradient
@@ -3117,10 +3524,56 @@ function ChatWidgetInner({
                     </div>
                   }
                 >
-                  <ChatPanel
+                  {(isPublicDemoSurveyRoute && !publicDemoScopeReady) || isRetiringPublicDemoSession ? (
+                    <div
+                      className="flex h-full w-full flex-col items-center justify-center gap-4 rounded-2xl bg-card px-7 text-center"
+                      role={!isRetiringPublicDemoSession && (platformSelectionError || !publicDemoSurveyBootstrap) ? "alert" : "status"}
+                      aria-live="polite"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10 text-emerald-300">
+                        <span className="text-xl" aria-hidden="true">✓</span>
+                      </div>
+                      <div className="max-w-sm space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-400">
+                          Sesión protegida
+                        </p>
+                        <h3 className="text-base font-semibold text-foreground">
+                          {isRetiringPublicDemoSession
+                            ? "Actualizando el contexto del chat"
+                            : !publicDemoSurveyBootstrap
+                            ? "El enlace de la demo está incompleto"
+                            : platformSelectionError
+                              ? "No pudimos validar la demo"
+                              : "Preparando la conversación segura"}
+                        </h3>
+                        <p className="text-sm leading-6 text-muted-foreground">
+                          {isRetiringPublicDemoSession
+                            ? "Estamos cerrando la sesión de demostración antes de continuar."
+                            : !publicDemoSurveyBootstrap
+                            ? "Abrí nuevamente la demo desde su enlace oficial para identificar la organización."
+                            : platformSelectionError
+                              ? platformSelectionError
+                              : "Estamos vinculando el chat, los archivos y las respuestas con la organización correcta."}
+                        </p>
+                      </div>
+                      {!isRetiringPublicDemoSession && publicDemoSurveyBootstrap && platformSelectionError ? (
+                        <button
+                          type="button"
+                          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                          onClick={() => {
+                            autoDemoBootstrapAttemptRef.current = null;
+                            setPlatformSelectionError(null);
+                            setPublicDemoBootstrapRetryNonce((value) => value + 1);
+                          }}
+                        >
+                          Reintentar conexión
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <ChatPanel
                     key={`chat-panel-${chatPanelResetKey}`}
-                    variant="legacy-widget"
-                    mode={mode}
+                    mode={mode === "preview" ? "standalone" : mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
                     quickMenu={entityInfo?.quick_menu}
@@ -3192,7 +3645,8 @@ function ChatWidgetInner({
                     realtimeVoice={realtimeVoice}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
-                  />
+                    />
+                  )}
                 </Suspense>
               )}
             </motion.div>
@@ -3203,25 +3657,14 @@ function ChatWidgetInner({
             >
               <Suspense fallback={null}>
                   <ProactiveBubble
-                    message={proactiveMessage || ""}
+                    message={proactiveGreeting.message?.text || ""}
                     onClick={handleProactiveClick}
-                    visible={showProactiveBubble && !showCta}
+                    onDismiss={dismissProactiveGreeting}
+                    onInteractionChange={proactiveGreeting.setInteracting}
+                    visible={showProactiveBubble}
                   />
               </Suspense>
-              {showCta && ctaMessage && !showProactiveBubble && (
-                <motion.div
-                  key="chatboc-cta"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
-                  style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {ctaMessage}
-                </motion.div>
-              )}
-              {showCatalogCta && !showProactiveBubble && !showCta && (
+              {showCatalogCta && !showProactiveBubble && !proactiveGreeting.externalEditorFocused && (
                 <motion.button
                   type="button"
                   className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
@@ -3240,7 +3683,7 @@ function ChatWidgetInner({
                 </motion.button>
               )}
               <motion.button
-                ref={launcherButtonRef}
+                ref={registerLauncherButton}
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
@@ -3256,8 +3699,11 @@ function ChatWidgetInner({
                 whileHover={{ scale: 1 }}
                 whileTap={{ scale: 1 }}
                 onClick={toggleChat}
-                aria-label="Abrir chat"
-                title="Abrir asistente IA"
+                aria-label={`Abrir el asistente ${headerTitle || "Chatboc"}`}
+                aria-controls={`${widgetId}-panel`}
+                aria-expanded="false"
+                aria-haspopup="dialog"
+                title={`Abrir ${headerTitle || "Chatboc"}`}
               >
                 <img
                   src={launcherImageSrc}
@@ -3277,8 +3723,8 @@ function ChatWidgetInner({
                   }
                 />
                 {!isMobileView && !isOpen ? (
-                  <span className="pointer-events-none absolute -top-9 right-1/2 translate-x-1/2 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground/85 opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100">
-                    Asistente IA
+                  <span className="pointer-events-none absolute -top-10 right-0 whitespace-nowrap rounded-lg border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-semibold text-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    Chatboc · Asistente digital
                   </span>
                 ) : null}
               </motion.button>

@@ -14,9 +14,9 @@ const PymeDashboard: React.FC<Props> = ({ data }) => {
     total_interactions: 0,
     active_users: 0,
     avg_response_time_s: 0,
-    conversion_rate: 0,
-    backlog_open: 0,
-    sla_breaches: 0,
+    conversion_rate: undefined,
+    backlog_open: undefined,
+    sla_breaches: undefined,
   };
   const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
 
@@ -30,7 +30,7 @@ const PymeDashboard: React.FC<Props> = ({ data }) => {
             <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{kpis.conversion_rate || 0}%</div>
+            <div className="text-2xl font-bold">{typeof kpis.conversion_rate === 'number' && Number.isFinite(kpis.conversion_rate) ? `${kpis.conversion_rate}%` : 'No disponible'}</div>
             <p className="text-xs text-muted-foreground mt-1">De chat a venta</p>
           </CardContent>
         </Card>

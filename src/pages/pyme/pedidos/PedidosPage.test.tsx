@@ -7,6 +7,8 @@ import { apiClient } from '@/api/client';
 import type { AdminOrdersResponse, Order } from '@/types/unified';
 import PedidosPage from './PedidosPage';
 
+vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: { id: 'synthetic-operator' }, hasVerifiedSession: true, loading: false, organizationProfileVerified: true }) }));
+
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({ currentSlug: 'junin' }),
 }));
@@ -27,7 +29,7 @@ const mockAdminUpdateOrder = vi.mocked(apiClient.adminUpdateOrder);
 const renderPedidosPage = (initialEntry = '/pedidos') =>
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <PedidosPage />
+      <PedidosPage tenantSlug="junin" />
     </MemoryRouter>,
   );
 

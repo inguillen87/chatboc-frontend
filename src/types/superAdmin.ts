@@ -3,6 +3,8 @@ export interface Tenant {
   slug: string;
   nombre: string;
   tipo: 'pyme' | 'municipio' | 'colegio';
+  organization_type_label_contract?: string;
+  organization_type_label?: string | null;
   plan: string;
   status: 'active' | 'inactive';
   is_active: boolean;

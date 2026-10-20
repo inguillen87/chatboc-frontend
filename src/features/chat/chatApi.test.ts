@@ -43,6 +43,7 @@ import {
   submitWidgetAssistedOrder,
   submitLeadCapture,
 } from './chatApi';
+import { MUNICIPAL_CHAT_IDEMPOTENCY_KEY_PATTERN } from '@/utils/municipalChatIdempotency';
 
 describe('extractChatBootstrapReplyText', () => {
   it('reads modern agent message fields before falling back to generic keys', () => {
@@ -82,6 +83,10 @@ describe('sendChatBootstrapMessage', () => {
         isWidgetRequest: true,
         skipAuth: true,
       }),
+    );
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.headers['Idempotency-Key']).toMatch(
+      MUNICIPAL_CHAT_IDEMPOTENCY_KEY_PATTERN,
     );
   });
 
@@ -371,6 +376,86 @@ describe('sendChatBootstrapMessage', () => {
     });
   });
 
+  it('uses the caller municipal idempotency key instead of a stale bootstrap header', async () => {
+    const idempotencyKey = '667f4278-beb8-4655-9515-e680a24aef45';
+
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/municipio',
+        method: 'POST',
+        headers: {
+          'X-Tenant-Slug': 'municipio',
+          'idempotency-key': 'stale-bootstrap-key',
+        },
+        payload: { tipo_chat: 'municipio', tenant_slug: 'municipio' },
+      },
+      {
+        text: 'Confirmar reclamo',
+        intent: 'confirmar_reclamo',
+        idempotencyKey,
+        extraPayload: { idempotency_key: idempotencyKey },
+      },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.headers['Idempotency-Key']).toBe(idempotencyKey);
+    expect(options.headers).not.toHaveProperty('idempotency-key');
+    expect(options.body.idempotency_key).toBe(idempotencyKey);
+  });
+
+  it('propagates the same municipal idempotency header for audio multipart requests', async () => {
+    const idempotencyKey = 'audio-municipio-request-0001';
+
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/municipio',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-Slug': 'municipio',
+        },
+        payload: { tipo_chat: 'municipio', tenant_slug: 'municipio' },
+      },
+      {
+        text: 'Adjunto audio del reclamo',
+        audioBlob: new Blob(['audio'], { type: 'audio/webm' }),
+        audioFilename: 'reclamo.webm',
+        idempotencyKey,
+      },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.body).toBeInstanceOf(FormData);
+    expect(options.headers['Idempotency-Key']).toBe(idempotencyKey);
+    expect(options.headers).not.toHaveProperty('Content-Type');
+    expect(options.headers).not.toHaveProperty('content-type');
+  });
+
+  it('strips idempotency headers from PYME bootstrap requests', async () => {
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/pyme',
+        method: 'POST',
+        headers: {
+          'X-Tenant-Slug': 'ferreteria-demo',
+          'Idempotency-Key': 'stale-pyme-key',
+        },
+        payload: { tipo_chat: 'pyme', tenant_slug: 'ferreteria-demo' },
+      },
+      {
+        text: 'Necesito un presupuesto',
+        idempotencyKey: '667f4278-beb8-4655-9515-e680a24aef45',
+      },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.headers).not.toHaveProperty('Idempotency-Key');
+    expect(options.headers).not.toHaveProperty('idempotency-key');
+  });
+
   it('does not retry legacy fallback endpoints when runtime rejects the request', async () => {
     apiFetchMock.mockRejectedValueOnce(new Error('missing'));
 
@@ -393,6 +478,27 @@ describe('sendChatBootstrapMessage', () => {
 });
 
 describe('normalizeLeadCaptureResponse operational results', () => {
+  it('does not classify survey menu resources as a created claim', () => {
+    const normalized = normalizeLeadCaptureResponse({
+      success: true,
+      contract_version: 'chat.response.v1',
+      fuente: 'demo_encuestas_menu_v1',
+      accion_backend: 'demo_encuestas_menu',
+      created_entity: null,
+      ticket: null,
+      adjuntos: [{ id: 'survey-share', url: 'https://example.test/e/prioridades' }],
+      lead: { created: false, lead_id: null, ticket_id: null },
+      data: {
+        chat_id: 'demo-chat',
+        sector: 'gobierno',
+        tenant_slug: 'junin',
+        surveys_votings: { items: [{ public_url: 'https://example.test/e/prioridades' }] },
+      },
+    });
+
+    expect(normalized.ticket).toBeNull();
+  });
+
   it('keeps real municipal ticket evidence and location fields', () => {
     const normalized = normalizeLeadCaptureResponse({
       ok: true,

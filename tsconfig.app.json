@@ -27,7 +27,7 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "middleware.ts"],
   "exclude": [
     "src/**/*.test.ts",
     "src/**/*.test.tsx",

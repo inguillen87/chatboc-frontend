@@ -12,6 +12,10 @@ const tenantApiMocks = vi.hoisted(() => ({
   unfollowTenant: vi.fn(),
 }));
 
+const anonIdMocks = vi.hoisted(() => ({
+  ensureRemoteAnonId: vi.fn(),
+}));
+
 vi.mock('@/api/tenant', () => ({
   followTenant: tenantApiMocks.followTenant,
   getTenantPublicInfoFlexible: tenantApiMocks.getTenantPublicInfoFlexible,
@@ -20,7 +24,7 @@ vi.mock('@/api/tenant', () => ({
 }));
 
 vi.mock('@/utils/anonId', () => ({
-  ensureRemoteAnonId: vi.fn().mockResolvedValue('anon-test'),
+  ensureRemoteAnonId: anonIdMocks.ensureRemoteAnonId,
 }));
 
 const TenantProbe = () => {
@@ -39,11 +43,36 @@ describe('TenantProvider global route bootstrap', () => {
     document.querySelectorAll('[data-tenant-bootstrap-test]').forEach((node) => node.remove());
     tenantApiMocks.getTenantPublicInfoFlexible.mockReset();
     tenantApiMocks.listFollowedTenants.mockReset().mockResolvedValue([]);
+    anonIdMocks.ensureRemoteAnonId.mockReset().mockResolvedValue('anon-test');
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     delete (window as any).CHATBOC_CONFIG;
     document.querySelectorAll('[data-tenant-bootstrap-test]').forEach((node) => node.remove());
+  });
+
+  it.each([null,'preview'])('keeps a fresh Preview login unscoped with ambient value %s', async stored => {
+    if(stored)safeLocalStorage.setItem('tenantSlug',stored);
+    const originalWindow=window;
+    vi.stubGlobal('window',new Proxy(originalWindow,{get(target,key){
+      return key==='location'?{hostname:'preview.chatboc.ar',origin:'https://preview.chatboc.ar',pathname:'/login',search:'',hash:''}:Reflect.get(target,key);
+    }}));
+    render(<MemoryRouter initialEntries={['/login']} future={{v7_startTransition:true,v7_relativeSplatPath:true}}><TenantProvider><TenantProbe/></TenantProvider></MemoryRouter>);
+    await waitFor(()=>expect(screen.getByText('ready:none')).toBeInTheDocument());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
+  });
+
+  it('preserves the explicitly selected tenant named preview on the Preview platform alias',async()=>{
+    const originalWindow=window;
+    vi.stubGlobal('window',new Proxy(originalWindow,{get(target,key){
+      return key==='location'?{hostname:'preview.chatboc.ar',origin:'https://preview.chatboc.ar',pathname:'/t/preview',search:'',hash:''}:Reflect.get(target,key);
+    }}));
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({slug:'preview',nombre:'Explicit organization',tipo:'municipio'});
+    render(<MemoryRouter initialEntries={['/t/preview']} future={{v7_startTransition:true,v7_relativeSplatPath:true}}><TenantProvider><TenantProbe/></TenantProvider></MemoryRouter>);
+    await waitFor(()=>expect(screen.getByText('ready:preview')).toBeInTheDocument());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('preview',null);
   });
 
   it('does not interpret /superadmin as a tenant or request tenant-info', async () => {
@@ -63,6 +92,20 @@ describe('TenantProvider global route bootstrap', () => {
     expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
     expect(tenantApiMocks.listFollowedTenants).not.toHaveBeenCalled();
     expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
+  });
+
+  it('reads the selected organization from implementation query instead of the route name', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({ slug: 'junin', nombre: 'Municipalidad de Junín', tipo: 'municipio' });
+    render(<MemoryRouter initialEntries={['/implementacion?tenant_slug=junin']}><TenantProvider><TenantProbe /></TenantProvider></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('ready:junin')).toBeInTheDocument());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('junin', null);
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalledWith('implementacion', expect.anything());
+  });
+  it('reads the explicit rehearsal organization instead of interpreting the product prefix as a tenant', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({ slug: 'organization-a', nombre: 'Organización A', tipo: 'municipio' });
+    render(<MemoryRouter initialEntries={['/pruebas/encuestas/organization-a/rehearsal_' + '4'.repeat(32)]}><TenantProvider><TenantProbe /></TenantProvider></MemoryRouter>);
+    await waitFor(() => expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('organization-a', null));
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalledWith('pruebas', expect.anything());
   });
 
   it('ignores every ambient tenant source on /superadmin and preserves the stored preference', async () => {
@@ -96,6 +139,132 @@ describe('TenantProvider global route bootstrap', () => {
     expect(tenantApiMocks.listFollowedTenants).not.toHaveBeenCalled();
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
     expect((window as any).currentTenantSlug).toBeNull();
+  });
+
+  it('keeps the exact institutional demo independent from ambient or persisted tenants', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'junin');
+    (window as any).CHATBOC_CONFIG = {
+      tenantSlug: 'config-tenant',
+      entityToken: 'widget-token-from-config',
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/demo/institucional/tdf-discapacidad?tenant_slug=query-tenant&widget_token=query-token',
+        ]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('ready:none')).toBeInTheDocument());
+
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
+    expect(tenantApiMocks.listFollowedTenants).not.toHaveBeenCalled();
+    expect(anonIdMocks.ensureRemoteAnonId).not.toHaveBeenCalled();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin');
+    expect((window as any).currentTenantSlug).toBeNull();
+  });
+
+  it.each([
+    '/demo?sector=gobierno&tenant_slug=junin',
+    '/demo/gobierno?tenant_slug=junin',
+  ])('keeps public presentation %s independent from private and PWA bootstrap', async (entry) => {
+    safeLocalStorage.setItem('tenantSlug', 'persisted-tenant');
+    (window as any).CHATBOC_CONFIG = {
+      tenantSlug: 'config-tenant',
+      entityToken: 'widget-token-from-config',
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={[entry]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('ready:none')).toBeInTheDocument());
+
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).not.toHaveBeenCalled();
+    expect(tenantApiMocks.listFollowedTenants).not.toHaveBeenCalled();
+    expect(anonIdMocks.ensureRemoteAnonId).not.toHaveBeenCalled();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('persisted-tenant');
+    expect((window as any).currentTenantSlug).toBeNull();
+  });
+
+  it('does not broaden tenant suppression to similar demo URLs', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({
+      slug: 'institucional',
+      nombre: 'Tenant de prueba',
+      logo_url: null,
+      tema: null,
+      tipo: 'municipio',
+      descripcion: null,
+      public_base_url: null,
+      public_cart_url: null,
+      public_catalog_url: null,
+      whatsapp_share_url: null,
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/demo/institucional/otra']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalled());
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith('institucional', null);
+    expect(anonIdMocks.ensureRemoteAnonId).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the embedded widget tenant-aware', async () => {
+    tenantApiMocks.getTenantPublicInfoFlexible.mockResolvedValue({
+      slug: 'junin',
+      nombre: 'Municipalidad de Junín',
+      logo_url: null,
+      tema: null,
+      tipo: 'municipio',
+      descripcion: null,
+      public_base_url: null,
+      public_cart_url: null,
+      public_catalog_url: null,
+      whatsapp_share_url: null,
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/iframe?tenant_slug=junin&widget_token=widget-token']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <TenantProvider>
+          <TenantProbe />
+        </TenantProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('ready:junin')).toBeInTheDocument());
+
+    expect(tenantApiMocks.getTenantPublicInfoFlexible).toHaveBeenCalledWith(
+      'junin',
+      'widget-token',
+    );
+    expect(anonIdMocks.ensureRemoteAnonId).toHaveBeenCalledWith({
+      tenantSlug: 'junin',
+      widgetToken: 'widget-token',
+    });
   });
 
   it('keeps /perfil tenant-aware with the stored tenant preference', async () => {

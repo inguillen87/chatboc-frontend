@@ -35,16 +35,33 @@ export interface WhatsappFunnelResponseV1 {
   stages: WhatsappFunnelStageV1[];
 }
 
-export interface AnalyticsEventIngestAckV1 {
+export interface AnalyticsEventIngestAcceptedAckV1 {
   ok: true;
   contract_version: 'analytics.event_ingest.v1';
   request_id: string;
+  accepted: true;
+  ignored: false;
   tenant_id: number;
   event_name: string;
   contact_key?: string;
   conversation_id?: string;
   identity_source?: string;
 }
+
+export interface AnalyticsEventIngestIgnoredAckV1 {
+  ok: true;
+  contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
+  accepted: false;
+  ignored: true;
+  reason: string;
+  tenant_id: number | null;
+  event_name: string;
+}
+
+export type AnalyticsEventIngestAckV1 =
+  | AnalyticsEventIngestAcceptedAckV1
+  | AnalyticsEventIngestIgnoredAckV1;
 
 export interface WidgetBootstrapV1 {
   contract_version: 'auth.widget_bootstrap.v1';

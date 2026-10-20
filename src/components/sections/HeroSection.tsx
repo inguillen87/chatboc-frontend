@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import "./enterpriseLanding.css";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -14,12 +15,10 @@ import {
   Mic,
   PackageCheck,
   Paperclip,
-  Send,
   ShoppingCart,
   Store,
   TicketCheck,
   UsersRound,
-  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -152,13 +151,32 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
   return defaultValue;
 };
 
-const DEFAULT_HEADLINE = "Converti conversaciones en operaciones reales";
-const DEFAULT_DESCRIPTION =
+const isLegacyCtaLabel = (source: unknown, expected: string) => {
+  const declaredLabel = isRecord(source)
+    ? readRawText(source, ["label", "title", "text"])
+    : typeof source === "string" ? source : "";
+  // Recognize only the two historical labels before customer-copy cleaning.
+  // Custom labels and their declared destinations retain the normal path.
+  const normalize = (value: string) => value.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return normalize(declaredLabel) === normalize(expected);
+};
+
+const DEFAULT_HEADLINE = "Convertí conversaciones en operaciones reales";
+const LEGACY_DESCRIPTION =
   "Chatboc atiende por web o WhatsApp, pide los datos justos y deja casos, pedidos o leads listos para operar.";
-const DEFAULT_CONVERSATION_TITLE = "WhatsApp operativo";
-const DEFAULT_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
-const DEFAULT_PRIMARY_CTA = { label: "Probar una conversacion real", target: "/demo" };
-const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/demo?intent=ventas" };
+const DEFAULT_DESCRIPTION =
+  "Una plataforma omnicanal para gobiernos y empresas: atiende, resuelve y mide cada conversación desde WhatsApp, web y un CRM operativo.";
+const DEFAULT_EYEBROW = "Atención y gestión en una sola plataforma";
+const DEFAULT_PROOF_ITEMS = ["WhatsApp y web", "CRM operativo", "Seguimiento trazable"];
+const DEFAULT_CONVERSATION_TITLE = "Conversación y gestión conectadas";
+const LEGACY_CONVERSATION_TITLE = "WhatsApp operativo";
+const DEFAULT_CONVERSATION_SUBTITLE = "Cada mensaje conserva contexto, estado y trazabilidad en el CRM.";
+const LEGACY_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
+const DEFAULT_PRIMARY_CTA = { label: "Solicitar demostración", target: "/contacto" };
+const DEFAULT_SECONDARY_CTA = { label: "Ver recorrido", target: "/demo" };
+const LEGACY_PRIMARY_CTA_LABEL = "Probar una conversacion real";
+const LEGACY_SECONDARY_CTA_LABEL = "Hablar con ventas";
 
 const normalizeHeroMediaUrl = (raw: string) => {
   const value = raw.trim();
@@ -797,27 +815,43 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const headline =
     (isBrandOnlyHeadline(heroHeadline) ? readText(hero, ["value_prop", "main_copy"]) : heroHeadline) ||
     DEFAULT_HEADLINE;
-  const description =
+  const publishedDescription =
     readText(hero, ["subheadline", "subtitle", "description", "copy", "body"]) || DEFAULT_DESCRIPTION;
-  const eyebrow = readText(hero, ["eyebrow", "kicker", "badge_label", "tagline"]);
+  const description = publishedDescription === LEGACY_DESCRIPTION ? DEFAULT_DESCRIPTION : publishedDescription;
+  const eyebrow = readText(hero, ["eyebrow", "kicker", "badge_label", "tagline"]) || DEFAULT_EYEBROW;
 
-  const proofItems = normalizeProofItems(
+  const publishedProofItems = normalizeProofItems(
     first(hero, ["proof_items", "trust_signals", "proof", "badges"]) ?? experience?.proof_bar,
   );
-  const dashboardRows = normalizeMetrics(
-    first(hero, ["metrics", "stats", "dashboard_rows"]) ?? first(hero, ["preview", "metrics"]),
-  );
-  const workflowSteps = normalizeWorkflowSteps(first(hero, ["workflow_steps", "agent_steps", "steps", "process_steps"]));
-  const primaryCta = normalizeCta(first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0], {
+  const proofItems = publishedProofItems.length ? publishedProofItems : DEFAULT_PROOF_ITEMS;
+  const primaryCtaSource = first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0];
+  const secondaryCtaSource = first(hero, ["secondary_cta", "secondaryCta"]) ?? asArray(experience?.ctas)[1];
+  const publishedPrimaryCta = normalizeCta(primaryCtaSource, {
     label: DEFAULT_PRIMARY_CTA.label,
     target: DEFAULT_PRIMARY_CTA.target,
   });
-  const secondaryCta = normalizeCta(first(hero, ["secondary_cta", "secondaryCta"]) ?? asArray(experience?.ctas)[1], {
+  const publishedSecondaryCta = normalizeCta(secondaryCtaSource, {
     label: DEFAULT_SECONDARY_CTA.label,
     target: DEFAULT_SECONDARY_CTA.target,
   });
-  const previewTitle = readText(hero, ["preview_title", "dashboard_title"]) || DEFAULT_CONVERSATION_TITLE;
-  const previewCopy = readText(hero, ["preview_copy", "dashboard_description"]) || DEFAULT_CONVERSATION_SUBTITLE;
+  const primaryCta =
+    isLegacyCtaLabel(primaryCtaSource, LEGACY_PRIMARY_CTA_LABEL)
+      ? { label: DEFAULT_PRIMARY_CTA.label, target: publishedSecondaryCta.target || DEFAULT_PRIMARY_CTA.target }
+      : publishedPrimaryCta;
+  const secondaryCta =
+    isLegacyCtaLabel(secondaryCtaSource, LEGACY_SECONDARY_CTA_LABEL)
+      ? { label: DEFAULT_SECONDARY_CTA.label, target: publishedPrimaryCta.target || DEFAULT_SECONDARY_CTA.target }
+      : publishedSecondaryCta;
+  const publishedPreviewTitle = readText(hero, ["conversation_title", "demo_title", "preview_title", "dashboard_title"]);
+  const previewTitle =
+    !publishedPreviewTitle || publishedPreviewTitle === LEGACY_CONVERSATION_TITLE
+      ? DEFAULT_CONVERSATION_TITLE
+      : publishedPreviewTitle;
+  const publishedPreviewCopy = readText(hero, ["conversation_subtitle", "demo_subtitle", "preview_copy", "dashboard_description"]);
+  const previewCopy =
+    !publishedPreviewCopy || publishedPreviewCopy === LEGACY_CONVERSATION_SUBTITLE
+      ? DEFAULT_CONVERSATION_SUBTITLE
+      : publishedPreviewCopy;
   const conversationFlows = useMemo(
     () => {
       const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
@@ -832,8 +866,6 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     [experience, hero],
   );
   const [activeFlowId, setActiveFlowId] = React.useState(conversationFlows[0]?.id ?? "");
-  const [manualFlowSelection, setManualFlowSelection] = React.useState(false);
-  const phoneScreenRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (!conversationFlows.some((flow) => flow.id === activeFlowId)) {
@@ -841,41 +873,21 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     }
   }, [activeFlowId, conversationFlows]);
 
-  React.useEffect(() => {
-    if (manualFlowSelection || conversationFlows.length < 2) return undefined;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const timer = window.setInterval(() => {
-      setActiveFlowId((current) => {
-        const currentIndex = Math.max(
-          conversationFlows.findIndex((flow) => flow.id === current),
-          0,
-        );
-        return conversationFlows[(currentIndex + 1) % conversationFlows.length]?.id ?? current;
-      });
-    }, 14800);
-    return () => window.clearInterval(timer);
-  }, [conversationFlows, manualFlowSelection]);
-
   const activeFlow = conversationFlows.find((flow) => flow.id === activeFlowId) ?? conversationFlows[0];
   const activeFlowIndex = Math.max(
     conversationFlows.findIndex((flow) => flow.id === activeFlow?.id),
     0,
   );
   const activeAction = activeFlow?.action;
-  const activeWorkflowSteps = activeFlow?.workflowSteps.length ? activeFlow.workflowSteps : workflowSteps;
-  const activeInputKinds = activeFlow?.inputs.map((input) => inferInputKind(input.kind)) ?? [];
   const ActiveFlowIcon = activeFlow ? getFlowIcon(activeFlow) : Bot;
   const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
   const activeFlowFamily = activeFlow ? inferFlowFamily(activeFlow) : "platform";
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
-  const agentTitle = readText(hero, ["agent_title"]);
-  const agentSubtitle = readText(hero, ["agent_subtitle"]);
 
   const selectConversationFlow = (index: number, focusTab = false) => {
     const nextFlow = conversationFlows[index];
     if (!nextFlow) return;
 
-    setManualFlowSelection(true);
     setActiveFlowId(nextFlow.id);
 
     if (focusTab) {
@@ -901,33 +913,28 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     selectConversationFlow(nextIndex, true);
   };
 
-  React.useEffect(() => {
-    if (!activeFlow?.id) return undefined;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-
-    const scrollScreen = () => {
-      const screen = phoneScreenRef.current;
-      if (!screen) return;
-      const targetTop = Math.max(0, screen.scrollHeight - screen.clientHeight - 500);
-      screen.scrollTo({ top: targetTop, behavior: "smooth" });
-      window.setTimeout(() => {
-        screen.scrollTop = targetTop;
-      }, 460);
-    };
-    const timers = [6200, 7800, 9400, 10600].map((delay) => window.setTimeout(scrollScreen, delay));
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [activeFlow?.id]);
-
-  const heroPrimaryCta = {
-    label: activeAction?.ctaLabel || primaryCta.label,
-    target: activeAction?.ctaTarget || primaryCta.target,
-  };
+  const heroPrimaryCta = primaryCta;
 
   const accentStyle = {
     ["--chatboc-hero-accent" as string]: readText(colors, ["primary", "accent"], ""),
   } as React.CSSProperties;
   const showHeroPreview =
     Boolean(activeFlow?.message && activeFlow?.response && (activeAction || activeFlow.resultTraceable));
+  const presentation = isRecord(hero.presentation) ? hero.presentation : undefined;
+  const presentationLabel = presentation?.kind === "illustrative_walkthrough"
+    ? readText(presentation, ["label"]) : "";
+  const presentationNotice = presentationLabel ? readText(presentation, ["notice"]) : "";
+  const overview = isRecord(hero.capability_overview) ? hero.capability_overview : undefined;
+  const overviewTitle = readText(overview, ["title"]);
+  const overviewSteps = asArray(overview?.steps).flatMap((value, index) => {
+    if (!isRecord(value)) return [];
+    const label = readText(value, ["label"]);
+    const detail = readText(value, ["detail"]);
+    return label && detail ? [{ id: readText(value, ["id"], String(index)), label, detail }] : [];
+  }).slice(0, 4);
+  const showCapabilityOverview = Boolean(!showHeroPreview && overviewTitle && overviewSteps.length);
+  const hasProductVisual = showHeroPreview || showCapabilityOverview;
+  const overviewTitleId = `${conversationDemoId}-overview-title`;
   const headlineWords = headline.split(/\s+/).filter(Boolean);
   const headlineLead = headlineWords.slice(0, Math.max(2, headlineWords.length - 3)).join(" ");
   const headlineAccent = headlineWords.slice(Math.max(2, headlineWords.length - 3)).join(" ");
@@ -943,42 +950,43 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
 
   return (
     <section
-      className="chatboc-hero-grid relative overflow-visible pt-16 pb-12 text-foreground md:pt-16 md:pb-16"
+      id="inicio"
+      className={`enterprise-hero ${hasProductVisual ? "enterprise-hero--with-visual" : "enterprise-hero--editorial"}`}
       style={accentStyle}
       data-chatboc-hero
     >
-      <div className="container mx-auto px-4 2xl:max-w-[1480px]">
-        <div className={`chatboc-hero-layout grid items-center gap-8 lg:gap-12 xl:gap-16 ${showHeroPreview ? "lg:grid-cols-[minmax(0,0.84fr)_minmax(30rem,1.16fr)] xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)]" : ""}`}>
-          <div className="min-w-0 max-w-3xl">
+      <div className="enterprise-hero__container">
+        <div className="enterprise-hero__layout">
+          <div className="enterprise-hero__copy">
             {eyebrow && (
-              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-primary">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                <span className="truncate">{eyebrow}</span>
+              <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/15 bg-primary/[0.06] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+                <span>{eyebrow}</span>
               </div>
             )}
 
             {headline && (
-              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.02] tracking-normal text-foreground sm:text-5xl md:text-6xl 2xl:text-7xl">
+              <h1 className="enterprise-hero__headline">
                 <span>{headlineLead}</span>{" "}
-                {headlineAccent && <span className="chatboc-hero-headline__accent">{headlineAccent}</span>}
+                {headlineAccent && <span className="text-primary">{headlineAccent}</span>}
               </h1>
             )}
 
             {description && (
-              <p className="chatboc-hero-description mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
+              <p className="enterprise-hero__description">
                 {description}
               </p>
             )}
 
             {(heroPrimaryCta.label || secondaryCta.label) && (
-              <div className="chatboc-hero-actions mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="enterprise-hero__actions">
                 {heroPrimaryCta.label && (
                   <Button
                     size="lg"
-                    className="chatboc-cta-primary h-12 w-full rounded-[8px] px-6 text-base font-semibold sm:w-auto"
+                    className="chatboc-cta-primary h-11 w-full rounded-[8px] px-5 text-sm font-semibold shadow-[0_10px_24px_hsl(var(--primary)/0.18)] sm:w-auto"
                     onClick={() => navigateTo(heroPrimaryCta.target)}
                   >
-                    <Zap className="mr-2 h-5 w-5" />
+                    <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
                     {heroPrimaryCta.label}
                   </Button>
                 )}
@@ -986,7 +994,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="h-12 w-full rounded-[8px] border-border/80 bg-background/70 px-6 text-base font-semibold shadow-sm backdrop-blur hover:border-primary/40 hover:bg-primary/5 sm:w-auto"
+                    className="h-11 w-full rounded-[8px] border-border/80 bg-background/80 px-5 text-sm font-semibold shadow-sm hover:border-primary/35 hover:bg-primary/[0.04] sm:w-auto"
                     onClick={() => navigateTo(secondaryCta.target)}
                   >
                     {secondaryCta.label}
@@ -997,13 +1005,13 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {proofItems.length > 0 && (
-              <div className="chatboc-hero-proof mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="enterprise-hero__proof" aria-label="Capacidades de la plataforma">
                 {proofItems.slice(0, 3).map((item) => (
                   <div
                     key={item}
-                    className="flex items-start gap-2 rounded-[8px] border border-border/60 bg-background/70 px-3 py-3 text-sm text-muted-foreground backdrop-blur"
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
                   >
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
                     <span>{item}</span>
                   </div>
                 ))}
@@ -1012,51 +1020,42 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           </div>
 
           {showHeroPreview && (
-          <div className="relative min-w-0">
-            <div className="chatboc-hero-aura" aria-hidden="true" />
-            <div className="chatboc-hero-stage">
-              <div className="chatboc-hero-preview">
-              <span className="chatboc-hero-preview__button chatboc-hero-preview__button--volume" aria-hidden="true" />
-              <span className="chatboc-hero-preview__button chatboc-hero-preview__button--power" aria-hidden="true" />
+          <div className="enterprise-hero__product" data-presentation-kind={presentation?.kind}>
+            {presentationLabel && (
+              <div className="enterprise-hero__disclosure">
+                <span><ClipboardCheck className="h-4 w-4" aria-hidden="true" />{presentationLabel}</span>
+                {presentationNotice && <p>{presentationNotice}</p>}
+              </div>
+            )}
+            <div className="enterprise-hero__scene">
+              <div className="enterprise-hero__preview">
               {activeFlow && (
-                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)}`}>
-                  <div className="chatboc-phone-demo__chrome" aria-hidden="true">
-                    <span />
-                    <div>
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                  </div>
+                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)} enterprise-hero__workspace`}>
 
-                  <div className="chatboc-phone-demo__bar">
+                  <div className="chatboc-phone-demo__bar enterprise-hero__workspace-header">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                        <ActiveFlowIcon className="h-5 w-5" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-primary/15 bg-primary/[0.08] text-primary">
+                        <ActiveFlowIcon className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="min-w-0">
-                        {readText(hero, ["conversation_title", "demo_title"], previewTitle) && (
+                        {previewTitle && (
                           <p className="truncate text-sm font-bold text-foreground">
-                            {readText(hero, ["conversation_title", "demo_title"], previewTitle)}
+                            {previewTitle}
                           </p>
                         )}
-                        {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy) && (
-                          <p className="truncate text-xs text-muted-foreground">
-                            {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy)}
+                        {previewCopy && (
+                          <p className="hidden truncate text-xs text-muted-foreground sm:block">
+                            {previewCopy}
                           </p>
                         )}
                       </div>
                     </div>
-                    {readText(hero, ["status_label", "preview_status"]) && (
-                      <div className="chatboc-live-chip shrink-0 rounded-[8px] bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
-                        {readText(hero, ["status_label", "preview_status"])}
-                      </div>
-                    )}
+
                   </div>
 
                   {conversationFlows.length > 1 && (
                     <div
-                      className="chatboc-phone-demo__tabs"
+                      className="chatboc-phone-demo__tabs enterprise-hero__tabs"
                       role="tablist"
                       aria-label="Ejemplos de conversaciones operativas"
                     >
@@ -1072,9 +1071,8 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             aria-selected={isActive}
                             aria-controls={conversationPanelId}
                             tabIndex={isActive ? 0 : -1}
-                            className={`chatboc-phone-demo__tab ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
+                            className={`chatboc-phone-demo__tab enterprise-hero__tab ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
                             onClick={() => selectConversationFlow(index)}
-                            onFocus={() => setManualFlowSelection(true)}
                             onKeyDown={(event) => handleConversationTabKeyDown(event, index)}
                           >
                             <FlowIcon className="h-4 w-4" />
@@ -1087,9 +1085,8 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
 
                   <div
                     key={activeFlow.id}
-                    ref={phoneScreenRef}
                     id={conversationFlows.length > 1 ? conversationPanelId : undefined}
-                    className="chatboc-phone-demo__screen focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    className="chatboc-phone-demo__screen enterprise-hero__conversation-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                     role={conversationFlows.length > 1 ? "tabpanel" : "region"}
                     aria-labelledby={
                       conversationFlows.length > 1
@@ -1103,225 +1100,161 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     }
                     tabIndex={0}
                   >
-                    <div className="chatboc-phone-demo__progress" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <div className="chatboc-phone-demo__thread">
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--1 flex justify-end">
-                        <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">
-                          {activeFlow.message}
-                        </div>
+                    <div className="min-w-0">
+                      <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          Conversación
+                        </p>
+                        <span className="truncate text-[11px] font-medium text-primary">
+                          {getFlowTabLabel(activeFlow)}
+                        </span>
                       </div>
+                      <div className="chatboc-phone-demo__thread !gap-3 !rounded-[16px] !p-3">
+                        <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--1 flex justify-end">
+                          <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user !max-w-[92%] !px-3 !py-2 !text-[13px]">
+                            {activeFlow.message}
+                          </div>
+                        </div>
 
-                      {activeFlow.inputs.length > 0 && (
-                        <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--2 chatboc-phone-demo__attachments">
-                          {activeFlow.inputs.map((input) => (
-                            <HeroInputCard
-                              key={`${activeFlow.id}-${input.kind}-${input.label}`}
-                              input={input}
-                              family={activeFlowFamily}
-                            />
-                          ))}
-                        </div>
-                      )}
+                        {activeFlow.inputs.length > 0 && (
+                          <div
+                            className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--2 flex flex-wrap justify-end gap-1.5"
+                            aria-label="Datos recibidos"
+                          >
+                            {activeFlow.inputs.slice(0, 3).map((input) => {
+                              const InputIcon = getInputIcon(input.kind);
+                              return (
+                                <span
+                                  key={`${activeFlow.id}-${input.kind}-${input.label}`}
+                                  className="inline-flex min-h-8 items-center gap-1.5 rounded-[8px] border border-primary/15 bg-primary/[0.06] px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                                >
+                                  <InputIcon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                                  {input.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
 
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--3 flex items-center gap-2 pl-1">
-                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                          <Bot className="h-4 w-4" />
-                        </div>
-                        <div className="chatboc-phone-demo__typing" aria-hidden="true">
-                          <span />
-                          <span />
-                          <span />
-                        </div>
-                      </div>
-
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--4 flex items-start gap-3">
-                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                          <Bot className="h-4 w-4" />
-                        </div>
-                        <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--agent">
-                          {activeFlow.response}
+                        <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--4 flex items-start gap-2">
+                          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-primary/15 bg-primary/[0.08] text-primary">
+                            <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+                          </div>
+                          <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--agent !max-w-[calc(100%-2.25rem)] !px-3 !py-2 !text-[13px]">
+                            {activeFlow.response}
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     {activeAction && (
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--5 chatboc-phone-demo__result">
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--5 chatboc-phone-demo__result !rounded-[16px] !p-3.5">
+                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          Resultado en CRM
+                        </p>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                              <ActiveActionIcon className="h-5 w-5" />
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.09] text-primary">
+                              <ActiveActionIcon className="h-4 w-4" aria-hidden="true" />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               {actionSectionLabel && (
-                                <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                                <p className="truncate text-[10px] font-semibold uppercase tracking-normal text-muted-foreground">
                                   {actionSectionLabel}
                                 </p>
                               )}
-                              <p className="text-lg font-bold text-foreground">{activeAction.label}</p>
+                              <p className="text-base font-bold leading-5 text-foreground">{activeAction.label}</p>
                             </div>
                           </div>
                           {activeAction.status && (
-                            <span className="rounded-[8px] border border-success/20 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">
+                            <span className="shrink-0 rounded-[8px] border border-primary/15 bg-primary/[0.07] px-2 py-1 text-[10px] font-semibold text-primary">
                               {activeAction.status}
                             </span>
                           )}
                         </div>
 
                         {activeAction.detail && (
-                          <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeAction.detail}</p>
+                          <p className="mt-3 line-clamp-2 text-xs leading-5 text-muted-foreground">{activeAction.detail}</p>
                         )}
 
                         {activeAction.fields.length > 0 && (
-                          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                            {activeAction.fields.map((field) => (
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            {activeAction.fields.slice(0, 4).map((field) => (
                               <div
                                 key={`${activeFlow.id}-${field.label}-${field.value}`}
-                                className="rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2"
+                                className="min-w-0 rounded-[8px] border border-border/70 bg-muted/35 px-2.5 py-2"
                               >
-                                <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                                <p className="truncate text-[10px] font-semibold uppercase tracking-normal text-muted-foreground">
                                   {field.label}
                                 </p>
-                                <p className="mt-1 text-sm font-semibold text-foreground">{field.value}</p>
+                                <p className="mt-1 line-clamp-2 text-xs font-semibold leading-4 text-foreground">{field.value}</p>
                               </div>
                             ))}
                           </div>
                         )}
 
                         {activeFlow.highlights.length > 0 && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {activeFlow.highlights.map((chip) => (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {activeFlow.highlights.slice(0, 2).map((chip) => (
                               <span
                                 key={`${activeFlow.id}-${chip}`}
-                                className="rounded-[8px] border border-border/70 bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                                className="rounded-[8px] border border-border/70 bg-background/70 px-2 py-1 text-[10px] font-medium text-muted-foreground"
                               >
                                 {chip}
                               </span>
                             ))}
                           </div>
                         )}
-                      </div>
-                    )}
-
-                    {activeWorkflowSteps.length > 0 && (
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--6 chatboc-phone-demo__steps">
-                        {(agentTitle || agentSubtitle) && (
-                          <div className="mb-3">
-                            {agentTitle && <p className="text-sm font-semibold text-foreground">{agentTitle}</p>}
-                            {agentSubtitle && <p className="text-xs text-muted-foreground">{agentSubtitle}</p>}
+                        {activeFlow.resultTraceable && (
+                          <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3 text-[11px] font-medium text-muted-foreground">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                            Registro trazable para el equipo
                           </div>
                         )}
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {activeWorkflowSteps.map((step, index) => (
-                            <div key={step} className="flex items-center gap-3 rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2">
-                              <span
-                                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
-                                  index <= activeFlowIndex
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
-                                }`}
-                              >
-                                {index + 1}
-                              </span>
-                              <span className="text-xs font-semibold text-foreground">{step}</span>
-                            </div>
-                          ))}
-                        </div>
                       </div>
                     )}
-
-                    {activeInputKinds.length > 0 && (
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--7 chatboc-phone-demo__composer">
-                        {activeFlow.inputs.map((input) => {
-                          const ComposerIcon = getInputIcon(input.kind);
-                          return (
-                            <span
-                              key={`${activeFlow.id}-composer-${input.kind}-${input.label}`}
-                              className="chatboc-phone-demo__composer-chip"
-                            >
-                              <ComposerIcon className="h-3.5 w-3.5" />
-                              <span>{input.label}</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--8 chatboc-phone-demo__inputbar" aria-hidden="true">
-                      <span>Mensaje por WhatsApp</span>
-                      <Send className="h-4 w-4" />
-                    </div>
                   </div>
-
-                  {dashboardRows.length > 0 && (
-                    <div className="chatboc-phone-demo__metrics">
-                      {dashboardRows.map((row) => (
-                        <div key={row.label} className="min-w-0">
-                          <div className={`mb-2 h-1.5 w-9 rounded-full ${row.tone}`} />
-                          <p className="truncate text-xs text-muted-foreground">{row.label}</p>
-                          <p className="mt-1 text-xl font-bold text-foreground">{row.value}</p>
-                          {row.detail && <p className="mt-1 truncate text-[11px] text-muted-foreground">{row.detail}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
               </div>
             </div>
           </div>
           )}
+          {showCapabilityOverview && (
+            <aside className="enterprise-hero__product enterprise-hero__overview" aria-labelledby={overviewTitleId}>
+              {readText(overview, ["label"]) && <p className="enterprise-hero__overview-kicker">{readText(overview, ["label"])}</p>}
+              <h2 id={overviewTitleId}>{overviewTitle}</h2>
+              {readText(overview, ["description"]) && <p className="enterprise-hero__overview-description">{readText(overview, ["description"])}</p>}
+              <ol>
+                {overviewSteps.map((step, index) => (
+                  <li key={step.id}>
+                    <span className="enterprise-hero__step-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                    <div><h3>{step.label}</h3><p>{step.detail}</p></div>
+                    <ArrowRight className="enterprise-hero__step-arrow" aria-hidden="true" />
+                  </li>
+                ))}
+              </ol>
+              {presentationNotice && <p className="enterprise-hero__overview-notice">{presentationNotice}</p>}
+            </aside>
+          )}
         </div>
         <div
-          className="mx-auto mt-8 flex w-full max-w-6xl items-center gap-3 md:mt-11"
+          className="enterprise-hero__integration-note"
           role="group"
-          aria-label="Chatboc.ar Meta Tech Provider"
+          aria-label="Integraciones disponibles por configuración"
         >
-          <span className="hidden h-px min-w-4 flex-1 bg-gradient-to-r from-transparent via-[#0866ff]/45 to-border/60 sm:block" aria-hidden="true" />
-          <div className="relative flex w-full max-w-5xl shrink-0 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[22px] border border-[#0866ff]/30 bg-white/92 px-3 py-2.5 text-center text-slate-950 shadow-[0_0_30px_rgba(8,102,255,0.16)] backdrop-blur dark:bg-[#061225]/86 dark:text-white sm:w-auto sm:flex-row sm:gap-4 sm:rounded-full sm:px-5 sm:py-2">
-            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#0866ff]/70 to-transparent" aria-hidden="true" />
-            <span className="inline-flex min-w-0 items-center justify-center gap-1.5 text-[10px] font-black leading-none tracking-normal sm:gap-2 sm:text-sm">
-              <svg className="h-3.5 w-6 shrink-0 text-[#0866ff] dark:text-[#5aa2ff] sm:h-5 sm:w-9" viewBox="0 0 72 44" fill="none" aria-hidden="true">
-                <path
-                  d="M8.5 32.2C10.6 19.8 15.8 10 24 10c5.8 0 10 5 16.2 15.9C46.5 15 50.8 10 56 10c8.2 0 13.4 9.8 15.5 22.2 1.5 9-9.3 11.2-15.1 3.1-4.8-6.8-8.8-15.7-16.2-15.7s-11.4 8.9-16.2 15.7C17.8 43.4 7 41.2 8.5 32.2Z"
-                  stroke="currentColor"
-                  strokeWidth="5.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="whitespace-nowrap">
-                <span className="text-[#0866ff] dark:text-[#5aa2ff]">Meta</span> Tech Provider
-              </span>
-              <span className="text-[#0866ff]/70 dark:text-[#5aa2ff]/80">+</span>
-              <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700 dark:text-emerald-200 sm:px-2 sm:text-xs">
-                <CheckCircle2 className="mr-1 h-2.5 w-2.5 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
-                Chatboc verificado
-              </span>
+          <span className="hidden h-px min-w-4 flex-1 bg-border sm:block" aria-hidden="true" />
+          <div className="flex w-full max-w-3xl shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] border border-border/70 bg-card/80 px-4 py-2.5 text-center sm:w-auto sm:flex-row sm:gap-3 sm:rounded-full">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              Integraciones por configuración
             </span>
-            <span className="hidden h-5 w-px bg-slate-950/12 dark:bg-white/15 sm:inline-block" aria-hidden="true" />
-            <span className="inline-flex min-w-0 items-center justify-center gap-1.5 text-[9px] font-bold leading-none text-slate-700 dark:text-sky-100 sm:gap-2 sm:text-xs">
-              <svg className="h-3.5 w-6 shrink-0 text-[#0866ff] dark:text-[#5aa2ff] sm:h-4 sm:w-7" viewBox="0 0 72 44" fill="none" aria-hidden="true">
-                <path
-                  d="M8.5 32.2C10.6 19.8 15.8 10 24 10c5.8 0 10 5 16.2 15.9C46.5 15 50.8 10 56 10c8.2 0 13.4 9.8 15.5 22.2 1.5 9-9.3 11.2-15.1 3.1-4.8-6.8-8.8-15.7-16.2-15.7s-11.4 8.9-16.2 15.7C17.8 43.4 7 41.2 8.5 32.2Z"
-                  stroke="currentColor"
-                  strokeWidth="5.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="whitespace-nowrap">Meta Business Partners</span>
-              <span className="text-[#0866ff]/70 dark:text-[#5aa2ff]/80">+</span>
-              <span className="whitespace-nowrap rounded-full border border-[#25d366]/30 bg-[#25d366]/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.04em] text-emerald-700 dark:text-emerald-200 sm:px-2.5 sm:text-[11px]">
-                WhatsApp Business Platform
-              </span>
+            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+            <span className="text-xs leading-5 text-muted-foreground">
+              WhatsApp Business Platform y otros canales, según configuración y validación técnica.
             </span>
           </div>
-          <span className="hidden h-px min-w-4 flex-1 bg-gradient-to-r from-border/60 via-[#0866ff]/45 to-transparent sm:block" aria-hidden="true" />
+          <span className="hidden h-px min-w-4 flex-1 bg-border sm:block" aria-hidden="true" />
         </div>
       </div>
     </section>

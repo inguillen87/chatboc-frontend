@@ -1,0 +1,99 @@
+.ticket-inspector {
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.ticket-inspector [data-radix-scroll-area-viewport] {
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.ticket-inspector [data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  min-width: 0 !important;
+  width: 100%;
+}
+
+.ticket-inspector__scroll-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ticket-inspector__header-title,
+.ticket-inspector__copy,
+.ticket-inspector dd,
+.ticket-inspector p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-inspector__badge {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ticket-inspector__action-grid,
+.ticket-inspector__data-grid,
+.ticket-inspector__secondary-action-grid,
+.ticket-inspector__technical-grid,
+.ticket-inspector__priority-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.ticket-inspector__contact-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.ticket-inspector__location-row {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ticket-inspector__action-button {
+  height: auto;
+  min-height: 2.5rem;
+  min-width: 0;
+  white-space: normal;
+}
+
+.ticket-inspector__action-button > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+@container (min-width: 24rem) {
+  .ticket-inspector__data-grid,
+  .ticket-inspector__secondary-action-grid,
+  .ticket-inspector__technical-grid,
+  .ticket-inspector__priority-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticket-inspector__location-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+@container (min-width: 32rem) {
+  .ticket-inspector__action-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ticket-inspector__contact-action-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowRightLeft, ExternalLink, Globe, MessageCircle, Package, ShoppingBag } from 'lucide-react';
@@ -12,12 +12,17 @@ import { useUser } from '@/hooks/useUser';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { apiClient } from '@/api/client';
 import { Order } from '@/types/unified';
+import { OrderAmountBreakdown, PublishedOrderAmounts } from '@/components/orders/OrderAmountBreakdown';
+import { formatOrderTotal, formatPublishedAmount, assessWidgetOrderAmounts, assessWidgetOrderItemAmounts } from '@/features/orders/orderAmounts';
 import type { WidgetPortalOrder } from '@/utils/widgetPortal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
+import {captureChatbocSessionRevision,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {ApiError,getErrorMessage} from '@/utils/api';
+import {ViewState} from '@/components/app-shell/ViewState';
 
 const STATUS_MAP: Record<string, string> = {
   nuevo: 'Recibido',
@@ -47,7 +52,7 @@ const getChannelIcon = (channel: string) => {
 };
 
 const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
-  const total = typeof order.amountTotal === 'number' ? order.amountTotal : null;
+  const amounts = order.amount_evidence ?? assessWidgetOrderAmounts({total:order.amountTotal});
   const title = order.title || (order.nroPedido ? `#${order.nroPedido}` : null);
   return (
     <Card className="overflow-hidden">
@@ -66,7 +71,7 @@ const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
             ) : null}
           </div>
           <div className="text-right">
-            {total !== null ? <span className="block text-lg font-bold">${total.toLocaleString()}</span> : null}
+            <span className="block text-lg font-bold">{formatPublishedAmount(amounts.total,amounts.currency)}</span>
             {order.trackingUrl ? (
               <a href={order.trackingUrl} className="mt-1 flex items-center justify-end gap-1 text-xs text-primary hover:underline">
                 Tracking <ExternalLink className="h-3 w-3" />
@@ -76,16 +81,9 @@ const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
         </div>
 
         <div className="space-y-4 p-4">
-          {order.items.length > 0 ? (
-            <div className="space-y-2">
-              {order.items.map((item) => (
-                <div key={item.id} className="flex justify-between gap-3 text-sm">
-                  <span>{[item.quantity ? `${item.quantity}x` : null, item.name].filter(Boolean).join(' ')}</span>
-                  {typeof item.price === 'number' ? <span className="font-medium text-muted-foreground">${item.price.toLocaleString()}</span> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <PublishedOrderAmounts evidence={amounts} showTotal={false} rows={order.items.map(item=>({
+            name:item.name||'Artículo sin nombre informado',evidence:item.amount_evidence??assessWidgetOrderItemAmounts(item,amounts.currency),
+          }))} />
           {(order.detailEndpoint || order.trackingUrl) ? (
             <div className="flex justify-end gap-2 border-t pt-4">
               {order.detailEndpoint ? (
@@ -134,7 +132,7 @@ const LegacyOrderCard = ({ order, currentSlug }: { order: Order; currentSlug: st
             </p>
           </div>
           <div className="text-right">
-            <span className="block text-lg font-bold">${order.total.toLocaleString()}</span>
+            <span className="block text-lg font-bold">{formatOrderTotal(order)}</span>
             {anyOrder.externalUrl ? (
               <a href={anyOrder.externalUrl} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center justify-end gap-1 text-xs text-primary hover:underline">
                 Ver en plataforma <ExternalLink className="h-3 w-3" />
@@ -144,14 +142,7 @@ const LegacyOrderCard = ({ order, currentSlug }: { order: Order; currentSlug: st
         </div>
 
         <div className="p-4">
-          <div className="space-y-2">
-            {order.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between text-sm">
-                <span>{item.quantity}x {item.name}</span>
-                <span className="font-medium text-muted-foreground">${item.price.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
+          <OrderAmountBreakdown order={order} showTotal={false} />
           {(anyOrder.customer_profile?.name || anyOrder.customer_profile?.phone || anyOrder.market_order_id || anyOrder.commercial_state?.supports_handoff) ? (
             <div className="mt-4 grid gap-2 rounded-2xl border border-border/60 bg-muted/20 p-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
               {anyOrder.customer_profile?.name ? (
@@ -195,15 +186,23 @@ const UserOrdersPage = () => {
   const { user } = useUser();
   const { hasVerifiedSession } = useSessionAuthority();
   const { content, commerceSession, publicOrders, isLoading: portalLoading } = usePortalContent();
-  const privateScopeKey = buildVerifiedSessionScopeKey({
+  const sessionRevision=useSyncExternalStore(subscribeChatbocSessionRevision,captureChatbocSessionRevision,captureChatbocSessionRevision);
+  const verifiedScope = buildVerifiedSessionScopeKey({
     hasVerifiedSession,
     tenantSlug: currentSlug,
     user,
   });
+  const authorityKey=JSON.stringify([verifiedScope,sessionRevision]);
+  const authorityEpoch=useRef({key:authorityKey,epoch:0});
+  if(authorityEpoch.current.key!==authorityKey)authorityEpoch.current={key:authorityKey,epoch:authorityEpoch.current.epoch+1};
+  const privateScopeKey=verifiedScope?JSON.stringify([authorityKey,authorityEpoch.current.epoch]):null;
   const activeScopeRef = useRef(privateScopeKey);
   activeScopeRef.current = privateScopeKey;
   const [ordersState, setOrdersState] = useState<{ scopeKey: string; items: Order[] } | null>(null);
   const [loadingScopeKey, setLoadingScopeKey] = useState<string | null>(null);
+  const [readError,setReadError]=useState<{scopeKey:string;message:string;denied:boolean}|null>(null);
+  const [retryRevision,setRetryRevision]=useState(0);
+  const retryPending=useRef(false);
   const orders = privateScopeKey && ordersState?.scopeKey === privateScopeKey
     ? ordersState.items
     : [];
@@ -219,40 +218,45 @@ const UserOrdersPage = () => {
     if (!requestTenantSlug || !requestScopeKey || publicOrders.length > 0) {
       setOrdersState(null);
       setLoadingScopeKey(null);
+      setReadError(null);retryPending.current=false;
       return;
     }
 
     setLoadingScopeKey(requestScopeKey);
+    setReadError(null);
     apiClient
       .listOrders(requestTenantSlug)
       .then((data) => {
         if (isCurrentRequest()) {
+          if(!Array.isArray(data))throw new Error('La respuesta de pedidos no pudo validarse.');
           setOrdersState({
             scopeKey: requestScopeKey,
-            items: Array.isArray(data) ? data : [],
+            items: data,
           });
         }
       })
       .catch((error) => {
-        console.error('Error loading orders:', error);
         if (isCurrentRequest()) {
-          setOrdersState({ scopeKey: requestScopeKey, items: [] });
+          const denied=error instanceof ApiError&&(error.status===401||error.status===403);
+          setReadError({scopeKey:requestScopeKey,message:getErrorMessage(error,'No pudimos cargar los pedidos.'),denied});
+          setOrdersState(previous=>({scopeKey:requestScopeKey,items:!denied&&previous?.scopeKey===requestScopeKey?previous.items:[]}));
         }
       })
       .finally(() => {
-        if (isCurrentRequest()) setLoadingScopeKey(null);
+        if (isCurrentRequest()){setLoadingScopeKey(null);retryPending.current=false;}
       });
 
     return () => {
       active = false;
     };
-  }, [currentSlug, privateScopeKey, publicOrders.length]);
+  }, [currentSlug, privateScopeKey, publicOrders.length,retryRevision]);
 
   const catalogPath = useMemo(() => buildTenantPath('/productos', currentSlug ?? undefined), [currentSlug]);
   const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
   const loading = portalLoading || legacyLoading;
   const hasPublicOrders = publicOrders.length > 0;
   const hasLegacyOrders = orders.length > 0;
+  const currentError=privateScopeKey&&readError?.scopeKey===privateScopeKey&&!hasPublicOrders?readError:null;
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 p-4">
@@ -265,11 +269,12 @@ const UserOrdersPage = () => {
         ) : null}
       </div>
 
+      {currentError?<div role="alert"><ViewState status={currentError.denied?'denied':hasLegacyOrders?'stale':'error'} description={currentError.message} action={<Button disabled={loading} onClick={()=>{if(loading||retryPending.current)return;retryPending.current=true;setRetryRevision(value=>value+1);}}>Reintentar</Button>}/></div>:null}
       {loading ? (
         <div className="space-y-4">
           {[1, 2].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg bg-muted/20" />)}
         </div>
-      ) : !hasPublicOrders && !hasLegacyOrders ? (
+      ) : !hasPublicOrders && !hasLegacyOrders && !currentError ? (
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
           <Package className="mb-4 h-12 w-12 opacity-20" />
           <p>No tenés pedidos registrados aún.</p>

@@ -1,9 +1,15 @@
 import { ApiError, apiFetch } from "@/utils/api";
-import { CreateTenantPayload, CreateTenantResponse, TenantConfigBundle } from "@/types/TenantConfig";
+import { panelReadOptions } from '@/utils/panelReadOptions';
+import { CreateTenantPayload, CreateTenantResponse, TenantConfigBundle, TenantConfigUpdate } from "@/types/TenantConfig";
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
+import type {
+  TenantRuntimeWidgetConfig,
+  TenantRuntimeWidgetUpdate,
+} from "@/utils/chatCustomizerPersistence";
 
 const BASE_URL = "/api/admin/tenants";
 const PUBLIC_BASE_URL = "/api/public/tenants";
+type TenantRequestLifecycle = { isCurrent?: () => boolean };
 
 export const tenantService = {
   createTenant: async (payload: CreateTenantPayload): Promise<CreateTenantResponse> => {
@@ -13,19 +19,66 @@ export const tenantService = {
     });
   },
 
-  getTenantConfig: async (slug: string): Promise<TenantConfigBundle> => {
-    return apiFetch<TenantConfigBundle>(`${BASE_URL}/${slug}/config`);
+  getTenantConfig: async (slug: string, lifecycle: TenantRequestLifecycle = {}): Promise<TenantConfigBundle> => {
+    if (lifecycle.isCurrent?.() === false) throw new ApiError('La consulta pertenece a una pantalla anterior.', 409);
+    const config = await apiFetch<TenantConfigBundle>(`${BASE_URL}/${encodeURIComponent(slug)}/config`, { ...panelReadOptions(slug), ...lifecycle });
+    if (lifecycle.isCurrent?.() === false) throw new ApiError('La consulta pertenece a una pantalla anterior.', 409);
+    if (config?.tenant?.slug !== slug) throw new ApiError('La configuración no corresponde a esta organización.', 502);
+    return config;
   },
 
-  updateTenantConfig: async (slug: string, payload: Partial<TenantConfigBundle>): Promise<TenantConfigBundle> => {
-    const response = await apiFetch<TenantConfigBundle | { message?: string }>(`${BASE_URL}/${slug}/config`, {
+  updateTenantConfig: async (slug: string, payload: TenantConfigUpdate, lifecycle: TenantRequestLifecycle = {}): Promise<TenantConfigBundle> => {
+    if (lifecycle.isCurrent?.() === false) throw new ApiError('El guardado pertenece a una pantalla anterior.', 409);
+    const response = await apiFetch<TenantConfigBundle | {
+      message?: string; contract_version?: string; ok?: boolean; saved?: boolean;
+      tenant?: { id?: number; slug?: string }; profile?: TenantConfigBundle['organization_profile'];
+    }>(`${BASE_URL}/${slug}/config`, {
+      ...panelReadOptions(slug), ...lifecycle, allowStartupRecovery: false,
       method: "PUT",
       body: JSON.stringify(payload),
     });
+    if (lifecycle.isCurrent?.() === false) throw new ApiError('El guardado pertenece a una pantalla anterior.', 409);
+    if (payload.organization_profile) {
+      const receipt = response as { contract_version?: string; ok?: boolean; saved?: boolean;
+        tenant?: { id?: number; slug?: string }; profile?: TenantConfigBundle['organization_profile'] };
+      const profile = receipt?.profile;
+      if (receipt?.contract_version !== 'organization.profile_save.v1' || receipt.ok !== true || typeof receipt.saved !== 'boolean' ||
+        receipt.tenant?.slug !== slug || !Number.isInteger(receipt.tenant.id) || receipt.tenant.id! < 1 ||
+        profile?.contract_version !== 'organization.profile_settings.v1' || profile.tenant?.slug !== slug ||
+        profile.tenant.id !== receipt.tenant.id || !/^[0-9a-f]{64}$/.test(profile.revision) ||
+        profile.values?.logo_url !== payload.organization_profile.logo_url) {
+        throw new ApiError('No pudimos confirmar el guardado del perfil institucional. Actualizá su estado antes de reintentar.', 502);
+      }
+      return tenantService.getTenantConfig(slug, lifecycle);
+    }
     if (response && "tenant" in response && "configs" in response) {
+      if (response.tenant.slug !== slug) throw new ApiError('La configuración no corresponde a esta organización.', 502);
       return response;
     }
-    return tenantService.getTenantConfig(slug);
+    return tenantService.getTenantConfig(slug, lifecycle);
+  },
+
+  getRuntimeWidgetConfig: async (slug: string): Promise<TenantRuntimeWidgetConfig> => {
+    return apiFetch<TenantRuntimeWidgetConfig>('/api/tenant/config', {
+      tenantSlug: slug,
+    });
+  },
+
+  updateRuntimeWidgetConfig: async (
+    slug: string,
+    payload: TenantRuntimeWidgetUpdate,
+  ): Promise<{ status?: string }> => {
+    return apiFetch<{ status?: string }>('/api/tenant/config', {
+      method: 'PUT',
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
+  getPublicRuntimeWidgetConfig: async (slug: string): Promise<TenantRuntimeWidgetConfig> => {
+    return apiFetch<TenantRuntimeWidgetConfig>(`/api/public/tenants/${slug}/widget-config`, {
+      tenantSlug: slug,
+    });
   },
 
   assignWhatsappNumber: async (slug: string): Promise<{ assigned: boolean; phone_number: string; sender_id: string }> => {
@@ -60,9 +113,7 @@ export const tenantService = {
   },
 
   getWhatsappTechProvider: async (slug: string): Promise<any> => {
-    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider`, {
-      tenantSlug: slug,
-    });
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider`, panelReadOptions(slug));
   },
 
   provisionWhatsappTechProvider: async (slug: string, payload: Record<string, unknown> = {}): Promise<any> => {
@@ -149,6 +200,9 @@ export const tenantService = {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        persistTenantSlug: false,
         tenantSlug: slug,
       });
     } catch (error) {
@@ -159,6 +213,9 @@ export const tenantService = {
         skipAuth: true,
         omitCredentials: true,
         isWidgetRequest: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        persistTenantSlug: false,
         tenantSlug: slug,
       });
     }

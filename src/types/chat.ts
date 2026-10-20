@@ -1,4 +1,5 @@
 // src/types/chat.ts
+import type { AudioRecoveryCallbacks } from '@/features/chat/audioRecovery';
 export interface AttachmentInfo {
   name: string;
   url: string;
@@ -133,6 +134,8 @@ export interface ChatMediaInputModeConfig {
   multipart_field?: string | null;
   max_seconds?: number | null;
   max_file_mb?: number | null;
+  /** Canonical allowlist published by the live media-capabilities contract. */
+  accept?: string[] | null;
   accepted_mime_types?: string[] | null;
   accepted_extensions?: string[] | null;
   fields?: string[];
@@ -473,6 +476,8 @@ export interface ChatWidgetUiHints {
 
 export interface Message {
   id: number | string; // Identificador único del mensaje
+  /** Native legacy comment identifier, independent of display/fallback message identity. */
+  readCommentId?: number;
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje
@@ -480,6 +485,7 @@ export interface Message {
   messageType?: string; // Tipo de mensaje enviado por backend (catalog_share, interactive_list, etc.)
   action?: string; // Acción asociada al mensaje
   data?: Record<string, unknown> | null; // Payload adicional para renderizado estructurado
+  institutional?: import('@/features/chat/institutionalChatMessage').InstitutionalChatMessage;
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
   categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
   menu_sections?: MenuSection[]; // Sections for structured menus
@@ -553,6 +559,7 @@ export interface SendPayload {
   audioFilename?: string;
   audioField?: string;
   audioEndpoint?: string;
+  audioRecovery?: AudioRecoveryCallbacks;
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
   action_id?: string; // ID de acción explícito para compatibilidad con payloads interactivos del backend

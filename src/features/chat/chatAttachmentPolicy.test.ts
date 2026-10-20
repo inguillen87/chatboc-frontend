@@ -8,6 +8,49 @@ import {
 } from './chatAttachmentPolicy';
 
 describe('chatAttachmentPolicy', () => {
+  it('uses the canonical accept allowlist from the live backend contract', () => {
+    expect(
+      getChatAttachmentAcceptedTypes(
+        {
+          accept: ['image/jpeg', 'image/png', 'image/webp'],
+        },
+        'image',
+      ),
+    ).toEqual(['image/jpeg', 'image/png', 'image/webp']);
+  });
+
+  it('does not broaden canonical accept with contradictory legacy fields', () => {
+    const config = {
+      accept: ['application/pdf'],
+      accepted_extensions: ['exe'],
+    };
+
+    expect(getChatAttachmentAcceptedTypes(config, 'file')).toEqual(['application/pdf']);
+    expect(
+      validateChatAttachment(
+        new File(['binary'], 'setup.exe', { type: 'application/x-msdownload' }),
+        config,
+        'file',
+      ),
+    ).toMatch(/Formato no permitido/i);
+  });
+
+  it('treats an empty canonical accept allowlist as no permitted attachments', () => {
+    const config = {
+      accept: [],
+      accepted_mime_types: ['application/pdf'],
+    };
+
+    expect(getChatAttachmentAcceptedTypes(config, 'file')).toEqual([]);
+    expect(
+      validateChatAttachment(
+        new File(['document'], 'informe.pdf', { type: 'application/pdf' }),
+        config,
+        'file',
+      ),
+    ).toMatch(/Formato no permitido/i);
+  });
+
   it('uses backend accepted MIME types and extensions when provided', () => {
     expect(
       getChatAttachmentAcceptedTypes(

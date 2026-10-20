@@ -13,6 +13,19 @@ export type WidgetCommerceRequest = {
   chatSessionId?: string | null;
   anonId?: string | null;
   widgetSessionToken?: string | null;
+  isCurrent?: () => boolean;
+};
+
+export const hasWidgetCommerceCredential = (request: WidgetCommerceRequest): boolean =>
+  [request.widgetToken, request.widgetSessionToken].some(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+
+const requireWidgetCommerceCredential = (request: WidgetCommerceRequest) => {
+  // A tenant slug scopes public chat, but it does not authorize user/session commerce data.
+  if (!hasWidgetCommerceCredential(request)) {
+    throw new Error("missing_widget_commerce_credential");
+  }
 };
 
 const addParam = (params: URLSearchParams, key: string, value?: string | null) => {
@@ -51,12 +64,17 @@ const publicWidgetOptions = (request: WidgetCommerceRequest) => ({
   omitEntityToken: true,
   sendAnonId: true,
   tenantSlug: request.tenantSlug,
+  persistTenantSlug: false,
   headers: widgetHeaders(request),
+  chatSessionId:request.chatSessionId,
+  anonId:request.anonId,
+  isCurrent:request.isCurrent,
 });
 
 export async function getWidgetCommerceSession(
   request: WidgetCommerceRequest,
 ): Promise<WidgetCommerceSession> {
+  requireWidgetCommerceCredential(request);
   return apiFetch<WidgetCommerceSession>(
     withQuery("/api/public/widget-commerce-session", request),
     publicWidgetOptions(request),
@@ -67,6 +85,7 @@ export async function getWidgetTenantHistory(
   endpoint: string | null | undefined,
   request: WidgetCommerceRequest,
 ): Promise<WidgetCommerceHistory> {
+  requireWidgetCommerceCredential(request);
   const path = typeof endpoint === "string" && endpoint.trim()
     ? endpoint.trim()
     : "/api/public/widget-user/tenant-history";

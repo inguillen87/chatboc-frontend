@@ -4,9 +4,11 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
 import DemoModeBanner from './DemoModeBanner';
+import { useTenant } from '@/context/TenantContext';
 
 const Layout = () => {
   const location = useLocation();
+  const { hostBinding } = useTenant();
   const [searchParams] = useSearchParams();
   const isEmbed = searchParams.get('mode') === 'embed';
   const profileTab = searchParams.get('tab');
@@ -17,10 +19,20 @@ const Layout = () => {
   const isTenantTicketWorkspace =
     /^\/t\/[^/]+\/(?:reclamos|tickets|inbox)$/i.test(normalizedPath);
   const isTicketWorkspace = isProfileTicketWorkspace || isTenantTicketWorkspace;
+  const isProfileCrmWorkspace =
+    normalizedPath === '/perfil' &&
+    profileTab === 'usuarios';
+  const isViewportWorkspace = isTicketWorkspace || isProfileCrmWorkspace;
   const isProfileAnalyticsWorkspace =
     normalizedPath === '/perfil' &&
     profileTab === 'analytics';
-  const isFooterlessWorkspace = isTicketWorkspace || isProfileAnalyticsWorkspace;
+  const isProfileWorkspace = normalizedPath === '/perfil';
+  const isPlatformWorkspace = normalizedPath === '/superadmin' || normalizedPath === '/admin/tenants';
+  const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
+  const isDemoExperience = normalizedPath === '/demo';
+  const isLandingExperience = normalizedPath === '/' && !hostBinding;
+  const isFocusedPublicExperience = isDemoExperience || isPublicSurveyExperience;
+  const isFooterlessWorkspace = isTicketWorkspace || isProfileWorkspace || isPlatformWorkspace || isFocusedPublicExperience;
 
   // Public navigation should land immediately at the top of the new screen.
   useLayoutEffect(() => {
@@ -28,7 +40,7 @@ const Layout = () => {
   }, [location.pathname, location.search]);
 
   useLayoutEffect(() => {
-    if (!isTicketWorkspace) return;
+    if (!isViewportWorkspace) return;
 
     const rootStyle = document.documentElement.style;
     const bodyStyle = document.body.style;
@@ -53,7 +65,7 @@ const Layout = () => {
       bodyStyle.overscrollBehavior = previousStyles.bodyOverscrollBehavior;
       bodyStyle.paddingBottom = previousStyles.bodyPaddingBottom;
     };
-  }, [isTicketWorkspace]);
+  }, [isViewportWorkspace]);
 
   if (isEmbed) {
     return (
@@ -68,20 +80,26 @@ const Layout = () => {
   return (
     <div
       className={
-        isTicketWorkspace
+        isViewportWorkspace
           ? 'flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background text-foreground transition-colors duration-300'
           : 'flex min-h-screen flex-col bg-background text-foreground transition-colors duration-300'
       }
-      data-workspace-shell={isTicketWorkspace ? 'tickets' : undefined}
+      data-workspace-shell={isTicketWorkspace ? 'tickets' : isProfileCrmWorkspace ? 'crm' : undefined}
     >
-      {isTicketWorkspace ? (
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-[10000] -translate-y-24 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+      >
+        Saltar al contenido
+      </a>
+      {isViewportWorkspace ? (
         <style data-ticket-workspace-chrome>
-          {'[data-workspace-shell="tickets"] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
+          {'[data-workspace-shell] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}
         </style>
       ) : null}
-      {!isTicketWorkspace ? <DemoModeBanner /> : null}
-      <Navbar />
-      {isTicketWorkspace ? (
+      {!hostBinding && !isViewportWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
+      {!isFocusedPublicExperience ? <Navbar /> : null}
+      {isViewportWorkspace ? (
         <div className="mt-14 shrink-0">
           <DemoModeBanner />
         </div>
@@ -90,10 +108,18 @@ const Layout = () => {
         id="main-content"
         tabIndex={-1}
         className={
-          isTicketWorkspace
+          isViewportWorkspace
             ? 'flex min-h-0 w-full flex-1 overflow-hidden'
+            : isPlatformWorkspace
+              ? 'mx-auto w-full min-w-0 max-w-[100rem] flex-1 px-3 pb-8 pt-20 sm:px-6 lg:px-8'
             : isProfileAnalyticsWorkspace
               ? 'flex-1 w-full pt-14'
+              : isDemoExperience
+                ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 py-3 sm:py-5 md:px-8 xl:px-12'
+              : isPublicSurveyExperience
+                ? 'mx-auto w-full max-w-[96rem] flex-1 px-4 py-3 sm:py-5 md:px-8 xl:px-12'
+              : isLandingExperience
+                ? 'w-full flex-1 pt-20'
               : 'flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full'
         }
       >

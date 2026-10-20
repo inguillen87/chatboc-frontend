@@ -1,4 +1,5 @@
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
+import {useTenant} from '@/context/TenantContext';
 import { Badge } from '@/components/ui/badge';
 import { OperationsDashboardPanel } from '@/features/analytics/OperationsDashboardPanel';
 import { BarChart3, MapPin, RefreshCw, Users, Vote } from 'lucide-react';
@@ -11,6 +12,7 @@ const overviewChips = [
 ] as const;
 
 export default function EstadisticasPage() {
+  const {currentSlug} = useTenant();
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 px-1 py-4 sm:px-0">
       <section className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-4 shadow-sm sm:p-5">
@@ -48,9 +50,10 @@ export default function EstadisticasPage() {
       </section>
 
       <SectionErrorBoundary
-        title="No pudimos cargar las estadisticas"
-        description="Actualiza la vista para volver a intentarlo."
-        onRetry={() => window.location.reload()}
+        title="No pudimos cargar las estadísticas"
+        description="Volvé a cargar las estadísticas sin salir del panel."
+        resetKeys={[currentSlug]}
+        fallbackAction={<a href="/perfil">Volver al panel</a>}
       >
         <OperationsDashboardPanel />
       </SectionErrorBoundary>

@@ -23,6 +23,8 @@ const handoffAction: SaasAction = {
   label: 'Derivar al equipo',
   method: 'POST',
   endpoint: '/api/v2/inbox/omnichannel/42/actions',
+  delivery_mode: 'internal_event',
+  external_dispatch: false,
   requires: ['channel'],
   payload_defaults: { channel: 'operator' },
 };
@@ -129,6 +131,18 @@ describe('TicketAiHandoffControl', () => {
 
     expect(screen.getByRole('button', { name: 'Derivar al equipo' })).toBeDisabled();
     expect(screen.getByText('Falta completar el contrato backend: channel.')).toBeInTheDocument();
+    expect(apiMocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['despacho externo', { external_dispatch: true }],
+    ['modo no publicado', { delivery_mode: undefined }],
+    ['flag externo ausente', { external_dispatch: undefined }],
+  ])('bloquea %s porque el handoff debe ser exclusivamente interno', (_label, overrides) => {
+    renderControl({ actions: [{ ...handoffAction, ...overrides }] });
+
+    expect(screen.getByRole('button', { name: 'Derivar al equipo' })).toBeDisabled();
+    expect(screen.getByText('La transición no garantiza una acción interna sin despacho externo.')).toBeInTheDocument();
     expect(apiMocks.postAction).not.toHaveBeenCalled();
   });
 
