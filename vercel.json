@@ -3,6 +3,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "fix/receipt-campaign-settings-20261021": false,
       "release/neon-paired-acceptance-20261001": false,
       "release/tdf-accessible-audio-20261010": false,
       "fix/widget-host-theme-switch-20261010": false,
