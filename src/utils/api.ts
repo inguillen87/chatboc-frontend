@@ -1017,7 +1017,14 @@ export async function apiFetch<T>(
     isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
     persistTenantSlug === false && typeof options.isCurrent === 'function' &&
     typeof body?.email === 'string' && Boolean(body.email) && typeof body?.password === 'string' && Boolean(body.password);
-  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin;
+  // The SDK exchange carries its own explicit credential. Public demo/widget
+  // initialization cannot retire it by changing presentation state. Keep the
+  // panel actor/session revision fence and the bridge-owned abort signal.
+  const isIsolatedClerkSessionExchange = isClerkSessionRequest(path, method) &&
+    skipAuth === true && omitTenant === true && omitCredentials === false &&
+    isWidgetRequest === false && omitEntityToken === true && omitChatSessionId === true &&
+    persistTenantSlug === false;
+  const hasIndependentRequestIdentity = isIsolatedPanelRequest || isStartupRecoveryCredentialLogin || isIsolatedClerkSessionExchange;
   // An explicit anonymous tenant read does not carry the panel identity. A
   // concurrent /me refresh must not retire it or select that private tenant.
   // Its caller's signal/isCurrent still retires the public route itself.
