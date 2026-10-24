@@ -91,6 +91,7 @@ import InstitutionProfileWorkspace, {
   normalizeInstitutionProfileSection,
   type InstitutionProfileSection,
 } from '@/components/profile/InstitutionProfileWorkspace';
+import ReceiptCampaignHeader, { isReceiptHeader, receiptHeaderUrlValid, type ReceiptHeader } from '@/components/profile/ReceiptCampaignHeader';
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
@@ -432,6 +433,7 @@ const readOrganizationProfile = (value: unknown, expectedSlug: string): Organiza
     !profile.values || typeof profile.values !== 'object' || Array.isArray(profile.values)
   ) return null;
   const values = profile.values;
+  if (Object.prototype.hasOwnProperty.call(values, 'whatsapp_receipt_header') && !isReceiptHeader(values.whatsapp_receipt_header)) return null;
   if (['nombre_empresa', 'telefono', 'direccion', 'ciudad', 'provincia', 'pais', 'link_web', 'logo_url']
     .some((field) => typeof values[field] !== 'string')) return null;
   if (['latitud', 'longitud'].some((field) => values[field] !== null &&
@@ -542,6 +544,8 @@ export default function Perfil() {
   const [organizationProfileStatus, setOrganizationProfileStatus] =
     useState<'idle' | 'loading' | 'ready' | 'error' | 'denied'>('idle');
   const [organizationHoursEdited, setOrganizationHoursEdited] = useState(false);
+  const [receiptHeaderDraft, setReceiptHeaderDraft] = useState<ReceiptHeader>(null);
+  const [receiptHeaderEdited, setReceiptHeaderEdited] = useState(false);
   const isAdminUser = useMemo(
     () => ['superadmin', 'tenant_admin'].includes(String(normalizeRole(user?.rol))),
     [user?.rol],
@@ -753,6 +757,8 @@ export default function Perfil() {
     // the next scoped profile is loading.
     setProfileChannelActivation(undefined);
     setOrganizationProfile(null);
+    setReceiptHeaderDraft(null);
+    setReceiptHeaderEdited(false);
   }, [profileIdentityScope]);
   const buildMappingPath = useCallback(
     (path: string) =>
@@ -1462,6 +1468,8 @@ export default function Perfil() {
         setOrganizationProfile(profile);
         setOrganizationProfileStatus('ready');
         setOrganizationHoursEdited(false);
+        setReceiptHeaderDraft(profile.values.whatsapp_receipt_header ?? null);
+        setReceiptHeaderEdited(false);
         setModoHorario('personalizado');
         data = {
           ...profile.values, tenant_slug: profile.tenant.slug, slug: profile.tenant.slug,
@@ -2053,6 +2061,11 @@ export default function Perfil() {
         return;
       }
       const savedScope = profileIdentityScope;
+      if (receiptHeaderEdited && receiptHeaderDraft?.enabled && !receiptHeaderUrlValid(receiptHeaderDraft.image_url)) {
+        setError('Ingresá una imagen pública PNG, JPG o WebP mediante HTTPS, sin parámetros ni datos privados.');
+        updateInstitutionSection('identity');
+        return;
+      }
       const savedRevision = captureChatbocSessionRevision();
       const isSaveCurrent = () => profileMountedRef.current && currentProfileScopeRef.current === savedScope && isChatbocSessionRevisionCurrent(savedRevision);
       const currentValues = {
@@ -2060,6 +2073,8 @@ export default function Perfil() {
         ...(typeof target.values.actividad === 'string' ? { actividad: perfil.actividad } : {}),
         direccion: perfil.direccion, ciudad: perfil.ciudad, provincia: perfil.provincia, pais: perfil.pais,
         latitud: perfil.latitud, longitud: perfil.longitud, link_web: perfil.link_web, logo_url: perfil.logo_url,
+        ...(receiptHeaderEdited && Object.prototype.hasOwnProperty.call(target.values, 'whatsapp_receipt_header')
+          ? { whatsapp_receipt_header: receiptHeaderDraft } : {}),
         ...(organizationHoursEdited ? {
           horario_json: perfil.horarios_ui.map((day, index) => ({
             dia: DIAS[index], abre: day.cerrado ? '' : day.abre,
@@ -2089,7 +2104,11 @@ export default function Perfil() {
         if (receipt.contract_version !== 'organization.profile_save.v1' || receipt.ok !== true ||
           receipt.tenant?.id !== target.tenant.id || receipt.tenant?.slug !== target.tenant.slug ||
           savedProfile?.tenant.id !== target.tenant.id) {
-          throw new Error('organization_profile_save_unconfirmed');
+          throw new Error('No pudimos confirmar el guardado de la organización. Actualizá el perfil antes de reintentar.');
+        }
+        if ('whatsapp_receipt_header' in changes && (receipt.saved !== true ||
+          JSON.stringify(savedProfile!.values.whatsapp_receipt_header) !== JSON.stringify(changes.whatsapp_receipt_header))) {
+          throw new Error('No pudimos confirmar el guardado de la organización. Actualizá el perfil antes de reintentar.');
         }
         const refreshedProfile = await fetchPerfil({
           tenantSlug: target.tenant.slug,
@@ -3220,6 +3239,10 @@ export default function Perfil() {
                       Identidad visual de la organización. La personalización de dominio y marca se gobierna por tenant.
                     </p>
                   </div>
+                  {usesScopedOrganizationProfile && matchingOrganizationProfile && Object.prototype.hasOwnProperty.call(matchingOrganizationProfile.values, 'whatsapp_receipt_header') ? (
+                    <ReceiptCampaignHeader key={`${matchingOrganizationProfile.tenant.id}:${matchingOrganizationProfile.revision}`}
+                      value={receiptHeaderDraft} onChange={next => { setReceiptHeaderDraft(next); setReceiptHeaderEdited(true); }} />
+                  ) : null}
                   {!usesScopedOrganizationProfile ? <>
                   <div className="space-y-2">
                     <Label htmlFor="avatar_url">Imagen personal autorizada</Label>

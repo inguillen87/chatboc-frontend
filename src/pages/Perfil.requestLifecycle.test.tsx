@@ -1060,6 +1060,100 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByRole('textbox', { name: 'Imagen personal autorizada' })).not.toBeInTheDocument();
   });
 
+  it('receipt campaign saves only its edited field and verifies its echo', async () => {
+    let profile: any = organizationProfileResponse();
+    profile.values.whatsapp_receipt_header = null;
+    wireSelectedOrganization(() => profile, body => {
+      profile = { ...profile, revision: 'b'.repeat(64), values: { ...profile.values, ...body.organization_profile } };
+      return { contract_version: 'organization.profile_save.v1', ok: true, saved: true, tenant: profile.tenant, profile };
+    });
+    renderProfile('/perfil?section=identity&tenant_slug=selected-organization');
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Imagen en los comprobantes' }), { target: { value: 'image' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'URL pública de la imagen' }), { target: { value: 'https://cdn.example.test/campaign.png' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+    const writes = runtime.apiFetch.mock.calls.filter(([, opts]) => opts?.method === 'PUT');
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1]).toMatchObject({ singleAttempt: true, allowStartupRecovery: false, body: {
+      expected_revision: 'a'.repeat(64), organization_profile: { whatsapp_receipt_header: { enabled: true, image_url: 'https://cdn.example.test/campaign.png' } },
+    } });
+    expect(Object.keys(writes[0][1].body.organization_profile)).toEqual(['whatsapp_receipt_header']);
+    expect(runtime.setUser).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'false', 'wrong-echo', 'conflict'])('receipt campaign retains draft after %s acknowledgement without replay', async kind => {
+    const profile: any = organizationProfileResponse();
+    profile.values.whatsapp_receipt_header = null;
+    wireSelectedOrganization(() => profile, body => {
+      if (kind === 'conflict') throw new ApiError('Conflict', 412);
+      const saved = { ...profile, revision: 'b'.repeat(64), values: { ...profile.values, ...body.organization_profile } };
+      if (kind === 'wrong-echo') saved.values.whatsapp_receipt_header = { enabled: false, image_url: '' };
+      return { contract_version: 'organization.profile_save.v1', ok: true,
+        ...(kind !== 'missing' ? { saved: kind !== 'false' } : {}), tenant: profile.tenant, profile: saved };
+    });
+    renderProfile('/perfil?section=identity&tenant_slug=selected-organization');
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Imagen en los comprobantes' }), { target: { value: 'image' } });
+    const url = screen.getByRole('textbox', { name: 'URL pública de la imagen' });
+    fireEvent.change(url, { target: { value: 'https://cdn.example.test/pending.jpg' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText(kind === 'conflict' ? /Otra persona actualizó este perfil/ : /No pudimos confirmar el guardado/);
+    expect(url).toHaveValue('https://cdn.example.test/pending.jpg');
+    expect(runtime.apiFetch.mock.calls.filter(([, opts]) => opts?.method === 'PUT')).toHaveLength(1);
+    expect(runtime.apiFetch.mock.calls.filter(([path, opts]) => path.endsWith('/config') && opts?.method !== 'PUT')).toHaveLength(1);
+    expect(screen.queryByText('Cambios de la organización guardados correctamente.')).not.toBeInTheDocument();
+  });
+
+  it('receipt campaign is omitted when another field is edited', async () => {
+    let profile: any = organizationProfileResponse();
+    profile.values.whatsapp_receipt_header = { enabled: false, image_url: '' };
+    wireSelectedOrganization(() => profile, body => {
+      expect(body.organization_profile).not.toHaveProperty('whatsapp_receipt_header');
+      profile = { ...profile, revision: 'b'.repeat(64), values: { ...profile.values, ...body.organization_profile } };
+      return { contract_version: 'organization.profile_save.v1', ok: true, saved: true, tenant: profile.tenant, profile };
+    });
+    renderProfile('/perfil?section=identity&tenant_slug=selected-organization');
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Logo institucional' }), { target: { value: 'https://cdn.example.test/logo.png' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Cambios de la organización guardados correctamente.');
+    expect(runtime.apiFetch.mock.calls.filter(([, opts]) => opts?.method === 'PUT')[0][1].body.organization_profile).toEqual({ logo_url: 'https://cdn.example.test/logo.png' });
+  });
+
+  it('receipt campaign rejects private or keyed image URLs before any write', async () => {
+    const profile: any = organizationProfileResponse(); profile.values.whatsapp_receipt_header = null;
+    wireSelectedOrganization(() => profile);
+    renderProfile('/perfil?section=identity&tenant_slug=selected-organization');
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Imagen en los comprobantes' }), { target: { value: 'image' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'URL pública de la imagen' }), { target: { value: 'https://127.0.0.1/campaign.png?key=synthetic' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await screen.findByText('Ingresá una imagen pública PNG, JPG o WebP mediante HTTPS, sin parámetros ni datos privados.');
+    expect(runtime.apiFetch.mock.calls.filter(([, opts]) => opts?.method === 'PUT')).toHaveLength(0);
+    expect(screen.queryByAltText('Vista previa de la cabecera del comprobante')).not.toBeInTheDocument();
+  });
+
+  it('receipt campaign clears an old organization draft when changing the selection', async () => {
+    const a: any = organizationProfileResponse(); a.values.whatsapp_receipt_header = null;
+    wireSelectedOrganization(() => a);
+    const handler = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path, options) => {
+      if (path === '/api/v2/tenants/another-organization/activation/channels') return {
+        contract_version: 'tenant.channel_activation.v1', tenant: { id: 910, slug: 'another-organization', plan: 'full' }, integration_access: { enabled: true }, channels: [],
+      };
+      if (path === '/api/admin/tenants/another-organization/config') {
+        const b: any = organizationProfileResponse('another-organization'); b.tenant.id = 910;
+        b.values.whatsapp_receipt_header = { enabled: false, image_url: '' };
+        return { tenant: { id: 910, slug: 'another-organization', tipo: 'pyme', plan: 'full' }, organization_profile: b };
+      }
+      return handler(path, options);
+    });
+    renderProfile('/perfil?section=identity&tenant_slug=selected-organization');
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Imagen en los comprobantes' }), { target: { value: 'image' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'URL pública de la imagen' }), { target: { value: 'https://cdn.example.test/private-draft.png' } });
+    await act(async () => updateBrowserLocation('/perfil?section=identity&tenant_slug=another-organization'));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Imagen en los comprobantes' })).toHaveValue('disabled'));
+    expect(screen.queryByDisplayValue('https://cdn.example.test/private-draft.png')).not.toBeInTheDocument();
+    expect(runtime.apiFetch.mock.calls.filter(([, opts]) => opts?.method === 'PUT')).toHaveLength(0);
+  });
+
   it('keeps an authorized selected organization read only when the server disables edits', async () => {
     wireSelectedOrganization(() => organizationProfileResponse('selected-organization', false));
     renderProfile('/perfil?section=general&tenant_slug=selected-organization');

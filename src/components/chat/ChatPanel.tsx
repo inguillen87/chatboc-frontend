@@ -13,7 +13,7 @@ import ChatHumanSupportBar from "./ChatHumanSupportBar";
 import type { Prefs } from "./AccessibilityToggle";
 import ChatMessage from "./ChatMessage";
 import {useInstitutionalMenuNavigation} from './useInstitutionalMenuNavigation';
-import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent} from '@/utils/chatbocSessionRevision';
+import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
@@ -47,6 +47,7 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
+import ChatStartupErrorState, {describeChatStartupFailure, type ChatStartupFailure} from './ChatStartupErrorState';
 import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
@@ -1680,33 +1681,110 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [handleSend, addSystemMessage, pendingActionScope]);
 
   const rubrosEnabled = tipoChat === "pyme" && !isPlatformOnboarding;
-  const [rubros, setRubros] = useState<Rubro[]>([]);
-  const [isLoadingRubros, setIsLoadingRubros] = useState(false);
-  const [rubrosError, setRubrosError] = useState<string | null>(null);
+  const rubrosSessionRevision = React.useSyncExternalStore(subscribeChatbocSessionRevision,
+    captureChatbocSessionRevision, captureChatbocSessionRevision);
+  const rubrosScope = JSON.stringify([rubrosEnabled, pendingActionScope, rubrosSessionRevision]);
+  const rubrosBoundaryRef = useRef({scope: rubrosScope});
+  if (rubrosBoundaryRef.current.scope !== rubrosScope) rubrosBoundaryRef.current = {scope: rubrosScope};
+  type RubrosAttempt = {boundary: {scope: string}; session: number};
+  type RubrosLoad = {boundary: {scope: string}; attempt: RubrosAttempt | null; items: Rubro[]; pending: boolean; loaded: boolean; error: ChatStartupFailure | null};
+  const [rubrosLoad, setRubrosLoad] = useState<RubrosLoad>({boundary: rubrosBoundaryRef.current, attempt: null, items: [], pending: false, loaded: false, error: null});
+  const currentRubros = rubrosLoad.boundary === rubrosBoundaryRef.current ? rubrosLoad : null;
+  const rubros = currentRubros?.items ?? [];
+  const isLoadingRubros = currentRubros?.pending ?? false;
+  const rubrosError = currentRubros?.error ?? null;
+  const hasLoadedRubros = currentRubros?.loaded ?? false;
+  const loadingRubrosRef = useRef<RubrosAttempt | null>(null);
+  const rubrosResultHeading = useRef<HTMLHeadingElement | null>(null);
+  const rubrosRetryControl = useRef<HTMLButtonElement | null>(null);
+  const rubrosRetryFocus = useRef<{attempt: RubrosAttempt; origin: HTMLButtonElement;
+    retiring: boolean; cleanup: () => void} | null>(null);
+  const retireRubrosFocus = useCallback(() => {
+    const focus = rubrosRetryFocus.current; rubrosRetryFocus.current = null; focus?.cleanup();
+  }, []);
+  const setRubrosRetryControl = useCallback((element: HTMLButtonElement | null) => {
+    const focus = rubrosRetryFocus.current;
+    if (!element && focus && focus.origin === rubrosRetryControl.current && document.activeElement === focus.origin) {
+      // Ref detachment precedes the native blur of our own retiring button.
+      // A voluntary blur while it remains mounted never owns BODY.
+      focus.retiring = true;
+    }
+    rubrosRetryControl.current = element;
+  }, []);
+  const rubrosMountedRef = useRef(true);
+  React.useLayoutEffect(() => () => retireRubrosFocus(), [retireRubrosFocus]);
+  React.useLayoutEffect(() => {
+    const focus = rubrosRetryFocus.current;
+    if (!focus) return;
+    if (focus.attempt.boundary !== rubrosBoundaryRef.current || !isChatbocSessionRevisionCurrent(focus.attempt.session)) {
+      retireRubrosFocus(); return;
+    }
+    if (!currentRubros || currentRubros.pending) return;
+    if (!currentRubros.loaded || currentRubros.attempt !== focus.attempt) {retireRubrosFocus(); return;}
+    const active = document.activeElement;
+    const target = rubrosResultHeading.current;
+    const ownsRetirement = active === focus.origin || (active === document.body && focus.retiring);
+    retireRubrosFocus();
+    if (ownsRetirement && target?.isConnected) target.focus({preventScroll: true});
+  }, [currentRubros, rubrosScope, retireRubrosFocus]);
+  useEffect(() => {
+    rubrosMountedRef.current = true;
+    return () => {rubrosMountedRef.current = false; loadingRubrosRef.current = null;};
+  }, []);
   const lastInitializedRubro = useRef<string | null>(null);
 
-  const loadRubros = useCallback(() => {
-    setIsLoadingRubros(true);
-    setRubrosError(null);
+  const loadRubros = useCallback((origin?: HTMLButtonElement) => {
+    const boundary = rubrosBoundaryRef.current;
+    if (loadingRubrosRef.current?.boundary === boundary) return;
+    const attempt = {boundary, session: captureChatbocSessionRevision()};
+    loadingRubrosRef.current = attempt;
+    retireRubrosFocus();
+    if (origin && document.activeElement === origin) {
+      const focus = {attempt, origin, retiring: false, cleanup: () => {}};
+      rubrosRetryFocus.current = focus;
+      const trackFocus = (event: FocusEvent) => {
+        if (rubrosRetryFocus.current === focus && event.target !== origin) retireRubrosFocus();
+      };
+      const trackBlur = (event: FocusEvent) => {
+        if (rubrosRetryFocus.current !== focus || event.target !== origin) return;
+        if (focus.retiring && (event.relatedTarget === null || event.relatedTarget === document.body)) return;
+        retireRubrosFocus();
+      };
+      const trackPointer = (event: PointerEvent) => {
+        if (rubrosRetryFocus.current === focus && event.target instanceof Node && !origin.contains(event.target)) retireRubrosFocus();
+      };
+      focus.cleanup = () => {
+        document.removeEventListener('focusin', trackFocus);
+        document.removeEventListener('focusout', trackBlur);
+        document.removeEventListener('pointerdown', trackPointer, true);
+      };
+      document.addEventListener('focusin', trackFocus);
+      document.addEventListener('focusout', trackBlur);
+      document.addEventListener('pointerdown', trackPointer, true);
+    }
+    const isCurrent = () => rubrosMountedRef.current && loadingRubrosRef.current === attempt
+      && rubrosBoundaryRef.current === boundary && isChatbocSessionRevisionCurrent(attempt.session);
+    setRubrosLoad(previous => ({boundary, attempt,
+      items: previous.boundary === boundary ? previous.items : [],
+      error: previous.boundary === boundary ? previous.error : null,
+      loaded: previous.boundary === boundary ? previous.loaded : false, pending: true}));
     getRubrosHierarchy()
       .then((data) => {
-        if (Array.isArray(data)) {
-          // getRubrosHierarchy already returns the tree
-          setRubros(data);
-        } else {
-          setRubros([]);
-        }
+        if (!isCurrent()) return;
+        // The legitimate empty catalog is a completed result, not a trigger to
+        // fetch continuously. getRubrosHierarchy already returns the tree.
+        setRubrosLoad({boundary, attempt, items: Array.isArray(data) ? data : [],
+          pending: false, loaded: true, error: null});
       })
       .catch((error) => {
-        setRubros([]);
-        setRubrosError(
-          getErrorMessage(error, "No se pudieron cargar los rubros."),
-        );
+        if (!isCurrent()) return;
+        setRubrosLoad({boundary, attempt, items: [], pending: false,
+          loaded: false, error: describeChatStartupFailure(error)});
       })
       .finally(() => {
-        setIsLoadingRubros(false);
+        if (isCurrent()) loadingRubrosRef.current = null;
       });
-  }, []);
+  }, [retireRubrosFocus]);
 
   useEffect(() => {
     if (!rubrosEnabled) {
@@ -1761,14 +1839,16 @@ const ChatPanel = (props: ChatPanelProps) => {
     if (!rubrosEnabled || localRubro) {
       return;
     }
-    if (isLoadingRubros || rubros.length > 0 || rubrosError) {
+    if (isLoadingRubros || hasLoadedRubros || rubros.length > 0 || rubrosError) {
       return;
     }
     loadRubros();
   }, [
     rubrosEnabled,
+    rubrosScope,
     localRubro,
     isLoadingRubros,
+    hasLoadedRubros,
     rubros.length,
     rubrosError,
     loadRubros,
@@ -3845,22 +3925,19 @@ const ChatPanel = (props: ChatPanelProps) => {
                   "/favicon/favicon-48x48.png";
               }}
             />
-            <h2 className="text-xl font-semibold text-primary mt-3">
+            <h2 ref={rubrosResultHeading} tabIndex={-1} className="text-xl font-semibold text-primary mt-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               {fallbackRubroTitle}
             </h2>
             <p className="text-sm text-muted-foreground">
               {fallbackRubroSubtitle}
             </p>
-            {isLoadingRubros ? (
+            {rubrosError ? (
+              <div className="min-h-0 flex-1 overflow-y-auto py-4">
+                <ChatStartupErrorState failure={rubrosError} pending={isLoadingRubros} onRetry={loadRubros} retryRef={setRubrosRetryControl}/>
+              </div>
+            ) : isLoadingRubros ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : rubrosError ? (
-              <div className="space-y-4">
-                <p className="text-sm text-destructive">{rubrosError}</p>
-                <Button onClick={loadRubros} className="w-full">
-                  Reintentar
-                </Button>
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-hidden pt-2">
