@@ -5,7 +5,8 @@ import {
   type WhatsappWorkflowStudioContract,
 } from '@/api/v2/whatsappWorkflowStudio';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { ApiError } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
@@ -662,6 +663,7 @@ export interface CatalogQualityQueueItem {
 }
 
 export interface CatalogQualityV2 {
+  tenant?: { id: number; slug: string };
   contract_version?: string;
   request_id?: string;
   summary: UnknownRecord;
@@ -2222,28 +2224,73 @@ export const normalizeCatalogQualityV2 = (response: unknown): CatalogQualityV2 =
   };
 };
 
-export const getCatalogQualityV2 = async (tenantSlug?: string | null) => {
+export interface CatalogRequestAuthority {
+  isCurrent: () => boolean;
+  expectedTenantId?: number;
+}
+
+const assertCatalogRequestCurrent = (authority?: CatalogRequestAuthority) => {
+  if (authority && !authority.isCurrent()) throw new ApiError('catalog_request_retired', 409);
+};
+
+const assertCatalogQualityScope = (response: unknown, slug: string, authority: CatalogRequestAuthority) => {
+  const source = asRecord(getSource(response));
+  const tenant = asRecord(source.tenant);
+  const id = tenant.id;
+  if (source.contract_version !== 'catalog.quality.v1' || tenant.slug !== slug || source.tenant_slug !== slug ||
+    typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1 ||
+    (authority.expectedTenantId !== undefined && id !== authority.expectedTenantId)) {
+    throw new ApiError('catalog_quality_scope_unconfirmed', 409);
+  }
+  return { id, slug };
+};
+
+export const getCatalogQualityV2 = async (tenantSlug?: string | null, authority?: CatalogRequestAuthority) => {
+  assertCatalogRequestCurrent(authority);
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  const readOptions = { tenantSlug, ...(authority ? { isCurrent: authority.isCurrent } : {}) };
   let response: unknown;
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/catalog/quality` : '/api/v2/catalog/quality',
-      { tenantSlug },
+      readOptions,
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || !encoded) throw error;
-    response = await panelApi.get<unknown>('/api/v2/catalog/quality', { tenantSlug });
+    assertCatalogRequestCurrent(authority);
+    response = await panelApi.get<unknown>('/api/v2/catalog/quality', readOptions);
   }
-  return normalizeCatalogQualityV2(response);
+  assertCatalogRequestCurrent(authority);
+  const tenant = authority ? assertCatalogQualityScope(response, tenantSlug || '', authority) : undefined;
+  return { ...normalizeCatalogQualityV2(response), ...(tenant ? { tenant } : {}) };
 };
 
 export const patchCatalogItemV2 = async (
   tenantSlug: string,
   itemId: string | number,
   payload: CatalogItemPatchPayload,
+  authority?: CatalogRequestAuthority,
 ) => {
+  assertCatalogRequestCurrent(authority);
   const encodedSlug = encodeURIComponent(tenantSlug);
   const encodedItem = encodeURIComponent(String(itemId));
+  if (authority) {
+    // This opt-in path belongs to the scoped editor. It has no mutation
+    // fallback or startup replay, and carries retirement through dispatch.
+    const response = await apiFetch<unknown>(`/api/admin/tenants/${encodedSlug}/catalog/items/${encodedItem}`, {
+      ...panelReadOptions(tenantSlug), method: 'PATCH', body: payload,
+      allowStartupRecovery: false, isCurrent: authority.isCurrent,
+    });
+    assertCatalogRequestCurrent(authority);
+    const ack = asRecord(getSource(response));
+    const item = asRecord(ack.item);
+    const returnedIds = [item.id, item.item_id, item.catalogo_item_id].filter(value => value !== undefined && value !== null);
+    if (ack.contract_version !== 'tenant.catalog_item_update.v1' || !returnedIds.length ||
+      returnedIds.some(value => String(value) !== String(itemId))) {
+      throw new ApiError('catalog_item_save_unconfirmed', 409);
+    }
+    return response;
+  }
   return panelApi.patch<unknown>(
     `/api/admin/tenants/${encodedSlug}/catalog/items/${encodedItem}`,
     payload,

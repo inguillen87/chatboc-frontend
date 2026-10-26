@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,7 +21,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { getErrorMessage } from "@/utils/api";
+import { useTenant } from '@/context/TenantContext';
+import { useUser } from '@/hooks/useUser';
+import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -117,6 +120,39 @@ export default function CatalogQualityCommandCenter({
   tenantSlug,
   marketplace,
 }: CatalogQualityCommandCenterProps) {
+  const { user, loading, hasVerifiedSession, organizationProfileVerified } = useUser();
+  const { currentSlug, tenant, isLoadingTenant, tenantError } = useTenant();
+  const revision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
+  const slug = tenantSlug?.trim() || '';
+  const publicIdentity = tenant?.slug === slug && tenant.publishedIdentity?.tenantSlug === slug ? tenant.publishedIdentity : null;
+  const expectedTenantId = publicIdentity?.tenantId;
+  const publicScopePending = currentSlug === slug && (isLoadingTenant || Boolean(tenantError) || tenant?.slug !== slug);
+  const verifiedScope = !loading && organizationProfileVerified && !publicScopePending
+    ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug: slug, user }) : null;
+  const scopeKey = verifiedScope ? JSON.stringify([verifiedScope, revision, expectedTenantId,
+    user?.rol, user?.role, user?.permissions, user?.capabilities, user?.scopes]) : null;
+  if (!scopeKey) return <Card className="border-border/60"><CardContent className="p-4 text-sm text-muted-foreground">
+    Esperando la sesión y la organización verificadas para consultar el catálogo.
+  </CardContent></Card>;
+  // Remounting retires the entire editor, including A→B→A and same-slug
+  // identity changes. A draft must never be adopted by another authority.
+  return <ScopedCatalogQualityCommandCenter key={scopeKey} tenantSlug={slug} marketplace={marketplace}
+    revision={revision} expectedTenantId={expectedTenantId} />;
+}
+
+function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, expectedTenantId }:
+  CatalogQualityCommandCenterProps & { tenantSlug: string; revision: number; expectedTenantId?: number }) {
+  const lifecycle = useRef(0);
+  const mounted = useRef(false);
+  const readVersion = useRef(0);
+  const confirmedTenantId = useRef(expectedTenantId);
+  const saveInFlight = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    lifecycle.current += 1;
+    return () => { mounted.current = false; lifecycle.current += 1; readVersion.current += 1; saveInFlight.current = false; };
+  }, []);
+  const isOwned = (generation: number) => mounted.current && lifecycle.current === generation && isChatbocSessionRevisionCurrent(revision);
   const [quality, setQuality] = useState<CatalogQualityV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,16 +172,22 @@ export default function CatalogQualityCommandCenter({
   });
 
   const loadQuality = async () => {
+    if (!mounted.current || saveInFlight.current || !isChatbocSessionRevisionCurrent(revision)) return;
+    const generation = lifecycle.current, request = ++readVersion.current;
+    const isCurrent = () => isOwned(generation) && readVersion.current === request;
     setLoading(true);
     setError(null);
     try {
-      const response = await getCatalogQualityV2(tenantSlug);
+      const response = await getCatalogQualityV2(tenantSlug, { isCurrent, expectedTenantId: confirmedTenantId.current });
+      if (!isCurrent()) return;
+      confirmedTenantId.current = response.tenant!.id;
       setQuality(response);
-    } catch (err) {
-      setError(getErrorMessage(err, "No se pudo cargar la calidad del catalogo."));
+    } catch {
+      if (!isCurrent()) return;
+      setError('No pudimos confirmar el catálogo de esta organización. Usá Actualizar para volver a consultar.');
       setQuality(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
@@ -154,7 +196,7 @@ export default function CatalogQualityCommandCenter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug]);
 
-  const summary = quality?.summary ?? asRecord(first(marketplace, ["summary", "image_summary", "media_summary"]));
+  const summary = quality?.summary ?? {};
   const queueTabs = useMemo(() => {
     const contractTabs = Array.isArray(quality?.frontend_contract.queue_tabs)
       ? quality?.frontend_contract.queue_tabs.map(asString).filter(Boolean)
@@ -188,10 +230,9 @@ export default function CatalogQualityCommandCenter({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedItem || !tenantSlug) {
-      setSaveMessage("Falta tenant_slug o producto para aplicar el cambio.");
-      return;
-    }
+    if (!selectedItem || !quality?.tenant || loading || saveInFlight.current || !isOwned(lifecycle.current)) return;
+    const generation = lifecycle.current;
+    const isCurrent = () => isOwned(generation);
     const payload: CatalogItemPatchPayload = {
       imagen_url: form.imagen_url.trim() || undefined,
       gallery_urls: parseLines(form.gallery_urls),
@@ -203,16 +244,21 @@ export default function CatalogQualityCommandCenter({
       checkout_type: form.checkout_type.trim() || undefined,
     };
     if (!payload.gallery_urls?.length) delete payload.gallery_urls;
+    saveInFlight.current = true;
     setSaving(true);
     setSaveMessage(null);
     try {
-      await patchCatalogItemV2(tenantSlug, selectedItem.item_id ?? selectedItem.id, payload);
+      await patchCatalogItemV2(tenantSlug, selectedItem.item_id ?? selectedItem.id, payload,
+        { isCurrent, expectedTenantId: quality.tenant.id });
+      if (!isCurrent()) return;
       setSaveMessage("Cambio aplicado. Refrescando cola...");
+      saveInFlight.current = false;
       await loadQuality();
     } catch (err) {
-      setSaveMessage(getErrorMessage(err, "No se pudo actualizar el producto."));
+      if (!isCurrent()) return;
+      setSaveMessage('No pudimos confirmar el guardado. Conservamos el borrador; revisá el catálogo o reintentá explícitamente.');
     } finally {
-      setSaving(false);
+      if (isCurrent()) { saveInFlight.current = false; setSaving(false); }
     }
   };
 
@@ -225,7 +271,7 @@ export default function CatalogQualityCommandCenter({
             Revisa lo que la IA extrajo, completa imagenes, precios, stock y publica fichas con mejor conversion.
           </CardDescription>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={loadQuality} disabled={loading}>
+        <Button type="button" variant="outline" size="sm" onClick={loadQuality} disabled={loading || saving}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Actualizar
         </Button>
@@ -302,7 +348,9 @@ export default function CatalogQualityCommandCenter({
                     </div>
                   </div>
                   <span className="text-muted-foreground">{asString(item.price) || "--"}</span>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setSelectedItem(item)}>
+                  <Button type="button" variant="outline" size="sm" disabled={loading || saving} onClick={() => {
+                    if (isOwned(lifecycle.current) && !saveInFlight.current) setSelectedItem(item);
+                  }}>
                     <Pencil className="mr-2 h-3.5 w-3.5" />
                     Editar
                   </Button>
@@ -323,6 +371,7 @@ export default function CatalogQualityCommandCenter({
             </p>
             {selectedItem ? (
               <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+                <fieldset disabled={saving || loading || !quality} className="space-y-3">
                 <Input
                   value={form.imagen_url}
                   onChange={(event) => setForm((prev) => ({ ...prev, imagen_url: event.target.value }))}
@@ -366,10 +415,11 @@ export default function CatalogQualityCommandCenter({
                   onChange={(event) => setForm((prev) => ({ ...prev, checkout_type: event.target.value }))}
                   placeholder="Tipo de checkout"
                 />
-                <Button type="submit" className="w-full" disabled={saving}>
+                <Button type="submit" className="w-full" disabled={saving || loading || !quality}>
                   <Save className="mr-2 h-4 w-4" />
-                  {saving ? "Guardando..." : "Guardar"}
+                  {saving ? "Guardando..." : saveMessage?.startsWith('No pudimos confirmar') ? 'Reintentar guardado' : "Guardar"}
                 </Button>
+                </fieldset>
                 {saveMessage ? <p className="text-xs text-muted-foreground">{saveMessage}</p> : null}
               </form>
             ) : (
