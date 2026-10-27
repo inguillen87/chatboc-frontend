@@ -10,10 +10,12 @@ import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 // Real component, catalogue client, panelApi and apiFetch. Identity and HTTP
 // are synthetic; no owner session, server persistence or delivery is exercised.
 const identity = vi.hoisted(() => ({ actor: 42, slug: 'qa-a', tenantId: 701,
-  verified: true, loading: false, role: 'superadmin', published: true }));
+  verified: true, loading: false, role: 'superadmin', published: true,
+  permissions: [] as unknown[], capabilities: [] as unknown[], scopes: [] as unknown[] }));
 const bootstrap = vi.hoisted(() => ({ ready: vi.fn() }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({
-  user: { id: identity.actor, rol: identity.role }, loading: identity.loading,
+  user: { id: identity.actor, rol: identity.role, permissions: identity.permissions,
+    capabilities: identity.capabilities, scopes: identity.scopes }, loading: identity.loading,
   hasVerifiedSession: identity.verified, organizationProfileVerified: identity.verified,
 }) }));
 vi.mock('@/context/TenantContext', () => ({ useTenant: () => ({
@@ -63,6 +65,9 @@ const editA = async () => { await screen.findByText('PRODUCT-qa-a-501');
 const patchRequests = () => requests.filter(request => request.method === 'PATCH');
 beforeEach(() => {
   requests = []; Object.assign(identity, { actor: 42, slug: 'qa-a', tenantId: 701, verified: true, loading: false, role: 'superadmin', published: true });
+  identity.permissions = ['market.catalog.read', 'market.catalog.write'];
+  identity.capabilities = ['tickets.read', 'tickets.write'];
+  identity.scopes = ['analytics.read', 'market.orders.read'];
   bootstrap.ready.mockReset().mockResolvedValue(undefined);
   safeLocalStorage.clear(); useTenantStore.getState().setTenant('qa-a');
   usePanelSessionStore.setState({ authToken: 'synthetic-owner-token', user: { id: '42', email: 'owner@example.invalid', rol: 'superadmin' } });
@@ -194,6 +199,84 @@ describe('catalogue editor ownership with real synthetic HTTP transport', () => 
     expect(screen.queryByText('PRODUCT-qa-a-503')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Precio')).toHaveValue('987'); expect(screen.getByPlaceholderText('Precio')).toBeDisabled();
     expect(patchRequests()).toHaveLength(0);
+  });
+  it.each(['permissions', 'capabilities', 'scopes'] as const)('preserves draft and avoids another GET when %s membership only changes order', async field => {
+    installHttp(() => json(model('qa-a', 501))); const page = renderPage(); await editA();
+    identity[field] = [...identity[field]].reverse();
+    await act(async () => { page.rerender(<CatalogQualityCommandCenter tenantSlug="qa-a" />); });
+    expect(screen.getByPlaceholderText('Precio')).toHaveValue('987');
+    expect(requests.filter(request => request.method === 'GET')).toHaveLength(1); expect(patchRequests()).toHaveLength(0);
+  });
+  it.each(['permissions', 'capabilities', 'scopes'] as const)('preserves draft for %s case/whitespace/duplicates and ignored nonstring values', async field => {
+    installHttp(() => json(model('qa-a', 501))); const page = renderPage(); await editA();
+    const original = [...identity[field]];
+    identity[field] = [...original.map(value => `  ${String(value).toUpperCase()}  `).reverse(), ...original,
+      '', '  ', null, false, 12, { ignored: true }];
+    await act(async () => { page.rerender(<CatalogQualityCommandCenter tenantSlug="qa-a" />); });
+    expect(screen.getByPlaceholderText('Precio')).toHaveValue('987');
+    expect(requests.filter(request => request.method === 'GET')).toHaveLength(1); expect(patchRequests()).toHaveLength(0);
+  });
+  it('preserves draft when each access array has a new reference with identical content', async () => {
+    installHttp(() => json(model('qa-a', 501))); const page = renderPage(); await editA();
+    identity.permissions = [...identity.permissions]; identity.capabilities = [...identity.capabilities]; identity.scopes = [...identity.scopes];
+    await act(async () => { page.rerender(<CatalogQualityCommandCenter tenantSlug="qa-a" />); });
+    expect(screen.getByPlaceholderText('Precio')).toHaveValue('987'); expect(requests).toHaveLength(1);
+  });
+  it('preserves draft when token membership moves between the three combined access fields', async () => {
+    installHttp(() => json(model('qa-a', 501))); const page = renderPage(); await editA();
+    const membership = [...identity.permissions, ...identity.capabilities, ...identity.scopes];
+    identity.permissions = []; identity.capabilities = [...membership].reverse(); identity.scopes = [];
+    await act(async () => { page.rerender(<CatalogQualityCommandCenter tenantSlug="qa-a" />); });
+    expect(screen.getByPlaceholderText('Precio')).toHaveValue('987'); expect(requests).toHaveLength(1);
+  });
+  it.each([
+    ['permissions', 'remove'], ['permissions', 'add'], ['capabilities', 'remove'],
+    ['capabilities', 'add'], ['scopes', 'remove'], ['scopes', 'add'],
+  ] as const)('retires draft for a real %s token %s', async (field, change) => {
+    const current = deferred<Response>(); let reads = 0;
+    installHttp(() => ++reads === 1 ? json(model('qa-a', 501)) : current.promise);
+    const page = renderPage(); await editA();
+    identity[field] = change === 'remove' ? identity[field].slice(1) : [...identity[field], 'synthetic.new.access'];
+    await act(async () => { page.rerender(<CatalogQualityCommandCenter tenantSlug="qa-a" />); });
+    expect(screen.queryByDisplayValue('987')).not.toBeInTheDocument(); expect(patchRequests()).toHaveLength(0);
+    await waitFor(() => expect(requests.filter(request => request.method === 'GET')).toHaveLength(2));
+    await act(async () => { current.resolve(json(model('qa-a', 503))); await current.promise; });
+    await screen.findByText('PRODUCT-qa-a-503');
+  });
+  it('keeps a pending PATCH through equivalent access refresh and preserves draft after an unknown ACK', async () => {
+    const pending = deferred<Response>(); let writes = 0;
+    installHttp(request => request.method === 'GET' ? json(model('qa-a', 501)) : ++writes === 1 ? pending.promise : ack());
+    const page = renderPage(); await editA(); fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(patchRequests()).toHaveLength(1));
+    identity.permissions = [...identity.permissions].reverse(); identity.capabilities = [...identity.capabilities].reverse(); identity.scopes = [...identity.scopes].reverse();
+    await act(async () => { page.rerender(<CatalogQualityCommandCenter tenantSlug="qa-a" />); });
+    expect(screen.getByRole('button', { name: 'Guardando...' })).toBeDisabled();
+    expect(requests.filter(request => request.method === 'GET')).toHaveLength(1);
+    await act(async () => { pending.reject(new TypeError('synthetic response lost')); await pending.promise.catch(() => undefined); });
+    await screen.findByText(/No pudimos confirmar el guardado/);
+    expect(screen.getByPlaceholderText('Precio')).toHaveValue('987'); expect(patchRequests()).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar guardado' }));
+    await waitFor(() => expect(patchRequests()).toHaveLength(2));
+  });
+  it('loads and saves under StrictMode while preserving the current ownership and duplicate lock', async () => {
+    const pending = deferred<Response>(); installHttp(request => request.method === 'GET' ? json(model('qa-a', 501)) : pending.promise);
+    render(<React.StrictMode><CatalogQualityCommandCenter tenantSlug="qa-a" /></React.StrictMode>);
+    await editA(); const form = screen.getByPlaceholderText('Precio').closest('form')!;
+    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
+    await waitFor(() => expect(patchRequests()).toHaveLength(1));
+    await act(async () => { pending.resolve(ack()); await pending.promise; });
+    await screen.findByText('Cambio aplicado. Refrescando cola...');
+    expect(screen.getByPlaceholderText('Precio')).toHaveValue('987'); expect(patchRequests()).toHaveLength(1);
+  });
+  it('retires the original delayed A read through StrictMode A→B→A', async () => {
+    const original = deferred<Response>(); let aReads = 0;
+    installHttp(request => request.slug === 'qa-a' && ++aReads === 1 ? original.promise : json(model(request.slug, request.slug === 'qa-a' ? 503 : 502)));
+    const strictPage = (slug: string) => <React.StrictMode><CatalogQualityCommandCenter tenantSlug={slug} /></React.StrictMode>;
+    const page = render(strictPage('qa-a')); await waitFor(() => expect(requests).toHaveLength(1));
+    setScope('qa-b'); page.rerender(strictPage('qa-b')); await screen.findByText('PRODUCT-qa-b-502');
+    setScope('qa-a'); page.rerender(strictPage('qa-a')); await screen.findByText('PRODUCT-qa-a-503');
+    await act(async () => { original.resolve(json(model('qa-a', 501))); await original.promise; });
+    expect(screen.queryByText('PRODUCT-qa-a-501')).not.toBeInTheDocument(); expect(screen.getByText('PRODUCT-qa-a-503')).toBeInTheDocument();
   });
 });
 

@@ -116,6 +116,15 @@ interface CatalogQualityCommandCenterProps {
   marketplace?: AnyRecord;
 }
 
+// Draft ownership follows normalized token membership, as CapabilitiesContext
+// does. This does not grant capabilities or expand aliases for authorization.
+const catalogAccessMembership = (...sources: unknown[]): string[] => Array.from(new Set(
+  sources.flatMap(source => Array.isArray(source) ? source.flatMap(value => {
+    const token = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    return token ? [token] : [];
+  }) : []),
+)).sort();
+
 export default function CatalogQualityCommandCenter({
   tenantSlug,
   marketplace,
@@ -130,7 +139,7 @@ export default function CatalogQualityCommandCenter({
   const verifiedScope = !loading && organizationProfileVerified && !publicScopePending
     ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug: slug, user }) : null;
   const scopeKey = verifiedScope ? JSON.stringify([verifiedScope, revision, expectedTenantId,
-    user?.rol, user?.role, user?.permissions, user?.capabilities, user?.scopes]) : null;
+    user?.rol, user?.role, catalogAccessMembership(user?.permissions, user?.capabilities, user?.scopes)]) : null;
   if (!scopeKey) return <Card className="border-border/60"><CardContent className="p-4 text-sm text-muted-foreground">
     Esperando la sesión y la organización verificadas para consultar el catálogo.
   </CardContent></Card>;
