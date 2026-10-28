@@ -6,6 +6,28 @@
     /chunkloaderror|failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module|failed to load module script/i;
   var pwaCachePattern = /^(?:workbox-precache|chatboc-(?:assets|shell)-)/;
 
+  function isSameOriginHttpAsset(assetUrl) {
+    try {
+      var parsedUrl = new URL(assetUrl, window.location.href);
+      return (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') &&
+        parsedUrl.origin === window.location.origin && assetPattern.test(parsedUrl.pathname);
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function hasSingleExplicitForeignImportUrl(message) {
+    // Tokenize only known absolute URL schemes; authority comes from URL parsing.
+    // Missing, ambiguous or malformed attribution keeps the existing generic fallback.
+    var urls = message.match(/(?:https?|chrome-extension):\/\/[^\s"'<>]+/gi);
+    if (!urls || urls.length !== 1) return false;
+    try {
+      return new URL(urls[0]).origin !== window.location.origin;
+    } catch (_error) {
+      return false;
+    }
+  }
+
   function registrationWorkerUrl(registration) {
     var worker = registration.installing || registration.waiting || registration.active;
     return worker && worker.scriptURL ? worker.scriptURL : '';
@@ -97,7 +119,7 @@
     function handleAssetError(event) {
       var target = event && event.target;
       var assetUrl = target && (target.src || target.href);
-      if (typeof assetUrl === 'string' && assetPattern.test(assetUrl)) {
+      if (typeof assetUrl === 'string' && isSameOriginHttpAsset(assetUrl)) {
         void recover('asset-load');
       }
     },
@@ -107,7 +129,7 @@
   window.addEventListener('unhandledrejection', function handleChunkRejection(event) {
     var reason = event && event.reason;
     var message = reason && (reason.message || reason.name) ? String(reason.message || reason.name) : String(reason || '');
-    if (chunkErrorPattern.test(message)) {
+    if (chunkErrorPattern.test(message) && !hasSingleExplicitForeignImportUrl(message)) {
       void recover('chunk-load');
     }
   });
