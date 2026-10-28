@@ -28,7 +28,11 @@ import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
 import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { useTenantStore } from '@/stores';
+import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
+import {
+  captureChatbocSessionRevision,
+  subscribeChatbocSessionRevision,
+} from '@/utils/chatbocSessionRevision';
 import {
   isTenantSlugDeploymentHostnameMirror,
   readTenantSlugFromHostname,
@@ -57,6 +61,25 @@ interface TenantContextValue {
   followCurrentTenant: () => Promise<void>;
   unfollowCurrentTenant: () => Promise<void>;
 }
+
+type FollowedTenantsState = {
+  authority: number;
+  items: TenantSummary[];
+  loading: boolean;
+  error: string | null;
+};
+
+const emptyFollowedTenantsState = (authority: number): FollowedTenantsState => ({
+  authority, items: [], loading: false, error: null,
+});
+
+const readFollowedIdentity = (widgetToken: string | null) => {
+  const panel = usePanelSessionStore.getState();
+  return JSON.stringify([
+    panel.authToken, panel.user?.id ?? null, captureChatbocSessionRevision(),
+    widgetToken ? useWidgetSessionStore.getState().chatAuthToken : null,
+  ]);
+};
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
@@ -314,11 +337,48 @@ export const TenantProvider = ({
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
   const [isLoadingTenant, setIsLoadingTenant] = useState(true);
   const [tenantError, setTenantError] = useState<string | null>(null);
-  const [followedTenants, setFollowedTenants] = useState<TenantSummary[]>([]);
-  const [isLoadingFollowedTenants, setIsLoadingFollowedTenants] = useState(false);
-  const [followedTenantsError, setFollowedTenantsError] = useState<string | null>(null);
+  const followedAuthority = useRef(0);
+  const activeFollowedRequest = useRef(0);
+  const followedMounted = useRef(false);
+  const followedIdentity = useRef<string | null>(null);
+  const followedScope = useRef<string | null>(null);
+  const [followedGeneration, setFollowedGeneration] = useState(0);
+  const [followedState, setFollowedState] = useState<FollowedTenantsState>(() => emptyFollowedTenantsState(0));
+  const isFollowedStateCurrent = followedState.authority === followedAuthority.current;
+  const followedTenants = isFollowedStateCurrent ? followedState.items : [];
+  const isLoadingFollowedTenants = isFollowedStateCurrent && followedState.loading;
+  const followedTenantsError = isFollowedStateCurrent ? followedState.error : null;
   const activeTenantRequest = useRef(0);
   const currentSlugRef = useRef<string | null>(null);
+  const canReadFollowedTenants = !tenantBootstrapSuppressed &&
+    (!hostResolution.required || (hostResolution.status === 'active' && Boolean(hostBinding) && !hostScopeMismatch)) &&
+    Boolean(currentSlug || widgetToken);
+  const widgetFollowedSlug = widgetToken ? currentSlug : null;
+  const followedScopeKey = JSON.stringify([canReadFollowedTenants, widgetToken, widgetFollowedSlug]);
+
+  useLayoutEffect(() => {
+    followedMounted.current = true;
+    const synchronizeAuthority = () => {
+      const identity = readFollowedIdentity(widgetToken);
+      if (followedIdentity.current === identity && followedScope.current === followedScopeKey) return;
+      followedIdentity.current = identity;
+      followedScope.current = followedScopeKey;
+      // Observe every store transition, including A -> B -> A between React commits.
+      const generation = ++followedAuthority.current;
+      activeFollowedRequest.current += 1;
+      setFollowedGeneration(generation);
+      setFollowedState(emptyFollowedTenantsState(generation));
+    };
+    synchronizeAuthority();
+    const stopPanel = usePanelSessionStore.subscribe(synchronizeAuthority);
+    const stopWidget = useWidgetSessionStore.subscribe(synchronizeAuthority);
+    const stopRevision = subscribeChatbocSessionRevision(synchronizeAuthority);
+    return () => {
+      followedMounted.current = false;
+      activeFollowedRequest.current += 1;
+      stopPanel(); stopWidget(); stopRevision();
+    };
+  }, [followedScopeKey, widgetToken]);
 
   const isRecoverableTenantError = useCallback((error: unknown) => {
     if (error instanceof ApiError) {
@@ -391,7 +451,7 @@ export const TenantProvider = ({
       setWidgetToken(null);
       setTenantError(null);
       setIsLoadingTenant(hostResolution.status === 'loading');
-      setFollowedTenants([]);
+      setFollowedState(emptyFollowedTenantsState(followedAuthority.current));
       return;
     }
     const { slug, widgetToken: token } = tenantBootstrapSuppressed
@@ -416,9 +476,7 @@ export const TenantProvider = ({
           themeConfig: null,
           features: null,
         });
-        setFollowedTenants([]);
-        setFollowedTenantsError(null);
-        setIsLoadingFollowedTenants(false);
+        setFollowedState(emptyFollowedTenantsState(followedAuthority.current));
       } else {
         useTenantStore.getState().clearTenant();
       }
@@ -500,31 +558,40 @@ export const TenantProvider = ({
   }, [tenant?.tema, location.pathname, tenant?.slug]);
 
   const refreshFollowedTenants = useCallback(async () => {
-    if (!currentSlugRef.current && !widgetToken) {
-      setFollowedTenants([]);
-      setFollowedTenantsError(null);
-      setIsLoadingFollowedTenants(false);
-      return;
-    }
-
-    setIsLoadingFollowedTenants(true);
-    setFollowedTenantsError(null);
+    if (!followedMounted.current || !canReadFollowedTenants || followedGeneration !== followedAuthority.current ||
+        (widgetToken && currentSlugRef.current !== widgetFollowedSlug)) return;
+    const authority = followedGeneration;
+    const request = ++activeFollowedRequest.current;
+    const identity = readFollowedIdentity(widgetToken);
+    const isCurrent = () => followedMounted.current && activeFollowedRequest.current === request &&
+      followedAuthority.current === authority && followedScope.current === followedScopeKey &&
+      readFollowedIdentity(widgetToken) === identity;
+    setFollowedState(previous => isCurrent() && previous.authority === authority
+      ? { ...previous, loading: true, error: null } : previous);
     try {
       const items = await listFollowedTenants(currentSlugRef.current, widgetToken);
-      setFollowedTenants(items);
+      if (!isCurrent()) return;
+      setFollowedState(previous => isCurrent() && previous.authority === authority
+        ? { ...previous, items, error: null } : previous);
     } catch (error) {
-      setFollowedTenantsError(
-        getErrorMessage(error, 'No se pudieron actualizar los espacios seguidos en este momento.'),
-      );
+      if (!isCurrent()) return;
+      const aborted = Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError');
+      const unavailableMessage = 'No se pudieron actualizar los espacios seguidos en este momento.';
+      setFollowedState(previous => isCurrent() && previous.authority === authority
+        ? { ...previous, items: aborted ? [] : previous.items,
+          error: aborted ? unavailableMessage : getErrorMessage(error, unavailableMessage) }
+        : previous);
     } finally {
-      setIsLoadingFollowedTenants(false);
+      if (isCurrent()) {
+        setFollowedState(previous => isCurrent() && previous.authority === authority
+          ? { ...previous, loading: false } : previous);
+      }
     }
-  }, [widgetToken]);
+  }, [canReadFollowedTenants, followedGeneration, followedScopeKey, widgetToken, widgetFollowedSlug]);
 
   useEffect(() => {
-    refreshFollowedTenants().catch((error) => {
-      console.warn('[TenantContext] No se pudo cargar la lista inicial de tenants seguidos', error);
-    });
+    void refreshFollowedTenants();
+    return () => { activeFollowedRequest.current += 1; };
   }, [refreshFollowedTenants]);
 
   const isCurrentTenantFollowed = useMemo(() => {

@@ -173,6 +173,9 @@ const Navbar: React.FC = () => {
   const ordersHref = ordersWorkspaceTenant
     ? `/perfil?tab=pedidos&tenant_slug=${encodeURIComponent(ordersWorkspaceTenant)}`
     : '/perfil?tab=pedidos';
+  const employeesHref = hasVerifiedSession && organizationProfileVerified && !userLoading && ordersWorkspaceTenant
+    ? `/empleados?tenant_slug=${encodeURIComponent(ordersWorkspaceTenant)}`
+    : null;
   const ticketDeskHref = ordersWorkspaceTenant
     ? `${TICKET_DESK_PATH}&${new URLSearchParams({ tenant_slug: ordersWorkspaceTenant }).toString()}`
     : TICKET_DESK_PATH;
@@ -255,12 +258,12 @@ const Navbar: React.FC = () => {
         icon: Users,
         requiredAnyCapabilities: ["users.read", "tenant.users.read", "internal_users.read"],
       },
-      {
-        to: "/empleados",
+      ...(employeesHref ? [{
+        to: employeesHref,
         label: "Empleados",
         icon: UserCog,
         requiredAnyCapabilities: ["employees.read", "tenant.employees.read"],
-      },
+      }] : []),
     ];
     if (canOpenKnowledge) links.push({ to: knowledgeHref, label: 'Fuentes de conocimiento', icon: BookOpen });
 
@@ -309,7 +312,7 @@ const Navbar: React.FC = () => {
 
       return hasAnyCapability(link.requiredAnyCapabilities);
     });
-  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref, ticketDeskHref, hostBinding]);
+  }, [analyticsPath, capabilities, publicSiteSlug, hasAnyCapability, isAdminLike, isMunicipal, isPlatformAdmin, isTenantOwnerLike, userRole, canOpenKnowledge, knowledgeHref, ordersHref, employeesHref, ticketDeskHref, hostBinding]);
 
   const menuScope=JSON.stringify([location.pathname,location.search,hasVerifiedSession,user?.id,user?.tenant_slug,userRole,privateShell.identity?.tenantSlug]);
   useLayoutEffect(()=>{setMenuOpen(false);},[menuScope]);
