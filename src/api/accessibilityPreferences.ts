@@ -45,6 +45,9 @@ export const parseAccessibilityPreferences = (
   return payload as unknown as AccessibilityPreferencesContract;
 };
 
+const expectedActorPath = (userId: number | string) =>
+  '/api/accessibility/me?expected_user_id=' + encodeURIComponent(String(userId));
+
 const requestOptions = {
   cache: 'no-store' as const,
   omitTenant: true,
@@ -54,7 +57,7 @@ const requestOptions = {
 };
 
 export const getAccessibilityPreferences = async (expectedUserId: number | string) => {
-  const payload = await apiFetch<unknown>('/api/accessibility/me', requestOptions);
+  const payload = await apiFetch<unknown>(expectedActorPath(expectedUserId), requestOptions);
   return parseAccessibilityPreferences(payload, expectedUserId);
 };
 
@@ -62,7 +65,7 @@ export const updateAccessibilityPreferences = async (
   expectedUserId: number | string,
   preferences: Prefs,
 ) => {
-  const payload = await apiFetch<unknown>('/api/accessibility/me', {
+  const payload = await apiFetch<unknown>(expectedActorPath(expectedUserId), {
     ...requestOptions,
     method: 'PUT',
     body: preferences,

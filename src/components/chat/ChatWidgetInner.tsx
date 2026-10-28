@@ -11,12 +11,13 @@ import { hasPersistedClerkSession } from "@/utils/sessionLogout";
 import { extractRubroKey } from "@/utils/rubros";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { ACCESSIBILITY_EVENT, readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantNavigationUrl, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths"; // Fixed import
@@ -848,7 +849,7 @@ function ChatWidgetInner({
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
   );
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const reduceMotion = useEffectiveReducedMotion(a11yPrefs.reducedMotion);
   const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_STATIC);
   const [hideClosedLauncherForHeroPreview, setHideClosedLauncherForHeroPreview] = useState(false);
 
@@ -2454,18 +2455,7 @@ function ChatWidgetInner({
     setLauncherImageSrc(launcherAssetSrc);
   }, [launcherAssetSrc]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
-    syncPreference();
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", syncPreference);
-      return () => mediaQuery.removeEventListener("change", syncPreference);
-    }
-    mediaQuery.addListener(syncPreference);
-    return () => mediaQuery.removeListener(syncPreference);
-  }, []);
+
 
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
@@ -3096,7 +3086,7 @@ function ChatWidgetInner({
         return {
           ...STANDALONE_MOBILE_OPEN_VIEWPORT,
           zIndex: 999999,
-          transition: "opacity 0.18s ease",
+          transition: reduceMotion ? "none" : "opacity 0.18s ease",
           transform: "none",
           borderRadius: 0,
         };
@@ -3118,7 +3108,7 @@ function ChatWidgetInner({
         zIndex: 999999,
         opacity: shouldHideClosedLauncher ? 0 : 1,
         pointerEvents: shouldHideClosedLauncher ? "none" : undefined,
-        transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease, opacity 0.18s ease, transform 0.18s ease',
+        transition: reduceMotion ? 'none' : 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease, opacity 0.18s ease, transform 0.18s ease',
         // FORCE NONE ON MOBILE TO PREVENT BACKEND INJECTION ISSUES
         transform: isMobileView
           ? shouldHideClosedLauncher
@@ -3155,18 +3145,18 @@ function ChatWidgetInner({
         maxWidth: "min(100%, 100dvw)",
         maxHeight: "100dvh",
         overflow: "hidden",
-        transition: "width 0.24s ease, height 0.24s ease, opacity 0.18s ease",
+        transition: reduceMotion ? "none" : "width 0.24s ease, height 0.24s ease, opacity 0.18s ease",
       };
     }
     return {};
-  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width, reduceMotion]);
 
-  const panelAnimation = prefersReducedMotion
+  const panelAnimation = reduceMotion
     ? {
         initial: { opacity: 0 },
         animate: { opacity: 1 },
         exit: { opacity: 0 },
-        transition: { duration: 0.12 },
+        transition: { duration: 0 },
       }
     : {
         initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
@@ -3175,14 +3165,14 @@ function ChatWidgetInner({
         transition: { type: "spring", stiffness: 350, damping: 30 },
       };
 
-  const motionScale = prefersReducedMotion
+  const motionScale = reduceMotion
     ? 1
     : widgetUx.motionLevel === 'pro'
       ? 1
       : widgetUx.motionLevel === 'minimal'
         ? 0.5
         : 0.75;
-  const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView && !prefersReducedMotion;
+  const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView && !reduceMotion;
 
   const launcherPalette = useMemo(() => {
     const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
@@ -3213,12 +3203,12 @@ function ChatWidgetInner({
     };
   }, [widgetUx.preset]);
 
-  const buttonAnimation = prefersReducedMotion
+  const buttonAnimation = reduceMotion
     ? {
         initial: { opacity: 0 },
         animate: { opacity: 1 },
         exit: { opacity: 0 },
-        transition: { duration: 0.12 },
+        transition: { duration: 0 },
       }
     : {
         initial: { opacity: 0 },
@@ -3248,6 +3238,7 @@ function ChatWidgetInner({
 
   if (mode === "standalone" || mode === "iframe" || mode === "preview") {
     return (
+      <MotionConfig reducedMotion={reduceMotion ? "always" : "never"}>
       <div
         ref={widgetContainerRef}
         data-testid="chat-widget"
@@ -3263,10 +3254,10 @@ function ChatWidgetInner({
         data-logo-ring={String(widgetUx.logoRing)}
         data-gradient-start={widgetUx.gradientStart}
         data-gradient-end={widgetUx.gradientEnd}
-        data-typing-animation={widgetUx.typingAnimation}
-        data-bubble-animation={widgetUx.bubbleAnimation}
+        data-typing-animation={reduceMotion ? "none" : widgetUx.typingAnimation}
+        data-bubble-animation={reduceMotion ? "none" : widgetUx.bubbleAnimation}
         data-launcher-animation={widgetUx.launcherAnimation}
-        data-message-enter-animation={widgetUx.messageEnterAnimation}
+        data-message-enter-animation={reduceMotion ? "none" : widgetUx.messageEnterAnimation}
         data-logo-badge-style={widgetUx.logoBadgeStyle}
         data-cursor-trail={String(widgetUx.cursorTrail)}
         data-ambient-particles={String(widgetUx.ambientParticles)}
@@ -3616,10 +3607,10 @@ function ChatWidgetInner({
                   type="button"
                   className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
                   style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
+                  initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.95 }}
+                  animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.3 }}
                   onClick={() => {
                     if (catalogLinks?.view_url) {
                       window.open(catalogLinks.view_url, "_blank");
@@ -3680,6 +3671,7 @@ function ChatWidgetInner({
           </SafeAnimatePresence>
         )}
       </div>
+      </MotionConfig>
     );
   }
 

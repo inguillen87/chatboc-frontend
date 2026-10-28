@@ -376,3 +376,52 @@ describe("ChatPanel realtime transport truth", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 });
+
+const motionPreferences = vi.hoisted(() => ({ os: false }));
+// Inspect the animation instructions passed to Framer; all API identities are synthetic.
+vi.mock('framer-motion', async original => {
+  const actual = await original<typeof import('framer-motion')>();
+  const React = await import('react');
+  const wrappers = new Map<string, React.ComponentType<any>>();
+  return { ...actual, useReducedMotionConfig: () => motionPreferences.os || React.useContext(actual.MotionConfigContext).reducedMotion === 'always', motion: new Proxy(actual.motion, { get: (_target, tag: string) => {
+    if (!wrappers.has(tag)) wrappers.set(tag, React.forwardRef<HTMLElement, any>(function MotionFixture(props, ref) {
+      const { initial, animate, exit, transition, whileHover, whileTap, layout, ...rest } = props;
+      return React.createElement(tag, { ...rest, ref, 'data-motion-initial': JSON.stringify(initial),
+        'data-motion-exit': JSON.stringify(exit), 'data-motion-duration': transition?.duration,
+        'data-motion-repeat': transition?.repeat === Infinity ? 'infinite' : undefined });
+    }));
+    return wrappers.get(tag);
+  } }) };
+});
+
+
+
+
+describe('ChatPanel reduced motion behavior', () => {
+  const preferences = { dyslexia: false, simplified: true, highContrast: false, largeControls: false, captions: false, reducedMotion: false };
+  beforeEach(() => {
+    motionPreferences.os = false;
+    chatLogic.messages = []; chatLogic.isTyping = false; chatLogic.contexto = {}; chatLogic.uxContext = {};
+    chatLogic.institutionalBootstrapPending = false; chatLogic.suppressLegacyInitialMenu = true; profile.user = null;
+    vi.mocked(apiFetch).mockResolvedValue({});
+  });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+  it.each(['local', 'system'])('removes action tray entry and exit motion for the %s preference', source => {
+    motionPreferences.os = source === 'system';
+    const view = render(<ChatPanel tipoChat="municipio" tenantSlug="qa-motion" a11yPrefs={{ ...preferences, reducedMotion: source === 'local' }}
+      conversionCtas={{ actions: [{ id: 'qa-details', label: 'Acción de prueba', intent: 'qa-action' }] }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ver acciones' }));
+    const tray = view.container.querySelector<HTMLElement>('.chatboc-chat-footer [data-motion-duration]')!;
+    expect(tray).toBeInTheDocument();
+    expect(tray.dataset.motionDuration).toBe('0');
+    expect(tray.dataset.motionInitial).not.toMatch(/"height"/);
+    expect(tray.dataset.motionExit).not.toMatch(/"height"/);
+  });
+  it('keeps typing feedback readable without infinite animation', () => {
+    chatLogic.isTyping = true;
+    const view = render(<ChatPanel tipoChat="municipio" tenantSlug="qa-motion" a11yPrefs={{ ...preferences, reducedMotion: true }} />);
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chat-header')).toBeInTheDocument();
+    chatLogic.isTyping = false;
+  });
+});

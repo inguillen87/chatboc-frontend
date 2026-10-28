@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/utils/api";
 import {
   readAssignmentTarget,
@@ -129,6 +130,8 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
     permisos: "",
   });
   const [savingScope, setSavingScope] = useState(false);
+  const scopeEditorId = useId();
+  const [scopeMessageError, setScopeMessageError] = useState(false);
   const [scopeMessage, setScopeMessage] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignResult, setAssignResult] = useState<AnyRecord | null>(null);
@@ -136,6 +139,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
   const assignmentInFlight = useRef(false);
   const routingVersion = useRef(0);
   const scopeRequestVersion = useRef(0);
+  const scopeSaveInFlight = useRef<symbol | null>(null);
   const selectedSlug = tenantSlug?.trim() || "";
   const currentSlug = useRef(selectedSlug);
   currentSlug.current = selectedSlug;
@@ -155,6 +159,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
     setSelectedEmployee(null);
     setScopeForm({ categorias: "", zonas: "", channels: "", permisos: "" });
     setScopeMessage(null);
+    setScopeMessageError(false);
     try {
       const response = await getEmployeeRoutingV2(slug);
       if (version !== routingVersion.current || slug !== currentSlug.current) return;
@@ -170,6 +175,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
 
   useEffect(() => {
     ++scopeRequestVersion.current;
+    scopeSaveInFlight.current = null;
     setSavingScope(false);
     loadRouting();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,6 +184,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
   useEffect(() => {
     if (!selectedEmployee) return;
     setScopeMessage(null);
+    setScopeMessageError(false);
     setScopeForm({
       categorias: selectedEmployee.scope.categorias.join(", "),
       zonas: selectedEmployee.scope.zonas.join(", "),
@@ -190,7 +197,9 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
 
   const handleSaveScope = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedEmployee || savingScope || loading || assignmentInFlight.current || !routing?.employees.includes(selectedEmployee)) return;
+    if (!selectedEmployee || scopeSaveInFlight.current || savingScope || loading || assignmentInFlight.current || !routing?.employees.includes(selectedEmployee)) return;
+    const saveToken = Symbol('coverage-save');
+    scopeSaveInFlight.current = saveToken;
     const slug = selectedSlug;
     const routingSnapshotVersion = routingVersion.current;
     const requestVersion = ++scopeRequestVersion.current;
@@ -199,6 +208,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
     setAssignResult(null);
     setSavingScope(true);
     setScopeMessage(null);
+    setScopeMessageError(false);
     try {
       requireAssignmentTenant(routing.raw, slug);
       await patchEmployeeRoutingScopeV2(
@@ -214,9 +224,12 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
       if (!isCurrent() || routingSnapshotVersion !== routingVersion.current) return;
       setScopeMessage("Cobertura actualizada. Refrescando equipo...");
       await loadRouting();
+      if (isCurrent()) setScopeMessage("Cobertura actualizada.");
     } catch (err) {
+      if (isCurrent()) setScopeMessageError(true);
       if (isCurrent()) setScopeMessage(getErrorMessage(err, "No se pudo actualizar la cobertura."));
     } finally {
+      if (scopeSaveInFlight.current === saveToken) scopeSaveInFlight.current = null;
       if (isCurrent()) setSavingScope(false);
     }
   };
@@ -380,37 +393,31 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
             </p>
             {selectedEmployee ? (
               <form className="mt-4 space-y-3" onSubmit={handleSaveScope}>
-                <Input
-                  value={scopeForm.categorias}
-                  onChange={(event) => setScopeForm((prev) => ({ ...prev, categorias: event.target.value }))}
-                  placeholder="categorias separadas por coma"
-                />
-                <Input
-                  value={scopeForm.zonas}
-                  onChange={(event) => setScopeForm((prev) => ({ ...prev, zonas: event.target.value }))}
-                  placeholder="zonas separadas por coma"
-                />
-                <Input
-                  value={scopeForm.channels}
-                  onChange={(event) => setScopeForm((prev) => ({ ...prev, channels: event.target.value }))}
-                  placeholder="channels separados por coma"
-                />
-                <Input
-                  value={scopeForm.permisos}
-                  onChange={(event) => setScopeForm((prev) => ({ ...prev, permisos: event.target.value }))}
-                  placeholder="permisos separados por coma"
-                />
+                <p id={`${scopeEditorId}-help`} className="text-xs text-muted-foreground">
+                  Separá los valores con comas. Podés dejar un campo vacío si no corresponde.
+                </p>
+                {([
+                  ['categorias', 'Categorías'], ['zonas', 'Zonas'],
+                  ['channels', 'Canales'], ['permisos', 'Permisos'],
+                ] as const).map(([key, label]) => (
+                  <div key={key} className="space-y-1.5">
+                    <Label htmlFor={`${scopeEditorId}-${key}`}>{label}</Label>
+                    <Input id={`${scopeEditorId}-${key}`} value={scopeForm[key]}
+                      aria-describedby={`${scopeEditorId}-help`}
+                      onChange={event => setScopeForm(previous => ({ ...previous, [key]: event.target.value }))} />
+                  </div>
+                ))}
                 <Button type="submit" className="w-full" disabled={savingScope || assignLoading}>
                   <Save className="mr-2 h-4 w-4" />
                   {savingScope ? "Guardando..." : "Guardar cobertura"}
                 </Button>
-                {scopeMessage ? <p className="text-xs text-muted-foreground">{scopeMessage}</p> : null}
               </form>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
                 Selecciona un empleado de la matriz.
               </div>
             )}
+            <p role={scopeMessageError ? "alert" : "status"} aria-atomic="true" className={scopeMessageError ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>{scopeMessage}</p>
           </div>
         </div>
 

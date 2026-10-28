@@ -5,7 +5,7 @@ import ChatButtons from "./ChatButtons";
 import InstitutionalChatMessage from './InstitutionalChatMessage';
 import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
-import { motion } from "framer-motion";
+import { motion, useReducedMotionConfig } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { ChatStreamRenderer, PolicyBanner } from './stream';
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
@@ -332,16 +332,22 @@ const extractLinkButtons = (
   }
 };
 
+// Framer's existing VisualElement can retain its mount-time motion policy.
+// Explicit rendering also keeps an in-progress transform still without remounting content.
+const stationaryTransform = () => "none";
+
 // --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
-const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?: string }> = ({
+const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?: string; reducedMotion: boolean }> = ({
   isTyping,
   logoUrl,
   logoAnimation,
+  reducedMotion,
 }) => (
   <motion.div
-    initial={{ scale: 0.8, opacity: 0 }}
+    initial={reducedMotion ? false : { scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
-    transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+    transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+    transformTemplate={reducedMotion ? stationaryTransform : undefined}
     className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-muted rounded-full shadow"
   >
     {logoUrl ? (
@@ -349,21 +355,21 @@ const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?:
         src={logoUrl}
         alt="Bot"
         className="w-6 h-6 rounded-full"
-        style={{ animation: logoAnimation || undefined }}
+        style={{ animation: reducedMotion ? "none" : logoAnimation || undefined }}
       />
     ) : (
       <ChatbocLogoAnimated
         size={24}
-        smiling={isTyping}
-        movingEyes={isTyping}
-        blinking
-        pulsing
+        smiling={isTyping && !reducedMotion}
+        movingEyes={isTyping && !reducedMotion}
+        blinking={!reducedMotion}
+        pulsing={!reducedMotion}
       />
     )}
   </motion.div>
 );
 
-const UserChatAvatar: React.FC<{ publicVisitorName?: string | null }> = ({ publicVisitorName }) => {
+const UserChatAvatar: React.FC<{ publicVisitorName?: string | null; reducedMotion: boolean }> = ({ publicVisitorName, reducedMotion }) => {
   const { user } = useUser();
   const isPublicVisitor = publicVisitorName !== undefined;
   const resolvedAvatar = useMemo(
@@ -374,9 +380,10 @@ const UserChatAvatar: React.FC<{ publicVisitorName?: string | null }> = ({ publi
   return (
     <motion.div
       className="flex-shrink-0 shadow-md"
-      initial={{ scale: 0.8, opacity: 0 }}
+      initial={reducedMotion ? false : { scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 200, damping: 20 }}
+      transformTemplate={reducedMotion ? stationaryTransform : undefined}
     >
       <IdentityAvatar
         name={isPublicVisitor ? publicVisitorName || "Usuario" : user?.name || user?.email || "Usuario"}
@@ -485,6 +492,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   },
   ref
 ) => {
+  const reducedMotion = Boolean(useReducedMotionConfig() || messageEnterAnimation === "none");
   if (!message) {
     return (
       <motion.div className="text-xs text-destructive italic mt-2 px-3" ref={ref}>
@@ -743,14 +751,15 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     <motion.div
       ref={ref}
       className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
-      initial={enterInitial}
+      initial={reducedMotion ? false : enterInitial}
       animate={enterAnimate}
-      transition={{ duration: 0.28, ease: 'easeOut' }}
+      transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
+      transformTemplate={reducedMotion ? stationaryTransform : undefined}
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && (
           <div className={botBadgeClass}>
-            <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />
+            <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} reducedMotion={reducedMotion} />
           </div>
         )}
 
@@ -981,7 +990,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           ) : null}
         </MessageBubble>
 
-        {!isBot && <UserChatAvatar publicVisitorName={publicVisitorName} />}
+        {!isBot && <UserChatAvatar publicVisitorName={publicVisitorName} reducedMotion={reducedMotion} />}
       </div>
     </motion.div>
   );

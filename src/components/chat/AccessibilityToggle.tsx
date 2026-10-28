@@ -27,6 +27,9 @@ export type Prefs = {
 
 const LS_KEY = "chatboc_accessibility";
 export const ACCESSIBILITY_EVENT = "chatboc:a11y-change";
+// Distinguish an explicit choice from hydration and cross-editor broadcasts.
+export const ACCESSIBILITY_INTENT_EVENT = "chatboc:a11y-user-intent";
+export type AccessibilityPreferenceIntent = { key: keyof Prefs; value: boolean };
 
 export const DEFAULT_ACCESSIBILITY_PREFS: Prefs = {
   dyslexia: false,
@@ -243,7 +246,13 @@ export default function AccessibilityToggle({
                     "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
                     active ? "border-primary/50 bg-primary/10" : "border-border bg-background hover:bg-muted/60",
                   )}
-                  onClick={() => setPrefs((current) => ({ ...current, [key]: !current[key] }))}
+                  onClick={() => {
+                    const value = !prefs[key];
+                    setPrefs(current => ({ ...current, [key]: value }));
+                    window.dispatchEvent(new CustomEvent<AccessibilityPreferenceIntent>(ACCESSIBILITY_INTENT_EVENT, {
+                      detail: { key, value },
+                    }));
+                  }}
                   aria-pressed={active}
                 >
                   <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full border", active ? "border-primary/40 bg-primary text-primary-foreground" : "border-border bg-muted")}>
