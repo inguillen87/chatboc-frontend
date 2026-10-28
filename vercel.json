@@ -3,6 +3,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "release/enterprise-followed-authority-20261028": false,
       "release/enterprise-a11y-metrics-20261028": false,
       "fix/catalog-quality-scope-20261026": false,
       "fix/receipt-campaign-settings-20261021": false,
