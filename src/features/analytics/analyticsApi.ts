@@ -1436,7 +1436,7 @@ const normalizeHeatmapJurisdictionReview = (
   };
 };
 
-const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
+export const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
   const record = pickRecord(response) ?? {};
   const renderContract = pickRecord(record.render_contract);
   const geoLayers = normalizeHeatmapGeoLayers(record.geo_layers);

@@ -30,7 +30,7 @@ vi.mock('./ChatPanel', async () => {
 vi.mock('./AccessibilityToggle', () => ({
   default: () => <button>Accesibilidad</button>,
   ACCESSIBILITY_EVENT: 'test-accessibility-change',
-  readAccessibilityPrefs: () => ({}),
+  readAccessibilityPrefs: () => JSON.parse(localStorage.getItem('chatboc_accessibility') || '{}'),
 }));
 vi.mock('./ChatbocLogoAnimated', () => ({ default: () => <span aria-hidden="true">logo</span> }));
 
@@ -302,5 +302,75 @@ describe('shared widget public assistant appearance', () => {
     await waitFor(() => expect(screen.getByTitle(appDefaults.welcomeTitle)).toBeVisible());
     expect(screen.getByText(appDefaults.welcomeSubtitle)).toBeVisible();
     expect(publicRead).not.toHaveBeenCalled();
+  });
+});
+
+// Inspect the animation instructions passed to Framer; all API identities are synthetic.
+vi.mock('framer-motion', async original => {
+  const actual = await original<typeof import('framer-motion')>();
+  const React = await import('react');
+  const wrappers = new Map<string, React.ComponentType<any>>();
+  return { ...actual, motion: new Proxy(actual.motion, { get: (_target, tag: string) => {
+    if (!wrappers.has(tag)) wrappers.set(tag, React.forwardRef<HTMLElement, any>(function MotionFixture(props, ref) {
+      const { initial, animate, exit, transition, whileHover, whileTap, layout, ...rest } = props;
+      return React.createElement(tag, { ...rest, ref, 'data-motion-initial': JSON.stringify(initial),
+        'data-motion-exit': JSON.stringify(exit), 'data-motion-duration': transition?.duration,
+        'data-motion-repeat': transition?.repeat === Infinity ? 'infinite' : undefined });
+    }));
+    return wrappers.get(tag);
+  } }) };
+});
+
+
+describe('widget explicit reduced motion', () => {
+  const setupMotionWidget = async () => {
+    window.history.replaceState({}, '', '/t/qa-motion');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('qa-motion', 'Asistente de prueba'),
+      builder_config: { ux: { ambient_particles: true, cursor_trail: true, motion_level: 'pro' } },
+    });
+    const view = renderWidget(<MemoryRouter><ChatWidgetInner mode="standalone" defaultOpen tenantSlug="qa-motion" /></MemoryRouter>);
+    await screen.findByTitle('Asistente de prueba');
+    return view;
+  };
+  const panelMotion = (container: HTMLElement) => container.querySelector<HTMLElement>('[role="dialog"]')!;
+  it('honors a stored local choice with the OS preference off, including entry and exit', async () => {
+    localStorage.setItem('chatboc_accessibility', JSON.stringify({ reducedMotion: true }));
+    const view = await setupMotionWidget();
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).not.toBeInTheDocument();
+    expect(panelMotion(view.container).dataset.motionInitial).not.toMatch(/"(?:y|scale)"/);
+    expect(panelMotion(view.container).dataset.motionExit).not.toMatch(/"(?:y|scale)"/);
+  });
+  it('stops decorative loops immediately when the user changes the local preference', async () => {
+    const view = await setupMotionWidget();
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).toBeInTheDocument();
+    act(() => window.dispatchEvent(new CustomEvent('test-accessibility-change', { detail: { reducedMotion: true } })));
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).not.toBeInTheDocument();
+    expect(panelMotion(view.container).dataset.motionExit).not.toMatch(/"(?:y|scale)"/);
+    act(() => window.dispatchEvent(new CustomEvent('test-accessibility-change', { detail: { reducedMotion: false } })));
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).toBeInTheDocument();
+  });
+
+  it('removes standalone CSS dimension transitions when the OS preference changes live', async () => {
+    let notify!: () => void;
+    const media = { matches: false, addEventListener: (_event: string, listener: () => void) => { notify = listener; }, removeEventListener: vi.fn() };
+    vi.stubGlobal('matchMedia', vi.fn(() => media));
+    const view = await setupMotionWidget();
+    const container = view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    expect(container.style.transition).not.toBe('none');
+    act(() => { media.matches = true; notify(); });
+    expect(container.style.transition).toBe('none');
+  });
+  it('retains OS reduction when the local preference is off and follows OS changes live', async () => {
+    let notify!: () => void;
+    const media = { matches: true, addEventListener: (_event: string, callback: () => void) => { notify = callback; }, removeEventListener: vi.fn() };
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(media));
+    const view = await setupMotionWidget();
+    act(() => window.dispatchEvent(new CustomEvent('test-accessibility-change', { detail: { reducedMotion: false } })));
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).not.toBeInTheDocument();
+    act(() => { media.matches = false; notify(); });
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).toBeInTheDocument();
+    act(() => { media.matches = true; notify(); });
+    expect(view.container.querySelector('[data-motion-repeat="infinite"]')).not.toBeInTheDocument();
   });
 });

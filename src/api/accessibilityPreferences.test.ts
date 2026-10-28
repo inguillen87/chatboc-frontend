@@ -32,7 +32,7 @@ describe('accessibility preferences API', () => {
     vi.mocked(apiFetch).mockResolvedValueOnce(contract as never);
 
     await expect(getAccessibilityPreferences(41)).resolves.toEqual(contract);
-    expect(apiFetch).toHaveBeenCalledWith('/api/accessibility/me', expect.objectContaining({
+    expect(apiFetch).toHaveBeenCalledWith('/api/accessibility/me?expected_user_id=41', expect.objectContaining({
       cache: 'no-store',
       omitTenant: true,
       persistTenantSlug: false,
@@ -43,7 +43,7 @@ describe('accessibility preferences API', () => {
     vi.mocked(apiFetch).mockResolvedValueOnce(contract as never);
 
     await updateAccessibilityPreferences(41, preferences);
-    expect(apiFetch).toHaveBeenCalledWith('/api/accessibility/me', expect.objectContaining({
+    expect(apiFetch).toHaveBeenCalledWith('/api/accessibility/me?expected_user_id=41', expect.objectContaining({
       method: 'PUT',
       body: preferences,
     }));
@@ -63,5 +63,15 @@ describe('accessibility preferences API', () => {
     const { captions: _captions, ...partial } = preferences;
     expect(() => parseAccessibilityPreferences({ ...contract, preferences: partial }, 41))
       .toThrow('accessibility_preferences_contract_invalid');
+  });
+});
+
+
+describe('accessibility expected actor response binding', () => {
+  it.each(['GET', 'PUT'])('keeps the outgoing expected ID and rejects a different %s response identity', async method => {
+    vi.mocked(apiFetch).mockReset().mockResolvedValueOnce({ ...contract, user_id: 52 } as never);
+    const read = method === 'GET' ? getAccessibilityPreferences(41) : updateAccessibilityPreferences(41, preferences);
+    await expect(read).rejects.toThrow('accessibility_preferences_identity_mismatch');
+    expect(apiFetch).toHaveBeenCalledWith('/api/accessibility/me?expected_user_id=41', expect.objectContaining({ omitTenant: true, persistTenantSlug: false }));
   });
 });

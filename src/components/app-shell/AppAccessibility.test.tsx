@@ -8,6 +8,8 @@ vi.mock('@/components/chat/AccessibilityToggle', () => ({
   default: ({ className }: { className?: string }) => (
     <button type="button" className={className}>Accesibilidad</button>
   ),
+  ACCESSIBILITY_INTENT_EVENT: 'chatboc:a11y-user-intent',
+  DEFAULT_ACCESSIBILITY_PREFS: { dyslexia: false, simplified: true, highContrast: false, largeControls: false, captions: false, reducedMotion: false },
   applyAccessibilityPrefs: vi.fn(),
   persistAccessibilityPrefs: vi.fn(),
   readAccessibilityPrefs: vi.fn(() => ({})),

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotionConfig } from "framer-motion";
 import { X } from 'lucide-react';
 
 interface ProactiveBubbleProps {
@@ -27,6 +27,7 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
     onInteractionChange?.(false);
   }, [visible, onInteractionChange]);
   const dismiss = () => onDismiss(Boolean(containerRef.current?.contains(document.activeElement)));
+  const reducedMotion = useReducedMotionConfig();
   if (!visible) return null;
 
   return (
@@ -46,13 +47,13 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
       }}
       onPointerLeave={() => { hovered.current = false; onInteractionChange?.(focused.current); }}
       className="absolute bottom-0 right-[calc(100%+1rem)] mb-4 w-max max-w-[min(22rem,calc(100dvw-6.5rem-env(safe-area-inset-right)))]"
-      initial={{ opacity: 0, x: 20 }}
-      animate={{
+      initial={reducedMotion ? false : { opacity: 0, x: 20 }}
+      animate={reducedMotion ? { opacity: 1, x: 0, transition: { duration: 0 } } : {
         opacity: 1,
         x: 0,
         transition: { type: "spring", stiffness: 280, damping: 25, delay: 0.2 }
       }}
-      exit={{ opacity: 0, x: 20, transition: { duration: 0.2, ease: "easeOut" } }}
+      exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, x: 20, transition: { duration: 0.2, ease: "easeOut" } }}
       onKeyDown={event => {
         if (event.key !== 'Escape' || event.defaultPrevented) return;
         event.preventDefault();

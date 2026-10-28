@@ -101,7 +101,8 @@ import {
   MoreHorizontal,
   ExternalLink,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig, MotionConfigContext, useReducedMotionConfig } from "framer-motion";
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import getOrCreateChatSessionId, { resetChatSessionId } from "@/utils/chatSessionId";
 import { getOrCreateAnonId } from "@/utils/anonId";
@@ -1086,7 +1087,7 @@ interface ChatPanelProps {
   experienceBlueprint?: ChatExperienceBlueprint | null;
 }
 
-const ChatPanel = (props: ChatPanelProps) => {
+const ChatPanelContent = (props: ChatPanelProps) => {
   const {
     onClose,
     tipoChat,
@@ -1138,6 +1139,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     emptyStates,
     experienceBlueprint,
   } = props;
+  const reducedMotion = Boolean(useReducedMotionConfig() || a11yPrefs?.reducedMotion);
   const isMobile = useIsMobile();
   const { user, hasVerifiedSession } = useUser();
   const isBackofficeUser = isBackofficeRole(user?.rol);
@@ -3909,7 +3911,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
           subtitle={welcomeSubtitle}
-          logoAnimation={logoAnimation}
+          logoAnimation={reducedMotion ? "none" : logoAnimation}
           onA11yChange={onA11yChange}
           supportChannels={supportChannels}
           compactActions={compactHeaderActions}
@@ -3977,7 +3979,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
           subtitle={welcomeSubtitle}
-          logoAnimation={logoAnimation}
+          logoAnimation={reducedMotion ? "none" : logoAnimation}
           supportChannels={supportChannels}
           compactActions
         />
@@ -4055,7 +4057,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         logoUrl={headerLogoUrl}
         title={welcomeTitle}
         subtitle={welcomeSubtitle}
-        logoAnimation={logoAnimation}
+        logoAnimation={reducedMotion ? "none" : logoAnimation}
         onA11yChange={onA11yChange}
         accessibilityHints={uiHints?.accessibility ?? commerceSession?.accessibility ?? commerceSession?.ui_hints?.accessibility ?? null}
         supportChannels={supportChannels}
@@ -4073,7 +4075,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         />
       ) : null}
       {hasVerifiedSession && user && tenantSlug && channelMode === "chat" ? (
-        <OwnerRealtimeVoicePanel tenantSlug={tenantSlug} logoUrl={headerLogoUrl || undefined} reducedMotion={Boolean(a11yPrefs?.reducedMotion)} />
+        <OwnerRealtimeVoicePanel tenantSlug={tenantSlug} logoUrl={headerLogoUrl || undefined} reducedMotion={reducedMotion} />
       ) : null}
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
@@ -4529,9 +4531,9 @@ const ChatPanel = (props: ChatPanelProps) => {
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
-            logoAnimation={logoAnimation}
-            messageEnterAnimation={messageEnterAnimation}
-            bubbleAnimation={bubbleAnimation}
+            logoAnimation={reducedMotion ? "none" : logoAnimation}
+            messageEnterAnimation={reducedMotion ? "none" : messageEnterAnimation}
+            bubbleAnimation={reducedMotion ? "none" : bubbleAnimation}
             logoBadgeStyle={logoBadgeStyle}
             maxVisibleQuickReplies={quickReplyLimit}
             collapseExtraQuickReplies={collapseExtraQuickReplies}
@@ -4574,13 +4576,13 @@ const ChatPanel = (props: ChatPanelProps) => {
         {isTyping && (
           <TypingIndicator
             logoUrl={headerLogoUrl}
-            logoAnimation={logoAnimation}
+            logoAnimation={reducedMotion ? "none" : logoAnimation}
             text={typingText}
             typingAnimation={typingAnimation}
             logoBadgeStyle={logoBadgeStyle}
           />
         )}
-        {userTyping && <UserTypingIndicator />}
+        {userTyping && !reducedMotion && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
@@ -4665,10 +4667,10 @@ const ChatPanel = (props: ChatPanelProps) => {
             <AnimatePresence initial={false}>
               {isActionTrayOpen ? (
                 <motion.div
-                  initial={{ height: 0, opacity: 0 }}
+                  initial={reducedMotion ? false : { height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.18 }}
+                  exit={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.18 }}
                   className="overflow-hidden"
                 >
                   {compactFooterActions.length > 0 ? (
@@ -4876,9 +4878,10 @@ const ChatPanel = (props: ChatPanelProps) => {
         <AnimatePresence>
           {leadSuccessTicket ? (
             <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 8, scale: 0.98 }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              transition={reducedMotion ? { duration: 0 } : undefined}
               className="mb-2 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -4987,6 +4990,17 @@ const ChatPanel = (props: ChatPanelProps) => {
       </div>
     </div>
   );
+};
+
+// Keep direct panel consumers under the same policy as the shared widget.
+const ChatPanel = (props: ChatPanelProps) => {
+  const inheritedMotion = React.useContext(MotionConfigContext);
+  const reducedMotion = useEffectiveReducedMotion(
+    Boolean(props.a11yPrefs?.reducedMotion || inheritedMotion.reducedMotion === "always"),
+  );
+  return <MotionConfig reducedMotion={reducedMotion ? "always" : "never"}>
+    <ChatPanelContent {...props} />
+  </MotionConfig>;
 };
 
 export default ChatPanel;

@@ -171,3 +171,94 @@ describe('EmployeeRoutingMatrix assignment snapshot', () => {
     expect(screen.getByRole('button', { name: 'Guardar cobertura' })).toBeEnabled();
   });
 });
+
+
+describe('EmployeeRoutingMatrix accessible coverage editor', () => {
+  beforeEach(() => { mocks.get.mockReset().mockResolvedValue(employeeRouting('qa-access')); mocks.patch.mockReset(); mocks.post.mockReset(); });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  it('announces a confirmed save even after the refreshed editor closes', async () => {
+    mocks.patch.mockResolvedValue({});
+    render(<EmployeeRoutingMatrix tenantSlug="qa-access" />);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-access/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cobertura' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Cobertura actualizada.'));
+    expect(screen.queryByRole('textbox', { name: 'Categorías' })).not.toBeInTheDocument();
+    expect(mocks.patch).toHaveBeenCalledTimes(1);
+  });
+  it('keeps label associations unique for two mounted tenant editors', async () => {
+    mocks.get.mockImplementation((slug: string) => Promise.resolve(employeeRouting(slug)));
+    render(<><EmployeeRoutingMatrix tenantSlug="qa-a" /><EmployeeRoutingMatrix tenantSlug="qa-b" /></>);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-a/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-b/ }));
+    const inputs = screen.getAllByRole('textbox', { name: 'Categorías' });
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0].id).not.toBe(inputs[1].id);
+    for (const input of inputs) expect(input).toHaveAccessibleDescription(/coma/i);
+  });
+  it('keeps visible associated field names after typing and announces a failed save without losing work', async () => {
+    mocks.patch.mockRejectedValue(new Error('No se pudo guardar la cobertura de prueba'));
+    render(<EmployeeRoutingMatrix tenantSlug="qa-access" />);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-access/ }));
+    for (const name of ['Categorías', 'Zonas', 'Canales', 'Permisos']) {
+      const input = screen.getByRole('textbox', { name });
+      expect(input).toHaveAccessibleDescription(/coma/i);
+      fireEvent.change(input, { target: { value: 'prueba' } });
+      expect(screen.getByText(name, { selector: 'label' })).toBeVisible();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cobertura' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo guardar la cobertura de prueba');
+    expect(screen.getByRole('textbox', { name: 'Categorías' })).toHaveValue('prueba');
+    expect(mocks.patch).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('EmployeeRoutingMatrix persistent result announcement', () => {
+  beforeEach(() => { mocks.get.mockReset().mockResolvedValue(employeeRouting('qa-access')); mocks.patch.mockReset().mockResolvedValue({}); mocks.post.mockReset(); });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+  it('keeps the same initially empty status node through a confirmed save and reload', async () => {
+    render(<EmployeeRoutingMatrix tenantSlug="qa-access" />);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-access/ }));
+    const status = screen.getByRole('status'); expect(status).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cobertura' }));
+    await waitFor(() => expect(status).toHaveTextContent('Cobertura actualizada.'));
+    expect(screen.getByRole('status')).toBe(status);
+  });
+});
+
+
+describe('EmployeeRoutingMatrix native submit concurrency investigation', () => {
+  beforeEach(() => { mocks.get.mockReset().mockResolvedValue(employeeRouting('qa-access')); mocks.patch.mockReset(); mocks.post.mockReset(); });
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  it('releases the native submit mutex after an error for one explicit retry and keeps the failed draft and focus', async () => {
+    mocks.patch.mockRejectedValueOnce(new Error('Fallo sintético de guardado')).mockResolvedValueOnce({});
+    render(<EmployeeRoutingMatrix tenantSlug="qa-access" />);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-access/ }));
+    const input = screen.getByRole('textbox', { name: 'Categorías' });
+    fireEvent.change(input, { target: { value: 'valor-de-prueba' } }); input.focus();
+    const button = screen.getByRole('button', { name: 'Guardar cobertura' });
+    const form = button.closest('form')!;
+    act(() => { form.requestSubmit(); form.requestSubmit(); });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Fallo sintético de guardado');
+    expect(mocks.patch).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue('valor-de-prueba'); expect(input).toHaveFocus();
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Cobertura actualizada.'));
+    expect(mocks.patch).toHaveBeenCalledTimes(2);
+    expect(mocks.patch.mock.calls[1][1].categorias).toEqual(['valor-de-prueba']);
+  });
+  it('dispatches only one PATCH for two native same-tick requestSubmit events', async () => {
+    const resolve: Array<(value: unknown) => void> = [];
+    mocks.patch.mockImplementation(() => new Promise(done => resolve.push(done)));
+    render(<EmployeeRoutingMatrix tenantSlug="qa-access" />);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipo qa-access/ }));
+    const form = screen.getByRole('button', { name: 'Guardar cobertura' }).closest('form')!;
+    act(() => { form.requestSubmit(); form.requestSubmit(); });
+    const calls = mocks.patch.mock.calls.length;
+    await act(async () => { for (const done of resolve) done({}); await Promise.resolve(); });
+    expect(calls).toBe(1);
+  });
+});
