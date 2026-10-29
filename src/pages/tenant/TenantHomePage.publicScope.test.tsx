@@ -60,16 +60,25 @@ afterEach(() => {
 describe('public portal with an independently authenticated private organization', () => {
   it('loads the URL organization while the private Junín session refreshes, without changing its selection', async () => {
     const pending = deferred<Response>();
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    // This fixture phase is independent of the product store and advances before it.
+    let expectedPrivateToken = 'synthetic-private-session';
+    const privateReads: Array<{ expectedToken: string; authorization: string | null }> = [];
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input), window.location.origin);
-      if (url.pathname.endsWith('/app/me/tenants')) return Promise.resolve(json([]));
+      if (url.pathname.endsWith('/app/me/tenants')) {
+        privateReads.push({ expectedToken: expectedPrivateToken, authorization: new Headers(init?.headers).get('Authorization') });
+        return Promise.resolve(json([]));
+      }
       return url.pathname.includes('tenant-info') ? pending.promise : Promise.resolve(navigation(url.pathname.split('/').at(-2)!));
     }) as typeof fetch;
     const privateUser = safeLocalStorage.getItem('user');
     mountPortal();
     await waitFor(() => expect(urls().some(url => url.pathname.includes('tenant-info'))).toBe(true));
+    await waitFor(() => expect(privateReads.some(read => read.expectedToken === 'synthetic-private-session')).toBe(true));
     // A real /me/session refresh belongs to the private panel, not this anonymous read.
+    expectedPrivateToken = 'synthetic-refreshed-session';
     act(() => { usePanelSessionStore.setState({ authToken: 'synthetic-refreshed-session' }); safeLocalStorage.setItem('authToken', 'synthetic-refreshed-session'); safeLocalStorage.setItem('tenantSlug', 'junin'); });
+    await waitFor(() => expect(privateReads.some(read => read.expectedToken === 'synthetic-refreshed-session')).toBe(true));
     await act(async () => { pending.resolve(profile('tierra-del-fuego')); });
     expect((await screen.findAllByRole('heading', { level: 1, name: 'Espacio tierra-del-fuego' }))[0]).toBeInTheDocument();
     expect(screen.getByText('assistant:tierra-del-fuego')).toBeInTheDocument();
@@ -78,13 +87,14 @@ describe('public portal with an independently authenticated private organization
     expect(safeLocalStorage.getItem('user')).toBe(privateUser);
     expect(usePanelSessionStore.getState().user?.id).toBe(4);
     expect(usePanelSessionStore.getState().authToken).toBe('synthetic-refreshed-session');
+    let privateReadIndex = 0;
     for (const [input, init] of vi.mocked(global.fetch).mock.calls) {
       const url = new URL(String(input), window.location.origin);
       if (url.pathname.endsWith('/app/me/tenants')) {
         expect(url.searchParams.has('tenant')).toBe(false);
         expect(url.searchParams.has('tenant_slug')).toBe(false);
         expect(new Headers(init?.headers).has('X-Tenant-Slug')).toBe(false);
-        expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer synthetic-private-session');
+        expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${privateReads[privateReadIndex++].expectedToken}`);
         expect(init?.credentials).toBe('include');
         continue;
       }
@@ -94,6 +104,10 @@ describe('public portal with an independently authenticated private organization
       expect(new Headers(init?.headers).has('X-Entity-Token')).toBe(false);
       expect(new Headers(init?.headers).has('X-Chat-Session')).toBe(false);
       expect(init?.credentials).toBe('omit');
+    }
+    expect(privateReadIndex).toBe(privateReads.length);
+    for (const read of privateReads.filter(read => read.expectedToken === 'synthetic-refreshed-session')) {
+      expect(read.authorization).not.toBe('Bearer synthetic-private-session');
     }
   });
 
