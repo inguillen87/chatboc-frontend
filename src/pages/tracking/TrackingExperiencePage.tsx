@@ -465,9 +465,10 @@ const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
       readLatLng(first(map, ["center"])) ||
       readLatLng(location),
     current:
-      readLatLng(first(map, ["current", "current_status", "driver"])) ||
-      byRole("current") ||
-      readLatLng(first(map, ["center"])),
+      readLatLng(map.current) ||
+      readLatLng(map.current_status) ||
+      readLatLng(map.driver) ||
+      byRole("current"),
     fallback: readText(map, ["fallback_when_no_coordinates"], "timeline_only"),
   };
 };

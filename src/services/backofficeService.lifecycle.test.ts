@@ -40,7 +40,7 @@ const cold = () => new Response(JSON.stringify({
   reason_code: 'application_initializing', retryable: true, request_dispatched: false, action_hint: 'retry_after',
 }), { status: 503, headers: { 'Content-Type': 'application/json', 'X-Chatboc-Bootstrap': 'initializing', 'Retry-After': '0' } });
 const executiveBody = { tenant_slug: 'panel-tenant', resource: 'overview' as const, filters: { scope: 'municipio' } };
-const exportBody = { tenant_slug: 'panel-tenant', resource: 'tickets' as const, format: 'pdf' as const, filters: { scope: 'municipio' } };
+const exportBody = { tenant_slug: 'panel-tenant', tenant_id: 11, resource: 'tickets' as const, format: 'pdf' as const, filters: { scope: 'municipio' } };
 const writes = [
   { name: 'executive summary', body: executiveBody,
     write: (isCurrent: () => boolean) => backofficeService.requestExecutiveSummary(executiveBody, { isCurrent }) },
@@ -139,7 +139,7 @@ describe('Home summary reads through the actual private transport', () => {
     expect(global.fetch).toHaveBeenCalledOnce();
     const init = vi.mocked(global.fetch).mock.calls[0][1];
     expect(init?.method).toBe('POST');
-    expect(JSON.parse(init?.body as string)).toEqual(descriptor.body);
+    expect(JSON.parse(init?.body as string)).toEqual(descriptor.name === 'export' ? { ...descriptor.body, delivery: 'inline' } : descriptor.body);
     const headers = new Headers(init?.headers);
     expect(headers.get('Authorization')).toBe('Bearer synthetic-home-panel');
     expect(headers.get('X-Tenant')).toBe('panel-tenant');
