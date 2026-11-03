@@ -25,9 +25,12 @@ import {
 import { getErrorMessage } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { downloadPrivateBackofficeExport } from '@/services/backofficeExportDownload';
 
 type Props = {
   tenantSlug?: string | null;
+  tenantId?: number | null;
+  tenantRevision?: string | number | null;
   scope?: BackofficeScope | null;
   className?: string;
 };
@@ -107,16 +110,23 @@ const toneClass: Record<NonNullable<MetricCard['tone']>, string> = {
   success: 'border-emerald-500/30 bg-emerald-500/10',
 };
 
-export default function BackofficeCommandCenter({ tenantSlug, scope, className }: Props) {
+export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRevision, scope, className }: Props) {
   const { user, organizationProfileVerified } = useUser();
   const sessionRevision = captureChatbocSessionRevision();
   const actorId = user?.id == null ? null : String(user.id);
   const authorityKey = JSON.stringify([
     actorId, user?.rol ?? user?.role,
     user?.capabilities?.slice().sort(), user?.permissions?.slice().sort(), user?.scopes?.slice().sort(),
+    user?.categoria_id, user?.categoria_ids, user?.categorias,
   ]);
   const enabled = Boolean(tenantSlug && actorId && organizationProfileVerified);
-  const readScopeKey = JSON.stringify([tenantSlug, scope, authorityKey, sessionRevision]);
+  const canExport = enabled && typeof tenantId === 'number' && Number.isSafeInteger(tenantId) && tenantId > 0;
+  const readScopeKey = JSON.stringify([tenantSlug, tenantId, tenantRevision, scope, authorityKey, sessionRevision, organizationProfileVerified]);
+  const readAuthorityRef = useRef({ key: readScopeKey, epoch: 0 });
+  if (readAuthorityRef.current.key !== readScopeKey) {
+    readAuthorityRef.current = { key: readScopeKey, epoch: readAuthorityRef.current.epoch + 1 };
+  }
+  const readEpoch = readAuthorityRef.current.epoch;
   const activeReadScopeRef = useRef<string | null>(null);
   activeReadScopeRef.current = enabled ? readScopeKey : null;
   const mountedRef = useRef(true);
@@ -126,10 +136,12 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
   }, []);
   const readLifecycle = (signal: AbortSignal) => ({
     isCurrent: () => !signal.aborted && mountedRef.current
-      && activeReadScopeRef.current === readScopeKey && isChatbocSessionRevisionCurrent(sessionRevision),
+      && activeReadScopeRef.current === readScopeKey && readAuthorityRef.current.epoch === readEpoch
+      && isChatbocSessionRevisionCurrent(sessionRevision),
   });
-  const readCacheScope = [tenantSlug, scope, authorityKey, sessionRevision];
+  const readCacheScope = [tenantSlug, tenantId, tenantRevision, scope, authorityKey, sessionRevision, organizationProfileVerified];
   const executiveGenerationRef = useRef(0);
+  const exportInFlightRef = useRef<{ isCurrent: () => boolean } | null>(null);
   const [executiveState, setExecutiveState] = useState(() => emptyExecutiveState(readScopeKey));
   const { aiSummary, aiError, isLoadingAi, exporting } = executiveState.scopeKey === readScopeKey && enabled
     ? executiveState : emptyExecutiveState(readScopeKey);
@@ -144,6 +156,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
     const actionGeneration = executiveGenerationRef.current;
     return {
       isCurrent: () => mountedRef.current && activeReadScopeRef.current === actionScope
+        && readAuthorityRef.current.epoch === readEpoch
         && isChatbocSessionRevisionCurrent(actionRevision) && executiveGenerationRef.current === actionGeneration,
       update: (patch: Partial<Omit<ExecutiveActionState, 'scopeKey'>>) => {
         setExecutiveState(current => current.scopeKey === actionScope ? { ...current, ...patch } : current);
@@ -275,22 +288,25 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
 
   const requestExport = async (resource: BackofficeExportResource, format: BackofficeExportFormat) => {
     const action = actionLifecycle();
-    if (!action.isCurrent()) return;
+    if (!canExport || !action.isCurrent() || exportInFlightRef.current?.isCurrent()) return;
+    const attempt = { isCurrent: action.isCurrent };
+    exportInFlightRef.current = attempt;
     const key = `${resource}-${format}`;
-    action.update({ exporting: key });
+    action.update({ exporting: key, aiError: null });
     try {
       if (!action.isCurrent()) return;
       const result = await backofficeService.requestExport({
-        tenant_slug: tenantSlug,
+        tenant_slug: tenantSlug!,
+        tenant_id: tenantId!,
         resource,
         format,
         filters: { scope },
-        include_ai_summary: format === 'pdf',
       }, { isCurrent: action.isCurrent });
-      if (action.isCurrent()) window.open(result.download_url, '_blank', 'noopener,noreferrer');
+      if (action.isCurrent()) downloadPrivateBackofficeExport(result, action.isCurrent);
     } catch (error) {
       if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No se pudo preparar la exportacion.') });
     } finally {
+      if (exportInFlightRef.current === attempt) exportInFlightRef.current = null;
       if (action.isCurrent()) action.update({ exporting: null });
     }
   };
@@ -377,18 +393,21 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
                 {isLoadingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
                 Resumen IA
               </Button>
-              <Button type="button" variant="outline" onClick={() => void requestExport('tickets', 'pdf')} disabled={exporting !== null}>
+              <Button type="button" variant="outline" onClick={() => void requestExport('tickets', 'pdf')} disabled={exporting !== null || !canExport}>
                 <Download className="h-4 w-4" />
                 PDF casos
               </Button>
-              <Button type="button" variant="outline" onClick={() => void requestExport('contacts', 'csv')} disabled={exporting !== null}>
+              <Button type="button" variant="outline" onClick={() => void requestExport('contacts', 'csv')} disabled={exporting !== null || !canExport}>
                 <Download className="h-4 w-4" />
                 CSV contactos
               </Button>
             </div>
+            {!canExport ? <p role="status" className="text-xs text-muted-foreground">
+              Verificamos la organización seleccionada antes de habilitar la descarga de reportes.
+            </p> : null}
 
-            {exporting ? <Badge variant="secondary">Preparando {exporting}</Badge> : null}
-            {aiError ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</p> : null}
+            {exporting ? <Badge variant="secondary" role="status">Preparando {exporting}</Badge> : null}
+            {aiError ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</p> : null}
             {aiSummary ? (
               <div className="space-y-3 rounded-lg border bg-background px-3 py-3">
                 {aiSummary.headline ? <p className="font-semibold text-foreground">{aiSummary.headline}</p> : null}

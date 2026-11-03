@@ -62,7 +62,7 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     ...(!skipAuth && !isWidgetRequest && method === 'GET'
       ? panelReadOptions(tenantSlug)
       : {}),
-    ...(!skipAuth && !isWidgetRequest && method === 'GET' && isCurrent
+    ...(!skipAuth && !isWidgetRequest && isCurrent
       ? { isCurrent }
       : {}),
   };

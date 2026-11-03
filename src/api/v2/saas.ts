@@ -302,6 +302,7 @@ export interface OmnichannelInboxActionPayload {
   endpoint?: string;
   body?: string;
   message?: string;
+  reason?: string;
   client_message_id?: string;
   idempotency_key?: string;
   visibility?: string;
@@ -955,6 +956,14 @@ export const buildSaasActionPayload = (action: SaasAction): UnknownRecord => ({
   ...(isRecord(action.payloadDefaults) ? action.payloadDefaults : {}),
   ...(isRecord(action.payload) ? action.payload : {}),
 });
+
+export const isDurableMunicipalHandoffAction = (action: SaasAction): boolean =>
+  action.id === 'handoff' &&
+  buildSaasActionPayload(action).source_model === 'MunicipioTicket' &&
+  action.requires?.includes('idempotency_key_header') === true &&
+  action.idempotency?.contract_version === 'municipio_ticket.handoff_idempotency.v1' &&
+  action.idempotency?.required_header === 'Idempotency-Key' &&
+  action.idempotency?.body_fallback === false;
 
 export const normalizeSaasActions = (value: unknown): SaasAction[] => {
   const rawActions = Array.isArray(value)
@@ -2469,11 +2478,7 @@ const IDEMPOTENT_OMNICHANNEL_ACTION_IDS = new Set([
   'send_form',
 ]);
 
-export const createOmnichannelActionClientMessageId = (action: string) => {
-  const normalizedAction = action.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-  if (!IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction)) {
-    throw new Error(`La acción ${action || 'desconocida'} no publica identidad idempotente.`);
-  }
+const createSecureOmnichannelActionId = (normalizedAction: string) => {
   const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
   if (typeof cryptoApi?.randomUUID === 'function') {
     return `crm-${normalizedAction}:${cryptoApi.randomUUID()}`;
@@ -2485,6 +2490,16 @@ export const createOmnichannelActionClientMessageId = (action: string) => {
   }
   throw new Error('Este navegador no ofrece criptografía segura para identificar la acción.');
 };
+
+export const createOmnichannelActionClientMessageId = (action: string) => {
+  const normalizedAction = action.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  if (!IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction)) {
+    throw new Error(`La acción ${action || 'desconocida'} no publica identidad idempotente.`);
+  }
+  return createSecureOmnichannelActionId(normalizedAction);
+};
+
+export const createMunicipalHandoffIdempotencyKey = () => createSecureOmnichannelActionId('handoff');
 
 export const createOmnichannelReplyClientMessageId = () =>
   createOmnichannelActionClientMessageId('reply');
@@ -2529,6 +2544,7 @@ export const postOmnichannelInboxActionV2 = async (
   payload: OmnichannelInboxActionPayload,
   tenantSlug?: string | null,
   expectedTenantId?: string | number | null,
+  lifecycle: { isCurrent?: () => boolean } = {},
 ) => {
   const encodedTicketId = encodeURIComponent(ticketId);
   const nestedPayload =
@@ -2539,6 +2555,20 @@ export const postOmnichannelInboxActionV2 = async (
     asString(payload.endpoint) ||
     asString(nestedPayload.endpoint);
   const normalizedAction = payload.action.trim().toLowerCase();
+  const sourceModel = asString(payload.source_model) || asString(nestedPayload.source_model);
+  const municipalHandoff = normalizedAction === 'handoff' && sourceModel === 'MunicipioTicket';
+  const municipalLifecycle = sourceModel === 'MunicipioTicket' &&
+    ['handoff', 'accept_handoff', 'resume_ai'].includes(normalizedAction);
+  const handoffIdentity = municipalLifecycle
+    ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
+    : null;
+  if (municipalHandoff) {
+    const reason = asString(payload.reason ?? nestedPayload.reason);
+    if (!reason || reason.length > 500 || reason.includes('\u0000')) {
+      throw new ApiError('Completá un motivo de hasta 500 caracteres para derivar el caso.', 400,
+        { code: 'handoff_reason_required' });
+    }
+  }
   const actionIdentity = (normalizedAction === 'reply' || ARTIFACT_ACTION_IDS.has(normalizedAction))
     ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
     : null;
@@ -2562,10 +2592,14 @@ export const postOmnichannelInboxActionV2 = async (
     ? requireExactArtifactIdentity(ticketId, payload, nestedPayload)
     : null;
   const isReply = normalizedAction === 'reply';
-  const requiresStableIdentity = IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction);
+  const requiresStableIdentity = municipalHandoff || IDEMPOTENT_OMNICHANNEL_ACTION_IDS.has(normalizedAction);
   const actionClientMessageId = requiresStableIdentity
     ? resolveOmnichannelActionClientMessageId(normalizedAction, payload, nestedPayload)
     : undefined;
+  if (municipalHandoff && !/^[A-Za-z0-9_.:-]{8,128}$/.test(actionClientMessageId || '')) {
+    throw new ApiError('No se pudo verificar la identidad de esta derivación.', 400,
+      { code: 'handoff_idempotency_key_invalid' });
+  }
   const payloadWithTicket = {
     ...nestedPayload,
     ...payload,
@@ -2576,19 +2610,28 @@ export const postOmnichannelInboxActionV2 = async (
           visibility: payload.visibility ?? nestedPayload.visibility ?? 'public',
         }
       : {}),
-    ...(actionClientMessageId ? { client_message_id: actionClientMessageId } : {}),
+    ...(actionClientMessageId && !municipalHandoff ? { client_message_id: actionClientMessageId } : {}),
     ticket_id: payload.ticket_id ?? nestedPayload.ticket_id ?? nestedPayload.legacy_id ?? ticketId,
   };
   delete (payloadWithTicket as UnknownRecord).endpoint;
   delete (payloadWithTicket as UnknownRecord).payload;
   delete (payloadWithTicket as UnknownRecord).idempotency_key;
+  if (municipalHandoff) delete (payloadWithTicket as UnknownRecord).client_message_id;
   const requestOptions = {
     tenantSlug,
+    ...(lifecycle.isCurrent ? { isCurrent: lifecycle.isCurrent } : {}),
     ...(actionClientMessageId
       ? { headers: { 'Idempotency-Key': actionClientMessageId } }
       : {}),
   };
   let response: unknown;
+  const assertCurrent = () => {
+    if (lifecycle.isCurrent?.() === false) {
+      throw new ApiError('La sesión o el caso cambió. Actualizá antes de continuar.', 409,
+        { code: 'inbox_action_scope_retired' });
+    }
+  };
+  assertCurrent();
   try {
     response = await panelApi.post<unknown>(
       explicitEndpoint && explicitEndpoint.startsWith('/')
@@ -2602,14 +2645,16 @@ export const postOmnichannelInboxActionV2 = async (
     // either mutation against the compatibility collection endpoint would
     // discard the ticket identity carried by the scoped path and could turn
     // a safe 404/405 into a write against a different contract.
-    if (normalizedAction === 'claim' || normalizedAction === 'assign') throw error;
+    if (normalizedAction === 'claim' || normalizedAction === 'assign' || municipalLifecycle) throw error;
     if (!shouldFallbackEndpoint(error)) throw error;
+    assertCurrent();
     response = await panelApi.post<unknown>(
       '/api/v2/inbox/omnichannel/actions',
       payloadWithTicket,
       requestOptions,
     );
   }
+  assertCurrent();
   if (actionIdentity) {
     const rawResponse = getSource(response);
     const rawResponseRecord = asRecord(rawResponse);
@@ -2657,20 +2702,24 @@ export const postOmnichannelInboxActionV2 = async (
   const receipt = asRecord(getSource(response));
   const candidate = asRecord(getFirst(receipt, ['ticket', 'item', 'conversation']) ?? receipt);
   const receiptId = asString(getFirst(candidate, ['id', 'ticket_id', 'conversation_id']));
-  if (ownershipIdentity) {
+  const canonicalReceiptIdentity = ownershipIdentity || handoffIdentity;
+  if (canonicalReceiptIdentity) {
     // The backend accepts a numeric route, but publishes municipio:<id> in
     // legacy receipts. Compare the full model + backing id, not strings alone.
     const receiptIds = ['id', 'ticket_id', 'legacy_id']
       .filter(key => Object.prototype.hasOwnProperty.call(candidate, key))
       .map(key => asString(candidate[key]));
     const idsMatch = receiptIds.length > 0 && receiptIds.every(id => Boolean(id) &&
-      normalizeActionTicketIdentity(id) === ownershipIdentity.ticketId &&
-      (!routeSourceModel(id!) || routeSourceModel(id!) === ownershipIdentity.sourceModel));
-    const sourceMatches = asString(candidate.source_model) === ownershipIdentity.sourceModel &&
-      (receipt.source_model === undefined || asString(receipt.source_model) === ownershipIdentity.sourceModel);
-    if (!idsMatch || !sourceMatches || receipt.ok === false || asString(receipt.action) !== normalizedAction) {
-      throw new ApiError('El servidor no confirmó la asignación para este caso.', 502, {
-        code: 'assignment_response_identity_mismatch',
+      normalizeActionTicketIdentity(id) === canonicalReceiptIdentity.ticketId &&
+      (!routeSourceModel(id!) || routeSourceModel(id!) === canonicalReceiptIdentity.sourceModel));
+    const sourceMatches = asString(candidate.source_model) === canonicalReceiptIdentity.sourceModel &&
+      (receipt.source_model === undefined || asString(receipt.source_model) === canonicalReceiptIdentity.sourceModel);
+    const handoffTenantMatches = !handoffIdentity || (Boolean(tenantSlug) && asString(
+      asRecord(receipt.tenant).slug ?? receipt.tenant_slug ?? candidate.tenant_slug,
+    ) === tenantSlug);
+    if (!idsMatch || !sourceMatches || !handoffTenantMatches || receipt.ok === false || asString(receipt.action) !== normalizedAction) {
+      throw new ApiError('El servidor no confirmó la operación para este caso.', 502, {
+        code: handoffIdentity ? 'handoff_response_identity_mismatch' : 'assignment_response_identity_mismatch',
       });
     }
   } else if (!receiptId || receiptId !== ticketId) {

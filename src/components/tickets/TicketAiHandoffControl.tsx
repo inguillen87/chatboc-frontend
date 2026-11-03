@@ -1,16 +1,25 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Bot, Headphones, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
 
 import {
   buildSaasActionPayload,
+  createMunicipalHandoffIdempotencyKey,
+  isDurableMunicipalHandoffAction,
   postOmnichannelInboxActionV2,
   type OmnichannelInboxActionV2,
   type SaasAction,
 } from '@/api/v2/saas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getErrorMessage } from '@/utils/api';
+import { Textarea } from '@/components/ui/textarea';
+import { useUser } from '@/hooks/useUser';
+import { ApiError, getErrorMessage } from '@/utils/api';
+import {
+  captureChatbocSessionRevision,
+  isChatbocSessionRevisionCurrent,
+  subscribeChatbocSessionRevision,
+} from '@/utils/chatbocSessionRevision';
 
 const HANDOFF_ACTION_IDS = new Set([
   'handoff',
@@ -42,6 +51,13 @@ const AI_HANDOFF_STATES = new Set([
   'expired',
   'cancelled',
   'closed',
+]);
+
+// The current municipal service validates these fields before querying or writing.
+const HANDOFF_NO_WRITE_VALIDATION_CODES = new Set([
+  'handoff_reason_required', 'handoff_reason_invalid', 'handoff_channel_required',
+  'invalid_handoff_channel', 'handoff_channel_alias_conflict',
+  'handoff_idempotency_key_required', 'handoff_idempotency_key_invalid',
 ]);
 
 type PlainRecord = Record<string, unknown>;
@@ -79,6 +95,7 @@ const isMissingValue = (value: unknown): boolean =>
 export const getHandoffActionBlockReason = (
   action: SaasAction,
   ticketId: string,
+  input: PlainRecord = {},
 ): string | null => {
   if (action.disabled) {
     return action.disabled_reason || 'El backend marcó esta acción como no disponible.';
@@ -97,10 +114,19 @@ export const getHandoffActionBlockReason = (
     return 'La transición no garantiza una acción interna sin despacho externo.';
   }
 
-  const payload = { ...buildSaasActionPayload(action), ticket_id: ticketId };
-  const missing = (action.requires || []).filter((field) => isMissingValue(payload[field]));
+  const payload = { ...buildSaasActionPayload(action), ...input, ticket_id: ticketId };
+  const missing = (action.requires || []).filter((field) =>
+    !(field === 'idempotency_key_header' && isDurableMunicipalHandoffAction(action)) &&
+    isMissingValue(payload[field]));
   if (missing.length) {
+    if (missing.length === 1 && missing[0] === 'reason') return 'Completá el motivo de la derivación.';
     return `Falta completar el contrato backend: ${missing.join(', ')}.`;
+  }
+  if (action.requires?.includes('reason')) {
+    const reason = asText(payload.reason);
+    if (!reason || reason.length > 500 || reason.includes('\u0000')) {
+      return 'Completá un motivo de hasta 500 caracteres.';
+    }
   }
 
   return null;
@@ -180,41 +206,118 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
   actions,
   onActionComplete,
 }) => {
-  const inFlightRef = useRef(false);
+  const { user, loading, organizationProfileVerified, hasVerifiedSession } = useUser();
   const handoffActions = useMemo(() => actions.filter(isAiHandoffAction), [actions]);
+  const sessionRevision = useSyncExternalStore(subscribeChatbocSessionRevision,
+    captureChatbocSessionRevision, captureChatbocSessionRevision);
+  const authorityReady = Boolean(user?.id != null && asText(user.rol || user.role) &&
+    hasVerifiedSession === true && organizationProfileVerified === true && !loading);
+  const actorAuthority = [user?.id, user?.tenant_slug ?? user?.tenantSlug, user?.rol ?? user?.role,
+    user?.permissions, user?.capabilities, user?.scopes, user?.categoria_id, user?.categoria_ids,
+    user?.categorias, loading, organizationProfileVerified, hasVerifiedSession];
+  const scopeKey = JSON.stringify([tenantSlug ?? null, ticketId, handoffActions, sessionRevision, actorAuthority]);
+  const authorityRef = useRef({ key: scopeKey, epoch: 0 });
+  if (authorityRef.current.key !== scopeKey) {
+    authorityRef.current = { key: scopeKey, epoch: authorityRef.current.epoch + 1 };
+  }
+  const scopeEpoch = authorityRef.current.epoch;
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const reasonId = useId();
+  const [reasonDraft, setReasonDraft] = useState({ scopeEpoch, value: '' });
+  const [preparationError, setPreparationError] = useState<{ scopeEpoch: number; message: string } | null>(null);
+  const [confirmedState, setConfirmedState] = useState<{
+    scopeEpoch: number; result: OmnichannelInboxActionV2;
+  } | null>(null);
+  const reason = reasonDraft.scopeEpoch === scopeEpoch ? reasonDraft.value : '';
+  type Attempt = {
+    scopeKey: string;
+    scopeEpoch: number;
+    action: SaasAction;
+    ticketId: string;
+    tenantSlug?: string | null;
+    payload: PlainRecord;
+    isCurrent: () => boolean;
+  };
+  const attemptRef = useRef<Attempt | null>(null);
+  const inFlightRef = useRef<Attempt | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (action: SaasAction) =>
-      postOmnichannelInboxActionV2(
-        ticketId,
+    mutationFn: (attempt: Attempt) => {
+      if (!attempt.isCurrent()) throw new ApiError('El caso o la sesión cambió. Actualizá antes de continuar.', 409);
+      return postOmnichannelInboxActionV2(
+        attempt.ticketId,
         {
-          action: action.id,
-          endpoint: action.endpoint,
-          payload: buildSaasActionPayload(action),
+          action: attempt.action.id,
+          endpoint: attempt.action.endpoint,
+          payload: attempt.payload,
         },
-        tenantSlug,
-      ),
-    onSuccess: (result) => {
+        attempt.tenantSlug,
+        undefined,
+        { isCurrent: attempt.isCurrent },
+      );
+    },
+    onSuccess: (result, attempt) => {
+      if (!attempt.isCurrent()) return;
+      if (attemptRef.current === attempt) attemptRef.current = null;
+      setConfirmedState({ scopeEpoch: attempt.scopeEpoch, result });
       onActionComplete?.(result);
     },
-    onSettled: () => {
-      inFlightRef.current = false;
+    onError: (error, attempt) => {
+      const body = asRecord(error instanceof ApiError ? error.body : null);
+      const code = asText(body.reason_code ?? body.code);
+      if (attempt.isCurrent() && attemptRef.current === attempt && error instanceof ApiError &&
+          error.status === 400 && code && HANDOFF_NO_WRITE_VALIDATION_CODES.has(code)) {
+        attemptRef.current = null;
+      }
+    },
+    onSettled: (_data, _error, attempt) => {
+      if (inFlightRef.current === attempt) inFlightRef.current = null;
     },
   });
 
-  const effectiveHandoff = mutation.data?.ticket.handoff || handoff;
-  const state = describeHandoffState(effectiveHandoff, mutation.data?.ticket.allowed_actions || handoffActions);
+  const currentMutation = mutation.variables?.scopeEpoch === scopeEpoch;
+  const result = confirmedState?.scopeEpoch === scopeEpoch ? confirmedState.result : undefined;
+  const pending = currentMutation && mutation.isPending;
+  const uncertainAttempt = attemptRef.current?.scopeEpoch === scopeEpoch ? attemptRef.current : null;
+  const acknowledgedActions = result && Object.prototype.hasOwnProperty.call(asRecord(result.ticket.raw), 'allowed_actions');
+  const effectiveActions = result && acknowledgedActions ? result.ticket.allowed_actions.filter(isAiHandoffAction) : handoffActions;
+  const effectiveHandoff = result?.ticket.handoff || handoff;
+  const state = describeHandoffState(effectiveHandoff, effectiveActions);
   const actorName = handoffActorName(asRecord(effectiveHandoff));
 
-  if (!handoffActions.length && !asText(asRecord(effectiveHandoff).status)) {
+  if (!effectiveActions.length && !asText(asRecord(effectiveHandoff).status)) {
     return null;
   }
 
   const executeAction = (action: SaasAction) => {
-    if (inFlightRef.current || mutation.isPending) return;
-    if (getHandoffActionBlockReason(action, ticketId)) return;
-    inFlightRef.current = true;
-    mutation.mutate(action);
+    if (!authorityReady || inFlightRef.current?.scopeEpoch === scopeEpoch || pending) return;
+    if (!effectiveActions.includes(action)) return;
+    const input = action.requires?.includes('reason') ? { reason } : {};
+    if (getHandoffActionBlockReason(action, ticketId, input)) return;
+    const durable = isDurableMunicipalHandoffAction(action);
+    if (durable && !tenantSlug?.trim()) return;
+    let attempt = attemptRef.current;
+    if (!attempt || attempt.scopeEpoch !== scopeEpoch || attempt.action.id !== action.id) {
+      try {
+        attempt = {
+          scopeKey, scopeEpoch, action, ticketId, tenantSlug,
+          payload: { ...buildSaasActionPayload(action), ...input,
+            ...(durable ? { idempotency_key: createMunicipalHandoffIdempotencyKey() } : {}) },
+          isCurrent: () => mountedRef.current && authorityRef.current.key === scopeKey &&
+            authorityRef.current.epoch === scopeEpoch &&
+            isChatbocSessionRevisionCurrent(sessionRevision),
+        };
+      } catch (error) {
+        setPreparationError({ scopeEpoch, message: getErrorMessage(error,
+          'No pudimos preparar la derivación. Actualizá e intentá nuevamente.') });
+        return;
+      }
+      if (durable) attemptRef.current = attempt;
+    }
+    setPreparationError(null);
+    inFlightRef.current = attempt;
+    mutation.mutate(attempt);
   };
 
   return (
@@ -237,19 +340,31 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
           {actorName ? <p className="mt-1 text-xs opacity-80">Último responsable: {actorName}</p> : null}
         </div>
 
-        {handoffActions.length ? (
+        {effectiveActions.length ? (
           <div className="flex shrink-0 flex-col gap-2 sm:min-w-[12rem]">
-            {handoffActions.map((action) => {
-              const blockedReason = getHandoffActionBlockReason(action, ticketId);
-              const isCurrentAction = mutation.isPending && mutation.variables?.id === action.id;
+            {effectiveActions.map((action) => {
+              const needsReason = action.requires?.includes('reason');
+              const blockedReason = getHandoffActionBlockReason(action, ticketId, needsReason ? { reason } : {}) ||
+                (!authorityReady ? 'Estamos verificando tu acceso. Actualizá la sesión antes de continuar.' : null) ||
+                (isDurableMunicipalHandoffAction(action) && !tenantSlug?.trim()
+                  ? 'Seleccioná la organización antes de derivar el caso.' : null);
+              const isCurrentAction = pending && mutation.variables?.action.id === action.id;
               return (
                 <div key={action.id} className="space-y-1">
+                  {needsReason ? (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium" htmlFor={`${reasonId}-${action.id}`}>Motivo de la derivación</label>
+                      <Textarea id={`${reasonId}-${action.id}`} value={reason} maxLength={500}
+                        disabled={pending || Boolean(uncertainAttempt)}
+                        onChange={(event) => setReasonDraft({ scopeEpoch, value: event.target.value })} />
+                    </div>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
                     variant={action.id === 'resume_ai' ? 'outline' : 'default'}
                     className="w-full justify-center"
-                    disabled={Boolean(blockedReason) || mutation.isPending}
+                    disabled={Boolean(blockedReason) || pending}
                     title={blockedReason || action.description}
                     onClick={() => executeAction(action)}
                   >
@@ -268,17 +383,21 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
         ) : null}
       </div>
 
-      {mutation.data ? (
+      {result ? (
         <div className="mt-3 rounded-md border border-current/20 bg-background/60 px-3 py-2 text-xs" data-testid="handoff-action-result">
           <span className="font-semibold">Confirmado por backend.</span>{' '}
-          {mutation.data.delivery?.operator_message || `Transición ${mutation.data.action || 'operativa'} registrada.`}
+          {result.delivery?.operator_message || `Transición ${result.action || 'operativa'} registrada.`}
         </div>
       ) : null}
 
-      {mutation.isError ? (
+      {currentMutation && mutation.isError ? (
         <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
           {getErrorMessage(mutation.error, 'No se pudo cambiar el control de la conversación.')}
+          {uncertainAttempt ? <p>Se conserva el motivo para reintentar la misma derivación.</p> : null}
         </div>
+      ) : null}
+      {preparationError?.scopeEpoch === scopeEpoch ? (
+        <p className="mt-3 text-xs text-destructive" role="alert">{preparationError.message}</p>
       ) : null}
     </section>
   );
