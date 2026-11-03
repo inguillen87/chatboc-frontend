@@ -114,7 +114,7 @@ export const getHandoffActionBlockReason = (
     return 'La transición no garantiza una acción interna sin despacho externo.';
   }
 
-  const payload = { ...buildSaasActionPayload(action), ...input, ticket_id: ticketId };
+  const payload: PlainRecord = { ...buildSaasActionPayload(action), ...input, ticket_id: ticketId };
   const missing = (action.requires || []).filter((field) =>
     !(field === 'idempotency_key_header' && isDurableMunicipalHandoffAction(action)) &&
     isMissingValue(payload[field]));
