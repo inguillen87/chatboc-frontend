@@ -3014,7 +3014,12 @@ export default function Perfil() {
           ))}
         </div>
 
-        <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope} />
+        <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope}
+          tenantId={matchingOrganizationProfile?.tenant.slug === derivedTenantSlug
+            ? matchingOrganizationProfile.tenant.id
+            : authenticatedOrganization?.tenantSlug === derivedTenantSlug ? authenticatedOrganization.tenantId : null}
+          tenantRevision={matchingOrganizationProfile?.tenant.slug === derivedTenantSlug
+            ? matchingOrganizationProfile.revision : null} />
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
           {renderedSecondaryControlCards.length > 0 ? (

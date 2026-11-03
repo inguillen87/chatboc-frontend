@@ -13,12 +13,17 @@ const mocks = vi.hoisted(() => ({
   getTeamCoverageSummary: vi.fn(),
   requestExecutiveSummary: vi.fn(),
   requestExport: vi.fn(),
-  authority: { user: { id: 1, rol: 'admin', capabilities: ['tickets.read'], permissions: ['tickets.read'] }, organizationProfileVerified: true },
+  downloadExport: vi.fn(),
+  authority: { user: { id: 1, rol: 'admin', capabilities: ['tickets.read'], permissions: ['tickets.read'], categoria_ids: [4] }, organizationProfileVerified: true },
 }));
 
 vi.mock('@/services/backofficeService', () => ({ backofficeService: mocks }));
 vi.mock('@/utils/api', () => ({ getErrorMessage: (_error: unknown, fallback: string) => fallback }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => mocks.authority }));
+// UI authority seam only; byte validation and Blob URL lifecycle have their own helper tests.
+vi.mock('@/services/backofficeExportDownload', () => ({
+  downloadPrivateBackofficeExport: (...args: unknown[]) => mocks.downloadExport(...args),
+}));
 
 import BackofficeCommandCenter from './BackofficeCommandCenter';
 
@@ -27,7 +32,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     vi.clearAllMocks();
     mocks.requestExecutiveSummary.mockReset();
     mocks.requestExport.mockReset();
-    mocks.authority = { user: { id: 1, rol: 'admin', capabilities: ['tickets.read'], permissions: ['tickets.read'] }, organizationProfileVerified: true };
+    mocks.authority = { user: { id: 1, rol: 'admin', capabilities: ['tickets.read'], permissions: ['tickets.read'], categoria_ids: [4] }, organizationProfileVerified: true };
     mocks.getOrdersSummary.mockResolvedValue({
       contract_version: 'backoffice.orders_summary.v1', tenant_slug: 'tenant-a',
       summary: { total: 0, active: 0, finalized: 0, unassigned: null }, active_orders: [],
@@ -41,18 +46,127 @@ describe('BackofficeCommandCenter SLA evidence', () => {
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  const renderSummary = async (summary: BackofficeInboxSummaryResponse['summary']) => {
+  const renderSummary = async (summary: BackofficeInboxSummaryResponse['summary'],
+    overrides: Partial<React.ComponentProps<typeof BackofficeCommandCenter>> = {}) => {
     mocks.getInboxSummary.mockResolvedValue({
       contract_version: 'backoffice.inbox_summary.v1', tenant_slug: 'tenant-a', summary,
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const view = render(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" scope="municipio" /></QueryClientProvider>);
+    const view = render(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" {...overrides} /></QueryClientProvider>);
     const risk = screen.getByRole('heading', { name: 'Riesgo SLA confirmado' }).parentElement!.parentElement!;
     const unknown = screen.getByRole('heading', { name: 'SLA sin verificar' }).parentElement!.parentElement!;
     const team = screen.getByRole('heading', { name: 'Equipo activo' }).parentElement!.parentElement!;
     await within(team).findByText('1', { selector: 'p.text-2xl' });
     return { risk, unknown, client, view };
   };
+
+  const privateExportFixture = () => ({
+    blob: new Blob(['%PDF-1.7\nfixture report\n%%EOF\n'], { type: 'application/pdf' }),
+    filename: 'tickets-fixture.pdf', tenantSlug: 'tenant-a', tenantId: 11,
+    resource: 'tickets' as const, format: 'pdf' as const,
+    rowCount: 1, totalRows: 1, complete: true as const,
+  });
+
+  it('keeps export disabled and explains verification while the selected tenant ID is unknown', async () => {
+    await renderSummary({ open: 55 }, { tenantId: null });
+    const button = screen.getByRole('button', { name: 'PDF casos' });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/Verificamos la organización seleccionada/)).toHaveAttribute('role', 'status');
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('button', { name: 'CSV contactos' }));
+    expect(mocks.requestExport).not.toHaveBeenCalled();
+    expect(mocks.downloadExport).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates repeated and competing export clicks into the same current attempt', async () => {
+    let finish!: (value: unknown) => void;
+    mocks.requestExport.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const file = privateExportFixture();
+    await renderSummary({ open: 55 });
+    const pdf = screen.getByRole('button', { name: 'PDF casos' });
+    fireEvent.click(pdf); fireEvent.click(pdf);
+    fireEvent.click(screen.getByRole('button', { name: 'CSV contactos' }));
+    expect(mocks.requestExport).toHaveBeenCalledTimes(1);
+    const [selection, lifecycle] = mocks.requestExport.mock.calls[0];
+    expect(selection).toEqual({ tenant_slug: 'tenant-a', tenant_id: 11,
+      resource: 'tickets', format: 'pdf', filters: { scope: 'municipio' } });
+    expect(lifecycle.isCurrent()).toBe(true);
+    await act(async () => finish(file));
+    expect(mocks.requestExport).toHaveBeenCalledTimes(1);
+    expect(mocks.downloadExport).toHaveBeenCalledTimes(1);
+    expect(mocks.downloadExport).toHaveBeenCalledWith(file, lifecycle.isCurrent);
+  });
+
+  it('does not revive an export after the same tenant slug changes ID 11 to 22 to 11', async () => {
+    let finish!: (value: unknown) => void;
+    mocks.requestExport.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { view, client } = await renderSummary({ open: 55 });
+    fireEvent.click(screen.getByRole('button', { name: 'PDF casos' }));
+    const lifecycle = mocks.requestExport.mock.calls[0][1];
+    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter
+      tenantSlug="tenant-a" tenantId={22} tenantRevision="fixture-rev2" scope="municipio" /></QueryClientProvider>);
+    expect(lifecycle.isCurrent()).toBe(false);
+    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter
+      tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
+    expect(lifecycle.isCurrent()).toBe(false);
+    await act(async () => finish(privateExportFixture()));
+    expect(mocks.downloadExport).not.toHaveBeenCalled();
+    expect(mocks.requestExport).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Preparando tickets-pdf')).not.toBeInTheDocument();
+    expect(screen.queryByText('No se pudo preparar la exportacion.')).not.toBeInTheDocument();
+  });
+
+  it('does not revive read or export callbacks after organization verification is withdrawn and restored', async () => {
+    let finishRead!: (value: unknown) => void;
+    let finishExport!: (value: unknown) => void;
+    const summary = { contract_version: 'backoffice.inbox_summary.v1', tenant_slug: 'tenant-a', summary: { open: 55 } };
+    mocks.getInboxSummary.mockResolvedValue(summary).mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve; }));
+    mocks.requestExport.mockImplementationOnce(() => new Promise(resolve => { finishExport = resolve; }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const view = render(<QueryClientProvider client={client}><BackofficeCommandCenter
+      tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
+    await waitFor(() => expect(mocks.getInboxSummary).toHaveBeenCalledTimes(1));
+    const read = mocks.getInboxSummary.mock.calls[0][1];
+    fireEvent.click(screen.getByRole('button', { name: 'PDF casos' }));
+    const exporting = mocks.requestExport.mock.calls[0][1];
+    expect(read.isCurrent()).toBe(true);
+    expect(exporting.isCurrent()).toBe(true);
+    mocks.authority.organizationProfileVerified = false;
+    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter
+      tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
+    expect(read.isCurrent()).toBe(false);
+    expect(exporting.isCurrent()).toBe(false);
+    mocks.authority.organizationProfileVerified = true;
+    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter
+      tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
+    expect(read.isCurrent()).toBe(false);
+    expect(exporting.isCurrent()).toBe(false);
+    await act(async () => { finishRead(summary); finishExport(privateExportFixture()); });
+    expect(mocks.downloadExport).not.toHaveBeenCalled();
+    expect(mocks.requestExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('retires a pending export when category scope changes without changing its actor or other permissions', async () => {
+    mocks.authority.user = { ...mocks.authority.user, rol: 'empleado' };
+    let finish!: (value: unknown) => void;
+    mocks.requestExport.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { view, client } = await renderSummary({ open: 55 });
+    fireEvent.click(screen.getByRole('button', { name: 'PDF casos' }));
+    const lifecycle = mocks.requestExport.mock.calls[0][1];
+    const previous = mocks.authority.user;
+    mocks.authority.user = { ...previous, categoria_ids: [] };
+    expect(mocks.authority.user.id).toBe(previous.id);
+    expect(mocks.authority.user.rol).toBe(previous.rol);
+    expect(mocks.authority.user.capabilities).toEqual(previous.capabilities);
+    expect(mocks.authority.user.permissions).toEqual(previous.permissions);
+    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter
+      tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
+    expect(lifecycle.isCurrent()).toBe(false);
+    await act(async () => finish(privateExportFixture()));
+    expect(mocks.downloadExport).not.toHaveBeenCalled();
+    expect(mocks.requestExport).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Preparando tickets-pdf')).not.toBeInTheDocument();
+  });
 
   it('shows 55 unverified cases separately from zero confirmed risk without a healthy signal', async () => {
     const { risk, unknown } = await renderSummary({
@@ -108,7 +222,8 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     }
   });
 
-  it.each(['actor', 'permissions', 'same-actor-relogin'] as const)('does not reuse a fresh same-tenant cache after %s changes', async change => {
+  it.each(['actor', 'permissions', 'categories', 'same-actor-relogin'] as const)('does not reuse a fresh same-tenant cache after %s changes', async change => {
+    if (change === 'categories') mocks.authority.user = { ...mocks.authority.user, rol: 'empleado' };
     const { view, client } = await renderSummary({ open: 55 });
     const oldLifecycle = mocks.getTeamCoverageSummary.mock.calls[0][1];
     for (const read of [mocks.getInboxSummary, mocks.getOrdersSummary, mocks.getContactsSummary, mocks.getTeamCoverageSummary]) {
@@ -116,8 +231,9 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     }
     if (change === 'actor') mocks.authority.user = { ...mocks.authority.user, id: 2 };
     else if (change === 'permissions') mocks.authority.user = { ...mocks.authority.user, rol: 'empleado', capabilities: [], permissions: [] };
+    else if (change === 'categories') mocks.authority.user = { ...mocks.authority.user, categoria_ids: [] };
     else advanceChatbocSessionRevision();
-    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" scope="municipio" /></QueryClientProvider>);
+    view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
     await waitFor(() => expect(mocks.getTeamCoverageSummary).toHaveBeenCalledTimes(2));
     const team = screen.getByRole('heading', { name: 'Equipo activo' }).parentElement!.parentElement!;
     expect(within(team).getByText('--', { selector: 'p.text-2xl' })).toBeInTheDocument();
@@ -215,9 +331,10 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     expect(lifecycle.isCurrent()).toBe(false);
     expect(screen.queryByText('Preparando tickets-pdf')).not.toBeInTheDocument();
     await act(async () => outcome === 'success'
-      ? finish({ ok: true, download_url: 'https://example.invalid/retired-export.pdf' })
+      ? finish(privateExportFixture())
       : fail(new Error('retired export')));
     expect(open).not.toHaveBeenCalled();
+    expect(mocks.downloadExport).not.toHaveBeenCalled();
     expect(screen.queryByText('No se pudo preparar la exportacion.')).not.toBeInTheDocument();
     expect(mocks.requestExport).toHaveBeenCalledOnce();
   });
@@ -247,8 +364,9 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     const lifecycle = mocks.requestExport.mock.calls[0][1];
     view.unmount();
     expect(lifecycle.isCurrent()).toBe(false);
-    await act(async () => finish({ ok: true, download_url: 'https://example.invalid/retired-export.pdf' }));
+    await act(async () => finish(privateExportFixture()));
     expect(open).not.toHaveBeenCalled();
+    expect(mocks.downloadExport).not.toHaveBeenCalled();
     expect(mocks.requestExport).toHaveBeenCalledOnce();
   });
 

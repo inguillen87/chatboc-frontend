@@ -1,6 +1,8 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import { privateBackendRead, type PrivateBackendReadLifecycle } from '@/utils/privateBackendRead';
 import { panelReadOptions } from '@/utils/panelReadOptions';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { assertExportCurrent, readPrivateBackofficeExport, type PrivateBackofficeExport } from './backofficeExportDownload';
 
 export type BackofficeScope = 'municipio' | 'pyme' | 'colegio' | string;
 export type BackofficeExportResource = 'tickets' | 'orders' | 'contacts' | 'team';
@@ -102,12 +104,7 @@ export interface BackofficeTeamCoverageSummaryResponse {
   permissions?: Record<string, unknown>;
 }
 
-export interface BackofficeExportResponse {
-  ok: true;
-  request_id?: string;
-  download_url: string;
-  expires_at?: string;
-}
+export type BackofficeExportResponse = PrivateBackofficeExport;
 
 export interface BackofficeExecutiveSummaryResponse {
   request_id?: string;
@@ -195,26 +192,30 @@ export const backofficeService = {
   },
 
   requestExport: async (payload: {
-    tenant_slug?: string | null;
+    tenant_slug: string;
+    tenant_id: number;
     resource: BackofficeExportResource;
     format: BackofficeExportFormat;
     filters?: Record<string, unknown>;
-    include_ai_summary?: boolean;
   }, lifecycle: PrivateBackendReadLifecycle = {}): Promise<BackofficeExportResponse> => {
-    const response = await apiFetch<unknown>('/api/v2/backoffice/export', {
+    const revision = captureChatbocSessionRevision();
+    const isCurrent = () => isChatbocSessionRevisionCurrent(revision) && lifecycle.isCurrent?.() !== false;
+    assertExportCurrent(isCurrent);
+    if (!payload.tenant_slug?.trim() || !Number.isSafeInteger(payload.tenant_id) || payload.tenant_id <= 0) {
+      throw new ApiError('Seleccioná nuevamente la organización antes de exportar.', 400,
+        { code: 'export_scope_required' });
+    }
+    const response = await apiFetch<Response>('/api/v2/backoffice/export', {
       ...panelReadOptions(payload.tenant_slug),
       method: 'POST',
-      body: payload,
+      body: { tenant_slug: payload.tenant_slug, tenant_id: payload.tenant_id,
+        resource: payload.resource, format: payload.format, filters: payload.filters ?? {}, delivery: 'inline' },
+      responseType: 'response',
       singleAttempt: true,
       allowStartupRecovery: false,
-      isCurrent: lifecycle.isCurrent,
+      isCurrent,
     });
-    const record = asRecordResponse(response, '/api/v2/backoffice/export');
-    const downloadUrl = typeof record.download_url === 'string' ? record.download_url.trim() : '';
-    if (record.ok !== true || !downloadUrl) {
-      throw new ApiError('Respuesta invalida de /api/v2/backoffice/export.', 502, record);
-    }
-    return record as unknown as BackofficeExportResponse;
+    return readPrivateBackofficeExport(response, payload, isCurrent);
   },
 
   requestExecutiveSummary: async (payload: {

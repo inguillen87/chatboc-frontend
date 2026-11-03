@@ -105,36 +105,40 @@ describe('backofficeService', () => {
     await expect(backofficeService[method]('tenant-a')).rejects.toMatchObject({ status: 502 });
   });
 
-  it('requests export and validates download_url', async () => {
-    apiFetchMock.mockResolvedValueOnce({
-      ok: true,
-      request_id: 'req-export',
-      download_url: 'https://files.example/export.pdf',
-      expires_at: '2026-05-16T23:59:59Z',
-    });
+  it('requests an authenticated file with its selected organization and validates the response', async () => {
+    apiFetchMock.mockResolvedValueOnce(new Response('%PDF-1.4\nSynthetic report', { headers: {
+      'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="cases-fixture.pdf"',
+      'Cache-Control': 'private, no-store', 'X-Export-Contract': 'backoffice.export.v2',
+      'X-Tenant-Slug': 'tenant-a', 'X-Tenant-Id': '11', 'X-Export-Resource': 'tickets',
+      'X-Export-Format': 'pdf', 'X-Export-Row-Count': '1', 'X-Export-Total-Rows': '1', 'X-Export-Complete': 'true',
+    } }));
 
     const result = await backofficeService.requestExport({
       tenant_slug: 'tenant-a',
+      tenant_id: 11,
       resource: 'tickets',
       format: 'pdf',
-      filters: { status: 'open' },
-      include_ai_summary: true,
+      filters: { statuses: ['nuevo'] },
     });
 
-    expect(result.download_url).toBe('https://files.example/export.pdf');
+    expect(result.filename).toBe('cases-fixture.pdf');
+    expect(result.blob.type).toBe('application/pdf');
+    expect(result.rowCount).toBe(1);
     expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/backoffice/export', {
       ...panelReadOptions('tenant-a'),
       method: 'POST',
       body: {
         tenant_slug: 'tenant-a',
+        tenant_id: 11,
         resource: 'tickets',
         format: 'pdf',
-        filters: { status: 'open' },
-        include_ai_summary: true,
+        filters: { statuses: ['nuevo'] },
+        delivery: 'inline',
       },
+      responseType: 'response',
       singleAttempt: true,
       allowStartupRecovery: false,
-      isCurrent: undefined,
+      isCurrent: expect.any(Function),
     });
   });
 
