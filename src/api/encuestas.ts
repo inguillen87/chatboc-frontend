@@ -26,6 +26,7 @@ import {
   SurveyPublic,
   SurveyResponseFilters,
   SurveyResponseList,
+  SurveyResponseRecord,
   SnapshotCreatePayload,
   SnapshotSimulationResponse,
   SnapshotVerificationResult,
@@ -2699,9 +2700,76 @@ export const listSnapshots = async (id: number, options?: ApiFetchOptions): Prom
   return response.snapshots;
 };
 
-export const listSurveyResponses = (
+const surveyResponseContractError = () =>
+  Object.assign(new Error('No pudimos cargar las respuestas de esta encuesta. Actualizá e intentá nuevamente.'),
+    { code: 'survey_response_contract_invalid' });
+
+const normalizeSurveyResponseRecord = (value: unknown, canonical: boolean): SurveyResponseRecord => {
+  if (!isRecord(value)) throw surveyResponseContractError();
+  const row = { ...value } as SurveyResponseRecord;
+
+  if (canonical || Object.prototype.hasOwnProperty.call(value, 'submitted_at')) {
+    const submittedAt = value.submitted_at;
+    if (submittedAt !== null && (typeof submittedAt !== 'string' || !Number.isFinite(Date.parse(submittedAt)))) {
+      throw surveyResponseContractError();
+    }
+    // Preserve explicit null: a missing response date must never become "now".
+    row.created_at = submittedAt as string | null;
+  }
+
+  if (canonical || Object.prototype.hasOwnProperty.call(value, 'detalles')) {
+    if (!Array.isArray(value.detalles)) throw surveyResponseContractError();
+    row.respuestas = value.detalles.map((detail) => {
+      if (!isRecord(detail)) throw surveyResponseContractError();
+      const text = (key: string) => {
+        const item = detail[key];
+        if (item === null || item === undefined) return undefined;
+        if (typeof item !== 'string') throw surveyResponseContractError();
+        return item;
+      };
+      const option = text('opcion_texto');
+      const freeText = text('texto_libre');
+      const answer = [option, freeText].filter((part): part is string => Boolean(part?.trim())).join(' · ');
+      return { pregunta: text('pregunta_texto'), opcion: option, texto_libre: freeText,
+        respuesta: answer || undefined };
+    });
+  }
+
+  // Other fields (including privacy metadata and nulled identifiers) stay as
+  // received. Do not infer identity or restore fields from another response.
+  return row;
+};
+
+const normalizeSurveyResponseList = (payload: unknown): SurveyResponseList => {
+  if (!isRecord(payload)) throw surveyResponseContractError();
+  const legacy = Object.prototype.hasOwnProperty.call(payload, 'data');
+  const rows = legacy ? payload.data : payload.respuestas;
+  if (!Array.isArray(rows)) throw surveyResponseContractError();
+  const metaSource = legacy ? payload.meta : payload;
+  if (metaSource !== undefined && metaSource !== null && !isRecord(metaSource)) {
+    throw surveyResponseContractError();
+  }
+  const meta = isRecord(metaSource)
+    ? legacy ? { ...metaSource } : { total: metaSource.total, limit: metaSource.limit, offset: metaSource.offset }
+    : undefined;
+  for (const key of ['total', 'limit', 'offset'] as const) {
+    const value = metaSource && isRecord(metaSource) ? metaSource[key] : undefined;
+    if ((!legacy || value !== undefined) &&
+        (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)) {
+      throw surveyResponseContractError();
+    }
+  }
+  return { ...payload, data: rows.map((row) => normalizeSurveyResponseRecord(row, !legacy)),
+    meta: meta as SurveyResponseList['meta'] };
+};
+
+export const listSurveyResponses = async (
   id: number,
   params?: SurveyResponseFilters,
   options?: ApiFetchOptions,
-): Promise<SurveyResponseList> =>
-  callAdminSurveyEndpoint(`${id}/respuestas${buildQueryString(params as QueryParams)}`, options);
+): Promise<SurveyResponseList> => {
+  const payload = await callAdminSurveyEndpoint<unknown>(
+    `${id}/respuestas${buildQueryString(params as QueryParams)}`, options,
+  );
+  return normalizeSurveyResponseList(payload);
+};

@@ -165,7 +165,7 @@ export const SurveyRecentResponses = ({
       ) : null}
     </CardHeader>
     <CardContent className="space-y-4">
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       {loading ? (
         <div className="flex h-32 items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -226,7 +226,7 @@ export const SurveyRecentResponses = ({
             );
           })}
         </ul>
-      ) : (
+      ) : !error ? (
         <p className="text-sm text-muted-foreground">
           {typeof totalResponsesHint === 'number' && totalResponsesHint > 0 ? (
             'Ya hay respuestas registradas, pero este bloque todavía no pudo cargar el detalle reciente. Probá actualizar.'
@@ -240,7 +240,7 @@ export const SurveyRecentResponses = ({
             'Todavía no registramos respuestas. Difundí el enlace público para comenzar a medir resultados.'
           )}
         </p>
-      )}
+      ) : null}
     </CardContent>
   </Card>
 );
