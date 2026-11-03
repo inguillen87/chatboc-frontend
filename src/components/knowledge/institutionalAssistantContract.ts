@@ -35,7 +35,13 @@ export interface KnowledgeWorkspace {
   audio_reading?:InstitutionalAudioReading;
   knowledge:null|{start:string;node_count:number;version:string;topics:Array<{id:string;label:string}>;sources:KnowledgeSource[];initial:KnowledgeNode};
 }
-export interface KnowledgeAnswer { tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; text:string; business_writes_performed:false }
+interface KnowledgeAnswerBase { tenant:{id:number;slug:string}; revision:string; text:string; business_writes_performed:false }
+export interface KnowledgeCanonicalAnswer extends KnowledgeAnswerBase { result_type?:undefined; nodes:KnowledgeNode[] }
+export interface KnowledgeSourceNavigationAnswer extends KnowledgeAnswerBase {
+  result_type:'source_navigation'; nodes:[]; sources:KnowledgeSource[]; selection_performed:false;
+}
+export type KnowledgeAnswer=KnowledgeCanonicalAnswer|KnowledgeSourceNavigationAnswer;
+export const isKnowledgeSourceNavigation=(answer:KnowledgeAnswer):answer is KnowledgeSourceNavigationAnswer=>answer.result_type==='source_navigation';
 const string=(v:unknown,max=16000):v is string=>typeof v==='string'&&v.length>0&&v.length<=max;
 const hash=(v:unknown):v is string=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const record=(v:unknown):v is Record<string,any>=>Boolean(v)&&typeof v==='object'&&!Array.isArray(v);
@@ -117,6 +123,16 @@ export function parseAnswer(value:unknown,workspace:KnowledgeWorkspace):Knowledg
     value.revision!==workspace.revision||value.business_writes_performed!==false||!string(value.text,40000)||
     !Array.isArray(value.nodes)||value.nodes.length>3||!value.nodes.every(isKnowledgeNode))throw new Error('knowledge_answer_invalid');
   const known=new Map(workspace.knowledge?.sources.map(s=>[s.id,s]));
+  if(value.result_type!==undefined){
+    if(value.result_type!=='source_navigation'||value.selection_performed!==false||value.nodes.length!==0||
+      !Array.isArray(value.sources)||value.sources.length<1||value.sources.length>64||value.sources.length!==known.size||
+      !value.sources.every(isKnowledgeSource)||new Set(value.sources.map((source:KnowledgeSource)=>source.id)).size!==value.sources.length)
+      throw new Error('knowledge_source_navigation_invalid');
+    for(const source of value.sources){const original=known.get(source.id);
+      if(!original||!sameKnowledgeSourceIdentity(original,source)||original.title!==source.title||source.pages!==undefined||source.excerpts!==undefined)
+        throw new Error('knowledge_source_changed');}
+    return value as unknown as KnowledgeSourceNavigationAnswer;
+  }
   for(const n of value.nodes)for(const s of n.sources){const original=known.get(s.id);
     if(!original||!sameKnowledgeSourceIdentity(original,s))throw new Error('knowledge_source_changed');}
   return value as unknown as KnowledgeAnswer;
