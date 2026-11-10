@@ -9,6 +9,30 @@ describe('geographic workspace data contracts',()=>{
   });
   it.each([-1,101,NaN,Infinity])('rejects coverage outside percentage points: %j',value=>expect(geoCoverage({location_quality:{coverage_pct:value}}).coverage).toBeNull());
   it('does not reconcile a contradictory denominator silently',()=>expect(geoCoverage({location_quality:{total:10,with_coordinates:8,without_coordinates:9,coverage_pct:80}})).toMatchObject({inconsistent:true,coverage:null}));
+  it('uses the current ticket coverage contract and excludes merely persisted coordinates', () => {
+    const location_quality = {
+      contract_version: 'operations.location_quality.v1',
+      total_ticket_records: 3,
+      ticket_records_with_persisted_coordinates: 2,
+      ticket_records_with_validated_coordinates: 1,
+      ticket_records_with_coordinates: 1,
+      coordinate_coverage_pct: 33.33,
+    };
+    expect(geoCoverage({ location_quality })).toMatchObject({
+      withCoordinates: 1, withoutCoordinates: 2, coverage: 33.33, total: 3, inconsistent: false,
+    });
+    expect(geoCoverage({ location_quality: { ...location_quality, coordinate_coverage_pct: 66.67 } }))
+      .toMatchObject({ coverage: null, inconsistent: true });
+    expect(geoCoverage({ location_quality: { ...location_quality, ticket_records_with_coordinates: 2 } }))
+      .toMatchObject({ withCoordinates: null, withoutCoordinates: null, coverage: null, inconsistent: true });
+  });
+  it('keeps an empty ticket cohort distinct from a nonempty cohort with no usable coordinates', () => {
+    const quality = { contract_version: 'operations.location_quality.v1', ticket_records_with_coordinates: 0 };
+    expect(geoCoverage({ location_quality: { ...quality, total_ticket_records: 0, coordinate_coverage_pct: null } }))
+      .toMatchObject({ withCoordinates: 0, withoutCoordinates: 0, coverage: null, inconsistent: false });
+    expect(geoCoverage({ location_quality: { ...quality, total_ticket_records: 3, coordinate_coverage_pct: 0 } }))
+      .toMatchObject({ withCoordinates: 0, withoutCoordinates: 3, coverage: 0, inconsistent: false });
+  });
   it('rejects foreign tenant id and slug without requiring missing legacy fields',()=>{
     expect(()=>assertHeatmapScope({tenant_slug:'b'},{tenantSlug:'a'})).toThrow();
     expect(()=>assertHeatmapScope({tenant:{id:8}},{tenant_id:7})).toThrow();

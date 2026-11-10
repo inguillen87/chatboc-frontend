@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WhatsappOperationsHub from "./WhatsappOperationsHub";
@@ -191,6 +191,34 @@ const metaFlowExperience = (flowId: string, metaFlowId = "") => ({
 describe("WhatsappOperationsHub", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+  });
+
+  it("separates recorded configuration from a verified WhatsApp delivery", () => {
+    render(<WhatsappOperationsHub initialExperience={{
+      ...baseExperience,
+      channel: {
+        ...baseExperience.channel,
+        provider: "meta",
+        number: "+15550100101",
+        waba_id: "100001",
+        webhook_url: "https://example.invalid/whatsapp",
+      },
+      template_blueprint: {
+        registry_summary: { operational_approved: 1, operational_pending: 0, operational_blocking: 0 },
+      },
+      conversation_intelligence: {
+        ...baseExperience.conversation_intelligence,
+        audio_cache: { enabled: true },
+      },
+    }} />);
+
+    const configuration = within(screen.getByRole("region", { name: "Configuración de WhatsApp" }));
+    expect(configuration.getByText("5 de 5 comprobaciones de configuración")).toBeInTheDocument();
+    expect(configuration.getByRole("listitem", { name: "Número o emisor: registrado" })).toBeInTheDocument();
+    expect(configuration.getByRole("listitem", { name: "URL del webhook: registrado" })).toBeInTheDocument();
+    expect(configuration.getByText("Validación de recepción y entrega")).toBeInTheDocument();
+    expect(configuration.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(configuration.queryByText(/100%|entrega confirmada|número productivo/i)).not.toBeInTheDocument();
   });
 
   it("renders the transactional flow runtime contract", () => {

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -687,6 +688,48 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsAIProviderStatusV2.mockResolvedValue(aiProviderStatusFixture());
     mocks.getOperationsFreshnessV2.mockResolvedValue(freshnessFixture());
     mocks.getPublicMapConfigV1.mockResolvedValue(mapConfigFixture());
+  });
+
+  it('compares published claim counts and reveals remaining groups with the keyboard', async () => {
+    const user = userEvent.setup();
+    const data = dashboardFixture();
+    const longLabel = 'Mantenimiento de espacios públicos y accesos peatonales';
+    mocks.getOperationsDashboardV2.mockResolvedValue({
+      ...data,
+      tickets: {
+        ...data.tickets,
+        by_category: [
+          { key: 'first', label: longLabel, count: 1200 },
+          { key: 'half', label: 'Alumbrado', count: 600 },
+          { key: 'zero', label: 'Arbolado', count: 0 },
+          { key: 'missing', label: 'Limpieza' },
+          ...Array.from({ length: 5 }, (_, i) => ({ key: `group-${i}`, label: `Grupo ${i + 1}`, count: 10 })),
+        ],
+      },
+    });
+
+    renderPanel();
+    await user.click(await screen.findByText('Desgloses y equipo'));
+    const chart = within(await screen.findByRole('region', { name: 'Reclamos por categoría' }));
+    const [first, half, zero, missing] = chart.getAllByRole('listitem');
+    expect(within(first).getByText(longLabel)).toBeVisible();
+    expect(within(first).getByText('1.200')).toBeVisible();
+    expect(half.querySelector('[aria-hidden="true"] > div')).toHaveStyle({ width: '50%' });
+    expect(within(zero).getByText('0')).toBeVisible();
+    expect(within(missing).getByText('Sin dato')).toBeVisible();
+    expect(missing.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(chart.queryByText('Grupo 5')).toBeNull();
+
+    const disclosure = chart.getByRole('button', { name: /Mostrar 1 más/ });
+    disclosure.focus();
+    await user.keyboard('{Enter}');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(disclosure).toHaveFocus();
+    expect(chart.getByText('Grupo 5')).toBeVisible();
+    expect(half.querySelector('[aria-hidden="true"] > div')).toHaveStyle({ width: '50%' });
+    await user.keyboard(' ');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(chart.queryByText('Grupo 5')).toBeNull();
   });
 
   it('separates configured voting from reception and preserves private historical analytics for blocked surveys', async () => {

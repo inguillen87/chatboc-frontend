@@ -715,7 +715,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
       if (!response.ok) throw new Error("address_lookup_unavailable");
       return response.json() as Promise<unknown>;
     }).then(results => {
-      const point = uniqueTrackingAddressPoint(results, capability);
+      const point = uniqueTrackingAddressPoint(results, address, capability);
       finish(point ? { ...point, name: address } : null);
     }).catch(() => finish(null)).finally(() => window.clearTimeout(timeout));
     return () => { active = false; window.clearTimeout(timeout); controller.abort(); };

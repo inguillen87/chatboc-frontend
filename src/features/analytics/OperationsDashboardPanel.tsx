@@ -43,6 +43,7 @@ import { operationsEventMatchesTenant, assertOperationsResponseScope, visibleOpe
 import { isTerritorialTenantScopeCompatible } from '@/utils/territorialTicketIdentity';
 import { useOperationsRefresh } from './useOperationsRefresh';
 import { OperationsWorkspaceStatus } from './OperationsWorkspaceStatus';
+import { TicketBreakdownCard } from './TicketBreakdownCard';
 
 import {
   getOperationsAIBriefV2,
@@ -2473,7 +2474,7 @@ function TicketBreakdowns({ data }: { data: OperationsDashboardV1 }) {
   const groups = [
     { key: 'by_status', title: resolveLabel(data, 'tickets_by_status', 'Reclamos por estado'), items: data.tickets?.by_status },
     { key: 'by_channel', title: resolveLabel(data, 'tickets_by_channel', 'Reclamos por canal'), items: data.tickets?.by_channel },
-    { key: 'by_category', title: resolveLabel(data, 'tickets_by_category', 'Reclamos por categoria'), items: data.tickets?.by_category },
+    { key: 'by_category', title: resolveLabel(data, 'tickets_by_category', 'Reclamos por categoría'), items: data.tickets?.by_category },
     { key: 'by_priority', title: resolveLabel(data, 'tickets_by_priority', 'Reclamos por prioridad'), items: data.tickets?.by_priority },
   ].filter((group) => hasItems(group.items));
 
@@ -2482,7 +2483,18 @@ function TicketBreakdowns({ data }: { data: OperationsDashboardV1 }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {groups.map((group) => (
-        <BreakdownCard key={group.key} title={group.title} items={group.items ?? []} />
+        <TicketBreakdownCard
+          key={group.key}
+          title={group.title}
+          rows={(group.items ?? []).map((item, index) => {
+            const count = readNumber(item.count, item.value, item.total, item.current);
+            return {
+              id: bucketItemKey(item, index),
+              label: itemLabel(item),
+              count: count !== undefined && Number.isSafeInteger(count) && count >= 0 ? count : undefined,
+            };
+          })}
+        />
       ))}
     </div>
   );

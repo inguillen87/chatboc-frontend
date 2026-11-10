@@ -69,14 +69,46 @@ export function trackingAddressQuery(address: string, capability: TrackingGeocod
   return url.toString();
 }
 
+function intersectionRoads(value: unknown): string[] {
+  return normalized(value).split(/\s+(?:y|&|esq\.?|esquina)\s+/).sort();
+}
+
+function matchesReportedAddress(result: RecordValue, address: RecordValue, reported: string): boolean {
+  const precision = text(result.addresstype) || text(result.type);
+  const road = normalized(address.road);
+  if (precision === 'house' || precision === 'building') {
+    const houseNumber = normalized(address.house_number);
+    return Boolean(road && houseNumber && (reported === `${road} ${houseNumber}` || reported === `${houseNumber} ${road}`));
+  }
+  if (precision === 'road' || precision === 'street') {
+    return reported === (road || normalized(result.name));
+  }
+  if (precision === 'intersection') {
+    const requestedRoads = intersectionRoads(reported);
+    const foundRoads = intersectionRoads(result.name);
+    return requestedRoads.length === 2 && foundRoads.length === 2
+      && requestedRoads.every((name, index) => name === foundRoads[index]);
+  }
+  return false;
+}
+
 /** A temporary, unique street/building/intersection match is orientation, never persisted GPS. */
-export function uniqueTrackingAddressPoint(results: unknown, capability: TrackingGeocodingCapability): TrackingMapPoint | null {
+export function uniqueTrackingAddressPoint(
+  results: unknown,
+  reportedAddress: string,
+  capability: TrackingGeocodingCapability,
+): TrackingMapPoint | null {
   if (!Array.isArray(results) || results.length > 2) return null;
   const { city, province, country, bounds } = capability.jurisdiction;
+  const reported = normalized(reportedAddress);
+  if (!reported) return null;
+  const [street, ...qualifiers] = reported.split(',').map((part) => part.trim());
+  const locality = new Set([city, province, country].map(normalized));
+  const addressToMatch = qualifiers.every((part) => locality.has(part)) ? street : reported;
+  if (!addressToMatch) return null;
   const points = results.flatMap(result => {
     if (!record(result) || !record(result.address)) return [];
-    const precision = text(result.addresstype) || text(result.type);
-    if (!['house', 'building', 'road', 'street', 'intersection'].includes(precision)) return [];
+    if (!matchesReportedAddress(result, result.address, addressToMatch)) return [];
     const point = trackingPoint(result.lat, result.lon);
     if (!point || point.lng < bounds.west || point.lng > bounds.east || point.lat < bounds.south || point.lat > bounds.north) return [];
     const address = result.address;

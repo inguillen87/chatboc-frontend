@@ -33,15 +33,16 @@ const deferred = <T,>() => {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json' },
 });
-const payload = (code = 'M-map-a', point = false) => ({
+const payload = (code = 'M-map-a', point = false, reportedAddress = address) => ({
   kind: 'claim', contract_version: 'tracking.experience.v1',
   tenant: { id: 51, slug: 'map-fixture', nombre: 'Fixture' },
   resource: { code, subject: 'Solicitud', channel: 'web' },
   status: { current_stage: 'recibido', label: 'Recibido' },
   timeline: [{ id: code, label: `Registro ${code}` }],
-  location: { address, lat: point ? -33.08 : null, lng: point ? -68.46 : null },
+  location: { address: reportedAddress, lat: point ? -33.08 : null, lng: point ? -68.46 : null },
   support: { enabled: false },
-  map: { can_render: true, has_coordinates: point, address, maps_search_url: safeMapUrl,
+  map: { can_render: true, has_coordinates: point, address: reportedAddress,
+    maps_search_url: `https://maps.google.com/?q=${encodeURIComponent(reportedAddress)}`,
     destination: point ? { lat: -33.08, lng: -68.46, name: address } : null,
     fallback_when_no_coordinates: point ? 'timeline_only' : 'geocode_address',
     ui: { address_label: 'Dirección informada', search_address_label: 'Buscar dirección en el mapa',
@@ -57,7 +58,8 @@ const payload = (code = 'M-map-a', point = false) => ({
   },
 });
 const providerPoint = { lat: '-33.08', lon: '-68.46', addresstype: 'house',
-  address: { city: 'Fixture City', state: 'Fixture Province', country_code: 'ar' } };
+  address: { city: 'Fixture City', state: 'Fixture Province', country_code: 'ar',
+    road: 'Calle de prueba', house_number: '123' } };
 let responseFor: (code: string) => Response | Promise<Response>;
 let geocodeFor: () => Response | Promise<Response>;
 let requests: Array<{ url: URL; init?: RequestInit }>;
@@ -112,6 +114,52 @@ describe('verified address map with real tracking transport', () => {
     expect(request.url.searchParams.get('viewbox')).toBe('-68.6,-32.9,-68.3,-33.2');
     expect(request.init).toMatchObject({ credentials: 'omit', referrerPolicy: 'no-referrer' });
     expect(request.url.toString()).not.toContain(fixturePin());
+  });
+
+  it.each([
+    { road: 'Otra calle', house_number: '123' },
+    { road: 'Calle de prueba', house_number: '125' },
+    { road: 'Calle de prueba', house_number: '' },
+    { road: '', house_number: '123' },
+  ])('rejects a nearby house without proof of the reported street and number: %j', async evidence => {
+    geocodeFor = () => json([{ ...providerPoint, address: { ...providerPoint.address, ...evidence } }]);
+    renderPage();
+    await screen.findByText('No pudimos ubicar un único punto. Conservamos la dirección informada.');
+    expect(screen.queryByTestId('tracking-map')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Buscar dirección en el mapa' })).toHaveAttribute('href', safeMapUrl);
+  });
+
+  it('does not substitute a street centroid for a reported house number', async () => {
+    geocodeFor = () => json([{ ...providerPoint, addresstype: 'road' }]);
+    renderPage();
+    await screen.findByText('No pudimos ubicar un único punto. Conservamos la dirección informada.');
+    expect(screen.queryByTestId('tracking-map')).not.toBeInTheDocument();
+  });
+
+  it('shows a matching street-only result as orientative when the address has no number', async () => {
+    responseFor = code => json(payload(code, false, 'Calle de prueba'));
+    geocodeFor = () => json([{ ...providerPoint, addresstype: 'road',
+      address: { ...providerPoint.address, house_number: undefined } }]);
+    renderPage();
+    expect(await screen.findByTestId('tracking-map')).toBeVisible();
+    expect(screen.getByText('Ubicación orientativa de la dirección')).toBeVisible();
+  });
+
+  it('requires both streets in the name of a reported intersection', async () => {
+    responseFor = code => json(payload(code, false, 'Calle de prueba y Segunda calle'));
+    geocodeFor = () => json([{ ...providerPoint, addresstype: 'intersection', name: 'Calle de prueba y Otra calle' }]);
+    renderPage();
+    await screen.findByText('No pudimos ubicar un único punto. Conservamos la dirección informada.');
+    expect(screen.queryByTestId('tracking-map')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Buscar dirección en el mapa' })).toBeVisible();
+  });
+
+  it('accepts an explicitly named intersection when both streets match, in either order', async () => {
+    responseFor = code => json(payload(code, false, 'Calle de prueba y Segunda calle'));
+    geocodeFor = () => json([{ ...providerPoint, addresstype: 'intersection', name: 'Segunda calle esquina Calle de prueba' }]);
+    renderPage();
+    expect(await screen.findByTestId('tracking-map')).toBeVisible();
+    expect(screen.getByText('Ubicación orientativa de la dirección')).toBeVisible();
   });
 
   it('preserves existing coordinates without consulting another provider', async () => {
