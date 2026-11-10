@@ -5,9 +5,21 @@ export interface AnalyticsOverview {
   response_time?: number;
   survey_responses?: number;
   nps?: number;
-  csat?: number;
   handoff_rate?: number;
+  ticket_satisfaction?: TicketSatisfactionOverview;
 }
+
+export type TicketSatisfactionOverview = {
+  contract_version: 'analytics.ticket_satisfaction.v1';
+  basis: 'first_valid_rating_recorded_at';
+  scale_verified: false;
+  label: string;
+  detail: string;
+  reason_code?: string;
+} & (
+  | { state: 'observed'; rated_ticket_count: number }
+  | { state: 'unavailable'; rated_ticket_count: null }
+);
 
 export interface OperationsBucketItem {
   id?: string;

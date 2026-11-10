@@ -1,5 +1,5 @@
 import { panelApi } from '@/api/v2/client';
-import { assertOperationsResponseScope } from './operationsReadState';
+import { assertOperationsResponseScope, operationsTenantSlug } from './operationsReadState';
 import type {
   AnalyticsOverview,
   OperationsAIOpsQueueItem,
@@ -27,6 +27,7 @@ import type {
   OperationsQueueTruthV1,
   OperationsTrend,
   PublicMapConfigV1,
+  TicketSatisfactionOverview,
 } from './analyticsTypes';
 import { resolveTerritorialTicketIdentity } from '@/utils/territorialTicketIdentity';
 
@@ -1891,9 +1892,41 @@ const normalizeFreshness = (response: unknown): OperationsFreshnessV1 => {
   };
 };
 
-const normalizeOverview = (response: unknown): AnalyticsOverview => {
-  const source = isRecord(response) && isRecord(response.summary) ? response.summary : response;
-  if (!isRecord(source)) return {};
+const normalizeTicketSatisfaction = (value: unknown): TicketSatisfactionOverview | undefined => {
+  if (!isRecord(value)
+    || value.contract_version !== 'analytics.ticket_satisfaction.v1'
+    || value.basis !== 'first_valid_rating_recorded_at'
+    || value.scale_verified !== false) return undefined;
+
+  const label = asString(value.label);
+  const detail = asString(value.detail);
+  if (!label || label.length > 80 || !detail || detail.length > 320) return undefined;
+
+  const metadata = {
+    contract_version: value.contract_version,
+    basis: value.basis,
+    scale_verified: value.scale_verified,
+    label,
+    detail,
+    ...(typeof value.reason_code === 'string' ? { reason_code: value.reason_code } : {}),
+  } as const;
+  const count = value.rated_ticket_count;
+  if (value.state === 'observed' && typeof count === 'number' && Number.isSafeInteger(count) && count >= 0) {
+    return { ...metadata, state: 'observed', rated_ticket_count: count };
+  }
+  if (value.state === 'unavailable' && count === null) {
+    return { ...metadata, state: 'unavailable', rated_ticket_count: null };
+  }
+  return undefined;
+};
+
+const normalizeOverview = (response: unknown, tenantSlug?: string | null): AnalyticsOverview => {
+  if (!isRecord(response)) return {};
+  const source = isRecord(response.summary) ? response.summary : response;
+  const responseSlug = operationsTenantSlug(response.tenant_slug);
+  const ticketSatisfaction = responseSlug && responseSlug === tenantSlug
+    ? normalizeTicketSatisfaction(response.ticket_satisfaction)
+    : undefined;
 
   return {
     conversations: asNumber(source.conversations ?? source.conversaciones),
@@ -1902,8 +1935,8 @@ const normalizeOverview = (response: unknown): AnalyticsOverview => {
     response_time: asNumber(source.response_time ?? source.first_response_time ?? source.frt),
     survey_responses: asNumber(source.survey_responses ?? source.respuestas_encuestas),
     nps: asNumber(source.nps),
-    csat: asNumber(source.csat),
     handoff_rate: asNumber(source.handoff_rate),
+    ...(ticketSatisfaction ? { ticket_satisfaction: ticketSatisfaction } : {}),
   };
 };
 
@@ -1914,7 +1947,7 @@ export const getAnalyticsOverviewV2 = async (tenantSlug?: string | null, isCurre
     legacyFallbackPath: '/analytics/overview',
   });
   if (tenantSlug) assertOperationsResponseScope(response, tenantSlug);
-  return normalizeOverview(response);
+  return normalizeOverview(response, tenantSlug);
 };
 
 export const getOperationsDashboardV2 = async (params?: {

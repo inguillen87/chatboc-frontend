@@ -22,7 +22,7 @@ const formatMetric = (value: number | undefined, suffix = '') => {
 };
 
 const METRICS: Array<{
-  key: keyof AnalyticsOverview;
+  key: keyof Omit<AnalyticsOverview, 'ticket_satisfaction'>;
   label: string;
   suffix?: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -33,7 +33,6 @@ const METRICS: Array<{
   { key: 'response_time', label: 'Tiempo respuesta', suffix: ' min', icon: Clock3 },
   { key: 'survey_responses', label: 'Respuestas encuestas', icon: BarChart3 },
   { key: 'nps', label: 'NPS', icon: Smile },
-  { key: 'csat', label: 'CSAT', suffix: '%', icon: Smile },
   { key: 'handoff_rate', label: 'Handoff rate', suffix: '%', icon: Activity },
 ];
 
@@ -62,7 +61,8 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
     : [];
   const availableMetrics = metricCards.filter((card) => card.rawValue !== undefined).length;
   const missingMetrics = metricCards.length - availableMetrics;
-  const hasAnyMetric = availableMetrics > 0;
+  const ticketSatisfaction = data?.ticket_satisfaction;
+  const hasAnyMetric = availableMetrics > 0 || ticketSatisfaction !== undefined;
 
   if (!isOnline && !data) {
     return (
@@ -173,7 +173,11 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
           <CardContent className="space-y-3">
             <MetricRow label="Conversaciones" value={formatMetric(data.conversations)} />
             <MetricRow label="Respuestas encuestas" value={formatMetric(data.survey_responses)} />
-            <MetricRow label="CSAT" value={formatMetric(data.csat, '%')} />
+            <MetricRow
+              label={ticketSatisfaction?.label ?? 'Casos calificados'}
+              value={ticketSatisfaction?.state === 'observed' ? formatMetric(ticketSatisfaction.rated_ticket_count) : 'Sin datos'}
+              detail={ticketSatisfaction?.detail}
+            />
             <MetricRow label="NPS" value={formatMetric(data.nps)} />
             <MetricRow label="Handoff rate" value={formatMetric(data.handoff_rate, '%')} />
           </CardContent>
@@ -185,11 +189,14 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   );
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold">{value}</span>
+      <div className="min-w-0 text-muted-foreground">
+        <span>{label}</span>
+        {detail ? <p className="mt-1 text-xs">{detail}</p> : null}
+      </div>
+      <span className="shrink-0 font-semibold">{value}</span>
     </div>
   );
 }
