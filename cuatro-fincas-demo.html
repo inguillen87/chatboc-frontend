@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cuatro Fincas · Winrey</title>
+  <link rel="icon" href="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" type="image/png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bosque:#1f3a32;
+      --bosque-oscuro:#10261d;
+      --bosque-suave:#2f5243;
+      --acento:#c7b17a;
+      --acento-suave:#f0e8d6;
+      --txt:#1f3328;
+      --txt-2:#4a6354;
+      --fondo:#f6f4ef;
+      --surface:#ffffff;
+      --surface-tint:rgba(255,255,255,0.92);
+      --bot-bg:#e4efe7;
+      --radius:20px;
+      --shadow:0 20px 48px rgba(16,38,29,0.18);
+    }
+
+    body.dark-mode {
+      --bosque:#7fd0a1;
+      --bosque-oscuro:#081912;
+      --bosque-suave:#164530;
+      --acento:#e6d296;
+      --acento-suave:rgba(24,49,37,0.9);
+      --txt:#e8f5ee;
+      --txt-2:#b8d5c5;
+      --fondo:#0b1913;
+      --surface:#11251b;
+      --surface-tint:rgba(17,37,27,0.92);
+      --bot-bg:rgba(33,63,47,0.85);
+      --shadow:0 24px 60px rgba(0,0,0,0.6);
+    }
+
+    * { box-sizing:border-box; margin:0; padding:0; }
+
+    body {
+      font-family:Poppins, sans-serif;
+      background:var(--fondo);
+      color:var(--txt);
+      min-height:100vh;
+      line-height:1.55;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    header {
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:var(--surface-tint);
+      backdrop-filter:blur(14px);
+      padding:26px 42px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:var(--shadow);
+      position:relative;
+    }
+
+    body.dark-mode header { background:rgba(11,25,19,0.88); }
+
+    .logo-wrap {
+      position:absolute;
+      left:26px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+
+    .logo-mark {
+      width:70px;
+      height:70px;
+      border-radius:50%;
+      border:2px solid var(--acento);
+      background:linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.82));
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+      box-shadow:0 16px 32px rgba(16,38,29,0.18);
+      transition:transform 0.35s ease;
+    }
+
+    .logo-mark img { width:90%; height:90%; object-fit:contain; }
+    .logo-wrap:hover .logo-mark { transform:scale(1.06) rotate(-4deg); }
+
+    .logo-title {
+      font-family:"Playfair Display", serif;
+      font-size:1.35rem;
+      letter-spacing:2px;
+      text-transform:uppercase;
+      color:var(--bosque);
+    }
+
+    nav {
+      display:flex;
+      gap:18px;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
+
+    nav a {
+      color:var(--bosque);
+      text-decoration:none;
+      font-weight:500;
+      letter-spacing:0.5px;
+      position:relative;
+      padding:8px 0;
+    }
+
+    nav a::after {
+      content:"";
+      position:absolute;
+      left:0;
+      bottom:-6px;
+      width:100%;
+      height:2px;
+      background:var(--acento);
+      transform:scaleX(0);
+      transform-origin:left;
+      transition:transform 0.3s ease;
+    }
+
+    nav a:hover::after { transform:scaleX(1); }
+    body.dark-mode nav a { color:var(--acento); }
+    body.dark-mode nav a::after { background:var(--acento); }
+
+    .menu-toggle {
+      display:none;
+      position:absolute;
+      left:28px;
+      background:transparent;
+      border:none;
+      cursor:pointer;
+      flex-direction:column;
+      gap:5px;
+    }
+
+    .menu-toggle span {
+      width:28px;
+      height:3px;
+      background:var(--bosque);
+      border-radius:2px;
+      transition:background 0.3s ease;
+    }
+
+    body.dark-mode .menu-toggle span { background:var(--acento); }
+
+    .theme-toggle {
+      position:absolute;
+      right:28px;
+      background:transparent;
+      border:none;
+      cursor:pointer;
+      font-size:1.5rem;
+      color:var(--bosque);
+      transition:transform 0.3s ease;
+    }
+
+    .theme-toggle:hover { transform:scale(1.1); }
+    body.dark-mode .theme-toggle { color:var(--acento); }
+
+    @media (max-width:880px) {
+      header { padding:22px 24px; }
+      .logo-wrap { position:static; }
+      nav {
+        display:none;
+        flex-direction:column;
+        align-items:center;
+        position:absolute;
+        top:100%;
+        left:0;
+        width:100%;
+        background:var(--surface-tint);
+        padding:22px 0;
+        gap:14px;
+        box-shadow:var(--shadow);
+      }
+      body.dark-mode nav { background:rgba(11,25,19,0.96); }
+      nav.show { display:flex; }
+      nav a { padding:6px 0; }
+      .menu-toggle { display:flex; }
+    }
+
+    section {
+      padding:80px 20px;
+    }
+
+    .hero {
+      position:relative;
+      padding:0;
+      overflow:hidden;
+    }
+
+    .hero-bg {
+      position:absolute;
+      inset:0;
+      background:linear-gradient(135deg, rgba(31,58,50,0.88), rgba(46,79,65,0.86));
+    }
+
+    .hero-bg::after {
+      content:"";
+      position:absolute;
+      inset:0;
+      background-image:url('https://images.unsplash.com/photo-1470784729663-66ad10f38e0a?auto=format&fit=crop&w=1600&q=80');
+      background-size:cover;
+      background-position:center;
+      opacity:0.32;
+    }
+
+    .hero-inner {
+      position:relative;
+      max-width:1200px;
+      margin:0 auto;
+      padding:100px 24px 90px;
+      display:grid;
+      grid-template-columns:1.05fr 0.95fr;
+      gap:46px;
+      align-items:center;
+    }
+
+    .hero-copy {
+      color:#f8f9f7;
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+    }
+
+    .hero-copy .eyebrow {
+      text-transform:uppercase;
+      letter-spacing:4px;
+      font-weight:600;
+      font-size:0.85rem;
+      color:var(--acento);
+      background:rgba(0,0,0,0.25);
+      padding:6px 16px;
+      border-radius:999px;
+      align-self:flex-start;
+    }
+
+    .hero-copy h1 {
+      font-family:"Playfair Display", serif;
+      font-size:3.4rem;
+      line-height:1.05;
+    }
+
+    .hero-copy p {
+      font-size:1.08rem;
+      max-width:520px;
+      color:rgba(248,249,247,0.92);
+    }
+
+    .hero-stats {
+      display:flex;
+      gap:24px;
+      flex-wrap:wrap;
+    }
+
+    .hero-stats .stat {
+      background:rgba(255,255,255,0.14);
+      border:1px solid rgba(255,255,255,0.22);
+      border-radius:18px;
+      padding:16px 22px;
+      min-width:160px;
+    }
+
+    .stat strong {
+      display:block;
+      font-size:1.4rem;
+      font-family:"Playfair Display", serif;
+      color:var(--acento);
+    }
+
+    .cta-group {
+      display:flex;
+      gap:18px;
+      flex-wrap:wrap;
+    }
+
+    .cta {
+      padding:12px 28px;
+      border-radius:999px;
+      background:var(--acento);
+      color:var(--bosque-oscuro);
+      font-weight:600;
+      letter-spacing:0.5px;
+      text-decoration:none;
+      box-shadow:0 20px 40px rgba(199,177,122,0.25);
+      transition:transform 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
+    }
+
+    .cta:hover {
+      transform:translateY(-4px);
+      box-shadow:0 26px 46px rgba(199,177,122,0.35);
+      filter:brightness(1.05);
+    }
+
+    .cta.secondary {
+      background:transparent;
+      border:2px solid rgba(255,255,255,0.75);
+      color:#f8f9f7;
+      box-shadow:none;
+    }
+
+    .hero-media {
+      display:flex;
+      flex-direction:column;
+      gap:24px;
+      align-items:flex-end;
+    }
+
+    .chat-preview {
+      width:100%;
+      max-width:420px;
+      border-radius:26px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+      background:var(--surface);
+      display:flex;
+      flex-direction:column;
+    }
+
+    .chat-header {
+      background:linear-gradient(130deg, rgba(31,58,50,0.95), rgba(60,104,84,0.95));
+      color:#f6f4ef;
+      padding:16px;
+      display:flex;
+      align-items:center;
+      gap:14px;
+    }
+
+    .chat-header img {
+      width:48px;
+      height:48px;
+      border-radius:50%;
+      object-fit:cover;
+      border:2px solid rgba(255,255,255,0.65);
+    }
+
+    .chat-body {
+      padding:22px 22px 26px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      background:var(--surface);
+    }
+
+    .chat-bubble {
+      padding:12px 16px;
+      border-radius:18px;
+      max-width:78%;
+      font-size:0.96rem;
+      line-height:1.5;
+      opacity:0;
+      animation:bubble-in 0.45s ease-out forwards;
+    }
+
+    .chat-bubble.bot {
+      background:var(--bot-bg);
+      color:var(--txt);
+      align-self:flex-start;
+      border-bottom-left-radius:6px;
+    }
+
+    .chat-bubble.user {
+      background:var(--bosque);
+      color:#f6f4ef;
+      align-self:flex-end;
+      border-bottom-right-radius:6px;
+    }
+
+    .chat-bubble:nth-child(1){animation-delay:0.4s;}
+    .chat-bubble:nth-child(2){animation-delay:1.3s;}
+    .chat-bubble:nth-child(3){animation-delay:2.2s;}
+    .chat-bubble:nth-child(4){animation-delay:3.1s;}
+
+    @keyframes bubble-in {
+      from { opacity:0; transform:translateY(8px) scale(0.96); }
+      to { opacity:1; transform:translateY(0) scale(1); }
+    }
+
+    .hero-photo {
+      position:relative;
+      width:100%;
+      max-width:420px;
+      border-radius:26px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+
+    .hero-photo img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .hero-photo::after {
+      content:"";
+      position:absolute;
+      inset:18px;
+      border:1px solid rgba(199,177,122,0.65);
+      border-radius:20px;
+      pointer-events:none;
+    }
+
+    section.section-light { background:var(--surface); }
+    section.section-tint { background:var(--acento-suave); }
+
+    .section-inner {
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      gap:34px;
+    }
+
+    .section-inner > h2 {
+      font-family:"Playfair Display", serif;
+      font-size:2.6rem;
+      text-align:center;
+      color:var(--bosque);
+    }
+
+    .highlight-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+      gap:24px;
+    }
+
+    .highlight-card {
+      background:var(--surface);
+      padding:28px 26px;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      transition:transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .highlight-card:hover {
+      transform:translateY(-6px);
+      box-shadow:0 26px 48px rgba(16,38,29,0.2);
+    }
+
+    .highlight-card span {
+      font-size:1.1rem;
+      font-weight:600;
+      color:var(--bosque);
+    }
+
+    .experience-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+      gap:22px;
+    }
+
+    .experience-card {
+      background:var(--surface);
+      border-radius:var(--radius);
+      padding:24px;
+      display:flex;
+      gap:18px;
+      align-items:flex-start;
+      box-shadow:var(--shadow);
+      transition:transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .experience-card:hover {
+      transform:translateY(-6px);
+      box-shadow:0 24px 48px rgba(16,38,29,0.22);
+    }
+
+    .experience-icon {
+      width:54px;
+      height:54px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      background:rgba(31,58,50,0.12);
+      color:var(--bosque);
+      font-size:1.4rem;
+    }
+
+    .experience-card h3 {
+      font-size:1.15rem;
+      margin-bottom:8px;
+      color:var(--bosque);
+    }
+
+    .experience-card p { color:var(--txt-2); }
+
+    .terroir-inner {
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+      gap:32px;
+      align-items:center;
+    }
+
+    .terroir-copy {
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .terroir-copy p { color:var(--txt-2); }
+
+    .terroir-list {
+      list-style:none;
+      display:grid;
+      gap:14px;
+      margin-top:6px;
+    }
+
+    .terroir-list li {
+      background:var(--surface);
+      padding:16px 20px 16px 52px;
+      border-radius:var(--radius);
+      position:relative;
+      box-shadow:var(--shadow);
+      color:var(--txt-2);
+    }
+
+    .terroir-list li::before {
+      content:"";
+      position:absolute;
+      width:16px;
+      height:16px;
+      border-radius:50%;
+      background:var(--acento);
+      left:22px;
+      top:50%;
+      transform:translateY(-50%);
+      box-shadow:0 0 0 5px rgba(199,177,122,0.25);
+    }
+
+    .terroir-gallery {
+      display:grid;
+      gap:18px;
+    }
+
+    .terroir-gallery img,
+    .cellar-visual img {
+      width:100%;
+      height:230px;
+      object-fit:cover;
+      border-radius:24px;
+      box-shadow:var(--shadow);
+    }
+
+    .reservas-inner {
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+      gap:32px;
+      align-items:center;
+    }
+
+    .cellar-info {
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .cellar-info h3 {
+      font-size:1.3rem;
+      color:var(--bosque);
+    }
+
+    .cellar-info ul {
+      list-style:none;
+      display:grid;
+      gap:14px;
+      padding:0;
+    }
+
+    .cellar-info li {
+      background:var(--surface);
+      padding:16px 20px;
+      border-radius:var(--radius);
+      color:var(--txt-2);
+      box-shadow:var(--shadow);
+    }
+
+    .cellar-visual {
+      position:relative;
+      border-radius:28px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+
+    .cellar-visual img { height:100%; }
+
+    .cellar-visual::after {
+      content:"";
+      position:absolute;
+      inset:22px;
+      border:1px solid rgba(199,177,122,0.55);
+      border-radius:24px;
+      pointer-events:none;
+    }
+
+    .club-section {
+      background:linear-gradient(140deg, rgba(31,58,50,0.94), rgba(45,82,65,0.92));
+      color:#f6f4ef;
+    }
+
+    .club-inner {
+      max-width:1020px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));
+      gap:32px;
+      align-items:center;
+    }
+
+    .club-inner h2 {
+      font-family:"Playfair Display", serif;
+      font-size:2.4rem;
+    }
+
+    .club-perks {
+      list-style:none;
+      display:grid;
+      gap:16px;
+    }
+
+    .club-perks li {
+      background:rgba(255,255,255,0.12);
+      border:1px solid rgba(255,255,255,0.22);
+      border-radius:18px;
+      padding:16px 20px;
+    }
+
+    footer {
+      padding:34px 20px;
+      text-align:center;
+      color:var(--txt-2);
+      font-size:0.95rem;
+    }
+
+    .help-tag {
+      position:fixed;
+      right:140px;
+      bottom:70px;
+      background:var(--bosque);
+      color:#f6f4ef;
+      padding:14px 28px;
+      border-radius:22px;
+      font-weight:600;
+      box-shadow:var(--shadow);
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      transition:transform 0.3s ease;
+      animation:float 4s ease-in-out infinite;
+      z-index:9999;
+    }
+
+    .help-tag svg { width:22px; height:22px; }
+
+    .help-tag:hover { transform:translateY(-4px) scale(1.03); }
+
+    @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-6px);} }
+
+    @media (max-width:1040px) {
+      .hero-inner { grid-template-columns:1fr; text-align:center; }
+      .hero-copy { align-items:center; }
+      .hero-copy .eyebrow { align-self:center; }
+      .hero-copy p { max-width:640px; }
+      .hero-stats { justify-content:center; }
+      .hero-media { align-items:center; }
+      .hero-photo::after { inset:16px; }
+    }
+
+    @media (max-width:680px) {
+      section { padding:64px 18px; }
+      .hero-inner { padding:90px 18px 80px; }
+      .hero-copy h1 { font-size:2.6rem; }
+      .chat-preview, .hero-photo { max-width:100%; }
+      .help-tag { right:24px; bottom:110px; }
+      .help-tag span { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <button class="menu-toggle" aria-label="Menú"><span></span><span></span><span></span></button>
+    <div class="logo-wrap">
+      <div class="logo-mark">
+        <img src="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" alt="Cuatro Fincas" onerror="this.src=window.__FALLBACK_LOGO" />
+      </div>
+      <span class="logo-title">Cuatro Fincas</span>
+    </div>
+    <nav>
+      <a href="#experiencias">Experiencias</a>
+      <a href="#reservas">Reservas</a>
+      <a href="#club">Club Winrey</a>
+      <a href="#contacto">Contacto</a>
+    </nav>
+    <button id="themeToggle" class="theme-toggle" aria-label="Cambiar tema">☾</button>
+  </header>
+
+  <section class="hero" id="inicio">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <span class="eyebrow">Bodega Cuatro Fincas · Winrey</span>
+        <h1>Tradición y terruño en cada copa</h1>
+        <p>Un asistente que combina la calidez mendocina con automatizaciones inteligentes. Winrey guía degustaciones, agenda visitas privadas y comparte historias de cada finca al instante.</p>
+        <div class="hero-stats">
+          <div class="stat">
+            <strong>24/7</strong>
+            Atención disponible todo el día para enoturistas y distribuidores.
+          </div>
+          <div class="stat">
+            <strong>+30</strong>
+            Etiquetas con notas de cata detalladas y sugerencias de maridaje.
+          </div>
+        </div>
+        <div class="cta-group">
+          <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Probar el asistente</a>
+          <a class="cta secondary" href="#reservas">Reservar degustación</a>
+        </div>
+      </div>
+      <div class="hero-media">
+        <div class="chat-preview" aria-label="Vista previa del asistente Winrey">
+          <div class="chat-header">
+            <img src="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" alt="Asistente Cuatro Fincas" onerror="this.src=window.__FALLBACK_LOGO" />
+            <div>
+              <strong>Winrey</strong>
+              <small>Sommelier digital de la bodega</small>
+            </div>
+          </div>
+          <div class="chat-body">
+            <div class="chat-bubble bot">¡Hola! Bienvenido a Cuatro Fincas. ¿Buscás una recomendación o agendar una visita?</div>
+            <div class="chat-bubble user">Me interesa una degustación con foco en Malbecs de guarda.</div>
+            <div class="chat-bubble bot">Excelente elección. Tengo cupo este sábado a las 17:00 con maridaje de quesos artesanales. ¿Reservo tu lugar?</div>
+            <div class="chat-bubble user">Sí, por favor. Somos cuatro personas.</div>
+          </div>
+        </div>
+        <figure class="hero-photo" aria-label="Viñedos de Cuatro Fincas">
+          <img src="https://images.unsplash.com/photo-1514361892635-6e122620e4c2?auto=format&fit=crop&w=900&q=80" alt="Terraza de degustación con vista al viñedo" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20380%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%22100%25%22%20y2%3D%22100%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231f3a32%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23c7b17a%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22600%22%20height%3D%22380%22%20fill%3D%22url(%23g)%22/%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2254%25%22%20fill%3D%22%23f6f4ef%22%20font-family%3D%22Poppins,Arial,sans-serif%22%20font-size%3D%2248%22%20text-anchor%3D%22middle%22%3ECuatro%20Fincas%3C/text%3E%3C/svg%3E';" />
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-light" id="experiencias">
+    <div class="section-inner">
+      <h2>Experiencias que enamoran el paladar</h2>
+      <div class="highlight-grid">
+        <div class="highlight-card">
+          <span>Hospitalidad Winrey</span>
+          <p>El asistente guía recorridos por los cuatro viñedos, terraza gastronómica y sala de barricas subterránea inspirada en Salvador Patti.</p>
+        </div>
+        <div class="highlight-card">
+          <span>Contenido multimedia</span>
+          <p>Compartí fichas técnicas, videos de cosecha y recetas de fuegos para maridar cada etiqueta.</p>
+        </div>
+        <div class="highlight-card">
+          <span>Integraciones fluidas</span>
+          <p>Disponible en la web de la bodega, WhatsApp empresarial y kioscos de visitas sin fricciones.</p>
+        </div>
+        <div class="highlight-card">
+          <span>Seguimiento en vivo</span>
+          <p>Confirmaciones automáticas, recordatorios y registro de asistentes frecuentes para beneficios exclusivos.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tint">
+    <div class="section-inner">
+      <h2>Servicios gestionados por Winrey</h2>
+      <div class="experience-grid">
+        <div class="experience-card">
+          <div class="experience-icon">🍷</div>
+          <div>
+            <h3>Degustaciones curadas</h3>
+            <p>Coordina horarios, preferencias de varietales y opciones de maridaje para grupos privados o eventos corporativos.</p>
+          </div>
+        </div>
+        <div class="experience-card">
+          <div class="experience-icon">🍇</div>
+          <div>
+            <h3>Recorridos de vendimia</h3>
+            <p>Describe cada etapa del viñedo, condiciones climáticas y microterroirs que definen a Cuatro Fincas.</p>
+          </div>
+        </div>
+        <div class="experience-card">
+          <div class="experience-icon">📦</div>
+          <div>
+            <h3>Ventas directas</h3>
+            <p>Gestiona pedidos mayoristas o retail, calcula envíos y comparte promociones vigentes sin salir del chat.</p>
+          </div>
+        </div>
+        <div class="experience-card">
+          <div class="experience-icon">🤝</div>
+          <div>
+            <h3>Soporte a distribuidores</h3>
+            <p>Entrega fichas técnicas, estados de pedido y sugerencias de portfolio personalizadas.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-light" id="reservas">
+    <div class="reservas-inner">
+      <div class="cellar-info">
+        <h3>Reservas inolvidables en la bodega</h3>
+        <p>Winrey reúne disponibilidad, preferencias y recordatorios en un solo canal. Desde una cata al atardecer hasta un evento gastronómico con fuegos, todo se confirma en segundos.</p>
+        <ul>
+          <li>Agenda inteligente que sincroniza terrazas, cava subterránea y sala sensorial.</li>
+          <li>Confirmaciones por WhatsApp y correo con itinerarios y recomendaciones de transporte.</li>
+          <li>Registro de visitantes frecuentes para beneficios del club y lanzamientos privados.</li>
+        </ul>
+        <div class="cta-group">
+          <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Reservar con Winrey</a>
+          <a class="cta secondary" href="#contacto">Hablar con el equipo</a>
+        </div>
+      </div>
+      <figure class="cellar-visual" aria-label="Sala de barricas de Cuatro Fincas">
+        <img src="https://images.unsplash.com/photo-1502920917128-1aa500764b4d?auto=format&fit=crop&w=900&q=80" alt="Sala de barricas iluminada" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20viewBox%3D%220%200%20600%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%22100%25%22%20y2%3D%22100%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231f3a32%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23c7b17a%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22600%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22/%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2254%25%22%20fill%3D%22%23f6f4ef%22%20font-family%3D%22Poppins,Arial,sans-serif%22%20font-size%3D%2248%22%20text-anchor%3D%22middle%22%3ECuatro%20Fincas%3C/text%3E%3C/svg%3E';" />
+      </figure>
+    </div>
+  </section>
+
+  <section class="section-tint" id="club">
+    <div class="club-inner">
+      <div>
+        <h2>Club Winrey</h2>
+        <p>Una membresía pensada para quienes buscan vinos de autor y experiencias personalizadas. Winrey mantiene a cada socio informado sobre lanzamientos, cupos exclusivos y beneficios gastronómicos.</p>
+        <div class="cta-group" style="margin-top:18px;">
+          <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Sumarme al club</a>
+        </div>
+      </div>
+      <ul class="club-perks">
+        <li>Selecciones trimestrales con catas guiadas en vivo.</li>
+        <li>Acceso prioritario a noches de fuegos y maridajes de autor.</li>
+        <li>Biblioteca digital con notas de cata, videos y recetas de temporada.</li>
+        <li>Gestión directa de beneficios y upgrade desde el asistente.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section-light" id="contacto">
+    <div class="terroir-inner">
+      <div class="terroir-copy">
+        <h2 style="font-family:'Playfair Display', serif; font-size:2.4rem; color:var(--bosque);">Un terruño que cuenta historias</h2>
+        <p>Los viñedos de Cuatro Fincas abrazan la tradición mendocina con prácticas sustentables, riego de precisión y cosecha nocturna para preservar aromas. Winrey comparte cada detalle para que tu visita se convierta en una experiencia inolvidable.</p>
+        <ul class="terroir-list">
+          <li>Mapas interactivos del valle y microparcelas gestionados desde el chat.</li>
+          <li>Relatos de cosecha, notas de fermentación y perfiles de enólogos disponibles al instante.</li>
+          <li>Recomendaciones de maridaje con cocina de fuegos inspirada en Salvador Patti.</li>
+        </ul>
+      </div>
+      <div class="terroir-gallery" aria-label="Galería inspirada en Cuatro Fincas">
+        <img src="https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=800&q=80" alt="Camino entre viñedos" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20viewBox%3D%220%200%20580%20380%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%25%22%20y1%3D%220%25%22%20x2%3D%22100%25%22%20y2%3D%22100%25%22%3E%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%231f3a32%22/%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23c7b17a%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22580%22%20height%3D%22380%22%20fill%3D%22url(%23g)%22/%3E%3C/svg%3E';" />
+        <img src="https://images.unsplash.com/photo-1523365280197-f1783db9fe62?auto=format&fit=crop&w=800&q=80" alt="Detalle de cata con copas de vino" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20viewBox%3D%220%200%20580%20380%22%3E%3Crect%20width%3D%22580%22%20height%3D%22380%22%20fill%3D%22%231f3a32%22/%3E%3C/svg%3E';" />
+        <img src="https://images.unsplash.com/photo-1444723121867-7a241cacace9?auto=format&fit=crop&w=800&q=80" alt="Barricas alineadas" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20viewBox%3D%220%200%20580%20380%22%3E%3Crect%20width%3D%22580%22%20height%3D%22380%22%20fill%3D%22%231f3a32%22/%3E%3C/svg%3E';" />
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    © Cuatro Fincas · Winrey · Chatboc.ar
+  </footer>
+
+  <div class="help-tag" onclick="window.postMessage({type:'chatboc:open'}, '*')">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+    <span class="help-text">¿Necesitás ayuda?</span>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.__FALLBACK_LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><rect width="240" height="240" rx="32" fill="#1f3a32"/><text x="50%" y="56%" text-anchor="middle" font-family="Playfair Display" font-size="88" fill="#c7b17a" font-weight="700">CF</text></svg>`);
+
+      const OWNER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyMiwiZXhwIjoxNzU5NTA2ODQxfQ.cRByDN2t7sA220yPk40AJ9k0iqkrS3BgzsedHZDMsPA';
+      let currentScript = null;
+
+      const toggle = document.querySelector('.menu-toggle');
+      const nav = document.querySelector('nav');
+      if (toggle && nav) {
+        toggle.addEventListener('click', () => nav.classList.toggle('show'));
+      }
+
+      const themeToggle = document.getElementById('themeToggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          document.body.classList.toggle('dark-mode');
+          themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀' : '☾';
+          injectWidget();
+        });
+      }
+
+      async function clearCaches() {
+        try {
+          Object.keys(localStorage).forEach(key => { if (key.includes('chatboc')) localStorage.removeItem(key); });
+          Object.keys(sessionStorage).forEach(key => { if (key.includes('chatboc')) sessionStorage.removeItem(key); });
+          if (indexedDB && indexedDB.databases) {
+            const dbs = await indexedDB.databases();
+            dbs.forEach(db => { if (db.name && db.name.includes('chatboc')) indexedDB.deleteDatabase(db.name); });
+          }
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            regs.forEach(r => r.unregister());
+          }
+        } catch (err) {
+          console.warn('No se pudo limpiar la caché del widget', err);
+        }
+      }
+
+      async function injectWidget() {
+        if (currentScript) currentScript.remove();
+        if (window.chatbocDestroyWidget) {
+          window.chatbocDestroyWidget(OWNER_TOKEN);
+        }
+
+        await clearCaches();
+
+        const isMobile = window.matchMedia('(max-width:768px)').matches;
+        const launcherSize = isMobile ? '88px' : '120px';
+        const theme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+
+        const script = document.createElement('script');
+        script.src = 'https://chatboc.ar/widget.js?v=' + Date.now();
+        script.async = true;
+        script.setAttribute('data-owner-token', OWNER_TOKEN);
+        script.setAttribute('data-api-base', 'https://chatboc.ar');
+        script.setAttribute('data-default-open', 'false');
+        script.setAttribute('data-width', '460px');
+        script.setAttribute('data-height', '680px');
+        script.setAttribute('data-closed-width', launcherSize);
+        script.setAttribute('data-closed-height', launcherSize);
+        script.setAttribute('data-bottom', '20px');
+        script.setAttribute('data-right', '20px');
+        script.setAttribute('data-endpoint', 'pyme');
+        script.setAttribute('data-primary-color', '#1f3a32');
+        script.setAttribute('data-accent-color', '#c7b17a');
+        script.setAttribute('data-theme', theme);
+        script.setAttribute('data-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png');
+        script.setAttribute('data-header-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png');
+        script.setAttribute('data-welcome-title', 'Hola, soy Winrey');
+        script.setAttribute('data-welcome-subtitle', 'Tu asistente de Cuatro Fincas');
+        script.setAttribute('data-allow-attachments', 'true');
+        script.setAttribute('data-allow-location', 'true');
+        script.setAttribute('data-allow-audio', 'true');
+
+        script.onload = () => enhanceLauncher();
+        script.onerror = () => console.error('No se pudo cargar el widget de Chatboc');
+
+        document.body.appendChild(script);
+        currentScript = script;
+      }
+
+      function enhanceLauncher() {
+        const launcher = document.querySelector('[id^="chatboc-launcher"],[class*="chatboc-launcher"]');
+        if (!launcher) {
+          setTimeout(enhanceLauncher, 400);
+          return;
+        }
+        launcher.style.transition = 'transform 0.35s ease, box-shadow 0.35s ease';
+        launcher.style.boxShadow = '0 0 0 3px rgba(199,177,122,0.45)';
+        launcher.addEventListener('mouseenter', () => launcher.style.transform = 'scale(1.08) rotate(3deg)');
+        launcher.addEventListener('mouseleave', () => launcher.style.transform = 'scale(1) rotate(0deg)');
+        launcher.addEventListener('mousedown', () => launcher.style.transform = 'scale(0.94) rotate(-3deg)');
+        launcher.addEventListener('mouseup', () => launcher.style.transform = 'scale(1.06) rotate(2deg)');
+      }
+
+      const helpTag = document.querySelector('.help-tag');
+      const phrases = [
+        '¿Necesitás ayuda?',
+        '¿Reservamos tu cata?',
+        '¿Querés conocer un vino?',
+        '¿Coordinar visita privada?'
+      ];
+      if (helpTag) {
+        const textEl = helpTag.querySelector('.help-text');
+        let index = 0;
+        setInterval(() => {
+          textEl.style.opacity = 0;
+          setTimeout(() => {
+            index = (index + 1) % phrases.length;
+            textEl.textContent = phrases[index];
+            textEl.style.opacity = 1;
+          }, 250);
+        }, 4200);
+      }
+
+      injectWidget();
+    });
+  </script>
+</body>
+</html>
