@@ -12,16 +12,21 @@ import {
   normalizeTerritorialGeocodingQueue,
   normalizeTerritorialGeocodingPreviewQueue,
   normalizeTerritorialGeocodingSyncResponse,
+  proposeTerritorialManualLocation,
   reviewTerritorialGeocodingJob,
   resolveTerritorialGeocodingJob,
   syncTerritorialGeocodingQueue,
   TerritorialGeocodingContractError,
 } from './territorialGeocodingApi';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), fetch: vi.fn() }));
 const PROPOSAL_DIGEST = 'a'.repeat(64);
 
 vi.mock('@/api/v2/client', () => ({ panelApi: { get: mocks.get, post: mocks.post } }));
+vi.mock('@/utils/api', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/utils/api')>(),
+  apiFetch: mocks.fetch,
+}));
 
 const reviewReceipt = {
   id: 72,
@@ -216,10 +221,93 @@ const executionPayload = (action: 'resolve' | 'apply') => ({
   },
 });
 
+const manualPath = '/api/v2/analytics/operations/geocoding-queue/geo-job-419/manual-location';
+const manualAction = {
+  href: manualPath, enabled: true, confirmation_required: true, idempotency_header: 'Idempotency-Key', mutates_ticket: false,
+};
+const manualRequest = () => ({
+  tenantSlug: 'junin', tenantId: '4', jobId: 'geo-job-419', lat: -33.05, lng: -68.47,
+  confirmed: true as const, expectedAttemptCount: 2, idempotencyKey: 'geo-manual:synthetic-0001', isCurrent: () => true,
+});
+const manualReceipt = () => {
+  const receipt = executionPayload('resolve');
+  return {
+    ...receipt,
+    action: 'manual_location',
+    status: 'needs_review',
+    reason_code: 'manual_location_proposed',
+    proposal_version: { attempt_id: 'attempt-manual-3', attempt_number: 3 },
+    proposal: {
+      lat: -33.05, lng: -68.47, coordinate_reference: 'WGS84', location_type: 'MANUAL',
+      provider_reference_present: false,
+      provenance: { source: 'manual_operator', provider: null, source_address_retained: false },
+    },
+    execution: { ...receipt.execution, provider_call_performed: false },
+  };
+};
+
 describe('territorialGeocodingApi', () => {
   beforeEach(() => {
     mocks.get.mockReset();
     mocks.post.mockReset();
+    mocks.fetch.mockReset();
+  });
+
+  it('opens manual proposals only for the exact job, flags and integer version', () => {
+    const withAction = (overrides: Record<string, unknown> = {}, attemptCount: unknown = 1) => {
+      const queue = queuePayload();
+      return {
+        ...queue,
+        items: [{ ...item, attempt_count: attemptCount, actions: { ...item.actions, manual_location: { ...manualAction, ...overrides } } }],
+      };
+    };
+    expect(normalizeTerritorialGeocodingQueue(withAction()).items[0].manualLocationAction).toEqual({
+      href: manualPath, expectedAttemptCount: 1,
+    });
+    for (const wrong of [
+      { href: manualPath.replace('419', '420') }, { confirmation_required: false },
+      { idempotency_header: 'other' }, { mutates_ticket: true }, { enabled: false },
+    ]) expect(normalizeTerritorialGeocodingQueue(withAction(wrong)).items[0].manualLocationAction).toBeUndefined();
+    for (const count of ['1', -1, 1.5, null]) {
+      expect(normalizeTerritorialGeocodingQueue(withAction({}, count)).items[0].manualLocationAction).toBeUndefined();
+    }
+    expect(normalizeTerritorialGeocodingQueue(queuePayload()).items[0].manualLocationAction).toBeUndefined();
+  });
+
+  it('uses one scoped POST and requires the persisted manual point and version in the receipt', async () => {
+    const input = manualRequest();
+    mocks.fetch.mockResolvedValue(manualReceipt());
+    await expect(proposeTerritorialManualLocation(input)).resolves.toMatchObject({
+      tenantId: '4', jobId: 'geo-job-419', action: 'manual_location', status: 'needs_review',
+      proposal: { lat: -33.05, lng: -68.47, coordinateReference: 'WGS84', provenance: { source: 'manual_operator' } },
+      execution: { providerCallPerformed: false, coordinateWritePerformed: false, coordinatesApplied: false, writePerformed: false },
+    });
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(manualPath, expect.objectContaining({
+      method: 'POST', tenantSlug: 'junin', isCurrent: input.isCurrent, persistTenantSlug: false,
+      singleAttempt: true, allowStartupRecovery: false,
+      body: { lat: -33.05, lng: -68.47, expected_attempt_count: 2, confirmed: true },
+      headers: { 'X-Tenant-Slug': 'junin', 'Idempotency-Key': input.idempotencyKey },
+    }));
+  });
+
+  it.each([
+    ['different organization', { tenant_id: 5 }],
+    ['different case', { job_id: 'geo-job-420' }],
+    ['different version', { proposal_version: { attempt_id: 'attempt-manual-3', attempt_number: 4 } }],
+    ['different coordinate', { proposal: { ...manualReceipt().proposal, lat: -33.06 } }],
+    ['provider called', { execution: { ...manualReceipt().execution, provider_call_performed: true } }],
+    ['ticket changed', { execution: { ...manualReceipt().execution, coordinate_write_performed: true } }],
+  ])('rejects a manual ACK for %s without retrying', async (_label, changed) => {
+    mocks.fetch.mockResolvedValue({ ...manualReceipt(), ...changed });
+    await expect(proposeTerritorialManualLocation(manualRequest())).rejects.toBeInstanceOf(TerritorialGeocodingContractError);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid and retired proposals before dispatch', async () => {
+    for (const changed of [{ lat: 91 }, { lng: Infinity }, { expectedAttemptCount: 0.5 }, { isCurrent: () => false }]) {
+      await expect(proposeTerritorialManualLocation({ ...manualRequest(), ...changed })).rejects.toBeInstanceOf(TerritorialGeocodingContractError);
+    }
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
   it('normalizes the privacy-safe list and preserves typed ticket identity and review capabilities', () => {

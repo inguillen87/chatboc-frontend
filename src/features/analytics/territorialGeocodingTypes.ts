@@ -61,6 +61,11 @@ export interface TerritorialGeocodingExecutionAction {
   confirmationRequired: boolean;
 }
 
+export interface TerritorialManualLocationAction {
+  href: string;
+  expectedAttemptCount: number;
+}
+
 export interface TerritorialGeocodingItem {
   id: string;
   ticketId: string | null;
@@ -82,6 +87,7 @@ export interface TerritorialGeocodingItem {
   reviewAction: TerritorialGeocodingReviewAction;
   resolveAction: TerritorialGeocodingExecutionAction;
   applyAction: TerritorialGeocodingExecutionAction;
+  manualLocationAction?: TerritorialManualLocationAction;
 }
 
 export interface TerritorialGeocodingQueue {
@@ -244,7 +250,7 @@ export interface TerritorialGeocodingExecutionResponse {
   tenantId: string;
   tenantSlug: string;
   jobId: string;
-  action: 'resolve' | 'apply';
+  action: 'resolve' | 'apply' | 'manual_location';
   status: string;
   reasonCode: string;
   proposalDigest: string;
@@ -264,6 +270,15 @@ export interface TerritorialGeocodingExecutionResponse {
 export interface TerritorialGeocodingExecutionRequest { tenantSlug: string; jobId: string; idempotencyKey: string }
 
 export interface TerritorialGeocodingApplyRequest extends TerritorialGeocodingExecutionRequest, TerritorialProposalExpectation {}
+
+export interface TerritorialManualLocationRequest extends TerritorialGeocodingExecutionRequest {
+  tenantId: string;
+  lat: number;
+  lng: number;
+  expectedAttemptCount: number;
+  confirmed: true;
+  isCurrent: () => boolean;
+}
 
 export interface TerritorialGeocodingPreviewItem {
   id: string;

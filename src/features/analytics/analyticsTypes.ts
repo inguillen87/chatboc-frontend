@@ -7,7 +7,22 @@ export interface AnalyticsOverview {
   nps?: number;
   handoff_rate?: number;
   ticket_satisfaction?: TicketSatisfactionOverview;
+  inbox_first_public_reply?: InboxFirstPublicReplyOverview;
+  municipal_inbox_handoff?: MunicipalInboxHandoffOverview;
 }
+
+export type InboxFirstPublicReplyOverview = {
+  contract_version: 'analytics.inbox_first_public_reply.v1';
+  coverage: 'durable_inbox_replies_only';
+} & (
+  | { state: 'observed'; average_minutes: number; cohort_cases: number; sample_cases: number }
+  | { state: 'unavailable'; average_minutes: null; cohort_cases: number; sample_cases: 0 }
+  | { state: 'unavailable'; average_minutes: null; cohort_cases: null; sample_cases: null }
+);
+
+export type MunicipalInboxHandoffOverview =
+  | { state: 'observed'; request_count: number; accepted_count: number }
+  | { state: 'unavailable'; request_count: null; accepted_count: null };
 
 export type TicketSatisfactionOverview = {
   contract_version: 'analytics.ticket_satisfaction.v1';

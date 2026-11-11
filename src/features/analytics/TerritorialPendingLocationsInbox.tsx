@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 
 import { getOperationsHeatmapV2 } from './analyticsApi';
+import { TerritorialManualLocationProposal } from './TerritorialManualLocationProposal';
 import {
   adaptTerritorialPreviewQueue,
   adaptTerritorialAdminQueue,
@@ -43,6 +44,7 @@ import {
 } from './territorialPendingLocations';
 import {
   applyTerritorialGeocodingJob,
+  TerritorialGeocodingContractError,
   createTerritorialExecutionIdempotencyKey,
   createTerritorialReviewIdempotencyKey,
   createTerritorialSyncIdempotencyKey,
@@ -287,6 +289,7 @@ const TerritorialAdminDetail = ({
   resolving,
   applying,
   executionError,
+  manualLocation,
 }: {
   candidate: PendingLocationCandidate | null;
   item: TerritorialGeocodingItem | null;
@@ -303,10 +306,13 @@ const TerritorialAdminDetail = ({
   resolving: boolean;
   applying: boolean;
   executionError: unknown;
+  manualLocation?: ReactNode;
 }) => {
   if (!candidate || !item) return <PendingLocationDetail candidate={null} />;
   const proposal = detail?.proposal;
-  const reviewAction = item.reviewAction;
+  const manualProposal = proposal?.provenance?.source === 'manual_operator';
+  const decisionItem = manualProposal && detail ? detail.item : item;
+  const reviewAction = decisionItem.reviewAction;
   const accessDenied = isTerritorialApiStatus(detailError, 403);
   const proposalVersionAvailable = Boolean(detail?.proposalDigest && detail.proposalVersion);
 
@@ -315,12 +321,12 @@ const TerritorialAdminDetail = ({
       <header className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Expediente territorial autorizado</p>
-          <h3 id="territorial-admin-detail-title" className="mt-1 truncate text-lg font-semibold">
+          <h3 id="territorial-admin-detail-title" tabIndex={-1} className="mt-1 truncate text-lg font-semibold">
             {candidate.ticketId ? `Reclamo #${candidate.ticketId}` : `Trabajo territorial ${item.id}`}
           </h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{candidate.category}</Badge>
-            <Badge variant="outline">{humanizeCode(item.reviewState)}</Badge>
+            <Badge variant="outline">{humanizeCode(decisionItem.reviewState)}</Badge>
             <Badge variant="outline">{humanizeCode(item.quality.state)}</Badge>
           </div>
         </div>
@@ -373,6 +379,13 @@ const TerritorialAdminDetail = ({
                 <h4 className="text-sm font-semibold">Propuesta geográfica</h4>
                 <Badge variant="outline"><LockKeyhole className="mr-1 h-3.5 w-3.5" /> Vista admin</Badge>
               </div>
+              {manualProposal ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Origen: propuesta manual
+                  {detail.item.reviewState === 'approved' ? ' · Aprobada'
+                    : detail.item.reviewState === 'rejected' ? ' · Rechazada' : ' · Pendiente de revisión'}
+                </p>
+              ) : null}
               <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Latitud</dt><dd className="mt-1 font-mono font-semibold">{formatCoordinate(proposal?.lat ?? null)}</dd></div>
                 <div className="rounded-md border bg-background p-2"><dt className="text-xs text-muted-foreground">Longitud</dt><dd className="mt-1 font-mono font-semibold">{formatCoordinate(proposal?.lng ?? null)}</dd></div>
@@ -447,14 +460,15 @@ const TerritorialAdminDetail = ({
                   type="button"
                   size="sm"
                   className="gap-2"
-                  disabled={!item.applyAction.enabled || !item.applyAction.href || !proposalVersionAvailable || resolving || applying}
-                  title={humanizeCode(item.applyAction.reasonCode)}
+                  disabled={!decisionItem.applyAction.enabled || !decisionItem.applyAction.href || !proposalVersionAvailable || resolving || applying}
+                  title={humanizeCode(decisionItem.applyAction.reasonCode)}
                   onClick={onApply}
                 >
                   {applying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   Aplicar coordenadas
                 </Button>
               </div>
+              {manualLocation}
               {executionError ? (
                 <div role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
                   <p className="font-semibold">La operación territorial quedó bloqueada</p>
@@ -773,6 +787,12 @@ export function TerritorialPendingLocationsInbox({
     retry: 0,
     staleTime: 15_000,
   });
+  const currentDetail = adminQueue?.tenantId && detailQuery.data?.tenantId === adminQueue.tenantId
+    && detailQuery.data.item.id === selectedAdminItem?.id ? detailQuery.data : undefined;
+  const detailError = detailQuery.error ?? (detailQuery.data && !currentDetail
+    ? new TerritorialGeocodingContractError('territorial_geocoding_detail_identity_invalid') : null);
+  const decisionItem = currentDetail?.proposal.provenance?.source === 'manual_operator'
+    ? currentDetail.item : selectedAdminItem;
   const attemptsQuery = useQuery({
     queryKey: ['territorial-geocoding-attempts', tenantSlug, selectedAdminItem?.id],
     queryFn: () => getTerritorialGeocodingAttempts(selectedAdminItem!.id, tenantSlug!),
@@ -827,18 +847,18 @@ export function TerritorialPendingLocationsInbox({
   });
 
   const openReview = (decision: TerritorialReviewDecision) => {
-    const proposalVersion = detailQuery.data?.proposalVersion;
-    if (!selectedAdminItem || !proposalVersion) return;
+    const proposalVersion = currentDetail?.proposalVersion;
+    if (!decisionItem || !currentDetail || !proposalVersion) return;
     const permitted = decision === 'approved'
-      ? selectedAdminItem.reviewAction.canApprove
-      : selectedAdminItem.reviewAction.canReject;
+      ? decisionItem.reviewAction.canApprove
+      : decisionItem.reviewAction.canReject;
     if (!permitted) return;
     setReviewDraft({
-      jobId: selectedAdminItem.id,
+      jobId: decisionItem.id,
       decision,
       reasonCode: '',
-      idempotencyKey: createTerritorialReviewIdempotencyKey(selectedAdminItem.id),
-      expectedProposalDigest: detailQuery.data!.proposalDigest,
+      idempotencyKey: createTerritorialReviewIdempotencyKey(decisionItem.id),
+      expectedProposalDigest: currentDetail.proposalDigest,
       expectedAttemptId: proposalVersion.attemptId,
       expectedAttemptNumber: proposalVersion.attemptNumber,
       confirmed: false,
@@ -891,13 +911,13 @@ export function TerritorialPendingLocationsInbox({
   };
 
   const openApply = () => {
-    const proposalVersion = detailQuery.data?.proposalVersion;
-    if (!selectedAdminItem?.applyAction.enabled || !selectedAdminItem.applyAction.href || !proposalVersion) return;
+    const proposalVersion = currentDetail?.proposalVersion;
+    if (!decisionItem?.applyAction.enabled || !decisionItem.applyAction.href || !currentDetail || !proposalVersion) return;
     applyMutation.reset();
     setApplyDraft({
-      jobId: selectedAdminItem.id,
-      idempotencyKey: createTerritorialExecutionIdempotencyKey('apply', selectedAdminItem.id),
-      expectedProposalDigest: detailQuery.data!.proposalDigest,
+      jobId: decisionItem.id,
+      idempotencyKey: createTerritorialExecutionIdempotencyKey('apply', decisionItem.id),
+      expectedProposalDigest: currentDetail.proposalDigest,
       expectedAttemptId: proposalVersion.attemptId,
       expectedAttemptNumber: proposalVersion.attemptNumber,
       confirmed: false,
@@ -1153,10 +1173,10 @@ export function TerritorialPendingLocationsInbox({
                 <TerritorialAdminDetail
                   candidate={selectedCandidate}
                   item={selectedAdminItem}
-                  detail={detailQuery.data}
-                  attempts={attemptsQuery.data?.attempts ?? detailQuery.data?.attempts ?? []}
+                  detail={currentDetail}
+                  attempts={attemptsQuery.data?.attempts ?? currentDetail?.attempts ?? []}
                   loading={detailQuery.isLoading || attemptsQuery.isLoading}
-                  detailError={detailQuery.error}
+                  detailError={detailError}
                   attemptsError={attemptsQuery.error}
                   onReview={openReview}
                   onResolve={() => resolveSelected(false)}
@@ -1169,6 +1189,16 @@ export function TerritorialPendingLocationsInbox({
                   resolving={resolveMutation.isPending}
                   applying={applyMutation.isPending}
                   executionError={resolveMutation.variables?.jobId === selectedAdminItem.id ? resolveMutation.error : null}
+                  manualLocation={tenantSlug && currentDetail ? (
+                      <TerritorialManualLocationProposal
+                        tenantSlug={tenantSlug}
+                        tenantId={currentDetail.tenantId}
+                        jobId={selectedAdminItem.id}
+                        action={currentDetail.item.manualLocationAction}
+                        disabled={resolveMutation.isPending || applyMutation.isPending || reviewMutation.isPending}
+                        onAccepted={() => invalidateTerritorialState(selectedAdminItem.id, false)}
+                      />
+                    ) : null}
                 />
               ) : (
                 <PendingLocationDetail candidate={selectedCandidate} />
@@ -1179,7 +1209,7 @@ export function TerritorialPendingLocationsInbox({
       )}
       <TerritorialReviewDialog
         draft={reviewDraft}
-        item={selectedAdminItem}
+        item={decisionItem}
         submitting={reviewMutation.isPending}
         error={reviewMutation.error}
         onChange={setReviewDraft}
