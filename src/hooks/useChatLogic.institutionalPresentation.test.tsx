@@ -18,6 +18,41 @@ beforeEach(()=>{mocks.fetch.mockReset();window.localStorage.clear();window.sessi
 afterEach(cleanup);
 
 describe('local bootstrap presentation and response correlation',()=>{
+ it('keeps source navigation as metadata without initial-menu authority or remote hints',async()=>{
+  const w=published();mocks.fetch.mockResolvedValueOnce(w);
+  const hook=renderHook(()=>useChatLogic(options())),respond=vi.fn();
+  await act(async()=>{await hook.result.current.initializeConversation({force:true});});
+  const sourceReply={id:'source-navigation-response',fuente:'institutional_knowledge_sources',
+   knowledge_tenant:{id:w.tenant.id,slug:w.tenant.slug},context_revision:w.revision,
+   knowledge_sources:w.knowledge!.sources,message_body:'Fuentes disponibles para esta consulta.',
+   knowledge_ui:{sources:w.ui.sources,source_details:w.ui.source_details,large_text:w.ui.large_text},
+   initialMenu:institutionalInitialMenuContext(w,w.tenant.slug)};
+  mocks.fetch.mockResolvedValueOnce(sourceReply);
+  await act(async()=>{await hook.result.current.handleSend('Ver fuentes',{onInstitutionalResponse:respond});});
+  const last=hook.result.current.messages.at(-1)!;
+  expect(last.id).toBe('source-navigation-response');
+  expect(last.institutional).toMatchObject({kind:'source_navigation',nodes:[],sources:w.knowledge!.sources});
+  expect(last.institutional?.initialMenu).toBeUndefined();
+  expect(last.institutional?.audioReading).toBeUndefined();
+  expect(last.botones??[]).toEqual([]);
+  expect(respond).toHaveBeenCalledExactlyOnceWith(last.id);
+ });
+ it('does not revive a previous numeric menu after a source-navigation response',async()=>{
+  const w=published();mocks.fetch.mockResolvedValueOnce(w);
+  const hook=renderHook(()=>useChatLogic(options()));
+  await act(async()=>{await hook.result.current.initializeConversation({force:true});});
+  mocks.fetch.mockResolvedValueOnce({id:'source-catalog',fuente:'institutional_knowledge_sources',
+   knowledge_tenant:{id:w.tenant.id,slug:w.tenant.slug},context_revision:w.revision,
+   knowledge_sources:w.knowledge!.sources,message_body:'Fuentes disponibles para esta consulta.',
+   knowledge_ui:{sources:w.ui.sources,source_details:w.ui.source_details,large_text:w.ui.large_text}});
+  await act(async()=>{await hook.result.current.handleSend('Ver fuentes');});
+  mocks.fetch.mockResolvedValueOnce({message_body:'Respuesta de control sintética.'});
+  await act(async()=>{await hook.result.current.handleSend({text:'1',source:'input'});});
+  expect(mocks.fetch).toHaveBeenCalledTimes(3);
+  const request=mocks.fetch.mock.calls.at(-1)![1];
+  expect(request.body).toMatchObject({pregunta:'1',tenant_slug:w.tenant.slug});
+  expect(request.body.action).toBeUndefined();expect(request.body.action_id).toBeUndefined();
+ });
  it('marks only the validated canonical bootstrap, without changing the public GET',async()=>{
   const value=published();mocks.fetch.mockResolvedValueOnce(value);
   const hook=renderHook(()=>useChatLogic(options()));

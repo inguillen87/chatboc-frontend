@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import type {SendPayload} from '@/types/chat';
-import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,type InstitutionalChatMessage as InstitutionalMessage} from '@/features/chat/institutionalChatMessage';
+import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,isInstitutionalSourceNavigationMessage,type InstitutionalChatMessage as InstitutionalMessage,type InstitutionalCanonicalChatMessage as CanonicalMessage,type InstitutionalSourceNavigationMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
 import {InstitutionalTextBlocks} from '@/components/knowledge/InstitutionalTextBlocks';
 import {InstitutionalChoices} from '@/components/knowledge/InstitutionalChoices';
@@ -10,7 +10,7 @@ import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeC
 import './institutionalChatMessage.css';
 
 /** The ordinary embedded chat uses this reader only for a validated institutional response. */
-const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalMessage;onButtonClick:(value:SendPayload)=>void;interactive?:boolean}>(
+const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:CanonicalMessage;onButtonClick:(value:SendPayload)=>void;interactive?:boolean}>(
  ({answer,onButtonClick,interactive=true},ref)=>{
   const [large,setLarge]=useState(false),heading=useRef<HTMLHeadingElement>(null);
   const scope=JSON.stringify([answer.tenant.id,answer.tenant.slug,answer.revision]);
@@ -83,5 +83,25 @@ const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:Instituti
    {!initialMenu?choices:null}
   </div>;
  });
+const SourceNavigationMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalSourceNavigationMessage}>(
+ ({answer},ref)=>{
+  const [large,setLarge]=useState(false);
+  return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}`} data-testid="institutional-chat-message" data-institutional-presentation="source-navigation">
+   <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>setLarge(value=>!value)}>{answer.ui.large_text}</button>
+   <h3>{answer.ui.sources}</h3>
+   <div role="status"><InstitutionalTextBlocks text={answer.text}/></div>
+   <details className="institutional-chat-message__sources"><summary>{answer.ui.source_details}</summary>
+    {answer.sources.map(source=><section key={source.id}>
+     <h4>{source.title}</h4><KnowledgeSourceMetadata source={source} mode="public"/>
+     {knowledgeSourceExternalUrl(source,'public')?<a href={knowledgeSourceExternalUrl(source,'public')!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}
+    </section>)}
+   </details>
+  </div>;
+ });
+const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalMessage;onButtonClick:(value:SendPayload)=>void;interactive?:boolean}>(
+ (props,ref)=>isInstitutionalSourceNavigationMessage(props.answer)
+  ?<SourceNavigationMessage answer={props.answer} ref={ref}/>
+  :<CanonicalInstitutionalChatMessage {...props} answer={props.answer} ref={ref}/>,
+);
 InstitutionalChatMessage.displayName='InstitutionalChatMessage';
 export default InstitutionalChatMessage;

@@ -4,13 +4,20 @@ import {readInstitutionalChoiceNavigation,type InstitutionalChoiceNavigation} fr
 import {readInstitutionalAudioReading,type InstitutionalAudioReading} from '@/components/knowledge/institutionalAssistantAudio';
 import type {Message} from '@/types/chat';
 
-export interface InstitutionalChatMessage {
+export interface InstitutionalCanonicalChatMessage {
+  kind?:undefined;
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
   ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string};
   audioReading?:InstitutionalAudioReading;
   /** Local presentation authority from a validated public workspace, never a remote hint. */
   initialMenu?:InstitutionalInitialMenuContext;
 }
+export interface InstitutionalSourceNavigationMessage {
+  kind:'source_navigation'; tenant:{id:number;slug:string}; revision:string; nodes:[]; sources:KnowledgeSource[]; text:string;
+  ui:{sources:string;source_details:string;large_text:string}; audioReading?:undefined; initialMenu?:undefined;
+}
+export type InstitutionalChatMessage=InstitutionalCanonicalChatMessage|InstitutionalSourceNavigationMessage;
+export const isInstitutionalSourceNavigationMessage=(answer:InstitutionalChatMessage):answer is InstitutionalSourceNavigationMessage=>answer.kind==='source_navigation';
 export type InstitutionalPresentationMode='initial-menu'|'answer';
 export interface InstitutionalInitialMenuContext {tenantId:number;tenantSlug:string;revision:string;startNodeId:string}
 
@@ -86,6 +93,22 @@ export function isInstitutionalWorkspaceUnavailable(error:unknown):boolean {
 
 /** Validate the existing responder envelope against this chat's explicit tenant. */
 export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|null|undefined):InstitutionalChatMessage|null {
+  if(record(value)&&value.fuente==='institutional_knowledge_sources'){
+    const ui=value.knowledge_ui,sources=value.knowledge_sources;
+    if(!tenantSlug||!record(value.knowledge_tenant)||value.knowledge_tenant.slug!==tenantSlug||
+      !Number.isSafeInteger(value.knowledge_tenant.id)||Number(value.knowledge_tenant.id)<1||
+      typeof value.context_revision!=='string'||!/^[a-f0-9]{64}$/.test(value.context_revision)||
+      value.knowledge_nodes!==undefined||value.knowledge_audio_reading!==undefined||
+      (value.botones!==undefined&&(!Array.isArray(value.botones)||value.botones.length!==0))||
+      typeof value.message_body!=='string'||!value.message_body.trim()||value.message_body.length>40000||
+      !record(ui)||!['sources','source_details','large_text'].every(key=>typeof ui[key]==='string'&&ui[key].trim()&&ui[key].length<=1000)||
+      !Array.isArray(sources)||sources.length<1||sources.length>64||!sources.every(isKnowledgeSource)||
+      new Set(sources.map(source=>source.id)).size!==sources.length||sources.some(source=>
+        source.pages!==undefined||source.excerpts!==undefined||source.origin_url!==undefined||
+        ((source.document_visibility==='private'||source.delivery?.document_visibility==='private')&&source.url!=null)))return null;
+    return {kind:'source_navigation',tenant:{id:Number(value.knowledge_tenant.id),slug:tenantSlug},revision:value.context_revision,
+      nodes:[],sources,text:value.message_body,ui:{sources:ui.sources as string,source_details:ui.source_details as string,large_text:ui.large_text as string}};
+  }
   if(!record(value)||value.fuente!=='institutional_knowledge'||!tenantSlug||!record(value.knowledge_tenant)||
     value.knowledge_tenant.slug!==tenantSlug||!Number.isSafeInteger(value.knowledge_tenant.id)||Number(value.knowledge_tenant.id)<1||
     typeof value.context_revision!=='string'||!/^[a-f0-9]{64}$/.test(value.context_revision)||

@@ -37,10 +37,7 @@ import { Input } from "@/components/ui/input";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { getErrorMessage } from "@/utils/api";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
-import {
-  safeTrackingAddressSearch, trackingAddressQuery, trackingGeocodingCapability,
-  trackingPoint, uniqueTrackingAddressPoint,
-} from "@/utils/trackingAddressMap";
+import { trackingPoint } from "@/utils/trackingAddressMap";
 import {
   getAttachmentDeliveryUrl,
   getAttachmentPreviewUrl,
@@ -465,12 +462,39 @@ const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
       readLatLng(first(map, ["center"])) ||
       readLatLng(location),
     current:
-      readLatLng(first(map, ["current", "current_status", "driver"])) ||
-      byRole("current") ||
-      readLatLng(first(map, ["center"])),
-    fallback: readText(map, ["fallback_when_no_coordinates"], "timeline_only"),
+      readLatLng(map.current) ||
+      readLatLng(map.current_status) ||
+      readLatLng(map.driver) ||
+      byRole("current"),
   };
 };
+
+function TrackingAddress({ address, label }: { address: string; label: string }) {
+  const [notice, setNotice] = useState<"copied" | "unavailable" | null>(null);
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setNotice("copied");
+    } catch {
+      setNotice("unavailable");
+    }
+  };
+
+  return (
+    <div className="mb-3 rounded-md border border-border/70 bg-muted/20 p-3">
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className="break-words font-medium">{address}</p>
+      <Button type="button" variant="outline" size="sm" className="mt-2" onClick={copyAddress}>
+        <Clipboard className="h-4 w-4" aria-hidden="true" />
+        Copiar dirección
+      </Button>
+      <p role="status" className="text-sm text-muted-foreground">
+        {notice === "copied" ? "Dirección copiada." : notice === "unavailable"
+          ? "No pudimos copiar la dirección. Podés seleccionarla y copiarla manualmente." : ""}
+      </p>
+    </div>
+  );
+}
 
 const titleFor = (kind: TrackingKind) =>
   kind === "claim" ? "Seguimiento de reclamo" : "Seguimiento de pedido";
@@ -597,10 +621,6 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   } | null>(null);
   const [realtimeState, setRealtimeState] = useState<"idle" | "connecting" | "connected" | "fallback">("idle");
   const [socketAttempt, setSocketAttempt] = useState(0);
-  type AddressLookup = { key: string; status: "idle" | "loading" | "unavailable" | "resolved";
-    point: { lat: number; lng: number; name?: string } | null };
-  const [addressLookup, setAddressLookup] = useState<AddressLookup>({ key: "", status: "idle", point: null });
-  const completedAddressLookupRef = React.useRef<AddressLookup | null>(null);
   const pinInputRef = React.useRef<HTMLInputElement | null>(null);
   const trackingErrorRef = React.useRef<HTMLDivElement | null>(null);
   const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -656,7 +676,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   const milestones = normalizeMilestones(visiblePayload);
   const timeline = normalizeTimeline(visiblePayload);
   const attachments = normalizeTrackingAttachments(visiblePayload);
-  const rawMapState = normalizeMapLocations(visiblePayload);
+  const mapState = normalizeMapLocations(visiblePayload);
   const support = normalizeSupport(payload, kind);
   const currentIndex = milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase());
   const nextMilestone = currentIndex >= 0 ? milestones[currentIndex + 1] : null;
@@ -675,7 +695,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
     return Math.min(Math.max(parsed, 10_000), 60_000);
   }, [kind, support.enabled, support.pollingInterval]);
 
-  // The server supplies the verified address and exact tenant envelope after access validation.
+  // A reported address stays in the tracking view. Only stored points enable the map.
   const mapAddress = readText(
     isRecord(visiblePayload?.map) ? visiblePayload.map : {},
     ["address"],
@@ -685,46 +705,6 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   );
   const mapContract = isRecord(visiblePayload?.map) ? visiblePayload.map : {};
   const mapUi = isRecord(mapContract.ui) ? mapContract.ui : {};
-  const addressSearchUrl = safeTrackingAddressSearch(mapContract.maps_search_url, mapAddress);
-  const geocoding = trackingGeocodingCapability(visiblePayload, kind);
-  const geocodeScope = visiblePayload && mapAddress && geocoding && rawMapState.canRender
-    && !rawMapState.destination && rawMapState.fallback === "geocode_address"
-    ? JSON.stringify([kind, code, tenantSlug, credentialGenerationRef.current, mapAddress, geocoding]) : "";
-  React.useEffect(() => {
-    if (!geocodeScope) return;
-    const [, , , , address, capability] = JSON.parse(geocodeScope) as
-      [string, string, string | null, number, string, NonNullable<typeof geocoding>];
-    if (completedAddressLookupRef.current?.key === geocodeScope) {
-      setAddressLookup(completedAddressLookupRef.current);
-      return;
-    }
-    let active = true;
-    const controller = new AbortController();
-    const finish = (point: AddressLookup["point"]) => {
-      if (!active || controller.signal.aborted) return;
-      const result: AddressLookup = { key: geocodeScope, status: point ? "resolved" : "unavailable", point };
-      completedAddressLookupRef.current = result;
-      setAddressLookup(result);
-    };
-    setAddressLookup({ key: geocodeScope, status: "loading", point: null });
-    const timeout = window.setTimeout(() => { finish(null); controller.abort(); }, 6000);
-    void fetch(trackingAddressQuery(address, capability), {
-      signal: controller.signal, credentials: "omit", referrerPolicy: "no-referrer",
-    }).then(response => {
-      if (!response.ok) throw new Error("address_lookup_unavailable");
-      return response.json() as Promise<unknown>;
-    }).then(results => {
-      const point = uniqueTrackingAddressPoint(results, capability);
-      finish(point ? { ...point, name: address } : null);
-    }).catch(() => finish(null)).finally(() => window.clearTimeout(timeout));
-    return () => { active = false; window.clearTimeout(timeout); controller.abort(); };
-  }, [geocodeScope]);
-  const activeAddressLookup = addressLookup.key === geocodeScope ? addressLookup : null;
-  const geocodedDestination = activeAddressLookup?.point || null;
-  const mapState = {
-    ...rawMapState,
-    destination: rawMapState.destination || geocodedDestination,
-  };
 
   const requestId = readText(visiblePayload, ["request_id"]);
   const canShowMap = Boolean(
@@ -742,6 +722,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
     window.setTimeout(() => target.focus({ preventScroll: true }), 250);
   };
   const focusMap = () => {
+    mapSectionRef.current?.focus({ preventScroll: true });
     mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
   const copyTrackingCode = async () => {
@@ -1141,7 +1122,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                 ) : null}
                 <Button type="button" variant="outline" onClick={focusMap} disabled={!canShowMap && !mapAddress}>
                   <MapPinned />
-                  Ver mapa
+                  {canShowMap || !mapAddress ? "Ver mapa" : "Ver dirección"}
                 </Button>
               </div>
             </form>
@@ -1417,6 +1398,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
           <section
             ref={mapSectionRef}
             aria-labelledby="tracking-map-title"
+            tabIndex={-1}
             className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -1429,13 +1411,9 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
               </span>
             </div>
 
-            {mapAddress ? <div className="mb-3 rounded-md border border-border/70 bg-muted/20 p-3">
-              {readText(mapUi, ["address_label"]) ? <p className="text-xs font-semibold text-muted-foreground">{mapUi.address_label}</p> : null}
-              <p className="break-words font-medium">{mapAddress}</p>
-              {addressSearchUrl && readText(mapUi, ["search_address_label"]) ?
-                <a className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary underline underline-offset-4"
-                  href={addressSearchUrl} target="_blank" rel="noopener noreferrer">{mapUi.search_address_label}<ExternalLink className="h-3.5 w-3.5" /></a> : null}
-            </div> : null}
+            {mapAddress ? (
+              <TrackingAddress key={mapAddress} address={mapAddress} label={readText(mapUi, ["address_label"], "Dirección informada")} />
+            ) : null}
 
             {canShowMap ? (
               <div className="overflow-hidden rounded-md border border-border/70 bg-slate-950">
@@ -1452,19 +1430,15 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                     storeLocation={mapState.origin}
                     customerLocation={mapState.destination}
                     driverLocation={mapState.current || undefined}
-                    labels={geocodedDestination && geocoding ? { title: geocoding.labels.approximate } : undefined}
                   />
                 </React.Suspense>
               </div>
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center border-y border-dashed border-border/70 px-4 py-6 text-center">
                 <ShieldCheck className="mb-2 h-7 w-7 text-primary" />
-                <p className="font-semibold">{readText(mapUi, ["location_pending_label"], "Seguimiento por timeline")}</p>
-                <p role="status" aria-busy={activeAddressLookup?.status === "loading"} className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  {activeAddressLookup?.status === "loading" && geocoding ? geocoding.labels.loading
-                    : activeAddressLookup?.status === "unavailable" && geocoding ? geocoding.labels.unavailable
-                      : mapAddress ? readText(mapUi, ["address_pending_message"])
-                        : "No hay coordenadas renderizables para este caso."}
+                <p className="font-semibold">{readText(mapUi, ["location_pending_label"], "Ubicación pendiente")}</p>
+                <p role="status" className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  El mapa se mostrará cuando el caso tenga coordenadas registradas. Mientras tanto, podés consultar su actividad.
                 </p>
               </div>
             )}

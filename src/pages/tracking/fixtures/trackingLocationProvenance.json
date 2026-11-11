@@ -1,0 +1,137 @@
+{
+  "schema": "tracking.location_provenance.portable_synthetic_fixture.v1",
+  "source": {
+    "backendCommit": "86ca418f93d03a40685e1c373a89be6f6f5fcdc9",
+    "file": "services/tracking_experience.py",
+    "sourceSha256": "b16de691cbac8d37aade70ffa0c76ea35988a1e91d9d779ac1f61d314ee962a5",
+    "generatedFixtureSha256": "11cf139b1b505e06209a234d24be6deef197b6af5e8d5fa67238b90e7b580443",
+    "functions": [
+      {
+        "name": "_as_float",
+        "line": 125,
+        "endLine": 133,
+        "astSha256": "8ba47f9dfbd3927c1d40778e98b5c719f288d7cc4e0c788b1412c7d68728fa28"
+      },
+      {
+        "name": "_tracking_geocoding",
+        "line": 179,
+        "endLine": 226,
+        "astSha256": "b6dcc9ce00b4f862e64114ec02394e4009009cdd2187a714103f3b27d98222e4"
+      },
+      {
+        "name": "_tracking_map",
+        "line": 229,
+        "endLine": 275,
+        "astSha256": "915cce310e80c82de6de30bc4f2aff2be82e843244cb58de93fe1c430b5eb496"
+      }
+    ],
+    "syntheticDataOnly": true
+  },
+  "location": {
+    "lat": -33.08,
+    "lng": -68.46,
+    "address": "Calle sintética 123",
+    "district": null
+  },
+  "emptyLocation": {
+    "lat": null,
+    "lng": null,
+    "address": null,
+    "district": null
+  },
+  "map": {
+    "enabled": true,
+    "can_render": true,
+    "has_coordinates": true,
+    "center": {
+      "lat": -33.08,
+      "lng": -68.46
+    },
+    "destination": {
+      "lat": -33.08,
+      "lng": -68.46,
+      "name": "Calle sintética 123",
+      "role": "destination"
+    },
+    "claim_location": {
+      "lat": -33.08,
+      "lng": -68.46,
+      "name": "Calle sintética 123",
+      "role": "destination"
+    },
+    "maps_search_url": "https://maps.google.com/?q=-33.08,-68.46",
+    "address": "Calle sintética 123",
+    "layers": [
+      "origin",
+      "current_status",
+      "destination_or_claim_location",
+      "timeline_events"
+    ],
+    "animations": [
+      "pulse_current_step",
+      "route_progress",
+      "status_transition"
+    ],
+    "fallback_when_no_coordinates": "timeline_only",
+    "ui": {
+      "address_label": "Dirección informada",
+      "search_address_label": "Buscar dirección en el mapa",
+      "address_pending_message": "Todavía no hay un punto confirmado. Podés buscar la dirección informada en el mapa.",
+      "location_pending_label": "Ubicación pendiente"
+    },
+    "geocoding": {
+      "contract_version": "tracking.address_geocoding.v1",
+      "provider": "nominatim",
+      "enabled": false,
+      "scope": null,
+      "jurisdiction": null,
+      "persists_coordinates": false,
+      "labels": {
+        "loading": "Buscando la dirección dentro de su zona…",
+        "unavailable": "No pudimos ubicar un único punto. Conservamos la dirección informada.",
+        "approximate": "Ubicación orientativa de la dirección"
+      }
+    }
+  },
+  "emptyMap": {
+    "enabled": true,
+    "can_render": false,
+    "has_coordinates": false,
+    "center": null,
+    "destination": null,
+    "claim_location": null,
+    "maps_search_url": null,
+    "address": null,
+    "layers": [
+      "origin",
+      "current_status",
+      "destination_or_claim_location",
+      "timeline_events"
+    ],
+    "animations": [
+      "pulse_current_step",
+      "route_progress",
+      "status_transition"
+    ],
+    "fallback_when_no_coordinates": "timeline_only",
+    "ui": {
+      "address_label": "Dirección informada",
+      "search_address_label": "Buscar dirección en el mapa",
+      "address_pending_message": "Todavía no hay un punto confirmado. Podés buscar la dirección informada en el mapa.",
+      "location_pending_label": "Ubicación pendiente"
+    },
+    "geocoding": {
+      "contract_version": "tracking.address_geocoding.v1",
+      "provider": "nominatim",
+      "enabled": false,
+      "scope": null,
+      "jurisdiction": null,
+      "persists_coordinates": false,
+      "labels": {
+        "loading": "Buscando la dirección dentro de su zona…",
+        "unavailable": "No pudimos ubicar un único punto. Conservamos la dirección informada.",
+        "approximate": "Ubicación orientativa de la dirección"
+      }
+    }
+  }
+}

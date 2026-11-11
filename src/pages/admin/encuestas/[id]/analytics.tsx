@@ -566,6 +566,7 @@ export default function SurveyAnalyticsPage() {
     useAnchor(surveyId ?? undefined, tenantScopeSlug);
   const {
     responses,
+    meta: responsesMeta,
     isLoading: isLoadingResponses,
     isRefetching: isRefreshingResponses,
     error: responsesError,
@@ -2220,6 +2221,7 @@ export default function SurveyAnalyticsPage() {
           void refetchResponses();
         }}
         emptyHintUrl={publicUrl}
+        totalResponses={responsesMeta?.total}
         totalResponsesHint={responsesTotalHint}
       />
       <Card>

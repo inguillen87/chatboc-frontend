@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -323,7 +323,7 @@ const OperationalCheck = ({
 }) => (
   <div
     role="listitem"
-    aria-label={`${label}: ${ok ? "listo" : "pendiente"}`}
+    aria-label={`${label}: ${ok ? "registrado" : optional ? "informativo" : "pendiente"}`}
     className="rounded-2xl border border-border/60 bg-background/85 p-3"
   >
     <div className="flex items-start justify-between gap-2">
@@ -332,9 +332,9 @@ const OperationalCheck = ({
         {detail ? <p className="mt-1 break-all text-xs leading-5 text-muted-foreground">{detail}</p> : null}
       </div>
       {ok ? (
-        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
       ) : (
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
       )}
     </div>
     {action ? (
@@ -343,12 +343,13 @@ const OperationalCheck = ({
       </p>
     ) : null}
     <div className="mt-3">
-      <StatusPill tone={readinessTone(ok, optional)}>{ok ? "Listo" : optional ? "Informativo" : "Pendiente"}</StatusPill>
+      <StatusPill tone={readinessTone(ok, optional)}>{ok ? "Registrado" : optional ? "Informativo" : "Pendiente"}</StatusPill>
     </div>
   </div>
 );
 
-const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+const ChannelConfigurationPanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+  const titleId = useId();
   const channel = experience.channel;
   const adminPanel = experience.admin_panel;
   const adminState = asRecord(first(adminPanel, ["state", "whatsapp_state", "tech_provider_state", "provider_state"]));
@@ -469,10 +470,10 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
   const checks = [
     {
       id: "number",
-      label: "Numero productivo",
+      label: "Número o emisor",
       ok: Boolean(phoneNumber),
-      detail: phoneNumber || first(channel, ["reason_code", "status"]) || "Sin numero enviado por el contrato.",
-      action: phoneNumber ? undefined : "Conectar numero o sender productivo.",
+      detail: phoneNumber || first(channel, ["reason_code", "status"]) || "Sin número o emisor registrado.",
+      action: phoneNumber ? undefined : "Revisar la conexión y el emisor asignado.",
     },
     {
       id: "waba",
@@ -483,17 +484,17 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
     },
     {
       id: "templates",
-      label: "Plantillas operativas",
+      label: "Plantillas aprobadas",
       ok: approvedTemplates > 0 && blockingTemplates === 0,
       detail: `${formatNumber(approvedTemplates)} aprobadas - ${formatNumber(pendingTemplates)} pendientes - ${formatNumber(blockingTemplates)} bloqueantes`,
       action: approvedTemplates > 0 && blockingTemplates === 0 ? undefined : "Aprobar, refrescar o activar fallback.",
     },
     {
       id: "webhook",
-      label: "Webhook",
+      label: "URL del webhook",
       ok: Boolean(webhook),
-      detail: webhook || first(channel, ["status_webhook", "webhook_status", "reason_code"]) || "Sin endpoint operativo.",
-      action: webhook ? undefined : "Publicar webhook inbound/status.",
+      detail: webhook || first(channel, ["webhook_status", "reason_code"]) || "Sin URL registrada.",
+      action: webhook ? undefined : "Revisar la configuración de recepción y estados.",
     },
   ];
 
@@ -529,31 +530,31 @@ const OperationalReadinessPanel = ({ experience }: { experience: WhatsappExperie
     }).filter((item): item is string => Boolean(item)),
     ...toTextList(first(adminPanel, ["next_actions", "recommended_next_actions"])),
   ]).slice(0, 4);
-  const readinessPercent = Math.round((completed / Math.max(checks.length, 1)) * 100);
-
   return (
-    <Card className="border-primary/20 bg-primary/5">
+    <Card role="region" aria-labelledby={titleId} className="border-primary/20 bg-primary/5">
       <CardHeader>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              Estado operativo WhatsApp
+            <CardTitle id={titleId} className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+              Configuración de WhatsApp
             </CardTitle>
             <CardDescription>
-              Checklist compacto para activar, probar y operar el canal sin salir del panel.
+              Revisá el emisor, la cuenta, las plantillas y la URL registrados para este canal.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <StatusPill tone={completed === checks.length ? "ready" : "warning"}>
-              {completed}/{checks.length} listo
+            <StatusPill tone={completed === checks.length ? "neutral" : "warning"}>
+              {completed} de {checks.length} comprobaciones de configuración
             </StatusPill>
-            <StatusPill>{readinessPercent}% readiness</StatusPill>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Progress value={readinessPercent} className="h-2" aria-label="Readiness operativo WhatsApp" />
+        <div className="rounded-xl border border-border/60 bg-background/85 px-4 py-3 text-sm">
+          <p className="font-semibold text-foreground">Validación de recepción y entrega</p>
+          <p className="mt-1 text-muted-foreground">Comprobá ambos pasos en una conversación con el destinatario de prueba autorizado.</p>
+        </div>
         <div role="list" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {checks.map((check) => (
             <OperationalCheck
@@ -3469,7 +3470,7 @@ export default function WhatsappOperationsHub({
         </div>
       </div>
 
-      <OperationalReadinessPanel experience={experience} />
+      <ChannelConfigurationPanel experience={experience} />
       {!channelEnabled ? <SetupChecklist experience={experience} /> : null}
       <ChannelHealth experience={experience} tenantSlug={tenantSlug} canManageFlows={canManageFlows} />
       <EnterpriseRules experience={experience} />

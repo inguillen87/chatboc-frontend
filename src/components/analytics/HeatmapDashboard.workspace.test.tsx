@@ -1,5 +1,5 @@
 import React from 'react';
-import { act,cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { act,cleanup,fireEvent,render,screen,waitFor,within } from '@testing-library/react';
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 const mock=vi.hoisted(()=>({slug:'org-a',fetch:vi.fn(),ready:vi.fn()}));
 vi.mock('@/utils/backendBootstrapGate',async importOriginal=>({
@@ -18,6 +18,30 @@ const deferred=<T,>()=>{let resolve!:(value:T)=>void;const promise=new Promise<T
 beforeEach(()=>{mock.slug='org-a';mock.fetch.mockReset().mockResolvedValue(data());mock.ready.mockReset().mockResolvedValue(undefined);});
 afterEach(()=>{cleanup();vi.useRealTimers();});
 describe('geographic workspace interactions and isolation',()=>{
+  it('shows the reported share of tickets eligible for the map even when displaying aggregate cells', async () => {
+    mock.fetch.mockResolvedValue(data({
+      metadata: { raw_points_redacted: true },
+      cells: [{ centroid_lat: -54, centroid_lon: -68, count: 2 }],
+      location_quality: {
+        contract_version: 'operations.location_quality.v1',
+        total_ticket_records: 3,
+        ticket_records_with_persisted_coordinates: 3,
+        ticket_records_with_validated_coordinates: 2,
+        ticket_records_with_coordinates: 2,
+        coordinate_coverage_pct: 66.67,
+      },
+    }));
+    render(<HeatmapDashboard tenantId={7} dateRange={period}/>);
+    await screen.findByTestId('map');
+    const metrics = screen.getAllByRole('article');
+    expect(within(metrics[0]).getByText('Celdas visibles')).toBeVisible();
+    expect(within(metrics[0]).getByText('1')).toBeVisible();
+    expect(within(metrics[1]).getByText('Casos aptos para el mapa')).toBeVisible();
+    expect(within(metrics[1]).getByText('2')).toBeVisible();
+    expect(within(metrics[2]).getByText('Casos fuera de cobertura')).toBeVisible();
+    expect(within(metrics[2]).getByText('1')).toBeVisible();
+    expect(within(metrics[3]).getByText('66,67%')).toBeVisible();
+  });
   it('keeps a local selection with no matches empty',async()=>{
     render(<HeatmapDashboard tenantId={7} dateRange={period}/>);
     await screen.findByTestId('map');

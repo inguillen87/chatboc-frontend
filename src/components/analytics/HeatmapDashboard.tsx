@@ -64,11 +64,11 @@ function HeatmapSession({tenantId,tenantSlug,context,from,to,initial}: {tenantId
       {model.synthetic && <p className="geo-warning" role="status">Datos de demostración declarados por el servidor. No representan operaciones reales.</p>}
       <div className="geo-metrics">
         <GeoMetric label={model.experience.quality.usingCellFallback ? 'Celdas visibles' : 'Elementos visibles'} value={number(model.displayPoints.length)} detail="Elementos geográficos, no personas únicas" />
-        <GeoMetric label="Con coordenadas" value={number(coverage.withCoordinates)} detail="Cantidad informada por el servidor" />
-        <GeoMetric label="Sin coordenadas" value={number(coverage.withoutCoordinates)} detail="No se ubican en una posición inventada" />
-        <GeoMetric label="Cobertura geográfica" value={coverage.coverage===null?'No informada':`${number(coverage.coverage)}%`} detail="Del registro publicado, no de la población" />
+        <GeoMetric label={coverage.ticketCoverage ? 'Casos aptos para el mapa' : 'Con coordenadas'} value={number(coverage.withCoordinates)} detail="Cantidad informada por el servidor" />
+        <GeoMetric label={coverage.ticketCoverage ? 'Casos fuera de cobertura' : 'Sin coordenadas'} value={number(coverage.withoutCoordinates)} detail={coverage.ticketCoverage ? 'Sin coordenadas aptas para esta consulta' : 'Pendientes de ubicación'} />
+        <GeoMetric label="Cobertura geográfica" value={coverage.coverage===null?'No informada':`${number(coverage.coverage)}%`} detail={coverage.ticketCoverage ? 'Proporción de casos de esta consulta' : 'Del registro publicado'} />
       </div>
-      {coverage.inconsistent && <p className="geo-warning">Los conteos de cobertura no coinciden con el total informado. No se calcula un porcentaje alternativo.</p>}
+      {coverage.inconsistent && <p className="geo-warning">La respuesta trae cifras de cobertura que no coinciden entre sí.</p>}
       <div className="geo-layout"><section className="geo-map-panel" aria-label="Distribución en el mapa">
         <div className="geo-section-title"><h3><Layers3 size={16} aria-hidden="true" />Distribución geográfica</h3><span>{model.redacted?'Ubicaciones agregadas':'Respuesta geográfica actual'}</span></div>
         <div className="geo-toolbar" aria-label="Capas del mapa">{layers.map(value=><button type="button" key={value} aria-pressed={value===effectiveLayer} onClick={()=>setLayer(value)}>{geoText(layerLabels[value])||value}</button>)}</div>

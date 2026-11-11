@@ -22,3 +22,29 @@ describe('recent survey responses error state', () => {
     expect(screen.queryByText(/Todavía no registramos respuestas/)).toBeNull();
   });
 });
+
+describe('recent survey responses empty state', () => {
+  const surveyUrl = '/encuestas/synthetic';
+
+  it('shows a share invitation after the list confirms zero responses', () => {
+    render(<SurveyRecentResponses responses={[]} totalResponses={0} emptyHintUrl={surveyUrl} />);
+    expect(screen.getByText(surveyUrl)).toBeTruthy();
+    expect(screen.getByText(/Todavía no recibimos respuestas/)).toBeTruthy();
+  });
+
+  it('treats a legacy list without a total as unknown even if the summary says zero', () => {
+    render(<SurveyRecentResponses responses={[]} totalResponsesHint={0} emptyHintUrl={surveyUrl} />);
+    expect(screen.getByText(/El listado todavía no confirmó cuántas respuestas hay/)).toBeTruthy();
+    expect(screen.queryByText(surveyUrl)).toBeNull();
+  });
+
+  it.each([[3, undefined], [0, 3]])(
+    'reports missing details when either total is positive (list %s, summary %s)',
+    (totalResponses, totalResponsesHint) => {
+      render(<SurveyRecentResponses responses={[]} totalResponses={totalResponses}
+        totalResponsesHint={totalResponsesHint} emptyHintUrl={surveyUrl} />);
+      expect(screen.getByText(/Ya hay respuestas registradas/)).toBeTruthy();
+      expect(screen.queryByText(surveyUrl)).toBeNull();
+    },
+  );
+});

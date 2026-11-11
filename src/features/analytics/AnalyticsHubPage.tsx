@@ -16,25 +16,27 @@ import { getAnalyticsOverviewV2 } from './analyticsApi';
 import type { AnalyticsOverview } from './analyticsTypes';
 import { OperationsDashboardPanel } from './OperationsDashboardPanel';
 
-const formatMetric = (value: number | undefined, suffix = '') => {
-  if (value === undefined || Number.isNaN(value)) return '--';
+const UNMEASURED = 'Sin medición';
+
+const formatMetric = (value: number | undefined, suffix = '', fallback = '--') => {
+  if (value === undefined || Number.isNaN(value)) return fallback;
   return `${value.toLocaleString('es-AR')}${suffix}`;
 };
 
 const METRICS: Array<{
-  key: keyof AnalyticsOverview;
+  key: keyof Omit<AnalyticsOverview, 'ticket_satisfaction' | 'inbox_first_public_reply' | 'municipal_inbox_handoff'>;
   label: string;
   suffix?: string;
+  fallback?: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { key: 'conversations', label: 'Conversaciones', icon: Activity },
   { key: 'open_tickets', label: 'Tickets abiertos', icon: Ticket },
   { key: 'overdue_tickets', label: 'Tickets vencidos', icon: Ticket },
-  { key: 'response_time', label: 'Tiempo respuesta', suffix: ' min', icon: Clock3 },
+  { key: 'response_time', label: 'Primera respuesta', suffix: ' min', fallback: UNMEASURED, icon: Clock3 },
   { key: 'survey_responses', label: 'Respuestas encuestas', icon: BarChart3 },
   { key: 'nps', label: 'NPS', icon: Smile },
-  { key: 'csat', label: 'CSAT', suffix: '%', icon: Smile },
-  { key: 'handoff_rate', label: 'Handoff rate', suffix: '%', icon: Activity },
+  { key: 'handoff_rate', label: 'Derivación humana', suffix: '%', fallback: UNMEASURED, icon: Activity },
 ];
 
 export default function AnalyticsHubPage() {
@@ -57,12 +59,16 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
     ? METRICS.map((metric) => ({
         ...metric,
         rawValue: data[metric.key],
-        value: formatMetric(data[metric.key], metric.suffix),
+        value: formatMetric(data[metric.key], metric.suffix, metric.fallback),
       }))
     : [];
   const availableMetrics = metricCards.filter((card) => card.rawValue !== undefined).length;
   const missingMetrics = metricCards.length - availableMetrics;
-  const hasAnyMetric = availableMetrics > 0;
+  const ticketSatisfaction = data?.ticket_satisfaction;
+  const inboxReply = data?.inbox_first_public_reply;
+  const municipalHandoff = data?.municipal_inbox_handoff;
+  const hasAnyMetric = availableMetrics > 0 || ticketSatisfaction !== undefined || inboxReply !== undefined
+    || municipalHandoff?.state === 'observed';
 
   if (!isOnline && !data) {
     return (
@@ -161,7 +167,16 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
           <CardContent className="space-y-3">
             <MetricRow label="Tickets abiertos" value={formatMetric(data.open_tickets)} />
             <MetricRow label="Tickets vencidos" value={formatMetric(data.overdue_tickets)} />
-            <MetricRow label="Tiempo de respuesta" value={formatMetric(data.response_time, ' min')} />
+            <MetricRow label="Tiempo de primera respuesta" value={formatMetric(data.response_time, ' min', UNMEASURED)} />
+            {inboxReply ? (
+              <MetricRow
+                label="Primera respuesta pública en bandeja"
+                value={inboxReply.state === 'observed' ? formatMetric(inboxReply.average_minutes, ' min') : UNMEASURED}
+                detail={inboxReply.cohort_cases === null
+                  ? 'Este filtro no tiene una población verificable de expedientes.'
+                  : `Respuesta pública registrada en bandeja para ${inboxReply.sample_cases} de ${inboxReply.cohort_cases} expedientes creados en el período.`}
+              />
+            ) : null}
           </CardContent>
         </Card>
 
@@ -173,9 +188,24 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
           <CardContent className="space-y-3">
             <MetricRow label="Conversaciones" value={formatMetric(data.conversations)} />
             <MetricRow label="Respuestas encuestas" value={formatMetric(data.survey_responses)} />
-            <MetricRow label="CSAT" value={formatMetric(data.csat, '%')} />
+            <MetricRow
+              label={ticketSatisfaction?.label ?? 'Casos calificados'}
+              value={ticketSatisfaction?.state === 'observed' ? formatMetric(ticketSatisfaction.rated_ticket_count) : 'Sin datos'}
+              detail={ticketSatisfaction?.detail}
+            />
             <MetricRow label="NPS" value={formatMetric(data.nps)} />
-            <MetricRow label="Handoff rate" value={formatMetric(data.handoff_rate, '%')} />
+            <MetricRow label="Tasa de derivación humana" value={formatMetric(data.handoff_rate, '%', UNMEASURED)} />
+            {municipalHandoff ? (
+              <MetricRow
+                label="Derivaciones municipales en bandeja"
+                value={municipalHandoff.state === 'observed'
+                  ? `${formatMetric(municipalHandoff.accepted_count)} de ${formatMetric(municipalHandoff.request_count)}`
+                  : UNMEASURED}
+                detail={municipalHandoff.state === 'observed'
+                  ? 'Aceptaciones registradas al cierre del período para las solicitudes con seguimiento.'
+                  : 'El período y los filtros seleccionados no tienen solicitudes con seguimiento verificable.'}
+              />
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -185,11 +215,14 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   );
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold">{value}</span>
+      <div className="min-w-0 text-muted-foreground">
+        <span>{label}</span>
+        {detail ? <p className="mt-1 text-xs">{detail}</p> : null}
+      </div>
+      <span className="shrink-0 font-semibold">{value}</span>
     </div>
   );
 }

@@ -3,8 +3,8 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
 import InstitutionalChatMessage from '@/components/chat/InstitutionalChatMessage';
-import { askWorkspace, loadWorkspace, type KnowledgeAnswer, type KnowledgeWorkspace } from '@/components/knowledge/institutionalAssistantContract';
-import { institutionalChatActions, institutionalChatBootstrapPayload, isInstitutionalWorkspaceUnavailable, parseInstitutionalChatMessage, type InstitutionalChatMessage as InstitutionalMessage } from '@/features/chat/institutionalChatMessage';
+import { askWorkspace, loadWorkspace, isKnowledgeSourceNavigation, type KnowledgeAnswer, type KnowledgeWorkspace } from '@/components/knowledge/institutionalAssistantContract';
+import { institutionalChatActions, institutionalChatBootstrapPayload, isInstitutionalWorkspaceUnavailable, isInstitutionalSourceNavigationMessage, parseInstitutionalChatMessage, type InstitutionalChatMessage as InstitutionalMessage } from '@/features/chat/institutionalChatMessage';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { usePanelSessionStore } from '@/stores';
@@ -24,8 +24,12 @@ const actorAuthority = (value: unknown) => {
     actor.role, actor.rol, actor.permissions, actor.capabilities, actor.scopes, actor.tenantSlug, actor.tenant_slug]);
 };
 
-function readAnswer(answer: KnowledgeAnswer, slug: string): InstitutionalMessage {
-  const message = parseInstitutionalChatMessage({
+function readAnswer(answer: KnowledgeAnswer, slug: string, ui: Record<string,string>): InstitutionalMessage {
+  const message = parseInstitutionalChatMessage(isKnowledgeSourceNavigation(answer)?{
+    fuente:'institutional_knowledge_sources',context_revision:answer.revision,knowledge_tenant:answer.tenant,
+    knowledge_sources:answer.sources,message_body:answer.text,
+    knowledge_ui:{sources:ui.sources,source_details:ui.source_details,large_text:ui.large_text},
+  }:{
     fuente: 'institutional_knowledge', context_revision: answer.revision, knowledge_tenant: answer.tenant,
     knowledge_nodes: answer.nodes, knowledge_sources: answer.nodes.flatMap(node => node.sources),
     botones: institutionalChatActions(answer.nodes).map(action => ({ texto: action.label,
@@ -183,7 +187,7 @@ export default function InstitutionalChannelPreview() {
     try {
       const response = await askWorkspace(workspace, 'public', { node_id: nodeId });
       if (!current()) return;
-      setRead({ context, status: 'ready', workspace, answer: readAnswer(response, context.slug) });
+      setRead({ context, status: 'ready', workspace, answer: readAnswer(response, context.slug, workspace.ui) });
     } catch {
       if (current()) setRead({ context, status: 'error' });
     } finally {
@@ -214,14 +218,14 @@ export default function InstitutionalChannelPreview() {
         <p>No hay un menú institucional público disponible para esta organización.</p>
         <p>La simulación del canal muestra únicamente el borrador de prueba.</p>
         <Button type="button" variant="outline" className="min-h-11" onClick={event => retry(event.currentTarget)}>Volver a consultar contenido público</Button>
-      </div> : <div ref={setResponseContainer} className="mt-4 min-w-0">
+      </div> : matching.status==='ready' ? <div ref={setResponseContainer} className="mt-4 min-w-0">
         <p className="break-words font-medium">{matching.workspace.tenant.name}</p>
         <p className="mt-1 text-sm text-muted-foreground">
           {matching.workspace.knowledge!.node_count} nodos · {matching.workspace.knowledge!.sources.length} fuentes
         </p>
         <InstitutionalChatMessage answer={matching.answer} onButtonClick={select} />
-        {matching.answer.nodes[0].id !== matching.workspace.knowledge!.initial.id ?
+        {isInstitutionalSourceNavigationMessage(matching.answer)||matching.answer.nodes[0]?.id !== matching.workspace.knowledge!.initial.id ?
           <Button type="button" data-institutional-choice variant="outline" className="min-h-11 h-auto whitespace-normal" onClick={() => void navigate(matching.workspace.knowledge!.initial.id)}>{matching.workspace.ui.home}</Button> : null}
-      </div>}
+      </div>:null}
   </section>;
 }

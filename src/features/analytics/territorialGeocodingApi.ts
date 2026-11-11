@@ -1,5 +1,6 @@
 import { panelApi } from '@/api/v2/client';
-import { ApiError } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
+import { panelReadOptions } from '@/utils/panelReadOptions';
 
 import {
   TERRITORIAL_GEOCODING_CONTRACT,
@@ -22,6 +23,7 @@ import {
   type TerritorialGeocodingReviewResponse,
   type TerritorialGeocodingSyncRequest,
   type TerritorialGeocodingSyncResponse,
+  type TerritorialManualLocationRequest,
   type TerritorialProposalValidation,
   type TerritorialProposalVersion,
   type TerritorialReviewDecision,
@@ -43,6 +45,11 @@ const REJECTED_REASONS = new Set([
 const REVIEW_STATES = new Set<TerritorialReviewState>(['unreviewed', 'approved', 'rejected', 'stale']);
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const PROPOSAL_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const manualLocationPath = (jobId: string) => QUEUE_PATH + '/' + encodeURIComponent(jobId) + '/manual-location';
+const isAttemptCount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER;
+const isCoordinate = (value: unknown, limit: number): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
 
 export class TerritorialGeocodingContractError extends Error {
   constructor(public readonly code: string) {
@@ -255,6 +262,7 @@ const normalizeItem = (value: unknown): TerritorialGeocodingItem => {
   const reviewAction = record(actions.review);
   const resolveAction = record(actions.resolve);
   const applyAction = record(actions.apply);
+  const manualLocation = record(actions.manual_location);
   const allowedReasons = record(reviewAction.allowed_reason_codes);
   const approvedReasonCodes = stringList(allowedReasons.approved).filter((reason) => APPROVED_REASONS.has(reason));
   const rejectedReasonCodes = stringList(allowedReasons.rejected).filter((reason) => REJECTED_REASONS.has(reason));
@@ -267,6 +275,17 @@ const normalizeItem = (value: unknown): TerritorialGeocodingItem => {
   const jobId = text(source.id) ?? (source.id === undefined || source.id === null ? null : String(source.id));
   if (!jobId) throw new TerritorialGeocodingContractError('territorial_geocoding_job_identity_missing');
   const reviewHref = safeActionHref(reviewAction, '/review');
+  const manualHref = manualLocationPath(jobId);
+  const manualLocationAction =
+    /^[A-Za-z0-9_-]+$/.test(jobId)
+    && manualLocation.href === manualHref
+    && manualLocation.enabled === true
+    && manualLocation.confirmation_required === true
+    && manualLocation.idempotency_header === 'Idempotency-Key'
+    && manualLocation.mutates_ticket === false
+    && isAttemptCount(source.attempt_count)
+      ? { href: manualHref, expectedAttemptCount: source.attempt_count }
+      : undefined;
   return {
     id: jobId,
     ticketId: text(source.ticket_id) ?? (source.ticket_id === undefined || source.ticket_id === null ? null : String(source.ticket_id)),
@@ -316,6 +335,7 @@ const normalizeItem = (value: unknown): TerritorialGeocodingItem => {
       reasonCode: text(applyAction.reason_code) ?? 'coordinate_application_not_published',
       confirmationRequired: applyAction.confirmation_required === true,
     },
+    ...(manualLocationAction ? { manualLocationAction } : {}),
   };
 };
 
@@ -559,14 +579,15 @@ export const normalizeTerritorialGeocodingExecutionResponse = (
     expectedProposalDigest?: string;
     expectedAttemptId?: string;
     expectedAttemptNumber?: number;
-  },
+  } | (Pick<TerritorialManualLocationRequest, 'tenantSlug' | 'tenantId' | 'jobId' | 'lat' | 'lng' | 'expectedAttemptCount'>
+    & { action: 'manual_location' }),
 ): TerritorialGeocodingExecutionResponse => {
   const source = record(value);
   if (source.contract_version !== TERRITORIAL_GEOCODING_EXECUTION_CONTRACT) {
     throw new TerritorialGeocodingContractError('territorial_geocoding_execution_contract_version_invalid');
   }
   const action = text(source.action);
-  if ((action !== 'resolve' && action !== 'apply') || action !== expected.action) {
+  if ((action !== 'resolve' && action !== 'apply' && action !== 'manual_location') || action !== expected.action) {
     throw new TerritorialGeocodingContractError('territorial_geocoding_execution_action_invalid');
   }
   const tenantId = String(source.tenant_id ?? '').trim();
@@ -610,13 +631,14 @@ export const normalizeTerritorialGeocodingExecutionResponse = (
   }
   const status = text(source.status) ?? 'status_not_published';
   const reasonCode = text(source.reason_code) ?? 'reason_not_published';
-  if (action === 'resolve') {
+  if (action !== 'apply') {
     if (
       execution.coordinate_write_performed !== false
       || execution.coordinates_applied !== false
       || execution.write_performed !== false
     ) throw new TerritorialGeocodingContractError('territorial_geocoding_execution_policy_invalid');
-  } else {
+  }
+  if (expected.action === 'apply') {
     if (
       status !== 'applied'
       || reasonCode !== 'coordinates_applied'
@@ -634,6 +656,23 @@ export const normalizeTerritorialGeocodingExecutionResponse = (
   const proposalSource = isRecord(source.proposal) ? source.proposal : null;
   if (proposalSource && (text(proposalSource.provider_place_id) || text(proposalSource.place_id))) {
     throw new TerritorialGeocodingContractError('territorial_geocoding_execution_provider_identifier_exposed');
+  }
+  if (expected.action === 'manual_location') {
+    const provenance = record(proposalSource?.provenance);
+    if (
+      tenantId !== expected.tenantId
+      || status !== 'needs_review'
+      || reasonCode !== 'manual_location_proposed'
+      || proposalVersion.attemptNumber !== expected.expectedAttemptCount + 1
+      || proposalSource?.lat !== expected.lat
+      || proposalSource?.lng !== expected.lng
+      || proposalSource?.coordinate_reference !== 'WGS84'
+      || proposalSource?.provider_reference_present !== false
+      || proposalSource?.provider != null
+      || provenance.provider != null
+      || provenance.source !== 'manual_operator'
+      || execution.provider_call_performed !== false
+    ) throw new TerritorialGeocodingContractError('territorial_geocoding_manual_location_receipt_invalid');
   }
   const transition = record(source.transition_metrics);
   const transitionAction = text(transition.action);
@@ -655,7 +694,7 @@ export const normalizeTerritorialGeocodingExecutionResponse = (
       coordinatesApplied: execution.coordinates_applied,
       writePerformed: execution.write_performed,
     },
-    transition: transitionAction === action ? {
+    transition: action !== 'manual_location' && transitionAction === action ? {
       action,
       fromStatus: text(transition.from_status) ?? 'unknown',
       toStatus: text(transition.to_status) ?? 'unknown',
@@ -823,8 +862,10 @@ export const getTerritorialGeocodingPreviewQueue = async (input: TerritorialGeoc
   return normalizeTerritorialGeocodingPreviewQueue(response);
 };
 
-export const getTerritorialGeocodingDetail = async (jobId: string, tenantSlug: string) => {
-  const response = await panelApi.get<unknown>(`${QUEUE_PATH}/${encodeURIComponent(jobId)}`, { tenantSlug });
+export const getTerritorialGeocodingDetail = async (jobId: string, tenantSlug: string, isCurrent?: () => boolean) => {
+  const response = await panelApi.get<unknown>(`${QUEUE_PATH}/${encodeURIComponent(jobId)}`, {
+    tenantSlug, ...(isCurrent ? { isCurrent, cache: 'no-store' } : {}),
+  });
   return normalizeTerritorialGeocodingDetail(response);
 };
 
@@ -904,6 +945,25 @@ export const resolveTerritorialGeocodingJob = (input: TerritorialGeocodingExecut
 export const applyTerritorialGeocodingJob = (input: TerritorialGeocodingApplyRequest) =>
   executeTerritorialGeocodingAction('apply', input);
 
+export const proposeTerritorialManualLocation = async (input: TerritorialManualLocationRequest) => {
+  if (
+    !input.isCurrent() || !input.tenantId || !input.tenantSlug || !/^[A-Za-z0-9_-]+$/.test(input.jobId)
+    || !isCoordinate(input.lat, 90) || !isCoordinate(input.lng, 180)
+    || !isAttemptCount(input.expectedAttemptCount) || input.confirmed !== true
+    || !IDEMPOTENCY_PATTERN.test(input.idempotencyKey)
+  ) throw new TerritorialGeocodingContractError('territorial_geocoding_manual_location_request_invalid');
+  const response = await apiFetch<unknown>(manualLocationPath(input.jobId), {
+    ...panelReadOptions(input.tenantSlug),
+    method: 'POST',
+    allowStartupRecovery: false,
+    headers: { 'Idempotency-Key': input.idempotencyKey, 'X-Tenant-Slug': input.tenantSlug },
+    body: { lat: input.lat, lng: input.lng, expected_attempt_count: input.expectedAttemptCount, confirmed: true },
+    isCurrent: input.isCurrent,
+  });
+  if (!input.isCurrent()) throw new DOMException('Request retired', 'AbortError');
+  return normalizeTerritorialGeocodingExecutionResponse(response, { ...input, action: 'manual_location' });
+};
+
 export const isTerritorialQueueEndpointUnavailable = (error: unknown) =>
   error instanceof ApiError && [404, 405, 501].includes(error.status);
 
@@ -923,7 +983,7 @@ export const createTerritorialSyncIdempotencyKey = () => {
   return `geo-sync:${randomPart}`.slice(0, 128);
 };
 
-export const createTerritorialExecutionIdempotencyKey = (action: 'resolve' | 'apply', jobId: string) => {
+export const createTerritorialExecutionIdempotencyKey = (action: 'resolve' | 'apply' | 'manual-location', jobId: string) => {
   const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;

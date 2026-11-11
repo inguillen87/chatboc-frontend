@@ -35,11 +35,33 @@ export function geoOptions(value: AnalyticsHeatmapResponse, dimension: GeoDimens
 }
 export function geoCoverage(value: unknown) {
   const data = geoRecord(value), quality = geoRecord(data.location_quality);
-  const integer = (value: unknown) => { const n = geoNumber(value); return n !== null && Number.isSafeInteger(n) && n >= 0 ? n : null; };
+  const integer = (value: unknown) => {
+    const n = geoNumber(value);
+    return n !== null && Number.isSafeInteger(n) && n >= 0 ? n : null;
+  };
+  const ticketCoverage = quality.contract_version === 'operations.location_quality.v1';
+  if (ticketCoverage) {
+    const total = integer(quality.total_ticket_records);
+    const reported = integer(quality.ticket_records_with_coordinates);
+    const validated = integer(quality.ticket_records_with_validated_coordinates);
+    const eligible = validated ?? reported;
+    const rawCoverage = geoNumber(quality.coordinate_coverage_pct);
+    const countsConflict = (reported !== null && validated !== null && reported !== validated)
+      || (total !== null && eligible !== null && eligible > total);
+    const withCoordinates = countsConflict ? null : eligible;
+    const withoutCoordinates = total !== null && withCoordinates !== null ? total - withCoordinates : null;
+    const coverage = rawCoverage !== null && rawCoverage >= 0 && rawCoverage <= 100 ? rawCoverage : null;
+    // The producer rounds percentage points to two decimal places.
+    const expected = total !== null && total > 0 && withCoordinates !== null ? 100 * withCoordinates / total : null;
+    const percentageConflict = coverage !== null && (total === 0
+      || (expected !== null && Math.abs(coverage - expected) > 0.005000001));
+    const inconsistent = countsConflict || percentageConflict;
+    return { withCoordinates, withoutCoordinates, coverage: inconsistent || expected === null ? null : coverage, total, inconsistent, ticketCoverage };
+  }
   const withCoordinates = integer(quality.with_coordinates), withoutCoordinates = integer(quality.without_coordinates), total = integer(quality.total);
   const raw = geoNumber(quality.coverage_pct), coverage = raw !== null && raw >= 0 && raw <= 100 ? raw : null;
   const inconsistent = total !== null && withCoordinates !== null && withoutCoordinates !== null && total !== withCoordinates + withoutCoordinates;
-  return { withCoordinates, withoutCoordinates, coverage: inconsistent ? null : coverage, total, inconsistent };
+  return { withCoordinates, withoutCoordinates, coverage: inconsistent ? null : coverage, total, inconsistent, ticketCoverage };
 }
 export function heatmapMapModel(value: AnalyticsHeatmapResponse, local: { estado: string; severidad: string }) {
   const safe = protectHeatmapPrivacy(value) as unknown as AnalyticsHeatmapResponse;

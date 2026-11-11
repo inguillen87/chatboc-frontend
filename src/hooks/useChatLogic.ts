@@ -57,7 +57,7 @@ import {
 import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt, getBootstrapSessionValues } from "@/features/chat/chatApi";
 import { audioRecoveryMessage, captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from '@/features/chat/audioRecovery';
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
+import {isInstitutionalChatPayload,parseInstitutionalChatMessage,isInstitutionalSourceNavigationMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
 import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
 import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
@@ -1570,7 +1570,7 @@ export function useChatLogic({
 
     asArray.forEach((candidate: any) => {
       const parsedInstitutional=parseInstitutionalChatMessage(candidate,tenantSlug);
-      const institutional=parsedInstitutional&&initialMenuContext&&
+      const institutional=parsedInstitutional&&!isInstitutionalSourceNavigationMessage(parsedInstitutional)&&initialMenuContext&&
         institutionalPresentationMode(parsedInstitutional,initialMenuContext)==='initial-menu'
         ?{...parsedInstitutional,initialMenu:initialMenuContext}:parsedInstitutional;
       const data=scopeInstitutionalPayload(candidate);

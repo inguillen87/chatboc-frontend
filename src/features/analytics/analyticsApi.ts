@@ -1,7 +1,9 @@
 import { panelApi } from '@/api/v2/client';
-import { assertOperationsResponseScope } from './operationsReadState';
+import { assertOperationsResponseScope, operationsTenantSlug } from './operationsReadState';
 import type {
   AnalyticsOverview,
+  InboxFirstPublicReplyOverview,
+  MunicipalInboxHandoffOverview,
   OperationsAIOpsQueueItem,
   OperationsAIOpsQueueV1,
   OperationsAIBriefV1,
@@ -27,6 +29,7 @@ import type {
   OperationsQueueTruthV1,
   OperationsTrend,
   PublicMapConfigV1,
+  TicketSatisfactionOverview,
 } from './analyticsTypes';
 import { resolveTerritorialTicketIdentity } from '@/utils/territorialTicketIdentity';
 
@@ -1891,19 +1894,100 @@ const normalizeFreshness = (response: unknown): OperationsFreshnessV1 => {
   };
 };
 
-const normalizeOverview = (response: unknown): AnalyticsOverview => {
-  const source = isRecord(response) && isRecord(response.summary) ? response.summary : response;
-  if (!isRecord(source)) return {};
+const normalizeTicketSatisfaction = (value: unknown): TicketSatisfactionOverview | undefined => {
+  if (!isRecord(value)
+    || value.contract_version !== 'analytics.ticket_satisfaction.v1'
+    || value.basis !== 'first_valid_rating_recorded_at'
+    || value.scale_verified !== false) return undefined;
+
+  const label = asString(value.label);
+  const detail = asString(value.detail);
+  if (!label || label.length > 80 || !detail || detail.length > 320) return undefined;
+
+  const metadata = {
+    contract_version: value.contract_version,
+    basis: value.basis,
+    scale_verified: value.scale_verified,
+    label,
+    detail,
+    ...(typeof value.reason_code === 'string' ? { reason_code: value.reason_code } : {}),
+  } as const;
+  const count = value.rated_ticket_count;
+  if (value.state === 'observed' && typeof count === 'number' && Number.isSafeInteger(count) && count >= 0) {
+    return { ...metadata, state: 'observed', rated_ticket_count: count };
+  }
+  if (value.state === 'unavailable' && count === null) {
+    return { ...metadata, state: 'unavailable', rated_ticket_count: null };
+  }
+  return undefined;
+};
+
+const normalizeInboxFirstPublicReply = (value: unknown): InboxFirstPublicReplyOverview | undefined => {
+  if (!isRecord(value)
+    || value.contract_version !== 'analytics.inbox_first_public_reply.v1'
+    || value.basis !== 'case_created_to_first_recorded_public_inbox_reply'
+    || value.population !== 'tenant_tickets_created_in_period'
+    || value.coverage !== 'durable_inbox_replies_only') return undefined;
+
+  const provenance = { contract_version: value.contract_version, coverage: value.coverage } as const;
+  const cohortCases = strictCount(value, 'cohort_cases');
+  const sampleCases = strictCount(value, 'sample_cases');
+  if (value.state === 'unavailable' && value.average_minutes === null) {
+    if (value.cohort_cases === null && value.sample_cases === null) {
+      return { ...provenance, state: 'unavailable', average_minutes: null, cohort_cases: null, sample_cases: null };
+    }
+    if (cohortCases !== undefined && sampleCases === 0) {
+      return { ...provenance, state: 'unavailable', average_minutes: null, cohort_cases: cohortCases, sample_cases: 0 };
+    }
+  }
+  const average = value.average_minutes;
+  if (value.state !== 'observed' || typeof average !== 'number' || !Number.isFinite(average) || average < 0
+    || cohortCases === undefined || sampleCases === undefined || sampleCases === 0 || sampleCases > cohortCases) return undefined;
+  return { ...provenance, state: 'observed', average_minutes: average, cohort_cases: cohortCases, sample_cases: sampleCases };
+};
+
+const normalizeMunicipalInboxHandoff = (value: unknown): MunicipalInboxHandoffOverview | undefined => {
+  if (!isRecord(value)
+    || value.contract_version !== 'analytics.municipal_inbox_handoff.v1'
+    || value.basis !== 'recorded_acceptances_of_tracked_municipal_inbox_requests'
+    || value.coverage !== 'municipal_inbox_request_acceptance_audit.v1') return undefined;
+  if (value.state === 'unavailable' && value.request_count === null && value.accepted_count === null) {
+    return { state: 'unavailable', request_count: null, accepted_count: null };
+  }
+  const requests = strictCount(value, 'request_count');
+  const accepted = strictCount(value, 'accepted_count');
+  if (value.state !== 'observed' || requests === undefined || requests === 0
+    || accepted === undefined || accepted > requests) return undefined;
+  return { state: 'observed', request_count: requests, accepted_count: accepted };
+};
+
+const normalizeOverview = (response: unknown, tenantSlug?: string | null): AnalyticsOverview => {
+  if (!isRecord(response)) return {};
+  const source = isRecord(response.summary) ? response.summary : response;
+  const responseSlug = operationsTenantSlug(response.tenant_slug);
+  const ticketSatisfaction = responseSlug && responseSlug === tenantSlug
+    ? normalizeTicketSatisfaction(response.ticket_satisfaction)
+    : undefined;
+  const inboxFirstReply = responseSlug && responseSlug === tenantSlug
+    ? normalizeInboxFirstPublicReply(response.inbox_first_public_reply)
+    : undefined;
+  const municipalHandoff = responseSlug && responseSlug === tenantSlug
+    ? normalizeMunicipalInboxHandoff(response.municipal_inbox_handoff)
+    : undefined;
 
   return {
     conversations: asNumber(source.conversations ?? source.conversaciones),
     open_tickets: asNumber(source.open_tickets ?? source.tickets_abiertos),
     overdue_tickets: asNumber(source.overdue_tickets ?? source.tickets_vencidos),
-    response_time: asNumber(source.response_time ?? source.first_response_time ?? source.frt),
+    response_time: source.response_time === null
+      ? undefined
+      : asNumber(source.response_time ?? source.first_response_time ?? source.frt),
     survey_responses: asNumber(source.survey_responses ?? source.respuestas_encuestas),
     nps: asNumber(source.nps),
-    csat: asNumber(source.csat),
     handoff_rate: asNumber(source.handoff_rate),
+    ...(ticketSatisfaction ? { ticket_satisfaction: ticketSatisfaction } : {}),
+    ...(inboxFirstReply ? { inbox_first_public_reply: inboxFirstReply } : {}),
+    ...(municipalHandoff ? { municipal_inbox_handoff: municipalHandoff } : {}),
   };
 };
 
@@ -1914,7 +1998,7 @@ export const getAnalyticsOverviewV2 = async (tenantSlug?: string | null, isCurre
     legacyFallbackPath: '/analytics/overview',
   });
   if (tenantSlug) assertOperationsResponseScope(response, tenantSlug);
-  return normalizeOverview(response);
+  return normalizeOverview(response, tenantSlug);
 };
 
 export const getOperationsDashboardV2 = async (params?: {

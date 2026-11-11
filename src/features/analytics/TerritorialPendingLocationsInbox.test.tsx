@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError, NetworkError } from '@/utils/api';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
 import type { OperationsHeatmapV1 } from './analyticsTypes';
 import { TerritorialPendingLocationsInbox } from './TerritorialPendingLocationsInbox';
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   sync: vi.fn(),
   resolve: vi.fn(),
   apply: vi.fn(),
+  propose: vi.fn(),
   createExecutionKey: vi.fn(),
 }));
 const PROPOSAL_DIGEST = 'b'.repeat(64);
@@ -41,6 +43,7 @@ vi.mock('./territorialGeocodingApi', async (importOriginal) => {
     syncTerritorialGeocodingQueue: mocks.sync,
     resolveTerritorialGeocodingJob: mocks.resolve,
     applyTerritorialGeocodingJob: mocks.apply,
+    proposeTerritorialManualLocation: mocks.propose,
     createTerritorialReviewIdempotencyKey: () => 'geo-review:geo-job-419:ui-test',
     createTerritorialSyncIdempotencyKey: () => 'geo-sync:ui-test-01234567',
     createTerritorialExecutionIdempotencyKey: mocks.createExecutionKey,
@@ -180,6 +183,16 @@ const adminDetail = (): TerritorialGeocodingDetail => ({
   writePolicy: { getIsReadOnly: true, providerCallPerformed: false, coordinateApplicationSupported: true, reviewIsHumanDecisionOnly: true, applyRequiresSeparateConfirmedPost: true },
 });
 
+const manualDetail = (expectedAttemptCount = 2): TerritorialGeocodingDetail => ({
+  ...adminDetail(),
+  item: {
+    ...adminItem, attemptCount: expectedAttemptCount,
+    manualLocationAction: {
+      href: '/api/v2/analytics/operations/geocoding-queue/geo-job-419/manual-location', expectedAttemptCount,
+    },
+  },
+});
+
 const previewQueue = (): TerritorialGeocodingPreviewQueue => ({
   contractVersion: 'operations.territorial_geocoding_preview.v1',
   tenantId: '4',
@@ -231,6 +244,164 @@ describe('TerritorialPendingLocationsInbox', () => {
     mocks.getPreview.mockRejectedValue(new ApiError('not found', 404));
     mocks.getDetail.mockResolvedValue(adminDetail());
     mocks.getAttempts.mockResolvedValue({ attempts: [] });
+  });
+
+  const openManual = async () => {
+    const trigger = await screen.findByRole('button', { name: 'Proponer punto manual' });
+    fireEvent.click(trigger);
+    await screen.findByRole('dialog', { name: 'Proponer punto manual' });
+    return trigger;
+  };
+  const fillManual = (lat = '-33,050', lng = '-68,470') => {
+    fireEvent.change(screen.getByLabelText('Latitud'), { target: { value: lat } });
+    fireEvent.change(screen.getByLabelText('Longitud'), { target: { value: lng } });
+  };
+  const confirmManual = async () => {
+    const check = screen.getByRole('checkbox', { name: 'Confirmo que quiero enviar este punto a revisión.' });
+    await waitFor(() => expect(check).toBeEnabled());
+    fireEvent.click(check);
+    return screen.getByRole('button', { name: 'Enviar propuesta a revisión' });
+  };
+
+  it('accepts decimal comma and keeps the pending manual proposal separate from apply', async () => {
+    const staleQueue = adminQueue();
+    staleQueue.items = [{ ...adminItem, applyAction: { ...adminItem.applyAction, enabled: true } }];
+    mocks.getQueue.mockResolvedValue(staleQueue);
+    mocks.getDetail.mockResolvedValueOnce(manualDetail(2)).mockResolvedValueOnce(manualDetail(3));
+    const detail = manualDetail(4);
+    detail.proposal = {
+      ...detail.proposal, lat: -33.05, lng: -68.47, provider: null,
+      provenance: { source: 'manual_operator', provider: null, proposalDigest: PROPOSAL_DIGEST, sourceAddressRetained: false },
+    };
+    mocks.getDetail.mockResolvedValue(detail);
+    mocks.propose.mockResolvedValue({ action: 'manual_location' });
+    renderInbox();
+
+    await openManual();
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(/WGS84 desde un mapa oficial/);
+    expect(screen.getByLabelText('Latitud')).toHaveFocus();
+    expect(screen.getByLabelText('Latitud')).toHaveAccessibleDescription(/Usá hasta 10 decimales/);
+    fillManual('91', '-68.47');
+    expect(screen.getByLabelText('Latitud')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Latitud')).toHaveAccessibleDescription(/Ingresá un decimal entre −90 y 90/);
+    expect(screen.getByRole('button', { name: 'Enviar propuesta a revisión' })).toBeDisabled();
+    const tooPrecise = '-33,05123456789123456789';
+    fillManual(tooPrecise, '-68,47');
+    expect(screen.getByLabelText('Latitud')).toHaveValue(tooPrecise);
+    expect(screen.getByLabelText('Latitud')).toHaveAttribute('aria-invalid', 'true');
+    fillManual();
+    expect(mocks.propose).not.toHaveBeenCalled();
+    const submit = await confirmManual();
+    fireEvent.click(submit);
+
+    expect(await screen.findByText('Propuesta manual guardada para revisión.')).toBeInTheDocument();
+    expect(await screen.findByText('Origen: propuesta manual · Pendiente de revisión')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aplicar coordenadas' })).toBeDisabled();
+    expect(screen.getByRole('heading', { name: 'Reclamo #419' })).toHaveFocus();
+    expect(mocks.propose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      tenantSlug: 'junin', tenantId: '4', jobId: 'geo-job-419',
+      lat: -33.05, lng: -68.47, expectedAttemptCount: 3, confirmed: true,
+    }));
+    expect(mocks.review).not.toHaveBeenCalled();
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(mocks.resolve).not.toHaveBeenCalled();
+  });
+
+  it('keeps the form and its semantic idempotency key after an uncertain result', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.getDetail.mockResolvedValue(manualDetail());
+    mocks.propose.mockRejectedValue(new NetworkError('resultado incierto'));
+    renderInbox();
+    await openManual();
+    fillManual();
+    fireEvent.click(await confirmManual());
+    await screen.findByText(/No pudimos confirmar la propuesta/);
+    expect(mocks.propose).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Latitud')).toHaveValue('-33,050');
+    fillManual('-33.05', '-68.4700');
+    fireEvent.click(await confirmManual());
+    await waitFor(() => expect(mocks.propose).toHaveBeenCalledTimes(2));
+    expect(mocks.propose.mock.calls[1][0].idempotencyKey).toBe(mocks.propose.mock.calls[0][0].idempotencyKey);
+    expect(mocks.createExecutionKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a newer matching point on read without claiming the uncertain write or sending another proposal', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.getDetail.mockResolvedValue(manualDetail());
+    mocks.propose.mockRejectedValue(new NetworkError('resultado incierto'));
+    renderInbox();
+    await openManual();
+    fillManual();
+    fireEvent.click(await confirmManual());
+    await screen.findByText(/No pudimos confirmar la propuesta/);
+    const newer = manualDetail(3);
+    newer.proposalVersion = { attemptId: 'attempt-manual-3', attemptNumber: 3 };
+    newer.proposal = {
+      ...newer.proposal, lat: -33.05, lng: -68.47, provider: null,
+      provenance: { source: 'manual_operator', provider: null, proposalDigest: PROPOSAL_DIGEST, sourceAddressRetained: false },
+    };
+    mocks.getDetail.mockResolvedValue(newer);
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a consultar' }));
+    expect(await screen.findByText(/El detalle actual ya muestra una propuesta manual con ese punto/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Proponer punto manual' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Propuesta manual guardada para revisión.')).not.toBeInTheDocument();
+    expect(mocks.propose).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks an old version until an explicit read and new confirmation', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.getDetail.mockResolvedValue(manualDetail(2));
+    mocks.propose.mockRejectedValue(new ApiError('versión retirada', 409, { reason_code: 'geocoding_manual_location_attempt_count_stale' }));
+    renderInbox();
+    await openManual();
+    fillManual();
+    fireEvent.click(await confirmManual());
+    await screen.findByText(/El caso cambió/);
+    expect(screen.getByRole('button', { name: 'Enviar propuesta a revisión' })).toBeDisabled();
+    mocks.getDetail.mockResolvedValue(manualDetail(3));
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a consultar' }));
+    expect(screen.getByLabelText('Latitud')).toHaveValue('-33,050');
+    expect(mocks.propose).toHaveBeenCalledTimes(1);
+    fireEvent.click(await confirmManual());
+    await waitFor(() => expect(mocks.propose).toHaveBeenCalledTimes(2));
+    expect(mocks.propose.mock.calls[1][0].expectedAttemptCount).toBe(3);
+    expect(mocks.propose.mock.calls[1][0].idempotencyKey).not.toBe(mocks.propose.mock.calls[0][0].idempotencyKey);
+  });
+
+  it('does not accept a delayed manual ACK after an ABA session change', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.getDetail.mockResolvedValue(manualDetail());
+    let complete!: () => void;
+    mocks.propose.mockReturnValue(new Promise<void>((resolve) => { complete = resolve; }));
+    renderInbox();
+    await openManual();
+    fillManual();
+    fireEvent.click(await confirmManual());
+    expect(mocks.propose.mock.calls[0][0].isCurrent()).toBe(true);
+    act(() => { advanceChatbocSessionRevision(); advanceChatbocSessionRevision(); });
+    expect(mocks.propose.mock.calls[0][0].isCurrent()).toBe(false);
+    const reads = mocks.getDetail.mock.calls.length;
+    await act(async () => complete());
+    expect(screen.queryByText('Propuesta manual guardada para revisión.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Proponer punto manual' })).not.toBeInTheDocument();
+    expect(mocks.getDetail).toHaveBeenCalledTimes(reads);
+    expect(mocks.propose).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the action for an earlier backend and refuses fresh details for another case', async () => {
+    mocks.getQueue.mockResolvedValue(adminQueue());
+    mocks.getDetail.mockResolvedValueOnce(adminDetail());
+    const before = renderInbox();
+    await screen.findByText('Propuesta geográfica');
+    expect(screen.queryByRole('button', { name: 'Proponer punto manual' })).not.toBeInTheDocument();
+    before.unmount();
+    mocks.getDetail.mockResolvedValueOnce(manualDetail()).mockResolvedValueOnce({ ...manualDetail(), tenantId: '5' });
+    renderInbox();
+    await openManual();
+    fillManual();
+    await screen.findByText(/no está habilitada en la revisión actual/);
+    expect(screen.getByRole('button', { name: 'Enviar propuesta a revisión' })).toBeDisabled();
+    expect(mocks.propose).not.toHaveBeenCalled();
   });
 
   it('uses the administrative queue and requires an explicit confirmed reason before reviewing', async () => {

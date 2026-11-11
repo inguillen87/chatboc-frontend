@@ -205,7 +205,7 @@ export const backofficeService = {
       throw new ApiError('Seleccioná nuevamente la organización antes de exportar.', 400,
         { code: 'export_scope_required' });
     }
-    const response = await apiFetch<Response>('/api/v2/backoffice/export', {
+    const response = await apiFetch('/api/v2/backoffice/export', {
       ...panelReadOptions(payload.tenant_slug),
       method: 'POST',
       body: { tenant_slug: payload.tenant_slug, tenant_id: payload.tenant_id,

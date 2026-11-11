@@ -12,6 +12,7 @@ interface SurveyRecentResponsesProps {
   error?: string | null;
   onRefresh?: () => void;
   emptyHintUrl?: string | null;
+  totalResponses?: number | null;
   totalResponsesHint?: number | null;
 }
 
@@ -141,6 +142,7 @@ export const SurveyRecentResponses = ({
   error,
   onRefresh,
   emptyHintUrl,
+  totalResponses,
   totalResponsesHint,
 }: SurveyRecentResponsesProps) => (
   <Card>
@@ -228,8 +230,10 @@ export const SurveyRecentResponses = ({
         </ul>
       ) : !error ? (
         <p className="text-sm text-muted-foreground">
-          {typeof totalResponsesHint === 'number' && totalResponsesHint > 0 ? (
+          {(totalResponses ?? 0) > 0 || (totalResponsesHint ?? 0) > 0 ? (
             'Ya hay respuestas registradas, pero este bloque todavía no pudo cargar el detalle reciente. Probá actualizar.'
+          ) : totalResponses !== 0 ? (
+            'El listado todavía no confirmó cuántas respuestas hay. Probá actualizar.'
           ) : emptyHintUrl ? (
             <>
               Todavía no recibimos respuestas. Compartí el enlace{' '}
