@@ -326,6 +326,12 @@ jobs:
       run: npx playwright install --with-deps chromium
     - name: Responsive sources, navigation and batched reads
       run: node tests/operations-workspace.browser.mjs
+    - name: Ticket header and viewport layout
+      env:
+        VITE_BACKEND_URL: /api
+        VITE_PROXY_TARGET: http://127.0.0.1:9
+        VITE_SOCKET_URL: http://127.0.0.1:9
+      run: npx playwright test tests/e2e/ticket-workspace-layout.spec.ts --project=chromium --workers=1 --grep "header clears|full-height|composer visible" --output=.vercel/operations-live-evidence/ticket-workspace
     - name: Evidence
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

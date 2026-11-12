@@ -102,7 +102,7 @@ const parseStoredUser = (raw: string | null) => {
   }
 };
 
-const Navbar: React.FC = () => {
+const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef=useRef<HTMLElement>(null);
   const privateBrandRef=useRef<HTMLAnchorElement>(null);
@@ -418,7 +418,7 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} fixed left-0 right-0 top-0 z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
+    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} ${inFlow ? 'relative shrink-0' : 'fixed left-0 right-0 top-0'} z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
         {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
           ref={brandHomeButtonRef}

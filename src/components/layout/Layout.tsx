@@ -98,9 +98,10 @@ const Layout = () => {
         </style>
       ) : null}
       {!hostBinding && !isViewportWorkspace && !isFocusedPublicExperience ? <DemoModeBanner /> : null}
-      {!isFocusedPublicExperience ? <Navbar /> : null}
+      {/* These workspaces scroll inside main, so reserve the navbar's actual height in the flex shell. */}
+      {!isFocusedPublicExperience ? <Navbar inFlow={isViewportWorkspace} /> : null}
       {isViewportWorkspace ? (
-        <div className="mt-14 shrink-0">
+        <div className="shrink-0">
           <DemoModeBanner />
         </div>
       ) : null}

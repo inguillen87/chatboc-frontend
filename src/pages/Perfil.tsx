@@ -2893,7 +2893,12 @@ export default function Perfil() {
       className={cn(
         "flex w-full min-w-0 flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
         isViewportWorkspaceProfileTab
-          ? "h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3"
+          ? cn(
+              isInstitutionProfileViewport || searchParams.get("mode") === "embed"
+                ? "h-[calc(100dvh-3.5rem)]"
+                : "h-full",
+              "min-h-0 overflow-hidden px-1 py-1 sm:px-2 md:px-3",
+            )
           : isWideWorkspaceProfileTab
             ? "min-h-screen px-1 py-1 sm:px-2 md:px-3"
           : "min-h-screen px-2 py-4 sm:px-4 md:px-6 lg:px-8",
