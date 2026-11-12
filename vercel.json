@@ -3,6 +3,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "codex/government-workspace-ux-20261112": false,
       "claude/integration-20261112": false,
       "codex/chatboc-unified-ux-20261112": false,
       "fix/tracking-background-refresh-20261112": false,

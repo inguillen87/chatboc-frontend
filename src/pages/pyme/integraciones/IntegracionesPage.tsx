@@ -40,6 +40,7 @@ import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthori
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { fetchTenantChannelActivation, type ChannelActivationContract } from '@/api/v2/channelActivation';
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
+import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 import {
   Dialog,
   DialogContent,
@@ -107,6 +108,7 @@ const CHANNELS = [
     { id: 'mercadopago', label: 'Cobros', icon: KeyRound },
     { id: 'email', label: 'Email', icon: Mail },
 ];
+const COMMERCE_CHANNEL_IDS = new Set(['mercadolibre', 'tiendanube', 'mercadopago']);
 
 type QuickMenuPreviewItem = {
   id?: string;
@@ -363,8 +365,21 @@ const IntegracionesPage = () => {
   const coherent = currentSlug && publicTenant?.slug === currentSlug && publishedIdentity?.tenantSlug === currentSlug
     && Number.isSafeInteger(publishedTenantId) && Number(publishedTenantId) > 0
     && (!routeTenant || routeTenant === currentSlug) && !conflictingRequest && !isLoadingTenant && !tenantError;
+  const organization = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified, loading: userLoading,
+  });
+  // Use the selected organization's backend type, not the operator's role or
+  // a different organization belonging to a SuperAdmin's own account.
+  const organizationType = coherent
+    ? organization?.tenantSlug === currentSlug && organization.tenantId === publishedTenantId
+      ? organization.organizationType : publicTenant?.tipo
+    : null;
+  const isGovernmentOrganization = ['municipio', 'gobierno', 'government']
+    .includes(String(organizationType ?? '').trim().toLowerCase());
   const verifiedScope = !userLoading && organizationProfileVerified && coherent
     ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug: currentSlug, user }) : null;
+  const showCommerceIntegrations = Boolean(verifiedScope && !isGovernmentOrganization);
+  const availableChannels = CHANNELS.filter(channel => showCommerceIntegrations || !COMMERCE_CHANNEL_IDS.has(channel.id));
   const channelScopeKey = verifiedScope ? JSON.stringify([verifiedScope, sessionRevision, publishedTenantId]) : null;
   const channelScope = useRef(channelScopeKey);
   useLayoutEffect(() => { channelScope.current = channelScopeKey; return () => { channelScope.current = null; }; }, [channelScopeKey]);
@@ -402,7 +417,10 @@ const IntegracionesPage = () => {
 
   // UI State
   const [activeTab, setActiveTab] = useState("integrations");
-  const [selectedChannel, setSelectedChannel] = useState("whatsapp");
+  const [selectedChannelId, setSelectedChannel] = useState("whatsapp");
+  // A stale selection or a direct commerce URL must not render a hidden panel.
+  const selectedChannel = availableChannels.some(channel => channel.id === selectedChannelId)
+    ? selectedChannelId : 'whatsapp';
   const requestedChannel = searchParams.get("channel");
   const requestedAction = searchParams.get("action");
 
@@ -908,6 +926,8 @@ const IntegracionesPage = () => {
   const selectedChannelPlanLock =
     channelPlanLocks[selectedChannel] ||
     (lockMatchesChannel(integrationPlanLock, selectedChannel) ? integrationPlanLock : null);
+  const visiblePagePlanLock = !showCommerceIntegrations && [...COMMERCE_CHANNEL_IDS]
+    .some(channel => lockMatchesChannel(integrationPlanLock, channel)) ? null : integrationPlanLock;
 
   const handleConnect = async (provider: string) => {
     if (!currentSlug) return;
@@ -1575,15 +1595,15 @@ const IntegracionesPage = () => {
   const copyLabel = catalogData?.links?.share_copy_label ?? 'Copiar link';
   const whatsappLabel = catalogData?.links?.share_whatsapp_label ?? 'WhatsApp';
   const shareLabel = catalogData?.links?.share_label ?? 'Compartir catálogo';
-  const selectedChannelConfig = CHANNELS.find((channel) => channel.id === selectedChannel) ?? CHANNELS[0];
+  const selectedChannelConfig = availableChannels.find((channel) => channel.id === selectedChannel) ?? availableChannels[0];
   const selectedChannelStatus = getIntegrationStatus(selectedChannel);
   const selectedChannelGuidance = CHANNEL_GUIDANCE[selectedChannel] ?? CHANNEL_GUIDANCE.whatsapp;
-  const connectedChannels = CHANNELS.filter((channel) => getIntegrationStatus(channel.id).connected).length;
+  const connectedChannels = availableChannels.filter((channel) => getIntegrationStatus(channel.id).connected).length;
   const whatsappStatus = getIntegrationStatus("whatsapp");
   const readinessLabel = loading
     ? "Cargando canales"
     : connectedChannels > 0
-      ? `${connectedChannels} de ${CHANNELS.length} canales conectados`
+      ? `${connectedChannels} de ${availableChannels.length} canales conectados`
       : "Pendiente de autorización";
 
   return (
@@ -1950,8 +1970,8 @@ const IntegracionesPage = () => {
             </TabsContent>
 
             <TabsContent value="integrations" className="space-y-8">
-                {integrationPlanLock && !lockMatchesChannel(integrationPlanLock, selectedChannel)
-                  ? renderIntegrationPlanLockPanel(integrationPlanLock, "page")
+                {visiblePagePlanLock && !lockMatchesChannel(visiblePagePlanLock, selectedChannel)
+                  ? renderIntegrationPlanLockPanel(visiblePagePlanLock, "page")
                   : null}
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-8 items-start">
 
@@ -1965,12 +1985,12 @@ const IntegracionesPage = () => {
                                         <CardDescription>Autoriza, prueba y publica cada canal desde el perfil del tenant.</CardDescription>
                                     </div>
                                     <Badge variant="outline" className="shrink-0">
-                                        {connectedChannels}/{CHANNELS.length}
+                                        {connectedChannels}/{availableChannels.length}
                                     </Badge>
                                 </div>
                             </CardHeader>
                             <CardContent className="flex flex-col gap-2">
-                                {CHANNELS.map((channel) => {
+                                {availableChannels.map((channel) => {
                                     const status = getIntegrationStatus(channel.id);
                                     const Icon = channel.icon;
                                     const guidance = CHANNEL_GUIDANCE[channel.id] ?? CHANNEL_GUIDANCE.whatsapp;
@@ -2020,7 +2040,7 @@ const IntegracionesPage = () => {
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-muted/40">
+                        {showCommerceIntegrations && <Card className="bg-muted/40">
                             <CardHeader>
                                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                                     <Settings className="h-4 w-4"/> Configuración Global
@@ -2032,7 +2052,7 @@ const IntegracionesPage = () => {
                                 </p>
                                 <OrderDispatchSettings />
                             </CardContent>
-                        </Card>
+                        </Card>}
 
                         <Card className="min-h-[520px] overflow-hidden">
                             <CardHeader>

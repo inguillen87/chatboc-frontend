@@ -672,6 +672,38 @@ const desktopPaths = [
   '/t/municipio-demo/reclamos?ticket_id=101&channel=whatsapp&focus=heatmap',
 ];
 
+for (const viewport of [{ width: 1745, height: 808 }, { width: 390, height: 844 }]) {
+  test(`ticket workspace header clears the navigation at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await openWorkspace(page, '/perfil?tab=tickets');
+
+    const navbar = page.locator('[data-workspace-shell="tickets"] > header');
+    const profile = page.getByTestId('profile-page-shell');
+    const title = page.getByText('Consola tickets', { exact: true });
+    await expect(title).toBeVisible();
+    const [navbarBox, profileBox, titleBox] = await Promise.all([
+      navbar.boundingBox(),
+      profile.boundingBox(),
+      title.boundingBox(),
+    ]);
+    const screenshotPath = testInfo.outputPath(`ticket-header-${viewport.width}x${viewport.height}.png`);
+    await page.screenshot({ path: screenshotPath });
+    await testInfo.attach(`ticket-header-${viewport.width}x${viewport.height}`, {
+      path: screenshotPath,
+      contentType: 'image/png',
+    });
+
+    expect(navbarBox).not.toBeNull();
+    expect(profileBox).not.toBeNull();
+    expect(titleBox).not.toBeNull();
+    const navbarBottom = (navbarBox?.y || 0) + (navbarBox?.height || 0);
+    expect(profileBox?.y || 0).toBeGreaterThanOrEqual(navbarBottom);
+    expect(titleBox?.y || 0).toBeGreaterThanOrEqual(navbarBottom);
+    expect((profileBox?.y || 0) + (profileBox?.height || 0)).toBeLessThanOrEqual(viewport.height);
+    await expectDocumentLocked(page);
+  });
+}
+
 for (const path of desktopPaths) {
   test(`ticket workspace is full-height at 1440x900: ${path.split('?')[0]}`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
