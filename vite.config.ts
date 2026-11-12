@@ -5,6 +5,15 @@ import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 import { configDefaults } from 'vitest/config';
 
+// Git builds on Vercel do not set VITE_APP_VERSION, which left the published
+// page with a literal "%VITE_APP_VERSION%" as its build revision. Fall back to
+// the commit Vercel is building; an explicitly provided value always wins.
+if (!process.env.VITE_APP_VERSION) {
+  const vercelCommit = process.env.VERCEL_GIT_COMMIT_SHA;
+  process.env.VITE_APP_VERSION =
+    vercelCommit && /^[0-9a-f]{40}$/i.test(vercelCommit) ? vercelCommit.toLowerCase() : 'dev';
+}
+
 const pwaCoreStaticAssets = [
   'apple-touch-icon.png',
   'masked-icon.svg',
