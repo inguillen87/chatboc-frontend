@@ -1057,7 +1057,7 @@ export const getComposerChannelView = ({
     return {
       tone: 'warning' as const,
       label: 'Entrega externa a revisar',
-      detail: 'El ultimo mensaje quedo guardado, pero el canal externo no confirmo entrega.',
+      detail: 'Tu último mensaje quedó guardado, pero no pudimos confirmar que le llegó a la persona.',
     };
   }
 
@@ -1074,7 +1074,7 @@ export const getComposerChannelView = ({
       return {
         tone: 'success' as const,
         label: normalized === 'whatsapp' ? 'Salida por WhatsApp disponible' : 'Salida por email disponible',
-        detail: 'El backend permite intentar el despacho. La entrega final sólo se confirma con evidencia del proveedor.',
+        detail: 'Podés responder por este canal. La entrega se confirma cuando el proveedor la informa.',
       };
     }
 
@@ -1085,7 +1085,7 @@ export const getComposerChannelView = ({
         detail: getHumanReplyReason(
           externalChannel?.reason_code,
           externalChannel?.disabled_reason,
-          'El backend confirmó registro auditable, pero no publicó despacho externo para este canal.',
+          'Tu respuesta queda guardada en el caso. Este canal no tiene envío externo habilitado.',
         ),
       };
     }
@@ -1093,7 +1093,7 @@ export const getComposerChannelView = ({
     return {
       tone: 'warning' as const,
       label: 'Capacidad de salida no verificada',
-      detail: 'El contrato no confirmó un canal de entrega para este expediente.',
+      detail: 'No hay un canal de envío confirmado para este caso.',
     };
   }
 
@@ -1101,7 +1101,7 @@ export const getComposerChannelView = ({
     return {
       tone: 'muted' as const,
       label: 'Canal de origen: WhatsApp',
-      detail: 'El canal de origen no prueba que exista una salida WhatsApp habilitada para responder.',
+      detail: 'La consulta llegó por WhatsApp. Todavía no está confirmado que se pueda responder por ahí.',
     };
   }
 
@@ -1110,14 +1110,14 @@ export const getComposerChannelView = ({
       return {
         tone: 'success' as const,
         label: 'Presencia ciudadana confirmada',
-        detail: 'La sala reporta presencia pública; esto no confirma por sí solo entrega ni lectura.',
+        detail: 'La persona tiene el chat abierto. Eso no garantiza que haya leído tu mensaje.',
       };
     }
 
     return {
       tone: 'muted' as const,
       label: 'Canal web sin presencia confirmada',
-      detail: 'La conectividad técnica no prueba que el ciudadano esté viendo el ticket.',
+      detail: 'No sabemos si la persona tiene el chat abierto en este momento.',
     };
   }
 
@@ -1125,7 +1125,7 @@ export const getComposerChannelView = ({
     return {
       tone: 'muted' as const,
       label: 'Canal de origen: email',
-      detail: 'El origen por email no prueba que el envío de respuestas esté habilitado.',
+      detail: 'La consulta llegó por email. Todavía no está confirmado que se pueda responder por ahí.',
     };
   }
 
@@ -1140,7 +1140,7 @@ export const getComposerChannelView = ({
   return {
     tone: 'muted' as const,
     label: 'Registro CRM',
-    detail: 'No hay canal externo confirmado; la respuesta queda como actividad del ticket.',
+    detail: 'Tu respuesta queda guardada en el caso. No hay un canal de envío confirmado.',
   };
 };
 
