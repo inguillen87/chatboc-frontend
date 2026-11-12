@@ -160,6 +160,10 @@ export const SurveyOperationsOverview = ({
             )}
           </p>
           {excludedScopeCount > 0 || unverifiedScopeCount > 0 ? (
+            <details className="mt-1 text-xs text-muted-foreground">
+              <summary className="cursor-pointer select-none font-medium">
+                Detalle de verificación de los instrumentos
+              </summary>
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
               Alcance operativo: {loaded.toLocaleString('es-AR')} cargados. Se excluyen{' '}
               {confirmedConflictCount.toLocaleString('es-AR')} conflictos confirmados.{' '}
@@ -169,6 +173,7 @@ export const SurveyOperationsOverview = ({
                 ? ` dentro de ${sourceTotalCount.toLocaleString('es-AR')} registros recibidos`
                 : ''}.
             </p>
+            </details>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
@@ -201,6 +206,8 @@ export const SurveyOperationsOverview = ({
       </div>
 
       {serverJurisdiction && serverScopeMatchesLoaded ? (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none font-medium">Resumen de verificación territorial</summary>
         <div
           role="status"
           aria-label="Resumen jurisdiccional de la página recibida"
@@ -225,6 +232,7 @@ export const SurveyOperationsOverview = ({
             pendientes de verificar
           </p>
         </div>
+        </details>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
