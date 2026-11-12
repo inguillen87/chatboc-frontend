@@ -1813,7 +1813,7 @@ function AIProviderStatusPanel({
 
             {warnings.length ? (
               <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
-                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Atencion operativa</p>
+                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Atención operativa</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {warnings.slice(0, 4).map((warning) => (
                     <span key={warning} className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -2214,7 +2214,7 @@ function AIBriefBanner({ brief }: { brief: OperationsAIBriefV1 }) {
           </div>
           {topAction ? (
             <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">Siguiente accion</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">Siguiente acción</p>
               <p className="mt-1 text-sm font-semibold">{topAction.title || topAction.id || 'Revisar accion recomendada'}</p>
               {topAction.description ? <p className="mt-1 text-sm text-slate-300">{topAction.description}</p> : null}
             </div>

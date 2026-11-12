@@ -461,7 +461,7 @@ const TenantPublicLanding = () => {
                 </div>
               ) : surveysQuery.error ? (
                 <Alert variant="destructive">
-                  <AlertTitle>No pudimos cargar la participacion</AlertTitle>
+                  <AlertTitle>No pudimos cargar la participación</AlertTitle>
                   <AlertDescription>{publicErrorMessage(surveysQuery.error)}</AlertDescription>
                 </Alert>
               ) : surveyItems.length ? (

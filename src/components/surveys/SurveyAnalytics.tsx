@@ -1147,7 +1147,7 @@ function SurveyTerritoryCommandCenter({
             <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
               <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Capas</p>
               <p className="mt-2 text-2xl font-semibold text-white">{categoryCount || '--'}</p>
-              <p className="text-xs text-slate-400">categorias territoriales</p>
+              <p className="text-xs text-slate-400">categorías territoriales</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
               <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Señal</p>

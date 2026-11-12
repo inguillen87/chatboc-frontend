@@ -180,7 +180,7 @@ describe('AiAssistPanel', () => {
     expect(screen.getByText('fallback seguro')).toBeInTheDocument();
     expect(screen.getByText('advisory-only')).toBeInTheDocument();
     expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
-    expect(screen.getByText('validar ubicacion')).toBeInTheDocument();
+    expect(screen.getByText('validar ubicación')).toBeInTheDocument();
     expect(screen.getByText('revisar evidencia')).toBeInTheDocument();
     expect(screen.getByText('Guia para responder')).toBeInTheDocument();
     expect(screen.getByText('Caso de luminaria con prioridad urgente.')).toBeInTheDocument();

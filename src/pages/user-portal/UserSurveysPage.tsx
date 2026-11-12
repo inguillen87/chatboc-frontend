@@ -20,20 +20,20 @@ const UserSurveysPage = () => {
     <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-foreground">Encuestas y participacion</h1>
+          <h1 className="text-3xl font-bold text-foreground">Encuestas y participación</h1>
           <p className="text-muted-foreground text-sm md:text-base max-w-3xl">
             Respuestas, sugerencias y reclamos vinculados al tenant actual.
           </p>
         </div>
         <Button asChild variant="outline">
-          <a href={loginPath}>Iniciar sesion</a>
+          <a href={loginPath}>Iniciar sesión</a>
         </Button>
       </div>
 
       {summary?.hasParticipationMetrics ? (
         <Card className="border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle>Resumen de participacion</CardTitle>
+            <CardTitle>Resumen de participación</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
@@ -115,9 +115,9 @@ const UserSurveysPage = () => {
           </CardContent>
           <Separator />
           <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-            <span>Inicia sesion para vincular tus respuestas.</span>
+            <span>Inicia sesión para vincular tus respuestas.</span>
             <Button asChild size="sm">
-              <a href={loginPath}>Ir a iniciar sesion</a>
+              <a href={loginPath}>Ir a iniciar sesión</a>
             </Button>
           </CardFooter>
         </Card>

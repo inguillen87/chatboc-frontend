@@ -1489,7 +1489,7 @@ export function AssistedRequestPanel({
               <div className="flex items-start gap-2">
                 <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <div className="min-w-0">
-                  <dt className="sr-only">Telefono</dt>
+                  <dt className="sr-only">Teléfono</dt>
                   <dd className="break-all">{contactPhone || 'Sin telefono'}</dd>
                 </div>
               </div>

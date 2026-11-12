@@ -81,7 +81,7 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Descripcion</FormLabel>
+              <FormLabel>Descripción</FormLabel>
               <FormControl>
                 <Textarea
                   placeholder="Describe tu promocion..."

@@ -446,7 +446,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
             />
           </div>
           {tickets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aun no tenes tickets abiertos.</p>
+            <p className="text-sm text-muted-foreground">Aún no tenés tickets abiertos.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {tickets.map(t => (

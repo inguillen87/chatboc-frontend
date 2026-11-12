@@ -107,7 +107,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-1 h-5 w-5 shrink-0" />
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">No se pudo abrir la operacion</h2>
+          <h2 className="text-lg font-semibold">No se pudo abrir la operación</h2>
           <p className="mt-1 text-sm text-red-100/80">{message}</p>
           <Button onClick={onRetry} className="mt-4 h-10 rounded-[8px] bg-white text-slate-950 hover:bg-slate-100">
             Reintentar
@@ -281,7 +281,7 @@ export default function FinanceWebviewPage() {
                     </div>
                     <div className="rounded-[8px] border border-white/10 bg-slate-950/40 p-4">
                       <LockKeyhole className="mb-3 h-5 w-5 text-amber-200" />
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Sesion</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Sesión</p>
                       <p className="mt-1 font-semibold">{payload.security_policy.session_state === 'present' ? 'Validada' : 'Requerida'}</p>
                     </div>
                   </div>
@@ -389,7 +389,7 @@ export default function FinanceWebviewPage() {
                         <FileCheck2 className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Tu gestion</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Tu gestión</p>
                         <h3 className="text-lg font-semibold">Pasos claros antes de confirmar</h3>
                       </div>
                     </div>

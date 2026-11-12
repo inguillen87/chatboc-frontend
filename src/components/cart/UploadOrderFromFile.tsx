@@ -1950,7 +1950,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
             <div className="rounded-lg border bg-background p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Tambien podes escribir o pegar lo que necesitas</p>
+                  <p className="text-sm font-semibold">También podés escribir o pegar lo que necesitas</p>
                   <p className="text-xs text-muted-foreground">
                     Sirve para listas copiadas de WhatsApp, pedidos de mostrador, reclamos, boletas o notas simples sin archivo.
                   </p>
@@ -2689,7 +2689,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           </div>
           <div className="flex items-start gap-2">
             <MessageCircle className="mt-0.5 h-4 w-4 text-primary" />
-            <span>Si falta informacion, queda como lead para que el equipo lo complete por chat, WhatsApp, email o telefono.</span>
+            <span>Si falta información, queda como lead para que el equipo lo complete por chat, WhatsApp, email o teléfono.</span>
           </div>
         </div>
       ) : null}

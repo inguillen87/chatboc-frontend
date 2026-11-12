@@ -1271,7 +1271,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
               </div>
 
               <div className="rounded-xl border bg-card/60 p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Prueba de conexion</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Prueba de conexión</p>
                 <p className="mt-3 text-sm font-semibold text-foreground">{connectionTestLabel}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {canRunPrimarySmokeTest

@@ -563,7 +563,7 @@ export function SurveyLiveResultsPanel({
                       value={String(params.window_minutes ?? 60)}
                       onChange={(event) => setParams((current) => ({ ...current, window_minutes: Number(event.target.value) || 60 }))}
                     >
-                      <option value="60">Ultima hora</option>
+                      <option value="60">Última hora</option>
                       <option value="360">6 horas</option>
                       <option value="1440">24 horas</option>
                     </select>

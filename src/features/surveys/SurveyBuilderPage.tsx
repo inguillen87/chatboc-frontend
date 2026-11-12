@@ -815,7 +815,7 @@ export default function SurveyBuilderPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Datos del draft</CardTitle>
-              <CardDescription>Informacion editable antes de publicar o entregar al backend.</CardDescription>
+              <CardDescription>Información editable antes de publicar o entregar al backend.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -831,7 +831,7 @@ export default function SurveyBuilderPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="survey-draft-description">Descripcion</Label>
+                <Label htmlFor="survey-draft-description">Descripción</Label>
                 <Textarea
                   id="survey-draft-description"
                   className="min-h-28"

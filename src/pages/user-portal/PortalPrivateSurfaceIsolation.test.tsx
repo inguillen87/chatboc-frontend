@@ -126,12 +126,12 @@ describe('portal private surface session isolation', () => {
     'hides stale PII across layout, account, and dashboard while Clerk is %s',
     (clerkStatus) => {
       const layout = renderSurface(<UserPortalLayout />, clerkStatus);
-      expect(screen.getByRole('link', { name: 'Vincular sesion' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Vincular sesión' })).toBeInTheDocument();
       expectNoStalePii();
       layout.unmount();
 
       const account = renderSurface(<UserAccountPage />, clerkStatus);
-      expect(screen.getAllByText('Iniciar sesion').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Iniciar sesión').length).toBeGreaterThan(0);
       expect(screen.getByText('Usuario')).toBeInTheDocument();
       expectNoStalePii();
       account.unmount();

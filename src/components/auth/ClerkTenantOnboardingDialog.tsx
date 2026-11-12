@@ -409,7 +409,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
                   <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
                     <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                       <div className="space-y-2 sm:col-span-2">
-                        <Label htmlFor="tenant_name">Nombre de organizacion</Label>
+                        <Label htmlFor="tenant_name">Nombre de organización</Label>
                         <Input
                           ref={tenantNameInputRef}
                           id="tenant_name"

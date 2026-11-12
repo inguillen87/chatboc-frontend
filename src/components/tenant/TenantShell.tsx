@@ -259,7 +259,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
     if (!resolvedTenant) {
       return (
         <div className="flex flex-col gap-3">
-          <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>No encontramos informacion para este espacio.</h1>
+          <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>No encontramos información para este espacio.</h1>
           <div className="flex flex-wrap items-center gap-2">
             <Button ref={retryButtonRef} type="button" onClick={handleRetry} variant="outline" className="min-h-11">
               Reintentar

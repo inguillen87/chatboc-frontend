@@ -70,7 +70,7 @@ const ProblemsSection = () => {
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-10 max-w-3xl text-center md:mb-14">
           <div className="chatboc-section-kicker mb-4">El problema</div>
-          <h2 className="chatboc-section-heading">Lo que frena una operacion moderna</h2>
+          <h2 className="chatboc-section-heading">Lo que frena una operación moderna</h2>
           <p className="chatboc-section-copy mt-4">
             Chatboc esta pensado para organizaciones que ya tienen demanda real y necesitan que la experiencia digital acompane
             al equipo, no que lo obligue a sostener otra herramienta aislada.

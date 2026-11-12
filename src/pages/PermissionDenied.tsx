@@ -58,7 +58,7 @@ export default function PermissionDenied() {
     <div className="flex min-h-screen items-center justify-center p-8 text-center">
       <div className="max-w-xl space-y-4 rounded-2xl border border-border/70 bg-card/70 p-8 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Acceso del equipo</p>
-        <h1 className="text-3xl font-bold">Este modulo no esta habilitado para tu cuenta</h1>
+        <h1 className="text-3xl font-bold">Este módulo no está habilitado para tu cuenta</h1>
         <p className="text-muted-foreground">
           Podes volver al panel o pedir que un administrador active esta seccion para tu usuario.
         </p>

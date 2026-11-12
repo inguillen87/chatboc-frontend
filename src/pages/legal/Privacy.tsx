@@ -30,7 +30,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-xl font-semibold">Datos que podemos tratar</h2>
             <ul className="mt-3 list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Datos de contacto: nombre, telefono, email, empresa, institucion o municipio.</li>
+              <li>Datos de contacto: nombre, teléfono, email, empresa, institución o municipio.</li>
               <li>Datos de conversacion: mensajes, notas de voz, imagenes, adjuntos, ubicaciones y respuestas.</li>
               <li>Datos operativos: tickets, reclamos, pedidos, turnos, encuestas, etiquetas, estados y responsables.</li>
               <li>Datos tecnicos: IP, navegador, dispositivo, identificadores anonimos, logs, webhooks y eventos de entrega.</li>
@@ -41,7 +41,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-xl font-semibold">Finalidades</h2>
             <ul className="mt-3 list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Prestar servicios de atencion automatizada, CRM, mesa de ayuda, turnos, tickets y ventas conversacionales.</li>
+              <li>Prestar servicios de atención automatizada, CRM, mesa de ayuda, turnos, tickets y ventas conversacionales.</li>
               <li>Permitir que organizaciones administren conversaciones, operadores, auditoria y seguimiento.</li>
               <li>Enviar respuestas, notificaciones, recordatorios y mensajes transaccionales cuando exista base legitima u opt-in.</li>
               <li>Mejorar seguridad, rendimiento, trazabilidad, soporte y calidad del servicio.</li>

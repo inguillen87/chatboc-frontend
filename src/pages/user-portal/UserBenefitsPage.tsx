@@ -154,7 +154,7 @@ const UserBenefitsPage = () => {
         </div>
         {!user && !content.loyaltySummary && (
           <Button asChild variant="outline">
-            <a href={loginPath}>Iniciar sesion</a>
+            <a href={loginPath}>Iniciar sesión</a>
           </Button>
         )}
       </div>

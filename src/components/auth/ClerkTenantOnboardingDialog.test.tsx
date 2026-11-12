@@ -109,7 +109,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     };
     const { rerender } = render(renderForIdentity(firstIdentity));
 
-    const tenantName = await screen.findByLabelText(/Nombre de organizacion/i);
+    const tenantName = await screen.findByLabelText(/Nombre de organización/i);
     const rubro = screen.getByLabelText(/Rubro/i);
     const consent = screen.getByRole('checkbox');
     await waitFor(() => expect(tenantName).toHaveValue('Organizacion Clerk'));
@@ -156,7 +156,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     const onSubmit = vi.fn();
     const { rerender } = render(<ClerkTenantOnboardingDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} />);
 
-    const tenantName = screen.getByLabelText(/Nombre de organizacion/i);
+    const tenantName = screen.getByLabelText(/Nombre de organización/i);
     expect(screen.getByLabelText('Tipo de organización')).toHaveAttribute('id', 'clerk-onboarding-vertical');
     expect(screen.getByLabelText('Objetivo principal')).toHaveAttribute('id', 'clerk-onboarding-primary-goal');
     await waitFor(() => expect(tenantName).toHaveFocus());
@@ -358,7 +358,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     });
 
     expect(screen.getByText('Municipalidad de Junin')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Nombre de organizacion/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Nombre de organización/i)).not.toBeInTheDocument();
     const submit = screen.getByRole('button', { name: /Aceptar y continuar/i });
     expect(submit).toBeDisabled();
 

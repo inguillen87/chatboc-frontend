@@ -241,7 +241,7 @@ describe('FinanceWebviewPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('No se pudo abrir la operacion')).toBeInTheDocument();
+    expect(await screen.findByText('No se pudo abrir la operación')).toBeInTheDocument();
     expect(screen.getByText(/todavia no esta habilitado para esta cuenta/i)).toBeInTheDocument();
     expect(screen.getByText(/No ingreses datos sensibles/i)).toBeInTheDocument();
     expect(screen.getByText(/req-missing-finance/i)).toBeInTheDocument();

@@ -389,7 +389,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
             <Badge variant="outline" className="w-fit rounded-full px-3 py-1">
               Ruteo de reclamos
             </Badge>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestion de categorias</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestión de categorías</h1>
             <p className="text-base text-muted-foreground">
               Organiza los temas que llegan al inbox, conectalos con empleados y mantené la carga de trabajo visible.
               Cada categoria ayuda a que el caso entre ordenado y llegue al equipo correcto.
@@ -516,7 +516,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
                 <FolderTree className="h-6 w-6" />
               </div>
               <div className="max-w-lg space-y-2">
-                <h3 className="text-xl font-semibold text-foreground">Todavia no hay categorias configuradas</h3>
+                <h3 className="text-xl font-semibold text-foreground">Todavía no hay categorías configuradas</h3>
                 <p className="text-sm text-muted-foreground">
                   Crea la primera categoria para que los reclamos puedan agruparse y asignarse con mas claridad.
                 </p>

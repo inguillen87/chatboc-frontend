@@ -44,7 +44,7 @@ const UserNewsPage = () => {
             <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
           </Button>
           <Button asChild variant="outline">
-            <a href={loginPath}>Iniciar sesion</a>
+            <a href={loginPath}>Iniciar sesión</a>
           </Button>
         </div>
       </div>
@@ -146,7 +146,7 @@ const UserNewsPage = () => {
 
           {!isLoading && filteredNews.length === 0 ? (
             <Card>
-              <CardContent className="py-10 text-center text-muted-foreground">No hay novedades publicadas para esta categoria.</CardContent>
+              <CardContent className="py-10 text-center text-muted-foreground">No hay novedades publicadas para esta categoría.</CardContent>
             </Card>
           ) : null}
         </TabsContent>

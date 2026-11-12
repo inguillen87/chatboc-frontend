@@ -685,7 +685,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                 <SelectTrigger><SelectValue placeholder="Alcance" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cart">Compra minima</SelectItem>
-                  <SelectItem value="category">Categoria</SelectItem>
+                  <SelectItem value="category">Categoría</SelectItem>
                   <SelectItem value="product">Producto</SelectItem>
                 </SelectContent>
               </Select>
@@ -697,7 +697,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                 >
                   <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Elegir categoria</SelectItem>
+                    <SelectItem value="all">Elegir categoría</SelectItem>
                     {categories.map((category: any) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
                   </SelectContent>
                 </Select>

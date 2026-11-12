@@ -768,7 +768,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las categorias</SelectItem>
+              <SelectItem value="all">Todas las categorías</SelectItem>
               {categoryOptions.map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {item.label ?? item.value}{typeof item.count === 'number' ? ` (${item.count})` : ''}
@@ -979,7 +979,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                     <Badge variant="outline" className="mb-2 border-primary/30 bg-background text-primary">
                       {assistedDisplayName}
                     </Badge>
-                    <h3 className="text-sm font-semibold">Que podes enviar</h3>
+                    <h3 className="text-sm font-semibold">Qué podés enviar</h3>
                   </div>
                   <span data-testid="market-assisted-public-promise" className="text-xs text-muted-foreground">
                     Foto o manuscrito - texto de WhatsApp - documento o reclamo
