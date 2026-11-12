@@ -4,6 +4,7 @@
   "git": {
     "deploymentEnabled": {
       "claude/integration-20261112": false,
+      "codex/chatboc-unified-ux-20261112": false,
       "fix/tracking-background-refresh-20261112": false,
       "fix/tracking-location-provenance-20261103": false,
       "fix/enterprise-operator-workflows-20261103": false,
