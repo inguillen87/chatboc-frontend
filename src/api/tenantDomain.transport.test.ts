@@ -47,11 +47,22 @@ describe('actual private domain HTTP transport with synthetic responses', () => 
     expectPrivateScopedTransport('GET');
   });
   it('keeps the revision command and private scope while omitting query aliases from PUT', async () => {
+    const pending = domainPayload({ status: 'pending_platform', revision: 'c'.repeat(64), version: 2 });
     global.fetch = vi.fn().mockResolvedValue(json({ contract_version: 'organization.domain_save.v1', saved: true,
-      domain: domainPayload({ revision: 'c'.repeat(64) }) }));
-    await saveTenantDomain(domainScope, readTenantDomain(domainPayload(), domainScope), 'verify_dns', undefined, () => true);
+      domain: pending }));
+    const updated = await saveTenantDomain(domainScope, readTenantDomain(domainPayload(), domainScope), 'verify_dns', undefined, () => true);
+    expect(updated).toMatchObject({ status: 'pending_platform', active: false, revision: pending.revision, dns_proof: pending.dns_proof });
     const init = expectPrivateScopedTransport('PUT');
     expect(JSON.parse(String(init?.body))).toEqual({ expected_revision: 'a'.repeat(64), operation: 'verify_dns' });
+  });
+  it('reads a confirmed DNS proof after the initial challenge expires without claiming activation', async () => {
+    const pending = domainPayload({ status: 'pending_platform', revision: 'c'.repeat(64), version: 2 });
+    pending.dns_proof.expires_at = Math.floor(Date.now() / 1000) - 3600;
+    global.fetch = vi.fn().mockResolvedValue(json(pending));
+    expect(await getTenantDomain(domainScope, () => true)).toMatchObject({
+      tenant: domainScope, status: 'pending_platform', active: false, valid_until: null, dns_proof: pending.dns_proof,
+    });
+    expectPrivateScopedTransport('GET');
   });
   it('does not retry an unconfirmed PUT on another API base', async () => {
     global.fetch = vi.fn().mockRejectedValue(new TypeError('synthetic response lost'));

@@ -45,7 +45,9 @@ export function TenantDomainSettings({ tenant, scopeKey }: { tenant: DomainTenan
     return()=>{if(active.current===key)active.current='';};
   },[key]);
   const current=state.key===key?state:null, domain=current?.domain, busy=!current || current.busy;
-  const deadline=domain?.active?domain.valid_until:domain?.dns_proof?.expires_at;
+  // The TXT challenge deadline applies only before DNS verification. The v1
+  // pending_platform payload retains that proof but exposes no platform deadline.
+  const deadline=domain?.active?domain.valid_until:domain?.status==='pending_dns'?domain.dns_proof?.expires_at:null;
   const observationExpired=()=>deadline!=null&&deadline*1000<=Math.max(Date.now(),clock.key===key&&clock.domain===domain?clock.now:0);
   const stale=observationExpired();
   useEffect(()=>{
@@ -67,7 +69,8 @@ export function TenantDomainSettings({ tenant, scopeKey }: { tenant: DomainTenan
     if(stale&&retired?.key===key&&retired.domain===domain&&!retired.link.isConnected&&(document.activeElement===retired.link||document.activeElement===document.body))refreshControl.current?.focus({preventScroll:true});
   },[stale,key,domain]);
   const mutate=async(operation:'request'|'verify_dns'|'revoke')=>{
-    if(!domain||busy||observationExpired()||inFlight.current===key||!isCurrent(key)||(operation==='revoke'?!domain.can_revoke:!domain.can_edit))return;
+    if(!domain||busy||observationExpired()||inFlight.current===key||!isCurrent(key)||(operation==='revoke'?!domain.can_revoke:!domain.can_edit)
+      ||(operation==='verify_dns'&&domain.status!=='pending_dns'))return;
     inFlight.current=key;
     const initiating=key;setState(previous=>({...previous,error:null,busy:true}));setCopied(false);
     try{
@@ -97,10 +100,10 @@ export function TenantDomainSettings({ tenant, scopeKey }: { tenant: DomainTenan
           <Button type="submit" className="min-h-11 h-auto whitespace-normal" disabled={busy||!draft.trim()}>Solicitar verificación</Button>
         </form>:null}
         {domain.dns_proof?<div className="space-y-3 rounded-lg border p-4">
-          <p>Agregá este registro en el DNS del dominio:</p>
+          {domain.status==='pending_dns'?<p>Agregá este registro en el DNS del dominio:</p>:null}
           <dl className="grid gap-2"><dt>Tipo</dt><dd>TXT</dd><dt>Nombre</dt><dd className="select-text break-all font-mono text-sm">{domain.dns_proof.name}</dd><dt>Valor</dt><dd className="select-text break-all font-mono text-sm">{domain.dns_proof.value}</dd></dl>
           <div className="flex flex-wrap gap-2"><Button variant="outline" className="min-h-11" disabled={busy||stale} onClick={()=>void copyProof()}>Copiar valor TXT</Button>
-          {domain.can_edit?<Button className="min-h-11" disabled={busy||stale} onClick={()=>void mutate('verify_dns')}>Comprobar TXT</Button>:null}</div>
+          {domain.can_edit&&domain.status==='pending_dns'?<Button className="min-h-11" disabled={busy||stale} onClick={()=>void mutate('verify_dns')}>Comprobar TXT</Button>:null}</div>
           {copied&&!stale?<p role="status">Valor TXT copiado.</p>:null}
         </div>:null}
         {!domain.can_edit?<p className="text-sm text-muted-foreground">La edición requiere un administrador autorizado y el plan Pro o Full.</p>:null}

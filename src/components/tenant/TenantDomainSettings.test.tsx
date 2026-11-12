@@ -36,10 +36,15 @@ describe('truthful organization domain lifecycle', () => {
 
   it('verifies only DNS and retains the pending HTTPS/publication state', async () => {
     mocks.get.mockResolvedValue(descriptor());
-    mocks.save.mockResolvedValue(descriptor({ status: 'pending_platform', dns_proof: null })); mount();
+    mocks.save.mockResolvedValue(descriptor({ status: 'pending_platform' })); mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Comprobar TXT' }));
     await screen.findByText('DNS confirmado · falta publicación y HTTPS');
     expect(mocks.save).toHaveBeenCalledWith(domainScope, expect.any(Object), 'verify_dns', undefined, expect.any(Function));
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('chatboc-domain-verification=' + 'b'.repeat(64))).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiar valor TXT' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Comprobar TXT' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Agregá este registro en el DNS del dominio:')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Abrir sitio público' })).not.toBeInTheDocument();
   });
 
@@ -134,6 +139,30 @@ describe('truthful organization domain lifecycle', () => {
   });
 
 describe('domain expiry and accessible controls', () => {
+  it('keeps confirmed DNS pending after its challenge deadline and permits explicit revocation', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = descriptor({ status: 'pending_platform' });
+      pending.dns_proof!.expires_at = Math.floor(Date.now() / 1000) + 2;
+      mocks.get.mockResolvedValue(pending);
+      mocks.save.mockResolvedValue(descriptor({ status: 'revoked', dns_proof: null, can_revoke: false }));
+      await act(async () => { mount(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+      expect(screen.getByText('DNS confirmado · falta publicación y HTTPS')).toBeInTheDocument();
+      expect(screen.queryByText(/El plazo de este registro TXT venció/)).not.toBeInTheDocument();
+      expect(screen.getByText('chatboc-domain-verification=' + 'b'.repeat(64))).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copiar valor TXT' })).toBeEnabled();
+      expect(screen.queryByRole('button', { name: 'Comprobar TXT' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Abrir sitio público' })).not.toBeInTheDocument();
+      expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.get).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole('button', { name: 'Desvincular dominio' }));
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirmar desvinculación' })); });
+      expect(mocks.save).toHaveBeenCalledWith(domainScope, pending, 'revoke', undefined, expect.any(Function));
+      expect(mocks.save).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Dominio desvinculado')).toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('disables an expired DNS proof without copying, checking, or retrying it', async () => {
     vi.useFakeTimers();
     try {
