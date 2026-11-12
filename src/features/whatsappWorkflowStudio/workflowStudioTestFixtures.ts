@@ -113,6 +113,7 @@ export const makeDurableWorkflowStudioContract = (slug = "demo", tenantId = 7) =
       schema_version: "whatsapp.workflow_draft.v1",
       max_bytes: 262144,
       max_steps: 100,
+      message_types: ["text", "image", "audio", "interactive"],
       tenant_scope_policy: "authenticated_tenant_only",
     },
     publication_readiness: {
@@ -152,6 +153,64 @@ export const makeDurableWorkflowStudioContract = (slug = "demo", tenantId = 7) =
         control_plane_only: "Sólo plano de control",
       },
     },
+  };
+};
+
+export const makeWorkflowSimulation = () => ({
+  contract_version: "whatsapp.workflow_simulation.v1",
+  tenant: { id: 7, slug: "demo" },
+  simulation_id: `sim_${"a".repeat(24)}`,
+  draft_id: `draft_${"b".repeat(24)}`,
+  deterministic: true,
+  determinism_scope: "authenticated_tenant_plus_normalized_draft_plus_normalized_event",
+  request_id_excluded_from_determinism: true,
+  status: "completed",
+  outcome: "completed",
+  trigger: { matched: true, reason: "inbound_message_matched" },
+  blockers: [],
+  validation: { valid: true, blockers: [], warnings: [] },
+  publication: {
+    available: true,
+    publishable: true,
+    status: "control_plane_ready",
+    scope: "control_plane_only",
+    blockers: [],
+    runtime_blockers: [{
+      code: "workflow_runtime_binding_missing",
+      path: "publication",
+      message: "El runtime sigue desconectado.",
+    }],
+  },
+  side_effects: {
+    mode: "proposed_only",
+    database_writes: 0,
+    provider_calls: 0,
+    messages_sent: 0,
+    tickets_created: 0,
+    handoffs_created: 0,
+  },
+  trace: [
+    { step_id: "create_case", type: "create_ticket", next_step_id: "stop" },
+    { step_id: "stop", type: "stop", outcome: "completed" },
+  ],
+  proposed_effects: [{ type: "create_ticket", category: "arbolado", execution: "proposed_only" }],
+});
+
+export const makeBlockedWorkflowSimulation = () => {
+  const issue = {
+    code: "required_field",
+    path: "draft.name",
+    message: "Este campo es obligatorio.",
+  };
+  return {
+    ...makeWorkflowSimulation(),
+    status: "blocked",
+    outcome: undefined,
+    validation: { valid: false, blockers: [issue], warnings: [] },
+    blockers: [issue],
+    trigger: { matched: false, reason: "simulation_input_invalid" },
+    trace: [],
+    proposed_effects: [],
   };
 };
 

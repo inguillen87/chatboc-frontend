@@ -554,6 +554,82 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByTestId('profile-ticket-workspace')).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
   });
 
+  it('preserves a direct tickets link until the organization and its navigation are verified', async () => {
+    wireBoundOrganization();
+    runtime.profileVerified = false;
+    const view = renderProfile('/perfil?tab=tickets');
+
+    await waitFor(() => expect(screen.getByText('No pudimos verificar los módulos')).toBeInTheDocument());
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe('tickets');
+    expect(runtime.ticketMounts).toBe(0);
+    expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=civic-workspace')).toBe(0);
+
+    runtime.profileVerified = true;
+    view.rerender(<BrowserRouter><ProfileHarness /></BrowserRouter>);
+
+    await waitFor(() => expect(screen.getByTestId('mock-tickets')).toBeInTheDocument());
+    expect(countApiCalls('/api/app/backoffice/navigation?tenant_slug=civic-workspace')).toBe(1);
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe('tickets');
+    expect(screen.queryByText('Trabajo de hoy')).not.toBeInTheDocument();
+  });
+
+  it('keeps a requested workspace closed through a navigation error and opens it after a successful retry', async () => {
+    const baseFetch = runtime.apiFetch.getMockImplementation()!;
+    let navigationAttempts = 0;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if (path.startsWith('/api/app/backoffice/navigation') && ++navigationAttempts === 1) {
+        throw new ApiError('Navigation temporarily unavailable', 503);
+      }
+      return baseFetch(path, options);
+    });
+    renderProfile('/perfil?tab=tickets&range=30d');
+
+    await screen.findByText('No pudimos verificar los módulos');
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe('tickets');
+    expect(runtime.ticketMounts).toBe(0);
+    expect(screen.queryByRole('button', { name: 'Abrir menú Atención' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await screen.findByTestId('mock-tickets');
+    expect(navigationAttempts).toBe(2);
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe('tickets');
+    expect(new URLSearchParams(window.location.search).get('range')).toBe('30d');
+  });
+
+  it('keeps tickets inaccessible when the navigation endpoint denies the direct link', async () => {
+    const baseFetch = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if (path.startsWith('/api/app/backoffice/navigation')) {
+        throw new ApiError('Operational access denied', 403);
+      }
+      return baseFetch(path, options);
+    });
+    renderProfile('/perfil?tab=tickets');
+
+    await screen.findByText('Acceso operativo no habilitado');
+    expect(runtime.ticketMounts).toBe(0);
+    expect(screen.queryByRole('button', { name: 'Abrir menú Atención' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Operar reclamos/i })).not.toBeInTheDocument();
+  });
+
+  it('normalizes a direct tickets link only when verified navigation does not grant operations', async () => {
+    const baseFetch = runtime.apiFetch.getMockImplementation()!;
+    runtime.apiFetch.mockImplementation(async (path: string, options?: any) => {
+      if (path.startsWith('/api/app/backoffice/navigation')) return {
+        contract_version: 'backoffice.navigation.v1',
+        modules: [{ id: 'people', label: 'Personas y accesos', route: '/empleados', enabled: true }],
+      };
+      return baseFetch(path, options);
+    });
+    renderProfile('/perfil?tab=tickets&range=30d');
+
+    await screen.findByText('Trabajo de hoy');
+    expect(new URLSearchParams(window.location.search).has('tab')).toBe(false);
+    expect(new URLSearchParams(window.location.search).get('range')).toBe('30d');
+    expect(runtime.ticketMounts).toBe(0);
+    expect(screen.queryByRole('button', { name: 'Abrir menú Atención' })).not.toBeInTheDocument();
+  });
+
   it('keeps a structured workspace skeleton visible while authorization is still pending', async () => {
     let resolveNavigation: ((value: unknown) => void) | undefined;
     const navigationPromise = new Promise((resolve) => {

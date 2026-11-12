@@ -1104,7 +1104,9 @@ export default function Perfil() {
   }, [hasInstitutionalDeepLink, requestedProfileTab, searchParams, setSearchParams]);
 
   useEffect(() => {
-    if (backofficeNavigationStatus === 'idle' || backofficeNavigationStatus === 'loading') return;
+    // A pending identity or failed read is not a navigation grant. Preserve the
+    // requested destination until a valid contract can authorize or reject it.
+    if (backofficeNavigationStatus !== 'ready') return;
     if (allowedWorkspaceTabs.has(activeProfileTab)) return;
 
     if (requestedProfileSection || shouldHighlightChannelSetup) {
