@@ -228,7 +228,9 @@ const OrderConfirmationPage = () => {
     return () => controller.abort();
   }, [pedidoId, sharedRequestOptions]);
 
-  const effectiveStatus = (order?.estado || statusFromGateway || '').toLowerCase();
+  // The return URL is not evidence of payment: anyone can write ?status=approved.
+  // Only the order read from the backend decides the label shown here.
+  const effectiveStatus = (order?.estado || '').toLowerCase();
   const statusMeta = statusCopy[effectiveStatus] ?? { label: 'Estado en revisión', tone: 'info' };
   const stageLabel = getCommercialStageLabel(order?.commercial_state?.stage || effectiveStatus || null);
 
@@ -430,7 +432,7 @@ const OrderConfirmationPage = () => {
       {statusFromGateway && (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
           <ExternalLink className="h-4 w-4" />
-          <span>Estado reportado por la pasarela: {statusFromGateway}</span>
+          <span>Dato del enlace de retorno, sin confirmar: {statusFromGateway}</span>
         </div>
       )}
     </div>
