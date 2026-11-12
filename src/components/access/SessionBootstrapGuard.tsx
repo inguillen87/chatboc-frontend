@@ -106,23 +106,13 @@ export const resolveSessionBootstrapDecision = ({
   if (hasBearerSession && !bearerRequiresClerkVerification) return { kind: 'allow' };
   if (clerkStatus === 'loading' || clerkStatus === 'syncing') return { kind: 'pending' };
 
-  if (access.requiresSession) {
-    const nextPath = normalizedPath === '/admin' ? '/perfil' : pathname;
-    return {
-      kind: 'redirect',
-      to: buildLoginPathWithNext(nextPath, normalizedPath === '/admin' ? '' : search),
-    };
-  }
-
+  // Authentication comes before the role/capability decision in AccessRoute.
+  // In particular, retiring a session must not turn the active private route
+  // into a permission denial while the navbar is navigating to login.
+  const nextPath = normalizedPath === '/admin' ? '/perfil' : pathname;
   return {
     kind: 'redirect',
-    to: '/403',
-    state: {
-      reason: requiredRoles.length > 0 ? 'role' : 'capability',
-      ...(requiredRoles.length > 0 ? { requiredRoles } : {}),
-      ...(requiredCapabilities.length > 0 ? { requiredCapabilities } : {}),
-      from: pathname,
-    },
+    to: buildLoginPathWithNext(nextPath, normalizedPath === '/admin' ? '' : search),
   };
 };
 

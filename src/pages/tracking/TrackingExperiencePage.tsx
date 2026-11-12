@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { getErrorMessage } from "@/utils/api";
 import { buildLiveChatJoinPayload } from "@/utils/liveChatRealtime";
+import { trackingPoint } from "@/utils/trackingAddressMap";
 import {
   getAttachmentDeliveryUrl,
   getAttachmentPreviewUrl,
@@ -47,6 +48,7 @@ import {
 const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
 type AnyRecord = Record<string, any>;
+type TrackingLoadOptions = { background?: boolean };
 
 const isRecord = (value: unknown): value is AnyRecord =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -96,7 +98,7 @@ const asArray = (value: unknown): unknown[] => {
 const normalizeStatus = (payload: TrackingExperienceResponse | null) => {
   const status = payload?.status;
   if (isRecord(status)) {
-    const key = readText(status, ["current_stage", "key", "id", "status", "state"], "recibido");
+    const key = readText(status, ["current_stage", "key", "id", "status", "state"]);
     const rawLabel = readText(status, ["label", "title", "name", "raw_status"], key);
     return {
       key,
@@ -107,15 +109,10 @@ const normalizeStatus = (payload: TrackingExperienceResponse | null) => {
   if (typeof status === "string" && status.trim()) {
     return { key: status, label: humanizeTrackingLabel(status), detail: "" };
   }
-  return { key: "recibido", label: "Recibido", detail: "" };
+  return { key: "", label: "", detail: "" };
 };
 
-const normalizeMilestones = (payload: TrackingExperienceResponse | null, kind: TrackingKind) => {
-  const defaults =
-    kind === "claim"
-      ? ["recibido", "validando", "asignado", "en_proceso", "resuelto", "cerrado"]
-      : ["recibido", "confirmado", "pendiente_pago", "pagado", "preparando", "en_camino", "entregado"];
-
+const normalizeMilestones = (payload: TrackingExperienceResponse | null) => {
   const statusRecord = isRecord(payload?.status) ? payload.status : null;
   const raw = asArray(payload?.milestones).length
     ? asArray(payload?.milestones)
@@ -134,7 +131,7 @@ const normalizeMilestones = (payload: TrackingExperienceResponse | null, kind: T
     })
     .filter(Boolean) as Array<{ key: string; label: string }>;
 
-  return items.length ? items : defaults.map((key) => ({ key, label: humanizeTrackingLabel(key) }));
+  return items.filter((item) => item.key && item.label);
 };
 
 const normalizeTimeline = (payload: TrackingExperienceResponse | null) =>
@@ -272,11 +269,11 @@ const normalizeResource = (payload: TrackingExperienceResponse | null, code: str
   return {
     code: readText(resource, ["code"], code),
     subject: readText(resource, ["subject", "title", "name"], readText(resource, ["category"], "Seguimiento")),
-    category: readText(resource, ["category", "rubro", "type"], "General"),
-    channel: readText(resource, ["channel"], "whatsapp"),
+    category: readText(resource, ["category", "rubro", "type"]),
+    channel: readText(resource, ["channel"]),
     createdAt: formatTrackingDateTime(readText(resource, ["created_at", "createdAt", "fecha"])),
     updatedAt: formatTrackingDateTime(readText(resource, ["updated_at", "updatedAt", "ultima_actividad"])),
-    tenantName: readText(tenant, ["nombre", "name"], "Chatboc"),
+    tenantName: readText(tenant, ["nombre", "name"]),
     tenantSlug: readText(tenant, ["slug"]),
     address: readText(location, ["address", "direccion"]),
     district: readText(location, ["district", "distrito"]),
@@ -444,10 +441,8 @@ const readLatLng = (value: unknown): { lat: number; lng: number; name?: string }
   if (!isRecord(value)) return null;
   const latRaw = first(value, ["lat", "latitude"]);
   const lngRaw = first(value, ["lng", "lon", "longitude"]);
-  const lat = typeof latRaw === "number" ? latRaw : Number(latRaw);
-  const lng = typeof lngRaw === "number" ? lngRaw : Number(lngRaw);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng, name: readText(value, ["name", "label", "address"]) };
+  const point = trackingPoint(latRaw, lngRaw);
+  return point ? { ...point, name: readText(value, ["name", "label", "address"]) } : null;
 };
 
 const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
@@ -468,12 +463,39 @@ const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
       readLatLng(first(map, ["center"])) ||
       readLatLng(location),
     current:
-      readLatLng(first(map, ["current", "current_status", "driver"])) ||
-      byRole("current") ||
-      readLatLng(first(map, ["center"])),
-    fallback: readText(map, ["fallback_when_no_coordinates"], "timeline_only"),
+      readLatLng(map.current) ||
+      readLatLng(map.current_status) ||
+      readLatLng(map.driver) ||
+      byRole("current"),
   };
 };
+
+function TrackingAddress({ address, label }: { address: string; label: string }) {
+  const [notice, setNotice] = useState<"copied" | "unavailable" | null>(null);
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setNotice("copied");
+    } catch {
+      setNotice("unavailable");
+    }
+  };
+
+  return (
+    <div className="mb-3 rounded-md border border-border/70 bg-muted/20 p-3">
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className="break-words font-medium">{address}</p>
+      <Button type="button" variant="outline" size="sm" className="mt-2" onClick={copyAddress}>
+        <Clipboard className="h-4 w-4" aria-hidden="true" />
+        Copiar dirección
+      </Button>
+      <p role="status" className="text-sm text-muted-foreground">
+        {notice === "copied" ? "Dirección copiada." : notice === "unavailable"
+          ? "No pudimos copiar la dirección. Podés seleccionarla y copiarla manualmente." : ""}
+      </p>
+    </div>
+  );
+}
 
 const titleFor = (kind: TrackingKind) =>
   kind === "claim" ? "Seguimiento de reclamo" : "Seguimiento de pedido";
@@ -506,7 +528,62 @@ const rememberTrackingCredential = (
   }
 };
 
+const trackingReference = (code: string, kind: TrackingKind) =>
+  kind === "claim" ? code.trim().replace(/^(M|S)-/i, "").trim().toLowerCase() : code.trim();
+
+const orderLocator = (code: string) => {
+  const match = /^(?:(market:|mo-|conversational:|pc-))?(\d+)$/i.exec(code.trim());
+  if (!match) return null;
+  const prefix = (match[1] || "").toLowerCase();
+  return {
+    family: prefix === "market:" || prefix === "mo-" ? "market"
+      : prefix ? "conversational" : null,
+    id: match[2].replace(/^0+(?=\d)/, ""),
+  };
+};
+
+const orderReferenceMatches = (resource: AnyRecord, code: string) => {
+  if (readText(resource, ["code"]) === code.trim()) return true;
+  const requested = orderLocator(code);
+  const returned = orderLocator(readText(resource, ["id"])) || orderLocator(readText(resource, ["code"]));
+  const model = readText(resource, ["source_model"]);
+  const family = model === "MarketOrder" ? "market" : model === "PedidoConversacional" ? "conversational" : null;
+  // These aliases are resolved by the backend. A custom order number alone is not proof of an alias.
+  return Boolean(requested && returned && family && requested.id === returned.id
+    && (!requested.family || requested.family === family)
+    && (!returned.family || returned.family === family));
+};
+
+const isUsableTrackingPayload = (
+  value: unknown,
+  kind: TrackingKind,
+  code: string,
+  tenantSlug: string | null,
+): value is TrackingExperienceResponse => {
+  if (!isRecord(value) || !isRecord(value.resource)) return false;
+  const returnedCode = readText(value.resource, ["code"]);
+  const status = normalizeStatus(value);
+  if (!returnedCode || !status.key || !status.label) return false;
+  if (kind === "claim"
+    ? trackingReference(returnedCode, kind) !== trackingReference(code, kind)
+    : !orderReferenceMatches(value.resource, code)) return false;
+  if (value.kind != null && value.kind !== kind) return false;
+  const returnedTenant = isRecord(value.tenant) ? readText(value.tenant, ["slug"]) : "";
+  return !tenantSlug || !returnedTenant || returnedTenant === tenantSlug;
+};
+
 export default function TrackingExperiencePage({ kind }: { kind: TrackingKind }) {
+  const params = useParams<{ code?: string; nro_ticket?: string; nro_pedido?: string }>();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const code = params.code || params.nro_ticket || params.nro_pedido || searchParams.get("code") || "";
+  const tenantSlug = searchParams.get("tenant_slug") || searchParams.get("tenant") || null;
+  // A navigation, including A -> B -> A, retires the preceding lookup and credentials.
+  const scopeKey = JSON.stringify([kind, code, tenantSlug, location.key]);
+  return <TrackingExperienceView key={scopeKey} kind={kind} />;
+}
+
+function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   const params = useParams<{ code?: string; nro_ticket?: string; nro_pedido?: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -514,7 +591,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const credentialsScrubbedRef = React.useRef(false);
   const code = params.code || params.nro_ticket || params.nro_pedido || searchParams.get("code") || "";
   const tenantSlug = searchParams.get("tenant_slug") || searchParams.get("tenant") || null;
-  const credentialMemoryKey = `${kind}:${code || "unknown"}`;
+  const credentialMemoryKey = JSON.stringify([kind, code, tenantSlug]);
   const [initialCredential] = useState(() => {
     const remembered = trackingCredentialMemory.get(credentialMemoryKey);
     const credential = {
@@ -534,6 +611,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const [showPin, setShowPin] = useState(false);
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTarget, setErrorTarget] = useState<"pin" | "tracking" | null>(null);
   const [pageNotice, setPageNotice] = useState<{ message: string; tone: "status" | "error" } | null>(null);
@@ -545,18 +623,30 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   } | null>(null);
   const [realtimeState, setRealtimeState] = useState<"idle" | "connecting" | "connected" | "fallback">("idle");
   const [socketAttempt, setSocketAttempt] = useState(0);
-  const [geocodedDestination, setGeocodedDestination] = useState<{ lat: number; lng: number; name?: string } | null>(null);
-  const geocodeAttemptedRef = React.useRef<string | null>(null);
   const pinInputRef = React.useRef<HTMLInputElement | null>(null);
   const trackingErrorRef = React.useRef<HTMLDivElement | null>(null);
   const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
   const supportNoticeRef = React.useRef<HTMLDivElement | null>(null);
   const mapSectionRef = React.useRef<HTMLDivElement | null>(null);
-  const loadRef = React.useRef<(() => Promise<void>) | null>(null);
+  const loadRef = React.useRef<((options?: TrackingLoadOptions) => Promise<void>) | null>(null);
   const realtimeRefreshPendingRef = React.useRef(false);
   const realtimeRefreshQueuedRef = React.useRef(false);
   const joinRefreshPendingRef = React.useRef(false);
   const joinFailureCountRef = React.useRef(0);
+  const mountedRef = React.useRef(false);
+  const requestGenerationRef = React.useRef(0);
+  const credentialGenerationRef = React.useRef(0);
+  const loadPendingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestGenerationRef.current += 1;
+      credentialGenerationRef.current += 1;
+      loadPendingRef.current = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (credentialsScrubbedRef.current) return;
@@ -582,19 +672,22 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     }
   }, [location.pathname, searchParams]);
 
-  const status = normalizeStatus(payload);
-  const resource = normalizeResource(payload, code);
-  const milestones = normalizeMilestones(payload, kind);
-  const timeline = normalizeTimeline(payload);
-  const attachments = normalizeTrackingAttachments(payload);
-  const rawMapState = normalizeMapLocations(payload);
+  const visiblePayload = !loading && isUsableTrackingPayload(payload, kind, code, tenantSlug) ? payload : null;
+  const status = normalizeStatus(visiblePayload);
+  const resource = normalizeResource(visiblePayload, code);
+  const milestones = normalizeMilestones(visiblePayload);
+  const timeline = normalizeTimeline(visiblePayload);
+  const attachments = normalizeTrackingAttachments(visiblePayload);
+  const mapState = normalizeMapLocations(visiblePayload);
   const support = normalizeSupport(payload, kind);
-  const currentIndex = Math.max(
-    0,
-    milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase()),
-  );
-  const nextMilestone = currentIndex < milestones.length - 1 ? milestones[currentIndex + 1] : null;
-  const progress = milestones.length > 1 ? Math.round((currentIndex / (milestones.length - 1)) * 100) : 0;
+  const currentIndex = milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase());
+  const nextMilestone = currentIndex >= 0 ? milestones[currentIndex + 1] : null;
+  const suppliedProgress = isRecord(visiblePayload?.status) ? visiblePayload.status.progress_percent : undefined;
+  const progress = typeof suppliedProgress === "number" && Number.isFinite(suppliedProgress) && suppliedProgress >= 0 && suppliedProgress <= 100
+    ? suppliedProgress
+    : currentIndex >= 0 && milestones.length > 1
+      ? Math.round((currentIndex / (milestones.length - 1)) * 100)
+      : null;
   const requiresPinForLoad = kind === "claim" && !payload && !pin.trim();
   const requiresPinForSupport = kind === "claim" && support.requiresPin && !pin.trim();
   const supportPollingMs = useMemo(() => {
@@ -604,41 +697,20 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     return Math.min(Math.max(parsed, 10_000), 60_000);
   }, [kind, support.enabled, support.pollingInterval]);
 
-  // Geocode text address via Nominatim when backend has no coordinates
+  // A reported address stays in the tracking view. Only stored points enable the map.
   const mapAddress = readText(
-    isRecord(payload?.map) ? payload.map : {},
+    isRecord(visiblePayload?.map) ? visiblePayload.map : {},
     ["address"],
   ) || readText(
-    isRecord(payload?.location) ? payload.location : {},
+    isRecord(visiblePayload?.location) ? visiblePayload.location : {},
     ["address", "direccion"],
   );
-  React.useEffect(() => {
-    if (rawMapState.destination || !rawMapState.canRender || rawMapState.fallback !== "geocode_address") return;
-    if (!mapAddress || geocodeAttemptedRef.current === mapAddress) return;
-    geocodeAttemptedRef.current = mapAddress;
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapAddress)}&limit=1`)
-      .then((r) => r.json())
-      .then((results: Array<{ lat: string; lon: string; display_name?: string }>) => {
-        if (results && results.length > 0) {
-          setGeocodedDestination({
-            lat: parseFloat(results[0].lat),
-            lng: parseFloat(results[0].lon),
-            name: mapAddress,
-          });
-        }
-      })
-      .catch(() => { /* geocoding best-effort */ });
-  }, [mapAddress, rawMapState.destination, rawMapState.canRender, rawMapState.fallback]);
+  const mapContract = isRecord(visiblePayload?.map) ? visiblePayload.map : {};
+  const mapUi = isRecord(mapContract.ui) ? mapContract.ui : {};
 
-  // Merge geocoded destination into mapState
-  const mapState = useMemo(() => ({
-    ...rawMapState,
-    destination: rawMapState.destination || geocodedDestination,
-  }), [rawMapState, geocodedDestination]);
-
-  const requestId = readText(payload, ["request_id"]);
+  const requestId = readText(visiblePayload, ["request_id"]);
   const canShowMap = Boolean(
-    mapState.canRender &&
+    visiblePayload && mapState.canRender &&
       (mapState.origin || mapState.destination || mapState.current),
   );
   const trackingCodeLabel = resource.code || code || "-";
@@ -652,6 +724,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     window.setTimeout(() => target.focus({ preventScroll: true }), 250);
   };
   const focusMap = () => {
+    mapSectionRef.current?.focus({ preventScroll: true });
     mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
   const copyTrackingCode = async () => {
@@ -667,8 +740,8 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     }
   };
 
-  const load = async () => {
-    if (!code) return;
+  const load = async ({ background = false }: TrackingLoadOptions = {}) => {
+    if (!mountedRef.current || !code || loadPendingRef.current) return;
     if (requiresPinForLoad) {
       setError("Ingresa el PIN para consultar el estado del reclamo.");
       setErrorTarget("pin");
@@ -676,7 +749,15 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
       return;
     }
 
-    setLoading(true);
+    const generation = ++requestGenerationRef.current;
+    const isCurrent = () => mountedRef.current && requestGenerationRef.current === generation;
+    // Automatic reads keep the current verified view mounted so they cannot
+    // interrupt composition or reset the map. A manual access check still
+    // withdraws it; errors and credential/navigation changes retire it below.
+    const keepVerifiedView = background && isUsableTrackingPayload(payload, kind, code, tenantSlug);
+    loadPendingRef.current = true;
+    setLoading(!keepVerifiedView);
+    setRefreshing(keepVerifiedView);
     setError(null);
     setErrorTarget(null);
     try {
@@ -687,20 +768,35 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         token: accessToken,
         tenantSlug,
       });
+      if (!isCurrent()) return;
+      if (!isUsableTrackingPayload(nextPayload, kind, code, tenantSlug)) {
+        throw new Error("No se pudo verificar la respuesta del seguimiento. Volvé a consultar.");
+      }
       setPayload(nextPayload);
     } catch (err) {
+      if (!isCurrent()) return;
       setPayload(null);
-      setError(getErrorMessage(err, "No se pudo cargar el seguimiento."));
+      const statusCode = isRecord(err) ? err.status ?? err.response?.status : undefined;
+      setError([401, 403, 404].includes(statusCode)
+        ? "No se pudo consultar este seguimiento. Revisá el código y el PIN e intentá nuevamente."
+        : getErrorMessage(err, "No se pudo cargar el seguimiento."));
       setErrorTarget("tracking");
       focusAfterRender(trackingErrorRef);
     } finally {
-      setLoading(false);
+      if (isCurrent()) {
+        loadPendingRef.current = false;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   const handleSendSupportMessage = async () => {
     const message = supportMessage.trim();
-    if (!message || !support.endpoint || (support.requiresPin && !pin.trim())) return;
+    if (!message || !support.endpoint || !visiblePayload || loadPendingRef.current || (support.requiresPin && !pin.trim())) return;
+    const generation = credentialGenerationRef.current;
+    const readGeneration = requestGenerationRef.current;
+    const isCurrent = () => mountedRef.current && credentialGenerationRef.current === generation;
     setSupportSending(true);
     setSupportNotice(null);
     try {
@@ -710,9 +806,10 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         message,
         code,
       });
-      const updatedTracking = isRecord(reply?.tracking) ? reply.tracking : null;
+      if (!isCurrent()) return;
+      const updatedTracking = isUsableTrackingPayload(reply?.tracking, kind, code, tenantSlug) ? reply.tracking : null;
       const crmWriteback = isRecord(reply?.crm_writeback) ? reply.crm_writeback : null;
-      if (updatedTracking) {
+      if (updatedTracking && requestGenerationRef.current === readGeneration) {
         setPayload(updatedTracking as TrackingExperienceResponse);
       }
       setSupportMessage("");
@@ -730,15 +827,16 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
           message: `${readText(reply, ["message"], "Mensaje guardado en el reclamo.")} El equipo lo ve como pendiente en el CRM.`,
         });
       }
-      if (!updatedTracking) await load();
+      if (!updatedTracking || requestGenerationRef.current !== readGeneration) await load();
     } catch (err) {
+      if (!isCurrent()) return;
       setSupportNotice({
         tone: "error",
         message: getErrorMessage(err, "No se pudo enviar el mensaje."),
       });
       focusAfterRender(supportNoticeRef);
     } finally {
-      setSupportSending(false);
+      if (isCurrent()) setSupportSending(false);
     }
   };
 
@@ -795,7 +893,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         return;
       }
       realtimeRefreshPendingRef.current = true;
-      const pendingLoad = loadRef.current?.();
+      const pendingLoad = loadRef.current?.({ background: true });
       if (!pendingLoad) {
         realtimeRefreshPendingRef.current = false;
         return;
@@ -823,7 +921,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
       if (joinFailureCountRef.current >= 2 || joinRefreshPendingRef.current) return;
       joinFailureCountRef.current += 1;
       joinRefreshPendingRef.current = true;
-      const pendingLoad = loadRef.current?.();
+      const pendingLoad = loadRef.current?.({ background: true });
       if (!pendingLoad) {
         joinRefreshPendingRef.current = false;
         return;
@@ -885,24 +983,13 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     const timer = window.setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       if (supportSending) return;
-      void load();
+      void load({ background: true });
     }, intervalMs);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payload, supportPollingMs, support.endpoint, requiresPinForSupport, supportSending, realtimeState]);
 
-  const visibleTimeline = useMemo(
-    () =>
-      timeline.length
-        ? timeline
-        : milestones.slice(0, Math.max(currentIndex + 1, 1)).map((item) => ({
-            id: item.key,
-            label: item.label,
-            detail: "",
-            timestamp: "",
-          })),
-    [currentIndex, milestones, timeline],
-  );
+  const visibleTimeline = timeline;
 
   return (
     <div className="min-h-screen bg-muted/30 px-3 py-4 text-foreground sm:px-4 md:py-6">
@@ -933,26 +1020,26 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
             </Button>
           </div>
 
-          <div className="border-t border-border/70 p-4 md:px-5">
+          {visiblePayload ? <div className="border-t border-border/70 p-4 md:px-5">
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
               <div className="col-span-2 border-l-2 border-primary pl-3 md:col-span-1">
                 <p className="text-xs font-semibold text-muted-foreground">Estado actual</p>
                 <p className="mt-1 text-lg font-black capitalize">{status.label}</p>
                 {status.detail ? <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{status.detail}</p> : null}
               </div>
-              <div className="border-l border-border pl-3">
+              {nextMilestone ? <div className="border-l border-border pl-3">
                 <p className="text-xs font-semibold text-muted-foreground">Proxima etapa</p>
                 <p className="mt-1 text-sm font-bold capitalize">
-                  {nextMilestone?.label || "Seguimiento finalizado"}
+                  {nextMilestone.label}
                 </p>
-              </div>
+              </div> : null}
               <div className="border-l border-border pl-3">
                 <p className="text-xs font-semibold text-muted-foreground">Ultima actualizacion</p>
                 <p className="mt-1 text-sm font-bold">{resource.updatedAt || resource.createdAt || "Sin datos"}</p>
               </div>
             </div>
 
-            <div data-testid="tracking-delivery-rail" className="mt-4">
+            {progress !== null ? <div data-testid="tracking-delivery-rail" className="mt-4">
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Avance del seguimiento</span>
                 <span className="font-semibold text-foreground">{progress}%</span>
@@ -967,8 +1054,8 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
               >
                 <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
               </div>
-            </div>
-          </div>
+            </div> : null}
+          </div> : null}
 
           <div className="border-t border-border/70 bg-background/50 p-4 md:px-5">
             <form
@@ -994,11 +1081,17 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                         autoComplete="one-time-code"
                         value={pin}
                         onChange={(event) => {
+                          requestGenerationRef.current += 1;
+                          credentialGenerationRef.current += 1;
+                          loadPendingRef.current = false;
+                          setLoading(false);
+                          setRefreshing(false);
+                          setPayload(null);
+                          setSupportSending(false);
+                          setSupportNotice(null);
                           setPin(event.target.value);
-                          if (errorTarget === "pin") {
-                            setError(null);
-                            setErrorTarget(null);
-                          }
+                          setError(null);
+                          setErrorTarget(null);
                         }}
                         aria-invalid={errorTarget === "pin"}
                         aria-describedby={`tracking-pin-help${errorTarget === "pin" ? " tracking-page-error" : ""}`}
@@ -1023,22 +1116,22 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                     </p>
                   </div>
                 ) : null}
-                <Button type="submit" disabled={loading || !code} className="h-10 font-semibold">
-                  {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                <Button type="submit" disabled={loading || refreshing || !code} className="h-10 font-semibold">
+                  {loading || refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                   Actualizar estado
                 </Button>
               </div>
 
               <div className="grid grid-cols-2 gap-2 sm:flex">
-                {kind === "claim" && support.enabled ? (
+                {visiblePayload && kind === "claim" && support.enabled ? (
                   <Button type="button" variant="outline" onClick={focusSupportComposer}>
                     <MessageCircle />
                     Escribir mensaje
                   </Button>
                 ) : null}
-                <Button type="button" variant="outline" onClick={focusMap} disabled={!canShowMap}>
+                <Button type="button" variant="outline" onClick={focusMap} disabled={!canShowMap && !mapAddress}>
                   <MapPinned />
-                  Ver mapa
+                  {canShowMap || !mapAddress ? "Ver mapa" : "Ver dirección"}
                 </Button>
               </div>
             </form>
@@ -1075,6 +1168,9 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
           </div>
         ) : null}
 
+        {loading || refreshing ? <p role="status" className={refreshing ? "sr-only" : "mb-4 text-sm text-muted-foreground"}>Consultando seguimiento…</p> : null}
+
+        {visiblePayload ? <>
         {attachments.length > 0 ? (
           <section
             data-testid="tracking-evidence"
@@ -1161,7 +1257,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <span className="inline-flex items-center rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
-                      Ticket #{support.ticketId || code}
+                      {support.ticketId && String(support.ticketId) !== code ? 'Referencia interna' : 'Ticket'} #{support.ticketId || code}
                     </span>
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
@@ -1277,7 +1373,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                     </p>
                     <Button
                       type="submit"
-                      disabled={supportSending || !supportMessage.trim() || !support.endpoint || requiresPinForSupport}
+                      disabled={supportSending || refreshing || !supportMessage.trim() || !support.endpoint || requiresPinForSupport}
                       className="h-10 font-semibold"
                     >
                       {supportSending ? <Loader2 className="animate-spin" /> : <Send />}
@@ -1311,6 +1407,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
           <section
             ref={mapSectionRef}
             aria-labelledby="tracking-map-title"
+            tabIndex={-1}
             className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -1319,9 +1416,13 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                 <h2 id="tracking-map-title" className="font-bold">Mapa y recorrido</h2>
               </div>
               <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
-                {canShowMap ? "Mapa activo" : "Sin coordenadas"}
+                {canShowMap ? "Mapa activo" : readText(mapUi, ["location_pending_label"], "Sin coordenadas")}
               </span>
             </div>
+
+            {mapAddress ? (
+              <TrackingAddress key={mapAddress} address={mapAddress} label={readText(mapUi, ["address_label"], "Dirección informada")} />
+            ) : null}
 
             {canShowMap ? (
               <div className="overflow-hidden rounded-md border border-border/70 bg-slate-950">
@@ -1344,9 +1445,9 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center border-y border-dashed border-border/70 px-4 py-6 text-center">
                 <ShieldCheck className="mb-2 h-7 w-7 text-primary" />
-                <p className="font-semibold">Seguimiento por timeline</p>
-                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  No hay coordenadas renderizables para este caso.
+                <p className="font-semibold">{readText(mapUi, ["location_pending_label"], "Ubicación pendiente")}</p>
+                <p role="status" className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  El mapa se mostrará cuando el caso tenga coordenadas registradas. Mientras tanto, podés consultar su actividad.
                 </p>
               </div>
             )}
@@ -1417,7 +1518,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                 ["Acceso", kind === "claim" ? "PIN seguro" : "Link seguro"],
                 ["Creado", resource.createdAt || "-"],
                 ["Actualizado", resource.updatedAt || "-"],
-                ["Avance", `${progress}%`],
+                ["Avance", progress === null ? "-" : `${progress}%`],
                 ["Eventos", String(visibleTimeline.length)],
               ].map(([label, value]) => (
                 <div key={label} className="border-b border-border/60 pb-2">
@@ -1502,6 +1603,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
             ) : null}
           </div>
         </details>
+        </> : null}
 
         <div className="mt-4 flex justify-center">
           <Button variant="outline" onClick={() => window.history.back()}>

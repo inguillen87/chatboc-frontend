@@ -1,0 +1,126 @@
+[
+  {
+    "job": "catalog_import_ux",
+    "name": "Catalog import UX and safe errors",
+    "source_workflow": "catalog-import-ux.yml",
+    "browser_commands": [],
+    "legacy_evidence": null
+  },
+  {
+    "job": "crm_followup_workspace",
+    "name": "CRM persistent follow-up",
+    "source_workflow": "crm-followup-workspace.yml",
+    "browser_commands": [
+      "node tests/followup-workspace.browser.mjs",
+      "node tests/crm-history.browser.mjs",
+      "node tests/crm-directory.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/followup-evidence"
+  },
+  {
+    "job": "geo_workspace",
+    "name": "Geographic analytics workspace",
+    "source_workflow": "geo-workspace.yml",
+    "browser_commands": [
+      "node tests/geo-workspace.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/geo-evidence"
+  },
+  {
+    "job": "inbox_workspace",
+    "name": "Omnichannel inbox workspace",
+    "source_workflow": "inbox-workspace.yml",
+    "browser_commands": [
+      "node tests/inbox-workspace.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/inbox-evidence"
+  },
+  {
+    "job": "operations_workspace",
+    "name": "Operations workspace and scoped reads",
+    "source_workflow": "operations-workspace.yml",
+    "browser_commands": [
+      "node tests/operations-workspace.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/operations-live-evidence"
+  },
+  {
+    "job": "order_lifecycle",
+    "name": "Order lifecycle and scoped operations",
+    "source_workflow": "order-lifecycle.yml",
+    "browser_commands": [
+      "node tests/order-lifecycle.browser.mjs",
+      "node tests/checkout-session.browser.mjs",
+      "node tests/cart-session.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/order-lifecycle-evidence"
+  },
+  {
+    "job": "organization_presence",
+    "name": "Organization brand and URLs",
+    "source_workflow": "organization-presence.yml",
+    "browser_commands": [
+      "node tests/organization-presence.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/presence-evidence"
+  },
+  {
+    "job": "production_profile_layout",
+    "name": "Production profile layout",
+    "source_workflow": "production-profile-layout.yml",
+    "browser_commands": [
+      "node tests/production-profile.browser.mjs"
+    ],
+    "legacy_evidence": null
+  },
+  {
+    "job": "section_recovery",
+    "name": "Section recovery and preserved workspace",
+    "source_workflow": "section-recovery.yml",
+    "browser_commands": [
+      "node tests/section-recovery.browser.mjs",
+      "node tests/alert-contrast.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/section-recovery-evidence"
+  },
+  {
+    "job": "startup_performance",
+    "name": "Application startup performance",
+    "source_workflow": "startup-performance.yml",
+    "browser_commands": [
+      "node tests/startup-performance.browser.mjs",
+      "npx playwright test --config=playwright.pwa.config.ts --reporter=list,json"
+    ],
+    "legacy_evidence": ".vercel/startup-evidence"
+  },
+  {
+    "job": "superadmin_commercial_followup",
+    "name": "SuperAdmin commercial follow-up",
+    "source_workflow": "superadmin-commercial-followup.yml",
+    "browser_commands": [
+      "node tests/commercial-insights.browser.mjs"
+    ],
+    "legacy_evidence": null
+  },
+  {
+    "job": "survey_card_production",
+    "name": "Survey cards production verification",
+    "source_workflow": "survey-card-production.yml",
+    "browser_commands": [
+      "node tests/survey-card-production.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/survey-session-evidence"
+  },
+  {
+    "job": "unified_organization_login",
+    "name": "Unified organization login",
+    "source_workflow": "unified-organization-login.yml",
+    "browser_commands": [
+      "node tests/private-navigation.browser.mjs",
+      "node tests/private-guide.browser.mjs",
+      "node tests/guide-control.browser.mjs",
+      "node tests/institutional-assistant.browser.mjs"
+    ],
+    "legacy_evidence": ".vercel/unified-login-evidence"
+  }
+]

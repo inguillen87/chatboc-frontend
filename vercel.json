@@ -1,6 +1,42 @@
 {
+  "ignoreCommand": "node scripts/ignoreVercelGitPreview.mjs",
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "codex/government-workspace-ux-20261112": false,
+      "claude/integration-20261112": false,
+      "codex/chatboc-unified-ux-20261112": false,
+      "fix/tracking-background-refresh-20261112": false,
+      "fix/tracking-location-provenance-20261103": false,
+      "fix/enterprise-operator-workflows-20261103": false,
+      "fix/survey-response-contract-20261103": false,
+      "release/enterprise-public-session-contract-20261028": false,
+      "release/enterprise-asset-origin-20261028": false,
+      "release/enterprise-followed-authority-20261028": false,
+      "release/enterprise-a11y-metrics-20261028": false,
+      "fix/catalog-quality-scope-20261026": false,
+      "fix/receipt-campaign-settings-20261021": false,
+      "release/neon-paired-acceptance-20261001": false,
+      "release/tdf-accessible-audio-20261010": false,
+      "fix/widget-host-theme-switch-20261010": false,
+      "feature/realtime-accessible-owner-20261010": false,
+      "release/enterprise-tdf-consolidated-20261010": false,
+      "release/pro-whitelabel-frontend-20261010": false,
+      "fix/tenant-integration-provider-20261010": false,
+      "fix/owner-voice-disclosure-20261010": false,
+      "fix/institutional-preview-domain-fixture-20261010": false,
+      "fix/integration-published-tenant-scope-20261010": false,
+      "fix/tdf-realtime-keyboard-captions-20261010": false,
+      "fix/tdf-widget-composer-a11y-20261010": false,
+      "fix/tdf-integration-labels-expiry-20261010": false
+    }
+  },
   "headers": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": ".*\\.vercel\\.app" }],
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }]
+    },
     {
       "source": "/((?!iframe(?:$|/|\\.html$)).*)",
       "has": [
@@ -149,6 +185,10 @@
     { "source": "/privacidad", "destination": "/privacidad/index.html" },
     { "source": "/terminos", "destination": "/terminos/index.html" },
     { "source": "/eliminacion-datos", "destination": "/eliminacion-datos/index.html" },
+    {
+      "source": "/demo/institucional/tdf-discapacidad",
+      "destination": "/demo/institucional/tdf-discapacidad/index.html"
+    },
     {
       "source": "/((?!assets/|api/|ask/|archivos/|public/|socket.io/).*)",
       "destination": "/index.html"

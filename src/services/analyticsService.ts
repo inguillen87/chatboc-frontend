@@ -1,5 +1,9 @@
+import { resolveTerritorialTicketIdentity } from '@/utils/territorialTicketIdentity';
+import { assertHeatmapScope, assertHeatmapRecordScopes, isHeatmapRedacted, protectHeatmapPrivacy, mergeHeatmapHubPayload } from '@/features/analytics/heatmapBoundary';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores/panelSessionStore';
 import {
   type IdentityCoverageResponseV1,
   parseIdentityCoverageResponseV1,
@@ -10,8 +14,10 @@ export { parseIdentityCoverageResponseV1 };
 const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 export interface AnalyticsFilters {
+  // Legacy analytics tenant_id is an owner ID; profile callers opt in explicitly.
   tenant_id?: number;
   tenantId?: number | string;
+  tenant_profile_id?: number;
   from?: string;
   to?: string;
   context?: AnalyticsContext;
@@ -252,16 +258,33 @@ export interface WhatsappFunnelResponse {
   stages: WhatsappFunnelStage[];
 }
 
-export interface AnalyticsEventIngestAckV1 {
+export interface AnalyticsEventIngestAcceptedAckV1 {
   ok: true;
   contract_version: 'analytics.event_ingest.v1';
   request_id: string;
+  accepted: true;
+  ignored: false;
   tenant_id: number;
   event_name: string;
   contact_key?: string;
   conversation_id?: string;
   identity_source?: string;
 }
+
+export interface AnalyticsEventIngestIgnoredAckV1 {
+  ok: true;
+  contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
+  accepted: false;
+  ignored: true;
+  reason: string;
+  tenant_id: number | null;
+  event_name: string;
+}
+
+export type AnalyticsEventIngestAckV1 =
+  | AnalyticsEventIngestAcceptedAckV1
+  | AnalyticsEventIngestIgnoredAckV1;
 
 export interface AnalyticsEventSchemaV1 {
   contract_version: 'analytics.event_schema.v1';
@@ -389,6 +412,12 @@ export interface AnalyticsHeatmapLocationQuality {
 }
 
 export interface AnalyticsHeatmapResponse {
+  tenant_slug?: string;
+  tenant_id?: number | string;
+  tenant_profile_id?: number | string;
+  tenant_owner_id?: number | string;
+  raw_points_redacted?: boolean;
+  privacy_mode?: string;
   contract_version?: string;
   request_id?: string;
   points: AnalyticsHeatmapPoint[];
@@ -519,12 +548,32 @@ export const parseAnalyticsEventIngestAckV1 = (input: unknown): AnalyticsEventIn
   const tenantId = asFiniteNumber(input.tenant_id);
   const eventName = typeof input.event_name === 'string' ? input.event_name.trim() : '';
   const requestId = typeof input.request_id === 'string' ? input.request_id.trim() : '';
-  if (tenantId === undefined || !eventName || !requestId) return null;
+  if (!eventName || !requestId) return null;
+
+  if (input.accepted === false && input.ignored === true) {
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (!reason || (input.tenant_id !== null && tenantId === undefined)) return null;
+
+    return {
+      ok: true,
+      contract_version: 'analytics.event_ingest.v1',
+      request_id: requestId,
+      accepted: false,
+      ignored: true,
+      reason,
+      tenant_id: input.tenant_id === null ? null : tenantId!,
+      event_name: eventName,
+    };
+  }
+
+  if (input.accepted !== true || input.ignored !== false || tenantId === undefined) return null;
 
   return {
     ok: true,
     contract_version: 'analytics.event_ingest.v1',
     request_id: requestId,
+    accepted: true,
+    ignored: false,
     tenant_id: tenantId,
     event_name: eventName,
     ...(typeof input.contact_key === 'string' ? { contact_key: input.contact_key } : {}),
@@ -759,9 +808,13 @@ const normalizeHeatPoint = (
   const distritoRaw = pickString(point.distrito, point.district, point.zone, point.zona, metadata.distrito, metadata.district, metadata.zone);
   const sourceRaw = pickString(point.source, point.fuente, point.origin, ticket.source, metadata.source, metadata.fuente);
   const actions = normalizeHeatmapActions(point.actions);
+  const identity = resolveTerritorialTicketIdentity(point);
 
   return {
     ...(typeof point.id === 'string' || typeof point.id === 'number' ? { id: point.id } : {}),
+    ...(identity.status === 'valid' ? { source_model: identity.identity.sourceModel, ticket_id: identity.identity.ticketId } : {}),
+    ...(point.tenant_slug !== undefined ? { tenant_slug: point.tenant_slug } : {}),
+    ...(point.tenantSlug !== undefined ? { tenantSlug: point.tenantSlug } : {}),
     lat: coordinates.lat,
     lng: coordinates.lng,
     ...(weight !== undefined ? { weight } : {}),
@@ -883,6 +936,7 @@ const buildQuery = (filters: AnalyticsFilters) => {
 
   const tenantId = filters.tenant_id ?? filters.tenantId;
   if (tenantId) params.append('tenant_id', String(tenantId));
+  if (filters.tenant_profile_id) params.append('tenant_profile_id', String(filters.tenant_profile_id));
   if (filters.tenantSlug) {
     params.append('tenant_slug', filters.tenantSlug);
     params.append('tenant', filters.tenantSlug);
@@ -937,13 +991,13 @@ const normalizeAnalyticsSummary = (payload: any): AnalyticsSummary => {
     total_interactions: Number(rawKpis.total_interactions ?? totals.total_interactions ?? 0) || 0,
     active_users: Number(rawKpis.active_users ?? totals.active_users ?? totals.unique_users ?? 0) || 0,
     avg_response_time_s: Number(rawKpis.avg_response_time_s ?? totals.avg_response_time_s ?? 0) || 0,
-    conversion_rate: Number(rawKpis.conversion_rate ?? totals.conversion_rate ?? 0) || 0,
-    backlog_open: Number(rawKpis.backlog_open ?? totals.backlog_open ?? 0) || 0,
-    sla_breaches: Number(rawKpis.sla_breaches ?? totals.sla_breaches ?? 0) || 0,
-    voice_interactions_pct: Number(rawKpis.voice_interactions_pct ?? totals.voice_interactions_pct ?? 0) || 0,
-    video_avatar_interactions_pct: Number(rawKpis.video_avatar_interactions_pct ?? totals.video_avatar_interactions_pct ?? 0) || 0,
-    no_typing_completion_rate: Number(rawKpis.no_typing_completion_rate ?? totals.no_typing_completion_rate ?? 0) || 0,
-    accessibility_usage_rate: Number(rawKpis.accessibility_usage_rate ?? totals.accessibility_usage_rate ?? 0) || 0,
+    conversion_rate: asFiniteNumber(rawKpis.conversion_rate ?? totals.conversion_rate),
+    backlog_open: asFiniteNumber(rawKpis.backlog_open ?? totals.backlog_open),
+    sla_breaches: asFiniteNumber(rawKpis.sla_breaches ?? totals.sla_breaches),
+    voice_interactions_pct: asFiniteNumber(rawKpis.voice_interactions_pct ?? totals.voice_interactions_pct),
+    video_avatar_interactions_pct: asFiniteNumber(rawKpis.video_avatar_interactions_pct ?? totals.video_avatar_interactions_pct),
+    no_typing_completion_rate: asFiniteNumber(rawKpis.no_typing_completion_rate ?? totals.no_typing_completion_rate),
+    accessibility_usage_rate: asFiniteNumber(rawKpis.accessibility_usage_rate ?? totals.accessibility_usage_rate),
   };
 
   return {
@@ -955,7 +1009,23 @@ const normalizeAnalyticsSummary = (payload: any): AnalyticsSummary => {
   };
 };
 
-const getHubCacheKey = (filters: AnalyticsFilters) => `${filters.tenantSlug || ''}|${buildQuery(filters)}`;
+let hubAuthorityEpoch = 0;
+let previousHubToken: string | null = null;
+let previousHubActor = '';
+// Partition transport caches; the server remains the authority for each read.
+// Credentials are never serialized into cache keys.
+const getHubAuthorityScope = () => {
+  const { authToken, user } = usePanelSessionStore.getState();
+  const actor = JSON.stringify([user?.id, user?.rol, user?.tenant_slug, user?.tenantSlug, user?.tenant?.id, user?.organization_profile?.tenant?.id]);
+  if (authToken !== previousHubToken || actor !== previousHubActor) {
+    previousHubToken = authToken;
+    previousHubActor = actor;
+    hubAuthorityEpoch += 1;
+    hubCache.clear();
+  }
+  return `${captureChatbocSessionRevision()}:${hubAuthorityEpoch}`;
+};
+const getHubCacheKey = (filters: AnalyticsFilters, authority: string) => `${authority}|${filters.tenantSlug || ''}|${buildQuery(filters)}`;
 
 const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, section: 'general' | 'municipio' | 'ventas'): AnalyticsSummary | null => {
   const raw = hub?.sections?.[section];
@@ -975,46 +1045,69 @@ const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, 
 };
 
 export const analyticsService = {
-  getHub: async (filters: AnalyticsFilters): Promise<AnalyticsHubResponse | null> => {
+  getHub: async (filters: AnalyticsFilters, options: { strictAccess?: boolean; signal?: AbortSignal; isCurrent?: () => boolean } = {}): Promise<AnalyticsHubResponse | null> => {
     const geoQueryFilters: Record<string, unknown> = { ...filters };
     delete geoQueryFilters.tenantSlug;
     delete geoQueryFilters.tenant;
     delete geoQueryFilters.limit;
     const query = buildQuery({ ...geoQueryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
-    const cacheKey = getHubCacheKey(filters);
+    const revision = captureChatbocSessionRevision();
+    const authority = getHubAuthorityScope();
+    const isCurrent = () => !options.signal?.aborted && (options.isCurrent?.() ?? true)
+      && isChatbocSessionRevisionCurrent(revision) && getHubAuthorityScope() === authority;
+    const cacheKey = getHubCacheKey(filters, authority);
     const cached = hubCache.get(cacheKey);
     let responseEtag = cached?.etag;
 
     for (const endpoint of HUB_ENDPOINTS) {
       try {
+        if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
         const response = await apiFetch<AnalyticsHubResponse>(`${endpoint}?${query}`, {
           tenantSlug: filters.tenantSlug,
+          singleAttempt: true,
+          allowStartupRecovery: true,
+          isCurrent,
+          signal: options.signal,
           headers: buildAnalyticsHeaders(cached?.etag),
           onResponse: (raw) => {
             const nextEtag = raw.headers.get('ETag') || raw.headers.get('etag');
             if (nextEtag) responseEtag = nextEtag;
           },
         });
+        if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
         const normalized = response && typeof response === 'object' ? response : {};
         hubCache.set(cacheKey, { data: normalized, etag: responseEtag });
         return normalized;
       } catch (error) {
+        if (!isCurrent() || (error instanceof ApiError && [401, 403].includes(error.status))) {
+          hubCache.delete(cacheKey);
+          throw error;
+        }
         if (error instanceof ApiError && error.status === 304 && cached?.data) {
           return cached.data;
         }
+        if (options.strictAccess && (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status))) {
+          hubCache.delete(cacheKey);
+          throw error;
+        }
         const shouldRetryAlias =
-          error instanceof ApiError && [401, 403, 404, 405, 500, 502, 503, 504].includes(error.status);
+          error instanceof ApiError && [404, 405, 500, 502, 503, 504].includes(error.status);
         if (!shouldRetryAlias) {
           throw error;
         }
       }
     }
 
-    return cached?.data ?? null;
+    return options.strictAccess ? null : cached?.data ?? null;
   },
 
   getSummary: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsSummary> => {
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const authority = getHubAuthorityScope();
+    const isCurrent = () => getHubAuthorityScope() === authority;
+    const hub = hubOverride === undefined
+      ? await analyticsService.getHub(filters, { strictAccess: true })
+      : hubOverride;
+    if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
     const contextKey = (filters.context === 'pyme' ? 'ventas' : filters.context === 'overview' ? 'general' : filters.context) as 'general' | 'municipio' | 'ventas' | undefined;
     const hubSummary = contextKey ? extractHubSectionSummary(hub, contextKey) : null;
     if (hubSummary) return hubSummary;
@@ -1023,11 +1116,26 @@ export const analyticsService = {
     const response = await apiFetch<any>(`/admin/analytics/overview?${query}`, {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
+      singleAttempt: true,
+      allowStartupRecovery: true,
+      isCurrent,
     });
+    if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
     return normalizeAnalyticsSummary(response);
   },
 
-  getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
+  getHeatmap: async (
+    filters: AnalyticsFilters,
+    hubOverride?: AnalyticsHubResponse | null,
+    options: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+  ): Promise<AnalyticsHeatmapResponse> => {
+    const revision = captureChatbocSessionRevision();
+    const authority = getHubAuthorityScope();
+    const isCurrent = () => !options.signal?.aborted && (options.isCurrent?.() ?? true)
+      && isChatbocSessionRevisionCurrent(revision) && getHubAuthorityScope() === authority;
+    const assertCurrent = () => {
+      if (!isCurrent()) throw new DOMException('Analytics session changed', 'AbortError');
+    };
     const normalizeList = <T extends Record<string, unknown>>(value: unknown): T[] =>
       Array.isArray(value) ? value.filter(isRecord).map((item) => item as T) : [];
     const normalizeCellList = (value: unknown): AnalyticsHeatmapCell[] =>
@@ -1041,7 +1149,10 @@ export const analyticsService = {
         return actions ? { ...candidate, actions } : candidate;
       });
 
-    const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
+    const buildResponse = (value: unknown): AnalyticsHeatmapResponse => {
+      assertCurrent();
+      assertHeatmapRecordScopes(value, filters);
+      const raw: any = protectHeatmapPrivacy(value);
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
       const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
       const requestId =
@@ -1052,7 +1163,7 @@ export const analyticsService = {
         typeof raw?.contract_version === 'string' && raw.contract_version.trim().length > 0
           ? raw.contract_version.trim()
           : undefined;
-      const points = collectHeatmapPoints(raw);
+      const points = isHeatmapRedacted(raw) ? [] : collectHeatmapPoints(raw);
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
         raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'
@@ -1073,6 +1184,14 @@ export const analyticsService = {
         ...(contractVersion ? { contract_version: contractVersion } : {}),
         ...(requestId ? { request_id: requestId } : {}),
         points: Array.isArray(points) ? points : [],
+        ...(isRecord(raw.metadata) ? { metadata: raw.metadata } : {}),
+        ...(typeof raw.tenant_slug === 'string' ? { tenant_slug: raw.tenant_slug } : {}),
+        ...(typeof raw.tenant_id === 'number' || typeof raw.tenant_id === 'string' ? { tenant_id: raw.tenant_id } : {}),
+        ...(typeof (raw.tenant_profile_id ?? raw.tenant?.id) === 'number' || typeof (raw.tenant_profile_id ?? raw.tenant?.id) === 'string'
+          ? { tenant_profile_id: raw.tenant_profile_id ?? raw.tenant?.id } : {}),
+        ...(typeof raw.tenant_owner_id === 'number' || typeof raw.tenant_owner_id === 'string' ? { tenant_owner_id: raw.tenant_owner_id } : {}),
+        ...(typeof raw.privacy_mode === 'string' ? { privacy_mode: raw.privacy_mode } : {}),
+        ...(isHeatmapRedacted(raw) ? { raw_points_redacted: true } : {}),
         cells: normalizeCellList(raw?.cells),
         hotspots: normalizeCellList(raw?.hotspots),
         category_layers: normalizeCellList(raw?.category_layers),
@@ -1094,22 +1213,34 @@ export const analyticsService = {
     const query = buildQuery({ ...queryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
     let operationsEndpointHubCandidate: AnalyticsHubResponse | null = null;
     try {
+      assertCurrent();
       const response = await apiFetch<any>(`/api/v2/analytics/operations/heatmap?${query}`, {
         tenantSlug: filters.tenantSlug,
         headers: buildAnalyticsHeaders(),
+        signal: options.signal,
+        isCurrent,
       });
+      assertCurrent();
+      assertHeatmapScope(response, filters);
       if (response?.sections && typeof response.sections === 'object') {
         operationsEndpointHubCandidate = response as AnalyticsHubResponse;
       } else {
         return buildResponse(response || {});
       }
     } catch (error) {
+      assertCurrent();
       if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
         throw error;
       }
     }
 
-    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters, { strictAccess: true, signal: options.signal, isCurrent }).catch((error): AnalyticsHubResponse | null => {
+      assertCurrent();
+      if (error instanceof ApiError && [404, 405, 501].includes(error.status)) return null;
+      throw error;
+    });
+    assertCurrent();
+    assertHeatmapScope(hub, filters);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
@@ -1126,20 +1257,18 @@ export const analyticsService = {
       Array.isArray(hubGeoLayerSource.features) &&
       hubGeoLayerSource.features.length > 0;
     const hasHubGeoLayerCategories = Array.isArray(hubGeoLayerCategories) && hubGeoLayerCategories.length > 0;
-    if (Array.isArray(hubPoints) || hasHubGeoLayerFeatures || hasHubGeoLayerCategories) {
-      return buildResponse({
-        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}),
-        geo_layers: hubGeoLayers,
-        map_layers: (hubGeo as any)?.map_layers,
-        segments: (hubGeo as any)?.segments,
-        segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
-        request_id: (hubGeo as any)?.request_id,
-      });
+    if (Array.isArray(hubPoints) || Array.isArray((hubGeo as any)?.cells) || hasHubGeoLayerFeatures || hasHubGeoLayerCategories) {
+      assertHeatmapScope(hubGeo, filters);
+      return buildResponse(mergeHeatmapHubPayload(hub, { ...hubGeo,
+        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}) }, filters));
     }
 
+    assertCurrent();
     const response = await apiFetch<any>(`/admin/analytics/heatmap?${query}`, {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
+      signal: options.signal,
+      isCurrent,
     });
     return buildResponse(response || {});
   },
@@ -1212,9 +1341,10 @@ export const analyticsService = {
     }
   },
 
-  getInsights: async (tenantId: number, tenantSlug?: string) => {
-    const response = await apiFetch<{ insights: any[] }>(`/admin/analytics/overview?tenant_id=${tenantId}`, {
-      tenantSlug,
+  getInsights: async (tenant: number | Pick<AnalyticsFilters, 'tenant_profile_id' | 'tenantSlug' | 'scope'>, tenantSlug?: string) => {
+    const filters = typeof tenant === 'number' ? { tenant_id: tenant, tenantSlug } : tenant;
+    const response = await apiFetch<{ insights: any[] }>(`/admin/analytics/overview?${buildQuery(filters)}`, {
+      tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
     });
     return response?.insights || [];
@@ -1284,9 +1414,10 @@ export const analyticsService = {
     });
   },
 
-  getRealtimeHub: async (params: { tenant_id: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
+  getRealtimeHub: async (params: { tenant_id?: number; tenant_profile_id?: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
     const query = new URLSearchParams();
-    query.set('tenant_id', String(params.tenant_id));
+    if (params.tenant_id) query.set('tenant_id', String(params.tenant_id));
+    if (params.tenant_profile_id) query.set('tenant_profile_id', String(params.tenant_profile_id));
     if (params.scope) query.set('scope', params.scope);
     if (params.window_minutes) query.set('window_minutes', String(params.window_minutes));
 

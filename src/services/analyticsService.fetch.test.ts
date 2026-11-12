@@ -101,6 +101,8 @@ describe('analyticsService fetch helpers', () => {
       ok: true,
       contract_version: 'analytics.event_ingest.v1',
       request_id: 'req-ingest-fetch',
+      accepted: true,
+      ignored: false,
       tenant_id: 42,
       event_name: 'ticket_created',
       contact_key: 'ck-1',
@@ -113,6 +115,36 @@ describe('analyticsService fetch helpers', () => {
       method: 'POST',
       body: { event_name: 'ticket_created' },
       tenantSlug: 'tenant-a',
+    });
+  });
+
+  it('returns a controlled ignored ack instead of raising a synthetic 502', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      accepted: false,
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ignored: true,
+      ok: true,
+      reason: 'access_denied',
+      request_id: 'req-ingest-ignored',
+      success: true,
+      tenant_id: 142,
+    });
+
+    const result = await postAnalyticsEvent(
+      { event_name: 'survey_page_view', survey_slug: 'demo-survey' },
+      'municipio',
+    );
+
+    expect(result).toEqual({
+      accepted: false,
+      contract_version: 'analytics.event_ingest.v1',
+      event_name: 'survey_page_view',
+      ignored: true,
+      ok: true,
+      reason: 'access_denied',
+      request_id: 'req-ingest-ignored',
+      tenant_id: 142,
     });
   });
 

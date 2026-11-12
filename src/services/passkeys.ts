@@ -7,6 +7,7 @@ import {
 
 import { BASE_API_URL } from '@/config';
 import getOrCreateAnonId, { persistAnonId } from '@/utils/anonIdGenerator';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/$/, '');
 
@@ -98,6 +99,7 @@ async function passkeyFetch<T = unknown>(path: string, init: FetchOptions = {}):
 }
 
 export interface PasskeyLoginResult {
+  session_retirement?:SessionRetirementProof;
   ok: boolean;
   token?: string;
   entityToken?: string;

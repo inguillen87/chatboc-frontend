@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -20,6 +21,7 @@ import type {
 } from '@/types/market';
 import { addMarketItem, fetchMarketCart } from '@/api/market';
 import { persistStoredCart, readStoredCart } from '@/utils/marketStorage';
+import { sanitizePublicInternalNavigationPath } from '@/utils/tenantPaths';
 
 interface MarketCartContextValue {
   items: MarketCartItem[];
@@ -78,149 +80,148 @@ const normalizeCartItems = (raw: any): MarketCartItem[] => {
   });
 };
 
+type CartSnapshot = Omit<MarketCartContextValue, 'isLoading' | 'error' | 'refreshCart' | 'addItem'>;
+type Operation<T> = { id: number; generation: number; promise: Promise<T> };
+const emptySnapshot = (): CartSnapshot => ({
+  items: [], totalAmount: null, totalPoints: null, customerProfile: null,
+  commercialState: null, continuity: null, checkoutOptions: null,
+  checkoutPreview: null, mercadopagoReady: null,
+});
+const snapshotFromResponse = (response: MarketCartResponse): CartSnapshot => ({
+  items: normalizeCartItems(response.items),
+  totalAmount: response.totalAmount ?? null, totalPoints: response.totalPoints ?? null,
+  customerProfile: response.customer_profile ?? null,
+  commercialState: response.commercial_state ?? null, continuity: response.continuity ?? null,
+  checkoutOptions: response.checkout_options ?? null, checkoutPreview: response.checkout_preview ?? null,
+  mercadopagoReady: response.mercadopago_ready ?? null,
+});
+
+const hasSafeTenantPath = (tenantSlug: string | null): boolean => {
+  if (!tenantSlug) return false;
+  try {
+    // Apply the existing Unicode-aware public-navigation contract without
+    // changing the tenant identity forwarded to the API or browser storage.
+    return Boolean(sanitizePublicInternalNavigationPath(`/t/${encodeURIComponent(tenantSlug)}/market`));
+  } catch {
+    return false;
+  }
+};
+
 export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
-  const location = useLocation();
-  const storedCart = tenantSlug ? readStoredCart(tenantSlug) : { items: [], totalAmount: null, totalPoints: null };
-  const [items, setItems] = useState<MarketCartItem[]>(normalizeCartItems(storedCart.items ?? []));
-  const [totalAmount, setTotalAmount] = useState<number | null>(typeof storedCart.totalAmount === 'number' ? storedCart.totalAmount : null);
-  const [totalPoints, setTotalPoints] = useState<number | null>(typeof storedCart.totalPoints === 'number' ? storedCart.totalPoints : null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { pathname } = useLocation();
+  const disabled = !hasSafeTenantPath(tenantSlug) ||
+    /^\/(?:t\/[^/]+\/|[^/]+\/)?(?:admin|analytics|municipal)(?:\/|$)/.test(pathname);
+  // Enforce isolation here: catalog/product consumers need no separate key.
+  return <MarketCartSession key={JSON.stringify([tenantSlug, disabled])} tenantSlug={tenantSlug} disabled={disabled}>
+    {children}
+  </MarketCartSession>;
+}
+
+function MarketCartSession({ tenantSlug, disabled, children }: ProviderProps & { disabled: boolean }) {
+  const [snapshot, setSnapshot] = useState<CartSnapshot>(() => {
+    if (disabled || !tenantSlug) return emptySnapshot();
+    const cached = readStoredCart(tenantSlug);
+    // Browser storage is only a display draft. It never supplies checkout policy,
+    // customer identity or a payment capability, and can contain malformed JSON.
+    if (!cached || typeof cached !== 'object' || !Array.isArray(cached.items)) return emptySnapshot();
+    return { ...emptySnapshot(), items: normalizeCartItems(cached.items),
+      totalAmount: typeof cached.totalAmount === 'number' && Number.isFinite(cached.totalAmount) ? cached.totalAmount : null,
+      totalPoints: typeof cached.totalPoints === 'number' && Number.isFinite(cached.totalPoints) ? cached.totalPoints : null,
+    };
+  });
+  const [isLoading, setIsLoading] = useState(!disabled);
   const [error, setError] = useState<string | null>(null);
-  const [customerProfile, setCustomerProfile] = useState<MarketCustomerProfile | null>(null);
-  const [commercialState, setCommercialState] = useState<MarketCommercialState | null>(null);
-  const [continuity, setContinuity] = useState<MarketContinuity | null>(null);
-  const [checkoutOptions, setCheckoutOptions] = useState<MarketCheckoutOptions | null>(null);
-  const [checkoutPreview, setCheckoutPreview] = useState<MarketCheckoutPreview | null>(null);
-  const [mercadopagoReady, setMercadopagoReady] = useState<boolean | null>(null);
-  const shouldDisableCartRequests = useMemo(() => {
-    const pathname = location.pathname || '';
-    return /^\/(?:[^/]+\/)?(?:admin|analytics|municipal)(?:\/|$)/.test(pathname);
-  }, [location.pathname]);
+  const active = useRef(false), generation = useRef(0), sequence = useRef(0);
+  const reader = useRef<Operation<void> | null>(null);
+  const writer = useRef<Operation<boolean> | null>(null);
+  const current = useCallback((op: { id: number; generation: number }) =>
+    active.current && op.generation === generation.current && op.id === sequence.current, []);
 
-  const refreshCart = useCallback(async () => {
-    if (!tenantSlug) {
-      setItems([]);
-      setTotalAmount(null);
-      setTotalPoints(null);
-      setCustomerProfile(null);
-      setCommercialState(null);
-      setContinuity(null);
-      setCheckoutOptions(null);
-      setCheckoutPreview(null);
-      setMercadopagoReady(null);
-      return;
-    }
-    if (shouldDisableCartRequests) {
-      setItems([]);
-      setTotalAmount(null);
-      setTotalPoints(null);
-      setCustomerProfile(null);
-      setCommercialState(null);
-      setContinuity(null);
-      setCheckoutOptions(null);
-      setCheckoutPreview(null);
-      setMercadopagoReady(null);
-      setError(null);
-      setIsLoading(false);
-      return;
-    }
+  const accept = useCallback((response: MarketCartResponse) => {
+    if (!response || !Array.isArray(response.items)) throw new Error();
+    const next = snapshotFromResponse(response);
+    setSnapshot(next);
+    if (tenantSlug) persistStoredCart(tenantSlug, {
+      items: next.items, totalAmount: next.totalAmount, totalPoints: next.totalPoints,
+    });
+  }, [tenantSlug]);
+  const reject = useCallback((reason: unknown, fallback: string) => {
+    // Discard the rejected display snapshot, not the server-side cart. A failed
+    // read must not leave previous customer/checkout authority usable in this view.
+    setSnapshot(emptySnapshot());
+    if (tenantSlug) persistStoredCart(tenantSlug, { items: [], totalAmount: null, totalPoints: null });
+    setError(reason instanceof Error && reason.message ? reason.message : fallback);
+  }, [tenantSlug]);
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetchMarketCart(tenantSlug);
-      const resolvedItems = normalizeCartItems(response?.items ?? []);
-      setItems(resolvedItems);
-      setTotalAmount(response?.totalAmount ?? null);
-      setTotalPoints(response?.totalPoints ?? null);
-      persistStoredCart(tenantSlug, {
-        items: resolvedItems,
-        totalAmount: response?.totalAmount ?? null,
-        totalPoints: response?.totalPoints ?? null,
+  const refreshCart = useCallback((): Promise<void> => {
+    if (!active.current || disabled || !tenantSlug) return Promise.resolve();
+    const requestedGeneration = generation.current;
+    if (writer.current) {
+      // An explicit refresh while adding waits for the write, then reads once.
+      // It never starts a read which can replace that write with an older cart.
+      return writer.current.promise.then(() => {
+        if (active.current && generation.current === requestedGeneration) return refreshCart();
       });
-      setCustomerProfile(response?.customer_profile ?? null);
-      setCommercialState(response?.commercial_state ?? null);
-      setContinuity(response?.continuity ?? null);
-      setCheckoutOptions(response?.checkout_options ?? null);
-      setCheckoutPreview(response?.checkout_preview ?? null);
-      setMercadopagoReady(response?.mercadopago_ready ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el carrito.');
-    } finally {
-      setIsLoading(false);
     }
-  }, [shouldDisableCartRequests, tenantSlug]);
+    if (reader.current && current(reader.current)) return reader.current.promise;
+    const op: Operation<void> = { id: ++sequence.current, generation: requestedGeneration, promise: Promise.resolve() };
+    reader.current = op;
+    setIsLoading(true); setError(null);
+    op.promise = Promise.resolve().then(async () => {
+      if (!current(op)) return;
+      try {
+        const response = await fetchMarketCart(tenantSlug);
+        if (current(op)) accept(response);
+      } catch (reason) {
+        if (current(op)) reject(reason, 'No se pudo cargar el carrito.');
+      } finally {
+        if (reader.current === op) reader.current = null;
+        if (current(op)) setIsLoading(false);
+      }
+    });
+    return op.promise;
+  }, [accept, current, disabled, reject, tenantSlug]);
 
-  const addItem = useCallback(
-    async (productId: string, quantity = 1) => {
-      if (!tenantSlug) return false;
-      setIsLoading(true);
-      setError(null);
+  const addItem = useCallback((productId: string, quantity = 1): Promise<boolean> => {
+    if (!active.current || disabled || !tenantSlug || writer.current ||
+      typeof productId !== 'string' || !productId.trim() || !Number.isFinite(quantity) || quantity <= 0) {
+      return Promise.resolve(false);
+    }
+    const op: Operation<boolean> = { id: ++sequence.current, generation: generation.current, promise: Promise.resolve(false) };
+    writer.current = op; // Synchronous guard, before the button's React state changes.
+    setIsLoading(true); setError(null);
+    op.promise = Promise.resolve().then(async () => {
+      if (!current(op)) return false;
       try {
         const response = await addMarketItem(tenantSlug, { productId, quantity });
-        const resolvedItems = normalizeCartItems(response?.items ?? []);
-        setItems(resolvedItems);
-        setTotalAmount(response?.totalAmount ?? null);
-        setTotalPoints(response?.totalPoints ?? null);
-        persistStoredCart(tenantSlug, {
-          items: resolvedItems,
-          totalAmount: response?.totalAmount ?? null,
-          totalPoints: response?.totalPoints ?? null,
-        });
-        setCustomerProfile(response?.customer_profile ?? null);
-        setCommercialState(response?.commercial_state ?? null);
-        setContinuity(response?.continuity ?? null);
-        setCheckoutOptions(response?.checkout_options ?? null);
-        setCheckoutPreview(response?.checkout_preview ?? null);
-        setMercadopagoReady(response?.mercadopago_ready ?? null);
+        if (!current(op)) return false;
+        accept(response);
         return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se pudo agregar el producto.');
+      } catch (reason) {
+        if (current(op)) reject(reason, 'No se pudo agregar el producto.');
         return false;
       } finally {
-        setIsLoading(false);
+        if (writer.current === op) writer.current = null;
+        if (current(op)) setIsLoading(false);
       }
-    },
-    [tenantSlug],
-  );
+    });
+    return op.promise;
+  }, [accept, current, disabled, reject, tenantSlug]);
 
   useEffect(() => {
-    refreshCart().catch(() => {});
+    active.current = true;
+    void refreshCart();
+    return () => {
+      active.current = false;
+      generation.current += 1;
+      sequence.current += 1;
+      reader.current = null;
+      writer.current = null;
+    };
   }, [refreshCart]);
 
-  const value = useMemo<MarketCartContextValue>(
-    () => ({
-      items,
-      totalAmount,
-      totalPoints,
-      isLoading,
-      error,
-      customerProfile,
-      commercialState,
-      continuity,
-      checkoutOptions,
-      checkoutPreview,
-      mercadopagoReady,
-      refreshCart,
-      addItem,
-    }),
-    [
-      items,
-      totalAmount,
-      totalPoints,
-      isLoading,
-      error,
-      customerProfile,
-      commercialState,
-      continuity,
-      checkoutOptions,
-      checkoutPreview,
-      mercadopagoReady,
-      refreshCart,
-      addItem,
-    ],
-  );
-
+  const value = useMemo<MarketCartContextValue>(() => ({ ...snapshot, isLoading, error, refreshCart, addItem }),
+    [snapshot, isLoading, error, refreshCart, addItem]);
   return <MarketCartContext.Provider value={value}>{children}</MarketCartContext.Provider>;
 }
 

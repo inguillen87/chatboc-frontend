@@ -17,6 +17,7 @@ const CANONICAL_RBAC_CAPABILITIES = new Set([
   'analytics.read',
   'analytics.admin',
   'settings.tenant.write',
+  'knowledge.read',
   'interviews.cases.read',
   'interviews.sessions.conduct',
 ]);
@@ -116,6 +117,19 @@ describe('routesConfig route capabilities', () => {
     expect(content).toMatch(/path:\s*'\/catalog-mappings\/new'[\s\S]*?requiredAllCapabilities:\s*\['market\.catalog\.write'\]/);
   });
 
+  it('keeps the tenant implementation center lazy and restricted to configuration administrators', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+    const routeBlock = content.match(
+      /\{\s*path:\s*'\/implementacion',[\s\S]*?\n\s*\},/,
+    )?.[0] ?? '';
+
+    expect(content).toContain("import('@/pages/TenantImplementationCenterPage')");
+    expect(routeBlock).toContain("roles: ['tenant_admin', 'superadmin']");
+    expect(routeBlock).toContain("requiredAllCapabilities: ['settings.tenant.write']");
+    expect(routeBlock).not.toContain("'employee'");
+  });
+
   it('keeps the legacy root tickets route as a profile desk redirect without capability 403', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
@@ -176,5 +190,21 @@ describe('routesConfig route capabilities', () => {
     expect(content).toContain('canManageLegacyWhatsappInventory');
     expect(content).toContain('activeTab === "whatsapp" && canManageLegacyWhatsappInventory');
     expect(content).toContain('Usá el onboarding oficial de arriba');
+  });
+});
+
+
+describe('institutional knowledge entry',()=>{
+  it('registers the actual knowledge console with the verified backend knowledge grant',()=>{
+    const content=fs.readFileSync(path.resolve(__dirname,'routesConfig.tsx'),'utf8');
+    const route=content.match(/\{\s*path:\s*'\/admin\/knowledge',[\s\S]*?\n\s*\},/)?.[0]??'';
+    expect(content).toContain("import('@/pages/admin/knowledge/KnowledgeSourcesPage')");
+    expect(content).toContain('default: module.KnowledgeSourcesPage');
+    expect(route).toContain('element: <KnowledgeSourcesPage />');
+    expect(route).toContain("roles: ['tenant_admin', 'superadmin']");
+    expect(route).toContain("requiredAllCapabilities: ['knowledge.read']");
+    expect(route).toContain('enforceCapabilities: true');
+    expect(route).toContain('requiresSession: true');
+    expect(route).not.toContain('allowGuest');
   });
 });

@@ -56,6 +56,23 @@ describe('resolveTenantSlug persistence control', () => {
 
     expect(resolved).toBe('junin-1');
   });
+
+  it('extracts the explicit tenant from a versioned tenant contract path', () => {
+    const resolved = resolveTenantSlug(
+      null,
+      '/api/v2/tenants/junin/activation/channels',
+      { persist: false },
+    );
+
+    expect(resolved).toBe('junin');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
+  });
+
+  it('does not interpret an API version namespace as a tenant', () => {
+    const resolved = resolveTenantSlug(null, '/api/v2/system/status', { persist: false });
+
+    expect(resolved).toBeNull();
+  });
 });
 
 describe('resolveOmnichannelConversationId', () => {

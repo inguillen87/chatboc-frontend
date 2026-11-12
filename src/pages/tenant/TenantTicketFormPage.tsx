@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Copy, ExternalLink, Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -18,6 +18,28 @@ type SubmissionAttempt = {
   fingerprint: string;
   idempotencyKey: string;
 };
+
+type ClaimDraft = {
+  categoria: string;
+  descripcion: string;
+  lat: string;
+  lng: string;
+  receipt: TenantClaimIntakeReceipt | null;
+  receiptFingerprint: string | null;
+};
+
+type ClaimScope = { slug: string; ready: boolean };
+type PendingSubmission = { scope: ClaimScope; controller: AbortController };
+
+const emptyDraft: ClaimDraft = { categoria: '', descripcion: '', lat: '', lng: '', receipt: null, receiptFingerprint: null };
+const normalizeSlug = (value?: string | null) => value?.trim().toLowerCase() || '';
+
+const claimDraftPayload = (draft: ClaimDraft): TenantTicketPayload => ({
+  categoria: draft.categoria.trim() || undefined,
+  descripcion: draft.descripcion.trim(),
+  lat: draft.lat.trim() ? Number(draft.lat) : undefined,
+  lng: draft.lng.trim() ? Number(draft.lng) : undefined,
+});
 
 const claimPayloadFingerprint = (slug: string, payload: TenantTicketPayload) =>
   JSON.stringify({
@@ -55,16 +77,29 @@ const ClaimReceipt = ({
 }) => {
   const [showPin, setShowPin] = useState(false);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const copyAttemptRef = useRef<object | null>(null);
+  const mountedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      copyAttemptRef.current = null;
+    };
+  }, []);
 
   const copyReceipt = async () => {
+    const copyAttempt = {};
+    copyAttemptRef.current = copyAttempt;
+    const isCurrent = () => mountedRef.current && copyAttemptRef.current === copyAttempt;
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard_unavailable');
       await navigator.clipboard.writeText(
         `Código: ${receipt.claim.code}\nPIN: ${receipt.access.pin}`,
       );
-      setCopyMessage('Código y PIN copiados.');
+      if (isCurrent()) setCopyMessage('Código y PIN copiados.');
     } catch {
-      setCopyMessage('No pudimos copiarlo. Guardá el código y el PIN manualmente.');
+      if (isCurrent()) setCopyMessage('No pudimos copiarlo. Guardá el código y el PIN manualmente.');
     }
   };
 
@@ -149,41 +184,63 @@ const ClaimReceipt = ({
 
 const TenantTicketFormPage = () => {
   const params = useParams<{ tenant: string }>();
-  const { tenant, currentSlug } = useTenant();
-  const [categoria, setCategoria] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [receiptState, setReceiptState] = useState<{
-    slug: string;
-    receipt: TenantClaimIntakeReceipt;
-  } | null>(null);
-  const submissionAttemptRef = useRef<SubmissionAttempt | null>(null);
-  const submittingRef = useRef(false);
+  const { tenant, currentSlug, isLoadingTenant, tenantError } = useTenant();
+  const [drafts, setDrafts] = useState(() => new Map<string, ClaimDraft>());
+  const [submission, setSubmission] = useState<PendingSubmission | null>(null);
+  const submissionAttemptsRef = useRef(new Map<string, SubmissionAttempt>());
+  const activeSubmissionRef = useRef<PendingSubmission | null>(null);
+  const currentScopeRef = useRef<ClaimScope | null>(null);
 
-  const slug = useMemo(() => {
-    const fromContext = tenant?.slug ?? currentSlug;
-    if (fromContext && fromContext.trim()) return fromContext.trim();
-    if (params.tenant && params.tenant.trim()) return params.tenant.trim();
-    return '';
-  }, [currentSlug, params.tenant, tenant?.slug]);
+  // The route changes before TenantProvider finishes confirming its new profile.
+  const slug = normalizeSlug(params.tenant) || normalizeSlug(currentSlug);
+  const tenantReady = Boolean(
+    slug && normalizeSlug(tenant?.slug) === slug && normalizeSlug(currentSlug) === slug && !isLoadingTenant && !tenantError,
+  );
+  const scope = useMemo(() => ({ slug, ready: tenantReady }), [slug, tenantReady]);
+  useLayoutEffect(() => {
+    currentScopeRef.current = scope;
+    return () => {
+      if (currentScopeRef.current === scope) currentScopeRef.current = null;
+      const retired = activeSubmissionRef.current;
+      if (retired?.scope === scope) {
+        activeSubmissionRef.current = null;
+        retired.controller.abort();
+      }
+    };
+  }, [scope]);
 
-  const tenantName = tenant?.nombre ?? 'este espacio';
-  const receipt = receiptState?.slug === slug ? receiptState.receipt : null;
+  const draft = drafts.get(slug) ?? emptyDraft;
+  const { categoria, descripcion, lat, lng } = draft;
+  const isSubmitting = submission?.scope === scope;
+  const tenantName = tenantReady ? tenant?.nombre ?? 'este espacio' : 'este espacio';
+  const receipt = tenantReady ? draft.receipt : null;
+  const updateDraft = (update: (current: ClaimDraft) => ClaimDraft) => {
+    setDrafts((current) => {
+      const next = new Map(current);
+      next.set(slug, update(current.get(slug) ?? emptyDraft));
+      return next;
+    });
+  };
+  const setField = (field: 'categoria' | 'descripcion' | 'lat' | 'lng', value: string) =>
+    updateDraft((current) => ({ ...current, [field]: value }));
 
   const resetForm = () => {
-    setCategoria('');
-    setDescripcion('');
-    setLat('');
-    setLng('');
-    setReceiptState(null);
-    submissionAttemptRef.current = null;
+    updateDraft(() => emptyDraft);
+    submissionAttemptsRef.current.delete(slug);
+  };
+
+  const createAnotherClaim = () => {
+    updateDraft((current) =>
+      claimPayloadFingerprint(slug, claimDraftPayload(current)) === current.receiptFingerprint
+        ? emptyDraft
+        : { ...current, receipt: null, receiptFingerprint: null },
+    );
+    submissionAttemptsRef.current.delete(slug);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submittingRef.current) return;
+    if (activeSubmissionRef.current?.scope === scope || currentScopeRef.current !== scope) return;
 
     if (!slug) {
       toast({
@@ -194,6 +251,8 @@ const TenantTicketFormPage = () => {
       return;
     }
 
+    if (!tenantReady) return;
+
     if (!descripcion.trim()) {
       toast({
         title: 'La descripción es obligatoria',
@@ -203,14 +262,9 @@ const TenantTicketFormPage = () => {
       return;
     }
 
-    const payload: TenantTicketPayload = {
-      categoria: categoria.trim() || undefined,
-      descripcion: descripcion.trim(),
-      lat: lat.trim() ? Number(lat) : undefined,
-      lng: lng.trim() ? Number(lng) : undefined,
-    };
+    const payload = claimDraftPayload(draft);
     const fingerprint = claimPayloadFingerprint(slug, payload);
-    const previousAttempt = submissionAttemptRef.current;
+    const previousAttempt = submissionAttemptsRef.current.get(slug);
     let attempt: SubmissionAttempt;
     try {
       attempt =
@@ -225,22 +279,32 @@ const TenantTicketFormPage = () => {
       });
       return;
     }
-    submissionAttemptRef.current = attempt;
+    submissionAttemptsRef.current.set(slug, attempt);
 
-    submittingRef.current = true;
-    setIsSubmitting(true);
+    // A retry can reuse the key, but each running request has its own owner.
+    const pending = { scope, controller: new AbortController() };
+    activeSubmissionRef.current = pending;
+    setSubmission(pending);
+    const isCurrent = () => currentScopeRef.current === scope && activeSubmissionRef.current === pending;
     try {
-      const confirmedReceipt = await submitTenantTicket(slug, payload, attempt.idempotencyKey);
-      setReceiptState({ slug, receipt: confirmedReceipt });
-    } catch (error) {
-      toast({
-        title: 'No pudimos enviar tu reclamo',
-        description: getErrorMessage(error),
-        variant: 'destructive',
+      const confirmedReceipt = await submitTenantTicket(slug, payload, attempt.idempotencyKey, {
+        signal: pending.controller.signal,
+        isCurrent,
       });
+      if (isCurrent()) updateDraft((current) => ({ ...current, receipt: confirmedReceipt, receiptFingerprint: fingerprint }));
+    } catch (error) {
+      if (isCurrent()) {
+        toast({
+          title: 'No pudimos enviar tu reclamo',
+          description: getErrorMessage(error),
+          variant: 'destructive',
+        });
+      }
     } finally {
-      submittingRef.current = false;
-      setIsSubmitting(false);
+      if (isCurrent()) {
+        activeSubmissionRef.current = null;
+        setSubmission(null);
+      }
     }
   };
 
@@ -262,7 +326,7 @@ const TenantTicketFormPage = () => {
           </CardHeader>
           <CardContent>
             {receipt ? (
-              <ClaimReceipt receipt={receipt} tenantName={tenantName} onCreateAnother={resetForm} />
+              <ClaimReceipt key={`${slug}:${receipt.request_id}`} receipt={receipt} tenantName={tenantName} onCreateAnother={createAnotherClaim} />
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
@@ -274,7 +338,7 @@ const TenantTicketFormPage = () => {
                     <Input
                       id="categoria"
                       value={categoria}
-                      onChange={(event) => setCategoria(event.target.value)}
+                      onChange={(event) => setField('categoria', event.target.value)}
                       placeholder="Ej: Iluminación, Comercio, Espacio público"
                     />
                   </div>
@@ -284,7 +348,7 @@ const TenantTicketFormPage = () => {
                     <Textarea
                       id="descripcion"
                       value={descripcion}
-                      onChange={(event) => setDescripcion(event.target.value)}
+                      onChange={(event) => setField('descripcion', event.target.value)}
                       placeholder="Describí qué ocurrió, dónde y cuándo. Podés sumar datos de contacto si querés seguimiento personalizado."
                       rows={6}
                     />
@@ -298,7 +362,7 @@ const TenantTicketFormPage = () => {
                         type="number"
                         step="any"
                         value={lat}
-                        onChange={(event) => setLat(event.target.value)}
+                        onChange={(event) => setField('lat', event.target.value)}
                         placeholder="-34.6083"
                       />
                     </div>
@@ -309,14 +373,14 @@ const TenantTicketFormPage = () => {
                         type="number"
                         step="any"
                         value={lng}
-                        onChange={(event) => setLng(event.target.value)}
+                        onChange={(event) => setField('lng', event.target.value)}
                         placeholder="-58.3712"
                       />
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button type="submit" disabled={isSubmitting || !tenantReady}>
                       {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Enviar reclamo
                     </Button>

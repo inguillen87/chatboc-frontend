@@ -99,6 +99,8 @@ describe('demo catalog shared request cache', () => {
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/v2/demo/catalog?response_profile=selector',
       {
+        allowSafeBaseFallback: false,
+        baseUrlOverride: '/api',
         cache: 'default',
         omitChatSessionId: true,
         omitCredentials: true,

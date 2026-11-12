@@ -1,14 +1,19 @@
-import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { clearCachedWidgetToken } from '@/utils/widgetTokenScope';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
 import { clearClerkAuthContext } from '@/utils/clerkAuthContext';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import {captureSessionRetirement,clearSessionRetirementAuthority,retireLocalSessionAuthority,dispatchSessionRetirement,setLogoutNotice,type SessionRetirementResult} from './sessionRetirement';
+import {isChatbocSessionRevisionCurrent} from './chatbocSessionRevision';
+import {clearNativePanelSelection} from './nativePanelSelection';
+export {
+  captureChatbocSessionRevision,
+  isChatbocSessionRevisionCurrent,
+  advanceChatbocSessionRevision,
+} from '@/utils/chatbocSessionRevision';
 
-type ClerkSignOut = () => Promise<unknown> | unknown;
 type JwtClaims = Record<string, unknown>;
-
-let activeClerkSignOut: ClerkSignOut | null = null;
-let sessionRevision = 0;
+let pendingLocalRetirement:{revision:number;completion:Promise<SessionRetirementResult>;blockClerk:boolean}|null=null;
 
 const decodeJwtClaims = (token?: string | null): JwtClaims | null => {
   if (!token) return null;
@@ -52,28 +57,11 @@ export const readPersistedClerkUserId = () => {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 };
 
-export const registerClerkSignOut = (signOut: ClerkSignOut) => {
-  activeClerkSignOut = signOut;
-
-  return () => {
-    if (activeClerkSignOut === signOut) {
-      activeClerkSignOut = null;
-    }
-  };
-};
-
-export const captureChatbocSessionRevision = () => sessionRevision;
-
-export const isChatbocSessionRevisionCurrent = (revision: number) =>
-  revision === sessionRevision;
-
-export const advanceChatbocSessionRevision = () => {
-  sessionRevision += 1;
-  return sessionRevision;
-};
-
 export const clearLocalChatbocSession = () => {
-  advanceChatbocSessionRevision();
+  pendingLocalRetirement=null;
+  clearSessionRetirementAuthority();
+  clearNativePanelSelection();
+  const sessionRevision = advanceChatbocSessionRevision();
   usePanelSessionStore.getState().clearSession();
   useWidgetSessionStore.getState().clearSession();
   useTenantStore.getState().clearTenant();
@@ -87,80 +75,35 @@ export const clearLocalChatbocSession = () => {
   return sessionRevision;
 };
 
-const requestBackendLogout = () =>
-  apiFetch('/api/v2/auth/logout', {
-    method: 'POST',
-    body: {},
-    omitTenant: true,
-    omitEntityToken: true,
-    omitChatSessionId: true,
-    preserveAuthOn401: true,
-    suppressPanel401Redirect: true,
+const startRetirement = (blockClerk:boolean) => {
+  const panel=usePanelSessionStore.getState();const actor=panel.user?.id;
+  const authority=captureSessionRetirement(actor);
+  if(!authority&&!panel.user&&!panel.authToken&&pendingLocalRetirement&&
+    (pendingLocalRetirement.blockClerk||!blockClerk)&&isChatbocSessionRevisionCurrent(pendingLocalRetirement.revision))return pendingLocalRetirement;
+  // An explicit logout during an incomplete SDK exchange must still retire
+  // that captured SDK session locally, even before it has a Chatboc profile.
+  const unboundSdkSession=!authority&&!panel.user&&!panel.authToken&&!hasAuthenticatedChatbocSession();
+  retireLocalSessionAuthority(authority,readPersistedClerkUserId(),blockClerk&&(authority?.provider==='clerk'||(!authority&&hasPersistedClerkSession())||unboundSdkSession));
+  const revision=clearLocalChatbocSession();
+  setLogoutNotice({status:authority?'pending':'unavailable',providerStatus:'unknown'});
+  const completion=dispatchSessionRetirement(authority).then(result=>{
+    const panel=usePanelSessionStore.getState();
+    if(isChatbocSessionRevisionCurrent(revision)&&!panel.user&&!panel.authToken)setLogoutNotice(result);
+    return result;
   });
-
-const startBackendLogout = () => {
-  try {
-    return Promise.resolve(requestBackendLogout());
-  } catch (error) {
-    return Promise.reject(error);
-  }
-};
-
-const warnLogoutFailure = (name: 'backend' | 'clerk', reason: unknown) => {
-  console.warn(`[sessionLogout] Fallo el logout ${name}.`, reason);
+  pendingLocalRetirement={completion,revision,blockClerk};return pendingLocalRetirement;
 };
 
 export const resetChatbocSessionForIdentityTransition = () => {
-  // Start while A's bearer still exists, then invalidate every local identity synchronously.
-  const backendLogout = startBackendLogout();
-  const revision = clearLocalChatbocSession();
-  const completion = backendLogout.catch((error) => {
-    warnLogoutFailure('backend', error);
-  });
-
-  return { completion, revision };
-};
-
-const resolveClerkSignOut = (): ClerkSignOut | null => {
-  if (activeClerkSignOut) return activeClerkSignOut;
-  if (typeof window === 'undefined') return null;
-
-  const clerk = (window as Window & { Clerk?: { signOut?: ClerkSignOut } }).Clerk;
-  return typeof clerk?.signOut === 'function' ? clerk.signOut.bind(clerk) : null;
+  return startRetirement(false);
 };
 
 interface LogoutChatbocSessionOptions {
   clerkEnabled?: boolean;
 }
 
-export const logoutChatbocSession = async ({
-  clerkEnabled = false,
-}: LogoutChatbocSessionOptions = {}) => {
-  // apiFetch captures the current bearer token before the synchronous local clear.
-  const backendLogout = startBackendLogout();
-  const hasRegisteredClerkHandler = Boolean(activeClerkSignOut);
-  const persistedClerkSession = hasPersistedClerkSession();
-  const resolvedClerkSignOut = resolveClerkSignOut();
-  const clerkSignOut =
-    resolvedClerkSignOut &&
-    (hasRegisteredClerkHandler || persistedClerkSession || clerkEnabled)
-      ? resolvedClerkSignOut
-      : null;
-
-  const logoutRevision = clearLocalChatbocSession();
-
-  const tasks: Array<{ name: 'backend' | 'clerk'; promise: Promise<unknown> }> = [
-    { name: 'backend', promise: backendLogout },
-  ];
-  if (clerkSignOut) {
-    tasks.push({ name: 'clerk', promise: Promise.resolve().then(() => clerkSignOut()) });
-  }
-
-  const results = await Promise.allSettled(tasks.map(({ promise }) => promise));
-  results.forEach((result, index) => {
-    if (result.status === 'rejected') {
-      warnLogoutFailure(tasks[index].name, result.reason);
-    }
-  });
-  return logoutRevision;
+export const logoutChatbocSession = (_options:LogoutChatbocSessionOptions = {}):Promise<SessionRetirementResult> => {
+  // Capture A and retire local state synchronously. No global Clerk operation,
+  // cookie mutation, delayed store clear or navigation can affect a future B.
+  return startRetirement(true).completion;
 };

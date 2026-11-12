@@ -253,6 +253,18 @@ const extractPersistedTicketEnrichment = (ticketRecord: RecordLike): TicketAiEnr
 };
 
 type OperatorChecklistItem = { id: string; label: string; priority: string; done: boolean };
+type TicketAiRequestContext = {
+  ticketId: string;
+  tenantSlug: string | undefined;
+  scope: string;
+  requestTicketType: string;
+};
+type OperatorReplyContext = TicketAiRequestContext & { reply: string };
+type ScopedEnrichment = {
+  context: TicketAiRequestContext;
+  persistedSource: TicketAiEnrichmentResponse | null;
+  payload: TicketAiEnrichmentResponse | null;
+};
 
 const normalizeChecklist = (source: unknown): OperatorChecklistItem[] => (
   asArray(source)
@@ -281,13 +293,6 @@ export default function AiAssistPanel({
     () => extractPersistedTicketEnrichment(ticketRecord),
     [ticketRecord],
   );
-  const [enrichment, setEnrichment] = React.useState<TicketAiEnrichmentResponse | null>(() => persistedEnrichment);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [replyCopied, setReplyCopied] = React.useState(false);
-  const [replyLoaded, setReplyLoaded] = React.useState(false);
-  const requestSeq = React.useRef(0);
-
   const ticketId = asString(ticketRecord.id || ticketRecord.ticket_id);
   const ticketType = asString(ticketRecord.ticket_type || ticketRecord.tipo || ticketRecord.tenant_type).toLowerCase();
   const isTenantTicket = isTenantTicketV2(ticketRecord as Partial<Ticket> & Record<string, unknown>);
@@ -300,17 +305,47 @@ export default function AiAssistPanel({
     ticketRecord.numero_ticket,
   );
   const tenantSlug = asString(ticketRecord.tenant_slug) || undefined;
+  const requestContext = React.useMemo<TicketAiRequestContext>(
+    () => ({ ticketId, tenantSlug, scope, requestTicketType }),
+    [ticketId, tenantSlug, scope, requestTicketType],
+  );
+  const [loadedEnrichment, setLoadedEnrichment] = React.useState<ScopedEnrichment>(() => ({
+    context: requestContext,
+    persistedSource: persistedEnrichment,
+    payload: persistedEnrichment,
+  }));
+  const enrichment = loadedEnrichment.context === requestContext && loadedEnrichment.persistedSource === persistedEnrichment
+    ? loadedEnrichment.payload
+    : persistedEnrichment;
+  const [loadingContext, setLoadingContext] = React.useState<TicketAiRequestContext | null>(null);
+  const [scopedError, setScopedError] = React.useState<{ context: TicketAiRequestContext; message: string } | null>(null);
+  const loading = loadingContext === requestContext;
+  const error = scopedError?.context === requestContext ? scopedError.message : null;
+  const [copiedReplyContext, setCopiedReplyContext] = React.useState<OperatorReplyContext | null>(null);
+  const [loadedReplyContext, setLoadedReplyContext] = React.useState<OperatorReplyContext | null>(null);
+  const requestSeq = React.useRef(0);
+  const activeRequestContext = React.useRef<TicketAiRequestContext | null>(null);
+
+  React.useLayoutEffect(() => {
+    activeRequestContext.current = requestContext;
+    return () => {
+      if (activeRequestContext.current === requestContext) activeRequestContext.current = null;
+      requestSeq.current += 1;
+    };
+  }, [requestContext]);
 
   const loadEnrichment = React.useCallback(async () => {
+    if (activeRequestContext.current !== requestContext) return;
     if (!ticketId) {
-      setError('No se pudo resolver el identificador del ticket para IA.');
-      setEnrichment(null);
+      setScopedError({ context: requestContext, message: 'No se pudo resolver el identificador del ticket para IA.' });
+      setLoadedEnrichment({ context: requestContext, persistedSource: persistedEnrichment, payload: null });
       return;
     }
     const currentRequest = requestSeq.current + 1;
     requestSeq.current = currentRequest;
-    setLoading(true);
-    setError(null);
+    const isCurrentRequest = () => requestSeq.current === currentRequest && activeRequestContext.current === requestContext;
+    setLoadingContext(requestContext);
+    setScopedError(null);
 
     try {
       const payload = {
@@ -332,34 +367,29 @@ export default function AiAssistPanel({
             payload,
             tenantSlug,
           );
-      if (requestSeq.current !== currentRequest) return;
-      setEnrichment(response);
+      if (!isCurrentRequest()) return;
+      setLoadedEnrichment({ context: requestContext, persistedSource: persistedEnrichment, payload: response });
     } catch (err) {
-      if (requestSeq.current !== currentRequest) return;
+      if (!isCurrentRequest()) return;
       const isAiUnavailable = isTicketAiEnrichmentUnavailable(err);
       if (!isAiUnavailable) {
         console.warn('Unable to load ticket AI enrichment', summarizeTicketFetchError(err));
       }
-      setError(
-        isAiUnavailable
+      setScopedError({
+        context: requestContext,
+        message: isAiUnavailable
           ? AI_ENRICHMENT_UNAVAILABLE_COPY
           : 'No se pudo calcular la asistencia IA para este ticket. El CRM sigue operativo.',
-      );
+      });
       if (!persistedEnrichment) {
-        setEnrichment(null);
+        setLoadedEnrichment({ context: requestContext, persistedSource: persistedEnrichment, payload: null });
       }
     } finally {
-      if (requestSeq.current === currentRequest) {
-        setLoading(false);
+      if (isCurrentRequest()) {
+        setLoadingContext(null);
       }
     }
-  }, [isTenantTicket, persistedEnrichment, requestTicketType, scope, tenantSlug, ticketId, ticketNumber, ticketRecord]);
-
-  React.useEffect(() => {
-    if (!persistedEnrichment) return;
-    setEnrichment(persistedEnrichment);
-    setError(null);
-  }, [persistedEnrichment]);
+  }, [isTenantTicket, persistedEnrichment, requestContext, requestTicketType, scope, tenantSlug, ticketId, ticketNumber, ticketRecord]);
 
   React.useEffect(() => {
     if (autoRefreshDelayMs < 0) return;
@@ -407,30 +437,47 @@ export default function AiAssistPanel({
     ? (advisoryOnly && !mutatesState ? 'advisory-only' : 'requiere revision')
     : 'CRM operativo';
 
-  React.useEffect(() => {
-    setReplyCopied(false);
-    setReplyLoaded(false);
-  }, [operatorReply, ticketId]);
+  const replyContext = React.useMemo<OperatorReplyContext>(
+    () => ({ ...requestContext, reply: operatorReply }),
+    [requestContext, operatorReply],
+  );
+  const activeReplyContext = React.useRef<OperatorReplyContext | null>(null);
+  const copyAttemptSeq = React.useRef(0);
+  const replyCopied = copiedReplyContext === replyContext;
+  const replyLoaded = loadedReplyContext === replyContext;
+
+  React.useLayoutEffect(() => {
+    activeReplyContext.current = replyContext;
+    return () => {
+      if (activeReplyContext.current === replyContext) activeReplyContext.current = null;
+      copyAttemptSeq.current += 1;
+    };
+  }, [replyContext]);
 
   const useOperatorReply = React.useCallback(() => {
-    if (!operatorReply || !ticketId) return;
+    if (!replyContext.reply || !replyContext.ticketId || activeReplyContext.current !== replyContext) return;
     dispatchTicketAiDraft({
-      ticketId,
-      draft: operatorReply,
+      ticketId: replyContext.ticketId,
+      draft: replyContext.reply,
       source: 'operator_brief',
     });
-    setReplyLoaded(true);
-  }, [operatorReply, ticketId]);
+    if (activeReplyContext.current === replyContext) setLoadedReplyContext(replyContext);
+  }, [replyContext]);
 
   const copyOperatorReply = React.useCallback(async () => {
-    if (!operatorReply) return;
+    if (!replyContext.reply || activeReplyContext.current !== replyContext) return;
+    const clipboard = navigator.clipboard;
+    if (typeof clipboard?.writeText !== 'function') return;
+    const currentCopyAttempt = copyAttemptSeq.current + 1;
+    copyAttemptSeq.current = currentCopyAttempt;
+    const isCurrentCopy = () => activeReplyContext.current === replyContext && copyAttemptSeq.current === currentCopyAttempt;
     try {
-      await navigator.clipboard?.writeText(operatorReply);
-      setReplyCopied(true);
+      await clipboard.writeText(replyContext.reply);
+      if (isCurrentCopy()) setCopiedReplyContext(replyContext);
     } catch {
-      setReplyCopied(false);
+      if (isCurrentCopy()) setCopiedReplyContext(null);
     }
-  }, [operatorReply]);
+  }, [replyContext]);
 
   return (
     <Card className="overflow-hidden border-primary/20 bg-background/95 shadow-sm">

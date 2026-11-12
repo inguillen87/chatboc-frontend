@@ -1,6 +1,7 @@
 import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 
 const DEPLOYMENT_PLATFORM_SUFFIXES = ['vercel.app'] as const;
+const DEPLOYMENT_PLATFORM_ALIASES = new Set(['preview.chatboc.ar']);
 const PLATFORM_APEX_HOSTNAMES = new Set(['chatboc.ar']);
 
 const normalizeHostname = (hostname?: string | null): string =>
@@ -16,7 +17,7 @@ export const isDeploymentPlatformHostname = (hostname?: string | null): boolean 
   const normalizedHostname = normalizeHostname(hostname);
   if (!normalizedHostname) return false;
 
-  return DEPLOYMENT_PLATFORM_SUFFIXES.some((suffix) =>
+  return DEPLOYMENT_PLATFORM_ALIASES.has(normalizedHostname) || DEPLOYMENT_PLATFORM_SUFFIXES.some((suffix) =>
     hostnameMatchesSuffix(normalizedHostname, suffix),
   );
 };
@@ -60,7 +61,7 @@ export const readTenantSlugFromHostname = (hostname?: string | null): string | n
 };
 
 /**
- * Detects the stale value produced by the former hostname inference on Vercel.
+ * Detects stale ambient values produced by hostname inference on deployment aliases.
  * This is intentionally limited to ambient stored state; explicit URL/session
  * tenant scopes remain authoritative even if their text happens to be similar.
  */

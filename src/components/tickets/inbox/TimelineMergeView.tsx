@@ -18,7 +18,7 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
     {events.map((event) => {
       const eventDate = new Date(event.timestamp);
       const timeStr = Number.isNaN(eventDate.getTime())
-        ? event.timestamp
+        ? event.timestamp || 'Hora no informada'
         : format(eventDate, 'HH:mm', { locale: es });
 
       if (event.type === 'message_created') {
@@ -58,7 +58,7 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
             ) : null}
             {isOwn ? (
               <div className="mt-1">
-                <ReadStateBadge status={(event.payload?.read_state as any) || 'sent'} />
+                {['sent', 'delivered', 'read'].includes(String(event.payload?.read_state)) ? <ReadStateBadge status={event.payload?.read_state as 'sent' | 'delivered' | 'read'} /> : <span className="text-xs text-muted-foreground">Estado de entrega no informado</span>}
               </div>
             ) : null}
           </div>

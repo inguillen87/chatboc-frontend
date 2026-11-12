@@ -5,9 +5,36 @@ export interface AnalyticsOverview {
   response_time?: number;
   survey_responses?: number;
   nps?: number;
-  csat?: number;
   handoff_rate?: number;
+  ticket_satisfaction?: TicketSatisfactionOverview;
+  inbox_first_public_reply?: InboxFirstPublicReplyOverview;
+  municipal_inbox_handoff?: MunicipalInboxHandoffOverview;
 }
+
+export type InboxFirstPublicReplyOverview = {
+  contract_version: 'analytics.inbox_first_public_reply.v1';
+  coverage: 'durable_inbox_replies_only';
+} & (
+  | { state: 'observed'; average_minutes: number; cohort_cases: number; sample_cases: number }
+  | { state: 'unavailable'; average_minutes: null; cohort_cases: number; sample_cases: 0 }
+  | { state: 'unavailable'; average_minutes: null; cohort_cases: null; sample_cases: null }
+);
+
+export type MunicipalInboxHandoffOverview =
+  | { state: 'observed'; request_count: number; accepted_count: number }
+  | { state: 'unavailable'; request_count: null; accepted_count: null };
+
+export type TicketSatisfactionOverview = {
+  contract_version: 'analytics.ticket_satisfaction.v1';
+  basis: 'first_valid_rating_recorded_at';
+  scale_verified: false;
+  label: string;
+  detail: string;
+  reason_code?: string;
+} & (
+  | { state: 'observed'; rated_ticket_count: number }
+  | { state: 'unavailable'; rated_ticket_count: null }
+);
 
 export interface OperationsBucketItem {
   id?: string;
@@ -303,6 +330,14 @@ export interface OperationsDashboardV1 {
 
 export interface OperationsHeatmapPoint {
   id?: string | number;
+  /** Exact record id paired with source_model; never use it without that model. */
+  record_id?: string | number;
+  ticket_id?: string | number;
+  /** Canonical CRM model when the backend can prove the point-to-ticket relation. */
+  source_model?: string;
+  /** Raw backend source retained for opaque identities such as municipio_ticket:419. */
+  record_source?: string;
+  ticket_identity_status?: 'valid' | 'missing' | 'ambiguous' | 'unsupported';
   lat?: number;
   lng?: number;
   weight?: number;
@@ -323,6 +358,17 @@ export interface OperationsHeatmapPoint {
   rango_edad?: string;
   barrio?: string;
   distrito?: string;
+  zone?: string;
+  zona?: string;
+  address?: string;
+  direccion?: string;
+  /** Aggregated, non-household label safe for executive territorial views. */
+  address_cell?: string;
+  address_cell_label?: string;
+  cell_id?: string;
+  cell_label?: string;
+  location_quality?: string;
+  location_provenance?: string;
   status?: string;
   estado?: string;
   severity?: string;
@@ -443,10 +489,78 @@ export interface OperationsHeatmapPrivacyMetadata {
   mode?: string;
   aggregation?: string;
   minimum_sample_size?: number;
+  /** Backend k-anonymity threshold, normalized separately for auditability. */
+  k_min?: number;
   raw_points_redacted?: boolean;
   coordinate_precision?: string;
+  coordinate_precision_decimals?: number;
+  suppressed?: boolean | Record<string, unknown>;
   population_source?: string;
   boundaries_source?: string;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapLocationQuality {
+  contract_version?: string;
+  total_ticket_records?: number;
+  ticket_records_with_persisted_coordinates?: number;
+  ticket_records_with_coordinates?: number;
+  ticket_records_with_validated_coordinates?: number;
+  ticket_records_outside_jurisdiction?: number;
+  ticket_records_with_address?: number;
+  ticket_records_with_address_and_coordinates?: number;
+  ticket_records_with_explicit_zone?: number;
+  ticket_records_pending_geocode?: number;
+  ticket_records_without_location?: number;
+  coordinate_coverage_pct?: number;
+  status?: string;
+  reason_code?: string;
+  provenance?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapJurisdiction {
+  contract_version?: string;
+  state?: string;
+  enforced?: boolean;
+  city?: string;
+  state_name?: string;
+  country?: string;
+  locale?: string;
+  region_hint?: string;
+  bounds?: Record<string, unknown> | null;
+  source?: Record<string, unknown> | null;
+  truth_boundary?: string;
+  excluded_coordinate_records?: number;
+  review_candidate_count?: number;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapTerritorialFacetItem extends OperationsBucketItem {
+  mapped_count?: number;
+  pending_geocode_count?: number;
+  outside_jurisdiction_count?: number;
+  top_addresses?: OperationsBucketItem[];
+  explicit_zones?: OperationsBucketItem[];
+  categories?: OperationsBucketItem[];
+}
+
+export interface OperationsHeatmapTerritorialFacets {
+  contract_version?: string;
+  summary?: {
+    ticket_records?: number;
+    mapped_records?: number;
+    records_with_address?: number;
+    records_with_explicit_zone?: number;
+    records_outside_jurisdiction?: number;
+    pending_geocode_records?: number;
+    records_without_location?: number;
+    [key: string]: unknown;
+  };
+  categories?: OperationsHeatmapTerritorialFacetItem[];
+  addresses?: OperationsHeatmapTerritorialFacetItem[];
+  explicit_zones?: OperationsHeatmapTerritorialFacetItem[];
+  provenance?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -454,6 +568,25 @@ export interface OperationsHeatmapSourceQuality {
   contract_version?: string;
   sources?: Record<string, Record<string, unknown>>;
   summary?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
+ * Server-issued classification for survey responses represented in the
+ * operational heatmap. It does not certify administrative boundaries or
+ * unrelated point sources.
+ */
+export interface OperationsHeatmapResponseProvenance {
+  contract_version?: string;
+  mode?: string;
+  server_trusted_classification?: boolean;
+  contains_synthetic?: boolean;
+  real_responses_included?: number;
+  synthetic_responses_included?: number;
+  synthetic_responses_excluded?: number;
+  unverified_responses_included?: number;
+  unverified_responses_excluded?: number;
+  synthetic_marker_contract?: string;
   [key: string]: unknown;
 }
 
@@ -553,6 +686,21 @@ export interface OperationsHeatmapV1 {
   facets: OperationsHeatmapFacet[];
   category_layers: OperationsBucketItem[];
   demographics?: OperationsHeatmapDemographics;
+  location_quality?: OperationsHeatmapLocationQuality;
+  jurisdiction?: OperationsHeatmapJurisdiction;
+  territorial_facets?: OperationsHeatmapTerritorialFacets;
+  jurisdiction_review?: {
+    contract_version?: string;
+    status?: string;
+    reason_code?: string;
+    candidate_count?: number;
+    outside_jurisdiction_count?: number;
+    invalid_coordinate_count?: number;
+    unverified_jurisdiction_count?: number;
+    candidates?: OperationsBucketItem[];
+    writes_performed?: boolean;
+    [key: string]: unknown;
+  };
   quality?: {
     contract_version?: string;
     state?: string;
@@ -583,6 +731,7 @@ export interface OperationsHeatmapV1 {
   privacy?: OperationsHeatmapPrivacyMetadata;
   map_layers?: OperationsHeatmapMapLayersContract;
   source_quality?: OperationsHeatmapSourceQuality;
+  response_provenance?: OperationsHeatmapResponseProvenance;
   spatial_filter?: {
     bbox?: Record<string, unknown> | null;
     applied?: boolean;
@@ -619,6 +768,7 @@ export interface OperationsHeatmapV1 {
       label?: string;
       category?: string;
       source?: string;
+      source_model?: string;
       reason_code?: string;
       actions?: OperationsHeatmapAction[];
       [key: string]: unknown;

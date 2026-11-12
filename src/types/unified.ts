@@ -1,3 +1,4 @@
+import type { OrderAmountEvidence, OrderItemAmountEvidence } from './orderAmounts';
 export interface CustomerProfile {
   name?: string | null;
   display_name?: string | null;
@@ -415,7 +416,9 @@ export interface Order {
   id: string | number;
   tenant_id?: string;
   user_id?: string;
-  total: number;
+  total: number | null;
+  currency?: string | null;
+  amount_evidence?: OrderAmountEvidence;
   status: string;
   items: OrderItem[];
   created_at: string;
@@ -496,13 +499,14 @@ export interface AdminOrdersResponse {
 export interface OrderItem {
   id: string | number;
   product_id?: string | number | null;
-  quantity: number;
-  price: number;
+  quantity: number | null;
+  price: number | null;
   name: string;
   title?: string;
-  unit_price?: number;
-  subtotal?: number;
-  currency?: string;
+  unit_price?: number | null;
+  subtotal?: number | null;
+  currency?: string | null;
+  amount_evidence?: OrderItemAmountEvidence;
   sku?: string;
 }
 

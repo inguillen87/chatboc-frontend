@@ -395,6 +395,95 @@ describe('market api continuity normalization', () => {
     expect(checkout.order_id).toBe('ord_public_1');
   });
 
+  it('uses the guest-safe checkout endpoint published by the catalog contract', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        contract_version: 'public.market_catalog.v1',
+        products: [],
+        public_api: {
+          contract_version: 'marketplace.public_api.v1',
+          anonymous: true,
+          guest_safe: true,
+          checkout: {
+            guest_safe: true,
+            start: {
+              method: 'POST',
+              endpoint: '/api/checkout/crear-preferencia',
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        pedido_id: 81,
+        market_order_id: 91,
+        estado: 'confirmado',
+        total_monetario: 0,
+      });
+
+    await fetchMarketCatalog('contract-checkout');
+    const checkout = await startMarketCheckout('contract-checkout', {
+      items: [{ id: '42', quantity: 2 }],
+      contact: { name: 'Cliente QA', phone: '+5492610000000' },
+    });
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/checkout/crear-preferencia',
+      expect.objectContaining({
+        method: 'POST',
+        tenantSlug: 'contract-checkout',
+        suppressPanel401Redirect: true,
+        omitChatSessionId: true,
+        body: expect.objectContaining({
+          items: [{ id: '42', quantity: 2 }],
+        }),
+      }),
+    );
+    expect(checkout.order_id).toBe(81);
+    expect(checkout.market_order_id).toBe(91);
+    expect(checkout.status).toBe('confirmado');
+  });
+
+  it('ignores a checkout URL outside the same-origin API contract', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({
+        contract_version: 'public.market_catalog.v1',
+        products: [],
+        public_api: {
+          contract_version: 'marketplace.public_api.v1',
+          anonymous: true,
+          guest_safe: true,
+          checkout: {
+            guest_safe: true,
+            start: {
+              method: 'POST',
+              endpoint: 'https://untrusted.example/checkout',
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        contract_version: 'payments.checkout_session.v1',
+        preference_id: 'pref_same_origin',
+        init_point: 'https://checkout.example/pref_same_origin',
+      });
+
+    await fetchMarketCatalog('unsafe-contract');
+    await startMarketCheckout('unsafe-contract', {
+      items: [{ id: '1', quantity: 1 }],
+    });
+
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v2/payments/checkout-session',
+      expect.any(Object),
+    );
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      'https://untrusted.example/checkout',
+      expect.any(Object),
+    );
+  });
+
   it('normalizes rewards profile wallet and redemption options', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'rewards.profile.v1',

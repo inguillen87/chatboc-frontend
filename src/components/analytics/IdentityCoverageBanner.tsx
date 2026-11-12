@@ -27,7 +27,7 @@ export const IdentityCoverageBanner: React.FC<{ tenantSlug?: string }> = ({ tena
   return (
     <div className="mb-4">
       {data.alerts.map((alert, idx) => (
-        <Alert key={idx} variant="destructive" className="mb-2 bg-red-50 border-red-200">
+        <Alert key={idx} variant="destructive" className="mb-2 bg-red-50 border-red-200 dark:bg-background">
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Alerta de Identidad en {alert.channel}</AlertTitle>
           <AlertDescription>

@@ -1,10 +1,12 @@
 import { panelApi } from '@/api/v2/client';
+import type {SessionRetirementProof} from '@/utils/sessionRetirement';
 
 export interface GoogleLoginRequest {
   id_token: string;
 }
 
 export interface GoogleLoginResponse {
+  session_retirement?:SessionRetirementProof;
   token: string;
   id: number;
   name: string;

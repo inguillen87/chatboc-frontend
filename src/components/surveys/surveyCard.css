@@ -1,0 +1,19 @@
+.survey-card { min-width: 0; overflow-wrap: anywhere; }
+.survey-card button, .survey-card a, .survey-card summary, .survey-card-dialog button { min-height: 44px; height: auto; white-space: normal; }
+.survey-card [aria-label="Métricas de participación"] dt { overflow: visible; white-space: normal; text-overflow: clip; line-height: 1.4; }
+.survey-card [aria-label="Métricas de participación"] dd { overflow-wrap: anywhere; font-size: clamp(.85rem, 1.3vw, 1.125rem); }
+.survey-card [aria-label="Vigencia, territorio y certificación"] dd { display: flex; align-items: flex-start; }
+.survey-card :where(button, a, summary):focus-visible, .survey-card-dialog button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.survey-card-dialog { max-width: min(36rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; color: hsl(var(--foreground)); }
+.survey-card-target { font-weight: 600; overflow-wrap: anywhere; }
+.survey-card-dialog [role="alert"] { border: 1px solid hsl(var(--destructive)); border-radius: .6rem; padding: .8rem; font-size: .875rem; line-height: 1.6; }
+@media (max-width: 380px) {
+  .survey-card [aria-label="Métricas de participación"] > div { padding-left: .5rem; padding-right: .5rem; }
+  .survey-card [aria-label="Métricas de participación"] dd { font-size: .9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .survey-card button, .survey-card summary svg, .survey-card-dialog[data-state], .survey-card-dialog button { animation: none !important; transition: none !important; }
+}
+[data-reduce-motion="true"] .survey-card :is(button, summary svg), [data-reduce-motion="true"] .survey-card-dialog { animation: none !important; transition: none !important; }
+
+.survey-card .survey-card-delete-trigger { border-color: hsl(var(--destructive)); }

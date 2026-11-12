@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotionConfig } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface TypingIndicatorProps {
@@ -18,6 +18,7 @@ const primaryColorValue = (alpha?: number) =>
     : `hsl(var(--primary, ${DEFAULT_PRIMARY}))`;
 
 const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimation, text, typingAnimation, logoBadgeStyle }) => {
+  const reducedMotion = useReducedMotionConfig();
   const normalizedTyping = (typingAnimation || 'wave-dots').toLowerCase();
   const useBars = normalizedTyping.includes('bar');
   const useMinimal = normalizedTyping.includes('minimal');
@@ -64,7 +65,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimatio
             src={logoUrl}
             alt="Asistente"
             className="w-7 h-7 object-contain rounded-full"
-            style={{ animation: logoAnimation ?? undefined }}
+            style={{ animation: reducedMotion ? undefined : logoAnimation ?? undefined }}
           />
         ) : (
           <ChatbocLogoAnimated
@@ -79,9 +80,9 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimatio
       <motion.div
         className="px-4 py-3 max-w-[320px] shadow-md relative rounded-b-2xl rounded-tr-2xl text-foreground border"
         style={bubbleStyle}
-        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
+        initial={reducedMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+        animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: reducedMotion ? 0 : 0.3, ease: "easeOut" }}
       >
         <span aria-hidden className="absolute block pointer-events-none" style={tailStyle} />
         <div className="flex items-end gap-2 h-6">
@@ -92,12 +93,12 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimatio
                 className={useBars ? "block w-1.5 h-3 rounded-full" : "block w-2 h-2 rounded-full"}
                 style={dotStyle}
                 initial={{ y: 0, opacity: 0.6 }}
-                animate={{
+                animate={reducedMotion ? { y: 0, scaleY: 1, opacity: 1 } : {
                   y: useMinimal ? [0, -2, 0] : [0, -5, 0],
                   scaleY: useBars ? [0.8, 1.35, 0.8] : 1,
                   opacity: [0.6, 1, 0.6],
                 }}
-                transition={{
+                transition={reducedMotion ? { duration: 0 } : {
                   duration: useMinimal ? 1.1 : 0.85,
                   delay: i * 0.18,
                   repeat: Infinity,

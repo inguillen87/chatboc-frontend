@@ -1,3 +1,5 @@
+import type { OrganizationTypePresentation } from '@/utils/organizationTypeLabel';
+
 export type TenantType = "municipio" | "pyme" | "colegio";
 
 export type TenantPlan =
@@ -33,16 +35,18 @@ export interface TenantIntegrationAccess {
 }
 
 export interface TenantConfigBundle {
-  tenant: {
+  tenant: OrganizationTypePresentation & {
+    id?: number;
     slug: string;
     nombre: string;
     tipo: TenantType;
     plan: TenantPlan;
-    logo_url?: string;
+    logo_url?: string | null;
     color_primario?: string;
     color_secundario?: string;
     whatsapp_sender_id?: string | null;
   };
+  organization_profile?: TenantOrganizationProfile | null;
   configs: {
     menu: Record<string, MenuConfig>;
     contacts: Record<string, ContactsConfig>;
@@ -55,6 +59,20 @@ export interface TenantConfigBundle {
     sender_id?: string;
   };
 }
+
+export interface TenantOrganizationProfile {
+  contract_version: string;
+  tenant: { id: number; slug: string };
+  revision: string;
+  can_edit: boolean;
+  editability: { mode: string; message?: string };
+  values: { logo_url: string; [field: string]: unknown };
+}
+
+/** Profile patches use the existing versioned save; never resend a tenant snapshot. */
+export type TenantConfigUpdate =
+  | { configs: Partial<TenantConfigBundle['configs']>; expected_revision?: never; organization_profile?: never }
+  | { expected_revision: string; organization_profile: { logo_url: string }; configs?: never };
 
 export type MenuItemType = "submenu" | "ticket_category" | "link" | "action";
 

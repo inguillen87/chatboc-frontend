@@ -204,8 +204,18 @@ describe('AdminOrderDetailPage', () => {
     renderDetail();
 
     fireEvent.click(await screen.findByRole('button', { name: /crear pedido operativo/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar cambio de estado' }));
 
     expect(await screen.findByText('Antes de confirmar')).toBeInTheDocument();
     expect(screen.getByText('Hay renglones del pedido que todavia no estan resueltos.')).toBeInTheDocument();
   });
+  it('does not cancel or confirm an order when the operator closes the review', async () => {
+    mockAdminGetOrder.mockResolvedValue({ ...assistedOrder, status: 'confirmed', assisted_request: undefined, crm_review_card: undefined });
+    mockAdminUpdateOrder.mockReset(); renderDetail();
+    fireEvent.click(await screen.findByRole('button', { name: /marcar enviado/i }));
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('conversational:42');
+    fireEvent.click(screen.getByRole('button', { name: 'Volver sin cambiar' }));
+    expect(mockAdminUpdateOrder).not.toHaveBeenCalled();
+  });
+
 });

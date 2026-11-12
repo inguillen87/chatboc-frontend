@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { notifyPwaRefreshRendererReady } from '@/pwa';
 
 type SonnerModule = typeof import('sonner');
 
@@ -20,7 +21,17 @@ const loadSonner = () => {
 
 const LazyToaster = React.lazy(async () => {
   const mod = await loadSonner();
-  return { default: mod.Toaster };
+  const NotificationRenderer = React.forwardRef<
+    React.ElementRef<typeof mod.Toaster>,
+    React.ComponentPropsWithoutRef<typeof mod.Toaster>
+  >((props, ref) => {
+    React.useEffect(() => {
+      notifyPwaRefreshRendererReady();
+    }, []);
+    return <mod.Toaster ref={ref} {...props} />;
+  });
+  NotificationRenderer.displayName = 'NotificationRenderer';
+  return { default: NotificationRenderer };
 });
 
 type ToasterProps = React.ComponentProps<typeof LazyToaster>;

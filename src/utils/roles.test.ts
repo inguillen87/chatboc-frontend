@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { hasRequiredRole, isBackofficeRole, normalizeRole } from '@/utils/roles';
 
 describe('roles helpers', () => {
+  it.each(['empleado_pyme', 'empleado_municipio', 'empleado_colegio'])('matches backend employee alias %s without admin rights', (role) => {
+    expect(normalizeRole(role)).toBe('employee');
+    expect(isBackofficeRole(role)).toBe(true);
+    expect(hasRequiredRole(role, ['tenant_admin', 'superadmin'])).toBe(false);
+  });
+
+  it('matches the backend school administrator alias without platform rights', () => {
+    expect(normalizeRole('admin_colegio')).toBe('tenant_admin');
+    expect(isBackofficeRole('admin_colegio')).toBe(true);
+    expect(hasRequiredRole('admin_colegio', ['superadmin'])).toBe(false);
+  });
   it('normalizes legacy and canonical role aliases', () => {
     expect(normalizeRole('super_admin')).toBe('superadmin');
     expect(normalizeRole('admin')).toBe('tenant_admin');

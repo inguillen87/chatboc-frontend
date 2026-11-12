@@ -86,80 +86,80 @@ const STATUS_CONFIG: Record<
 > = {
   pendiente: {
     label: "Recibido",
-    color: "bg-amber-100 text-amber-700 border-amber-200",
-    accent: "from-blue-500/10 via-white to-amber-50",
+    color: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+    accent: "from-blue-500/10 via-card to-amber-50 dark:via-card dark:to-card",
     icon: Clock,
     step: 1,
     description: "Tu reclamo ha sido recibido y está pendiente de asignación.",
   },
   abierto: {
     label: "Recibido",
-    color: "bg-amber-100 text-amber-700 border-amber-200",
-    accent: "from-blue-500/10 via-white to-amber-50",
+    color: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+    accent: "from-blue-500/10 via-card to-amber-50 dark:via-card dark:to-card",
     icon: Clock,
     step: 1,
     description: "Tu reclamo ha sido registrado en el sistema.",
   },
   en_proceso: {
     label: "En Proceso",
-    color: "bg-blue-100 text-blue-700 border-blue-200",
-    accent: "from-blue-500/15 via-blue-100/70 to-white",
+    color: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    accent: "from-blue-500/15 via-blue-100/70 to-card dark:via-card dark:to-card",
     icon: AlertCircle,
     step: 2,
     description: "Estamos trabajando en la solución de tu reclamo.",
   },
   esperando_agente_en_vivo: {
     label: "Esperando agente",
-    color: "bg-violet-100 text-violet-700 border-violet-200",
-    accent: "from-violet-500/15 via-violet-100/70 to-white",
+    color: "bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800",
+    accent: "from-violet-500/15 via-violet-100/70 to-card dark:via-card dark:to-card",
     icon: MessageCircle,
     step: 2,
     description: "Tu reclamo ya está derivado para atención en vivo.",
   },
   en_vivo: {
     label: "En vivo",
-    color: "bg-violet-100 text-violet-700 border-violet-200",
-    accent: "from-violet-500/15 via-violet-100/70 to-white",
+    color: "bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800",
+    accent: "from-violet-500/15 via-violet-100/70 to-card dark:via-card dark:to-card",
     icon: MessageCircle,
     step: 2,
     description: "Ya hay una conversación en vivo activa sobre tu reclamo.",
   },
   asignado: {
     label: "En Proceso",
-    color: "bg-blue-100 text-blue-700 border-blue-200",
-    accent: "from-blue-500/15 via-blue-100/70 to-white",
+    color: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    accent: "from-blue-500/15 via-blue-100/70 to-card dark:via-card dark:to-card",
     icon: User,
     step: 2,
     description: "Un agente ha sido asignado a tu caso.",
   },
   resuelto: {
     label: "Resuelto",
-    color: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    accent: "from-emerald-500/15 via-emerald-100/70 to-white",
+    color: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+    accent: "from-emerald-500/15 via-emerald-100/70 to-card dark:via-card dark:to-card",
     icon: CheckCircle2,
     step: 3,
     description: "El reclamo ha sido solucionado exitosamente.",
   },
   cerrado: {
     label: "Cerrado",
-    color: "bg-gray-100 text-gray-700 border-gray-200",
-    accent: "from-slate-500/10 via-slate-100/70 to-white",
+    color: "bg-gray-100 dark:bg-gray-950/50 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800",
+    accent: "from-slate-500/10 via-muted to-card dark:via-card dark:to-card",
     icon: CheckCircle2,
     step: 3,
     description: "El caso ha sido cerrado.",
   },
   cancelado: {
     label: "Cancelado",
-    color: "bg-red-100 text-red-700 border-red-200",
-    accent: "from-red-500/15 via-red-100/70 to-white",
+    color: "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+    accent: "from-red-500/15 via-red-100/70 to-card dark:via-card dark:to-card",
     icon: XCircle,
     step: 0,
     description: "El reclamo fue cancelado.",
   },
   rechazado: {
     label: "Rechazado",
-    color: "bg-red-100 text-red-700 border-red-200",
-    accent: "from-red-500/15 via-red-100/70 to-white",
+    color: "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+    accent: "from-red-500/15 via-red-100/70 to-card dark:via-card dark:to-card",
     icon: XCircle,
     step: 0,
     description: "El reclamo no pudo ser procesado.",
@@ -258,6 +258,16 @@ const readStoredPublicAccess = () => {
   }
 };
 
+const getPublicHistoryNotice = (value: unknown): string | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const scope = value as Record<string, unknown>;
+  if (scope.contract_version !== "tickets.history_scope.v1" ||
+      scope.scope !== "ticket_comments_only" ||
+      scope.legacy_conversations_included !== false || scope.retryable !== false ||
+      typeof scope.notice !== "string" || !scope.notice.trim()) return null;
+  return scope.notice;
+};
+
 const InfoMetric = ({
   icon: Icon,
   label,
@@ -267,14 +277,14 @@ const InfoMetric = ({
   label: string;
   value: string;
 }) => (
-  <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
-    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+  <div className="rounded-2xl border border-border bg-card p-4 shadow-sm backdrop-blur">
+    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
       <Icon className="h-4 w-4" />
     </div>
-    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/75">
       {label}
     </p>
-    <p className="mt-1 text-sm font-semibold text-slate-900 break-words">
+    <p className="mt-1 text-sm font-semibold text-foreground break-words">
       {value}
     </p>
   </div>
@@ -417,7 +427,7 @@ const getUnifiedStreamAppearance = (item: UnifiedConversationStreamItem) => {
   if (item.actor_type === "agent") {
     return {
       dotClassName: "bg-emerald-500",
-      badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      badgeClassName: "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300",
       label: "Atención",
     };
   }
@@ -425,14 +435,14 @@ const getUnifiedStreamAppearance = (item: UnifiedConversationStreamItem) => {
   if (item.actor_type === "citizen") {
     return {
       dotClassName: "bg-blue-500",
-      badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+      badgeClassName: "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300",
       label: "Tu actividad",
     };
   }
 
   return {
     dotClassName: "bg-violet-500",
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
+    badgeClassName: "border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300",
     label: "Sistema",
   };
 };
@@ -441,16 +451,16 @@ const getSlaBadgeClassName = (status?: string | null) => {
   switch ((status || "").toLowerCase()) {
     case "breached":
     case "vencido":
-      return "bg-red-100 text-red-700 border-red-200";
+      return "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800";
     case "nearing_sla":
     case "warning":
     case "riesgo":
-      return "bg-amber-100 text-amber-700 border-amber-200";
+      return "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800";
     case "on_track":
     case "ok":
-      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      return "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
     default:
-      return "bg-slate-100 text-slate-700 border-slate-200";
+      return "bg-muted text-foreground border-border";
   }
 };
 
@@ -473,15 +483,15 @@ const TicketQuickActionCard = ({
     <div
       className={`group rounded-[24px] border p-4 shadow-sm transition-all duration-300 ${
         disabled
-          ? "cursor-not-allowed border-slate-200 bg-slate-50/90 opacity-70"
-          : "border-white/80 bg-white/95 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/70"
+          ? "cursor-not-allowed border-border bg-muted opacity-70"
+          : "border-border bg-card hover:-translate-y-0.5 hover:border-blue-200 dark:hover:border-blue-700 hover:shadow-xl hover:shadow-blue-100/70"
       }`}
     >
-      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 transition-colors group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-600">
+      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 ring-1 ring-blue-100 transition-colors group-hover:bg-blue-600 group-hover:text-white dark:group-hover:bg-blue-600 dark:group-hover:text-white group-hover:ring-blue-600">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-foreground/75">{description}</p>
     </div>
   );
 
@@ -518,31 +528,31 @@ const LookupSidebarMetric = ({
   tone?: "slate" | "blue" | "emerald";
 }) => {
   const toneMap = {
-    slate: "bg-slate-100 text-slate-700 ring-slate-200",
-    blue: "bg-blue-100 text-blue-700 ring-blue-200",
-    emerald: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+    slate: "bg-muted text-foreground ring-border",
+    blue: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 ring-blue-200",
+    emerald: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 ring-emerald-200",
   } as const;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/75">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl ring-1 ${toneMap[tone]}`}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900 break-words dark:text-slate-100">{value}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/75">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground break-words">{value}</p>
     </div>
   );
 };
 
 const EmptyConversationState = () => (
-  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/65">
-    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-      <MessagesSquare className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+  <div className="rounded-3xl border border-dashed border-border bg-muted px-6 py-10 text-center">
+    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border">
+      <MessagesSquare className="h-6 w-6 text-foreground/75" />
     </div>
-    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+    <p className="text-sm font-semibold text-foreground">
       Todavía no hay mensajes públicos
     </p>
-    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+    <p className="mt-2 text-sm text-foreground/75">
       Cuando exista una respuesta o comentario sobre este reclamo, lo vas a ver
       en esta conversación.
     </p>
@@ -553,6 +563,7 @@ export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const lookupFormId = React.useId();
 
   const [inputTicketId, setInputTicketId] = useState(ticketId || "");
   const [inputPin, setInputPin] = useState(searchParams.get("pin") || "");
@@ -577,6 +588,10 @@ export default function TicketLookup() {
   const [liveChatStatus, setLiveChatStatus] = useState<LiveChatScheduleStatus | null>(null);
   const presenceFailureCountRef = useRef(0);
   const presenceCircuitUntilRef = useRef(0);
+  const publicRefreshInFlightRef = useRef(false);
+  const publicLookupsInFlightRef = useRef(0);
+  const publicLookupRevisionRef = useRef(0);
+  const verifiedPublicAccessRef = useRef<{ revision: number; pin: string } | null>(null);
   const messageBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const [message, setMessage] = useState("");
   const [primaryImageUrl, setPrimaryImageUrl] = useState<string | null>(null);
@@ -591,7 +606,6 @@ export default function TicketLookup() {
   );
   const currentPin = useMemo(() => {
     const routePin = (searchParams.get("pin") || "").trim();
-    if (inputPin.trim()) return inputPin.trim();
     if (routePin) return routePin;
     const storedTicketId = String(storedPublicAccess?.ticketId || "");
     const storedTicketNumber = String(storedPublicAccess?.ticketNumber || "");
@@ -604,10 +618,12 @@ export default function TicketLookup() {
       return storedPublicAccess.pin.trim();
     }
     return "";
-  }, [inputPin, searchParams, storedPublicAccess, ticketId]);
+  }, [searchParams, storedPublicAccess, ticketId]);
 
   useEffect(() => {
     const routePin = (searchParams.get("pin") || "").trim();
+    setInputTicketId(ticketId || "");
+    setInputPin(currentPin);
     if (routePin) {
       setPublicAccessSource("url");
       return;
@@ -621,8 +637,6 @@ export default function TicketLookup() {
       typeof storedPublicAccess?.pin === "string" &&
       storedPublicAccess.pin.trim()
     ) {
-      const restoredPin = storedPublicAccess.pin.trim();
-      setInputPin((prev) => prev || restoredPin);
       setPublicAccessSource("restored");
       trackFrontendEvent("tracking_public_access_restored", {
         ticket_id: ticketId,
@@ -633,7 +647,7 @@ export default function TicketLookup() {
     }
 
     setPublicAccessSource("manual");
-  }, [searchParams, storedPublicAccess, ticketId]);
+  }, [currentPin, searchParams, storedPublicAccess, ticketId]);
 
   const syncPublicAccess = useCallback(
     (resolvedTicket: Ticket | null, pin: string) => {
@@ -657,7 +671,7 @@ export default function TicketLookup() {
   );
 
   const loadConversationData = useCallback(
-    async (resolvedTicket: Ticket, pin: string, silent = false) => {
+    async (resolvedTicket: Ticket, pin: string, silent = false, isCurrent = () => true) => {
       if (!silent) {
         setRefreshingConversation(true);
       }
@@ -696,6 +710,7 @@ export default function TicketLookup() {
           }),
         ]);
 
+        if (!isCurrent()) return;
         setTimelineHistory(timeline.history || []);
         setUnifiedConversationStream(
           Array.isArray(timeline.unified_conversation_stream)
@@ -746,7 +761,7 @@ export default function TicketLookup() {
         );
         setLastSyncedAt(new Date());
       } finally {
-        if (!silent) {
+        if (!silent && isCurrent()) {
           setRefreshingConversation(false);
         }
       }
@@ -760,12 +775,20 @@ export default function TicketLookup() {
       const pinVal = (searchPin || "").trim();
 
       if (!id) return;
+      const revision = ++publicLookupRevisionRef.current;
+      const isCurrent = () => publicLookupRevisionRef.current === revision;
+      verifiedPublicAccessRef.current = null;
+      setTicket(null);
+      setRefreshingConversation(false);
+      setSubmittingPublicMessage(false);
       if (!pinVal) {
         setError("El PIN es obligatorio para consultar el reclamo");
         setTicket(null);
+        setLoading(false);
         return;
       }
 
+      publicLookupsInFlightRef.current += 1;
       setLoading(true);
       setError(null);
       setSupportRequestId(null);
@@ -777,11 +800,13 @@ export default function TicketLookup() {
 
       try {
         const data = await getTicketByNumber(id, pinVal);
+        if (!isCurrent()) return;
         const normalizedTicket = {
           ...data,
           history: data.history || [],
           messages: data.messages || [],
         };
+        verifiedPublicAccessRef.current = { revision, pin: pinVal };
         setTicket(normalizedTicket);
         setPublicMessages(normalizedTicket.messages || []);
         syncPublicAccess(normalizedTicket, pinVal);
@@ -797,8 +822,9 @@ export default function TicketLookup() {
           data.archivo_url || data.imagen_url || data.attachment_info?.url;
         if (img) setPrimaryImageUrl(img);
 
-        await loadConversationData(normalizedTicket, pinVal);
+        await loadConversationData(normalizedTicket, pinVal, false, isCurrent);
       } catch (err) {
+        if (!isCurrent()) return;
         const apiErr = err as ApiError;
         const resolvedRequestId =
           typeof apiErr?.requestId === "string" && apiErr.requestId.trim()
@@ -823,17 +849,27 @@ export default function TicketLookup() {
           setError(getErrorMessage(err, "Error al consultar el reclamo"));
         }
       } finally {
-        setLoading(false);
+        publicLookupsInFlightRef.current -= 1;
+        if (isCurrent()) setLoading(false);
       }
     },
     [loadConversationData, publicAccessSource, syncPublicAccess],
   );
 
   useEffect(() => {
+    setLoading(false);
+    setRefreshingConversation(false);
+    setSubmittingPublicMessage(false);
     const paramPin = searchParams.get("pin") || "";
     if (ticketId && (paramPin || currentPin)) {
       performSearch(ticketId, paramPin || currentPin);
+    } else {
+      verifiedPublicAccessRef.current = null;
+      setTicket(null);
+      setError(null);
+      setSupportRequestId(null);
     }
+    return () => { publicLookupRevisionRef.current += 1; };
   }, [ticketId, searchParams, performSearch, currentPin]);
 
   useEffect(() => {
@@ -871,6 +907,7 @@ export default function TicketLookup() {
   }, [isSupportOpen, supportMode]);
 
   const publicTicketNumber = resolvePublicTicketNumber(ticket, ticketId);
+  const publicHistoryNotice = getPublicHistoryNotice(ticket?.history_scope);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -886,30 +923,14 @@ export default function TicketLookup() {
   };
 
   const handleOpenChat = async () => {
-    if (!ticket) return;
+    const revision = publicLookupRevisionRef.current;
+    if (!ticket || loading || verifiedPublicAccessRef.current?.revision !== revision) return;
+    const isCurrent = () => publicLookupRevisionRef.current === revision;
     const tenantSlug = ticket?.tenant_slug || "municipio";
-    const chatContext = {
-      ticketId: ticket?.id,
-      ticketNumber: publicTicketNumber,
-      action: "ticket_live_or_offline_message",
-      consulta_pin: currentPin,
-      pin: currentPin,
-    };
-
-    safeLocalStorage.setItem(
-      "pending_widget_action",
-      JSON.stringify({
-        action: "ticket_public_tracking",
-        payload: chatContext,
-        text: publicTicketNumber
-          ? `Seguimiento de reclamo #${publicTicketNumber}`
-          : undefined,
-      }),
-    );
-
     let status = liveChatStatus;
     try {
       status = status || await getLiveChatScheduleStatus(tenantSlug);
+      if (!isCurrent()) return;
       setLiveChatStatus(status);
       trackFrontendEvent("tracking_live_chat_status_checked", {
         ticket_id: ticket.id,
@@ -923,6 +944,7 @@ export default function TicketLookup() {
           : "Podés dejar tu mensaje en el reclamo.",
       );
     } catch (statusError) {
+      if (!isCurrent()) return;
       console.warn("[ticketLookup] No se pudo confirmar horario de chat en vivo", statusError);
     }
 
@@ -961,7 +983,12 @@ export default function TicketLookup() {
       : "Horario administrativo");
 
   const handleSendMessage = useCallback(async () => {
-    if (!ticket || !currentPin || !message.trim()) return;
+    const access = verifiedPublicAccessRef.current;
+    if (!ticket || loading || submittingPublicMessage || !access ||
+        access.revision !== publicLookupRevisionRef.current || !message.trim()) return;
+    const revision = access.revision;
+    const isCurrent = () => publicLookupRevisionRef.current === revision;
+    const pin = access.pin;
     setSubmittingPublicMessage(true);
     try {
       const response = await sendMessage(
@@ -972,9 +999,10 @@ export default function TicketLookup() {
         undefined,
         {
           public: true,
-          pin: currentPin,
+          pin,
         },
       );
+      if (!isCurrent()) return;
       trackFrontendEvent("tracking_public_message_sent", {
         ticket_id: ticket.id,
         ticket_number: publicTicketNumber,
@@ -992,15 +1020,17 @@ export default function TicketLookup() {
             ? "Mensaje enviado al canal del reclamo."
             : "Mensaje guardado en este reclamo.";
       toast.success(responseMessage);
-      setMessage("");
-      await loadConversationData(ticket, currentPin, true);
+      setMessage((draft) => draft === message ? "" : draft);
+      await loadConversationData(ticket, pin, true, isCurrent);
+      if (!isCurrent()) return;
       setIsSupportOpen(false);
     } catch (sendError) {
+      if (!isCurrent()) return;
       toast.error(getErrorMessage(sendError, "No se pudo enviar el mensaje."));
     } finally {
-      setSubmittingPublicMessage(false);
+      if (isCurrent()) setSubmittingPublicMessage(false);
     }
-  }, [currentPin, liveChatAvailable, loadConversationData, message, publicTicketNumber, supportMode, ticket]);
+  }, [loading, submittingPublicMessage, liveChatAvailable, loadConversationData, message, publicTicketNumber, supportMode, ticket]);
 
   const copyToClipboard = () => {
     if (ticket && publicTicketNumber) {
@@ -1211,47 +1241,94 @@ export default function TicketLookup() {
 
   useEffect(() => {
     if (!ticket || isResolved || !currentPin) return;
-    const interval = setInterval(() => {
-      const id = inputTicketId || ticketId || "";
-      if (!id) return;
-      getTicketByNumber(id, currentPin)
-        .then(async (data) => {
-          setTicket((prev) => {
-            if (!prev) return data;
-            if (
-              prev.estado !== data.estado ||
-              prev.history?.length !== data.history?.length
-            ) {
-              return {
-                ...prev,
-                ...data,
-                history: data.history || prev.history || [],
-              };
-            }
-            return prev;
-          });
-          syncPublicAccess(data, currentPin);
-          await loadConversationData(data, currentPin, true);
-        })
-        .catch((pollError) => {
-          const apiErr = pollError as ApiError;
-          trackFrontendEvent("tracking_public_refresh_failed", {
-            ticket_lookup: id,
-            status: apiErr?.status || "unknown",
-          });
-          if (apiErr?.status === 403) {
-            trackFrontendEvent("tracking_403_detected", {
-              ticket_lookup: id,
-              access_source: publicAccessSource,
-            });
+    const id = publicTicketNumber || inputTicketId || ticketId || "";
+    if (!id) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimer = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+    };
+    const schedule = () => {
+      clearTimer();
+      if (!cancelled && !document.hidden) timer = setTimeout(() => void refresh(), 10000);
+    };
+    const refresh = async () => {
+      clearTimer();
+      if (cancelled || document.hidden) return;
+      if (publicRefreshInFlightRef.current || publicLookupsInFlightRef.current > 0) {
+        schedule();
+        return;
+      }
+      const revision = publicLookupRevisionRef.current;
+      const isCurrent = () => !cancelled && publicLookupRevisionRef.current === revision;
+      const access = readStoredPublicAccess();
+      const matchesTicket = String(access?.ticketId) === String(ticket.id)
+        && access?.tipo === (ticket.tipo || "municipio")
+        && String(access?.ticketNumber) === resolvePublicTicketNumber(ticket)
+        && (!access?.tenantSlug || !ticket.tenant_slug || access.tenantSlug === ticket.tenant_slug);
+      const pin = matchesTicket && typeof access?.pin === "string"
+        ? access.pin.trim() || currentPin
+        : currentPin;
+      publicRefreshInFlightRef.current = true;
+      try {
+        const data = await getTicketByNumber(id, pin);
+        if (!isCurrent()) return;
+        if (!document.hidden) await loadConversationData(data, pin, true, isCurrent);
+        if (!isCurrent()) return;
+        setTicket((prev) => {
+          if (!prev) return data;
+          if (
+            prev.estado !== data.estado ||
+            prev.history?.length !== data.history?.length ||
+            getPublicHistoryNotice(prev.history_scope) !== getPublicHistoryNotice(data.history_scope)
+          ) {
+            return {
+              ...prev,
+              ...data,
+              history: data.history || prev.history || [],
+              history_scope: data.history_scope,
+            };
           }
-          console.warn(pollError);
+          return prev;
         });
-    }, 10000);
-    return () => clearInterval(interval);
+        syncPublicAccess(data, pin);
+      } catch (pollError) {
+        if (!isCurrent()) return;
+        const apiErr = pollError as ApiError;
+        trackFrontendEvent("tracking_public_refresh_failed", {
+          ticket_lookup: id,
+          status: apiErr?.status || "unknown",
+        });
+        if (apiErr?.status === 403) {
+          trackFrontendEvent("tracking_403_detected", {
+            ticket_lookup: id,
+            access_source: publicAccessSource,
+          });
+        }
+        console.warn(pollError);
+      } finally {
+        publicRefreshInFlightRef.current = false;
+        schedule();
+      }
+    };
+    const visibilityChanged = () => {
+      clearTimer();
+      if (!document.hidden) void refresh();
+    };
+    schedule();
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      cancelled = true;
+      clearTimer();
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
   }, [
-    ticket,
+    ticket?.id,
+    ticket?.tipo,
+    ticket?.tenant_slug,
     isResolved,
+    publicTicketNumber,
     inputTicketId,
     ticketId,
     currentPin,
@@ -1342,20 +1419,20 @@ export default function TicketLookup() {
   }, [ticket, currentPin, publicMessages]);
 
   return (
-    <div className="relative min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.10),_transparent_35%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] pb-20 font-sans selection:bg-primary/10">
+    <div className="relative min-h-screen bg-background bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.10),transparent_35%)] pb-20 font-sans selection:bg-primary/10">
       {isResolved && <Confetti />}
 
-      <div className="sticky top-0 z-40 border-b border-white/70 bg-white/80 shadow-sm backdrop-blur-xl">
+      <div className="sticky top-0 z-40 border-b border-border bg-card shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">
+              <p className="truncate text-sm font-semibold text-foreground">
                 Atención Ciudadana
               </p>
-              <p className="truncate text-xs text-slate-500">
+              <p className="truncate text-xs text-foreground/75">
                 Seguimiento seguro de reclamos
               </p>
             </div>
@@ -1365,7 +1442,7 @@ export default function TicketLookup() {
               variant="ghost"
               size="sm"
               onClick={() => setIsSupportOpen(true)}
-              className="gap-2 rounded-xl text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+              className="gap-2 rounded-xl text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-800 dark:hover:text-blue-200"
             >
               <MessageCircle className="h-4 w-4" />
               <span className="hidden sm:inline">Mesa de ayuda</span>
@@ -1383,46 +1460,48 @@ export default function TicketLookup() {
         {!ticket && (
           <div className="mx-auto max-w-lg space-y-6 py-10">
             <div className="space-y-3 text-center">
-              <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-xs font-semibold text-blue-700 shadow-sm">
+              <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-blue-100 dark:border-blue-800 bg-card px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300 shadow-sm">
                 <Sparkles className="h-3.5 w-3.5" />
                 Seguimiento público en tiempo real del reclamo
               </div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
                 Estado de Reclamo
               </h1>
-              <p className="mx-auto max-w-md text-sm leading-6 text-slate-500 sm:text-base">
+              <p className="mx-auto max-w-md text-sm leading-6 text-foreground/75 sm:text-base">
                 Ingresá el número de gestión y tu PIN de seguridad para ver el
                 estado, la conversación y la ubicación reportada.
               </p>
             </div>
 
-            <Card className="overflow-hidden border-0 bg-white/85 shadow-2xl shadow-slate-200/60 ring-1 ring-black/5 backdrop-blur">
+            <Card className="overflow-hidden border-0 bg-card shadow-2xl shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
               <div className="h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500" />
               <CardContent className="space-y-6 pt-6">
                 <form onSubmit={handleSearchSubmit} className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-[minmax(0,1.3fr)_minmax(180px,0.7fr)]">
                     <div className="space-y-2 text-left">
-                      <label className="text-sm font-medium text-slate-700">
+                      <label htmlFor={`${lookupFormId}-ticket`} className="text-sm font-medium text-foreground">
                         Número de Reclamo
                       </label>
                       <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-foreground/75" />
                         <Input
+                          id={`${lookupFormId}-ticket`}
                           placeholder="Ej: REC-12345"
-                          className="h-11 rounded-xl border-slate-200 bg-white pl-9 shadow-sm transition focus-visible:ring-2 focus-visible:ring-blue-200"
+                          className="h-11 rounded-xl border-foreground/50 bg-input pl-9 shadow-sm transition placeholder:text-foreground/70 focus-visible:ring-2 focus-visible:ring-ring"
                           value={inputTicketId}
                           onChange={(e) => setInputTicketId(e.target.value)}
                         />
                       </div>
                     </div>
                     <div className="space-y-2 text-left">
-                      <label className="text-sm font-medium text-slate-700">
+                      <label htmlFor={`${lookupFormId}-pin`} className="text-sm font-medium text-foreground">
                         PIN de Seguridad
                       </label>
                       <Input
+                        id={`${lookupFormId}-pin`}
                         placeholder="••••"
                         type="password"
-                        className="h-11 rounded-xl border-slate-200 bg-white text-center tracking-[0.35em] shadow-sm transition focus-visible:ring-2 focus-visible:ring-blue-200"
+                        className="h-11 rounded-xl border-foreground/50 bg-input text-center tracking-[0.35em] shadow-sm transition placeholder:text-foreground/70 focus-visible:ring-2 focus-visible:ring-ring"
                         value={inputPin}
                         onChange={(e) => setInputPin(e.target.value)}
                       />
@@ -1459,7 +1538,7 @@ export default function TicketLookup() {
                   />
                 </div>
                 {publicAccessSource === "restored" && currentPin ? (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  <div className="rounded-2xl border border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/50 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
                     Recuperamos tu acceso seguro para este ticket desde tu
                     sesión actual.
                   </div>
@@ -1468,19 +1547,19 @@ export default function TicketLookup() {
             </Card>
 
             {error && (
-              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 shadow-sm">
+              <div className="rounded-2xl border border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-950/50 px-4 py-3 text-sm font-medium text-red-700 dark:text-red-300 shadow-sm">
                 <div className="flex items-center justify-center gap-2">
                   <XCircle className="h-4 w-4" />
                   {error}
                 </div>
                 {supportRequestId ? (
-                  <div className="mt-2 flex items-center justify-center gap-2 text-xs font-normal text-red-700">
+                  <div className="mt-2 flex items-center justify-center gap-2 text-xs font-normal text-red-700 dark:text-red-300">
                     <span className="font-mono">request_id: {supportRequestId}</span>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 rounded-lg border-red-200 bg-red-100 px-2 text-[11px] text-red-700 hover:bg-red-200"
+                      className="h-7 rounded-lg border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-950/50 px-2 text-[11px] text-red-700 dark:text-red-300 hover:bg-red-200"
                       onClick={() => {
                         void copySupportRequestId();
                       }}
@@ -1496,14 +1575,14 @@ export default function TicketLookup() {
 
         {ticket && (
           <>
-            <Card className="overflow-hidden border-0 bg-white/85 shadow-2xl shadow-slate-200/60 ring-1 ring-black/5 backdrop-blur">
+            <Card className="overflow-hidden border-0 bg-card shadow-2xl shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
               <div
                 className={`h-1.5 w-full ${statusInfo.color.replace("text-", "bg-").split(" ")[0]}`}
               />
               <CardContent
                 className={`relative overflow-hidden bg-gradient-to-br ${statusInfo.accent} px-6 pb-8 pt-6 text-center`}
               >
-                <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_transparent_70%)]" />
+                <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,_hsl(var(--card)/0.95),_transparent_70%)]" />
                 <div className="relative">
                   <div
                     className={`mb-6 inline-flex rounded-3xl border px-4 py-3 shadow-sm ${statusInfo.color}`}
@@ -1511,21 +1590,21 @@ export default function TicketLookup() {
                     <statusInfo.icon className="h-8 w-8" />
                   </div>
                   <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-semibold text-foreground shadow-sm ring-1 ring-border">
                       <Hash className="h-3.5 w-3.5" />
                       {publicTicketNumber}
                     </div>
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-semibold text-foreground shadow-sm ring-1 ring-border">
                       <RefreshCw
                         className={`h-3.5 w-3.5 ${refreshingConversation ? "animate-spin" : ""}`}
                       />
                       {formatLastSync(lastSyncedAt)}
                     </div>
                   </div>
-                  <h1 className="text-3xl font-bold text-slate-950">
+                  <h1 className="text-3xl font-bold text-foreground">
                     {statusInfo.label}
                   </h1>
-                  <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+                  <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-foreground sm:text-base">
                     {statusInfo.description}
                   </p>
 
@@ -1584,7 +1663,7 @@ export default function TicketLookup() {
                   priorityLabel ||
                   visibleOperationalBadges.length > 0 ||
                   operationalMetrics.length > 0 ? (
-                    <div className="mx-auto mt-6 max-w-4xl rounded-3xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur">
+                    <div className="mx-auto mt-6 max-w-4xl rounded-3xl border border-border bg-card p-4 shadow-sm backdrop-blur">
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         {ticket?.sla_status ? (
                           <Badge
@@ -1597,7 +1676,7 @@ export default function TicketLookup() {
                         {priorityLabel ? (
                           <Badge
                             variant="outline"
-                            className="border-violet-200 bg-violet-100 text-violet-700"
+                            className="border-violet-200 dark:border-violet-800 bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300"
                           >
                             Nivel de atención: {formatOperationalLabel(priorityLabel)}
                           </Badge>
@@ -1606,7 +1685,7 @@ export default function TicketLookup() {
                           <Badge
                             key={badge}
                             variant="outline"
-                            className="border-slate-200 bg-slate-100 text-slate-700"
+                            className="border-border bg-muted text-foreground"
                           >
                             {badge}
                           </Badge>
@@ -1630,7 +1709,7 @@ export default function TicketLookup() {
                   {currentStatusKey !== "cancelado" &&
                     currentStatusKey !== "rechazado" && (
                       <div className="relative mx-auto mt-10 max-w-xl px-2">
-                        <div className="absolute left-6 right-6 top-[15px] h-1 rounded-full bg-white/70" />
+                        <div className="absolute left-6 right-6 top-[15px] h-1 rounded-full bg-card" />
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{
@@ -1650,7 +1729,7 @@ export default function TicketLookup() {
                                 className="flex flex-col items-center gap-3"
                               >
                                 <div
-                                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white transition-all duration-500 ${isCompleted ? "border-blue-600 text-blue-600 shadow-sm" : "border-slate-200 text-slate-300"} ${isCurrent ? "scale-110 ring-4 ring-blue-100" : ""}`}
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 bg-card transition-all duration-500 ${isCompleted ? "border-primary text-primary shadow-sm" : "border-border text-foreground"} ${isCurrent ? "scale-110 ring-4 ring-blue-100" : ""}`}
                                 >
                                   {isCompleted ? (
                                     <CheckCircle2 className="h-4 w-4" />
@@ -1659,7 +1738,7 @@ export default function TicketLookup() {
                                   )}
                                 </div>
                                 <span
-                                  className={`max-w-[70px] text-center text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${isCompleted ? "text-slate-900" : "text-slate-400"}`}
+                                  className={`max-w-[70px] text-center text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${isCompleted ? "text-foreground" : "text-foreground/75"}`}
                                 >
                                   {step.label}
                                 </span>
@@ -1675,13 +1754,13 @@ export default function TicketLookup() {
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
               <div className="space-y-6">
-                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
+                <Card className="overflow-hidden border-0 bg-card shadow-lg shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
                   <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500" />
-                  <CardHeader className="border-b border-slate-100 pb-4">
+                  <CardHeader className="border-b border-border pb-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <CardTitle className="flex items-center gap-2 text-lg text-slate-950">
-                          <FileText className="h-5 w-5 text-slate-400" />
+                        <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+                          <FileText className="h-5 w-5 text-foreground/75" />
                           Detalle del Reclamo
                         </CardTitle>
                         <CardDescription>
@@ -1691,7 +1770,7 @@ export default function TicketLookup() {
                       <button
                         type="button"
                         onClick={copyToClipboard}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:bg-slate-100"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition hover:-translate-y-0.5 hover:bg-muted"
                       >
                         #{publicTicketNumber}
                         <Copy className="h-3 w-3" />
@@ -1754,10 +1833,10 @@ export default function TicketLookup() {
 
                     {ticket.description && (
                       <div>
-                        <h3 className="mb-2 text-sm font-medium text-slate-500">
+                        <h3 className="mb-2 text-sm font-medium text-foreground/75">
                           Descripción
                         </h3>
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm leading-relaxed text-slate-700">
+                        <div className="rounded-2xl border border-border bg-muted p-4 text-sm leading-relaxed text-foreground">
                           {ticket.description}
                         </div>
                       </div>
@@ -1765,12 +1844,12 @@ export default function TicketLookup() {
 
                     {primaryImageUrl && (
                       <div>
-                        <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-500">
+                        <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground/75">
                           <Camera className="h-4 w-4" />
                           Evidencia Adjunta
                         </h3>
                         <div
-                          className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-100"
+                          className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-2xl border border-border bg-muted"
                           onClick={() => window.open(primaryImageUrl, "_blank")}
                         >
                           <img
@@ -1789,18 +1868,18 @@ export default function TicketLookup() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
-                  <CardHeader className="border-b border-slate-100 pb-4">
+                <Card className="border-0 bg-card shadow-lg shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
+                  <CardHeader className="border-b border-border pb-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <CardTitle className="text-lg text-slate-950">
+                        <CardTitle className="text-lg text-foreground">
                           Historial de Actividad
                         </CardTitle>
                         <CardDescription>
                           Movimientos y mensajes asociados al reclamo.
                         </CardDescription>
                       </div>
-                      <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground/75">
                         {refreshingConversation ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
@@ -1812,7 +1891,7 @@ export default function TicketLookup() {
                   </CardHeader>
                   <CardContent className="pt-6">
                     <div className="relative space-y-6 pl-2">
-                      <div className="absolute bottom-2 left-[11px] top-2 w-[2px] bg-slate-100" />
+                      <div className="absolute bottom-2 left-[11px] top-2 w-[2px] bg-muted" />
                       {activityStream.map((event, i) => {
                         const appearance = getUnifiedStreamAppearance(event);
                         return (
@@ -1820,11 +1899,11 @@ export default function TicketLookup() {
                           key={`${event.id}-${i}`}
                           className="relative flex gap-4"
                         >
-                          <div className="relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-200 bg-white">
+                          <div className="relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-border bg-card">
                             <div className={`h-2 w-2 rounded-full ${appearance.dotClassName}`} />
                           </div>
-                          <div className="flex-1 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 shadow-sm">
-                            <p className="text-sm font-medium text-slate-900">
+                          <div className="flex-1 rounded-2xl border border-border bg-muted px-4 py-3 shadow-sm">
+                            <p className="text-sm font-medium text-foreground">
                               {event.preview_text || event.status || "Actividad registrada"}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1835,12 +1914,12 @@ export default function TicketLookup() {
                                 {event.badge ? formatOperationalLabel(String(event.badge)) : appearance.label}
                               </Badge>
                               {event.is_unread ? (
-                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                <Badge variant="outline" className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
                                   Pendiente de revisión
                                 </Badge>
                               ) : null}
                             </div>
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-foreground/75">
                               {formatEventDate(event.timestamp)}
                             </p>
                           </div>
@@ -1848,7 +1927,7 @@ export default function TicketLookup() {
                         );
                       })}
                       {activityStream.length === 0 && (
-                        <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-500">
+                        <div className="rounded-3xl border border-dashed border-border bg-muted px-6 py-10 text-center text-sm text-foreground/75">
                           No hay actividad reciente registrada.
                         </div>
                       )}
@@ -1856,12 +1935,12 @@ export default function TicketLookup() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
-                  <CardHeader className="border-b border-slate-100 pb-4">
+                <Card className="border-0 bg-card shadow-lg shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
+                  <CardHeader className="border-b border-border pb-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
-                        <CardTitle className="flex items-center gap-2 text-lg text-slate-950">
-                          <MessageCircle className="h-5 w-5 text-slate-400" />
+                        <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+                          <MessageCircle className="h-5 w-5 text-foreground/75" />
                           Conversación del reclamo
                         </CardTitle>
                         <CardDescription>
@@ -1869,7 +1948,7 @@ export default function TicketLookup() {
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                        <div className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground/75">
                           {publicMessagesCountLabel}
                         </div>
                         <Button
@@ -1884,17 +1963,22 @@ export default function TicketLookup() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-6">
+                    {publicHistoryNotice ? (
+                      <p role="note" className="rounded-2xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
+                        {publicHistoryNotice}
+                      </p>
+                    ) : null}
                     {hasTeamAttentionSignal ? (
-                      <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 px-5 py-4 shadow-sm">
+                      <div className="rounded-3xl border border-blue-100 dark:border-blue-800 bg-gradient-to-br from-blue-50 via-card to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/30 px-5 py-4 shadow-sm">
                         <div className="flex items-start gap-3">
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
                             <CheckCheck className="h-5 w-5" />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-slate-950">
+                            <p className="text-sm font-semibold text-foreground">
                               {attentionStatusTitle}
                             </p>
-                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                            <p className="mt-1 text-sm leading-6 text-foreground">
                               {attentionStatusDetail}
                             </p>
                           </div>
@@ -1912,14 +1996,14 @@ export default function TicketLookup() {
                             className={`flex ${isAgent ? "justify-start" : "justify-end"}`}
                           >
                             <div
-                              className={`max-w-[90%] rounded-[24px] px-4 py-3 shadow-sm sm:max-w-[80%] ${isAgent ? "border border-slate-200 bg-white text-slate-900" : "bg-gradient-to-br from-blue-600 to-indigo-600 text-white"}`}
+                              className={`max-w-[90%] rounded-[24px] px-4 py-3 shadow-sm sm:max-w-[80%] ${isAgent ? "border border-border bg-card text-foreground" : "bg-gradient-to-br from-blue-600 to-indigo-600 text-white"}`}
                             >
                               <div className="mb-2 flex items-center gap-2">
                                 <div
                                   className={`h-2.5 w-2.5 rounded-full ${isAgent ? "bg-emerald-500" : "bg-blue-100"}`}
                                 />
                                 <span
-                                  className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${isAgent ? "text-slate-500" : "text-blue-100"}`}
+                                  className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${isAgent ? "text-foreground/75" : "text-white"}`}
                                 >
                                   {isAgent ? "Atención" : "Tu mensaje"}
                                 </span>
@@ -1928,7 +2012,7 @@ export default function TicketLookup() {
                                 {publicMessage.content}
                               </p>
                               <p
-                                className={`mt-2 text-[11px] ${isAgent ? "text-slate-400" : "text-blue-100"}`}
+                                className={`mt-2 text-[11px] ${isAgent ? "text-foreground/75" : "text-white"}`}
                               >
                                 {formatMessageDate(publicMessage.timestamp)}
                               </p>
@@ -1942,21 +2026,21 @@ export default function TicketLookup() {
               </div>
 
               <div className="space-y-6">
-                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur dark:bg-slate-900/85 dark:shadow-black/30 dark:ring-white/10">
-                  <div className="border-b border-slate-100 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-6 py-4 dark:border-slate-800 dark:from-blue-900/30 dark:via-slate-900 dark:to-violet-900/30">
+                <Card className="overflow-hidden border-0 bg-card shadow-lg shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
+                  <div className="border-b border-border bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-6 py-4 dark:from-blue-900/30 dark:via-card dark:to-violet-900/30">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-card text-foreground shadow-sm ring-1 ring-border">
                         <MapPin className="h-5 w-5" />
                       </div>
                       <div>
-                        <h3 className="text-base font-semibold text-slate-950 dark:text-slate-100">Contexto geográfico</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Mapa, dirección y punto de referencia reportado en el ticket.</p>
+                        <h3 className="text-base font-semibold text-foreground">Contexto geográfico</h3>
+                        <p className="text-sm text-foreground/75">Mapa, dirección y punto de referencia reportado en el ticket.</p>
                       </div>
                     </div>
                   </div>
-                  <div className="relative h-56 w-full bg-slate-100 dark:bg-slate-950">
+                  <div className="relative h-56 w-full bg-muted">
                     {hasAnyCoordinates ? (
-                      <React.Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Cargando mapa...</div>}>
+                      <React.Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-foreground/75">Cargando mapa...</div>}>
                         <TrackingMap
                           status={currentStatusKey}
                           storeLocation={mapStoreLocation}
@@ -1972,17 +2056,17 @@ export default function TicketLookup() {
                         referrerPolicy="no-referrer-when-downgrade"
                       />
                     ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center text-slate-400 dark:bg-slate-900 dark:text-slate-500">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-muted px-6 text-center text-foreground/75">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border">
                           <MapPin className="h-6 w-6 opacity-60" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <p className="text-sm font-semibold text-foreground">
                             {hasLocationData
                               ? "Ubicación pendiente de geocodificación"
                               : "Sin ubicación reportada"}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 text-xs text-foreground/75">
                             La dirección y las coordenadas se mostrarán acá
                             cuando estén disponibles.
                           </p>
@@ -1990,12 +2074,12 @@ export default function TicketLookup() {
                       </div>
                     )}
                   </div>
-                  <CardHeader className="border-b border-slate-100 pb-4 dark:border-slate-800">
-                    <CardTitle className="flex items-center gap-2 text-lg text-slate-950 dark:text-slate-100">
-                      <MapPin className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                  <CardHeader className="border-b border-border pb-4">
+                    <CardTitle className="flex items-center gap-2 text-lg text-foreground">
+                      <MapPin className="h-5 w-5 text-foreground/75" />
                       Ubicación
                     </CardTitle>
-                    <CardDescription className="dark:text-slate-400">
+                    <CardDescription className="dark:text-foreground/75">
                       Fuente de verdad del ticket para el seguimiento público.
                     </CardDescription>
                   </CardHeader>
@@ -2081,7 +2165,7 @@ export default function TicketLookup() {
                         data-testid="ticket-support-routing"
                         className="grid gap-2 rounded-2xl border border-white/15 bg-white/10 p-3 text-sm text-white/90"
                       >
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/75">
                           Atencion asociada al ticket
                         </p>
                         <p className="text-xs leading-5 text-slate-200">
@@ -2092,7 +2176,7 @@ export default function TicketLookup() {
                             const Icon = item.icon;
                             return (
                               <div key={item.label} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-slate-950/35 px-3 py-2 ring-1 ring-white/10">
-                                <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+                                <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75">
                                   <Icon className="h-3.5 w-3.5" />
                                   {item.label}
                                 </div>
@@ -2106,10 +2190,10 @@ export default function TicketLookup() {
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur dark:bg-slate-900/85 dark:shadow-black/30 dark:ring-white/10">
-                  <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
-                    <CardTitle className="text-base text-slate-950 dark:text-slate-100">Centro de seguimiento</CardTitle>
-                    <CardDescription className="dark:text-slate-400">Estado operativo y datos de acceso de esta consulta pública.</CardDescription>
+                <Card className="overflow-hidden border-0 bg-card shadow-lg shadow-black/5 dark:shadow-black/30 ring-1 ring-border backdrop-blur">
+                  <CardHeader className="border-b border-border bg-gradient-to-r from-muted via-card to-muted dark:from-card dark:via-card dark:to-muted">
+                    <CardTitle className="text-base text-foreground">Centro de seguimiento</CardTitle>
+                    <CardDescription className="text-foreground/75">Estado operativo y datos de acceso de esta consulta pública.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 p-6">
                     <div className="grid gap-3">
@@ -2139,7 +2223,7 @@ export default function TicketLookup() {
                     </div>
                     <Button
                       variant="link"
-                      className="h-auto justify-start px-0 text-xs text-slate-400"
+                      className="h-auto justify-start px-0 text-xs text-foreground/75"
                       onClick={() => {
                         setTicket(null);
                         setTimelineHistory([]);
@@ -2161,27 +2245,27 @@ export default function TicketLookup() {
       </motion.div>
 
       <Dialog open={isSupportOpen} onOpenChange={setIsSupportOpen}>
-        <DialogContent className="overflow-hidden border-0 bg-white p-0 shadow-2xl sm:max-w-lg dark:bg-slate-900">
-          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 px-6 py-5 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/30">
+        <DialogContent className="overflow-hidden border-0 bg-card p-0 shadow-2xl sm:max-w-lg">
+          <div className="border-b border-border bg-gradient-to-r from-muted via-card to-blue-50 px-6 py-5 dark:from-card dark:via-card dark:to-blue-950/30">
             <DialogHeader>
-              <DialogTitle className="text-left text-xl text-slate-950 dark:text-slate-100">
+              <DialogTitle className="text-left text-xl text-foreground">
                 {supportModeTitle}
               </DialogTitle>
-              <DialogDescription className="text-left dark:text-slate-400">
+              <DialogDescription className="text-left text-foreground/75">
                 Gestión <b>#{publicTicketNumber}</b>. {supportModeDescription}
               </DialogDescription>
             </DialogHeader>
           </div>
 
           <div className="grid gap-5 px-6 py-6">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+            <div className="rounded-2xl border border-border bg-muted p-4">
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
                   <MessageCircle className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="font-semibold text-foreground">
                       {supportStatusTitle}
                     </p>
                     <Badge
@@ -2195,7 +2279,7 @@ export default function TicketLookup() {
                       {supportStatusBadge}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-2 text-sm leading-6 text-foreground">
                     {supportStatusDescription}
                   </p>
                 </div>
@@ -2205,24 +2289,26 @@ export default function TicketLookup() {
             <Separator />
 
             <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label htmlFor={`${lookupFormId}-message`} className="text-sm font-medium text-foreground">
                 Mensaje para este reclamo
               </label>
               <Textarea
+                id={`${lookupFormId}-message`}
                 ref={messageBoxRef}
                 placeholder={supportPlaceholder}
-                className="min-h-[120px] resize-none rounded-2xl border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
+                className="min-h-[120px] resize-none rounded-2xl border-foreground/50 bg-input px-4 py-3 placeholder:text-foreground/70"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-foreground/75">
                   {supportModeDescription}
                 </p>
                 <Button
                   className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-blue-50 dark:disabled:bg-blue-900/60 dark:disabled:text-blue-200"
                   onClick={handleSendMessage}
-                  disabled={!message.trim() || submittingPublicMessage}
+                  disabled={!message.trim() || submittingPublicMessage || loading ||
+                    verifiedPublicAccessRef.current?.revision !== publicLookupRevisionRef.current}
                 >
                   {submittingPublicMessage ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2237,7 +2323,7 @@ export default function TicketLookup() {
 
       {ticket ? (
         <div className="mx-auto w-full max-w-5xl px-4 pb-8 sm:hidden">
-          <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-xl shadow-slate-200/70 backdrop-blur">
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-2xl border border-border bg-card p-2 shadow-xl shadow-black/10 dark:shadow-black/30 backdrop-blur">
             <Button
               type="button"
               variant="outline"

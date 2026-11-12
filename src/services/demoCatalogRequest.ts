@@ -1,4 +1,5 @@
 import { apiFetch } from '@/utils/api';
+import { retryTransientRead } from '@/utils/retryTransientRead';
 
 export const DEMO_CATALOG_MEMORY_CACHE_MAX_AGE_MS = 30_000;
 const DEMO_CATALOG_MEMORY_CACHE_FALLBACK_AGE_MS = 5_000;
@@ -79,17 +80,19 @@ export const requestDemoCatalog = <T>(options: DemoCatalogRequestOptions = {}): 
   let memoryCacheAge = DEMO_CATALOG_MEMORY_CACHE_FALLBACK_AGE_MS;
 
   let request: Promise<T>;
-  request = apiFetch<T>(path, {
-    cache: requestCacheMode,
-    omitChatSessionId: true,
-    omitCredentials: true,
-    omitEntityToken: true,
-    omitTenant: true,
-    onResponse: (response) => {
-      memoryCacheAge = resolveMemoryCacheAge(response);
-    },
-    skipAuth: true,
-  })
+  request = retryTransientRead(() => apiFetch<T>(path, {
+      baseUrlOverride: '/api',
+      allowSafeBaseFallback: false,
+      cache: requestCacheMode,
+      omitChatSessionId: true,
+      omitCredentials: true,
+      omitEntityToken: true,
+      omitTenant: true,
+      onResponse: (response) => {
+        memoryCacheAge = resolveMemoryCacheAge(response);
+      },
+      skipAuth: true,
+    }))
     .then((value) => {
       if (
         memoryCacheAllowed &&

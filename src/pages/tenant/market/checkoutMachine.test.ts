@@ -21,7 +21,7 @@ describe('checkoutMachine', () => {
     vi.useRealTimers();
   });
 
-  it('recovers persisted state after refresh', () => {
+  it('retires unverified persisted checkout state after refresh', () => {
     const hydrated = hydrateCheckoutState({
       status: 'awaiting_payment',
       paymentUrl: 'https://pay.example.com/session',
@@ -31,14 +31,13 @@ describe('checkoutMachine', () => {
       updatedAt: '2026-04-18T09:59:59.000Z',
     });
 
-    expect(hydrated.status).toBe('awaiting_payment');
-    expect(hydrated.paymentUrl).toBe('https://pay.example.com/session');
-    expect(hydrated.orderId).toBe('ORD-123');
-    expect(hydrated.contact.phone).toBe('+54911');
+    expect(hydrated.status).toBe('idle');
+    expect(hydrated.paymentUrl).toBeNull();
+    expect(hydrated.orderId).toBeNull();
+    expect(hydrated.contact).toEqual({name:'',phone:''});
 
     const persisted = serializeCheckoutState(hydrated);
-    expect(persisted.status).toBe('awaiting_payment');
-    expect(persisted.contact?.name).toBe('Ana');
+    expect(persisted).toEqual({});
   });
 
   it('supports retry flow after temporary failure', () => {
@@ -66,14 +65,14 @@ describe('checkoutMachine', () => {
       message: 'Validando stock',
     });
     expect(validating.status).toBe('idle');
-    expect(validating.message).toBe('Validando stock');
+    expect(validating.message).toBeNull();
 
     const creatingOrder = hydrateCheckoutState({
       status: 'creating_order',
       error: 'timeout',
     });
     expect(creatingOrder.status).toBe('idle');
-    expect(creatingOrder.error).toBe('timeout');
+    expect(creatingOrder.error).toBeNull();
   });
 
   it('normalizes API response to awaiting_payment or success', () => {

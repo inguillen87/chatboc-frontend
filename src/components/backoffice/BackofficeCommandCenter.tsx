@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -23,9 +23,14 @@ import {
   type BackofficeScope,
 } from '@/services/backofficeService';
 import { getErrorMessage } from '@/utils/api';
+import { useUser } from '@/hooks/useUser';
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
+import { downloadPrivateBackofficeExport } from '@/services/backofficeExportDownload';
 
 type Props = {
   tenantSlug?: string | null;
+  tenantId?: number | null;
+  tenantRevision?: string | number | null;
   scope?: BackofficeScope | null;
   className?: string;
 };
@@ -34,9 +39,21 @@ type MetricCard = {
   id: string;
   label: string;
   value?: number | string | null;
+  description?: string;
   tone?: 'default' | 'warning' | 'success';
   icon: React.ComponentType<{ className?: string }>;
 };
+
+type ExecutiveActionState = {
+  scopeKey: string;
+  aiSummary: Awaited<ReturnType<typeof backofficeService.requestExecutiveSummary>> | null;
+  aiError: string | null;
+  isLoadingAi: boolean;
+  exporting: string | null;
+};
+const emptyExecutiveState = (scopeKey: string): ExecutiveActionState => ({
+  scopeKey, aiSummary: null, aiError: null, isLoadingAi: false, exporting: null,
+});
 
 const formatValue = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString('es-AR');
@@ -54,6 +71,21 @@ const readText = (...values: unknown[]) => {
 
 const toRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+const readCount = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+const readSlaCounts = (summary: Awaited<ReturnType<typeof backofficeService.getInboxSummary>>['summary']) => {
+  const risk = readCount(summary?.sla_risk);
+  const breached = readCount(summary?.sla_breached);
+  const atRisk = readCount(summary?.sla_at_risk);
+  const known = readCount(summary?.sla_known);
+  const unknown = readCount(summary?.sla_unknown);
+  const eligible = readCount(summary?.sla_eligible);
+  if (risk === null || breached === null || atRisk === null || known === null || unknown === null || eligible === null
+    || risk !== breached + atRisk || known < risk || eligible !== known + unknown) return null;
+  return { risk, breached, atRisk, unknown };
+};
 
 const normalizeRecommendation = (value: unknown, index: number) => {
   const record = toRecord(value);
@@ -78,40 +110,87 @@ const toneClass: Record<NonNullable<MetricCard['tone']>, string> = {
   success: 'border-emerald-500/30 bg-emerald-500/10',
 };
 
-export default function BackofficeCommandCenter({ tenantSlug, scope, className }: Props) {
-  const [aiSummary, setAiSummary] = useState<Awaited<ReturnType<typeof backofficeService.requestExecutiveSummary>> | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [isLoadingAi, setIsLoadingAi] = useState(false);
-  const [exporting, setExporting] = useState<string | null>(null);
-  const enabled = Boolean(tenantSlug);
+export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRevision, scope, className }: Props) {
+  const { user, organizationProfileVerified } = useUser();
+  const sessionRevision = captureChatbocSessionRevision();
+  const actorId = user?.id == null ? null : String(user.id);
+  const authorityKey = JSON.stringify([
+    actorId, user?.rol ?? user?.role,
+    user?.capabilities?.slice().sort(), user?.permissions?.slice().sort(), user?.scopes?.slice().sort(),
+    user?.categoria_id, user?.categoria_ids, user?.categorias,
+  ]);
+  const enabled = Boolean(tenantSlug && actorId && organizationProfileVerified);
+  const canExport = enabled && typeof tenantId === 'number' && Number.isSafeInteger(tenantId) && tenantId > 0;
+  const readScopeKey = JSON.stringify([tenantSlug, tenantId, tenantRevision, scope, authorityKey, sessionRevision, organizationProfileVerified]);
+  const readAuthorityRef = useRef({ key: readScopeKey, epoch: 0 });
+  if (readAuthorityRef.current.key !== readScopeKey) {
+    readAuthorityRef.current = { key: readScopeKey, epoch: readAuthorityRef.current.epoch + 1 };
+  }
+  const readEpoch = readAuthorityRef.current.epoch;
+  const activeReadScopeRef = useRef<string | null>(null);
+  activeReadScopeRef.current = enabled ? readScopeKey : null;
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const readLifecycle = (signal: AbortSignal) => ({
+    isCurrent: () => !signal.aborted && mountedRef.current
+      && activeReadScopeRef.current === readScopeKey && readAuthorityRef.current.epoch === readEpoch
+      && isChatbocSessionRevisionCurrent(sessionRevision),
+  });
+  const readCacheScope = [tenantSlug, tenantId, tenantRevision, scope, authorityKey, sessionRevision, organizationProfileVerified];
+  const executiveGenerationRef = useRef(0);
+  const exportInFlightRef = useRef<{ isCurrent: () => boolean } | null>(null);
+  const [executiveState, setExecutiveState] = useState(() => emptyExecutiveState(readScopeKey));
+  const { aiSummary, aiError, isLoadingAi, exporting } = executiveState.scopeKey === readScopeKey && enabled
+    ? executiveState : emptyExecutiveState(readScopeKey);
+  useEffect(() => {
+    executiveGenerationRef.current += 1;
+    setExecutiveState(emptyExecutiveState(readScopeKey));
+    return () => { executiveGenerationRef.current += 1; };
+  }, [readScopeKey, enabled]);
+  const actionLifecycle = () => {
+    const actionScope = readScopeKey;
+    const actionRevision = sessionRevision;
+    const actionGeneration = executiveGenerationRef.current;
+    return {
+      isCurrent: () => mountedRef.current && activeReadScopeRef.current === actionScope
+        && readAuthorityRef.current.epoch === readEpoch
+        && isChatbocSessionRevisionCurrent(actionRevision) && executiveGenerationRef.current === actionGeneration,
+      update: (patch: Partial<Omit<ExecutiveActionState, 'scopeKey'>>) => {
+        setExecutiveState(current => current.scopeKey === actionScope ? { ...current, ...patch } : current);
+      },
+    };
+  };
 
   const inboxQuery = useQuery({
-    queryKey: ['backoffice-inbox-summary', tenantSlug, scope],
-    queryFn: () => backofficeService.getInboxSummary({ tenantSlug, scope }),
+    queryKey: ['backoffice-inbox-summary', ...readCacheScope],
+    queryFn: ({ signal }) => backofficeService.getInboxSummary({ tenantSlug, scope }, readLifecycle(signal)),
     enabled,
     retry: 0,
     staleTime: 30_000,
   });
 
   const ordersQuery = useQuery({
-    queryKey: ['backoffice-orders-summary', tenantSlug],
-    queryFn: () => backofficeService.getOrdersSummary(tenantSlug),
+    queryKey: ['backoffice-orders-summary', ...readCacheScope],
+    queryFn: ({ signal }) => backofficeService.getOrdersSummary(tenantSlug, readLifecycle(signal)),
     enabled,
     retry: 0,
     staleTime: 30_000,
   });
 
   const contactsQuery = useQuery({
-    queryKey: ['backoffice-contacts-summary', tenantSlug],
-    queryFn: () => backofficeService.getContactsSummary(tenantSlug),
+    queryKey: ['backoffice-contacts-summary', ...readCacheScope],
+    queryFn: ({ signal }) => backofficeService.getContactsSummary(tenantSlug, readLifecycle(signal)),
     enabled,
     retry: 0,
     staleTime: 30_000,
   });
 
   const teamQuery = useQuery({
-    queryKey: ['backoffice-team-summary', tenantSlug],
-    queryFn: () => backofficeService.getTeamCoverageSummary(tenantSlug),
+    queryKey: ['backoffice-team-summary', ...readCacheScope],
+    queryFn: ({ signal }) => backofficeService.getTeamCoverageSummary(tenantSlug, readLifecycle(signal)),
     enabled,
     retry: 0,
     staleTime: 30_000,
@@ -122,19 +201,39 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
     const orders = ordersQuery.data;
     const contacts = contactsQuery.data;
     const team = teamQuery.data;
+    const sla = readSlaCounts(inbox);
+    const unassignedCases = readCount(inbox?.unassigned);
+    const unassignedOrders = readCount(orders?.summary?.unassigned);
+    const unassigned = unassignedCases !== null && unassignedOrders !== null
+      ? unassignedCases + unassignedOrders : null;
 
     return [
       { id: 'open', label: 'Casos abiertos', value: inbox?.open, icon: Ticket, tone: inbox?.open ? 'warning' : 'default' },
-      { id: 'sla', label: 'Riesgo SLA', value: inbox?.sla_risk, icon: AlertTriangle, tone: inbox?.sla_risk ? 'warning' : 'success' },
-      { id: 'orders', label: 'Pedidos activos', value: orders?.active_orders, icon: CheckCircle2 },
-      { id: 'contacts', label: 'Contactos', value: contacts?.total_contacts, icon: Users },
-      { id: 'team', label: 'Equipo activo', value: team?.active_employees, icon: ShieldCheck },
+      {
+        id: 'sla',
+        label: 'Riesgo SLA confirmado',
+        value: sla?.risk,
+        description: sla ? `${sla.breached} vencidos y ${sla.atRisk} en riesgo.` : 'Falta evidencia suficiente para evaluar el SLA.',
+        icon: AlertTriangle,
+        tone: sla && sla.risk > 0 ? 'warning' : 'default',
+      },
+      {
+        id: 'sla-unknown',
+        label: 'SLA sin verificar',
+        value: sla?.unknown,
+        description: 'Casos abiertos sin evidencia verificable del plazo de atención.',
+        icon: AlertTriangle,
+      },
+      { id: 'orders', label: 'Pedidos activos', value: readCount(orders?.summary?.active), icon: CheckCircle2 },
+      { id: 'contacts', label: 'Contactos', value: readCount(contacts?.summary?.total), icon: Users },
+      { id: 'team', label: 'Equipo activo', value: readCount(team?.summary?.active_employees), icon: ShieldCheck },
       {
         id: 'unassigned',
         label: 'Sin responsable',
-        value: (inbox?.unassigned ?? 0) + (orders?.unassigned_orders ?? 0),
+        value: unassigned,
+        description: unassigned === null ? 'Falta información verificable de responsables para el total de casos y pedidos.' : undefined,
         icon: Users,
-        tone: (inbox?.unassigned ?? 0) + (orders?.unassigned_orders ?? 0) > 0 ? 'warning' : 'success',
+        tone: unassigned === null ? 'default' : unassigned > 0 ? 'warning' : 'success',
       },
     ];
   }, [contactsQuery.data, inboxQuery.data, ordersQuery.data, teamQuery.data]);
@@ -155,6 +254,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
   const hasError = inboxQuery.isError || ordersQuery.isError || contactsQuery.isError || teamQuery.isError;
 
   const refresh = () => {
+    if (!enabled || activeReadScopeRef.current !== readScopeKey) return;
     void inboxQuery.refetch();
     void ordersQuery.refetch();
     void contactsQuery.refetch();
@@ -162,9 +262,11 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
   };
 
   const requestAiSummary = async () => {
-    setIsLoadingAi(true);
-    setAiError(null);
+    const action = actionLifecycle();
+    if (!action.isCurrent()) return;
+    action.update({ isLoadingAi: true, aiError: null });
     try {
+      if (!action.isCurrent()) return;
       const summary = await backofficeService.requestExecutiveSummary({
         tenant_slug: tenantSlug,
         resource: 'overview',
@@ -175,31 +277,37 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
           '/api/v2/backoffice/contacts/summary',
           '/api/v2/backoffice/team/coverage-summary',
         ],
-      });
-      setAiSummary(summary);
+      }, { isCurrent: action.isCurrent });
+      if (action.isCurrent()) action.update({ aiSummary: summary });
     } catch (error) {
-      setAiError(getErrorMessage(error, 'No se pudo generar el resumen IA.'));
+      if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No se pudo generar el resumen IA.') });
     } finally {
-      setIsLoadingAi(false);
+      if (action.isCurrent()) action.update({ isLoadingAi: false });
     }
   };
 
   const requestExport = async (resource: BackofficeExportResource, format: BackofficeExportFormat) => {
+    const action = actionLifecycle();
+    if (!canExport || !action.isCurrent() || exportInFlightRef.current?.isCurrent()) return;
+    const attempt = { isCurrent: action.isCurrent };
+    exportInFlightRef.current = attempt;
     const key = `${resource}-${format}`;
-    setExporting(key);
+    action.update({ exporting: key, aiError: null });
     try {
+      if (!action.isCurrent()) return;
       const result = await backofficeService.requestExport({
-        tenant_slug: tenantSlug,
+        tenant_slug: tenantSlug!,
+        tenant_id: tenantId!,
         resource,
         format,
         filters: { scope },
-        include_ai_summary: format === 'pdf',
-      });
-      window.open(result.download_url, '_blank', 'noopener,noreferrer');
+      }, { isCurrent: action.isCurrent });
+      if (action.isCurrent()) downloadPrivateBackofficeExport(result, action.isCurrent);
     } catch (error) {
-      setAiError(getErrorMessage(error, 'No se pudo preparar la exportacion.'));
+      if (action.isCurrent()) action.update({ aiError: getErrorMessage(error, 'No se pudo preparar la exportacion.') });
     } finally {
-      setExporting(null);
+      if (exportInFlightRef.current === attempt) exportInFlightRef.current = null;
+      if (action.isCurrent()) action.update({ exporting: null });
     }
   };
 
@@ -212,10 +320,10 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Mando operativo</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">Prioridades, equipo y exportaciones</h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Lectura compacta de los contratos backoffice. Si backend no publica un dato, queda vacio sin completar con supuestos.
+            Información operativa confirmada. Los indicadores sin datos permanecen vacíos, sin completar valores por estimación.
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={refresh} disabled={isLoading}>
+        <Button type="button" variant="outline" onClick={refresh} disabled={isLoading || !enabled}>
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Actualizar
         </Button>
@@ -242,6 +350,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold">{formatValue(metric.value)}</p>
+                {metric.description ? <p className="mt-1 text-xs text-muted-foreground">{metric.description}</p> : null}
               </CardContent>
             </Card>
           );
@@ -252,7 +361,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Acciones recomendadas</CardTitle>
-            <CardDescription>Solo se muestran vistas o recomendaciones publicadas por backend.</CardDescription>
+            <CardDescription>Solo se muestran acciones disponibles para este perfil y período.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {recommendations.length > 0 ? (
@@ -264,7 +373,7 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
               ))
             ) : (
               <p className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
-                No hay recomendaciones publicadas para este periodo.
+                No hay acciones recomendadas para este período.
               </p>
             )}
           </CardContent>
@@ -284,18 +393,21 @@ export default function BackofficeCommandCenter({ tenantSlug, scope, className }
                 {isLoadingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
                 Resumen IA
               </Button>
-              <Button type="button" variant="outline" onClick={() => void requestExport('tickets', 'pdf')} disabled={exporting !== null}>
+              <Button type="button" variant="outline" onClick={() => void requestExport('tickets', 'pdf')} disabled={exporting !== null || !canExport}>
                 <Download className="h-4 w-4" />
                 PDF casos
               </Button>
-              <Button type="button" variant="outline" onClick={() => void requestExport('contacts', 'csv')} disabled={exporting !== null}>
+              <Button type="button" variant="outline" onClick={() => void requestExport('contacts', 'csv')} disabled={exporting !== null || !canExport}>
                 <Download className="h-4 w-4" />
                 CSV contactos
               </Button>
             </div>
+            {!canExport ? <p role="status" className="text-xs text-muted-foreground">
+              Verificamos la organización seleccionada antes de habilitar la descarga de reportes.
+            </p> : null}
 
-            {exporting ? <Badge variant="secondary">Preparando {exporting}</Badge> : null}
-            {aiError ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</p> : null}
+            {exporting ? <Badge variant="secondary" role="status">Preparando {exporting}</Badge> : null}
+            {aiError ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</p> : null}
             {aiSummary ? (
               <div className="space-y-3 rounded-lg border bg-background px-3 py-3">
                 {aiSummary.headline ? <p className="font-semibold text-foreground">{aiSummary.headline}</p> : null}

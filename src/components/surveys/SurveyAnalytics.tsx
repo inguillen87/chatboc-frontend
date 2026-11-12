@@ -27,7 +27,6 @@ import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import type {
   SurveyAnalyticsFilters,
-  SurveyDemographicBreakdownItem,
   SurveyAnalyticsHeatmap,
   SurveyAnalyticsProvenance,
   SurveyHeatmapPoint,
@@ -85,21 +84,169 @@ const DEMOGRAPHIC_LABELS: Record<string, string> = {
 const normalizeDemographicLabel = (key: string) =>
   DEMOGRAPHIC_LABELS[key] ?? key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
 
-const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
+const buildDemographicData = (items: unknown[]) =>
   items
-    .filter((item) => typeof item?.respuestas === 'number')
-    .map((item, index) => {
-      const label = item.etiqueta ?? item.clave ?? 'Sin dato';
+    .flatMap((item, index) => {
+      if (!isRecord(item)) return [];
+      const value = toFiniteNumber(item.respuestas ?? item.value);
+      if (value === null || value < 0) return [];
+      const label = toNonEmptyString(item.etiqueta ?? item.clave ?? item.label) ?? 'Sin dato';
+      const percentage = toFiniteNumber(item.porcentaje);
       return {
         label,
-        value: item.respuestas,
-        percentage: typeof item.porcentaje === 'number' ? item.porcentaje : undefined,
+        value,
+        ...(percentage !== null && percentage >= 0 ? { percentage } : {}),
         key: `${item.clave ?? label}-${index}`,
       };
     });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+type SurveyTerritoryEvidenceGate = {
+  ready: boolean;
+  reasonCode: string;
+  title: string;
+  detail: string;
+  nextAction: string;
+};
+
+const SURVEY_HEATMAP_JURISDICTION_CONTRACT_VERSION = 'surveys.heatmap.jurisdiction.v1';
+const SURVEY_HEATMAP_PROVENANCE_CONTRACT_VERSION = 'surveys.heatmap.territorial_provenance.v1';
+const SURVEY_HEATMAP_MAP_CONTRACT_VERSION = 'surveys.heatmap.map_render.v1';
+const SURVEY_HEATMAP_POINT_EVIDENCE_CONTRACT_VERSION = 'surveys.heatmap.point_jurisdiction_evidence.v1';
+
+const normalizedEvidenceText = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim().replace(/\/+$/, '').toLowerCase() : null;
+
+const normalizedEvidenceSource = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim().replace(/\/+$/, '') : null;
+
+const normalizedEvidenceContractVersion = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : null;
+
+const normalizedEvidenceSha = (value: unknown) => {
+  const normalized = normalizedEvidenceText(value);
+  return normalized && /^[a-f0-9]{64}$/.test(normalized) ? normalized : null;
+};
+
+export const resolveSurveyTerritoryEvidenceGate = (
+  metadataValue: unknown,
+  rawPoints: unknown[],
+): SurveyTerritoryEvidenceGate => {
+  const metadata = isRecord(metadataValue) ? metadataValue : null;
+  const jurisdiction = isRecord(metadata?.jurisdiction) ? metadata.jurisdiction : null;
+  const provenance = isRecord(metadata?.provenance) ? metadata.provenance : null;
+  const mapContract = isRecord(metadata?.map) ? metadata.map : null;
+  const contractVersionsCompatible =
+    normalizedEvidenceContractVersion(jurisdiction?.contract_version) === SURVEY_HEATMAP_JURISDICTION_CONTRACT_VERSION &&
+    normalizedEvidenceContractVersion(provenance?.contract_version) === SURVEY_HEATMAP_PROVENANCE_CONTRACT_VERSION &&
+    normalizedEvidenceContractVersion(mapContract?.contract_version) === SURVEY_HEATMAP_MAP_CONTRACT_VERSION;
+
+  if (!contractVersionsCompatible) {
+    return {
+      ready: false,
+      reasonCode: 'survey_territory_contract_version_unsupported',
+      title: 'Lectura territorial bloqueada',
+      detail: 'El servidor no publicó las versiones compatibles de los contratos territoriales requeridos.',
+      nextAction: 'Actualizá la analítica con los contratos v1 de jurisdicción, procedencia y render del mapa.',
+    };
+  }
+
+  const jurisdictionState = normalizedEvidenceText(jurisdiction?.state)?.replace(/[_-]+/g, ' ');
+  if (jurisdiction?.required === false && jurisdictionState === 'not required') {
+    return {
+      ready: true,
+      reasonCode: 'survey_territory_evidence_not_required',
+      title: 'Contrato territorial habilitado',
+      detail: 'El backend declaró explícitamente que este instrumento no requiere jurisdicción gubernamental.',
+      nextAction: 'Mantener render_ready y la procedencia no sintética en cada actualización.',
+    };
+  }
+  const authority = isRecord(jurisdiction?.boundary_authority) ? jurisdiction.boundary_authority : null;
+  const authoritySource = normalizedEvidenceSource(authority?.source_ref ?? authority?.source_url);
+  const evidenceSource = normalizedEvidenceSource(provenance?.source_ref ?? provenance?.source_url);
+  const authoritySha = normalizedEvidenceSha(authority?.snapshot_sha256 ?? authority?.sha256);
+  const evidenceSha = normalizedEvidenceSha(provenance?.snapshot_sha256 ?? provenance?.sha256);
+  const method = normalizedEvidenceText(jurisdiction?.containment_method)?.replace(/[_-]+/g, ' ');
+  const provenanceMatchesAuthority = provenance !== null && (
+    evidenceSource === authoritySource && evidenceSha === authoritySha
+  );
+
+  const authoritativeContract =
+    jurisdiction?.enforced === true &&
+    jurisdiction?.containment_verified === true &&
+    ['official', 'authoritative'].includes(normalizedEvidenceText(authority?.kind ?? authority?.type) || '') &&
+    ['point in polygon', 'official polygon'].includes(method || '') &&
+    Boolean(authoritySource && authoritySha) &&
+    provenanceMatchesAuthority;
+
+  if (!authoritativeContract) {
+    return {
+      ready: false,
+      reasonCode: 'survey_territory_authority_unverified',
+      title: 'Lectura territorial bloqueada',
+      detail: 'El servidor no publicó una autoridad territorial verificable y enlazada al snapshot de esta analítica.',
+      nextAction: 'Vinculá la fuente oficial, su SHA-256 y el contrato de contención antes de usar el mapa.',
+    };
+  }
+
+  const everyPointContained = rawPoints.length > 0 && rawPoints.every((value) => {
+    if (!isRecord(value)) return false;
+    const containment = isRecord(value.containment) ? value.containment : value;
+    const pointEvidence = isRecord(value.jurisdiction_evidence)
+      ? value.jurisdiction_evidence
+      : isRecord(containment.jurisdiction_evidence)
+        ? containment.jurisdiction_evidence
+        : null;
+    const status = normalizedEvidenceText(
+      containment.coordinate_jurisdiction_status ?? containment.jurisdiction_status ?? containment.status,
+    )?.replace(/[_-]+/g, ' ');
+    const evidenceStatus = normalizedEvidenceText(
+      pointEvidence?.coordinate_jurisdiction_status ?? pointEvidence?.jurisdiction_status ?? pointEvidence?.status,
+    )?.replace(/[_-]+/g, ' ');
+    const pointSource = normalizedEvidenceSource(containment.source_ref ?? containment.boundary_source_ref);
+    const pointEvidenceSource = normalizedEvidenceSource(
+      pointEvidence?.source_ref ?? pointEvidence?.boundary_source_ref,
+    );
+    const pointSha = normalizedEvidenceSha(containment.snapshot_sha256 ?? containment.boundary_snapshot_sha256);
+    const pointEvidenceSha = normalizedEvidenceSha(
+      pointEvidence?.snapshot_sha256 ?? pointEvidence?.boundary_snapshot_sha256,
+    );
+    const pointMethod = normalizedEvidenceText(pointEvidence?.containment_method)?.replace(/[_-]+/g, ' ');
+    const pointAuthorityKind = normalizedEvidenceText(pointEvidence?.authority_kind);
+    return normalizedEvidenceContractVersion(pointEvidence?.contract_version) ===
+      SURVEY_HEATMAP_POINT_EVIDENCE_CONTRACT_VERSION &&
+      containment.containment_verified === true &&
+      pointEvidence?.containment_verified === true &&
+      status === 'within' &&
+      evidenceStatus === 'within' &&
+      pointMethod === 'point in polygon' &&
+      pointAuthorityKind === 'official' &&
+      pointSource === authoritySource &&
+      pointEvidenceSource === authoritySource &&
+      pointSha === authoritySha &&
+      pointEvidenceSha === authoritySha;
+  });
+
+  if (!everyPointContained) {
+    return {
+      ready: false,
+      reasonCode: 'survey_territory_point_containment_unverified',
+      title: 'Puntos territoriales pendientes de validación',
+      detail: 'Uno o más puntos no acreditan contención y enlace exacto con la fuente y el snapshot oficial vigente.',
+      nextAction: 'Reprocesá la contención y publicá en cada punto estado within, fuente oficial y SHA-256 coincidentes.',
+    };
+  }
+
+  return {
+    ready: true,
+    reasonCode: 'survey_territory_authoritative',
+    title: 'Evidencia territorial verificada',
+    detail: 'La autoridad oficial y su snapshot son válidos; todos los puntos fueron incluidos como contenidos.',
+    nextAction: 'Mantener la evidencia enlazada en cada actualización.',
+  };
+};
 
 const isFeatureCollection = (value: unknown): value is { type: 'FeatureCollection'; features: unknown[] } => {
   if (!isRecord(value)) return false;
@@ -121,6 +268,8 @@ const HEATMAP_METADATA_KEYS = [
   'privacy_mode',
   'coordinate_precision',
   'using_synthetic_points',
+  'jurisdiction',
+  'provenance',
 ] as const;
 
 const getNestedValue = (value: unknown, path: string[]): unknown => {
@@ -245,6 +394,8 @@ type OptionCandidate = { value: unknown; fallbackLabel?: string };
 
 interface QuestionEligibilityContext {
   respuestasElegibles: number | null;
+  baseElegiblesEstimada: boolean;
+  respuestasElegiblesEstimadas: number | null;
   respuestasRespondidas: number | null;
   tasaRespuestaElegible: number | null;
   tipo: string | null;
@@ -260,11 +411,13 @@ interface OptionBreakdownItem {
   porcentajeElegibles?: number;
   porcentajeRespuestasPregunta?: number;
   respuestasElegibles?: number;
+  baseElegiblesEstimada: boolean;
+  respuestasElegiblesEstimadas?: number;
   respuestasRespondidas?: number;
   tasaRespuestaElegible?: number;
-  participacion: number;
+  participacion?: number;
   usaBaseElegible: boolean;
-  baseParticipacion: 'elegibles' | 'respuestas_pregunta' | 'total_encuesta' | 'legacy';
+  baseParticipacion: 'elegibles' | 'respuestas_pregunta' | 'total_encuesta' | 'legacy' | 'sin_tasa';
   esSeleccionMultiple: boolean;
 }
 
@@ -337,7 +490,7 @@ const extractOptionItem = (
         container.porcentajeTotalEncuesta,
     ) ?? undefined;
   const porcentajeElegibles =
-    toFiniteNumber(
+    eligibility.baseElegiblesEstimada ? undefined : toFiniteNumber(
       container.porcentaje_elegibles ??
         container.porcentajeElegibles,
     ) ?? undefined;
@@ -350,6 +503,7 @@ const extractOptionItem = (
     porcentajeElegibles !== undefined ||
     porcentajeRespuestasPregunta !== undefined;
   const usaBaseElegible =
+    eligibility.baseElegiblesEstimada ||
     eligibility.respuestasElegibles !== null ||
     eligibility.respuestasRespondidas !== null ||
     eligibility.tasaRespuestaElegible !== null ||
@@ -379,15 +533,11 @@ const extractOptionItem = (
         ? 'respuestas_pregunta'
         : porcentajeTotalEncuesta !== undefined
           ? 'total_encuesta'
-          : 'legacy';
-  const participacion = Math.max(
-    0,
-    participacionElegible ??
+          : eligibility.baseElegiblesEstimada ? 'sin_tasa' : 'legacy';
+  const participacion = participacionElegible ??
       porcentajeRespuestasPregunta ??
       porcentajeTotalEncuesta ??
-      porcentaje ??
-      0,
-  );
+      (eligibility.baseElegiblesEstimada ? undefined : porcentaje ?? 0);
   return {
     pregunta: preguntaLabel,
     opcion,
@@ -397,6 +547,10 @@ const extractOptionItem = (
     porcentajeTotalEncuesta,
     porcentajeElegibles,
     porcentajeRespuestasPregunta,
+    baseElegiblesEstimada: eligibility.baseElegiblesEstimada,
+    ...(eligibility.respuestasElegiblesEstimadas !== null
+      ? { respuestasElegiblesEstimadas: Math.max(0, eligibility.respuestasElegiblesEstimadas) }
+      : {}),
     ...(eligibility.respuestasElegibles !== null
       ? { respuestasElegibles: Math.max(0, eligibility.respuestasElegibles) }
       : {}),
@@ -406,10 +560,10 @@ const extractOptionItem = (
     ...(tasaRespuestaElegible !== null
       ? { tasaRespuestaElegible: Math.max(0, tasaRespuestaElegible) }
       : {}),
-    participacion: Number.isFinite(participacion) ? participacion : 0,
+    participacion: participacion !== undefined && Number.isFinite(participacion) ? Math.max(0, participacion) : undefined,
     usaBaseElegible,
     baseParticipacion,
-    esSeleccionMultiple: ['opcion_multiple', 'multiple', 'multiple_choice'].includes(
+    esSeleccionMultiple: ['opcion_multiple', 'multiple', 'multiple_choice', 'multiple-choice', 'checkbox', 'check', 'multi_select', 'multi-select', 'multiselect'].includes(
       eligibility.tipo?.trim().toLowerCase() ?? '',
     ),
   };
@@ -474,8 +628,13 @@ const buildOptionBreakdown = (
           preguntaContainer.nombre ??
           preguntaContainer.name,
       ) ?? `Pregunta ${preguntaIndex + 1}`;
+    const baseElegiblesEstimada = preguntaContainer.base_elegibles_estimada === true;
     const eligibility: QuestionEligibilityContext = {
-      respuestasElegibles: toFiniteNumber(
+      baseElegiblesEstimada,
+      respuestasElegiblesEstimadas: baseElegiblesEstimada
+        ? toFiniteNumber(preguntaContainer.respuestas_elegibles_estimadas)
+        : null,
+      respuestasElegibles: baseElegiblesEstimada ? null : toFiniteNumber(
         preguntaContainer.respuestas_elegibles ??
           preguntaContainer.respuestasElegibles,
       ),
@@ -483,16 +642,14 @@ const buildOptionBreakdown = (
         preguntaContainer.respuestas_respondidas ??
           preguntaContainer.respuestasRespondidas,
       ),
-      tasaRespuestaElegible: toFiniteNumber(
+      tasaRespuestaElegible: baseElegiblesEstimada ? null : toFiniteNumber(
         preguntaContainer.tasa_respuesta_elegible ??
           preguntaContainer.tasaRespuestaElegible,
       ),
-      tipo: toNonEmptyString(
-        preguntaContainer.tipo_interno ??
-          preguntaContainer.tipoInterno ??
-          preguntaContainer.tipo ??
-          preguntaContainer.type,
-      ),
+      tipo: toNonEmptyString(preguntaContainer.tipo) ??
+        toNonEmptyString(preguntaContainer.type) ??
+        toNonEmptyString(preguntaContainer.tipo_interno) ??
+        toNonEmptyString(preguntaContainer.tipoInterno),
     };
     const optionCandidates = collectOptionCandidates(
       preguntaContainer.opciones ??
@@ -546,33 +703,6 @@ const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): Survey
       } satisfies SurveyHeatmapPoint;
     })
     .filter((point): point is SurveyHeatmapPoint => Boolean(point));
-
-const extractCategoryLayerPoints = (categoryLayers: Record<string, unknown> | null): SurveyHeatmapPoint[] => {
-  const categories = getArray<Record<string, unknown>>(categoryLayers?.categories);
-  return categories.flatMap((category) => {
-    const categoria = toNonEmptyString(category.categoria ?? category.category ?? category.label) ?? undefined;
-    return getArray<Record<string, unknown>>(category.points)
-      .map((point) => {
-        const lat = toFiniteNumber(point.lat);
-        const lng = toFiniteNumber(point.lng);
-        if (lat === null || lng === null) return null;
-        const normalizedPoint: SurveyHeatmapPoint = {
-          lat,
-          lng,
-          respuestas: toFiniteNumber(point.weight ?? point.total_weight ?? point.count) ?? 1,
-        };
-        if (categoria) {
-          normalizedPoint.categoria = categoria;
-        }
-        const canal = toNonEmptyString(point.canal ?? point.channel);
-        if (canal) {
-          normalizedPoint.canal = canal;
-        }
-        return normalizedPoint;
-      })
-      .filter((point): point is SurveyHeatmapPoint => Boolean(point));
-  });
-};
 
 type ChannelBreakdownItem = { canal: string; respuestas: number };
 
@@ -751,8 +881,8 @@ const resolveSurveyTerritoryReadiness = (
   }
   if (pointCount > 0) {
     return {
-      label: 'Mapa real activo',
-      detail: 'Usando coordenadas reales de respuestas y capas del contrato de encuestas.',
+      label: 'Evidencia territorial activa',
+      detail: 'Usando coordenadas con contención verificada y capas enlazadas al snapshot oficial.',
       toneClass: 'border-emerald-300/35 bg-emerald-300/10 text-emerald-50',
       icon: ShieldCheck,
     };
@@ -778,6 +908,7 @@ function SurveyTerritoryCommandCenter({
   boundingBoxValue,
   channelBreakdown,
   categoryLayerCount,
+  evidenceGate,
 }: {
   points: SurveyHeatmapPoint[];
   geoIntensity: SurveyGeoIntensity;
@@ -791,6 +922,7 @@ function SurveyTerritoryCommandCenter({
   boundingBoxValue?: string;
   channelBreakdown: ChannelBreakdownItem[];
   categoryLayerCount: number;
+  evidenceGate: SurveyTerritoryEvidenceGate;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const reactId = useId().replace(/:/g, '');
@@ -812,8 +944,60 @@ function SurveyTerritoryCommandCenter({
   const activeSignal = usingSyntheticPoints
     ? 'demo/fallback'
     : mapRenderReady && points.length
-      ? 'coordenadas reales'
+      ? 'contención verificada'
       : 'pendiente geo';
+
+  if (!points.length) {
+    const hasResponses = typeof totalResponses === 'number' && totalResponses > 0;
+    return (
+      <Card
+        className="border-border/70 bg-card shadow-sm"
+        data-testid="survey-territory-command-center"
+      >
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                Cobertura territorial pendiente
+              </CardTitle>
+              <CardDescription>
+                {!evidenceGate.ready
+                  ? evidenceGate.detail
+                  : hasResponses
+                  ? 'Hay respuestas registradas, pero ninguna tiene ubicación utilizable para construir un mapa real.'
+                  : 'El mapa se habilitará cuando ingresen respuestas con ubicación consentida.'}
+              </CardDescription>
+            </div>
+            <Badge variant="outline">0 registros georreferenciados</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          {evidenceGate.ready ? (
+            <>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Respuestas</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatSurveyNumber(totalResponses)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura geográfica</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">0%</p>
+              </div>
+            </>
+          ) : null}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3 sm:col-span-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Próximo control</p>
+            <p className="mt-1 text-sm font-medium">
+              {!evidenceGate.ready ? evidenceGate.nextAction : 'Capturar barrio o coordenadas con consentimiento'}
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground sm:col-span-3">
+            No se generan puntos, zonas ni focos artificiales. Revisá el formulario y los canales de ingreso para solicitar ubicación de forma opcional y trazable.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card
@@ -1087,10 +1271,12 @@ export const SurveyAnalytics = ({
     () => (isFeatureCollection(categoryLayersRecord?.source) ? categoryLayersRecord.source : null),
     [categoryLayersRecord],
   );
-  const categoryLayerPoints = useMemo(
-    () => extractCategoryLayerPoints(categoryLayersRecord),
-    [categoryLayersRecord],
-  );
+  const territoryEvidencePoints = useMemo(() => {
+    const direct = getArray(heatmapPointsInput);
+    if (direct.length) return direct;
+    return getArray<Record<string, unknown>>(categoryLayersRecord?.categories)
+      .flatMap((category) => getArray(category.points));
+  }, [categoryLayersRecord, heatmapPointsInput]);
   const mapMetaRecord = useMemo(() => {
     const mapValue = heatmapMetaRecord?.map;
     return mapValue && typeof mapValue === 'object' ? (mapValue as Record<string, unknown>) : null;
@@ -1107,12 +1293,19 @@ export const SurveyAnalytics = ({
       ),
     [heatmapMetaRecord, renderContractRecord],
   );
+  const territoryEvidenceGate = useMemo(
+    () => resolveSurveyTerritoryEvidenceGate(heatmapMetaRecord, territoryEvidencePoints),
+    [heatmapMetaRecord, territoryEvidencePoints],
+  );
   const mapRenderReady = useMemo(() => {
     if (usingSyntheticPoints) return false;
-    if (!mapMetaRecord) return true;
-    if (typeof mapMetaRecord.render_ready === 'boolean') return mapMetaRecord.render_ready;
-    return true;
-  }, [mapMetaRecord, usingSyntheticPoints]);
+    if (!territoryEvidenceGate.ready) return false;
+    return mapMetaRecord?.render_ready === true;
+  }, [mapMetaRecord, territoryEvidenceGate.ready, usingSyntheticPoints]);
+  const authorizedTerritoryPoints = useMemo(
+    () => (mapRenderReady ? aggregatedHeatmapPoints : []),
+    [aggregatedHeatmapPoints, mapRenderReady],
+  );
   const providerHint = useMemo(() => normalizeMapProvider(mapMetaRecord?.provider_hint), [mapMetaRecord]);
   const fallbackProvider = useMemo(
     () => normalizeMapProvider(mapMetaRecord?.fallback_provider) ?? 'maplibre',
@@ -1132,16 +1325,16 @@ export const SurveyAnalytics = ({
       })
       .filter((pair): pair is readonly [string, string] => Boolean(pair));
     const map = new Map<string, string>(backendPairs);
-    const categories = Array.from(new Set(aggregatedHeatmapPoints.map((point) => point.categoria).filter(Boolean) as string[]));
+    const categories = Array.from(new Set(authorizedTerritoryPoints.map((point) => point.categoria).filter(Boolean) as string[]));
     categories.forEach((category, index) => {
       if (!map.has(category)) map.set(category, colorFromCategory(category, index));
     });
     return map;
-  }, [aggregatedHeatmapPoints, categoryLayerCategories]);
+  }, [authorizedTerritoryPoints, categoryLayerCategories]);
 
   const heatmapData = useMemo(() => {
     if (usingSyntheticPoints) return [];
-    const sourcePoints = aggregatedHeatmapPoints.length ? aggregatedHeatmapPoints : categoryLayerPoints;
+    const sourcePoints = authorizedTerritoryPoints.length ? authorizedTerritoryPoints : [];
     const allZero = sourcePoints.length > 0 && sourcePoints.every((point) => point.respuestas <= 0);
     return sourcePoints.map((point) => ({
       lat: point.lat,
@@ -1151,7 +1344,7 @@ export const SurveyAnalytics = ({
       canal: point.canal,
       categoryColor: point.categoria ? categoryColorMap.get(point.categoria) : undefined,
     }));
-  }, [aggregatedHeatmapPoints, categoryColorMap, categoryLayerPoints, usingSyntheticPoints]);
+  }, [authorizedTerritoryPoints, categoryColorMap, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
   const hasGoogleKey = useMemo(() => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0), []);
   const providerIsConfigured = useCallback(
@@ -1398,35 +1591,25 @@ export const SurveyAnalytics = ({
   }, [summary, summaryRecord]);
 
   const completionRateLabel = useMemo(() => {
-    if (completionRateValue === null) {
+    if (
+      completionRateValue === null ||
+      !Number.isFinite(completionRateValue) ||
+      completionRateValue < 0 ||
+      completionRateValue > 100 ||
+      totalResponsesValue === null ||
+      !Number.isInteger(totalResponsesValue) ||
+      totalResponsesValue <= 0
+    ) {
       return '—';
     }
 
-    let normalized = completionRateValue;
-
-    if (!Number.isFinite(normalized)) {
-      return '—';
-    }
-
-    if (normalized > 1 && normalized <= 100) {
-      normalized /= 100;
-    }
-
-    if (normalized > 100) {
-      normalized = 1;
-    }
-
-    if (normalized < 0) {
-      normalized = 0;
-    }
-
-    return `${(normalized * 100).toFixed(1)}%`;
-  }, [completionRateValue]);
+    return `${completionRateValue.toFixed(1)}%`;
+  }, [completionRateValue, totalResponsesValue]);
 
 
   const geoIntensity = useMemo(() => {
-    if (!aggregatedHeatmapPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
-    const sorted = [...aggregatedHeatmapPoints].sort((a, b) => b.respuestas - a.respuestas);
+    if (!authorizedTerritoryPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
+    const sorted = [...authorizedTerritoryPoints].sort((a, b) => b.respuestas - a.respuestas);
     const totalWeight = sorted.reduce((acc, point) => acc + (point.respuestas || 0), 0);
     const maxWeight = sorted[0]?.respuestas ?? 0;
     const avgWeight = totalWeight / sorted.length;
@@ -1436,10 +1619,10 @@ export const SurveyAnalytics = ({
       avgWeight,
       hotspots: sorted.slice(0, 5),
     };
-  }, [aggregatedHeatmapPoints]);
+  }, [authorizedTerritoryPoints]);
 
   const geoCoverageLabel = useMemo(() => {
-    if (!aggregatedHeatmapPoints.length) return '—';
+    if (!authorizedTerritoryPoints.length) return '—';
     const backendCoverage = toFiniteNumber(
       mapMetaRecord?.coverage_pct ?? mapMetaRecord?.coverage_percent ?? mapMetaRecord?.coverage,
     );
@@ -1447,10 +1630,10 @@ export const SurveyAnalytics = ({
       const normalizedCoverage = backendCoverage > 0 && backendCoverage <= 1 ? backendCoverage * 100 : backendCoverage;
       return `${Math.max(0, Math.min(100, normalizedCoverage)).toFixed(1)}%`;
     }
-    if (!totalResponsesValue || totalResponsesValue <= 0) return `${aggregatedHeatmapPoints.length} zonas`;
+    if (!totalResponsesValue || totalResponsesValue <= 0) return `${authorizedTerritoryPoints.length} zonas`;
     const ratio = Math.min(1, geoIntensity.totalWeight / totalResponsesValue);
     return `${(ratio * 100).toFixed(1)}%`;
-  }, [aggregatedHeatmapPoints.length, geoIntensity.totalWeight, mapMetaRecord, totalResponsesValue]);
+  }, [authorizedTerritoryPoints.length, geoIntensity.totalWeight, mapMetaRecord, totalResponsesValue]);
 
   const demographicSections = useMemo(() => {
     const candidates = summaryRecord
@@ -1478,19 +1661,46 @@ export const SurveyAnalytics = ({
       }>;
     }
 
-    return Object.entries(demographics)
-      .map(([id, items]) => {
-        const normalizedItems = getArrayOrObjectValues<SurveyDemographicBreakdownItem>(items);
-        if (!normalizedItems.length) return null;
-        const data = buildDemographicData(normalizedItems);
-        if (!data.length) return null;
-        return {
-          id,
-          title: normalizeDemographicLabel(id),
-          data,
-        };
-      })
-      .filter((section): section is { id: string; title: string; data: ReturnType<typeof buildDemographicData> } => Boolean(section));
+    const canonicalSections = new Map<string, { items: unknown; priority: number }>();
+    for (const [key, items] of Object.entries(demographics)) {
+      const id = key.replace(/_(series|map)$/, '');
+      if (id === 'edad') continue; // Age statistics are not categorical counts.
+      const priority = key === id ? 0 : key.endsWith('_series') ? 1 : 2;
+      const existing = canonicalSections.get(id);
+      if (!existing || priority < existing.priority) canonicalSections.set(id, { items, priority });
+    }
+
+    const normalizeItems = (items: unknown): unknown[] => {
+      if (isRecord(items) && Object.values(items).every((value) => toFiniteNumber(value) !== null)) {
+        return Object.entries(items).map(([label, value]) => ({ label, value }));
+      }
+      return getArrayOrObjectValues(items);
+    };
+    const sections: Array<{ id: string; title: string; data: ReturnType<typeof buildDemographicData> }> = [];
+    for (const [id, { items }] of canonicalSections) {
+      if (id === 'territorio') {
+        const territories = Array.isArray(items)
+          ? items
+          : isRecord(items)
+            ? Object.entries(items).map(([key, series]) => ({ key, series }))
+            : [];
+        for (const [index, territory] of territories.entries()) {
+          if (!isRecord(territory)) continue;
+          const key = toNonEmptyString(territory.key) ?? String(index);
+          const data = buildDemographicData(normalizeItems(territory.series));
+          if (!data.length) continue;
+          sections.push({
+            id: `${id}-${key}`,
+            title: toNonEmptyString(territory.label) ?? normalizeDemographicLabel(key),
+            data,
+          });
+        }
+      } else {
+        const data = buildDemographicData(normalizeItems(items));
+        if (data.length) sections.push({ id, title: normalizeDemographicLabel(id), data });
+      }
+    }
+    return sections;
   }, [summaryRecord]);
 
   useEffect(() => {
@@ -1557,8 +1767,8 @@ export const SurveyAnalytics = ({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Tasa de completitud</CardTitle>
-            <CardDescription>Porcentaje de formularios finalizados.</CardDescription>
+            <CardTitle>Completitud de respuestas recibidas</CardTitle>
+            <CardDescription>Respuestas completas sobre respuestas recibidas. No mide formularios iniciados ni población convocada.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
             {completionRateLabel}
@@ -1604,7 +1814,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Preferencias por opción</CardTitle>
           <CardDescription>
             {hasEligibilityMetrics
-              ? 'Tasas independientes por pregunta y opción, calculadas sobre participantes elegibles.'
+              ? 'Tasas independientes por pregunta y opción, con la base indicada en cada fila.'
               : 'Resultados acumulados por pregunta y opción.'}
           </CardDescription>
         </CardHeader>
@@ -1646,7 +1856,7 @@ export const SurveyAnalytics = ({
                   ? 'Cada porcentaje es una tasa de selección independiente. En selección múltiple pueden sumar más de 100%.'
                   : hasRowsWithoutEligibleBase
                     ? 'Las filas sin base elegible informada se muestran explícitamente con su porcentaje legacy.'
-                    : 'Cada porcentaje usa la base elegible de su propia pregunta.'}
+                    : 'Cada porcentaje usa la base indicada para su propia pregunta.'}
               </p>
               <table
                 className="w-full min-w-[640px] text-left text-sm"
@@ -1675,7 +1885,7 @@ export const SurveyAnalytics = ({
                         {formatSurveyNumber(entry.respuestasSeleccionaron)}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        {formatSurveyPercentage(entry.participacion)}
+                        {entry.participacion !== undefined ? formatSurveyPercentage(entry.participacion) : 'Sin tasa exacta'}
                         <span className="block text-xs font-normal text-muted-foreground">
                           {entry.baseParticipacion === 'elegibles'
                             ? 'sobre elegibles'
@@ -1683,11 +1893,15 @@ export const SurveyAnalytics = ({
                               ? 'sobre respuestas de la pregunta'
                               : entry.baseParticipacion === 'total_encuesta'
                                 ? 'sobre total de encuesta'
-                                : 'porcentaje legacy'}
+                                : entry.baseParticipacion === 'legacy' ? 'porcentaje legacy' : 'Base exacta no informada'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {!entry.usaBaseElegible
+                        {entry.baseElegiblesEstimada
+                          ? entry.respuestasElegiblesEstimadas !== undefined
+                            ? `${formatSurveyNumber(entry.respuestasElegiblesEstimadas)} elegibles estimados`
+                            : 'Base elegible estimada'
+                          : !entry.usaBaseElegible
                           ? 'Base elegible no informada'
                           : entry.respuestasElegibles !== undefined
                             ? `${formatSurveyNumber(entry.respuestasElegibles)} elegibles`
@@ -1785,7 +1999,7 @@ export const SurveyAnalytics = ({
       </Card>
 
       <SurveyTerritoryCommandCenter
-        points={aggregatedHeatmapPoints}
+        points={authorizedTerritoryPoints}
         geoIntensity={geoIntensity}
         geoCoverageLabel={geoCoverageLabel}
         totalResponses={totalResponsesValue}
@@ -1797,7 +2011,26 @@ export const SurveyAnalytics = ({
         boundingBoxValue={boundingBoxValue}
         channelBreakdown={channelBreakdown}
         categoryLayerCount={categoryColorMap.size}
+        evidenceGate={territoryEvidenceGate}
       />
+
+      {!territoryEvidenceGate.ready ? (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="survey-territory-evidence-block"
+          className="rounded-xl border border-amber-400/50 bg-amber-500/10 p-4 text-sm text-amber-950 dark:text-amber-100"
+        >
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">{territoryEvidenceGate.title}</p>
+              <p className="mt-1">{territoryEvidenceGate.detail}</p>
+              <p className="mt-2 font-medium">Próxima acción: {territoryEvidenceGate.nextAction}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Card className="border-border/70 shadow-sm">
         <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -1884,19 +2117,25 @@ export const SurveyAnalytics = ({
               <p className="mt-3 text-sm font-medium">Preparando el mapa con las respuestas geolocalizadas...</p>
             </div>
           ) : (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
+            <div className="flex min-h-44 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/15 p-5 text-center">
+              <MapPin className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-foreground">
+                {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay respuestas georreferenciadas.'}
+              </p>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                El mapa permanece vacío hasta recibir barrio o coordenadas consentidas. No completamos la vista con ubicaciones simuladas.
+              </p>
             </div>
           )}
 
-          {aggregatedHeatmapPoints.length ? (
+          {authorizedTerritoryPoints.length ? (
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Ranking de Participación por Zona y Barrio
                 </p>
                 <Badge variant="outline" className="text-[11px]">
-                  {aggregatedHeatmapPoints.length} focos detectados
+                  {authorizedTerritoryPoints.length} focos detectados
                 </Badge>
               </div>
               <table className="min-w-full divide-y divide-border/60 text-xs">
@@ -1910,8 +2149,8 @@ export const SurveyAnalytics = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {aggregatedHeatmapPoints.slice(0, 15).map((point, index) => {
-                    const maxVol = Math.max(1, ...aggregatedHeatmapPoints.map((p) => p.respuestas || 1));
+                  {authorizedTerritoryPoints.slice(0, 15).map((point, index) => {
+                    const maxVol = Math.max(1, ...authorizedTerritoryPoints.map((p) => p.respuestas || 1));
                     const pct = Math.round(((point.respuestas || 0) / maxVol) * 100);
                     const zoneName = point.barrio || point.ciudad || `Zona ${index + 1} (${point.lat.toFixed(2)}, ${point.lng.toFixed(2)})`;
                     return (
@@ -1996,7 +2235,7 @@ export const SurveyAnalytics = ({
                       <Tooltip
                         formatter={(value: number, _name, payload) => {
                           const percentage = payload?.payload?.percentage;
-                          return percentage
+                          return typeof percentage === 'number'
                             ? [`${value} respuestas (${percentage.toFixed(1)}%)`, '']
                             : [`${value} respuestas`, ''];
                         }}

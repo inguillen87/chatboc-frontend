@@ -3,12 +3,18 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useTenantHostBinding } from '@/hooks/useTenantHostBinding';
+import { publishTenantHostRuntime, tenantHostRouteMatches, TenantHostUnavailableError } from '@/utils/tenantHostBinding';
+import type { TenantHostBinding } from '@/types/tenantHost';
+import { applyWidgetThemeVariables, widgetThemeVariables } from '@/utils/widgetTheme';
+import { resolvePublicDemoPreloadTarget } from '@/config/publicPresentationRoutes';
 
 import {
   followTenant as followTenantRequest,
@@ -22,7 +28,11 @@ import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
 import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { useTenantStore } from '@/stores';
+import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
+import {
+  captureChatbocSessionRevision,
+  subscribeChatbocSessionRevision,
+} from '@/utils/chatbocSessionRevision';
 import {
   isTenantSlugDeploymentHostnameMirror,
   readTenantSlugFromHostname,
@@ -35,6 +45,7 @@ import {
 const LOCAL_PLACEHOLDER_SLUGS = new Set([...TENANT_PLACEHOLDER_SLUGS, 'e']);
 
 interface TenantContextValue {
+  hostBinding?: TenantHostBinding | null;
   currentSlug: string | null;
   tenant: TenantPublicInfo | null;
   isLoadingTenant: boolean;
@@ -50,6 +61,25 @@ interface TenantContextValue {
   followCurrentTenant: () => Promise<void>;
   unfollowCurrentTenant: () => Promise<void>;
 }
+
+type FollowedTenantsState = {
+  authority: number;
+  items: TenantSummary[];
+  loading: boolean;
+  error: string | null;
+};
+
+const emptyFollowedTenantsState = (authority: number): FollowedTenantsState => ({
+  authority, items: [], loading: false, error: null,
+});
+
+const readFollowedIdentity = (widgetToken: string | null) => {
+  const panel = usePanelSessionStore.getState();
+  return JSON.stringify([
+    panel.authToken, panel.user?.id ?? null, captureChatbocSessionRevision(),
+    widgetToken ? useWidgetSessionStore.getState().chatAuthToken : null,
+  ]);
+};
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
@@ -86,7 +116,11 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
 const isTenantIndependentPath = (pathname: string) => {
   const normalized = pathname.trim().toLowerCase().replace(/\/+$/, '') || '/';
-  return normalized === '/superadmin' || normalized.startsWith('/superadmin/');
+  return (
+    normalized === '/superadmin' ||
+    normalized.startsWith('/superadmin/') ||
+    resolvePublicDemoPreloadTarget(normalized) !== null
+  );
 };
 const PORTAL_SECTION_SEGMENTS = new Set([
   'dashboard',
@@ -145,6 +179,8 @@ const readTenantFromConfig = (): { slug: string | null; widgetToken: string | nu
 };
 
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
+  const rehearsal = pathname.match(/^\/pruebas\/encuestas\/([a-z0-9][a-z0-9-]{0,99})\/rehearsal_[a-f0-9]{32}\/?$/);
+  if (rehearsal) return sanitizeTenantSlug(rehearsal[1]);
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
     try {
@@ -290,18 +326,59 @@ export const TenantProvider = ({
   bootstrapEnabled?: boolean;
 }) => {
   const location = useLocation();
+  const hostResolution = useTenantHostBinding();
+  const hostBinding = hostResolution.binding;
+  const hostScopeMismatch = Boolean(hostBinding && !tenantHostRouteMatches(hostBinding, location.pathname, location.search));
   const tenantBootstrapSuppressed =
     !bootstrapEnabled || isTenantIndependentPath(location.pathname);
+  const isPublicTenantLanding = hostResolution.required || /^\/t\/[^/]+\/?$/i.test(location.pathname);
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
   const [isLoadingTenant, setIsLoadingTenant] = useState(true);
   const [tenantError, setTenantError] = useState<string | null>(null);
-  const [followedTenants, setFollowedTenants] = useState<TenantSummary[]>([]);
-  const [isLoadingFollowedTenants, setIsLoadingFollowedTenants] = useState(false);
-  const [followedTenantsError, setFollowedTenantsError] = useState<string | null>(null);
+  const followedAuthority = useRef(0);
+  const activeFollowedRequest = useRef(0);
+  const followedMounted = useRef(false);
+  const followedIdentity = useRef<string | null>(null);
+  const followedScope = useRef<string | null>(null);
+  const [followedGeneration, setFollowedGeneration] = useState(0);
+  const [followedState, setFollowedState] = useState<FollowedTenantsState>(() => emptyFollowedTenantsState(0));
+  const isFollowedStateCurrent = followedState.authority === followedAuthority.current;
+  const followedTenants = isFollowedStateCurrent ? followedState.items : [];
+  const isLoadingFollowedTenants = isFollowedStateCurrent && followedState.loading;
+  const followedTenantsError = isFollowedStateCurrent ? followedState.error : null;
   const activeTenantRequest = useRef(0);
   const currentSlugRef = useRef<string | null>(null);
+  const canReadFollowedTenants = !tenantBootstrapSuppressed &&
+    (!hostResolution.required || (hostResolution.status === 'active' && Boolean(hostBinding) && !hostScopeMismatch)) &&
+    Boolean(currentSlug || widgetToken);
+  const widgetFollowedSlug = widgetToken ? currentSlug : null;
+  const followedScopeKey = JSON.stringify([canReadFollowedTenants, widgetToken, widgetFollowedSlug]);
+
+  useLayoutEffect(() => {
+    followedMounted.current = true;
+    const synchronizeAuthority = () => {
+      const identity = readFollowedIdentity(widgetToken);
+      if (followedIdentity.current === identity && followedScope.current === followedScopeKey) return;
+      followedIdentity.current = identity;
+      followedScope.current = followedScopeKey;
+      // Observe every store transition, including A -> B -> A between React commits.
+      const generation = ++followedAuthority.current;
+      activeFollowedRequest.current += 1;
+      setFollowedGeneration(generation);
+      setFollowedState(emptyFollowedTenantsState(generation));
+    };
+    synchronizeAuthority();
+    const stopPanel = usePanelSessionStore.subscribe(synchronizeAuthority);
+    const stopWidget = useWidgetSessionStore.subscribe(synchronizeAuthority);
+    const stopRevision = subscribeChatbocSessionRevision(synchronizeAuthority);
+    return () => {
+      followedMounted.current = false;
+      activeFollowedRequest.current += 1;
+      stopPanel(); stopWidget(); stopRevision();
+    };
+  }, [followedScopeKey, widgetToken]);
 
   const isRecoverableTenantError = useCallback((error: unknown) => {
     if (error instanceof ApiError) {
@@ -319,13 +396,16 @@ export const TenantProvider = ({
 
     try {
       const info = await getTenantPublicInfoFlexible(slug, token);
+      if (hostBinding && (info.publishedIdentity?.tenantId !== hostBinding.tenant.id || info.publishedIdentity?.tenantSlug !== hostBinding.tenant.slug || info.slug !== hostBinding.tenant.slug)) {
+        throw new TenantHostUnavailableError();
+      }
 
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
         if (info?.slug) {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
-           useTenantStore.getState().setTenant(info.slug, info);
+           if (!isPublicTenantLanding) useTenantStore.getState().setTenant(info.slug, info);
            if (token) {
              const scopedToken = resolveWidgetTokenForTenant(token, info.slug);
              if (scopedToken) {
@@ -340,14 +420,15 @@ export const TenantProvider = ({
 
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
-        const recoverable = isRecoverableTenantError(error);
-        setTenant(DEFAULT_TENANT_INFO);
-        setTenantError(recoverable ? null : getErrorMessage(error));
+        if (hostResolution.required) publishTenantHostRuntime(null);
+        const recoverable = !hostResolution.required && isRecoverableTenantError(error);
+        setTenant(hostResolution.required ? null : DEFAULT_TENANT_INFO);
+        setTenantError(hostResolution.required ? 'No pudimos confirmar la información de este dominio.' : recoverable ? null : getErrorMessage(error));
 
         if (recoverable) {
           setCurrentSlug(null);
           currentSlugRef.current = null;
-          useTenantStore.getState().clearTenant();
+          if (!isPublicTenantLanding) useTenantStore.getState().clearTenant();
         }
 
       }
@@ -359,11 +440,23 @@ export const TenantProvider = ({
         setIsLoadingTenant(false);
       }
     }
-  }, [isRecoverableTenantError]);
+  }, [isRecoverableTenantError, isPublicTenantLanding, hostBinding, hostResolution.required]);
 
   useEffect(() => {
+    if (hostResolution.required && (hostResolution.status !== 'active' || hostScopeMismatch)) {
+      activeTenantRequest.current += 1;
+      currentSlugRef.current = null;
+      setCurrentSlug(null);
+      setTenant(null);
+      setWidgetToken(null);
+      setTenantError(null);
+      setIsLoadingTenant(hostResolution.status === 'loading');
+      setFollowedState(emptyFollowedTenantsState(followedAuthority.current));
+      return;
+    }
     const { slug, widgetToken: token } = tenantBootstrapSuppressed
       ? { slug: null, widgetToken: null }
+      : hostBinding ? { slug: hostBinding.tenant.slug, widgetToken: null }
       : resolveTenantBootstrap(location.pathname, location.search);
     currentSlugRef.current = slug;
     setCurrentSlug(slug);
@@ -383,9 +476,7 @@ export const TenantProvider = ({
           themeConfig: null,
           features: null,
         });
-        setFollowedTenants([]);
-        setFollowedTenantsError(null);
-        setIsLoadingFollowedTenants(false);
+        setFollowedState(emptyFollowedTenantsState(followedAuthority.current));
       } else {
         useTenantStore.getState().clearTenant();
       }
@@ -397,38 +488,46 @@ export const TenantProvider = ({
         console.warn('[TenantContext] No se pudo cargar la información pública del tenant', error);
       }
     });
-  }, [fetchTenant, location.pathname, location.search, tenantBootstrapSuppressed]);
+  }, [fetchTenant, location.pathname, location.search, tenantBootstrapSuppressed, hostBinding, hostResolution.required, hostResolution.status, hostScopeMismatch]);
 
   const refreshTenant = useCallback(async () => {
+    if (hostResolution.required) { hostResolution.refresh(); return; }
     if (!currentSlugRef.current && !widgetToken) return;
     try {
       await fetchTenant(currentSlugRef.current, widgetToken);
     } catch {
       // el estado ya quedó manejado por fetchTenant
     }
-  }, [fetchTenant, widgetToken]);
+  }, [fetchTenant, widgetToken, hostResolution.required, hostResolution.refresh]);
 
   useEffect(() => {
-    if (tenantBootstrapSuppressed) return;
+    if (tenantBootstrapSuppressed || (hostResolution.required && (!hostBinding || hostScopeMismatch))) return;
     ensureRemoteAnonId({ tenantSlug: currentSlugRef.current, widgetToken }).catch((error) => {
       console.warn('[TenantContext] No se pudo asegurar anon_id remoto', error);
     });
-  }, [tenantBootstrapSuppressed, widgetToken]);
+  }, [tenantBootstrapSuppressed, widgetToken, hostBinding, hostResolution.required, hostScopeMismatch]);
 
   useEffect(() => {
-    if (tenantBootstrapSuppressed) return;
+    if (tenantBootstrapSuppressed || isPublicTenantLanding) return;
     const sanitized = sanitizeTenantSlug(currentSlugRef.current);
     if (sanitized) {
       safeLocalStorage.setItem('tenantSlug', sanitized);
     } else {
       safeLocalStorage.removeItem('tenantSlug');
     }
-  }, [currentSlug, tenantBootstrapSuppressed]);
+  }, [currentSlug, tenantBootstrapSuppressed, isPublicTenantLanding]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     (window as any).currentTenantSlug = currentSlug ?? null;
   }, [currentSlug]);
+
+  useLayoutEffect(() => {
+    if (!hostBinding || hostScopeMismatch) return;
+    return applyWidgetThemeVariables(document.documentElement, widgetThemeVariables({}, {
+      primary: hostBinding.brand.primary_color, secondary: hostBinding.brand.accent_color,
+    }));
+  }, [hostBinding, hostScopeMismatch]);
 
   useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;
@@ -459,31 +558,40 @@ export const TenantProvider = ({
   }, [tenant?.tema, location.pathname, tenant?.slug]);
 
   const refreshFollowedTenants = useCallback(async () => {
-    if (!currentSlugRef.current && !widgetToken) {
-      setFollowedTenants([]);
-      setFollowedTenantsError(null);
-      setIsLoadingFollowedTenants(false);
-      return;
-    }
-
-    setIsLoadingFollowedTenants(true);
-    setFollowedTenantsError(null);
+    if (!followedMounted.current || !canReadFollowedTenants || followedGeneration !== followedAuthority.current ||
+        (widgetToken && currentSlugRef.current !== widgetFollowedSlug)) return;
+    const authority = followedGeneration;
+    const request = ++activeFollowedRequest.current;
+    const identity = readFollowedIdentity(widgetToken);
+    const isCurrent = () => followedMounted.current && activeFollowedRequest.current === request &&
+      followedAuthority.current === authority && followedScope.current === followedScopeKey &&
+      readFollowedIdentity(widgetToken) === identity;
+    setFollowedState(previous => isCurrent() && previous.authority === authority
+      ? { ...previous, loading: true, error: null } : previous);
     try {
       const items = await listFollowedTenants(currentSlugRef.current, widgetToken);
-      setFollowedTenants(items);
+      if (!isCurrent()) return;
+      setFollowedState(previous => isCurrent() && previous.authority === authority
+        ? { ...previous, items, error: null } : previous);
     } catch (error) {
-      setFollowedTenantsError(
-        getErrorMessage(error, 'No se pudieron actualizar los espacios seguidos en este momento.'),
-      );
+      if (!isCurrent()) return;
+      const aborted = Boolean(error && typeof error === 'object' && 'name' in error && error.name === 'AbortError');
+      const unavailableMessage = 'No se pudieron actualizar los espacios seguidos en este momento.';
+      setFollowedState(previous => isCurrent() && previous.authority === authority
+        ? { ...previous, items: aborted ? [] : previous.items,
+          error: aborted ? unavailableMessage : getErrorMessage(error, unavailableMessage) }
+        : previous);
     } finally {
-      setIsLoadingFollowedTenants(false);
+      if (isCurrent()) {
+        setFollowedState(previous => isCurrent() && previous.authority === authority
+          ? { ...previous, loading: false } : previous);
+      }
     }
-  }, [widgetToken]);
+  }, [canReadFollowedTenants, followedGeneration, followedScopeKey, widgetToken, widgetFollowedSlug]);
 
   useEffect(() => {
-    refreshFollowedTenants().catch((error) => {
-      console.warn('[TenantContext] No se pudo cargar la lista inicial de tenants seguidos', error);
-    });
+    void refreshFollowedTenants();
+    return () => { activeFollowedRequest.current += 1; };
   }, [refreshFollowedTenants]);
 
   const isCurrentTenantFollowed = useMemo(() => {
@@ -509,6 +617,7 @@ export const TenantProvider = ({
   }, [refreshFollowedTenants]);
 
   const value = useMemo<TenantContextValue>(() => ({
+    hostBinding,
     currentSlug,
     tenant: tenant ?? DEFAULT_TENANT_INFO,
     isLoadingTenant,
@@ -523,7 +632,7 @@ export const TenantProvider = ({
     followCurrentTenant,
     unfollowCurrentTenant,
     setTenantSlug: (slug: string) => {
-        if (tenantBootstrapSuppressed) return;
+        if (tenantBootstrapSuppressed || hostResolution.required) return;
         const sanitized = sanitizeTenantSlug(slug);
         setCurrentSlug(sanitized);
         currentSlugRef.current = sanitized;
@@ -545,8 +654,19 @@ export const TenantProvider = ({
     followCurrentTenant,
     unfollowCurrentTenant,
     tenantBootstrapSuppressed,
+    hostBinding,
+    hostResolution.required,
   ]);
 
+  const hostProfilePending = !tenantBootstrapSuppressed && (!tenant || isLoadingTenant || currentSlug !== hostBinding?.tenant.slug);
+  if (hostResolution.required && (hostResolution.status !== 'active' || hostScopeMismatch || tenantError || hostProfilePending)) {
+    const loading = hostResolution.status === 'loading' || (hostResolution.status === 'active' && hostProfilePending && !hostScopeMismatch && !tenantError);
+    return <main id="main-content" className="mx-auto flex min-h-[65vh] max-w-2xl flex-col justify-center gap-4 px-6 py-12" aria-busy={loading}>
+      <h1 className="text-2xl font-semibold">{loading ? 'Cargando espacio' : 'Este dominio no está disponible'}</h1>
+      <p role={loading ? 'status' : 'alert'}>{loading ? 'Estamos comprobando la organización de este dominio.' : hostScopeMismatch ? 'La dirección solicitada no corresponde a la organización de este dominio.' : 'No pudimos confirmar un espacio activo y verificado. Reintentá en unos minutos.'}</p>
+      {!loading ? <button type="button" className="min-h-11 rounded-lg border px-4 py-2 text-sm font-semibold" onClick={hostResolution.refresh}>Reintentar</button> : null}
+    </main>;
+  }
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 };
 

@@ -9,6 +9,19 @@ import type { OmnichannelInboxActionV2, SaasAction } from '@/api/v2/saas';
 const apiMocks = vi.hoisted(() => ({
   postAction: vi.fn(),
 }));
+// Actor/session are synthetic here; UserProvider and authenticated browser are not exercised.
+vi.mock('@/hooks/useUser', () => ({ useUser: () => ({
+  user: { id: 7, rol: 'empleado', tenant_slug: 'junin' }, loading: false,
+  organizationProfileVerified: true, hasVerifiedSession: true,
+}) }));
+vi.mock('@/config', () => ({ SAME_ORIGIN_PROXY_BASE: '/api' }));
+vi.mock('@/utils/api', () => ({
+  apiFetch: () => { throw new Error('Unexpected transport in the control-only fixture.'); },
+  getErrorMessage: (error: unknown) => error instanceof Error ? error.message : 'Error fixture',
+  ApiError: class ApiError extends Error {
+    constructor(message: string, public status: number, public body: unknown = null) { super(message); }
+  },
+}));
 
 vi.mock('@/api/v2/saas', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@/api/v2/saas');
@@ -23,6 +36,8 @@ const handoffAction: SaasAction = {
   label: 'Derivar al equipo',
   method: 'POST',
   endpoint: '/api/v2/inbox/omnichannel/42/actions',
+  delivery_mode: 'internal_event',
+  external_dispatch: false,
   requires: ['channel'],
   payload_defaults: { channel: 'operator' },
 };
@@ -50,6 +65,7 @@ const buildResult = (overrides: Partial<OmnichannelInboxActionV2> = {}): Omnicha
         method: 'POST',
       },
     ],
+    raw: { allowed_actions: [{ id: 'accept_handoff', label: 'Tomar conversación', method: 'POST' }] },
     next_steps: [],
     agent_copilot_suggestions: [],
     handoff: { status: 'requested', requested_by: { name: 'Operador Uno' } },
@@ -103,6 +119,8 @@ describe('TicketAiHandoffControl', () => {
         payload: { channel: 'operator' },
       },
       'junin',
+      undefined,
+      { isCurrent: expect.any(Function) },
     );
 
     await act(async () => {
@@ -129,6 +147,18 @@ describe('TicketAiHandoffControl', () => {
 
     expect(screen.getByRole('button', { name: 'Derivar al equipo' })).toBeDisabled();
     expect(screen.getByText('Falta completar el contrato backend: channel.')).toBeInTheDocument();
+    expect(apiMocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['despacho externo', { external_dispatch: true }],
+    ['modo no publicado', { delivery_mode: undefined }],
+    ['flag externo ausente', { external_dispatch: undefined }],
+  ])('bloquea %s porque el handoff debe ser exclusivamente interno', (_label, overrides) => {
+    renderControl({ actions: [{ ...handoffAction, ...overrides }] });
+
+    expect(screen.getByRole('button', { name: 'Derivar al equipo' })).toBeDisabled();
+    expect(screen.getByText('La transición no garantiza una acción interna sin despacho externo.')).toBeInTheDocument();
     expect(apiMocks.postAction).not.toHaveBeenCalled();
   });
 

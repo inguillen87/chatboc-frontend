@@ -1,3 +1,4 @@
+import {readPublishedTenantIdentity,TenantProfileScopeError} from '@/utils/publishedTenantIdentity';
 import { apiFetch, ApiError } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { normalizeEntityToken } from '@/utils/entityToken';
@@ -102,10 +103,13 @@ const normalizeTenantInfo = (
   }
 
   const nombre = coerceString(source.nombre) ?? coerceString(payload.nombre) ?? slug;
+  const publishedIdentity = readPublishedTenantIdentity(payload, forceSlug);
+
 
   return {
     slug,
     nombre,
+    publishedIdentity,
     logo_url:
       coerceString(source.logo_url) ??
       coerceString(source.logoUrl) ??
@@ -213,7 +217,7 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
     omitChatSessionId: true,
   });
 
-  return normalizeTenantInfo(response, slug);
+  return normalizeTenantInfo(response, slug, slug);
 }
 
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
@@ -345,6 +349,7 @@ const resolveTenantInfo = async ({
       omitChatSessionId: true,
       sendAnonId: true,
       omitEntityToken: true,
+      persistTenantSlug: false,
     });
   };
 
@@ -378,11 +383,17 @@ export async function getTenantPublicInfoFlexible(
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
     } catch (slugError) {
-      if (!safeWidgetToken || isPwaTenantResolutionFailure(slugError)) {
+      // A token can resolve a compatible lookup/request-shape failure. It does
+      // not repair unavailable services, rate limits, authorization or an
+      // invalid response; preserve those failures without starting more reads.
+      const compatibleLookupFailure = slugError instanceof ApiError &&
+        (slugError.status === 400 || shouldTryTenantInfoFallback(slugError));
+      if (!safeWidgetToken || !compatibleLookupFailure ||
+          slugError instanceof TenantProfileScopeError || isPwaTenantResolutionFailure(slugError)) {
         throw slugError;
       }
 
-      // Si el slug falló, probamos con el widget token como alternativa.
+      // Conserva el slug explícito también en la alternativa compatible.
       const info = await resolveTenantInfo({
         slug: safeSlug,
         widgetToken: safeWidgetToken,
@@ -464,21 +475,39 @@ export async function getTenantPublicNavigation(slug: string): Promise<TenantPub
     isWidgetRequest: true,
     omitChatSessionId: true,
     omitEntityToken: true,
+    persistTenantSlug: false,
   } as const;
 
   const response = await apiFetch<unknown>(`/api/public/tenants/${encoded}/public-navigation`, options);
-  return normalizePublicNavigation(response, normalized);
+  const navigation = normalizePublicNavigation(response, normalized);
+  if (navigation.tenant_slug.trim().toLowerCase() !== normalized.toLowerCase()) {
+    throw new TenantProfileScopeError();
+  }
+  return navigation;
 }
+
+export type TenantClaimRequestScope = {
+  signal?: AbortSignal;
+  isCurrent?: () => boolean;
+};
 
 export async function submitTenantTicket(
   slug: string,
   payload: TenantTicketPayload,
   idempotencyKey: string,
+  scope: TenantClaimRequestScope = {},
 ): Promise<TenantClaimIntakeReceipt> {
   const normalizedIdempotencyKey = idempotencyKey.trim();
   if (!/^[A-Za-z0-9_.:-]{8,128}$/.test(normalizedIdempotencyKey)) {
     throw new Error('No se pudo generar una clave segura para enviar el reclamo.');
   }
+
+  const assertCurrent = () => {
+    if (scope.signal?.aborted || scope.isCurrent?.() === false) {
+      throw new DOMException('Request retired', 'AbortError');
+    }
+  };
+  assertCurrent();
 
   const response = await apiFetch<unknown>('/api/pwa/app/tickets', {
     method: 'POST',
@@ -487,8 +516,11 @@ export async function submitTenantTicket(
     tenantSlug: slug,
     omitChatSessionId: true,
     baseUrlOverride: SAME_ORIGIN_API_BASE,
+    ...(scope.signal ? { signal: scope.signal } : {}),
+    ...(scope.isCurrent ? { isCurrent: scope.isCurrent } : {}),
   });
 
+  assertCurrent();
   return normalizeTenantClaimIntakeReceipt(response);
 }
 
@@ -623,6 +655,11 @@ export async function listFollowedTenants(
       entityToken: widgetToken ?? undefined,
       isWidgetRequest: Boolean(widgetToken),
       omitChatSessionId: true,
+      // A panel user's followed spaces belong to that authenticated user, not
+      // the public organization currently being viewed. Keep widget scopes.
+      omitTenant: !widgetToken,
+      omitEntityToken: !widgetToken,
+      persistTenantSlug: false,
       suppressPanel401Redirect: true,
       baseUrlOverride: SAME_ORIGIN_API_BASE,
     });

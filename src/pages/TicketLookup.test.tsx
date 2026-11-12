@@ -69,6 +69,8 @@ describe('TicketLookup request_id support surface', () => {
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     navigateMock.mockReset();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
 
     getLiveChatScheduleStatusMock.mockResolvedValue({
       enabled: true,
@@ -320,6 +322,7 @@ describe('TicketLookup request_id support surface', () => {
       name: /abrir chat del reclamo/i,
     });
     fireEvent.click(openButton);
+    expect(Boolean(window.localStorage.getItem('pending_widget_action'))).toBe(false);
 
     expect(await screen.findByText(/atención en vivo disponible/i)).toBeInTheDocument();
 
@@ -396,6 +399,7 @@ describe('TicketLookup request_id support surface', () => {
     expect(routingSummary).toHaveTextContent('Mensaje offline en CRM');
     expect(routingSummary).toHaveTextContent('Lunes a viernes de 09:00 a 13:00');
     fireEvent.click(offlineButton);
+    expect(Boolean(window.localStorage.getItem('pending_widget_action'))).toBe(false);
 
     expect(await screen.findByText(/atención fuera de horario/i)).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText(/mensaje offline para este reclamo/i), {

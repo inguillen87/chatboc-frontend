@@ -7,13 +7,19 @@ import Integracion from "@/pages/Integracion";
 import { tenantService } from "@/services/tenantService";
 
 const whatsappOnboardingMock = vi.fn();
+const session = vi.hoisted(() => ({
+  loading: false, hasVerifiedSession: true, organizationProfileVerified: true, refreshUser: vi.fn(),
+  user: { id: 42, tenantSlug: 'junin', rol: 'admin', role: 'admin', tipo_chat: 'municipio' },
+}));
+vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 
 vi.mock("@/hooks/useUser", () => ({
-  useUser: () => ({
-    loading: false,
-    user: { tenantSlug: "junin", rol: "admin", role: "admin", tipo_chat: "municipio" },
-  }),
+  useUser: () => session,
 }));
+vi.mock('@/context/TenantContext', () => ({ useTenant: () => ({
+  currentSlug: null, tenant: null, tenantError: null, isLoadingTenant: false, refreshTenant: vi.fn(),
+}) }));
+vi.mock('@/components/admin/ChatCustomizer', () => ({ default: () => null }));
 
 vi.mock("@/services/tenantService", () => ({
   tenantService: {
@@ -88,6 +94,7 @@ const renderPage = (entry: string) =>
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/integracion" element={<Integracion />} />
+        <Route path="/t/:tenant/integracion" element={<Integracion />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -95,10 +102,39 @@ const renderPage = (entry: string) =>
 describe("Integracion deep links", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    session.hasVerifiedSession = true; session.organizationProfileVerified = true;
+    session.user = { id: 42, tenantSlug: 'junin', rol: 'admin', role: 'admin', tipo_chat: 'municipio' };
     whatsappOnboardingMock.mockClear();
     mockedTenantService.getTenantConfig.mockResolvedValue(baseConfig as any);
     mockedTenantService.getIntegrationEmbed.mockResolvedValue({ widget: { embed_snippet: "" } });
     mockedTenantService.getPublicWidgetConfig.mockResolvedValue({ widget: { builder_config: {} } });
+    mockedTenantService.listWhatsappNumbers.mockResolvedValue({ numbers: [] });
+  });
+  it.each(['/integracion?channel=whatsapp&tenant_slug=selected-organization', '/t/selected-organization/integracion?channel=whatsapp'])
+    ('keeps the explicit selected organization instead of the SuperAdmin actor home at %s', async entry => {
+      session.user.rol = 'superadmin'; session.user.role = 'superadmin';
+      mockedTenantService.getTenantConfig.mockResolvedValue({ ...baseConfig, tenant: { ...baseConfig.tenant, slug: 'selected-organization' } } as any);
+      renderPage(entry);
+      expect(await screen.findByTestId('whatsapp-tech-provider')).toHaveTextContent('selected-organization');
+      expect(mockedTenantService.getTenantConfig).toHaveBeenCalledExactlyOnceWith('selected-organization');
+      expect(session.user.tenantSlug).toBe('junin');
+    });
+  it('blocks conflicting route selectors and an unverified profile before loading configuration', async () => {
+    renderPage('/t/selected-organization/integracion?tenant_slug=other-organization');
+    expect(screen.getByText('No pudimos validar la organización')).toBeInTheDocument();
+    expect(mockedTenantService.getTenantConfig).not.toHaveBeenCalled();
+  });
+  it('does not load settings from a persisted profile whose session has not been verified', () => {
+    session.hasVerifiedSession = false; session.organizationProfileVerified = false;
+    renderPage('/integracion?channel=whatsapp');
+    expect(screen.getByText('No pudimos validar la organización')).toBeInTheDocument();
+    expect(mockedTenantService.getTenantConfig).not.toHaveBeenCalled();
+  });
+  it('does not expose a foreign configuration response under the selected organization', async () => {
+    renderPage('/integracion?tenant_slug=selected-organization');
+    await screen.findByText('No se pudo cargar la configuración de la organización');
+    expect(screen.queryByTestId('whatsapp-tech-provider')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled();
   });
 
   it("opens WhatsApp setup and forwards focusAction from channel deep links", async () => {

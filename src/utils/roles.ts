@@ -13,6 +13,7 @@ export type Role =
   | 'admin'
   | 'admin_pyme'
   | 'admin_municipio'
+  | 'admin_colegio'
   | 'admin_municipal'
   | 'municipal_admin'
   | 'municipality_admin'
@@ -24,6 +25,9 @@ export type Role =
   | 'municipio_admin'
   | 'employee'
   | 'empleado'
+  | 'empleado_pyme'
+  | 'empleado_municipio'
+  | 'empleado_colegio'
   | 'operator'
   | 'operador'
   | 'catalog_manager'
@@ -51,6 +55,7 @@ const ROLE_EQUIVALENCE: Record<string, string[]> = {
     'admin_tenant',
     'admin_pyme',
     'admin_municipio',
+    'admin_colegio',
     'admin_municipal',
     'municipal_admin',
     'municipality_admin',
@@ -61,7 +66,7 @@ const ROLE_EQUIVALENCE: Record<string, string[]> = {
     'pyme_admin',
     'municipio_admin',
   ],
-  employee: ['employee', 'agent', 'empleado', 'operator', 'operador'],
+  employee: ['employee', 'agent', 'empleado', 'empleado_pyme', 'empleado_municipio', 'empleado_colegio', 'operator', 'operador'],
   catalog_manager: ['catalog_manager'],
   analytics_viewer: ['analytics_viewer'],
   end_user: ['end_user', 'chat_user', 'user', 'usuario', 'vecino', 'ciudadano'],

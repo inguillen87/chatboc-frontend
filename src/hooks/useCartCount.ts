@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { fetchMarketCart } from '@/api/market';
 
-export const useCartCount = (): number => {
+export const useCartCount = (enabled = true): number => {
   const { currentSlug } = useTenant();
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!currentSlug) {
+    if (!enabled || !currentSlug) {
       setCount(0);
       return;
     }
@@ -26,7 +26,7 @@ export const useCartCount = (): number => {
     return () => {
       active = false;
     };
-  }, [currentSlug]);
+  }, [currentSlug, enabled]);
 
   return count;
 };

@@ -1,0 +1,9 @@
+.survey-admin-workspace { min-width: 0; overflow-wrap: anywhere; }
+.survey-admin-workspace button { min-height: 44px; height: auto; white-space: normal; }
+.survey-admin-workspace input[type="search"] { min-height: 44px; }
+.survey-admin-workspace [aria-label="Filtrar por estado operativo"] { flex-wrap: wrap; overflow: visible; }
+.survey-admin-workspace :where(button, input, select, a):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .survey-admin-workspace .animate-spin { animation: none; }
+  .survey-admin-workspace button { transition: none; transform: none; }
+}

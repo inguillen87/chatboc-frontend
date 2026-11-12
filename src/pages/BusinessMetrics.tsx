@@ -1,7 +1,5 @@
-import React, { useEffect, useState, useCallback, FC, useMemo } from "react";
+import React, { useEffect, useState, useCallback, FC, useMemo, useRef, useSyncExternalStore } from "react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -16,14 +14,10 @@ import {
 } from "recharts";
 import {
   AlertCircle,
-  ArrowUp,
-  ArrowDown,
-  Minus,
   DollarSign,
   ShoppingCart,
   Users,
   Package,
-  MapPin,
   BrainCircuit,
   RefreshCw,
   Sparkles,
@@ -32,31 +26,18 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { apiFetch, getErrorMessage } from "@/utils/api";
-import ChartTooltip from "@/components/analytics/ChartTooltip";
+import { getErrorMessage } from "@/utils/api";
 import TicketStatsCharts from "@/components/TicketStatsCharts";
-import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
-import { enterpriseService } from "@/services/enterpriseService";
-import { useTenant } from "@/context/TenantContext";
-import { useParams } from "react-router-dom";
-import { isRecord, pickCollection, pickText } from "@/utils/responseShape";
-import { getOperationsHeatmapV2, getPublicMapConfigV1 } from "@/features/analytics/analyticsApi";
+import type { TicketStatsResponse } from "@/services/statsService";
 import { PremiumTerritoryHeatmap } from "@/features/analytics/PremiumTerritoryMap";
-import { isTerritoryDemoFallbackEnabled } from "@/features/analytics/premiumTerritoryHeatmap";
 import type { OperationsHeatmapPoint, OperationsHeatmapV1, PublicMapConfigV1 } from "@/features/analytics/analyticsTypes";
 
-interface Kpi {
-  value: number;
-  trend: number;
-}
-
-interface KpiData {
-  total_sales: Kpi;
-  total_orders: Kpi;
-  new_customers: Kpi;
-  avg_order_value: Kpi;
-}
+import { readBusinessMetrics, metricNumber, metricCount, formatMetricCount, metricReason, formatBusinessAmount, type BusinessKpi, type BusinessKpis, type MetricSeries } from './BusinessMetrics.data';
+import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
+import type { PrivateAnalyticsScope } from '@/features/analytics/privateAnalyticsScope';
+import { Link } from 'react-router-dom';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { subscribeChatbocSessionRevision, captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 interface SalesDataPoint {
   date: string;
@@ -103,15 +84,10 @@ interface TenantEmployeeCoverage {
   meta?: Record<string, any>;
 }
 
-const toNumber = (value: unknown): number => {
-  const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num : 0;
-};
-
 const normalizeBusinessHeatmapPoint = (point: Record<string, any>): OperationsHeatmapPoint | null => {
-  const lat = Number(point?.lat ?? point?.latitude);
-  const lng = Number(point?.lng ?? point?.lon ?? point?.longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const lat = metricNumber(point?.lat ?? point?.latitude);
+  const lng = metricNumber(point?.lng ?? point?.lon ?? point?.longitude);
+  if (lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
 
   const fallbackCategory = point?.ticket_type ?? point?.source ?? "actividad";
   return {
@@ -119,7 +95,7 @@ const normalizeBusinessHeatmapPoint = (point: Record<string, any>): OperationsHe
     id: point?.id ?? point?.ticket_id ?? point?.survey_id ?? point?.response_id,
     lat,
     lng,
-    weight: toNumber(point?.weight ?? point?.count ?? point?.total ?? 1),
+    weight: metricNumber(point?.weight ?? point?.count ?? point?.total) ?? 1,
     category: String(point?.category ?? point?.categoria ?? fallbackCategory),
     categoria: String(point?.categoria ?? point?.category ?? fallbackCategory),
     barrio: point?.barrio ?? point?.zona,
@@ -149,7 +125,7 @@ const bucketFromRecord = (item: Record<string, any>, index: number, labelKeys: s
     ...item,
     key: String(label ?? item?.id ?? `${fallbackPrefix}_${index + 1}`),
     label: String(label ?? `${fallbackPrefix} ${index + 1}`),
-    count: toNumber(item?.count ?? item?.total ?? item?.weight),
+    count: metricCount(item?.count ?? item?.total ?? item?.weight),
   };
 };
 
@@ -243,135 +219,95 @@ const formatStatusLabel = (value: string) =>
     .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
     .join(' ');
 
-const normalizeKpi = (value: unknown): Kpi => {
-  if (isRecord(value)) {
-    return {
-      value: toNumber(value.value ?? value.total ?? value.count),
-      trend: toNumber(value.trend ?? value.delta ?? value.percent_change),
-    };
-  }
-
-  return { value: toNumber(value), trend: 0 };
-};
-
-const normalizeKpiData = (payload: unknown): KpiData | null => {
-  if (!isRecord(payload)) return null;
-  const source = isRecord(payload.summary) ? payload.summary : payload;
-  const keys = ['total_sales', 'total_orders', 'new_customers', 'avg_order_value'] as const;
-  const hasAnyValue = keys.some((key) => source[key] !== undefined);
-  if (!hasAnyValue) return null;
-
-  return {
-    total_sales: normalizeKpi(source.total_sales),
-    total_orders: normalizeKpi(source.total_orders),
-    new_customers: normalizeKpi(source.new_customers),
-    avg_order_value: normalizeKpi(source.avg_order_value),
-  };
-};
-
 const STATUS_TITLE_KEYWORDS = ['estado', 'status'];
 
 // --- UI Components ---
 
-const TrendIndicator: FC<{ trend: number }> = ({ trend }) => {
-  const Icon = trend > 0 ? ArrowUp : trend < 0 ? ArrowDown : Minus;
-  const color = trend > 0 ? "text-green-500" : trend < 0 ? "text-red-500" : "text-gray-500";
-  return (
-    <span className={cn("flex items-center text-sm font-semibold", color)}>
-      <Icon className="h-4 w-4 mr-1" />
-      {Math.abs(trend * 100).toFixed(0)}%
-    </span>
-  );
-};
-
-const KpiCard: FC<{ title: string; data: Kpi; icon: React.ReactNode; formatAsCurrency?: boolean }> = ({ title, data, icon, formatAsCurrency = false }) => (
-  <Card className="group relative overflow-hidden border-border/60 bg-background/80 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
-    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/70 via-sky-400/70 to-violet-400/70 opacity-80" />
-    <div className="absolute -right-6 top-2 h-20 w-20 rounded-full bg-primary/5 blur-2xl transition-transform duration-500 group-hover:scale-125" />
+const KpiCard: FC<{ title: string; data: BusinessKpi; icon: React.ReactNode; currency?: string | null; monetary?: boolean }> = ({ title, data, icon, currency = null, monetary = false }) => (
+  <Card role="group" aria-label={title} className="relative overflow-hidden border-border/60 bg-background/80 shadow-sm">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <div className="rounded-2xl border border-primary/10 bg-primary/5 p-2 text-primary shadow-sm">{icon}</div>
+      <div aria-hidden="true" className="rounded-xl bg-primary/5 p-2 text-primary">{icon}</div>
     </CardHeader>
     <CardContent>
       <div className="text-3xl font-bold tracking-tight">
-        {formatAsCurrency ? `$${data.value.toLocaleString('es-AR')}` : data.value.toLocaleString('es-AR')}
+        {data.value === null ? 'No disponible' : monetary ? formatBusinessAmount(data.value, currency) : data.value.toLocaleString('es-AR')}
       </div>
-      <div className="mt-3 inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
-        <TrendIndicator trend={data.trend} />
-        <span className="ml-2">vs. mes anterior</span>
-      </div>
+      <p className="mt-3 text-sm text-muted-foreground">
+        {data.value === null ? metricReason(data.reasonCode) : title === 'Clientes con pedidos'
+          ? 'Identidades registradas con pedidos. Cada identificador se cuenta una vez.' : monetary
+            ? 'Importes registrados en pedidos.' : 'Pedidos registrados.'}
+      </p>
     </CardContent>
   </Card>
 );
 
-const SalesChart: FC<{ data: SalesDataPoint[] }> = ({ data }) => (
-    <Card className="col-span-1 overflow-hidden border-border/60 bg-background/85 shadow-sm md:col-span-2 lg:col-span-3">
-        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
-            <CardTitle>Ventas en el Tiempo (Últimos 30 días)</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={(value) => `$${Number(value) / 1000}k`} />
-                    <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('es-AR')}`, "Ventas"]} contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.2)", background: "rgba(15,23,42,0.92)", color: "#fff" }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                </LineChart>
-            </ResponsiveContainer>
-        </CardContent>
+type SeriesAvailability = MetricSeries<unknown>['availability'];
+const EmptyMetricCard: FC<{ title: string; detail: string; availability?: SeriesAvailability }> = ({ title, detail, availability }) => (
+  <Card className="col-span-1 border-border/60 bg-background/85 shadow-sm md:col-span-2">
+    <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+    <CardContent className="space-y-2">
+      <p className="font-medium">No disponible</p>
+      <p className="text-sm text-muted-foreground">{availability?.reasonCode === 'request_failed'
+        ? 'No pudimos consultar este detalle. Actualizá las métricas para reintentar.' : detail}</p>
+    </CardContent>
+  </Card>
+);
+
+const SalesChart: FC<{ data: SalesDataPoint[]; currency: string | null; availability?: SeriesAvailability }> = ({ data, currency, availability }) => {
+  if (!data.length || availability?.state === 'unavailable') return <EmptyMetricCard title="Evolución de importes" availability={availability}
+    detail="La serie temporal de pedidos no está disponible. Podés consultar los totales confirmados de esta vista." />;
+  return (
+    <Card className="col-span-1 border-border/60 md:col-span-2 lg:col-span-3">
+      <CardHeader><CardTitle>Evolución de importes</CardTitle></CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <YAxis tickFormatter={(value) => Number(value).toLocaleString('es-AR')} />
+            <Tooltip formatter={(value) => [formatBusinessAmount(Number(value), currency), 'Importe de pedidos']} />
+            <Line type="monotone" dataKey="sales" name="Importe de pedidos" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
     </Card>
-);
-
-const TopProductsList: FC<{ products: TopProduct[] }> = ({ products }) => (
-  <Card className="col-span-1 overflow-hidden border-border/60 bg-background/85 shadow-sm md:col-span-2 lg:col-span-2">
-    <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
-      <CardTitle>Top 5 Productos por Ingresos</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <ul className="space-y-4">
-        {products.map((p) => (
-          <li key={p.rank} className="flex items-center rounded-2xl border border-border/60 bg-muted/20 px-3 py-3">
-            <div className="text-lg font-bold text-primary w-6">{p.rank}</div>
-            <div className="flex-1 ml-4">
-              <p className="font-semibold">{p.name}</p>
-              <p className="text-sm text-muted-foreground">{p.units_sold} unidades vendidas</p>
-            </div>
-            <div className="text-right font-semibold">
-              ${p.revenue.toLocaleString('es-AR')}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </CardContent>
-  </Card>
-);
-
-const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
-    const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'];
-    return(
-        <Card className="col-span-1 overflow-hidden border-border/60 bg-background/85 shadow-sm md:col-span-2 lg:col-span-1">
-            <CardHeader className="border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">
-                <CardTitle>Ventas por Región</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                        <Pie data={data} dataKey="sales" nameKey="region_name" cx="50%" cy="50%" outerRadius={80} label>
-                            {data.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip
-                            cursor={false}
-                            content={<ChartTooltip />}
-                            formatter={(value) => `$${Number(value).toLocaleString('es-AR')}`}
-                        />
-                        <Legend />
-                    </PieChart>
-                </ResponsiveContainer>
-            </CardContent>
-        </Card>
-    )
+  );
+};
+const TopProductsList: FC<{ products: TopProduct[]; currency: string | null; availability?: SeriesAvailability }> = ({ products, currency, availability }) => {
+  if (!products.length || availability?.state === 'unavailable') return <EmptyMetricCard title="Productos por importe de pedidos" availability={availability}
+    detail="El detalle por producto no está disponible. Los totales no permiten reconstruir este desglose." />;
+  return (
+    <Card className="col-span-1 border-border/60 md:col-span-2">
+      <CardHeader><CardTitle>Productos por importe de pedidos</CardTitle></CardHeader>
+      <CardContent><ul className="space-y-4">{products.map((product, index) => (
+        <li key={product.rank ?? index} className="flex gap-3 rounded-xl border p-3">
+          <span className="font-bold text-primary">{product.rank}</span>
+          <div className="min-w-0 flex-1"><p className="font-semibold">{product.name}</p>
+            <p className="text-sm text-muted-foreground">{product.units_sold} unidades registradas</p></div>
+          <span className="font-semibold">{formatBusinessAmount(product.revenue, currency)}</span>
+        </li>
+      ))}</ul></CardContent>
+    </Card>
+  );
+};
+const RegionChart: FC<{ data: RegionSale[]; currency: string | null; availability?: SeriesAvailability }> = ({ data, currency, availability }) => {
+  if (!data.length || availability?.state === 'unavailable') return <EmptyMetricCard title="Importes por región" availability={availability}
+    detail="El detalle por región no está disponible. No se deducen ubicaciones a partir de los totales." />;
+  const colors = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'];
+  return (
+    <Card className="col-span-1 border-border/60 md:col-span-2">
+      <CardHeader><CardTitle>Importes por región</CardTitle></CardHeader>
+      <CardContent><ResponsiveContainer width="100%" height={250}>
+        <PieChart>
+          <Pie data={data} dataKey="sales" nameKey="region_name" outerRadius={80} label>
+            {data.map((entry, index) => <Cell key={entry.region_code ?? index} fill={colors[index % colors.length]} />)}
+          </Pie>
+          <Tooltip formatter={(value) => formatBusinessAmount(Number(value), currency)} /><Legend />
+        </PieChart>
+      </ResponsiveContainer></CardContent>
+    </Card>
+  );
 };
 
 const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
@@ -389,10 +325,20 @@ const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
 // --- Main Page Component ---
 
 export default function BusinessMetrics() {
-  const params = useParams<{ tenant: string }>();
-  const { tenant } = useTenant();
-  const tenantSlug = tenant?.slug || params.tenant || "";
-  const [kpis, setKpis] = useState<KpiData | null>(null);
+  const { scope, pending, key } = usePrivateAnalyticsScope();
+  const revision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
+  if (pending) return <ViewState status="loading" title="Validando acceso" />;
+  if (!scope?.kind) return <ViewState status="empty" title="Seleccioná una organización"
+    description="Las métricas requieren un perfil y una organización verificados." />;
+  if (scope.tenantId === null || !Number.isSafeInteger(scope.tenantId) || scope.tenantId <= 0) return <ViewState status="empty"
+    title="Falta confirmar la organización" description="Revisá el perfil de la organización antes de consultar sus métricas."
+    action={<Button asChild><Link to="/perfil">Revisar perfil</Link></Button>} />;
+  return <ScopedBusinessMetrics key={JSON.stringify([key, scope.tenantSlug, scope.tenantId, scope.kind, revision])} scope={scope} sessionRevision={revision} />;
+}
+
+function ScopedBusinessMetrics({ scope, sessionRevision }: { scope: PrivateAnalyticsScope; sessionRevision: number }) {
+  const tenantSlug = scope.tenantSlug;
+  const [kpis, setKpis] = useState<BusinessKpis | null>(null);
   const [sales, setSales] = useState<SalesDataPoint[] | null>(null);
   const [topProducts, setTopProducts] = useState<TopProduct[] | null>(null);
   const [regions, setRegions] = useState<RegionSale[] | null>(null);
@@ -403,6 +349,7 @@ export default function BusinessMetrics() {
     useState<TenantHeatmapSummary | null>(null);
   const [operationsHeatmap, setOperationsHeatmap] =
     useState<OperationsHeatmapV1 | null>(null);
+  const [heatmapPointsObserved, setHeatmapPointsObserved] = useState(false);
   const [mapConfig, setMapConfig] = useState<PublicMapConfigV1 | null>(null);
   const [employeeCoverage, setEmployeeCoverage] =
     useState<TenantEmployeeCoverage | null>(null);
@@ -410,92 +357,57 @@ export default function BusinessMetrics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [seriesAvailability, setSeriesAvailability] = useState<Record<string, SeriesAvailability>>({});
+  const requestSequence = useRef(0);
+  const requestAbort = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
   const fetchAllMetrics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    if (!mounted.current || !isChatbocSessionRevisionCurrent(sessionRevision)) return;
+    requestAbort.current?.abort();
+    const controller = new AbortController();
+    requestAbort.current = controller;
+    const sequence = ++requestSequence.current;
+    const isCurrent = () => mounted.current && sequence === requestSequence.current && !controller.signal.aborted
+      && isChatbocSessionRevisionCurrent(sessionRevision);
+    setLoading(true); setError(null);
+    setKpis(null); setSales(null); setTopProducts(null); setRegions(null); setSummary(null);
+    setDashboardBundle(null); setTenantHeatmap(null); setOperationsHeatmap(null); setHeatmapPointsObserved(false); setMapConfig(null);
+    setEmployeeCoverage(null); setTicketCharts([]); setSeriesAvailability({});
     try {
-      const ticketStatsPromise = getTicketStats({ tipo: 'pyme' }).catch((error) => {
-        console.error('Error fetching ticket stats:', error);
-        return { charts: [] } as TicketStatsResponse;
-      });
-
-      const [
-        dashboardBundleRes,
-        heatmapSummaryRes,
-        operationsHeatmapRes,
-        mapConfigRes,
-        employeeCoverageRes,
-        summaryRes,
-        kpisRes,
-        salesRes,
-        topProductsRes,
-        regionSalesRes,
-        ticketStatsRes
-      ] = await Promise.all([
-        tenantSlug
-          ? enterpriseService.getTenantDashboardBundle(tenantSlug, {
-              since_days: 30,
-            })
-          : Promise.resolve(null),
-        tenantSlug
-          ? enterpriseService.getTenantHeatmapSummary(tenantSlug, {
-              since_days: 30,
-              point_limit: 150,
-            })
-          : Promise.resolve(null),
-        tenantSlug
-          ? getOperationsHeatmapV2({
-              tenantSlug,
-              range: "30d",
-              include_ai: 0,
-            }).catch((error) => {
-              console.warn("Operations heatmap unavailable, using the tenant operational summary:", error);
-              return null;
-            })
-          : Promise.resolve(null),
-        tenantSlug
-          ? getPublicMapConfigV1({ tenantSlug }).catch((error) => {
-              console.warn("Map config unavailable, using default renderer:", error);
-              return null;
-            })
-          : Promise.resolve(null),
-        tenantSlug
-          ? enterpriseService.getTenantEmployeeCoverage(tenantSlug)
-          : Promise.resolve(null),
-        apiFetch<unknown>('/api/metrics/summary'),
-        apiFetch<unknown>('/api/metrics/kpis'),
-        apiFetch<unknown>('/api/metrics/sales-over-time?period=30d'),
-        apiFetch<unknown>('/api/metrics/top-products?limit=5'),
-        apiFetch<unknown>('/api/metrics/sales-by-region'),
-        ticketStatsPromise
-      ]);
-
-      setDashboardBundle(dashboardBundleRes);
-      setTenantHeatmap(heatmapSummaryRes);
-      setOperationsHeatmap(operationsHeatmapRes);
-      setMapConfig(mapConfigRes);
-      setEmployeeCoverage(employeeCoverageRes);
-      setSummary(pickText(summaryRes));
-      setKpis(normalizeKpiData(kpisRes));
-      setSales(pickCollection<SalesDataPoint>(salesRes, ['data', 'items', 'sales', 'points']));
-      setTopProducts(pickCollection<TopProduct>(topProductsRes, ['products', 'items', 'data', 'results']));
-      setRegions(pickCollection<RegionSale>(regionSalesRes, ['regions', 'items', 'data', 'results']));
-      setTicketCharts(ticketStatsRes.charts || []);
-
-    } catch (err) {
-        setError(getErrorMessage(err, "No se pudieron cargar todas las métricas. El backend puede no estar completamente implementado."));
+      const result = await readBusinessMetrics(scope, controller.signal, isCurrent);
+      if (!isCurrent()) return;
+      setDashboardBundle(result.dashboardBundle);
+      setTenantHeatmap(result.heatmap.legacy);
+      setOperationsHeatmap(result.heatmap.operations);
+      setHeatmapPointsObserved(result.heatmap.pointsObserved);
+      setMapConfig(result.mapConfig);
+      setEmployeeCoverage(result.employeeCoverage);
+      setSummary(result.summary);
+      setKpis(result.kpis);
+      setSales(result.sales.items.filter(item => typeof item.date === 'string' && metricNumber(item.sales) !== null)
+        .map(item => ({ date: item.date, sales: metricNumber(item.sales)! })));
+      setTopProducts(result.products.items.filter(item => typeof item.name === 'string' && metricNumber(item.revenue) !== null && metricNumber(item.units_sold) !== null)
+        .map((item, index) => ({ name: item.name, rank: metricNumber(item.rank) ?? index + 1, revenue: metricNumber(item.revenue)!, units_sold: metricNumber(item.units_sold)! })));
+      setRegions(result.regions.items.filter(item => typeof item.region_name === 'string' && metricNumber(item.sales) !== null)
+        .map(item => ({ region_name: item.region_name, region_code: item.region_code, sales: metricNumber(item.sales)! })));
+      setSeriesAvailability({ sales: result.sales.availability, products: result.products.availability, regions: result.regions.availability });
+      setTicketCharts(result.ticketCharts);
+    } catch (error) {
+      if (isCurrent()) setError(getErrorMessage(error, 'No pudimos cargar las métricas. Reintentá en unos minutos.'));
     } finally {
-        setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, scope.tenantId, scope.scopeKey, scope.kind, sessionRevision]);
 
   useEffect(() => {
-    fetchAllMetrics();
+    mounted.current = true;
+    void fetchAllMetrics();
+    return () => { mounted.current = false; requestSequence.current += 1; requestAbort.current?.abort(); };
   }, [fetchAllMetrics]);
 
   const statusSummary = useMemo(
     () => {
-      if (!ticketCharts || ticketCharts.length === 0) return [] as { status: string; value: number }[];
+      if (!ticketCharts || ticketCharts.length === 0) return [] as { status: string; value: number | null }[];
       const statusChart = ticketCharts.find((chart) => {
         const title = (chart?.title ?? '').toString().toLowerCase();
         return STATUS_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
@@ -503,7 +415,7 @@ export default function BusinessMetrics() {
       if (!statusChart) return [];
       return Object.entries(statusChart.data || {}).map(([status, value]) => ({
         status,
-        value: toNumber(value),
+        value: metricCount(value),
       }));
     },
     [ticketCharts],
@@ -524,12 +436,13 @@ export default function BusinessMetrics() {
   const bundleTeamItems = Array.isArray(dashboardBundle?.team?.items)
     ? dashboardBundle?.team?.items
     : [];
+  const teamItemCount = Array.isArray(dashboardBundle?.team?.items) ? bundleTeamItems.length : null;
   const recommendedActions = Array.isArray(dashboardBundle?.recommended_actions)
     ? dashboardBundle.recommended_actions
     : [];
   const leadItems = Array.isArray(bundleLeads.items) ? bundleLeads.items : [];
-  const collaborationActiveViewers = toNumber(bundleSummary.active_viewers);
-  const collaborationUnreadViewers = toNumber(bundleSummary.unread_viewers);
+  const collaborationActiveViewers = metricCount(bundleSummary.active_viewers);
+  const collaborationUnreadViewers = metricCount(bundleSummary.unread_viewers);
   const leadsWithCollaboration = leadItems.filter(
     (item) => item?.collaboration_state,
   );
@@ -539,25 +452,7 @@ export default function BusinessMetrics() {
     [legacyHeatmapPoints, operationsHeatmap, tenantHeatmap],
   );
   const heatmapPoints = premiumHeatmap?.points?.length ? premiumHeatmap.points : legacyHeatmapPoints;
-  const allowTerritoryDemoFallback = isTerritoryDemoFallbackEnabled();
-  const heatmapSourceSummary = useMemo(() => {
-    const counts = {
-      tickets: 0,
-      surveys: 0,
-      liveVotes: 0,
-    };
-
-    heatmapPoints.forEach((point) => {
-      if (point.source === "survey_response" || point.type === "survey_response" || point.ticket_type === "survey_response") {
-        counts.surveys += 1;
-        if (point.is_live_vote) counts.liveVotes += 1;
-      } else {
-        counts.tickets += 1;
-      }
-    });
-
-    return counts;
-  }, [heatmapPoints]);
+  const locatedPointCount = heatmapPointsObserved ? heatmapPoints.length : null;
   const coverageCategories = Array.isArray(employeeCoverage?.categorias)
     ? employeeCoverage.categorias
     : [];
@@ -626,22 +521,22 @@ export default function BusinessMetrics() {
           <>
             <div className="col-span-1 md:col-span-2 lg:col-span-4 flex flex-wrap gap-2">
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                Leads {toNumber(bundleSummary.open_leads ?? bundleLeads.total).toLocaleString("es-AR")}
+                Leads {formatMetricCount(bundleSummary.open_leads ?? bundleLeads.total)}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                Unread {toNumber(bundleUnread.total_tickets_with_unread ?? bundleUnread.total).toLocaleString("es-AR")}
+                Unread {formatMetricCount(bundleUnread.total_tickets_with_unread ?? bundleUnread.total)}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                Equipo {bundleTeamItems.length.toLocaleString("es-AR")}
+                Equipo {formatMetricCount(teamItemCount)}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                Viewers activos {collaborationActiveViewers.toLocaleString("es-AR")}
+                Viewers activos {formatMetricCount(collaborationActiveViewers)}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                Viewers unread {collaborationUnreadViewers.toLocaleString("es-AR")}
+                Viewers unread {formatMetricCount(collaborationUnreadViewers)}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                Heatmap {heatmapPoints.length.toLocaleString("es-AR")} pts
+                Heatmap {formatMetricCount(locatedPointCount)} pts
               </Badge>
             </div>
             <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
@@ -652,61 +547,61 @@ export default function BusinessMetrics() {
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">Leads backlog</p>
                   <p className="mt-1 text-2xl font-bold">
-                    {toNumber(
+                    {formatMetricCount(
                       bundleSummary.open_leads ??
                         bundleLeads.open ??
                         bundleLeads.backlog ??
                         bundleLeads.total,
-                    ).toLocaleString("es-AR")}
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">SLA en riesgo</p>
                   <p className="mt-1 text-2xl font-bold">
-                    {toNumber(
+                    {formatMetricCount(
                       bundleSummary.sla_at_risk ??
                         bundleLeads.sla_at_risk ??
                         bundleLeads.sla_breached,
-                    ).toLocaleString("es-AR")}
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">Tickets unread</p>
                   <p className="mt-1 text-2xl font-bold">
-                    {toNumber(
+                    {formatMetricCount(
                       bundleSummary.unread_tickets ??
                         bundleUnread.total_tickets_with_unread ??
                         bundleUnread.total,
-                    ).toLocaleString("es-AR")}
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">Viewers activos</p>
                   <p className="mt-1 text-2xl font-bold">
-                    {collaborationActiveViewers.toLocaleString("es-AR")}
+                    {formatMetricCount(collaborationActiveViewers)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">Viewers unread</p>
                   <p className="mt-1 text-2xl font-bold">
-                    {collaborationUnreadViewers.toLocaleString("es-AR")}
+                    {formatMetricCount(collaborationUnreadViewers)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">Encuestas activas</p>
                   <p className="mt-1 text-2xl font-bold">
-                    {toNumber(
+                    {formatMetricCount(
                       bundleSummary.active_surveys ??
                         bundleSurveys.active ??
                         bundleSurveys.total,
-                    ).toLocaleString("es-AR")}
+                    )}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {(collaborationActiveViewers > 0 ||
-              collaborationUnreadViewers > 0 ||
+            {((collaborationActiveViewers !== null && collaborationActiveViewers > 0) ||
+              (collaborationUnreadViewers !== null && collaborationUnreadViewers > 0) ||
               leadsWithCollaboration.length > 0) && (
               <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
                 <CardHeader>
@@ -715,11 +610,11 @@ export default function BusinessMetrics() {
                 <CardContent className="grid gap-4 lg:grid-cols-[240px_240px_minmax(0,1fr)]">
                   <div className="rounded-lg border border-border bg-muted/40 p-4">
                     <p className="text-sm text-muted-foreground">Active viewers</p>
-                    <p className="mt-1 text-2xl font-bold">{collaborationActiveViewers.toLocaleString("es-AR")}</p>
+                    <p className="mt-1 text-2xl font-bold">{formatMetricCount(collaborationActiveViewers)}</p>
                   </div>
                   <div className="rounded-lg border border-border bg-muted/40 p-4">
                     <p className="text-sm text-muted-foreground">Unread viewers</p>
-                    <p className="mt-1 text-2xl font-bold">{collaborationUnreadViewers.toLocaleString("es-AR")}</p>
+                    <p className="mt-1 text-2xl font-bold">{formatMetricCount(collaborationUnreadViewers)}</p>
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Leads con colaboración</p>
@@ -727,10 +622,10 @@ export default function BusinessMetrics() {
                       {leadsWithCollaboration.slice(0, 5).map((item, index) => {
                         const leadName =
                           item?.nombre || item?.name || `Lead ${index + 1}`;
-                        const unreadViewers = toNumber(
+                        const unreadViewers = metricCount(
                           item?.collaboration_state?.unread_viewer_count,
                         );
-                        const activeViewers = toNumber(
+                        const activeViewers = metricCount(
                           item?.collaboration_state?.active_viewers_count,
                         );
                         return (
@@ -745,8 +640,8 @@ export default function BusinessMetrics() {
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Badge variant="outline">{activeViewers} activos</Badge>
-                              <Badge variant="outline">{unreadViewers} unread</Badge>
+                              <Badge variant="outline">{formatMetricCount(activeViewers)} activos</Badge>
+                              <Badge variant="outline">{formatMetricCount(unreadViewers)} unread</Badge>
                             </div>
                           </div>
                         );
@@ -809,11 +704,11 @@ export default function BusinessMetrics() {
                                 `member_${index + 1}`}
                             </span>
                             <Badge variant="outline">
-                              {toNumber(
+                              {formatMetricCount(
                                 member?.workload_open_tickets ??
                                   member?.open_tickets ??
                                   member?.assigned_open_tickets,
-                              ).toLocaleString("es-AR")}
+                              )}
                             </Badge>
                           </div>
                           {(member?.active_ticket_views !== undefined ||
@@ -821,13 +716,13 @@ export default function BusinessMetrics() {
                             member?.unread_ticket_views !== undefined) ? (
                             <div className="mt-2 flex flex-wrap gap-2">
                               <Badge variant="secondary">
-                                activos {toNumber(member?.active_ticket_views).toLocaleString("es-AR")}
+                                activos {formatMetricCount(member?.active_ticket_views)}
                               </Badge>
                               <Badge variant="secondary">
-                                idle {toNumber(member?.idle_ticket_views).toLocaleString("es-AR")}
+                                idle {formatMetricCount(member?.idle_ticket_views)}
                               </Badge>
                               <Badge variant="secondary">
-                                unread {toNumber(member?.unread_ticket_views).toLocaleString("es-AR")}
+                                unread {formatMetricCount(member?.unread_ticket_views)}
                               </Badge>
                             </div>
                           ) : null}
@@ -858,9 +753,7 @@ export default function BusinessMetrics() {
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
                 <div className="rounded-xl border border-border bg-muted/20 p-3">
                   <div className="mb-3 flex flex-wrap gap-2">
-                    <Badge variant="outline">Tickets {heatmapSourceSummary.tickets.toLocaleString("es-AR")}</Badge>
-                    <Badge variant="secondary">Encuestas {heatmapSourceSummary.surveys.toLocaleString("es-AR")}</Badge>
-                    <Badge variant="secondary">Votaciones {heatmapSourceSummary.liveVotes.toLocaleString("es-AR")}</Badge>
+                    <Badge variant="outline">Puntos con ubicación {formatMetricCount(locatedPointCount)}</Badge>
                     <Badge variant={operationsHeatmap ? "default" : "outline"}>
                       {operationsHeatmap ? "Contrato ops" : "Fuente tenant"}
                     </Badge>
@@ -869,8 +762,8 @@ export default function BusinessMetrics() {
                     points={heatmapPoints}
                     heatmap={premiumHeatmap}
                     mapConfig={mapConfig ?? undefined}
-                    allowDemoFallback={allowTerritoryDemoFallback}
-                    demoProfile={tenant?.tipo === "municipio" ? "gobierno" : "general"}
+                    allowDemoFallback={false}
+                    demoProfile={scope.kind === "municipio" ? "gobierno" : "general"}
                     className="min-h-[520px]"
                   />
                 </div>
@@ -881,7 +774,7 @@ export default function BusinessMetrics() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       {(tenantHeatmap?.top_categories || []).slice(0, 8).map((item, index) => (
                         <Badge key={`top-category-${index}`} variant="outline">
-                          {String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)} · {toNumber(item?.count ?? item?.total)}
+                          {String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)} · {formatMetricCount(item?.count ?? item?.total)}
                         </Badge>
                       ))}
                       {!(tenantHeatmap?.top_categories || []).length ? (
@@ -895,7 +788,7 @@ export default function BusinessMetrics() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       {(tenantHeatmap?.top_zones || []).slice(0, 8).map((item, index) => (
                         <Badge key={`top-zone-${index}`} variant="secondary">
-                          {String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)} · {toNumber(item?.count ?? item?.total)}
+                          {String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)} · {formatMetricCount(item?.count ?? item?.total)}
                         </Badge>
                       ))}
                       {!(tenantHeatmap?.top_zones || []).length ? (
@@ -919,7 +812,7 @@ export default function BusinessMetrics() {
                             )}
                           </span>
                           <span className="text-muted-foreground">
-                            {toNumber(item?.count ?? item?.total ?? item?.weight)}
+                            {formatMetricCount(item?.count ?? item?.total ?? item?.weight)}
                           </span>
                         </div>
                       ))}
@@ -938,7 +831,7 @@ export default function BusinessMetrics() {
                     {coverageCategories.slice(0, 5).map((item, index) => (
                       <div key={`coverage-category-${index}`} className="flex items-center justify-between">
                         <span>{String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)}</span>
-                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                        <Badge variant="outline">{formatMetricCount(item?.employees ?? item?.count ?? item?.total)}</Badge>
                       </div>
                     ))}
                     {!coverageCategories.length ? (
@@ -953,7 +846,7 @@ export default function BusinessMetrics() {
                     {coverageZones.slice(0, 5).map((item, index) => (
                       <div key={`coverage-zone-${index}`} className="flex items-center justify-between">
                         <span>{String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)}</span>
-                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                        <Badge variant="outline">{formatMetricCount(item?.employees ?? item?.count ?? item?.total)}</Badge>
                       </div>
                     ))}
                     {!coverageZones.length ? (
@@ -968,7 +861,7 @@ export default function BusinessMetrics() {
                     {coveragePermissions.slice(0, 5).map((item, index) => (
                       <div key={`coverage-permission-${index}`} className="flex items-center justify-between">
                         <span>{String(item?.permiso || item?.label || item?.name || `permiso_${index + 1}`)}</span>
-                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                        <Badge variant="outline">{formatMetricCount(item?.employees ?? item?.count ?? item?.total)}</Badge>
                       </div>
                     ))}
                     {!coveragePermissions.length ? (
@@ -997,7 +890,7 @@ export default function BusinessMetrics() {
                   <p className="text-sm text-muted-foreground">
                     {formatStatusLabel(status)}
                   </p>
-                  <p className="mt-1 text-2xl font-bold">{value.toLocaleString('es-AR')}</p>
+                  <p className="mt-1 text-2xl font-bold">{formatMetricCount(value)}</p>
                 </div>
               ))}
             </CardContent>
@@ -1006,18 +899,18 @@ export default function BusinessMetrics() {
 
         {kpis && (
             <>
-                <KpiCard title="Ventas Totales" data={kpis.total_sales} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} formatAsCurrency />
-                <KpiCard title="Pedidos Totales" data={kpis.total_orders} icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />} />
-                <KpiCard title="Nuevos Clientes" data={kpis.new_customers} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
-                <KpiCard title="Ticket Promedio" data={kpis.avg_order_value} icon={<Package className="h-4 w-4 text-muted-foreground" />} formatAsCurrency />
+                <KpiCard title="Importe de pedidos" data={kpis.total_sales} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} monetary currency={kpis.currency} />
+                <KpiCard title="Pedidos totales" data={kpis.total_orders} icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />} />
+                <KpiCard title="Clientes con pedidos" data={kpis.unique_customers} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
+                <KpiCard title="Importe promedio por pedido" data={kpis.avg_order_value} icon={<Package className="h-4 w-4 text-muted-foreground" />} monetary currency={kpis.currency} />
             </>
         )}
 
-        {sales && <SalesChart data={sales} />}
+        <SalesChart data={sales ?? []} currency={kpis?.currency ?? null} availability={seriesAvailability.sales} />
 
-        {topProducts && <TopProductsList products={topProducts} />}
+        <TopProductsList products={topProducts ?? []} currency={kpis?.currency ?? null} availability={seriesAvailability.products} />
 
-        {regions && <RegionChart data={regions} />}
+        <RegionChart data={regions ?? []} currency={kpis?.currency ?? null} availability={seriesAvailability.regions} />
 
         {additionalCharts.length > 0 && (
           <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">

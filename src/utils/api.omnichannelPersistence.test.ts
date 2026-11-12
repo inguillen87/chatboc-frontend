@@ -109,6 +109,59 @@ describe('apiFetch omnichannel tenant persistence', () => {
     expect(consoleWarn).not.toHaveBeenCalled();
   });
 
+  it('preserves an explicit demo-bound chat session and tenant in upload requests', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ) as unknown as typeof fetch;
+
+    await realApiFetch('/archivos/upload/chat_attachment', {
+      method: 'POST',
+      body: { operation: 'prepare_direct_upload' },
+      skipAuth: true,
+      isWidgetRequest: true,
+      tenantSlug: 'municipio',
+      persistTenantSlug: false,
+      chatSessionId: 'sid_demo_bound',
+      headers: { 'X-Demo-Session-Id': 'signed-demo-session' },
+    });
+
+    const requestInit = (global.fetch as unknown as ReturnType<typeof vi.fn>)
+      .mock.calls[0]?.[1] as RequestInit;
+    const headers = requestInit.headers as Record<string, string>;
+    expect(headers['X-Chat-Session-Id']).toBe('sid_demo_bound');
+    expect(headers['X-Demo-Session-Id']).toBe('signed-demo-session');
+    expect(headers['X-Tenant-Slug']).toBe('municipio');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBeNull();
+  });
+
+  it('does not infer a stale stored tenant for a widget upload without tenant context', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'tenant-stale');
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ) as unknown as typeof fetch;
+
+    await realApiFetch('/archivos/upload/chat_attachment', {
+      method: 'POST',
+      body: { operation: 'prepare_direct_upload' },
+      skipAuth: true,
+      isWidgetRequest: true,
+      tenantSlug: undefined,
+    });
+
+    const requestInit = (global.fetch as unknown as ReturnType<typeof vi.fn>)
+      .mock.calls[0]?.[1] as RequestInit;
+    const headers = requestInit.headers as Record<string, string>;
+    expect(headers['X-Tenant-Slug']).toBeUndefined();
+    expect(headers['X-Tenant']).toBeUndefined();
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('tenant-stale');
+  });
+
   it('skips frontend HTML shells for API requests and retries the next backend candidate', async () => {
     global.fetch = vi
       .fn()

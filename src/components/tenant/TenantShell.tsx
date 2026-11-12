@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
@@ -12,14 +12,27 @@ import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 import { resolveTenantPublicNavigationTarget } from '@/utils/tenantPaths';
+import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
+import { tenantHostNavigationTarget } from '@/utils/tenantHostBinding';
 import { TenantSwitcher } from './TenantSwitcher';
 
 interface TenantShellProps {
   children: ReactNode;
+  compactHeader?: boolean;
 }
 
 const TENANT_SHELL_TITLE_ID = 'tenant-shell-title';
+const TENANT_RETRY_STATUS_ID = 'tenant-retry-status';
+const HEADING_FOCUS_CLASS = 'rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4';
+
+type RetryAttempt = {
+  scope: object;
+  button: HTMLButtonElement;
+  message: string;
+  ownsFocus: boolean;
+  stopTracking: () => void;
+};
 
 const sanitizePublicMessage = (message?: string | null) => {
   if (!message) return 'No pudimos cargar este espacio en este momento.';
@@ -29,7 +42,7 @@ const sanitizePublicMessage = (message?: string | null) => {
   return message;
 };
 
-export const TenantShell = ({ children }: TenantShellProps) => {
+export const TenantShell = ({ children, compactHeader = false }: TenantShellProps) => {
   const {
     tenant,
     currentSlug,
@@ -41,13 +54,58 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     unfollowCurrentTenant,
     followedTenantsError,
     refreshFollowedTenants,
+    hostBinding,
+    widgetToken,
   } = useTenant();
   const [updatingFollow, setUpdatingFollow] = useState(false);
+  const location = useLocation();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const retryRef = useRef<RetryAttempt | null>(null);
+  const [pendingRetry, setPendingRetry] = useState<RetryAttempt | null>(null);
+  const [completedRetry, setCompletedRetry] = useState<RetryAttempt | null>(null);
 
   const rawTenantSlug = tenant?.slug?.trim() || null;
   const resolvedTenant = rawTenantSlug && rawTenantSlug.toLowerCase() !== 'default' ? tenant : null;
   const resolvedTenantSlug = resolvedTenant?.slug?.trim() || null;
   const normalizedCurrentSlug = currentSlug?.trim().toLowerCase() || null;
+  const retryScope = useMemo(() => ({}), [
+    location.pathname, location.search, normalizedCurrentSlug, widgetToken, hostBinding?.tenant.id, hostBinding?.tenant.slug,
+  ]);
+  const activeRetryScope = useRef<object | null>(null);
+  useLayoutEffect(() => {
+    activeRetryScope.current = retryScope;
+    return () => {
+      if (activeRetryScope.current === retryScope) activeRetryScope.current = null;
+      if (retryRef.current?.scope === retryScope) {
+        retryRef.current.stopTracking();
+        retryRef.current = null;
+      }
+    };
+  }, [retryScope]);
+
+  useLayoutEffect(() => {
+    if (!completedRetry) return;
+    if (completedRetry.scope !== retryScope || activeRetryScope.current !== retryScope) {
+      setCompletedRetry(null);
+      return;
+    }
+    if (isLoadingTenant) return;
+    if (retryRef.current === completedRetry) {
+      completedRetry.stopTracking();
+      retryRef.current = null;
+      const focused = document.activeElement;
+      if (completedRetry.ownsFocus && (focused === completedRetry.button || focused === document.body)) {
+        (retryButtonRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+      }
+    }
+    setCompletedRetry(null);
+  }, [completedRetry, retryScope, isLoadingTenant]);
+
+  const currentRetry = pendingRetry?.scope === retryScope ? pendingRetry
+    : isLoadingTenant && completedRetry?.scope === retryScope ? completedRetry : null;
+  const recoveryMessage = tenantError || currentRetry?.message || null;
+  const retryBusy = Boolean(currentRetry) || isLoadingTenant;
   const navigationTenantSlug =
     !isLoadingTenant &&
     !tenantError &&
@@ -57,6 +115,46 @@ export const TenantShell = ({ children }: TenantShellProps) => {
       : null;
   const slugForPath = resolvedTenantSlug ?? currentSlug ?? null;
   const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
+
+  const handleRetry = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (activeRetryScope.current !== retryScope || retryRef.current || isLoadingTenant) return;
+    const button = event.currentTarget;
+    const attempt: RetryAttempt = {
+      scope: retryScope, button, message: sanitizePublicMessage(tenantError),
+      ownsFocus: document.activeElement === button, stopTracking: () => {},
+    };
+    const trackFocus = (focusEvent: FocusEvent) => { attempt.ownsFocus = focusEvent.target === button; };
+    const trackBlur = (focusEvent: FocusEvent) => {
+      // Ignore a blur emitted while React retires the control for the confirmed profile.
+      if (focusEvent.target === button && button.isConnected && retryButtonRef.current === button) attempt.ownsFocus = false;
+    };
+    const trackPointer = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.target instanceof Node && !button.contains(pointerEvent.target)) attempt.ownsFocus = false;
+    };
+    document.addEventListener('focusin', trackFocus);
+    document.addEventListener('focusout', trackBlur);
+    document.addEventListener('pointerdown', trackPointer);
+    attempt.stopTracking = () => {
+      document.removeEventListener('focusin', trackFocus);
+      document.removeEventListener('focusout', trackBlur);
+      document.removeEventListener('pointerdown', trackPointer);
+    };
+    retryRef.current = attempt;
+    setPendingRetry(attempt);
+    try {
+      await refreshTenant();
+    } catch {
+      // The provider owns the public error and profile; do not invent either.
+    } finally {
+      if (activeRetryScope.current === retryScope && retryRef.current === attempt) {
+        setPendingRetry(null);
+        setCompletedRetry(attempt);
+      } else {
+        attempt.stopTracking();
+      }
+    }
+  };
 
   const navigationQuery = useQuery({
     queryKey: ['tenant-public-navigation', navigationTenantSlug],
@@ -94,6 +192,39 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   };
 
   const renderHeaderContent = () => {
+    if (recoveryMessage) {
+      return (
+        <div className="flex flex-col gap-3">
+          <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>
+            No pudimos cargar este espacio en este momento.
+          </h1>
+          <Alert variant="destructive" aria-labelledby={TENANT_SHELL_TITLE_ID}>
+            <AlertDescription className="break-words [overflow-wrap:anywhere]">{sanitizePublicMessage(recoveryMessage)}</AlertDescription>
+          </Alert>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              ref={retryButtonRef}
+              type="button"
+              onClick={handleRetry}
+              variant="outline"
+              className="min-h-11 aria-disabled:opacity-50"
+              aria-disabled={retryBusy || undefined}
+              aria-busy={retryBusy || undefined}
+              aria-describedby={retryBusy ? TENANT_RETRY_STATUS_ID : undefined}
+            >
+              Reintentar
+            </Button>
+            {retryBusy ? (
+              <span id={TENANT_RETRY_STATUS_ID} role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Cargando espacio
+              </span>
+            ) : null}
+            {!hostBinding ? <TenantSwitcher className="w-full max-w-sm" /> : null}
+          </div>
+        </div>
+      );
+    }
+
     if (isLoadingTenant) {
       return (
         <div
@@ -104,7 +235,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
           aria-labelledby={TENANT_SHELL_TITLE_ID}
         >
           <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-          <h1 id={TENANT_SHELL_TITLE_ID} className="text-sm font-medium">
+          <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-sm font-medium', HEADING_FOCUS_CLASS)}>
             Cargando espacio
           </h1>
         </div>
@@ -115,7 +246,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
       return (
         <div className="flex flex-col gap-4">
           <div>
-            <h1 id={TENANT_SHELL_TITLE_ID} className="text-2xl font-semibold">Explora espacios disponibles</h1>
+            <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>Explora espacios disponibles</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Elegi un municipio, colegio o empresa para acceder a sus canales publicados.
             </p>
@@ -128,9 +259,9 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     if (!resolvedTenant) {
       return (
         <div className="flex flex-col gap-3">
-          <h1 id={TENANT_SHELL_TITLE_ID} className="text-2xl font-semibold">No encontramos informacion para este espacio.</h1>
+          <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>No encontramos informacion para este espacio.</h1>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={refreshTenant} variant="outline">
+            <Button ref={retryButtonRef} type="button" onClick={handleRetry} variant="outline" className="min-h-11">
               Reintentar
             </Button>
             <TenantSwitcher className="w-full max-w-sm" />
@@ -140,7 +271,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     }
 
     return (
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+      <div className={cn('flex flex-col md:flex-row md:items-center md:justify-between', compactHeader ? 'gap-4' : 'gap-6')}>
         <div className="flex flex-1 items-start gap-4">
           {resolvedTenant.logo_url ? (
             <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-white/80 shadow-sm sm:block">
@@ -155,13 +286,13 @@ export const TenantShell = ({ children }: TenantShellProps) => {
             <div className="flex flex-wrap items-center gap-2">
               {resolvedTenant.tipo ? (
                 <Badge variant="secondary" className="uppercase tracking-wide">
-                  {resolvedTenant.tipo}
+                  {organizationTypeLabel(resolvedTenant.tipo)}
                 </Badge>
               ) : null}
               {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
-              <h1 id={TENANT_SHELL_TITLE_ID} className="text-3xl font-semibold leading-tight">{resolvedTenant.nombre}</h1>
+              <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('font-semibold leading-tight', HEADING_FOCUS_CLASS, compactHeader ? 'text-2xl' : 'text-3xl')}>{resolvedTenant.nombre}</h1>
               {resolvedTenant.descripcion ? (
                 <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{resolvedTenant.descripcion}</p>
               ) : null}
@@ -176,21 +307,21 @@ export const TenantShell = ({ children }: TenantShellProps) => {
           >
             {isCurrentTenantFollowed ? 'Dejar de seguir' : 'Seguir espacio'}
           </Button>
-          <TenantSwitcher className="w-full sm:w-60" />
+          {!hostBinding ? <TenantSwitcher className="w-full sm:w-60" /> : null}
         </div>
       </div>
     );
   };
 
   const renderNavigation = () => {
-    if (!basePath || !navigationItems.length) return null;
+    if (recoveryMessage || !basePath || !navigationItems.length) return null;
 
     return (
-      <nav className="mt-8 flex flex-wrap items-center gap-2">
+      <nav className={cn('flex flex-wrap items-center gap-2', compactHeader ? 'mt-4' : 'mt-8')}>
         {navigationItems.map((item) => {
           const key = item.id || item.route || item.label;
           const enabled = item.enabled !== false;
-          const to = resolveTenantPublicNavigationTarget(item, basePath);
+          const to = tenantHostNavigationTarget(hostBinding, resolveTenantPublicNavigationTarget(item, basePath));
           const label = item.label;
 
           if (!enabled || !to) {
@@ -210,7 +341,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
             <NavLink
               key={key}
               to={to}
-              end={to === basePath}
+              end={to === basePath || to === '/'}
               className={({ isActive }) =>
                 cn(
                   'rounded-full px-3 py-2 text-sm font-medium transition-colors',
@@ -229,9 +360,9 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8 py-10">
+    <div className={cn('mx-auto w-full max-w-5xl', compactHeader ? 'space-y-5 py-6' : 'space-y-8 py-10')}>
       <section
-        className="rounded-3xl border bg-background/80 p-6 shadow-sm backdrop-blur"
+        className={cn('rounded-3xl border bg-background/80 shadow-sm backdrop-blur', compactHeader ? 'p-4 sm:p-5' : 'p-6')}
         aria-labelledby={TENANT_SHELL_TITLE_ID}
       >
         {renderHeaderContent()}
@@ -252,21 +383,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
         </Alert>
       ) : null}
 
-      {tenantError && slugForPath ? (
-        <Alert variant="destructive">
-          <AlertTitle>No pudimos cargar la informacion publica</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>{sanitizePublicMessage(tenantError)}</span>
-            <div>
-              <Button variant="outline" size="sm" onClick={refreshTenant}>
-                Reintentar
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <div className="space-y-8">{children}</div>
-      )}
+      {!recoveryMessage ? <div className="space-y-8">{children}</div> : null}
     </div>
   );
 };

@@ -121,7 +121,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         },
       });
     } catch (err) {
-      setError("No pudimos abrir la demo real. Proba de nuevo en unos minutos.");
+      setError("No pudimos abrir la demo real. Probá de nuevo en unos minutos.");
     } finally {
       setStarting(false);
     }
@@ -201,7 +201,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         },
       });
     } catch (err) {
-      setError("No pudimos abrir la demo real. Proba de nuevo en unos minutos.");
+      setError("No pudimos abrir la demo real. Probá de nuevo en unos minutos.");
     } finally {
       setStarting(false);
     }
@@ -277,10 +277,10 @@ const DemoShowcaseSection = () => {
       <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-10 max-w-4xl text-center">
           <div className="chatboc-section-kicker mb-4">Demos</div>
-          <h2 className="chatboc-section-heading">Proba una conversacion real por sector</h2>
+          <h2 className="chatboc-section-heading">Probá una conversación real por sector</h2>
           <p className="chatboc-section-copy mt-4">
-            Elegi un rubro y abri un recorrido publicado: el chat pide datos, recibe adjuntos y muestra como
-            queda la operacion para el equipo.
+            Elegí un rubro y abrí un recorrido publicado: el chat pide datos, recibe adjuntos y muestra cómo
+            queda la operación para el equipo.
           </p>
         </div>
 
@@ -295,7 +295,7 @@ const DemoShowcaseSection = () => {
 
         {!loading && (loadError || groups.length === 0) ? (
           <div className="mx-auto max-w-2xl rounded-[8px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
-            {loadError || "Todavia no hay demos publicadas para mostrar."}
+            {loadError || "Todavía no hay demos publicadas para mostrar."}
           </div>
         ) : null}
 

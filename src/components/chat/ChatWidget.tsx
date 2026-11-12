@@ -15,8 +15,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
 
   // Suspense fallback
   const loader = (
-    <div className="w-12 h-12 flex items-center justify-center bg-transparent rounded-full overflow-hidden">
-      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    <div
+      className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-transparent"
+      role="status"
+      aria-label="Cargando asistente Chatboc"
+    >
+      <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent motion-safe:animate-spin" />
     </div>
   );
 

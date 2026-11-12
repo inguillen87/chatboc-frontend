@@ -9,14 +9,24 @@ const googleMocks = vi.hoisted(() => ({
   loginWithGoogle: vi.fn(),
   refreshUser: vi.fn(),
   navigate: vi.fn(),
+  oauthError: null as null | (() => void),
 }));
 
 vi.mock('@react-oauth/google', () => ({
-  GoogleLogin: ({ onSuccess }: { onSuccess: (response: { credential: string }) => void }) => (
-    <button type="button" onClick={() => onSuccess({ credential: 'google-id-token' })}>
-      Continue with Google
-    </button>
-  ),
+  GoogleLogin: ({
+    onSuccess,
+    onError,
+  }: {
+    onSuccess: (response: { credential: string }) => void;
+    onError: () => void;
+  }) => {
+    googleMocks.oauthError = onError;
+    return (
+      <button type="button" onClick={() => onSuccess({ credential: 'google-id-token' })}>
+        Continue with Google
+      </button>
+    );
+  },
 }));
 
 vi.mock('@/env', () => ({
@@ -68,6 +78,7 @@ describe('GoogleLoginButton', () => {
     googleMocks.loginWithGoogle.mockReset().mockResolvedValue({ token: 'legacy-google-token' });
     googleMocks.refreshUser.mockReset().mockResolvedValue(undefined);
     googleMocks.navigate.mockReset();
+    googleMocks.oauthError = null;
   });
 
   it('hides the legacy Google button when Clerk is enabled', () => {
@@ -85,6 +96,23 @@ describe('GoogleLoginButton', () => {
     renderWithRuntime({ enabled: false });
 
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument();
+  });
+
+  it('does not mount a legacy OAuth client when live Clerk rejects the Preview origin', () => {
+    renderWithRuntime({
+      enabled: false,
+      publishableKey: 'pk_live_chatboc',
+      source: 'disabled',
+      socialProviders: ['google'],
+      configurationWarnings: [
+        {
+          code: 'production_origin_mismatch',
+          message: 'Clerk live is restricted to the canonical domain.',
+        },
+      ],
+    });
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument();
   });
 
   it('does not exchange the Google credential while legal consent is disabled', () => {
@@ -107,5 +135,29 @@ describe('GoogleLoginButton', () => {
     await waitFor(() => {
       expect(googleMocks.loginWithGoogle).toHaveBeenCalledWith({ id_token: 'google-id-token' });
     });
+  });
+
+  it('shows an actionable error without exposing the Google credential', async () => {
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    googleMocks.loginWithGoogle.mockRejectedValueOnce(new Error('provider unavailable'));
+    renderWithRuntime({ enabled: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos completar el acceso con Google');
+    expect(consoleLog).not.toHaveBeenCalled();
+    consoleLog.mockRestore();
+    consoleError.mockRestore();
+  });
+
+  it('shows an actionable error when the browser OAuth flow itself fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderWithRuntime({ enabled: false });
+
+    googleMocks.oauthError?.();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Google no pudo iniciar la sesión');
+    consoleError.mockRestore();
   });
 });

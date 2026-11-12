@@ -390,7 +390,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                       variant="ghost"
                       className="h-9 w-9 text-white hover:bg-white/10 hover:text-white"
                       aria-label="Restar cantidad"
-                      disabled={selectedQuantity <= 1}
+                      disabled={isCartLoading || selectedQuantity <= 1}
                       onClick={() => {
                         setSelectedQuantity((current) => Math.max(1, current - 1));
                         setAddedToCart(false);
@@ -405,7 +405,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
                       variant="ghost"
                       className="h-9 w-9 text-white hover:bg-white/10 hover:text-white"
                       aria-label="Sumar cantidad"
-                      disabled={selectedQuantity >= maxQuantity}
+                      disabled={isCartLoading || selectedQuantity >= maxQuantity}
                       onClick={() => {
                         setSelectedQuantity((current) => Math.min(maxQuantity, current + 1));
                         setAddedToCart(false);
@@ -443,7 +443,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
               ) : null}
 
               <Button
-                className="w-full bg-blue-600 text-white hover:bg-blue-500"
+                className="w-full bg-blue-600 text-white hover:bg-blue-700"
                 onClick={handleAddToCart}
                 disabled={!canAddToCart || isCartLoading}
               >

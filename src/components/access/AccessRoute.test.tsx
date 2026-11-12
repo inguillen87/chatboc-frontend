@@ -11,6 +11,7 @@ const safeLocalStorageGetItemMock = vi.fn();
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => useUserMock(),
 }));
+vi.mock('@/context/TenantContext', () => ({ useTenantContextPresence: () => null }));
 
 vi.mock('@/context/CapabilitiesContext', () => ({
   useCapabilities: () => useCapabilitiesMock(),
@@ -409,5 +410,48 @@ describe('AccessRoute', () => {
     );
 
     expect(screen.getByText('tickets-tenant-admin-operational-ok')).toBeInTheDocument();
+  });
+
+  const showKnowledgeRoute = () => render(
+    <MemoryRouter initialEntries={['/admin/knowledge']}>
+      <Routes>
+        <Route path="/admin/knowledge" element={
+          <AccessRoute roles={['tenant_admin', 'superadmin']} requiredAllCapabilities={['knowledge.read']} enforceCapabilities>
+            <div>verified-knowledge-console</div>
+          </AccessRoute>
+        } />
+        <Route path="/403" element={<DeniedProbe />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  it('admits a scoped delegate with the verified backend knowledge capability', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'empleado' }, loading: false, organizationProfileVerified: true });
+    useCapabilitiesMock.mockReturnValue({
+      capabilities: ['knowledge.read'],
+      hasAllCapabilities: (required: string[]) => required.every(value => value === 'knowledge.read'),
+      hasAnyCapability: () => false,
+    });
+    showKnowledgeRoute();
+    expect(screen.getByText('verified-knowledge-console')).toBeInTheDocument();
+  });
+
+  it.each(['tenant_admin', 'superadmin'])('does not bypass an explicit knowledge denial for %s', rol => {
+    useUserMock.mockReturnValue({ user: { rol }, loading: false, organizationProfileVerified: true });
+    useCapabilitiesMock.mockReturnValue({ capabilities: [], hasAllCapabilities: () => false, hasAnyCapability: () => false });
+    showKnowledgeRoute();
+    const denied = JSON.parse(screen.getByTestId('denied-state').textContent || '{}');
+    expect(denied.reason).toBe('capability');
+    expect(denied.requiredCapabilities).toEqual(['knowledge.read']);
+    expect(screen.queryByText('verified-knowledge-console')).not.toBeInTheDocument();
+  });
+
+  it('waits for /api/me instead of authorizing knowledge from a stored administrator', () => {
+    useUserMock.mockReturnValue({ user: null, loading: true, organizationProfileVerified: false });
+    safeLocalStorageGetItemMock.mockImplementation(key => key === 'user' ? JSON.stringify({ rol: 'superadmin', capabilities: ['knowledge.read'] }) : key === 'authToken' ? 'stored-token' : null);
+    showKnowledgeRoute();
+    expect(screen.getByText('Validando acceso')).toBeInTheDocument();
+    expect(screen.queryByText('verified-knowledge-console')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('denied-state')).not.toBeInTheDocument();
   });
 });

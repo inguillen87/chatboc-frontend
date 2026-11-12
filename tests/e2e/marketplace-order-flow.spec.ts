@@ -52,7 +52,7 @@ const catalogPayload = {
     },
     checkout: {
       preview: { method: 'POST', endpoint: '/api/v2/payments/checkout-preview', guest_safe: true },
-      start: { method: 'POST', endpoint: '/api/v2/payments/checkout-session', guest_safe: true },
+      start: { method: 'POST', endpoint: '/api/checkout/crear-preferencia', guest_safe: true },
       fallback_behavior: 'return_structured_plan_or_payment_error_never_tokenized_endpoint',
     },
     tracking: { order_path_template: '/tracking/order/{code}?tenant_slug=junin' },
@@ -189,7 +189,7 @@ const mockMarketplaceApis = async (page: Page, capture: MarketplaceCapture) => {
       return;
     }
 
-    if (path === '/api/v2/payments/checkout-session' && request.method() === 'POST') {
+    if (path === '/api/checkout/crear-preferencia' && request.method() === 'POST') {
       capture.checkoutRequests.push(request.postDataJSON() as Record<string, unknown>);
       await json(route, {
         contract_version: 'payments.checkout_session.v1',

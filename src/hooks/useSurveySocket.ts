@@ -163,8 +163,12 @@ export function useSurveySocket({
       withCredentials: true,
       auth: { channel: 'web' },
       reconnection: true,
-      reconnectionAttempts: 10,
+      // Polling remains active in the caller, so a broken cross-origin socket
+      // must not flood the console or keep a mobile radio awake indefinitely.
+      reconnectionAttempts: 3,
       reconnectionDelay: 800,
+      reconnectionDelayMax: 5000,
+      timeout: 7000,
     });
 
     socketRef.current = socket;

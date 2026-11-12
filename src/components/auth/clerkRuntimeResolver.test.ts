@@ -2,8 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClerkBackendUnavailableRuntime,
+  buildPublicClerkBypassRuntime,
+  buildPublicPreviewPresentationRuntime,
   buildClerkRuntimeFromEnv,
   isClerkOriginCompatible,
+  isPublicClerkBypassPresentation,
+  isPublicClerkBypassRuntime,
+  isPublicPreviewPresentation,
+  isPublicPreviewPresentationRuntime,
+  shouldReloadAfterPublicPreviewNavigation,
 } from './clerkRuntimeResolver';
 
 describe('clerkRuntimeResolver', () => {
@@ -30,6 +37,115 @@ describe('clerkRuntimeResolver', () => {
       environment: 'development',
       hostname: 'localhost',
       publishableKey: 'pk_test_example',
+    })).toBe(true);
+  });
+
+  it('recognizes only the explicit public Preview presentation URL', () => {
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo',
+      search: '?tenant_slug=junin&remote_preview_qa=1',
+    })).toBe(true);
+    expect(isPublicPreviewPresentation({
+      hostname: 'localhost',
+      pathname: '/demo/',
+      search: '?remote_preview_qa=1',
+    })).toBe(true);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo',
+      search: '?remote_preview_qa=0',
+    })).toBe(false);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/perfil',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+    expect(isPublicPreviewPresentation({
+      hostname: 'chatboc-frontend.vercel.app',
+      pathname: '/demo',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+  });
+
+  it('keeps Clerk fail-closed for the public Preview presentation', () => {
+    const runtime = buildPublicPreviewPresentationRuntime('pk_live_public_key');
+
+    expect(runtime).toMatchObject({
+      enabled: false,
+      loading: false,
+      readyForSessionSync: false,
+      source: 'disabled',
+    });
+    expect(runtime.configurationWarnings?.[0]?.code).toBe('public_preview_presentation');
+    expect(isPublicPreviewPresentationRuntime(runtime)).toBe(true);
+    expect(isPublicPreviewPresentationRuntime({
+      configurationWarnings: [],
+    })).toBe(false);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/login',
+      search: '',
+    })).toBe(true);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo',
+      search: '?remote_preview_qa=1',
+    })).toBe(false);
+  });
+
+  it('bypasses Clerk only for the exact static institutional presentation', () => {
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad',
+      search: '',
+    })).toBe(true);
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc-r2-preview.vercel.app',
+      pathname: '/demo/institucional/tdf-discapacidad/',
+      search: '',
+    })).toBe(true);
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad/interno',
+      search: '',
+    })).toBe(false);
+    expect(isPublicClerkBypassPresentation({
+      hostname: 'chatboc.ar',
+      pathname: '/demo/otra-presentacion',
+      search: '',
+    })).toBe(false);
+  });
+
+  it('reloads when crossing either side of the public no-Clerk topology', () => {
+    const runtime = buildPublicClerkBypassRuntime('pk_live_public_key');
+
+    expect(isPublicClerkBypassRuntime(runtime)).toBe(true);
+    expect(runtime.enabled).toBe(false);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad',
+      search: '',
+    })).toBe(false);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime,
+      hostname: 'chatboc.ar',
+      pathname: '/perfil',
+      search: '',
+    })).toBe(true);
+    expect(shouldReloadAfterPublicPreviewNavigation({
+      runtime: { configurationWarnings: [] },
+      hostname: 'chatboc.ar',
+      pathname: '/demo/institucional/tdf-discapacidad',
+      search: '',
     })).toBe(true);
   });
 

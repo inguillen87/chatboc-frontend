@@ -1,0 +1,17 @@
+header.chatboc-brand-navbar[data-private-workspace="active"] { background:hsl(var(--card) / .97); color:hsl(var(--foreground)); }
+.private-workspace-brand { min-width:0; min-height:44px; max-width:min(32rem,55vw); display:flex; align-items:center; gap:.7rem; padding:.35rem; border-radius:.65rem; color:hsl(var(--foreground)); }
+.private-workspace-brand>img { width:42px; height:42px; flex-shrink:0; object-fit:contain; }
+.private-workspace-brand>svg { flex-shrink:0; }
+.private-workspace-brand>span { min-width:0; display:grid; gap:.12rem; }
+.private-workspace-brand strong { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; font-size:1rem; font-weight:700; line-height:1.3; }
+.private-workspace-brand small { font-size:.7rem; line-height:1.35; color:hsl(var(--muted-foreground)); overflow-wrap:anywhere; }
+.private-workspace-brand:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+.private-workspace-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:1rem; border-top:1px solid hsl(var(--border)); background:hsl(var(--card)); color:hsl(var(--muted-foreground)); padding:1rem max(1rem,env(safe-area-inset-left)); font-size:.8rem; line-height:1.6; }
+.private-workspace-footer>span { min-width:0; overflow-wrap:anywhere; font-weight:600; }
+.private-workspace-footer nav { display:flex; flex-wrap:wrap; gap:.5rem 1.3rem; }
+.private-workspace-footer a { min-height:44px; display:inline-flex; align-items:center; color:hsl(var(--foreground)); }
+.private-workspace-footer a:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:3px; }
+header[data-private-workspace="active"] .chatboc-mobile-menu :is(a,button) { min-height:44px; height:auto; white-space:normal; }
+header[data-private-workspace="active"] .chatboc-mobile-menu p { overflow-wrap:anywhere; }
+@media(max-width:767px) { .private-workspace-brand { max-width:calc(100vw - 6.5rem); } .private-workspace-brand>img { width:36px; height:36px; } .private-workspace-brand strong { font-size:.9rem; } }
+@media(prefers-reduced-motion:reduce) { header[data-private-workspace="active"],header[data-private-workspace="active"] * { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }

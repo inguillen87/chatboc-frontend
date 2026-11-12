@@ -13,6 +13,7 @@ import { CatalogPreviewV1, ColumnMapping, CatalogField } from '@/types/catalog-i
 import { ImportMappingTable } from './ImportMappingTable';
 import { cn } from '@/lib/utils';
 import { looksLikeImageColumn } from '@/utils/marketImages';
+import {catalogImportUserError,safeCatalogImportDetail,type CatalogImportUserError} from '@/utils/catalogImportError';
 
 interface CatalogUploadWizardProps {
   tenantSlug: string;
@@ -31,8 +32,8 @@ const MODE_LABELS: Record<CatalogImportMode, { label: string; description: strin
     description: 'Actualiza por SKU y crea items faltantes cuando backend lo permita.',
   },
   replace: {
-    label: 'Reemplazar catalogo',
-    description: 'Reemplaza el catalogo del tenant solo cuando confirmes.',
+    label: 'Reemplazar catálogo',
+    description: 'Reemplaza el catálogo de la organización sólo cuando confirmes.',
   },
   stock_only: {
     label: 'Solo stock',
@@ -130,7 +131,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
   // UI State
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<CatalogImportUserError | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const activeModes = useMemo(() => supportedModes.length ? supportedModes : ['upsert'], [supportedModes]);
 
@@ -204,7 +205,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       setStep('preview');
 
     } catch (err: any) {
-      setError(err.message || 'No se pudo subir el archivo');
+      setError(catalogImportUserError(err,'upload'));
       setStep('upload'); // Go back to upload on hard fail
     } finally {
       setIsProcessing(false);
@@ -248,7 +249,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       setHasUnsavedChanges(false);
       toast.success("Cambios guardados");
     } catch (err: any) {
-      toast.error("Error al guardar cambios: " + err.message);
+      const failure=catalogImportUserError(err,'save');
+      toast.error(failure.title,{description:`${failure.message} ${failure.action}`});
     } finally {
       setIsSaving(false);
     }
@@ -305,7 +307,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       setStep('result');
       toast.success("Catalogo importado correctamente");
     } catch (err: any) {
-      toast.error("No se pudo confirmar la importacion: " + err.message);
+      const failure=catalogImportUserError(err,'commit');
+      toast.error(failure.title,{description:`${failure.message} ${failure.action}`});
     } finally {
       setIsProcessing(false);
     }
@@ -363,8 +366,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       {error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertTitle>{error.title}</AlertTitle>
+          <AlertDescription><p>{error.message}</p><p className="mt-1">{error.action}</p></AlertDescription>
         </Alert>
       )}
 
@@ -380,7 +383,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
            </Button>
          )}
          <Button onClick={handleUpload} disabled={!file || isProcessing}>
-           {isProcessing ? "Analizando..." : "Analizar catalogo"} <ArrowRight className="ml-2 h-4 w-4" />
+           {isProcessing ? "Analizando…" : "Analizar catálogo"} <ArrowRight className="ml-2 h-4 w-4" />
          </Button>
       </div>
     </div>
@@ -393,9 +396,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">IA</div>
       </div>
       <div className="space-y-2 max-w-md w-full">
-        <h3 className="text-xl font-medium">La IA esta leyendo tu catalogo</h3>
+        <h3 className="text-xl font-medium">La IA está leyendo tu catálogo</h3>
         <p className="text-sm text-muted-foreground">
-          Prepara columnas, productos e imagenes detectadas. Nada se publica hasta que confirmes.
+          Prepara columnas, productos e imágenes detectadas. Nada se publica hasta que confirmes.
         </p>
       </div>
     </div>
@@ -428,7 +431,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         <div className="flex items-start justify-between bg-muted/30 p-4 rounded-lg border">
           <div className="space-y-1">
             <h3 className="font-medium flex items-center gap-2">
-              Resultado del analisis
+              Resultado del análisis
               {isFailed ? (
                  <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">No se pudo leer</span>
               ) : (
@@ -438,13 +441,13 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
               )}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Revisa lo que la IA encontro, corrige columnas y confirma solo cuando este listo.
+              Revisá lo que la IA encontró, corregí las columnas y confirmá sólo cuando esté listo.
             </p>
           </div>
           <div className="text-right text-xs text-muted-foreground">
              <div>Confianza: {Math.round((previewData.summary?.confidence_global || 0) * 100)}%</div>
              <div>Columnas: {previewData.summary?.detected_columns}</div>
-             <div>Imagenes: {detectedImages}</div>
+             <div>Imágenes: {detectedImages}</div>
              <div>Modo: {MODE_LABELS[mode]?.label || mode}</div>
           </div>
         </div>
@@ -472,11 +475,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
             {hasErrors && (
               <Alert variant="destructive">
                 <XCircle className="h-4 w-4" />
-                <AlertTitle>Necesita revision</AlertTitle>
+                <AlertTitle>Necesita revisión</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc pl-4 mt-1 space-y-1">
                     {previewData.errors.map((e, i) => (
-                      <li key={i}>{e.message} {e.action && <b>- {e.action}</b>}</li>
+                      <li key={i}>{safeCatalogImportDetail(e.message,'Hay un dato que necesita revisión.')} {e.action && <b>- {safeCatalogImportDetail(e.action,'Revisá el dato marcado antes de continuar.')}</b>}</li>
                     ))}
                   </ul>
                 </AlertDescription>
@@ -488,7 +491,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
                 <AlertTitle>Observaciones</AlertTitle>
                 <AlertDescription>
                    <ul className="list-disc pl-4 mt-1">
-                     {previewData.summary.warnings.slice(0, 3).map((w, i) => <li key={i}>{w}</li>)}
+                     {previewData.summary.warnings.slice(0, 3).map((w, i) => <li key={i}>{safeCatalogImportDetail(w,'Revisá los datos detectados antes de continuar.')}</li>)}
                    </ul>
                 </AlertDescription>
               </Alert>
@@ -507,8 +510,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         ) : (
            <div className="border border-dashed rounded-lg p-12 flex flex-col items-center justify-center text-center text-muted-foreground">
               <XCircle className="h-10 w-10 mb-4 text-destructive/50" />
-              <p>No se encontraron datos estructurados validos.</p>
-              <p className="text-sm">Intenta subir un archivo diferente o revisa los errores arriba.</p>
+              <p>No se encontraron datos estructurados válidos.</p>
+              <p className="text-sm">Probá con otro archivo o revisá los errores indicados arriba.</p>
            </div>
         )}
 

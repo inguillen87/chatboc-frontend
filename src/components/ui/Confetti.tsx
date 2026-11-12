@@ -1,9 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { ACCESSIBILITY_EVENT, readAccessibilityPrefs, type Prefs } from '@/components/chat/AccessibilityToggle';
 
 const Confetti: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [localReducedMotion, setLocalReducedMotion] = useState(
+    () => Boolean(readAccessibilityPrefs().reducedMotion),
+  );
+  const reducedMotion = useEffectiveReducedMotion(localReducedMotion);
 
   useEffect(() => {
+    const syncPreference = (event?: Event) => {
+      const preferences = (event as CustomEvent<Prefs> | undefined)?.detail ?? readAccessibilityPrefs();
+      setLocalReducedMotion(Boolean(preferences.reducedMotion));
+    };
+    syncPreference();
+    window.addEventListener(ACCESSIBILITY_EVENT, syncPreference);
+    return () => window.removeEventListener(ACCESSIBILITY_EVENT, syncPreference);
+  }, []);
+
+  useEffect(() => {
+    if (reducedMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -90,11 +107,14 @@ const Confetti: React.FC = () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [reducedMotion]);
+
+  if (reducedMotion) return null;
 
   return (
     <canvas
       ref={canvasRef}
+      aria-hidden="true"
       className="fixed inset-0 pointer-events-none z-50"
     />
   );

@@ -12,6 +12,7 @@ interface SurveyRecentResponsesProps {
   error?: string | null;
   onRefresh?: () => void;
   emptyHintUrl?: string | null;
+  totalResponses?: number | null;
   totalResponsesHint?: number | null;
 }
 
@@ -141,6 +142,7 @@ export const SurveyRecentResponses = ({
   error,
   onRefresh,
   emptyHintUrl,
+  totalResponses,
   totalResponsesHint,
 }: SurveyRecentResponsesProps) => (
   <Card>
@@ -165,7 +167,7 @@ export const SurveyRecentResponses = ({
       ) : null}
     </CardHeader>
     <CardContent className="space-y-4">
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       {loading ? (
         <div className="flex h-32 items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -226,21 +228,23 @@ export const SurveyRecentResponses = ({
             );
           })}
         </ul>
-      ) : (
+      ) : !error ? (
         <p className="text-sm text-muted-foreground">
-          {typeof totalResponsesHint === 'number' && totalResponsesHint > 0 ? (
+          {(totalResponses ?? 0) > 0 || (totalResponsesHint ?? 0) > 0 ? (
             'Ya hay respuestas registradas, pero este bloque todavía no pudo cargar el detalle reciente. Probá actualizar.'
+          ) : totalResponses !== 0 ? (
+            'El listado todavía no confirmó cuántas respuestas hay. Probá actualizar.'
           ) : emptyHintUrl ? (
             <>
               Todavía no recibimos respuestas. Compartí el enlace{' '}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">{emptyHintUrl}</code> o el código QR para sumar
+              <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">{emptyHintUrl}</code> o el código QR para sumar
               participación.
             </>
           ) : (
             'Todavía no registramos respuestas. Difundí el enlace público para comenzar a medir resultados.'
           )}
         </p>
-      )}
+      ) : null}
     </CardContent>
   </Card>
 );

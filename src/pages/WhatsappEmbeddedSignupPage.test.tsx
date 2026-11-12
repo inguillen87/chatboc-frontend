@@ -158,4 +158,29 @@ describe("WhatsappEmbeddedSignupPage", () => {
     expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /integracion?channel=whatsapp");
     consoleLogSpy.mockRestore();
   });
+
+  it("leaves an uncertain signup write for manual verification without claiming changes were not saved", async () => {
+    mockedTenantService.completeWhatsappEmbeddedSignup.mockRejectedValueOnce(new Error("transport_failure"));
+    renderPage();
+    const startButton = await screen.findByRole("button", { name: /iniciar registro con meta/i });
+    await waitFor(() => expect(startButton).toBeEnabled());
+    fireEvent.click(startButton);
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: "https://www.facebook.com",
+        data: {
+          type: "WA_EMBEDDED_SIGNUP", event: "FINISH",
+          data: { waba_id: "waba-123", phone_number_id: "phone-456" },
+        },
+      }));
+    });
+    await act(async () => {
+      loginCallback?.({ status: "connected", authResponse: { code: "meta-code" } });
+    });
+    expect((await screen.findAllByText(/No pudimos confirmar el resultado\. Vuelve a integraciones y actualiza el estado/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/No se guardaron los cambios/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /volver a integraciones/i })).toBeEnabled();
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).toHaveBeenCalledTimes(1);
+    expect(window.FB?.login).toHaveBeenCalledTimes(1);
+  });
 });

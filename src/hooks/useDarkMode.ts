@@ -16,11 +16,16 @@ export function useDarkMode() {
     };
 
     window.addEventListener("themechange", handleThemeChange);
+    // The host navbar updates the real root class without emitting an event.
+    // A mounted (including closed) widget must follow that same source of truth.
+    const observer = new MutationObserver(handleThemeChange);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
     // Initial check
     handleThemeChange();
 
     return () => {
+      observer.disconnect();
       window.removeEventListener("themechange", handleThemeChange);
     };
   }, []);

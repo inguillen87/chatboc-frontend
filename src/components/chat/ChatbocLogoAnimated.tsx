@@ -1,7 +1,7 @@
 // src/components/chat/ChatbocLogoAnimated.tsx
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotionConfig } from "framer-motion";
 
 import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 
@@ -28,6 +28,7 @@ const ChatbocLogoAnimated = ({
   src,
   animation,
 }: ChatbocLogoAnimatedProps) => {
+  const reducedMotion = useReducedMotionConfig();
   const actualSize = Math.max(size, 1);
   const resolvedSrc = src || CHATBOC_ORBIT_AVATAR;
   const isChatbocAvatar = resolvedSrc === CHATBOC_ORBIT_AVATAR;
@@ -40,7 +41,7 @@ const ChatbocLogoAnimated = ({
     return anim;
   };
 
-  const animationStyle = getAnimationString(animation);
+  const animationStyle = reducedMotion ? undefined : getAnimationString(animation);
 
   return (
     <motion.span
@@ -54,12 +55,12 @@ const ChatbocLogoAnimated = ({
         borderRadius: "50%",
         ...style,
       }}
-      animate={{
+      animate={reducedMotion ? { rotate: 0, y: 0, scale: 1 } : {
         rotate: smiling ? [0, 3, -3, 2, -2, 0] : 0,
         y: floating ? [0, -3, 0, 1, 0] : 0,
         scale: pulsing ? [1, 1.035, 1] : 1,
       }}
-      transition={{
+      transition={reducedMotion ? { duration: 0 } : {
         rotate: smiling ? { duration: 0.7, ease: "easeInOut" } : {},
         y: floating
           ? {
@@ -93,7 +94,7 @@ const ChatbocLogoAnimated = ({
         }}
         draggable={false}
       />
-      {isChatbocAvatar && (movingEyes || blinking) ? (
+      {!reducedMotion && isChatbocAvatar && (movingEyes || blinking) ? (
         <motion.span
           className="pointer-events-none absolute inset-0 rounded-full"
           animate={{ opacity: blinking ? [1, 0.82, 1] : 1, x: movingEyes ? [0, 1.5, -1, 0] : 0 }}
