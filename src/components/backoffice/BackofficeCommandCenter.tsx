@@ -38,6 +38,7 @@ type Props = {
 type MetricCard = {
   id: string;
   label: string;
+  detailLabel?: string;
   value?: number | string | null;
   description?: string;
   tone?: 'default' | 'warning' | 'success';
@@ -58,7 +59,7 @@ const emptyExecutiveState = (scopeKey: string): ExecutiveActionState => ({
 const formatValue = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString('es-AR');
   if (typeof value === 'string' && value.trim()) return value.trim();
-  return '--';
+  return '—';
 };
 
 const readText = (...values: unknown[]) => {
@@ -211,7 +212,8 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
       { id: 'open', label: 'Casos abiertos', value: inbox?.open, icon: Ticket, tone: inbox?.open ? 'warning' : 'default' },
       {
         id: 'sla',
-        label: 'Riesgo SLA confirmado',
+        label: 'Riesgo SLA',
+        detailLabel: 'Riesgo SLA confirmado',
         value: sla?.risk,
         description: sla ? `${sla.breached} vencidos y ${sla.atRisk} en riesgo.` : 'Falta evidencia suficiente para evaluar el SLA.',
         icon: AlertTriangle,
@@ -219,7 +221,8 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
       },
       {
         id: 'sla-unknown',
-        label: 'SLA sin verificar',
+        label: 'Plazos por revisar',
+        detailLabel: 'SLA sin verificar',
         value: sla?.unknown,
         description: 'Casos abiertos sin evidencia verificable del plazo de atención.',
         icon: AlertTriangle,
@@ -319,9 +322,6 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Mando operativo</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">Prioridades, equipo y exportaciones</h2>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Información operativa confirmada. Los indicadores sin datos permanecen vacíos, sin completar valores por estimación.
-          </p>
         </div>
         <Button type="button" variant="outline" onClick={refresh} disabled={isLoading || !enabled}>
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -337,25 +337,47 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
         </Card>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
         {metrics.map((metric) => {
           const Icon = metric.icon;
+          const value = formatValue(metric.value);
           return (
-            <Card key={metric.id} className={cn('shadow-sm', toneClass[metric.tone ?? 'default'])}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Icon className="h-4 w-4" />
-                  {metric.label}
+            <Card key={metric.id} className={cn('min-w-0 shadow-sm', toneClass[metric.tone ?? 'default'])}>
+              <CardHeader className="p-3 pb-2 sm:p-4 sm:pb-2">
+                <CardTitle className="flex items-start gap-2 text-xs font-medium leading-snug text-muted-foreground sm:text-sm">
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 break-words">{metric.label}</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold">{formatValue(metric.value)}</p>
-                {metric.description ? <p className="mt-1 text-xs text-muted-foreground">{metric.description}</p> : null}
+              <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+                <p className="break-words text-2xl font-semibold tabular-nums">
+                  {value === '—' ? <><span aria-hidden="true">—</span><span className="sr-only">Sin datos</span></> : value}
+                </p>
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      <details key={readScopeKey} className="rounded-lg border border-border/70 bg-muted/20 px-3 text-sm text-muted-foreground">
+        <summary tabIndex={0} className="cursor-pointer select-none py-3 font-medium text-foreground focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          Detalle de los indicadores
+        </summary>
+        <div className="space-y-3 pb-3">
+          <p>
+            Información operativa confirmada. Los indicadores sin datos permanecen vacíos, sin completar valores por estimación.
+          </p>
+          <p>— indica que no hay datos disponibles; 0 es un valor informado.</p>
+          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {metrics.filter((metric) => metric.description).map((metric) => (
+              <div key={metric.id}>
+                <dt className="font-medium text-foreground">{metric.detailLabel ?? metric.label}</dt>
+                <dd className="mt-1 text-xs leading-relaxed">{metric.description}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </details>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
         <Card className="shadow-sm">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BackofficeInboxSummaryResponse } from '@/services/backofficeService';
@@ -53,8 +54,8 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const view = render(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" {...overrides} /></QueryClientProvider>);
-    const risk = screen.getByRole('heading', { name: 'Riesgo SLA confirmado' }).parentElement!.parentElement!;
-    const unknown = screen.getByRole('heading', { name: 'SLA sin verificar' }).parentElement!.parentElement!;
+    const risk = screen.getByRole('heading', { name: 'Riesgo SLA' }).parentElement!.parentElement!;
+    const unknown = screen.getByRole('heading', { name: 'Plazos por revisar' }).parentElement!.parentElement!;
     const team = screen.getByRole('heading', { name: 'Equipo activo' }).parentElement!.parentElement!;
     await within(team).findByText('1', { selector: 'p.text-2xl' });
     return { risk, unknown, client, view };
@@ -65,6 +66,71 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     filename: 'tickets-fixture.pdf', tenantSlug: 'tenant-a', tenantId: 11,
     resource: 'tickets' as const, format: 'pdf' as const,
     rowCount: 1, totalRows: 1, complete: true as const,
+  });
+
+  it('starts with compact values and reveals every data-quality explanation only on request', async () => {
+    const { risk, unknown } = await renderSummary({ open: 55 });
+    const disclosure = screen.getByText('Detalle de los indicadores');
+    const details = disclosure.closest('details')!;
+    const explanations = [
+      screen.getByText(/sin completar valores por estimación/),
+      screen.getByText('— indica que no hay datos disponibles; 0 es un valor informado.'),
+      screen.getByText('Riesgo SLA confirmado'),
+      screen.getByText('Falta evidencia suficiente para evaluar el SLA.'),
+      screen.getByText('SLA sin verificar'),
+      screen.getByText('Casos abiertos sin evidencia verificable del plazo de atención.'),
+      screen.getByText('Falta información verificable de responsables para el total de casos y pedidos.'),
+    ];
+    expect(details).not.toHaveAttribute('open');
+    for (const explanation of explanations) {
+      expect(details).toContainElement(explanation);
+      expect(explanation).not.toBeVisible();
+    }
+    for (const card of [risk, unknown]) {
+      expect(within(card).getByText('—')).toBeVisible();
+      expect(within(card).getByText('—')).toHaveAttribute('aria-hidden', 'true');
+      expect(within(card).getByText('Sin datos')).toBeInTheDocument();
+      expect(within(card).queryByText('0')).not.toBeInTheDocument();
+    }
+    const orders = screen.getByRole('heading', { name: 'Pedidos activos' }).parentElement!.parentElement!;
+    expect(within(orders).getByText('0')).toBeVisible();
+
+    fireEvent.click(disclosure);
+    expect(details).toHaveAttribute('open');
+    for (const explanation of explanations) expect(explanation).toBeVisible();
+    fireEvent.click(disclosure);
+    expect(details).not.toHaveAttribute('open');
+    for (const explanation of explanations) expect(explanation).not.toBeVisible();
+    expect(within(orders).getByText('0')).toBeVisible();
+    expect(within(risk).getByText('—')).toBeVisible();
+  });
+
+  it('keeps keyboard focus and existing actions available around the indicator disclosure', async () => {
+    const user = userEvent.setup();
+    mocks.requestExecutiveSummary.mockResolvedValue({ headline: 'Resumen solicitado por el operador' });
+    await renderSummary({ open: 55 });
+    const refresh = screen.getByRole('button', { name: 'Actualizar', exact: true });
+    const disclosure = screen.getByText('Detalle de los indicadores');
+    await user.tab();
+    expect(refresh).toHaveFocus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(mocks.getInboxSummary).toHaveBeenCalledTimes(2));
+    await user.tab();
+    expect(disclosure).toHaveFocus();
+    await user.click(disclosure);
+    expect(disclosure.closest('details')).toHaveAttribute('open');
+    expect(disclosure).toHaveFocus();
+    await user.click(disclosure);
+    expect(disclosure.closest('details')).not.toHaveAttribute('open');
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Resumen IA' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText('Resumen solicitado por el operador')).toBeVisible();
+    expect(mocks.requestExecutiveSummary).toHaveBeenCalledWith(expect.objectContaining({
+      tenant_slug: 'tenant-a', resource: 'overview', filters: { scope: 'municipio' },
+    }), expect.any(Object));
+    expect(screen.getByRole('button', { name: 'PDF casos' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'CSV contactos' })).toBeEnabled();
   });
 
   it('keeps export disabled and explains verification while the selected tenant ID is unknown', async () => {
@@ -177,7 +243,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     expect(within(unknown).getByText('55', { selector: 'p.text-2xl' })).toBeInTheDocument();
     expect(risk.className).not.toMatch(/emerald|amber/);
     expect(unknown.className).not.toMatch(/emerald/);
-    expect(within(unknown).getByText(/sin evidencia verificable/)).toBeInTheDocument();
+    expect(screen.getByText(/sin evidencia verificable/)).toBeInTheDocument();
   });
 
   it('renders nested zero orders and contacts, and the confirmed team count', async () => {
@@ -192,9 +258,9 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     const team = screen.getByRole('heading', { name: 'Equipo activo' }).parentElement!.parentElement!;
     expect(within(team).getByText('1', { selector: 'p.text-2xl' })).toBeInTheDocument();
     const unassigned = screen.getByRole('heading', { name: 'Sin responsable' }).parentElement!.parentElement!;
-    expect(within(unassigned).getByText('--', { selector: 'p.text-2xl' })).toBeInTheDocument();
+    expect(within(unassigned).getByText('—')).toBeInTheDocument();
     expect(unassigned.className).not.toContain('emerald');
-    expect(within(unassigned).getByText(/Falta información verificable/)).toBeInTheDocument();
+    expect(screen.getByText(/Falta información verificable/)).toBeInTheDocument();
   });
 
   it('uses the server order total rather than the truncated active-order list', async () => {
@@ -218,7 +284,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     await renderSummary({ open: 1 });
     for (const name of ['Pedidos activos', 'Contactos']) {
       const card = screen.getByRole('heading', { name }).parentElement!.parentElement!;
-      expect(within(card).getByText('--', { selector: 'p.text-2xl' })).toBeInTheDocument();
+      expect(within(card).getByText('—')).toBeInTheDocument();
     }
   });
 
@@ -236,7 +302,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     view.rerender(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" /></QueryClientProvider>);
     await waitFor(() => expect(mocks.getTeamCoverageSummary).toHaveBeenCalledTimes(2));
     const team = screen.getByRole('heading', { name: 'Equipo activo' }).parentElement!.parentElement!;
-    expect(within(team).getByText('--', { selector: 'p.text-2xl' })).toBeInTheDocument();
+    expect(within(team).getByText('—')).toBeInTheDocument();
     expect(within(team).queryByText('1', { selector: 'p.text-2xl' })).not.toBeInTheDocument();
     expect(oldLifecycle.isCurrent()).toBe(false);
   });
@@ -376,7 +442,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
       sla_known: 4, sla_unknown: 3, sla_eligible: 7,
     });
     expect(within(risk).getByText('3', { selector: 'p.text-2xl' })).toBeInTheDocument();
-    expect(within(risk).getByText('2 vencidos y 1 en riesgo.')).toBeInTheDocument();
+    expect(screen.getByText('2 vencidos y 1 en riesgo.')).toBeInTheDocument();
     expect(risk.className).toContain('amber');
     expect(within(unknown).getByText('3', { selector: 'p.text-2xl' })).toBeInTheDocument();
     expect(unknown.className).not.toContain('emerald');
@@ -388,9 +454,9 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     { open: 55, sla_risk: 0, sla_breached: 0, sla_at_risk: 0, sla_known: 0, sla_unknown: 55, sla_eligible: 0 },
   ])('does not assert SLA results from incomplete or inconsistent counters', async (summary) => {
     const { risk, unknown } = await renderSummary(summary);
-    expect(within(risk).getByText('--', { selector: 'p.text-2xl' })).toBeInTheDocument();
-    expect(within(unknown).getByText('--', { selector: 'p.text-2xl' })).toBeInTheDocument();
-    expect(within(risk).getByText(/Falta evidencia suficiente/)).toBeInTheDocument();
+    expect(within(risk).getByText('—')).toBeInTheDocument();
+    expect(within(unknown).getByText('—')).toBeInTheDocument();
+    expect(screen.getByText(/Falta evidencia suficiente/)).toBeInTheDocument();
     expect(risk.className).not.toMatch(/emerald|amber/);
   });
 });
