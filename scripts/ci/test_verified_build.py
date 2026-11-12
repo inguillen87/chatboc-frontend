@@ -148,7 +148,13 @@ class WorkflowContractTests(unittest.TestCase):
         repo = Path(__file__).resolve().parents[2]
         workflow = (repo / '.github/workflows/frontend-verification.yml').read_text()
         contract = json.loads((repo / 'scripts/ci/acceptance-contract.json').read_text())
-        self.assertEqual(len(list((repo / '.github/workflows').glob('*.yml'))), 1)
+        # The isolated evaluation has its own workflow; shared production
+        # verification must still execute only once in the workflow below.
+        self.assertEqual(
+            {path.name for path in (repo / '.github/workflows').iterdir()
+             if path.suffix in {'.yml', '.yaml'}},
+            {'frontend-verification.yml', 'evaluation-access.yml'},
+        )
         self.assertEqual(workflow.count('npm test --'), 1)
         self.assertEqual(workflow.count('run: npm run typecheck'), 1)
         self.assertEqual(workflow.count('run: npm run build'), 1)
