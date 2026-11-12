@@ -7,7 +7,8 @@ beforeEach(()=>vi.mocked(apiFetch).mockReset());
 describe('domain lifecycle contract',()=>{
   it('keeps DNS pending distinct from platform publication and never treats it as active',()=>{
     expect(readTenantDomain(domainPayload(),domainScope)).toMatchObject({status:'pending_dns',active:false,provider_changes_performed:false});
-    expect(readTenantDomain(domainPayload({status:'pending_platform',dns_proof:null}),domainScope)).toMatchObject({status:'pending_platform',active:false,valid_until:null});
+    const pending=domainPayload({status:'pending_platform'});
+    expect(readTenantDomain(pending,domainScope)).toMatchObject({status:'pending_platform',active:false,valid_until:null,dns_proof:pending.dns_proof});
   });
   it.each([
     {tenant:{id:18,slug:domainScope.slug}}, {tenant:{id:17,slug:'old-workspace'}}, {revision:'legacy'},
@@ -15,6 +16,13 @@ describe('domain lifecycle contract',()=>{
     {host:'https://evil.test/'}, {save_endpoint:'/api/admin/tenants/old-workspace/domain'},
     {provider_changes_performed:true}, {dns_proof:{type:'TXT',name:'_chatboc-verify.other.test',value:'anything',expires_at:1}},
   ])('rejects malformed, foreign or falsely active state %j',patch=>expect(()=>readTenantDomain(domainPayload(patch),domainScope)).toThrow());
+  it.each([
+    {dns_proof:{...domainPayload().dns_proof,name:'_chatboc-verify.other.test'}},
+    {dns_proof:{...domainPayload().dns_proof,value:'unverified-provider-note'}},
+    {active:true,valid_until:Math.floor(Date.now()/1000)+3600},
+  ])('rejects invalid pending-platform evidence %j',patch=>{
+    expect(()=>readTenantDomain(domainPayload({status:'pending_platform',...patch}),domainScope)).toThrow();
+  });
   it('reads exact private scope with a single attempt and no widget credentials',async()=>{
     vi.mocked(apiFetch).mockResolvedValue(domainPayload());
     await getTenantDomain(domainScope,()=>true);

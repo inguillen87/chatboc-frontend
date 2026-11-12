@@ -33,7 +33,7 @@ export function readTenantDomain(payload: unknown, scope: DomainTenantScope): Te
     typeof value.can_edit !== 'boolean' || typeof value.can_revoke !== 'boolean' || !reasons.has(value.reason_code) ||
     (value.active ? !Number.isSafeInteger(value.valid_until) || value.valid_until <= Date.now()/1000 : value.valid_until !== null) ||
     value.save_endpoint !== path || value.provider_changes_performed !== false || !copy(value.scope_note)) throw new TenantDomainContractError();
-  if (value.dns_proof !== null && (status !== 'pending_dns' || proof.type !== 'TXT' || proof.name !== `_chatboc-verify.${host}` ||
+  if (value.dns_proof !== null && (!['pending_dns','pending_platform'].includes(status) || proof.type !== 'TXT' || proof.name !== `_chatboc-verify.${host}` ||
     !/^chatboc-domain-verification=[0-9a-f]{64}$/.test(proof.value) || !Number.isSafeInteger(proof.expires_at))) throw new TenantDomainContractError();
   return { contract_version:'organization.domain.v1', tenant:{...scope}, revision:value.revision, version:value.version, host, status,
     active:value.active,can_edit:value.can_edit,can_revoke:value.can_revoke,reason_code:value.reason_code,
