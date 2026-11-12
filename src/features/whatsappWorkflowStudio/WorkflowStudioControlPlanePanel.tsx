@@ -32,6 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/utils/api";
+import WorkflowStudioSimulator from "./WorkflowStudioSimulator";
 
 const NEW_WORKFLOW_VALUE = "__new_workflow__";
 
@@ -591,6 +592,14 @@ export default function WorkflowStudioControlPlanePanel({
             {capabilityLabel("draft")}
           </Button>
         </section>
+
+        <WorkflowStudioSimulator
+          key={`${scopeKey}:${scopeGenerationRef.current}:${selectedWorkflowId}`}
+          contract={durableContract}
+          expectedTenantSlug={tenantSlug}
+          draftJson={draftJson}
+          disabled={loading || Boolean(mutating)}
+        />
 
         {ledger ? (
           <>

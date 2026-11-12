@@ -60,6 +60,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
 
   const priorityLabel = normalizeText(ticket.priority);
   const slaSource = resolveTicketSlaSource(ticket);
+  const slaDescriptionId = React.useId();
   const assignedLabel = normalizeText(
     ticket.assignedAgent?.nombre_usuario ||
       ticket.user?.nombre_usuario ||
@@ -139,7 +140,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
         tabIndex={tabIndex}
         data-ticket-queue-index={queueIndex}
         aria-pressed={isSelected}
-        aria-describedby={ariaDescribedBy}
+        aria-describedby={[ariaDescribedBy, slaSource ? slaDescriptionId : undefined].filter(Boolean).join(' ') || undefined}
         aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
       >
         {hasUnread && !isSelected && (
@@ -189,6 +190,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
                 )}
               </div>
             )}
+            {slaSource ? (
+              <div id={slaDescriptionId} className="mt-1.5 flex min-w-0">
+                <TicketSlaClocks sla={slaSource} compact className="h-5 max-w-full px-1.5" />
+              </div>
+            ) : null}
             {nextAction ? (
               <p
                 className="mt-1.5 line-clamp-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] font-medium leading-4 text-primary"

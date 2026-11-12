@@ -8,7 +8,12 @@ const workflowApiMocks = vi.hoisted(() => ({
   review: vi.fn(),
   publish: vi.fn(),
   rollback: vi.fn(),
+  simulate: vi.fn(),
   createKey: vi.fn(),
+}));
+
+vi.mock("@/api/v2/whatsappWorkflowSimulation", () => ({
+  simulateWhatsappWorkflow: workflowApiMocks.simulate,
 }));
 
 vi.mock("@/api/v2/whatsappWorkflowStudio", async () => {
@@ -39,6 +44,7 @@ import {
   makeLedger,
   makeLedgerList,
   makePublicationReceipt,
+  makeWorkflowSimulation,
 } from "./workflowStudioTestFixtures";
 
 const ROLLBACK_REVIEW_ID = "00000000-0000-4000-8000-000000000006";
@@ -153,6 +159,37 @@ describe("WorkflowStudioControlPlanePanel", () => {
     expect(within(panel).getByText(/El runtime sigue desconectado/)).toBeInTheDocument();
     expect(within(panel).getByText(/provider_calls: false/)).toBeInTheDocument();
     expect(within(panel).queryByText(/workflow live/i)).not.toBeInTheDocument();
+  });
+
+  it("simulates the edited workflow without saving and discards it when selecting another workflow", async () => {
+    const simulation = deferred<ReturnType<typeof makeWorkflowSimulation>>();
+    workflowApiMocks.simulate.mockReturnValue(simulation.promise);
+    render(
+      <WorkflowStudioControlPlanePanel
+        contract={makeDurableWorkflowStudioContract()}
+        expectedTenantSlug="demo"
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Verificar ledger" })).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Workflow del tenant"), { target: { value: WORKFLOW_ID } });
+    const draft = makeLedger().latest_draft_revision.draft;
+    await waitFor(() => expect(screen.getByLabelText("Borrador JSON")).toHaveValue(JSON.stringify(draft, null, 2)));
+    const edited = { ...draft, name: "Borrador aún sin guardar" };
+    fireEvent.change(screen.getByLabelText("Borrador JSON"), { target: { value: JSON.stringify(edited) } });
+    fireEvent.change(screen.getByLabelText("Mensaje de prueba"), { target: { value: "Hola" } });
+    fireEvent.click(screen.getByRole("button", { name: "Probar mensaje" }));
+    expect(workflowApiMocks.simulate).toHaveBeenCalledWith(expect.objectContaining({
+      draft: edited, expectedTenantSlug: "demo", event: { message: { type: "text", text: "Hola" } },
+    }));
+    const guard = workflowApiMocks.simulate.mock.calls[0][0].isCurrent;
+    fireEvent.change(screen.getByLabelText("Workflow del tenant"), { target: { value: NEW_WORKFLOW_VALUE_FOR_TEST } });
+    expect(guard()).toBe(false);
+    await act(async () => simulation.resolve(makeWorkflowSimulation()));
+    expect(screen.getByLabelText("Mensaje de prueba")).toHaveValue("");
+    expect(screen.queryByText("Prueba completada")).not.toBeInTheDocument();
+    for (const mutation of [workflowApiMocks.save, workflowApiMocks.review, workflowApiMocks.publish, workflowApiMocks.rollback]) {
+      expect(mutation).not.toHaveBeenCalled();
+    }
   });
 
   it("reuses one in-memory idempotency key after an ambiguous draft failure", async () => {
