@@ -3,6 +3,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "fix/tracking-background-refresh-20261112": false,
       "fix/tracking-location-provenance-20261103": false,
       "fix/enterprise-operator-workflows-20261103": false,
       "fix/survey-response-contract-20261103": false,
