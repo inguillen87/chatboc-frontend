@@ -1,5 +1,8 @@
 # Frontend Task Única — World Class Chatboc UX (Widget + WhatsApp Inbox + CRM + Heatmaps)
 
+> Coordinación vigente: [Chatboc oficial · Conversa TDF · Junín, tarea #2827](https://github.com/inguillen87/chatbot-backend/issues/2827).
+> Registrar allí responsables, PR y evidencia; este documento conserva el alcance de experiencia compartida.
+
 > **Este es el único documento que hay que mandar al frontend.**
 > Si FE necesita una sola tarea consolidada, usar esta.
 
