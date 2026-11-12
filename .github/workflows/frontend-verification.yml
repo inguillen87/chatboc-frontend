@@ -542,6 +542,8 @@ jobs:
       run: npx playwright install --with-deps chromium
     - name: Real page recovery with synthetic faults
       run: node tests/section-recovery.browser.mjs
+    - name: Tracking refresh preserves native focus
+      run: npx playwright test tests/e2e/tracking-background-refresh.spec.ts --project=chromium --workers=1 --retries=0
     - name: Alert contrast across public themes
       run: node tests/alert-contrast.browser.mjs
     - name: Recovery evidence

@@ -48,6 +48,7 @@ import {
 const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
 type AnyRecord = Record<string, any>;
+type TrackingLoadOptions = { background?: boolean };
 
 const isRecord = (value: unknown): value is AnyRecord =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -610,6 +611,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   const [showPin, setShowPin] = useState(false);
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorTarget, setErrorTarget] = useState<"pin" | "tracking" | null>(null);
   const [pageNotice, setPageNotice] = useState<{ message: string; tone: "status" | "error" } | null>(null);
@@ -626,7 +628,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   const supportComposerRef = React.useRef<HTMLTextAreaElement | null>(null);
   const supportNoticeRef = React.useRef<HTMLDivElement | null>(null);
   const mapSectionRef = React.useRef<HTMLDivElement | null>(null);
-  const loadRef = React.useRef<(() => Promise<void>) | null>(null);
+  const loadRef = React.useRef<((options?: TrackingLoadOptions) => Promise<void>) | null>(null);
   const realtimeRefreshPendingRef = React.useRef(false);
   const realtimeRefreshQueuedRef = React.useRef(false);
   const joinRefreshPendingRef = React.useRef(false);
@@ -738,8 +740,8 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
     }
   };
 
-  const load = async () => {
-    if (!code || loadPendingRef.current) return;
+  const load = async ({ background = false }: TrackingLoadOptions = {}) => {
+    if (!mountedRef.current || !code || loadPendingRef.current) return;
     if (requiresPinForLoad) {
       setError("Ingresa el PIN para consultar el estado del reclamo.");
       setErrorTarget("pin");
@@ -749,8 +751,13 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
 
     const generation = ++requestGenerationRef.current;
     const isCurrent = () => mountedRef.current && requestGenerationRef.current === generation;
+    // Automatic reads keep the current verified view mounted so they cannot
+    // interrupt composition or reset the map. A manual access check still
+    // withdraws it; errors and credential/navigation changes retire it below.
+    const keepVerifiedView = background && isUsableTrackingPayload(payload, kind, code, tenantSlug);
     loadPendingRef.current = true;
-    setLoading(true);
+    setLoading(!keepVerifiedView);
+    setRefreshing(keepVerifiedView);
     setError(null);
     setErrorTarget(null);
     try {
@@ -779,13 +786,14 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
       if (isCurrent()) {
         loadPendingRef.current = false;
         setLoading(false);
+        setRefreshing(false);
       }
     }
   };
 
   const handleSendSupportMessage = async () => {
     const message = supportMessage.trim();
-    if (!message || !support.endpoint || !visiblePayload || (support.requiresPin && !pin.trim())) return;
+    if (!message || !support.endpoint || !visiblePayload || loadPendingRef.current || (support.requiresPin && !pin.trim())) return;
     const generation = credentialGenerationRef.current;
     const readGeneration = requestGenerationRef.current;
     const isCurrent = () => mountedRef.current && credentialGenerationRef.current === generation;
@@ -885,7 +893,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
         return;
       }
       realtimeRefreshPendingRef.current = true;
-      const pendingLoad = loadRef.current?.();
+      const pendingLoad = loadRef.current?.({ background: true });
       if (!pendingLoad) {
         realtimeRefreshPendingRef.current = false;
         return;
@@ -913,7 +921,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
       if (joinFailureCountRef.current >= 2 || joinRefreshPendingRef.current) return;
       joinFailureCountRef.current += 1;
       joinRefreshPendingRef.current = true;
-      const pendingLoad = loadRef.current?.();
+      const pendingLoad = loadRef.current?.({ background: true });
       if (!pendingLoad) {
         joinRefreshPendingRef.current = false;
         return;
@@ -975,7 +983,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
     const timer = window.setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       if (supportSending) return;
-      void load();
+      void load({ background: true });
     }, intervalMs);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1077,6 +1085,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                           credentialGenerationRef.current += 1;
                           loadPendingRef.current = false;
                           setLoading(false);
+                          setRefreshing(false);
                           setPayload(null);
                           setSupportSending(false);
                           setSupportNotice(null);
@@ -1107,8 +1116,8 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                     </p>
                   </div>
                 ) : null}
-                <Button type="submit" disabled={loading || !code} className="h-10 font-semibold">
-                  {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                <Button type="submit" disabled={loading || refreshing || !code} className="h-10 font-semibold">
+                  {loading || refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                   Actualizar estado
                 </Button>
               </div>
@@ -1159,7 +1168,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
           </div>
         ) : null}
 
-        {loading ? <p role="status" className="mb-4 text-sm text-muted-foreground">Consultando seguimiento…</p> : null}
+        {loading || refreshing ? <p role="status" className={refreshing ? "sr-only" : "mb-4 text-sm text-muted-foreground"}>Consultando seguimiento…</p> : null}
 
         {visiblePayload ? <>
         {attachments.length > 0 ? (
@@ -1364,7 +1373,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                     </p>
                     <Button
                       type="submit"
-                      disabled={supportSending || !supportMessage.trim() || !support.endpoint || requiresPinForSupport}
+                      disabled={supportSending || refreshing || !supportMessage.trim() || !support.endpoint || requiresPinForSupport}
                       className="h-10 font-semibold"
                     >
                       {supportSending ? <Loader2 className="animate-spin" /> : <Send />}
