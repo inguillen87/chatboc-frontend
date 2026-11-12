@@ -2,6 +2,7 @@ import './index.css';
 import { createRoot } from 'react-dom/client';
 
 import ErrorBoundary from './components/ErrorBoundary';
+import { AccessibleMotionProvider } from './components/app-shell/AccessibleMotionProvider';
 import PortalApp from './PortalApp';
 import { setupPWA } from './pwa';
 import { registerExtensionNoiseFilters } from '@/utils/registerExtensionNoiseFilters';
@@ -17,6 +18,8 @@ setupPWA();
 
 createRoot(container).render(
   <ErrorBoundary>
-    <PortalApp />
+    <AccessibleMotionProvider>
+      <PortalApp />
+    </AccessibleMotionProvider>
   </ErrorBoundary>,
 );
