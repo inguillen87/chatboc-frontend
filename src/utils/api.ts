@@ -1440,7 +1440,7 @@ export async function apiFetch<T>(
         if (isRetryableGatewayFailure && hasMoreBases) {
           const nonRetryableAvailability = candidateResponse.status === 503 &&
             candidateContentType.includes('application/json') &&
-            isNonRetryableSharedError(await candidateResponse.clone().json().catch(() => null));
+            isNonRetryableSharedError(await candidateResponse.clone().json().catch((): unknown => null));
           options.signal?.throwIfAborted();
           if (!nonRetryableAvailability) {
             // An untyped gateway failure can belong to the host/proxy. A typed
