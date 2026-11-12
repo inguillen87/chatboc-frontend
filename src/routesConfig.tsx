@@ -23,6 +23,7 @@ const Checkout = React.lazy(() => import('@/pages/Checkout'));
 const ChatPosPage = React.lazy(() => import('@/pages/ChatPosPage'));
 const ChatCRMPage = React.lazy(() => import('@/pages/ChatCRMPage'));
 const Integracion = React.lazy(() => import('@/pages/Integracion'));
+const MetaCredentials = React.lazy(() => import('@/pages/MetaCredentials'));
 const WhatsappEmbeddedSignupPage = React.lazy(() => import('@/pages/WhatsappEmbeddedSignupPage'));
 const Documentacion = React.lazy(() => import('@/pages/Documentacion'));
 const Faqs = React.lazy(() => import('@/pages/Faqs'));
@@ -584,6 +585,12 @@ const routes: RouteConfig[] = [
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/opinar', element: <OpinarArPage /> },
+  {
+    path: '/integracion/meta/credenciales',
+    element: <MetaCredentials />,
+    requiresSession: true,
+    roles: ['superadmin'],
+  },
   {
     path: '/integracion/whatsapp/connect',
     element: <WhatsappEmbeddedSignupPage />,
