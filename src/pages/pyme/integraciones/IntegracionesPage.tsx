@@ -1624,7 +1624,6 @@ const IntegracionesPage = () => {
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
                 Autoriza WhatsApp Business, prueba recorridos reales y deja cada canal listo para operar desde el espacio de la organización.
               </p>
-              <InstitutionalProfileAccess includeDomainSettings />
             </div>
           </div>
           <dl className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">
@@ -1643,6 +1642,11 @@ const IntegracionesPage = () => {
               <dd className="mt-2 text-sm font-semibold text-foreground">{selectedChannelConfig.label}</dd>
             </div>
           </dl>
+        </div>
+        {/* Below the title row, at full width: inside the row it was squeezed
+            into the left column and pushed the status summary to the bottom. */}
+        <div className="mt-5 max-w-3xl">
+          <InstitutionalProfileAccess includeDomainSettings />
         </div>
       </header>
 
