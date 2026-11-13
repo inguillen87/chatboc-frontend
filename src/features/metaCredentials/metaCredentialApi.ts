@@ -44,6 +44,13 @@ export interface MetaCredentialReceipt {
   planSha256: string;
 }
 
+export interface MetaConnectionInspection {
+  checkedAt: number;
+  validUntil: number;
+  controlIdentified: boolean;
+  configurationIncomplete: boolean;
+}
+
 export class MetaCredentialClientError extends Error {
   constructor(readonly reasonCode: string, readonly outcomeUnverified = false) {
     super(reasonCode);
@@ -130,6 +137,91 @@ export const parseMetaCredentialReceipt = (value: unknown, plan: MetaCredentialP
   return { target: plan.target, revision: plan.nextRevision, expiresAt: plan.expiresAt, planSha256: plan.planSha256 };
 };
 
+export const metaCredentialsInstalled = (statuses: MetaCredentialStatus[]): boolean =>
+  statuses.length === META_CREDENTIAL_TARGETS.length && META_CREDENTIAL_TARGETS.every(target => {
+    const matches = statuses.filter(status => status.target === target);
+    if (matches.length !== 1) return false;
+    const status = matches[0];
+    return !status.operationAvailable && status.currentRevision !== null &&
+      status.currentRevision >= status.expectedRevision + 1 && status.expiresAt !== null &&
+      status.expiresAt > Math.floor(Date.now() / 1000);
+  });
+
+// This projection can confirm access only. No raw Graph value, URL, digest,
+// provider ID or server message survives into the component's result state.
+export const parseMetaConnectionInspection = (value: unknown, statuses: MetaCredentialStatus[]): MetaConnectionInspection => {
+  const data = record(value);
+  if (!metaCredentialsInstalled(statuses) || data.contract !== 'chatboc.meta_phone_webhook_inspection.v1' ||
+      data.target !== 'junin-production' || data.inspection_complete !== false || data.write_ready !== false ||
+      data.writes_performed !== false || data.provider_mutations !== false || data.messages_sent !== false ||
+      !Array.isArray(data.credentials) || data.credentials.length !== 2 ||
+      !Array.isArray(data.resources) || data.resources.length !== 3 ||
+      !Array.isArray(data.blockers) || data.blockers.some(code => typeof code !== 'string' ||
+        !/^meta_inspection_[a-z_]{1,80}$/.test(code))) throw invalid();
+  for (const code of ['meta_inspection_readback_contract_unverified', 'meta_inspection_rollback_contract_unverified',
+    'meta_inspection_mutation_not_implemented']) if (!data.blockers.includes(code)) throw invalid();
+  digest(data.database_identity_sha256);
+  const observedAt = integer(data.observed_at, 1);
+  const checkedAt = integer(data.checked_at, 1);
+  const validUntil = integer(data.valid_until, 1);
+  const now = Math.floor(Date.now() / 1000);
+  if (observedAt > checkedAt || checkedAt > now + 5 || checkedAt >= validUntil ||
+      validUntil <= now || validUntil > checkedAt + 60) throw invalid();
+  const credentials = data.credentials.map(record);
+  const resources = data.resources.map(record);
+  if (new Set(resources.map(row => row.resource)).size !== 3 ||
+      resources.some(row => !['junin', 'inmovar', 'tdf'].includes(String(row.resource)))) throw invalid();
+  for (const status of statuses) {
+    const matches = credentials.filter(row => row.target === status.target);
+    if (matches.length !== 1) throw invalid();
+    const credential = matches[0];
+    if (credential.tenant_id !== status.tenantId || credential.environment !== status.environment ||
+        credential.revision !== status.currentRevision || credential.expires_at !== status.expiresAt ||
+        credential.authority_verified !== true || credential.inventory_complete !== true ||
+        typeof credential.graph_version !== 'string' || !/^v[1-9][0-9]{0,2}\.0$/.test(credential.graph_version) ||
+        validUntil > status.expiresAt!) throw invalid();
+    integer(credential.connection_id, 1); integer(credential.sender_id, 1);
+    digest(credential.inventory_sha256); digest(credential.subscriptions_sha256);
+    const resource = resources.find(row => row.resource === (status.target === 'junin-production' ? 'junin' : 'tdf'))!;
+    if (resource.phone_number_id !== status.phoneNumberId || resource.phone_number !== status.phoneNumber ||
+        resource.waba_id !== status.wabaId || resource.graph_version !== credential.graph_version) throw invalid();
+  }
+  const control = resources.find(row => row.resource === 'inmovar')!;
+  const primary = resources.find(row => row.resource === 'junin')!;
+  if (control.waba_id !== primary.waba_id || control.graph_version !== primary.graph_version ||
+      typeof control.phone_number !== 'string' || !/^\+[1-9][0-9]{7,14}$/.test(control.phone_number)) throw invalid();
+  if (control.phone_number_id !== null) identifier(control.phone_number_id);
+  const observedIds = resources.map(resource => resource.phone_number_id).filter(id => id !== null);
+  if (new Set(observedIds).size !== observedIds.length || control.phone_number === primary.phone_number) throw invalid();
+  let configurationIncomplete = false;
+  for (const resource of resources) {
+    const config = record(resource.configuration);
+    const state = config.state;
+    if (config.schema_verified !== false || !['candidate_shape', 'unknown_shape', 'missing', 'unavailable', 'not_requested'].includes(String(state))) throw invalid();
+    if (state === 'not_requested' && (resource.resource !== 'inmovar' || resource.phone_number_id !== null)) throw invalid();
+    if (resource.phone_number_id === null && state !== 'not_requested') throw invalid();
+    if (state === 'candidate_shape' || state === 'unknown_shape') {
+      digest(config.configuration_sha256);
+      if (!['null', 'string', 'object', 'array', 'boolean', 'number', 'unknown'].includes(String(config.value_type))) throw invalid();
+      if (config.value_type === 'object') integer(config.unknown_field_count);
+    }
+    else if (config.configuration_sha256 !== null) throw invalid();
+    const fields = record(config.known_fields);
+    if (Object.keys(fields).some(key => !['application', 'whatsapp_business_account', 'phone_number'].includes(key))) throw invalid();
+    for (const field of Object.values(fields).map(record)) {
+      if (!['null', 'string', 'object', 'array', 'boolean', 'number', 'unknown'].includes(String(field.value_type)) ||
+          typeof field.matches_expected_callback !== 'boolean' ||
+          (field.public_callback !== null && typeof field.public_callback !== 'string')) throw invalid();
+      digest(field.value_sha256);
+    }
+    if (state === 'candidate_shape' && (config.value_type !== 'object' || config.unknown_field_count !== 0 ||
+      Object.keys(fields).length === 0 || Object.values(fields).some(field => record(field).value_type !== 'string'))) throw invalid();
+    if (!['candidate_shape', 'unknown_shape'].includes(String(state)) && Object.keys(fields).length !== 0) throw invalid();
+    configurationIncomplete ||= state !== 'candidate_shape';
+  }
+  return { checkedAt, validUntil, controlIdentified: control.phone_number_id !== null, configurationIncomplete };
+};
+
 // Keep private credentials on the panel's existing HTTPS proxy and cookie/Bearer
 // authority. A preview, third-party origin or HTTP page cannot dispatch them.
 export const metaCredentialApiBase = (): string => {
@@ -149,7 +241,7 @@ const readPrivateJson = async (response: Response): Promise<unknown> => {
   try { return JSON.parse(body); } catch { throw invalid(); }
 };
 
-const privatePost = async (action: 'status' | 'plan' | 'apply', body: RecordValue, scope: RequestScope): Promise<unknown> => {
+const privatePost = async (action: 'status' | 'plan' | 'apply' | 'inspect-junin-webhook', body: RecordValue, scope: RequestScope): Promise<unknown> => {
   let received: Response | undefined;
   try {
     const response = await apiFetch(`/api/internal/meta-credentials/${action}`, {
@@ -182,6 +274,11 @@ const requireToken = (token: string): void => {
 };
 
 export const metaCredentialApi = {
+  inspectConnection: async (statuses: MetaCredentialStatus[], scope: RequestScope) => {
+    if (!scope.isCurrent()) throw new DOMException('Request retired', 'AbortError');
+    if (!metaCredentialsInstalled(statuses)) throw new MetaCredentialClientError('meta_inspection_credentials_required');
+    return parseMetaConnectionInspection(await privatePost('inspect-junin-webhook', { target: 'junin-production' }, scope), statuses);
+  },
   status: async (target: MetaCredentialTarget, scope: RequestScope) =>
     parseMetaCredentialStatus(await privatePost('status', { target }, scope), target),
   plan: async (status: MetaCredentialStatus, accessToken: string, scope: RequestScope) => {

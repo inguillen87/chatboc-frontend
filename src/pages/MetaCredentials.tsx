@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ViewState } from '@/components/app-shell/ViewState';
+import MetaConnectionCheck from '@/components/integrations/MetaConnectionCheck';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
 import { captureChatbocSessionRevision, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
@@ -231,6 +232,8 @@ export default function MetaCredentials() {
           </div>
           <p className="text-xs text-muted-foreground">Los campos se limpian al finalizar, cancelar o salir de esta pantalla.</p>
         </form>}
+      <MetaConnectionCheck statuses={statuses} scopeKey={scopeKey}
+        blocked={busy || uncertain !== null || !['editing', 'done'].includes(phase)} />
     </>}
   </main>;
 }
