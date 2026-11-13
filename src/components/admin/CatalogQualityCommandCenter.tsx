@@ -333,7 +333,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
               <span>Imagen</span>
               <span>Producto</span>
               <span>Precio</span>
-              <span>Accion</span>
+              <span>Acción</span>
             </div>
             <div className="divide-y">
               {activeItems.map((item) => (
@@ -462,7 +462,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
                 </Pill>
               ))}
               {!imports?.image_columns?.length ? (
-                <span className="text-sm text-muted-foreground">Aun no se publicaron columnas de imagen para este catalogo.</span>
+                <span className="text-sm text-muted-foreground">Aún no se publicaron columnas de imagen para este catalogo.</span>
               ) : null}
             </div>
           </div>

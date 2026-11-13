@@ -1436,7 +1436,7 @@ export default function SurveyAnalyticsPage() {
               <p className="text-sm text-muted-foreground">{focusCopy.description}</p>
             </div>
             <Button variant="outline" size="sm" asChild className="shrink-0">
-              <a href={`#${focusCopy.targetId}`}>Ir al modulo</a>
+              <a href={`#${focusCopy.targetId}`}>Ir al módulo</a>
             </Button>
           </CardContent>
         </Card>
@@ -2227,7 +2227,7 @@ export default function SurveyAnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Integridad local y auditoria</CardTitle>
-          <CardDescription>Gestiona cortes Merkle locales sin afirmar publicacion o verificacion externa.</CardDescription>
+          <CardDescription>Gestiona cortes Merkle locales sin afirmar publicación o verificación externa.</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingSnapshots ? (

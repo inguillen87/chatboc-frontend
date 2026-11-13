@@ -66,7 +66,7 @@ const ConsultingDifferenceSection = () => {
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div>
             <div className="chatboc-section-kicker mb-4">Por que no somos un chatbot mas</div>
-            <h2 className="chatboc-section-heading">Consultoria, agente IA y operacion real en la misma experiencia</h2>
+            <h2 className="chatboc-section-heading">Consultoria, agente IA y operación real en la misma experiencia</h2>
             <p className="chatboc-section-copy mt-4">
               Chatboc no se queda en responder preguntas. Ayuda a ordenar el recorrido completo: entender lo que pide
               la persona, pedir datos utiles, crear casos o pedidos, medir lo que pasa y dejar al equipo con acciones
@@ -94,7 +94,7 @@ const ConsultingDifferenceSection = () => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">Centro de resultados en vivo</p>
-                  <p className="text-xs text-muted-foreground">Cada modulo muestra datos reales cuando la organizacion esta conectada.</p>
+                  <p className="text-xs text-muted-foreground">Cada módulo muestra datos reales cuando la organización está conectada.</p>
                 </div>
                 <div className="chatboc-live-chip rounded-[8px] bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
                   listo para operar

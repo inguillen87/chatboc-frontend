@@ -119,7 +119,7 @@ test.describe('Clerk bootstrap continuity', () => {
 
     await page.goto('/demo');
 
-    await expect(page.getByRole('heading', { name: 'Preparando Chatboc' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Preparando tu espacio' })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Eleg[ií] una operaci[oó]n real para probar/i })).toHaveCount(0);
 
     gate.release();
@@ -140,7 +140,7 @@ test.describe('Clerk bootstrap continuity', () => {
     const { gate, requestCounts } = await installDemoApiMocks(page);
 
     await page.goto('/demo');
-    await expect(page.getByRole('heading', { name: 'Preparando Chatboc' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Preparando tu espacio' })).toBeVisible();
 
     const demoHeading = page.getByRole('heading', { name: /Eleg[ií] una operaci[oó]n real para probar/i });
     await expect(demoHeading).toBeVisible({ timeout: 7_000 });

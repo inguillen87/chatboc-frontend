@@ -602,10 +602,10 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
         {!user && (
           <div className="w-full mb-4 rounded-lg border border-dashed border-primary/30 bg-card p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <p className="text-sm text-muted-foreground mb-2">Inicia sesion para ver tu saldo de puntos y canjear productos.</p>
+              <p className="text-sm text-muted-foreground mb-2">Inicia sesión para ver tu saldo de puntos y canjear productos.</p>
               <div className="flex gap-2 flex-wrap">
                 <Button asChild variant="default" size="sm">
-                  <Link to={loginPath}>Iniciar sesion</Link>
+                  <Link to={loginPath}>Iniciar sesión</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link to={registerPath}>Crear cuenta</Link>
@@ -706,12 +706,12 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
       <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Inicia sesion para usar tus puntos</DialogTitle>
+            <DialogTitle>Inicia sesión para usar tus puntos</DialogTitle>
             <DialogDescription>{pointsAuthMessage}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
             <Button asChild variant="default">
-              <Link to={loginPath}>Iniciar sesion</Link>
+              <Link to={loginPath}>Iniciar sesión</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to={registerPath}>Crear cuenta</Link>

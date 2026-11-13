@@ -520,8 +520,8 @@ describe("TrackingExperiencePage support contract", () => {
     expect(screen.queryByText("Ticket #42")).not.toBeInTheDocument();
     const summaryHeader = screen.getByTestId("tracking-summary-header");
     expect(within(summaryHeader).getByText("Estado actual")).toBeInTheDocument();
-    expect(within(summaryHeader).getByText("Proxima etapa")).toBeInTheDocument();
-    expect(within(summaryHeader).getByText("Ultima actualizacion")).toBeInTheDocument();
+    expect(within(summaryHeader).getByText("Próxima etapa")).toBeInTheDocument();
+    expect(within(summaryHeader).getByText("Última actualización")).toBeInTheDocument();
     expect(within(summaryHeader).getByText("Validando")).toBeInTheDocument();
     expect(within(summaryHeader).getByText("6 de junio, 00:04")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Avance del seguimiento" })).toHaveAttribute(

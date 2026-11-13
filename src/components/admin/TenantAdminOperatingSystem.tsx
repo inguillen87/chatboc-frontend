@@ -407,7 +407,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
       <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
         <Card className="h-fit border-border/60">
           <CardHeader>
-            <CardTitle className="text-base">Modulos</CardTitle>
+            <CardTitle className="text-base">Módulos</CardTitle>
             <CardDescription>Menu operativo del tenant.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -915,7 +915,7 @@ export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-semibold text-foreground">Flujos operativos</h3>
-                <p className="text-xs text-muted-foreground">Cada flujo debe confirmar por backend antes de cerrar la operacion.</p>
+                <p className="text-xs text-muted-foreground">Cada flujo debe confirmar por backend antes de cerrar la operación.</p>
               </div>
               <StatePill value="server-to-server" tone="ready" />
             </div>
@@ -1010,7 +1010,7 @@ export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord
             </div>
 
             <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
-              <h3 className="font-semibold text-foreground">Analitica y riesgo</h3>
+              <h3 className="font-semibold text-foreground">Analítica y riesgo</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {[...financeFunnels.slice(0, 3), ...financeRiskSignals.slice(0, 3)].map((item) => (
                   <StatePill key={item} value={item.replace(/_/g, " ")} />

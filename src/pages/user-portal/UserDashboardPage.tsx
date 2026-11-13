@@ -198,7 +198,7 @@ const UserDashboardPage = () => {
                 ) : null}
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Telefono</span>
+                <span className="text-muted-foreground">Teléfono</span>
                 <input
                   value={registrationForm.phone}
                   onChange={(event) => setRegistrationForm((current) => ({ ...current, phone: event.target.value }))}
@@ -235,7 +235,7 @@ const UserDashboardPage = () => {
               <p className="mt-3 text-sm text-green-700">Listo. Refrescamos tu historial y tus datos quedan vinculados.</p>
             ) : null}
             {registrationStatus === 'verification_required' ? (
-              <p className="mt-3 text-sm text-amber-700">Ese email necesita verificacion antes de vincular la cuenta.</p>
+              <p className="mt-3 text-sm text-amber-700">Ese email necesita verificación antes de vincular la cuenta.</p>
             ) : null}
           </SummaryCard>
         </motion.div>
@@ -489,7 +489,7 @@ const UserDashboardPage = () => {
                     <SummaryCard title="Encuestas Pendientes" icon={<MessageSquareQuote className="h-5 w-5" />}>
                         <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
                             <h4 className="font-semibold text-primary mb-2">{pendingSurveys[0].title}</h4>
-                            <p className="text-xs text-muted-foreground mb-4">Tu opinion ayuda a mejorar. Participa cuando la organizacion tenga encuestas activas.</p>
+                            <p className="text-xs text-muted-foreground mb-4">Tu opinion ayuda a mejorar. Participa cuando la organización tenga encuestas activas.</p>
                             {pendingSurveys[0].link ? (
                               <Button size="sm" className="w-full" onClick={() => navigate(buildTenantPath(pendingSurveys[0].link!, currentSlug))}>
                                   Responder encuesta

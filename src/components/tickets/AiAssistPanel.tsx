@@ -559,7 +559,7 @@ export default function AiAssistPanel({
                   </div>
                   <Progress value={risk.progress} className="h-1.5 bg-background/60" />
                   <div className="flex flex-wrap gap-2 text-xs">
-                    {asBoolean(hints.requires_exact_location) ? <Badge variant="secondary">validar ubicacion</Badge> : null}
+                    {asBoolean(hints.requires_exact_location) ? <Badge variant="secondary">validar ubicación</Badge> : null}
                     {asBoolean(hints.requires_photo) ? <Badge variant="secondary">revisar evidencia</Badge> : null}
                     {!asBoolean(hints.requires_exact_location) && !asBoolean(hints.requires_photo) ? (
                       <span className="text-muted-foreground">Sin requisitos adicionales detectados.</span>

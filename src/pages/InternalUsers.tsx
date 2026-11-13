@@ -1034,7 +1034,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
       {lastCreatedEmployee ? (
         <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>Ultimo empleado creado</CardTitle>
+            <CardTitle>Último empleado creado</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>

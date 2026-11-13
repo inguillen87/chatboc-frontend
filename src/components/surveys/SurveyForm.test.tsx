@@ -449,7 +449,7 @@ describe('SurveyForm security contract', () => {
   it('gates one-person voting behind account authentication', () => {
     render(<SurveyForm survey={authenticatedSurvey} onSubmit={vi.fn()} />);
 
-    expect(screen.getByTestId('survey-auth-gate')).toHaveTextContent('Identifica tu participacion');
+    expect(screen.getByTestId('survey-auth-gate')).toHaveTextContent('Identifica tu participación');
     expect(screen.getByRole('link', { name: /iniciar sesion para participar/i })).toHaveAttribute(
       'href',
       expect.stringContaining('/login?return_to='),

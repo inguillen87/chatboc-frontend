@@ -172,10 +172,10 @@ const AppBootstrapFallback = () => (
       />
       <div>
         <h1 id="app-bootstrap-title" className="text-sm font-semibold">
-          Preparando Chatboc
+          Preparando tu espacio
         </h1>
         <p id="app-bootstrap-description" className="mt-1 text-xs text-muted-foreground">
-          Validando la configuracion segura de acceso...
+          Comprobando tu acceso…
         </p>
       </div>
     </div>

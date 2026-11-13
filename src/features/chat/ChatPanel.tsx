@@ -1436,7 +1436,7 @@ function OperationalTicketCard({
           <div className="flex items-start gap-2">
             <MapPin className="mt-0.5 h-3.5 w-3.5 text-primary" />
             <div className="min-w-0">
-              <p className="font-medium text-foreground">Ubicacion recibida</p>
+              <p className="font-medium text-foreground">Ubicación recibida</p>
               <p className="mt-0.5 text-muted-foreground">
                 {ticket.latitud!.toFixed(5)}, {ticket.longitud!.toFixed(5)}
               </p>

@@ -613,7 +613,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         <section className="rounded-xl border border-border/70 bg-card/80 px-3 py-2 shadow-sm backdrop-blur">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Analitica operativa</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Analítica operativa</p>
               <h2 className="truncate text-base font-semibold text-foreground">Prioridades, mapas y métricas</h2>
             </div>
             <div className="flex flex-wrap gap-2">

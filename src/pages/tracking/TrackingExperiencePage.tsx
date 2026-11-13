@@ -1028,13 +1028,13 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                 {status.detail ? <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{status.detail}</p> : null}
               </div>
               {nextMilestone ? <div className="border-l border-border pl-3">
-                <p className="text-xs font-semibold text-muted-foreground">Proxima etapa</p>
+                <p className="text-xs font-semibold text-muted-foreground">Próxima etapa</p>
                 <p className="mt-1 text-sm font-bold capitalize">
                   {nextMilestone.label}
                 </p>
               </div> : null}
               <div className="border-l border-border pl-3">
-                <p className="text-xs font-semibold text-muted-foreground">Ultima actualizacion</p>
+                <p className="text-xs font-semibold text-muted-foreground">Última actualización</p>
                 <p className="mt-1 text-sm font-bold">{resource.updatedAt || resource.createdAt || "Sin datos"}</p>
               </div>
             </div>
@@ -1532,7 +1532,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
               <div className="mt-4 flex items-start gap-2 text-sm">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div>
-                  <p className="font-semibold">Ubicacion</p>
+                  <p className="font-semibold">Ubicación</p>
                   <p className="mt-0.5 text-muted-foreground">
                     {[resource.address, resource.district].filter(Boolean).join(" - ")}
                   </p>

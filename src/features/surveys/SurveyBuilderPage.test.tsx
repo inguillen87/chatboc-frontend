@@ -108,7 +108,7 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
 
     render(<SurveyBuilderPage />);
     fireEvent.change(screen.getByLabelText('Titulo'), { target: { value: 'No borrar' } });
-    fireEvent.change(screen.getByLabelText('Descripcion'), { target: { value: 'Conservar tambien' } });
+    fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Conservar tambien' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar draft' }));
 
     expect(await screen.findByText(/guardado de forma durable/i)).toBeInTheDocument();

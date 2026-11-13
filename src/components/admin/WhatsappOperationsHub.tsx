@@ -570,7 +570,7 @@ const ChannelConfigurationPanel = ({ experience }: { experience: WhatsappExperie
 
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente accion</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente acción</p>
             <div className="mt-3 space-y-2">
               {(nextActions.length ? nextActions : ["Ejecutar QA playbook y monitorear plantillas aprobadas."]).map((item) => (
                 <div key={item} className="flex gap-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs">
@@ -3242,7 +3242,7 @@ const TrackingExperienceLookup = ({
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">Tracking experience</p>
-          <p className="mt-1 text-xs text-muted-foreground">Usa la experiencia publica principal para reclamos y pedidos.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Usa la experiencia pública principal para reclamos y pedidos.</p>
         </div>
         <StatusPill>{kind}</StatusPill>
       </div>

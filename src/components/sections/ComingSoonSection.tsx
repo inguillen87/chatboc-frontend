@@ -36,7 +36,7 @@ const ComingSoonSection = () => {
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="chatboc-section-kicker mb-4">Ecosistema</div>
-          <h2 className="chatboc-section-heading">Modulos para ampliar la operacion</h2>
+          <h2 className="chatboc-section-heading">Módulos para ampliar la operación</h2>
           <p className="chatboc-section-copy mt-4">
             La experiencia puede crecer hacia venta, seguimiento y relaciones con clientes sin separar el chat del
             historial, el carrito, las metricas ni el trabajo del equipo.

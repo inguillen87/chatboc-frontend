@@ -885,7 +885,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByTestId("whatsapp-primary-action")).toHaveTextContent("Configurar plantillas");
     expect(screen.getByTestId("whatsapp-advanced-controls")).not.toHaveAttribute("open");
     expect(screen.getByText("Configuración con pendientes")).toBeInTheDocument();
-    expect(screen.getByText("Prueba de conexion")).toBeInTheDocument();
+    expect(screen.getByText("Prueba de conexión")).toBeInTheDocument();
     expect(screen.getByText(/Cerrar pendiente: Configurar plantillas, menu y webviews del tenant/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ejecutar prueba de conexion/i })).toBeEnabled();
     expect(screen.getByText("Activación guiada por Chatboc")).toBeInTheDocument();

@@ -166,7 +166,7 @@ const UserAccountPage = () => {
         </div>
         {!user ? (
           <Button asChild variant="outline">
-            <a href={loginPath}>Iniciar sesion</a>
+            <a href={loginPath}>Iniciar sesión</a>
           </Button>
         ) : null}
       </div>
@@ -244,9 +244,9 @@ const UserAccountPage = () => {
           </div>
           {!user ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              <span>Inicia sesion para guardar una foto propia o usar la imagen de tu login social.</span>
+              <span>Inicia sesión para guardar una foto propia o usar la imagen de tu login social.</span>
               <Button asChild size="sm" variant="outline">
-                <a href={loginPath}>Iniciar sesion</a>
+                <a href={loginPath}>Iniciar sesión</a>
               </Button>
             </div>
           ) : null}
@@ -285,7 +285,7 @@ const UserAccountPage = () => {
               ) : null}
               {(publicProfile.phone) ? (
                 <div className="rounded-lg border bg-muted/20 p-3">
-                  <p className="text-xs text-muted-foreground">Telefono</p>
+                  <p className="text-xs text-muted-foreground">Teléfono</p>
                   <p className="mt-1 font-medium">{publicProfile.phone}</p>
                 </div>
               ) : null}
@@ -311,7 +311,7 @@ const UserAccountPage = () => {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="portal-phone">Telefono</Label>
+                <Label htmlFor="portal-phone">Teléfono</Label>
                 <Input
                   id="portal-phone"
                   value={form.phone}
@@ -351,7 +351,7 @@ const UserAccountPage = () => {
                   </div>
                 ) : null}
                 {status === 'verification_required' ? (
-                  <p className="text-sm text-amber-700">Ese email requiere verificacion antes de quedar vinculado.</p>
+                  <p className="text-sm text-amber-700">Ese email requiere verificación antes de quedar vinculado.</p>
                 ) : null}
               </div>
             </form>
@@ -363,7 +363,7 @@ const UserAccountPage = () => {
         </CardContent>
         <CardFooter className="flex items-start gap-3 text-sm text-muted-foreground">
           <Shield className="mt-0.5 h-4 w-4 text-primary" />
-          <span>El portal solo conserva y muestra datos que devuelve el backend para esta sesion y tenant.</span>
+          <span>El portal solo conserva y muestra datos que devuelve el backend para esta sesión y tenant.</span>
         </CardFooter>
       </Card>
     </div>

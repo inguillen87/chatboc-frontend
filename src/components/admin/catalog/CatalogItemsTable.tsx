@@ -37,7 +37,7 @@ const CatalogItemsTable: React.FC<CatalogItemsTableProps> = ({ items, onUpdate, 
             <TableHead>Producto</TableHead>
             <TableHead className="w-[120px]">Precio</TableHead>
             <TableHead className="w-[100px]">Stock</TableHead>
-            <TableHead className="w-[150px]">Categoria</TableHead>
+            <TableHead className="w-[150px]">Categoría</TableHead>
             {!readOnly && <TableHead className="w-[50px]"></TableHead>}
           </TableRow>
         </TableHeader>

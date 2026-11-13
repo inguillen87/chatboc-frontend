@@ -187,7 +187,7 @@ const UserPortalLayout: React.FC = () => {
             </DropdownMenu>
             ) : (
               <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-                <Link to={accountPath || loginPath}>Vincular sesion</Link>
+                <Link to={accountPath || loginPath}>Vincular sesión</Link>
               </Button>
             )}
 

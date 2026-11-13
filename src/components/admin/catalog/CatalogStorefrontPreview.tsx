@@ -106,7 +106,7 @@ export const CatalogStorefrontPreview: React.FC<CatalogStorefrontPreviewProps> =
       <div className="flex shrink-0 items-center justify-between border-b bg-card p-4">
         <div>
           <h2 className="font-bold">{tenantName}</h2>
-          <p className="text-xs text-muted-foreground">Marketplace publico</p>
+          <p className="text-xs text-muted-foreground">Marketplace público</p>
         </div>
         <div className="flex gap-2">
           <Badge variant="outline"><Globe className="mr-1 h-3 w-3" /> Portal</Badge>

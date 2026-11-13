@@ -184,7 +184,7 @@ function QueueFilters({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="queue-category">Categoria</Label>
+            <Label htmlFor="queue-category">Categoría</Label>
             <Input
               id="queue-category"
               name="category"
@@ -196,7 +196,7 @@ function QueueFilters({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="queue-limit">Por pagina</Label>
+            <Label htmlFor="queue-limit">Por página</Label>
             <select
               id="queue-limit"
               name="limit"
@@ -303,7 +303,7 @@ export default function TicketsBoardPage() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {!isOnline ? <Badge variant="destructive">Sin conexion</Badge> : null}
+        {!isOnline ? <Badge variant="destructive">Sin conexión</Badge> : null}
         {queryEnabled && pages.length > 0 ? (
           <Badge variant="outline">
             {!isOnline

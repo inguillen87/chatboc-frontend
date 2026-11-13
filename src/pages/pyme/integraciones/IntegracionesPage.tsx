@@ -1468,7 +1468,7 @@ const IntegracionesPage = () => {
                 <p className="truncate font-mono text-xs text-foreground">{lock.featureId}</p>
               </div>
               <div className="rounded-lg border bg-background/70 px-3 py-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Accion</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Acción</p>
                 <p className="truncate font-mono text-xs text-foreground">{lock.featureAction}</p>
               </div>
             </div>

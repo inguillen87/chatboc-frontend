@@ -176,7 +176,7 @@ const EducationAdminContractPanel = ({
   isHeatmapLoading: boolean;
 }) => {
   if (isLoading && !adminMenu && !whatsappPlaybook) {
-    return <p>Sincronizando informacion educativa...</p>;
+    return <p>Sincronizando información educativa...</p>;
   }
 
   if (
@@ -613,7 +613,7 @@ const EducationQuickMenuPreview = ({ items }: { items: EducationQuickMenuItem[] 
             <span className="text-xs font-medium text-foreground">{item.label}</span>
             {item.intent ? <Badge variant="outline">{item.intent}</Badge> : null}
             {item.requires_handoff ? <Badge variant="destructive">handoff</Badge> : null}
-            {item.requires_verification ? <Badge variant="secondary">verificacion</Badge> : null}
+            {item.requires_verification ? <Badge variant="secondary">verificación</Badge> : null}
             {item.sensitivity_level ? <Badge variant="outline">{item.sensitivity_level}</Badge> : null}
           </div>
           {item.accepted_media?.length ? (

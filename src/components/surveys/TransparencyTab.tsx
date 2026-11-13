@@ -98,7 +98,7 @@ export const TransparencyTab = ({
       <div className="flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
-          <p className="font-semibold">Evidencia local, no publicacion blockchain</p>
+          <p className="font-semibold">Evidencia local, no publicación blockchain</p>
           <p>
             Estos cortes permiten comprobar inclusion y consistencia Merkle dentro de Chatboc. No certifican
             resultados ni acreditan una transaccion en una red externa.
@@ -265,7 +265,7 @@ export const TransparencyTab = ({
                 {verificationResult.local_proof_valid
                   ? `La respuesta #${responseId} esta incluida en este corte local.`
                   : `No se pudo demostrar la inclusion local de la respuesta #${responseId}.`}{' '}
-                <strong>No se verifico una publicacion externa.</strong>
+                <strong>No se verificó una publicación externa.</strong>
               </p>
             </div>
           )}

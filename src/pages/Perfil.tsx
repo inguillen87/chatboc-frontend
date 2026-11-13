@@ -2821,7 +2821,7 @@ export default function Perfil() {
               ? 'Un administrador debe asignar alcance operativo a este perfil.'
               : backofficeNavigationStatus === 'error'
                 ? 'No mostramos accesos hasta validar permisos con el servidor.'
-                : 'Consultando el contrato de módulos habilitados para esta organización.'}
+                : 'Cargando los módulos de tu organización.'}
           </span>
         </span>
       </span>

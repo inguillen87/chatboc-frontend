@@ -119,7 +119,7 @@ describe('TrackingExperiencePage verified data boundary', () => {
     expect(screen.getByText('Asignado')).toBeVisible();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText('General')).not.toBeInTheDocument();
-    expect(screen.queryByText('Proxima etapa')).not.toBeInTheDocument();
+    expect(screen.queryByText('Próxima etapa')).not.toBeInTheDocument();
     expect(screen.queryByText('Seguimiento finalizado')).not.toBeInTheDocument();
     expect(screen.queryByText('Recibido')).not.toBeInTheDocument();
     expect(screen.getByText('0 eventos')).toBeVisible();

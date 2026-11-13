@@ -1443,7 +1443,7 @@ export const SurveyForm = ({
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-xl">Identifica tu participacion</CardTitle>
+            <CardTitle className="text-xl">Identifica tu participación</CardTitle>
             <CardDescription>
               Esta consulta registra un voto por persona. Tu cuenta valida la participacion sin enviar tu identificador dentro de la respuesta.
             </CardDescription>
@@ -2255,7 +2255,7 @@ export const SurveyForm = ({
 
             {!previewMode && turnstileUnavailable ? (
               <Alert variant="destructive">
-                <AlertTitle>Verificacion no disponible</AlertTitle>
+                <AlertTitle>Verificación no disponible</AlertTitle>
                 <AlertDescription>
                   Esta encuesta requiere verificacion de seguridad, pero falta configurar la clave publica del sitio.
                 </AlertDescription>
