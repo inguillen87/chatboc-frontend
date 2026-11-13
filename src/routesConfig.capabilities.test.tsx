@@ -23,6 +23,14 @@ const CANONICAL_RBAC_CAPABILITIES = new Set([
 ]);
 
 describe('routesConfig route capabilities', () => {
+  it('restricts private Meta credential loading to a verified superadmin route', () => {
+    const content = fs.readFileSync(path.resolve(__dirname, 'routesConfig.tsx'), 'utf8');
+    const route = content.match(/\{\s*path:\s*'\/integracion\/meta\/credenciales',[\s\S]*?\n\s*\},/)?.[0] ?? '';
+    expect(route).toContain("roles: ['superadmin']");
+    expect(route).toContain('requiresSession: true');
+    expect(route).not.toContain('allowGuest');
+  });
+
   it('uses only canonical RBAC v1 capabilities', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');

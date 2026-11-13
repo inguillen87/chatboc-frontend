@@ -581,6 +581,10 @@ const Integracion = () => {
               <CardContent className="space-y-6">
                 <MetaAppReviewApproval />
 
+                {canManageLegacyWhatsappInventory && <Button variant="outline" onClick={() => navigate('/integracion/meta/credenciales')}>
+                  Carga privada de credenciales Meta
+                </Button>}
+
                 <WhatsappTechProviderOnboarding key={scopeKey} tenantSlug={tenantSlug} focusAction={focusAction} />
 
                 <Separator />
