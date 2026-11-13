@@ -112,7 +112,7 @@ describe('read-only institutional profile access', () => {
     expect(link).toHaveAttribute('href', '/perfil?section=general&tenant_slug=tierra-del-fuego');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(link).toHaveAccessibleDescription(/nueva pestaña.*borradores/i);
+    expect(link).toHaveAccessibleDescription(/pestaña nueva.*borradores/i);
     expect(link).toHaveClass('min-h-11');
     expect(screen.getByText('Organización elegida')).toBeInTheDocument();
     expect(service.getTenantConfig).toHaveBeenCalledWith('tierra-del-fuego', { isCurrent: expect.any(Function) });
