@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -68,6 +68,14 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
   const rawTenantSlug = tenant?.slug?.trim() || null;
   const resolvedTenant = rawTenantSlug && rawTenantSlug.toLowerCase() !== 'default' ? tenant : null;
   const resolvedTenantSlug = resolvedTenant?.slug?.trim() || null;
+  const resolvedTenantName = resolvedTenant?.nombre?.trim() || null;
+  // La pestaña, el historial y los lectores de pantalla anuncian al organismo, no a la plataforma.
+  useEffect(() => {
+    if (!resolvedTenantName) return;
+    const previousTitle = document.title;
+    document.title = resolvedTenantName;
+    return () => { document.title = previousTitle; };
+  }, [resolvedTenantName]);
   const normalizedCurrentSlug = currentSlug?.trim().toLowerCase() || null;
   const retryScope = useMemo(() => ({}), [
     location.pathname, location.search, normalizedCurrentSlug, widgetToken, hostBinding?.tenant.id, hostBinding?.tenant.slug,

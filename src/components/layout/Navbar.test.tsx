@@ -787,3 +787,17 @@ describe('verified institutional entry branding',()=>{
     expect(screen.queryByTestId('institutional-access-brand')).not.toBeInTheDocument();
   });
 });
+
+describe('Navbar en espacios públicos de gobierno', () => {
+  it.each([
+    { tipo: 'gobierno', cart: false },
+    { tipo: 'municipio', cart: false },
+    { tipo: 'pyme', cart: true },
+  ])('carrito visible=$cart para tipo $tipo sin productos cargados', ({ tipo, cart }) => {
+    useUserMock.mockReturnValue({ user: null });
+    useSessionAuthorityMock.mockReturnValue({ clerkStatus: 'disabled', hasBearerSession: false, hasVerifiedSession: false });
+    useTenantMock.mockReturnValue({ currentSlug: 'espacio-publico', isLoadingTenant: false, tenant: { slug: 'espacio-publico', nombre: 'Espacio público', tipo } });
+    render(<MemoryRouter initialEntries={['/t/espacio-publico']}><Navbar /></MemoryRouter>);
+    expect(Boolean(screen.queryByRole('link', { name: 'Ver carrito' }))).toBe(cart);
+  });
+});

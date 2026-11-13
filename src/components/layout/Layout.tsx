@@ -86,12 +86,7 @@ const Layout = () => {
       }
       data-workspace-shell={isTicketWorkspace ? 'tickets' : isProfileCrmWorkspace ? 'crm' : undefined}
     >
-      <a
-        href="#main-content"
-        className="fixed left-4 top-4 z-[10000] -translate-y-24 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-      >
-        Saltar al contenido
-      </a>
+      {/* El enlace «Saltar al contenido principal» lo aporta AppAccessibility para toda la app. */}
       {isViewportWorkspace ? (
         <style data-ticket-workspace-chrome>
           {'[data-workspace-shell] ~ .chatboc-container[data-mode="standalone"] { display: none !important; }'}

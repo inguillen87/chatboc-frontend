@@ -109,6 +109,7 @@ describe('TenantShell profile availability', () => {
     mountPage();
     expect(await screen.findByRole('heading', { level: 1, name: 'Espacio qa-a' })).toBeInTheDocument();
     expect(screen.getByText('Contenido publicado qa-a')).toBeInTheDocument();
+    expect(document.title).toBe('Espacio qa-a');
     expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
