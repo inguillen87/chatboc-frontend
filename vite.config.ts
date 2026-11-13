@@ -394,6 +394,11 @@ export default defineConfig(({ mode }) => {
             if (id.includes('@xyflow/react') || id.includes('@xyflow/system')) {
               return 'vendor-flow';
             }
+            // Los íconos se resuelven antes que React: `lucide-react/` contiene
+            // `react/` y caía en vendor-react, así que hasta las entradas que
+            // no dibujan íconos al arrancar descargaban todos. Van en un grupo
+            // propio (uno solo: sueltos superan el límite del modo sin conexión).
+            if (id.replaceAll('\\', '/').includes('/node_modules/lucide-react/')) return 'vendor-icons';
             if (id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) {
               return 'vendor-react';
             }
@@ -412,7 +417,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes('jszip') || id.includes('fflate') || id.includes('pako')) {
               return 'vendor-compression';
             }
-            if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('framer-motion')) {
+            if (id.includes('@radix-ui') || id.includes('framer-motion')) {
               return 'vendor-ui';
             }
 

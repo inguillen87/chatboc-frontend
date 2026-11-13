@@ -9,8 +9,23 @@ import { GOOGLE_CLIENT_ID } from '@/env';
 import { apiFetch } from '@/utils/api';
 import { ensureBackendRuntimeReady } from '@/utils/backendBootstrapGate';
 
-// Dynamically import ChatWidget only when rendering to prevent TDZ cycles
-const ChatWidgetComponent = React.lazy(() => import("@/components/chat/ChatWidget"));
+// El widget y la configuración de movimiento reducido se cargan juntos y en
+// diferido: así el arranque del iframe no descarga la librería de animación
+// antes de mostrar el primer estado, y toda animación del widget sigue
+// respetando la preferencia "reducir movimiento" del sistema.
+const ChatWidgetComponent = React.lazy(async () => {
+  const [{ default: ChatWidget }, { AccessibleMotionProvider }] = await Promise.all([
+    import("@/components/chat/ChatWidget"),
+    import("@/components/app-shell/AccessibleMotionProvider"),
+  ]);
+  type ChatWidgetProps = React.ComponentProps<typeof ChatWidget>;
+  const AccessibleChatWidget = (props: ChatWidgetProps) => (
+    <AccessibleMotionProvider>
+      <ChatWidget {...props} />
+    </AccessibleMotionProvider>
+  );
+  return { default: AccessibleChatWidget };
+});
 
 const DEFAULTS = {
   openWidth: "460px",
