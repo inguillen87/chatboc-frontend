@@ -9,7 +9,7 @@ import { tenantService } from '@/services/tenantService';
 import type { TenantConfigBundle, TenantOrganizationProfile } from '@/types/TenantConfig';
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
-import { TenantDomainSettings } from '@/components/tenant/TenantDomainSettings';
+import { TenantAddressesSettings } from '@/components/tenant/TenantAddressesSettings';
 import { usePanelSessionStore } from '@/stores/panelSessionStore';
 
 const readAuthorizedProfile = (bundle: TenantConfigBundle, slug: string): TenantOrganizationProfile | null => {
@@ -183,6 +183,6 @@ export default function InstitutionalProfileAccess({ includeDomainSettings = fal
       Se abre en una nueva pestaña de Chatboc; tus borradores de integraciones se conservan.
     </p>
     {matching.profile.editability.message ? <p className="text-sm text-muted-foreground">{matching.profile.editability.message}</p> : null}
-    {includeDomainSettings ? <TenantDomainSettings key={context.scopeKey} tenant={matching.profile.tenant} scopeKey={context.scopeKey} /> : null}
+    {includeDomainSettings ? <TenantAddressesSettings key={context.scopeKey} tenant={matching.profile.tenant} scopeKey={context.scopeKey} /> : null}
   </div>;
 }

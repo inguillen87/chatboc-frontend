@@ -421,6 +421,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
     expect(tenant.tenant.publishedIdentity).toMatchObject({ tenantId: 701, tenantSlug: 'qa-office' });
     const channelPath = '/api/v2/tenants/qa-office/activation/channels';
     const domainPath = '/api/admin/tenants/qa-office/domain';
+    const addressesPath = '/api/admin/tenants/qa-office/addresses';
     const publicPath = '/api/public/tenants/qa-office/institutional-assistant';
     // Concurrent private configuration reads must not consume the public node failure.
     // This scenario intentionally exercises the authorized historical Twilio preview.
@@ -438,6 +439,8 @@ describe('public institutional preview — local synthetic fixtures', () => {
         tenant: { id: 701, slug: 'qa-office' }, status: 'unconfigured', host: null,
         dns_proof: null, can_revoke: false, save_endpoint: domainPath,
       }));
+      // Respuesta real de producción mientras la ruta v2 no existe: sólo ese 404 habilita la pantalla anterior.
+      if (path === addressesPath) return json({ contract_version: 'shared.error.v1', reason_code: 'not_found' }, 404);
       if (path === publicPath) return json(model());
       if (path === `${publicPath}/nodes/requirements`) return json({ reason_code: 'temporary_failure' }, 503);
       throw new Error(`Unexpected synthetic read: ${path}`);
@@ -471,7 +474,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
     const publicReads = reads.filter(([url]) => new URL(String(url), window.location.origin).pathname.startsWith(publicPath));
     expect(publicReads).toHaveLength(3); assertPublicReads('qa-office', publicReads);
     const privateReads = reads.filter(([url]) => !new URL(String(url), window.location.origin).pathname.startsWith(publicPath));
-    expect(privateReads.map(([url]) => new URL(String(url), window.location.origin).pathname).sort()).toEqual([domainPath, channelPath].sort());
+    expect(privateReads.map(([url]) => new URL(String(url), window.location.origin).pathname).sort()).toEqual([addressesPath, domainPath, channelPath].sort());
     for (const [url, init] of privateReads) {
       const headers = new Headers(init?.headers);
       expect(init?.method ?? 'GET').toBe('GET');
@@ -479,7 +482,7 @@ describe('public institutional preview — local synthetic fixtures', () => {
       expect(headers.get('X-Tenant-Slug')).toBe('qa-office');
       expect(headers.has('X-Entity-Token')).toBe(false); expect(headers.has('X-Chat-Session-Id')).toBe(false);
       const target = new URL(String(url), window.location.origin);
-      if (target.pathname === domainPath) expect(target.search).toBe('');
+      if (target.pathname === domainPath || target.pathname === addressesPath) expect(target.search).toBe('');
       else expect(target.searchParams.get('tenant')).toBe('qa-office');
     }
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('actor-home');
