@@ -153,7 +153,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(
             {path.name for path in (repo / '.github/workflows').iterdir()
              if path.suffix in {'.yml', '.yaml'}},
-            {'frontend-verification.yml', 'evaluation-access.yml'},
+            {'frontend-verification.yml', 'evaluation-access.yml', 'claude-approved-production.yml'},
         )
         self.assertEqual(workflow.count('npm test --'), 1)
         self.assertEqual(workflow.count('run: npm run typecheck'), 1)
