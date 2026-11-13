@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useReducedMotion } from 'framer-motion';
+import { readTerritoryInitialView } from './territoryInitialView';
 import {
   Activity,
   AlertTriangle,
@@ -1412,9 +1413,15 @@ function TerritoryMapEmptyState({
         properties: { fill: '#dbeafe' },
       })),
   } : undefined, [canShowBoundary, heatmap?.geo_layers?.boundaries?.features]);
+  // Sin actividad que encuadrar, se usa la vista inicial que declara el servidor;
+  // si no declara ninguna, el límite oficial completo. El límite se dibuja igual.
+  const initialView = useMemo(
+    () => canShowBoundary ? readTerritoryInitialView(heatmap?.jurisdiction) : null,
+    [canShowBoundary, heatmap?.jurisdiction],
+  );
   const bounds = useMemo(
-    () => canShowBoundary ? officialZones.flatMap((zone) => zone.geoPolygons?.flat() ?? []) : [],
-    [canShowBoundary, officialZones],
+    () => initialView ?? (canShowBoundary ? officialZones.flatMap((zone) => zone.geoPolygons?.flat() ?? []) : []),
+    [canShowBoundary, initialView, officialZones],
   );
   const declaredCount = (...values: unknown[]) => values.find(
     (value): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,

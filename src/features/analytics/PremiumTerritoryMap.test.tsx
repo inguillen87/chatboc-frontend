@@ -262,6 +262,19 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('territory-empty-summary')).not.toHaveTextContent('53');
   });
 
+  it('frames the empty official map on the initial view the server declares, still drawing the full boundary', () => {
+    const heatmap = emptyOfficialHeatmap();
+    (heatmap.jurisdiction as Record<string, unknown>).initial_view_bounds = {
+      west: -68.75, south: -55.15, east: -63.7, north: -52.55,
+    };
+    render(<PremiumTerritoryHeatmap points={[]} heatmap={heatmap} demoProfile="gobierno" />);
+
+    const map = screen.getByTestId('mock-live-map');
+    expect(map).toHaveAttribute('data-bounds-coordinates', JSON.stringify([[-68.75, -55.15], [-63.7, -52.55]]));
+    expect(JSON.parse(map.getAttribute('data-polygons')!)).toHaveLength(1);
+    expect(map).toHaveAttribute('data-show-points', 'false');
+  });
+
   it('keeps the verified official geography visible with no activity and collapses repetitive empty panels', () => {
     const heatmap = emptyOfficialHeatmap();
     heatmap.geo_layers!.boundaries!.features.push({
