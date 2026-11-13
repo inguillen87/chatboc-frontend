@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { SurveyQuestionDraft, SurveyQuestionType } from './surveyTypes';
 
 const QUESTION_TYPE_OPTIONS: Array<{ value: SurveyQuestionType; label: string }> = [
-  { value: 'single', label: 'Opcion unica' },
+  { value: 'single', label: 'Opción única' },
   { value: 'multi', label: 'Seleccion multiple' },
   { value: 'rating', label: 'Rating' },
   { value: 'text', label: 'Texto libre' },
@@ -220,7 +220,7 @@ export default function SurveyQuestionEditor({
           {question.type === 'multi' ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor={`survey-question-min-${question.id}`}>Minimo de selecciones</Label>
+                <Label htmlFor={`survey-question-min-${question.id}`}>Mínimo de selecciones</Label>
                 <Input
                   id={`survey-question-min-${question.id}`}
                   max={question.max_selections ?? question.options?.length ?? 1}
@@ -235,7 +235,7 @@ export default function SurveyQuestionEditor({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`survey-question-max-${question.id}`}>Maximo de selecciones</Label>
+                <Label htmlFor={`survey-question-max-${question.id}`}>Máximo de selecciones</Label>
                 <Input
                   id={`survey-question-max-${question.id}`}
                   max={question.options?.length ?? 1}

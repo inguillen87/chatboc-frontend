@@ -22,13 +22,13 @@ const capabilityRows = [
   { icon: Mic, label: "Notas de voz", detail: "audio convertido en contexto util para responder o derivar" },
   { icon: Image, label: "Imagenes y archivos", detail: "fotos, comprobantes, certificados, adjuntos y pedidos" },
   { icon: MapPin, label: "Ubicacion", detail: "mapas, zonas, reclamos territoriales y recorridos de estado" },
-  { icon: PhoneCall, label: "Llamadas", detail: "voz cuando el canal y la organizacion la tienen habilitada" },
-  { icon: Vote, label: "Encuestas y votaciones", detail: "sondeos, participacion, comentarios y resultados en vivo" },
+  { icon: PhoneCall, label: "Llamadas", detail: "voz cuando el canal y la organización la tienen habilitada" },
+  { icon: Vote, label: "Encuestas y votaciones", detail: "sondeos, participación, comentarios y resultados en vivo" },
 ];
 
 const operatingFlows = [
   { icon: ClipboardList, label: "Reclamos y casos", detail: "se registran, se priorizan y quedan listos para operar" },
-  { icon: ShoppingBag, label: "Pedidos y carrito", detail: "catalogo, compra invitada, checkout y seguimiento" },
+  { icon: ShoppingBag, label: "Pedidos y carrito", detail: "catálogo, compra invitada, checkout y seguimiento" },
   { icon: BarChart3, label: "Metricas y decisiones", detail: "actividad, tiempos, zonas, respuestas y comentarios" },
   { icon: Users, label: "Derivacion humana", detail: "cuando el caso lo necesita, el equipo recibe contexto completo" },
 ];

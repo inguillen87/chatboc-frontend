@@ -398,7 +398,7 @@ const resolveTicketFetchErrorMessage = (err: unknown, cacheWasApplied = false): 
       bodyError?.mensaje,
     );
     if (err.status === 401) {
-      message = 'La sesion del panel no esta activa. Inicia sesion para ver y responder reclamos.';
+      message = 'La sesión del panel no esta activa. Inicia sesión para ver y responder reclamos.';
     } else if (err.status === 403) {
       const isMachineForbiddenCode = bodyMessage
         ? ['forbidden', 'access_denied', 'permission_denied'].includes(bodyMessage.trim().toLowerCase())
@@ -412,7 +412,7 @@ const resolveTicketFetchErrorMessage = (err: unknown, cacheWasApplied = false): 
       message = bodyMessage;
     }
   } else if (err instanceof Error && err.message.includes('tardo demasiado')) {
-    message = 'La bandeja de reclamos tardo demasiado en responder. Revisa la conexion y reintenta.';
+    message = 'La bandeja de reclamos tardo demasiado en responder. Revisa la conexión y reintenta.';
   }
 
   return cacheWasApplied

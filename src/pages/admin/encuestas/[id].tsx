@@ -98,12 +98,12 @@ const SurveyDetailPage = () => {
     try {
       const duplicated = await duplicateSurvey(surveyId);
       toast({
-        title: 'Nueva version creada',
+        title: 'Nueva versión creada',
         description: 'Abrimos una copia editable para cambiar preguntas sin romper respuestas historicas.',
       });
       navigate(`/admin/encuestas/${duplicated.id}`);
     } catch (error) {
-      toast({ title: 'No pudimos crear la nueva version', description: getErrorMessage(error), variant: 'destructive' });
+      toast({ title: 'No pudimos crear la nueva versión', description: getErrorMessage(error), variant: 'destructive' });
     }
   };
 

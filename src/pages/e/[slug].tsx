@@ -835,7 +835,7 @@ const PublicSurveyPage = () => {
   if (tenantSelectorInvalid) {
     return (
       <SurveyErrorState
-        title="Espacio institucional invalido"
+        title="Espacio institucional inválido"
         description="El enlace no identifica un espacio institucional valido. Solicita un enlace nuevo a la organizacion."
         primaryLabel="Ver encuestas"
         onPrimary={() => navigate('/encuestas')}

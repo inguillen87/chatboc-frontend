@@ -125,7 +125,7 @@ export const buildPublicPreviewPresentationRuntime = (
   configurationWarnings: [
     {
       code: 'public_preview_presentation',
-      message: 'Clerk queda deshabilitado en la presentacion publica de Preview.',
+      message: 'Clerk queda deshabilitado en la presentación pública de Preview.',
     },
   ],
 });

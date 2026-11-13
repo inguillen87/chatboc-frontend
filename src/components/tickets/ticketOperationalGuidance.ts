@@ -130,7 +130,7 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
 
   if (isMunicipalTicket && !hasLocation) {
     return {
-      label: 'Solicitar ubicacion exacta o validar el punto en mapa antes de pasar a cuadrilla.',
+      label: 'Solicitar ubicación exacta o validar el punto en mapa antes de pasar a cuadrilla.',
       source: 'ui',
       tags: ['ubicacion'],
     };

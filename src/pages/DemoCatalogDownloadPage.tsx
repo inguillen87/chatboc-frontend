@@ -35,7 +35,7 @@ const DemoCatalogDownloadPage = () => {
                 <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
                   <FileText className="h-7 w-7" />
                 </div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Catalogo demo</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Catálogo demo</p>
                 <h1 className="mt-3 text-3xl font-bold leading-tight md:text-4xl">
                   {asset?.title || "Catalogo no encontrado"}
                 </h1>

@@ -156,7 +156,7 @@ describe('ChannelActivationChecklist', () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
     expect(await screen.findByText(/no pudimos sincronizar los canales ahora/i)).toBeInTheDocument();
-    expect(screen.getByText(/sincronizacion pendiente/i)).toBeInTheDocument();
+    expect(screen.getByText(/sincronización pendiente/i)).toBeInTheDocument();
     expect(screen.getByText(/esperando sincronizacion del backend/i)).toBeInTheDocument();
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
   });

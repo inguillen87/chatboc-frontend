@@ -111,8 +111,8 @@ const PERMISSION_GROUPS = [
     items: [
       { value: 'orders_read', label: 'Ver pedidos' },
       { value: 'orders_update', label: 'Gestionar pedidos' },
-      { value: 'catalog_read', label: 'Ver catalogo' },
-      { value: 'catalog_write', label: 'Editar catalogo e inventario' },
+      { value: 'catalog_read', label: 'Ver catálogo' },
+      { value: 'catalog_write', label: 'Editar catálogo e inventario' },
     ],
   },
   {
@@ -132,7 +132,7 @@ const PERMISSION_GROUPS = [
     items: [
       { value: 'employees_read', label: 'Ver empleados' },
       { value: 'employees_write', label: 'Crear y editar empleados' },
-      { value: 'settings_read', label: 'Ver configuracion' },
+      { value: 'settings_read', label: 'Ver configuración' },
     ],
   },
 ];
@@ -542,7 +542,7 @@ const SearchableOptionGroup = ({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar categoria"
+            placeholder="Buscar categoría"
             className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
@@ -1059,7 +1059,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               <section className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
-                  <p className="text-xs text-muted-foreground">El empleado entra con este email y cambia la contrasena despues.</p>
+                  <p className="text-xs text-muted-foreground">El empleado entra con este email y cambia la contraseña despues.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
@@ -1071,7 +1071,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                     <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="juan@tenant.gob.ar" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Contrasena temporal</label>
+                    <label className="text-sm font-medium">Contraseña temporal</label>
                     <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
                   </div>
                 </div>
@@ -1080,7 +1080,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               <section className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
-                  <p className="text-xs text-muted-foreground">Elegi una plantilla y despues ajusta lo necesario.</p>
+                  <p className="text-xs text-muted-foreground">Elegi una plantilla y después ajusta lo necesario.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {ROLE_TEMPLATES.map((template) => {
@@ -1179,7 +1179,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
             <section className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
-                <p className="text-xs text-muted-foreground">Actualiza el nombre visible o cambia la contrasena temporal.</p>
+                <p className="text-xs text-muted-foreground">Actualiza el nombre visible o cambia la contraseña temporal.</p>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -1187,8 +1187,8 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   <Input value={editNombre} onChange={(event) => setEditNombre(event.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Nueva contrasena</label>
-                  <Input type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="Dejar vacio para no cambiar" />
+                  <label className="text-sm font-medium">Nueva contraseña</label>
+                  <Input type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="Dejar vacío para no cambiar" />
                 </div>
               </div>
             </section>
@@ -1275,7 +1275,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
             <input
               value={employeeSearch}
               onChange={(event) => setEmployeeSearch(event.target.value)}
-              placeholder="Buscar empleado, categoria o permiso"
+              placeholder="Buscar empleado, categoría o permiso"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>

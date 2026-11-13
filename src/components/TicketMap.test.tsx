@@ -49,7 +49,7 @@ describe('TicketMap', () => {
       />,
     );
 
-    const iframe = screen.getByTitle('Ubicacion aproximada');
+    const iframe = screen.getByTitle('Ubicación aproximada');
     expect(iframe).toHaveAttribute('src', expect.stringContaining('maps.google.com'));
     expect(screen.getByRole('link', { name: /Abrir mapa/i })).toHaveAttribute(
       'href',

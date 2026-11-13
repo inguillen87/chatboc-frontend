@@ -95,7 +95,7 @@ describe('deriveTicketOperationalGuidance', () => {
       ticketWith({ assignedAgentId: 7 }),
     );
 
-    expect(guidance.label).toMatch(/Solicitar ubicacion exacta/i);
+    expect(guidance.label).toMatch(/Solicitar ubicación exacta/i);
     expect(guidance.tags).toContain('ubicacion');
   });
 

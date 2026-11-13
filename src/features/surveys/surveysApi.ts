@@ -324,7 +324,7 @@ export const saveSurveyDraftV2 = async (
       throw new Error('document_ref debe coincidir exactamente con draft_id');
     }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'documento invalido';
+    const detail = error instanceof Error ? error.message : 'documento inválido';
     throw new Error(`El borrador no se envio: ${detail}`);
   }
   const persistedDocument = stripSurveyDraftTransportProvenance(document);

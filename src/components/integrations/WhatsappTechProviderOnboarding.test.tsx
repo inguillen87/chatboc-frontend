@@ -1039,7 +1039,7 @@ describe("WhatsappTechProviderOnboarding", () => {
   it("links WhatsApp onboarding with catalog administration and public marketplace", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" focusAction="catalog" />);
 
-    expect(await screen.findByText("Catalogo para WhatsApp")).toBeInTheDocument();
+    expect(await screen.findByText("Catálogo para WhatsApp")).toBeInTheDocument();
     expect(screen.getByText("productos visibles")).toBeInTheDocument();
     expect(screen.getByText("promos y combos")).toBeInTheDocument();
     expect(screen.getByText("pedido asistido")).toBeInTheDocument();

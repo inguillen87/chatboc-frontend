@@ -8,7 +8,7 @@ export default function EducationBillingPage() {
     <EducationShell persona="staff">
       <EducationContractPendingCard
         title="Cobranzas"
-        description="Gestion de cobranzas privada preparada para hidratar resumen, deuda, vencimientos y acciones permitidas."
+        description="Gestión de cobranzas privada preparada para hidratar resumen, deuda, vencimientos y acciones permitidas."
         endpoints={['GET /api/v1/education/billing/*', 'POST /api/v1/education/billing/*']}
         blockers={['Resumen financiero por familia/alumno.', 'Acciones permitidas segun permisos y estado de deuda.']}
       />

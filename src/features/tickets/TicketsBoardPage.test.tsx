@@ -184,7 +184,7 @@ describe('TicketsBoardPage operational queue', () => {
       cursor: null,
       limit: 25,
     });
-    expect(screen.getByText('Lectura operativa viva, no snapshot historico')).toBeInTheDocument();
+    expect(screen.getByText('Lectura operativa viva, no snapshot histórico')).toBeInTheDocument();
     expect(screen.getByText(/sin fecha se incluyen al final como calidad desconocida/)).toBeInTheDocument();
     expect(screen.getByText('1', { selector: 'p.text-3xl' })).toBeInTheDocument();
   });

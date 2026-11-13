@@ -211,7 +211,7 @@ describe('public survey document landmarks', () => {
 
     renderRoute('/t/junin/encuestas', <TenantSurveyListPage />);
 
-    expect(await screen.findByRole('heading', { name: 'Cargando participacion' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Cargando participación' })).toBeVisible();
     expectSingleMainAndH1('Municipalidad de Junín');
     expect(screen.getByRole('region', { name: 'Encuestas' })).toBeVisible();
   });
@@ -223,7 +223,7 @@ describe('public survey document landmarks', () => {
 
     renderRoute('/t/junin/encuestas', <TenantSurveyListPage />);
 
-    expect(await screen.findByRole('heading', { name: 'No pudimos cargar la participacion' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'No pudimos cargar la participación' })).toBeVisible();
     expectSingleMainAndH1('Municipalidad de Junín');
     expect(screen.getByRole('region', { name: 'Encuestas' })).toBeVisible();
   });
