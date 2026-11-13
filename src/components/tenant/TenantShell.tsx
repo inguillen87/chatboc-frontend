@@ -68,14 +68,6 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
   const rawTenantSlug = tenant?.slug?.trim() || null;
   const resolvedTenant = rawTenantSlug && rawTenantSlug.toLowerCase() !== 'default' ? tenant : null;
   const resolvedTenantSlug = resolvedTenant?.slug?.trim() || null;
-  const resolvedTenantName = resolvedTenant?.nombre?.trim() || null;
-  // La pestaña, el historial y los lectores de pantalla anuncian al organismo, no a la plataforma.
-  useEffect(() => {
-    if (!resolvedTenantName) return;
-    const previousTitle = document.title;
-    document.title = resolvedTenantName;
-    return () => { document.title = previousTitle; };
-  }, [resolvedTenantName]);
   const normalizedCurrentSlug = currentSlug?.trim().toLowerCase() || null;
   const retryScope = useMemo(() => ({}), [
     location.pathname, location.search, normalizedCurrentSlug, widgetToken, hostBinding?.tenant.id, hostBinding?.tenant.slug,
@@ -122,6 +114,17 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
       ? resolvedTenantSlug
       : null;
   const slugForPath = resolvedTenantSlug ?? currentSlug ?? null;
+  // La pestaña nombra al organismo solo cuando su identidad coincide con la ruta y la carga terminó;
+  // en transición o error vuelve al título previo al espacio, igual que al salir.
+  const authoritativeTitle = navigationTenantSlug ? resolvedTenant?.nombre?.trim() || null : null;
+  const titleBeforeSpace = useRef<string | null>(null);
+  useEffect(() => {
+    if (titleBeforeSpace.current === null) titleBeforeSpace.current = document.title;
+    document.title = authoritativeTitle ?? titleBeforeSpace.current;
+  }, [authoritativeTitle]);
+  useEffect(() => () => {
+    if (titleBeforeSpace.current !== null) document.title = titleBeforeSpace.current;
+  }, []);
   const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
 
   const handleRetry = async (event: MouseEvent<HTMLButtonElement>) => {

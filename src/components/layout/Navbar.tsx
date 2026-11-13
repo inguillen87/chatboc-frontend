@@ -131,9 +131,6 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     hasVerifiedSession &&
       (user || (hasPersistedSession && safeLocalStorage.getItem("user"))),
   );
-  // En espacios de gobierno el carrito solo aparece si la persona ya tiene algo cargado.
-  const isGovernmentSpace = ['municipio', 'gobierno', 'government'].includes(String(tenant?.tipo ?? '').trim().toLowerCase());
-  const showCart = !isGovernmentSpace || cartCount > 0;
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
@@ -448,7 +445,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          {showCart && !isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
+          {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
             <RouterLink
               to={cartPath}
               className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
@@ -609,7 +606,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                   </button>
                 ))
               : null}
-            {showCart && !isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
+            {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
               <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                 <ShoppingCart className="h-4 w-4" />
                 Carrito

@@ -109,9 +109,31 @@ describe('TenantShell profile availability', () => {
     mountPage();
     expect(await screen.findByRole('heading', { level: 1, name: 'Espacio qa-a' })).toBeInTheDocument();
     expect(screen.getByText('Contenido publicado qa-a')).toBeInTheDocument();
-    expect(document.title).toBe('Espacio qa-a');
+    await waitFor(() => expect(document.title).toBe('Espacio qa-a'));
     expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('names the organization in the tab only while its identity is authoritative for the route', async () => {
+    document.title = 'Título de la plataforma';
+    const slowB = deferred<ReturnType<typeof profile>>();
+    mocks.profile.mockImplementation((slug: string) => slug === 'qa-a' ? Promise.resolve(profile('qa-a')) : slowB.promise);
+    const view = mountPage();
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { level: 1, name: 'Espacio qa-a' });
+    await waitFor(() => expect(document.title).toBe('Espacio qa-a'));
+
+    await user.click(screen.getByRole('button', { name: 'Ver espacio B' }));
+    await waitFor(() => expect(document.title).toBe('Título de la plataforma'));
+
+    await act(async () => { slowB.reject(failure(500, 'Perfil B no disponible', 'qa-b-title')); });
+    await screen.findByText('Perfil B no disponible (Req ID: qa-b-title)');
+    expect(document.title).toBe('Título de la plataforma');
+
+    await user.click(screen.getByRole('button', { name: 'Ver espacio A' }));
+    await waitFor(() => expect(document.title).toBe('Espacio qa-a'));
+    view.unmount();
+    expect(document.title).toBe('Título de la plataforma');
   });
 
   it('keeps the keyboard retry focused while pending, blocks duplicates and recovers through another error to success', async () => {
