@@ -50,7 +50,7 @@ describe('TransparencyTab containment copy', () => {
 
     expect(screen.getByText(/Evidencia local, no publicación blockchain/i)).toBeInTheDocument();
     expect(screen.getByText(/Simulacion local - no publicada/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/No se verifico|No verifica publicacion externa/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/No se verificó|No verifica publicacion externa/i).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /Generar referencia local/i })).not.toBeInTheDocument();
   });
 

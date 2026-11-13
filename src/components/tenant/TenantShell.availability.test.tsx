@@ -89,7 +89,7 @@ describe('TenantShell profile availability', () => {
     await screen.findByText(`${message} (Req ID: ${requestId})`);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: neutralTitle })).toBeInTheDocument();
-    expect(screen.queryByText('No encontramos informacion para este espacio.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No encontramos información para este espacio.')).not.toBeInTheDocument();
     expect(screen.getAllByRole('alert')).toHaveLength(1);
     expect(retries()).toHaveLength(1);
     expect(screen.queryByText('Contenido publicado qa-a')).not.toBeInTheDocument();
@@ -101,7 +101,7 @@ describe('TenantShell profile availability', () => {
     await act(async () => { mountPage(); });
     expect(screen.getByRole('status', { name: 'Cargando espacio' })).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText(neutralTitle)).not.toBeInTheDocument();
-    expect(screen.queryByText('No encontramos informacion para este espacio.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No encontramos información para este espacio.')).not.toBeInTheDocument();
   });
 
   it('keeps a successfully loaded public profile and its content unchanged', async () => {
