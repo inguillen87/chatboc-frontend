@@ -1,0 +1,78 @@
+name: Publish Claude-approved frontend
+
+'on':
+  issue_comment:
+    types: [created]
+  workflow_run:
+    workflows: [Frontend verification, Isolated evaluation access]
+    types: [completed]
+  # External checks can finish after both Actions workflows. These events only
+  # wake the read-only discovery; provider identity is revalidated through API.
+  # GitHub can suppress check_run events under its recursion rules. Observe
+  # provider delivery after installation; workflow_run covers Actions jobs.
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#check_run
+  status:
+  check_run:
+    types: [completed]
+
+# These jobs never consume PR source or artifacts. The short-lived token is
+# provided by GitHub; no PAT, Vercel token or repository setting is required.
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    if: github.repository == 'inguillen87/chatboc-frontend'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
+      statuses: read
+    outputs:
+      prs: ${{ steps.candidates.outputs.prs }}
+      has_prs: ${{ steps.candidates.outputs.has_prs }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+      - id: candidates
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/claude_approved_release.py discover
+
+  release:
+    needs: discover
+    if: needs.discover.outputs.has_prs == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        pr: ${{ fromJSON(needs.discover.outputs.prs) }}
+    # The same PR cannot be merged twice by comment/workflow events racing.
+    concurrency:
+      group: claude-approved-frontend-pr-${{ matrix.pr }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+      checks: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Revalidate approval, merge and verify Production
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ matrix.pr }}
+        run: python3 scripts/ci/claude_approved_release.py run --pr-number "$PR_NUMBER"
