@@ -304,6 +304,34 @@ describe('IncidentsMap', () => {
     expect(screen.queryByTestId('legacy-heatmap-evidence')).not.toBeInTheDocument();
   });
 
+  it('does not label an aggregate-only map as empty when exact points are protected', async () => {
+    mocks.getOperationsHeatmapV2.mockResolvedValue(operationsHeatmap({
+      points: [],
+      cells: [{
+        cell_id: 'cell-centro',
+        centroid_lat: -34.61,
+        centroid_lon: -60.91,
+        count: 10,
+      }],
+      summary: { points: 0, cells: 1, aggregated_observations: 10 },
+      privacy: {
+        mode: 'aggregated',
+        k_min: 10,
+        raw_points_redacted: true,
+        suppressed: { exact_points: true },
+      },
+    }));
+
+    render(<IncidentsMap />);
+
+    const map = await screen.findByTestId('mock-premium-territory-map');
+    expect(map).toHaveAttribute('data-points', '0');
+    expect(map).toHaveAttribute('data-privacy-mode', 'aggregated');
+    expect(screen.getByText('Datos disponibles sin validación completa')).toBeInTheDocument();
+    expect(screen.queryByText('Sin ubicaciones cargadas todavía')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('incidents-map-empty')).not.toBeInTheDocument();
+  });
+
   it('defaults only the territorial workspace to full history and keeps shorter ranges selectable', async () => {
     render(<IncidentsMap tenantSlugOverride="junin" />);
 
@@ -666,6 +694,7 @@ describe('IncidentsMap', () => {
     expect(map).toHaveAttribute('data-scope-verified', String(verified));
     expect(map).toHaveAttribute('data-demo-fallback', 'false');
     expect(screen.queryByTestId('incidents-map-empty')).not.toBeInTheDocument();
+    expect(screen.getByText('Sin ubicaciones cargadas todavía')).toBeInTheDocument();
     expect(screen.queryByText('La UI puede mostrar una cola')).not.toBeInTheDocument();
 
     const clearButton = screen.getByRole('button', { name: 'Limpiar filtros', hidden: true });

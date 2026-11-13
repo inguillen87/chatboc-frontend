@@ -1271,15 +1271,19 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     () => resolveTerritoryDataProvenance(operationsHeatmap, false, operationsHeatmap?.points ?? []),
     [operationsHeatmap],
   );
-  // Sin ningún punto no hay nada que validar: decir "datos disponibles" sería
-  // afirmar algo que la pantalla no muestra.
-  const operationsHasPoints = (operationsHeatmap?.points?.length ?? 0) > 0;
+  // La actividad puede venir como puntos, celdas agregadas o capas GeoJSON.
+  const operationsHasActivity = Boolean(
+    operationsHeatmap?.points.length ||
+      operationsHeatmap?.cells.length ||
+      operationsHeatmap?.geo_layers?.points?.features.length ||
+      operationsHeatmap?.geo_layers?.cells?.features.length,
+  );
   const operationsTrustLabel =
     operationsDataProvenance.state === 'real'
       ? 'Datos territoriales verificados'
       : operationsDataProvenance.state === 'synthetic' || operationsDataProvenance.state === 'demo'
         ? 'Datos de demostración declarados'
-        : operationsHasPoints
+        : operationsHasActivity
           ? 'Datos disponibles sin validación completa'
           : 'Sin ubicaciones cargadas todavía';
   const syntheticResponsesExcluded = readFiniteNumber(
@@ -1306,22 +1310,14 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     heatmapContractSource === 'operations_v2'
       ? operationsHeatmap?.render_contract?.can_render_heatmap !== undefined
         ? operationsHeatmap.render_contract.can_render_heatmap
-        : Boolean(
-            operationsHeatmap?.points.length ||
-              operationsHeatmap?.cells.length ||
-              operationsHeatmap?.geo_layers?.points?.features.length ||
-              operationsHeatmap?.geo_layers?.cells?.features.length,
-          )
+        : operationsHasActivity
       : heatmapData.length > 0;
   // An empty activity layer does not invalidate the official geography. Keep
   // scope and boundary validation in the territorial renderer, not this page.
   const hasEmptyOperationsPayload =
     heatmapContractSource === 'operations_v2' &&
     operationsHeatmap !== null &&
-    operationsHeatmap.points.length === 0 &&
-    operationsHeatmap.cells.length === 0 &&
-    (operationsHeatmap.geo_layers?.points?.features.length ?? 0) === 0 &&
-    (operationsHeatmap.geo_layers?.cells?.features.length ?? 0) === 0;
+    !operationsHasActivity;
 
   const mapKpis = [
     {
