@@ -246,19 +246,24 @@ const MarketingFooter = () => {
 };
 
 /** Pie único de un espacio publicado: el mismo para dominio propio y para /t/<slug>. */
-const SpaceFooter=({name,home}:{name:string;home:string})=><footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 border-t px-6 py-5 text-sm text-muted-foreground" aria-label="Información del espacio">
-    <Link to={home} className="min-h-11 py-3 font-medium">{name}</Link>
+const SpaceFooter=({name,home}:{name?:string;home?:string})=><footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 border-t px-6 py-5 text-sm text-muted-foreground" aria-label="Información del espacio">
+    {name&&home?<Link to={home} className="min-h-11 py-3 font-medium">{name}</Link>:<span aria-hidden="true"/>}
     <nav className="flex flex-wrap gap-4" aria-label="Información legal de la plataforma"><Link className="min-h-11 py-3" to="/privacidad">Privacidad de la plataforma</Link><Link className="min-h-11 py-3" to="/terminos">Términos de la plataforma</Link></nav>
   </footer>;
 
 const Footer=()=>{
   const presentation=usePrivateWorkspacePresentation();
-  const {hostBinding,tenant}=useTenant();
+  const {hostBinding,tenant,currentSlug,isLoadingTenant,tenantError}=useTenant();
   const {pathname}=useLocation();
   // Un espacio publicado en /t/<slug> es del organismo, no una página comercial de Chatboc.
   const spaceSlug=/^\/t\/([^/]+)/i.exec(pathname)?.[1]?.toLowerCase();
-  const tenantSlug=tenant?.slug?.trim().toLowerCase();
-  if(!hostBinding&&!presentation.active&&spaceSlug&&tenantSlug===spaceSlug&&tenant?.nombre)return <SpaceFooter name={tenant.nombre} home={`/t/${tenant.slug}`}/>;
+  if(!hostBinding&&!presentation.active&&spaceSlug){
+    const same=(value?:string|null)=>value?.trim().toLowerCase()===spaceSlug;
+    // Solo nombra al organismo con identidad vigente: carga terminada, sin error y slug coincidente.
+    const authoritative=!isLoadingTenant&&!tenantError&&same(currentSlug)&&same(tenant?.slug)&&Boolean(tenant?.nombre?.trim());
+    // En carga, error o cambio de organización el pie queda neutral: ni el organismo anterior ni el pie comercial.
+    return authoritative&&tenant?<SpaceFooter name={tenant.nombre} home={`/t/${tenant.slug}`}/>:<SpaceFooter/>;
+  }
   if(hostBinding)return <SpaceFooter name={hostBinding.tenant.nombre} home={hostBinding.paths.home}/>;
   return presentation.active?<PrivateWorkspaceFooter identity={presentation.identity}/>:<MarketingFooter/>;
 };
