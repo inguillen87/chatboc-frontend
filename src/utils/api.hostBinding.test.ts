@@ -50,4 +50,26 @@ describe('API tenant binding on custom hosts',()=>{
     expect(fetchMock).not.toHaveBeenCalled();
     await apiFetch('/api/me',isolated);expect(fetchMock).toHaveBeenCalledOnce();
   });
+  it('applies the same scope and transport boundary to a backend-verified exact Vercel alias', async () => {
+    const hostname = 'synthetic-release-name.vercel.app';
+    const original = window;
+    vi.stubGlobal('window', new Proxy(original, { get(target, key) {
+      return key === 'location' ? { hostname, origin: `https://${hostname}`, pathname: '/', search: '', hash: '' } : Reflect.get(target, key);
+    } }));
+    expect(() => resolveTenantSlug(null, '/api/public/news')).toThrow();
+    expect(() => resolveTenantSlug('synthetic-release-name', '/api/public/news')).toThrow();
+    publishTenantHostRuntime(tenantHostFixture(hostname));
+    expect(resolveTenantSlug(null, '/api/public/news')).toBe('government-east');
+    expect(() => resolveTenantSlug('old-workspace', '/api/public/news')).toThrow();
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiFetch('/api/public/news', { skipAuth: true, omitCredentials: true, omitEntityToken: true,
+      omitChatSessionId: true, persistTenantSlug: false, isWidgetRequest: false });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(String(path).startsWith('/api/public/news?')).toBe(true);
+    expect(new Headers(options.headers).get('X-Tenant')).toBe('government-east');
+    expect(options.credentials).toBe('omit');
+    expect(localStorage.getItem('tenantSlug')).toBe('old-workspace');
+  });
 });

@@ -1,11 +1,27 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tenantHostFixture, tenantHostPayload } from '@/test/fixtures/tenantHost';
-import { normalizeTenantHostname, publishTenantHostRuntime, readActiveTenantHostRuntime, readTenantHostBinding, requiresTenantHostBinding, tenantHostNavigationTarget, tenantHostRouteMatches, tenantHostRequestMatches } from './tenantHostBinding';
+import { normalizeTenantHostname, publishTenantHostRuntime, publishUnboundDeploymentHost, readActiveTenantHostRuntime, readTenantHostBinding, requiresTenantHostBinding, requiresTenantHostLookup, tenantHostNavigationTarget, tenantHostRouteMatches, tenantHostRequestMatches } from './tenantHostBinding';
 
 afterEach(() => { publishTenantHostRuntime(null); vi.useRealTimers(); });
 describe('complete hostname contract', () => {
-  it.each(['chatboc.ar','www.chatboc.ar','app.chatboc.ar','panel.chatboc.ar','api.chatboc.ar','preview.chatboc.ar','release-team.vercel.app','localhost','127.0.0.1','::1'])('keeps shared/deployment/local host %s independent', host => expect(requiresTenantHostBinding(host)).toBe(false));
-  it.each(['atencion.example.test','junin.chatboc.ar','otra.example.test'])('requires a published binding for the complete host %s', host => expect(requiresTenantHostBinding(host)).toBe(true));
+  it.each(['chatboc.ar','www.chatboc.ar','app.chatboc.ar','panel.chatboc.ar','api.chatboc.ar','preview.chatboc.ar','localhost','127.0.0.1','::1'])('keeps shared/local host %s independent', host => expect(requiresTenantHostBinding(host)).toBe(false));
+  it.each(['atencion.example.test','junin.chatboc.ar','otra.example.test','release-team.vercel.app','release-team.vercel.app.evil.test'])('requires a published binding for the complete host %s', host => expect(requiresTenantHostBinding(host)).toBe(true));
+  it('keeps a negative deployment discovery exact and clears it on refresh or retirement', () => {
+    publishUnboundDeploymentHost('release-team.vercel.app');
+    expect(requiresTenantHostBinding('release-team.vercel.app')).toBe(false);
+    expect(requiresTenantHostLookup('release-team.vercel.app')).toBe(true);
+    expect(requiresTenantHostBinding('other-team.vercel.app')).toBe(true);
+    publishTenantHostRuntime(null);
+    expect(requiresTenantHostBinding('release-team.vercel.app')).toBe(true);
+    publishUnboundDeploymentHost('atencion.example.test');
+    expect(requiresTenantHostBinding('atencion.example.test')).toBe(true);
+    expect(requiresTenantHostBinding('malformed.host:443')).toBe(true);
+  });
+  it('takes an exact Vercel alias identity only from the validated response', () => {
+    const host = 'unrelated-build-name.vercel.app';
+    expect(readTenantHostBinding(tenantHostPayload(host), host).tenant.slug).toBe('government-east');
+    expect(() => readTenantHostBinding(tenantHostPayload('other-build.vercel.app'), host)).toThrow();
+  });
   it('normalizes IDNA and trailing dot, without reading a first label as the organization', () => {
     expect(normalizeTenantHostname(' ATENCIÓN.example.test. ')).toBe('xn--atencin-q0a.example.test');
     const result = readTenantHostBinding(tenantHostPayload(), 'ATENCION.EXAMPLE.TEST.');
@@ -24,6 +40,22 @@ describe('complete hostname contract', () => {
   it('rejects conflicting identities and unsafe logos are absent', () => {
     expect(() => readTenantHostBinding({ ...tenantHostPayload(), tenant: { ...tenantHostPayload().tenant, tenant_id: 18 } }, 'atencion.example.test')).toThrow();
     expect(readTenantHostBinding({ ...tenantHostPayload(), tenant: { ...tenantHostPayload().tenant, logo_url: 'javascript:alert(1)' } }, 'atencion.example.test').identity.logoUrl).toBeNull();
+  });
+  it('defaults legacy responses to their own origin and validates additive canonical fields', () => {
+    const legacy = readTenantHostBinding(tenantHostPayload(), 'atencion.example.test');
+    expect(legacy.canonical_origin).toBe(legacy.origin);
+    expect(legacy.canonical_redirect_required).toBe(false);
+    const payload = { ...tenantHostPayload(), canonical_origin: 'https://civic.example.test', canonical_redirect_required: true };
+    expect(readTenantHostBinding(payload, payload.host).canonical_origin).toBe('https://civic.example.test');
+    for (const patch of [
+      { canonical_origin: 'http://civic.example.test' }, { canonical_origin: 'https://user@civic.example.test' },
+      { canonical_origin: 'https://civic.example.test/path' }, { canonical_origin: 'https://civic.example.test?token=secret' },
+      { canonical_origin: 'https://civic.example.test#secret' }, { canonical_origin: 'https://civic.example.test:444' },
+      { canonical_origin: 'https://civic.example.test:443' }, { canonical_origin: 'https://civic.example.test/' },
+      { canonical_origin: 'https://127.0.0.1' }, { canonical_origin: legacy.origin },
+      { canonical_redirect_required: false }, { canonical_redirect_required: 'true' },
+      { canonical_origin: undefined },
+    ]) expect(() => readTenantHostBinding({ ...payload, ...patch }, payload.host)).toThrow();
   });
   it('does not retain a runtime binding across host changes or expiration', () => {
     const binding = tenantHostFixture(); publishTenantHostRuntime(binding);

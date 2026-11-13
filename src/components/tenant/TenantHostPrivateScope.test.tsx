@@ -25,4 +25,11 @@ describe('custom host private scope', () => {
   });
   it.each(['verified', 'session'] as const)('does not turn stale %s into authorization', key => { state[key] = false; renderScope(); expect(screen.queryByText('private content')).not.toBeInTheDocument(); });
   it('withholds private children during refresh', () => { state.loading = true; renderScope(); expect(screen.queryByText('private content')).not.toBeInTheDocument(); expect(screen.getByText('Validando acceso institucional')).toBeInTheDocument(); });
+  it('does not let a verified Vercel alias and matching public slug substitute for an authenticated session', () => {
+    state.binding = tenantHostFixture('synthetic-release-name.vercel.app');
+    state.session = false;
+    renderScope();
+    expect(screen.queryByText('private content')).not.toBeInTheDocument();
+    expect(screen.getByText('Esta cuenta no corresponde a este espacio')).toBeInTheDocument();
+  });
 });

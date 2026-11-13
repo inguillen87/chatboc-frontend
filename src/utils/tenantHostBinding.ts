@@ -1,10 +1,13 @@
 import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
-import { isDeploymentPlatformHostname } from './tenantHostname';
 import { exactInstitutionSlug, readPublishedTenantIdentity } from './publishedTenantIdentity';
 import { normalizeColorHsl } from './color';
 import type { TenantHostBinding } from '@/types/tenantHost';
 
-const PLATFORM_HOSTS = new Set(['chatboc.ar', 'www.chatboc.ar', 'app.chatboc.ar', 'panel.chatboc.ar', 'api.chatboc.ar', 'api-preview.chatboc.ar']);
+const PLATFORM_HOSTS = new Set(['chatboc.ar', 'www.chatboc.ar', 'app.chatboc.ar', 'panel.chatboc.ar', 'api.chatboc.ar', 'preview.chatboc.ar', 'api-preview.chatboc.ar']);
+let runtimeBinding: TenantHostBinding | null = null;
+// Only an explicit anonymous 404 contract releases this exact deployment host.
+// This is transient presentation state, never a tenant/permission allowlist.
+let unboundDeploymentHost: string | null = null;
 const record = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -21,15 +24,42 @@ export function normalizeTenantHostname(value: unknown): string | null {
   } catch { return null; }
 }
 
-/** Custom subdomains also require an exact published binding, never first-label inference. */
-export function requiresTenantHostBinding(hostname?: string | null): boolean {
+/** A suffix chooses discovery only; an exact backend response supplies identity. */
+export function isTenantDeploymentHostname(hostname?: string | null): boolean {
+  const host = normalizeTenantHostname(hostname);
+  return Boolean(host && host.endsWith('.vercel.app'));
+}
+
+/** Static lookup policy, independent of runtime results to avoid effect loops. */
+export function requiresTenantHostLookup(hostname?: string | null): boolean {
   const host = String(hostname || '').trim().toLowerCase().replace(/\.$/, '');
   if (!host || host === 'localhost' || host.endsWith('.localhost') || host === '::1' || host === '[::1]' || /^\d+(?:\.\d+){3}$/.test(host)) return false;
-  return !PLATFORM_HOSTS.has(host) && !isDeploymentPlatformHostname(host);
+  return !PLATFORM_HOSTS.has(host);
+}
+
+/** Custom hosts and unresolved deployment aliases never infer an organization. */
+export function requiresTenantHostBinding(hostname?: string | null): boolean {
+  return requiresTenantHostLookup(hostname) &&
+    !(unboundDeploymentHost && normalizeTenantHostname(hostname) === unboundDeploymentHost);
 }
 
 export class TenantHostUnavailableError extends Error {
   constructor() { super('Este dominio no tiene un espacio activo y verificado.'); this.name = 'TenantHostUnavailableError'; }
+}
+
+/** Created only for a parsed HTTP 404 host_not_available public contract. */
+export class TenantHostNotPublishedError extends TenantHostUnavailableError {
+  constructor() { super(); this.name = 'TenantHostNotPublishedError'; }
+}
+
+export function readTenantCanonicalOrigin(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    const host = normalizeTenantHostname(url.hostname);
+    return host && value === `https://${host}` && url.origin === value && !url.username && !url.password && !url.port
+      ? value : null;
+  } catch { return null; }
 }
 
 export function readTenantHostBinding(payload: unknown, expectedHost: string, nowSeconds = Date.now() / 1000): TenantHostBinding {
@@ -40,9 +70,15 @@ export function readTenantHostBinding(payload: unknown, expectedHost: string, no
   let identity;
   try { identity = readPublishedTenantIdentity({ tenant }); } catch { throw new TenantHostUnavailableError(); }
   if (!identity || TENANT_PLACEHOLDER_SLUGS.has(identity.tenantSlug)) throw new TenantHostUnavailableError();
+  const hasCanonical = 'canonical_origin' in source || 'canonical_redirect_required' in source;
+  const canonicalOrigin = hasCanonical ? readTenantCanonicalOrigin(source.canonical_origin) : `https://${host}`;
+  const canonicalRedirectRequired = hasCanonical ? source.canonical_redirect_required : false;
+  if (!canonicalOrigin || typeof canonicalRedirectRequired !== 'boolean' ||
+    canonicalRedirectRequired !== (canonicalOrigin !== source.origin)) throw new TenantHostUnavailableError();
   const color = (value: unknown) => typeof value === 'string' && normalizeColorHsl(value) ? value : null;
   return {
     contract_version: 'public.tenant_host.v1', host, origin: `https://${host}`,
+    canonical_origin: canonicalOrigin, canonical_redirect_required: canonicalRedirectRequired,
     tenant: { id: identity.tenantId, slug: identity.tenantSlug, nombre: identity.name, tipo: typeof tenant.tipo === 'string' ? tenant.tipo : null, logo_url: identity.logoUrl },
     identity, brand: { primary_color: color(brand.primary_color), accent_color: color(brand.accent_color) },
     paths: { home: '/', login: '/login', workspace: '/perfil' },
@@ -94,8 +130,14 @@ export function tenantHostNavigationTarget(binding: TenantHostBinding | null | u
   return target.startsWith(`${base}/`) ? target : null;
 }
 
-let runtimeBinding: TenantHostBinding | null = null;
-export function publishTenantHostRuntime(binding: TenantHostBinding | null) { runtimeBinding = binding; }
+export function publishTenantHostRuntime(binding: TenantHostBinding | null) {
+  runtimeBinding = binding;
+  unboundDeploymentHost = null;
+}
+export function publishUnboundDeploymentHost(hostname: string) {
+  runtimeBinding = null;
+  unboundDeploymentHost = isTenantDeploymentHostname(hostname) ? normalizeTenantHostname(hostname) : null;
+}
 export function readActiveTenantHostRuntime(hostname?: string | null): TenantHostBinding | null {
   return runtimeBinding && normalizeTenantHostname(hostname) === runtimeBinding.host && runtimeBinding.binding.valid_until > Date.now() / 1000 ? runtimeBinding : null;
 }
