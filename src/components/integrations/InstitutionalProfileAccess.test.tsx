@@ -29,6 +29,12 @@ vi.mock('@/context/TenantContext', () => ({ useTenant: () => tenant }));
 vi.mock('@/services/tenantService', () => ({ tenantService: { getTenantConfig: vi.fn(), updateTenantConfig: vi.fn() } }));
 vi.mock('@/api/client', () => ({ apiClient: api }));
 vi.mock('@/api/v2/channelActivation', () => ({ fetchTenantChannelActivation: vi.fn() }));
+// El contrato de direcciones v2 todavía no está publicado en este escenario:
+// la pantalla debe caer en la configuración anterior de dominio.
+vi.mock('@/api/tenantAddresses', async () => {
+  const actual = await vi.importActual<typeof import('@/api/tenantAddresses')>('@/api/tenantAddresses');
+  return { ...actual, getTenantAddresses: vi.fn(async () => { throw new actual.TenantAddressesUnavailableError(); }) };
+});
 vi.mock('@/api/tenantDomain', async () => ({ ...await vi.importActual<typeof import('@/api/tenantDomain')>('@/api/tenantDomain'),
   getTenantDomain: vi.fn(), saveTenantDomain: vi.fn() }));
 vi.mock('@/components/admin/ChatCustomizer', () => ({ default: () => {
