@@ -58,6 +58,23 @@ describe('authoritative custom hostname bootstrap',()=>{
     renderProvider();expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos confirmar');
     expect(screen.queryByText('government-east:Organización de prueba')).not.toBeInTheDocument();expect(localStorage.getItem('tenantSlug')).toBe('old-workspace');
   });
+  it('resolves a Vercel alias without granting its label or an ambient preference tenant authority', async () => {
+    const hostname = 'synthetic-release-name.vercel.app';
+    const original = window;
+    vi.stubGlobal('window', new Proxy(original, { get(target, key) {
+      return key === 'location' ? { hostname, origin: `https://${hostname}`, pathname: '/', search: '', hash: '' } : Reflect.get(target, key);
+    } }));
+    mocks.host.mockResolvedValue(tenantHostFixture(hostname));
+    (window as any).CHATBOC_CONFIG = { tenantSlug: 'foreign-script', entityToken: 'foreign-owner-token' };
+    renderProvider();
+    await screen.findByText('government-east:Organización de prueba');
+    expect(mocks.host).toHaveBeenCalledWith(hostname, expect.any(AbortSignal));
+    expect(mocks.profile).toHaveBeenCalledWith('government-east', null);
+    expect(mocks.profile).not.toHaveBeenCalledWith('synthetic-release-name', expect.anything());
+    expect(localStorage.getItem('tenantSlug')).toBe('old-workspace');
+    fireEvent.click(screen.getByRole('button', { name: 'Select old workspace' }));
+    expect(screen.getByText('government-east:Organización de prueba')).toBeInTheDocument();
+  });
   it('keeps the shared Chatboc root/login bootstrap independent of this host contract',async()=>{
     const original=window;vi.stubGlobal('window',new Proxy(original,{get(target,key){return key==='location'?{hostname:'www.chatboc.ar',origin:'https://www.chatboc.ar',pathname:'/login',search:'',hash:''}:Reflect.get(target,key);}}));
     mocks.profile.mockResolvedValue({slug:'old-workspace',nombre:'Stored selection'});renderProvider('/login');

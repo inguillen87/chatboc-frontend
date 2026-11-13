@@ -5,6 +5,9 @@ export interface TenantHostBinding {
   contract_version: 'public.tenant_host.v1';
   host: string;
   origin: string;
+  /** Normalized defaults preserve the additive v1 response contract. */
+  canonical_origin: string;
+  canonical_redirect_required: boolean;
   tenant: { id: number; slug: string; nombre: string; tipo: string | null; logo_url: string | null };
   identity: PublishedTenantIdentity;
   brand: { primary_color: string | null; accent_color: string | null };
