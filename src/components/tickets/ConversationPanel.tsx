@@ -3247,7 +3247,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       </header>
 
-      {!operationalWorkspace ? (
+      {!operationalWorkspace && !isMobile ? (
         <CaseStrip
           ticket={selectedTicket}
           presentationCategory={presentationCategory}

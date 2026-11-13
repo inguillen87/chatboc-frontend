@@ -174,7 +174,11 @@ vi.mock('@/services/ticketService', async () => {
   };
 });
 
-vi.mock('./CaseStrip', () => ({ default: () => null }));
+vi.mock('./CaseStrip', () => ({
+  default: ({ isDetailsVisible }: { isDetailsVisible?: boolean }) => isDetailsVisible
+    ? null
+    : <section aria-label="Resumen operativo del ticket" />,
+}));
 vi.mock('./TicketClaimButton', () => ({ default: () => null }));
 vi.mock('./ChatMessage', () => ({
   default: ({ message }: { message: { text?: string } }) => <div>{message.text}</div>,
@@ -208,7 +212,11 @@ import ConversationPanel, {
 
 let queryClient: QueryClient;
 
-const renderConversation = (operationalWorkspace = false, isDetailsVisible = false) => (
+const renderConversation = (
+  operationalWorkspace = false,
+  isDetailsVisible = false,
+  overrides: Partial<React.ComponentProps<typeof ConversationPanel>> = {},
+) => (
   <QueryClientProvider client={queryClient}>
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <ConversationPanel
@@ -219,6 +227,7 @@ const renderConversation = (operationalWorkspace = false, isDetailsVisible = fal
         onToggleDetails={vi.fn()}
         desktopView="chat"
         operationalWorkspace={operationalWorkspace}
+        {...overrides}
       />
     </MemoryRouter>
   </QueryClientProvider>
@@ -326,6 +335,27 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.socket?.off.mockClear();
     harness.socket?.on.mockClear();
     if (harness.socket) harness.socket.connected = true;
+  });
+
+  it('keeps the operational summary available in the desktop conversation', async () => {
+    render(renderConversation(false, false, { showDetailsToggle: true }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'Resumen operativo del ticket' })).toBeVisible();
+    });
+    expect(screen.getByRole('button', { name: 'Ver detalles del ticket' })).toBeEnabled();
+  });
+
+  it('leaves mobile message space free of the duplicated summary and keeps details accessible', async () => {
+    const onToggleDetails = vi.fn();
+    render(renderConversation(false, false, { isMobile: true, showDetailsToggle: true, onToggleDetails }));
+
+    const detailsButton = await screen.findByRole('button', { name: 'Ver detalles del ticket' });
+    expect(screen.queryByRole('region', { name: 'Resumen operativo del ticket' })).not.toBeInTheDocument();
+    await waitFor(() => expect(detailsButton).toBeVisible());
+    expect(detailsButton).toBeEnabled();
+    fireEvent.click(detailsButton);
+    expect(onToggleDetails).toHaveBeenCalledTimes(1);
   });
 
   it('retries only contract verification after a failed read and preserves the draft', async () => {
