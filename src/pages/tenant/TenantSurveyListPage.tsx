@@ -121,14 +121,14 @@ const TenantSurveyListPage = () => {
         ) : !surveyNavItem ? (
           <ViewState
             status="empty"
-            title="Participacion no publicada"
+            title="Participación no publicada"
             description="Este espacio no tiene una instancia publica de participación habilitada."
           />
         ) : !hasEndpoint(surveyNavItem) ? (
           <ViewState
             status="empty"
-            title="Participacion no disponible"
-            description="La organización todavía no publico el listado para esta seccion."
+            title="Participación no disponible"
+            description="La organización todavía no publico el listado para esta sección."
           />
         ) : !isOnline && !surveysQuery.data ? (
           <ViewState

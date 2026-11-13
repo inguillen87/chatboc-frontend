@@ -225,7 +225,7 @@ export const TransparencyTab = ({
                   disabled={isVerifying}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Elegi un snapshot" />
+                    <SelectValue placeholder="Elegí un snapshot" />
                   </SelectTrigger>
                   <SelectContent>
                     {normalizedSnapshots.map((snapshot) => (

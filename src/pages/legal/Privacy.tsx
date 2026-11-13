@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
     <main className="min-h-screen bg-background text-foreground">
       <section className="mx-auto w-full max-w-4xl px-5 py-12 sm:px-8">
         <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-primary">Chatboc.ar</p>
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Politica de privacidad</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Política de privacidad</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
           Esta politica explica como Chatboc.ar recopila, usa, protege y conserva datos personales y
           comerciales cuando una persona o una organizacion usa nuestra plataforma, nuestro sitio web,
@@ -31,7 +31,7 @@ export default function PrivacyPolicy() {
             <h2 className="text-xl font-semibold">Datos que podemos tratar</h2>
             <ul className="mt-3 list-disc space-y-2 pl-6 text-muted-foreground">
               <li>Datos de contacto: nombre, teléfono, email, empresa, institución o municipio.</li>
-              <li>Datos de conversacion: mensajes, notas de voz, imagenes, adjuntos, ubicaciones y respuestas.</li>
+              <li>Datos de conversacion: mensajes, notas de voz, imágenes, adjuntos, ubicaciones y respuestas.</li>
               <li>Datos operativos: tickets, reclamos, pedidos, turnos, encuestas, etiquetas, estados y responsables.</li>
               <li>Datos tecnicos: IP, navegador, dispositivo, identificadores anonimos, logs, webhooks y eventos de entrega.</li>
               <li>Datos de integraciones: WhatsApp Business, Twilio, Meta, proveedores de IA y sistemas conectados por el cliente.</li>

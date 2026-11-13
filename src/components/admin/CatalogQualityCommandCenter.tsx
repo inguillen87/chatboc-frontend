@@ -462,7 +462,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
                 </Pill>
               ))}
               {!imports?.image_columns?.length ? (
-                <span className="text-sm text-muted-foreground">Aún no se publicaron columnas de imagen para este catalogo.</span>
+                <span className="text-sm text-muted-foreground">Aún no se publicaron columnas de imagen para este catálogo.</span>
               ) : null}
             </div>
           </div>

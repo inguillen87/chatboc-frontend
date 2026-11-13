@@ -296,7 +296,7 @@ export default function TicketsBoardPage() {
   const header = (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Operacion tenant-aware</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Operación tenant-aware</p>
         <h1 className="text-2xl font-semibold tracking-tight">Bandeja operativa</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Casos abiertos de las fuentes autorizadas, ordenados por fecha de creacion y con estado vivo.
@@ -369,7 +369,7 @@ export default function TicketsBoardPage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
         {header}
         {filtersCard}
-        <ViewState status="offline" description="La bandeja se actualizara cuando vuelva la conexion." />
+        <ViewState status="offline" description="La bandeja se actualizara cuando vuelva la conexión." />
       </div>
     );
   }

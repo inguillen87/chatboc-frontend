@@ -98,7 +98,7 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
 
   if (hasUnread) {
     return {
-      label: 'Responder la ultima consulta del vecino o cliente desde la conversacion del caso.',
+      label: 'Responder la ultima consulta del vecino o cliente desde la conversación del caso.',
       source: 'ui',
       tags: ['respuesta pendiente'],
     };
@@ -145,7 +145,7 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
   }
 
   return {
-    label: 'Revisar conversacion, confirmar datos clave y responder desde la mesa operativa.',
+    label: 'Revisar conversación, confirmar datos clave y responder desde la mesa operativa.',
     source: 'ui',
     tags: ['seguimiento'],
   };

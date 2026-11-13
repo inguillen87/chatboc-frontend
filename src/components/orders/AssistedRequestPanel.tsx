@@ -1024,7 +1024,7 @@ export function AssistedRequestPanel({
           <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
           <div>
             <p className="font-semibold">Analizando documento</p>
-            <p className="mt-0.5 text-xs opacity-80">Las líneas, coincidencias y faltantes se actualizaran cuando termine la extraccion.</p>
+            <p className="mt-0.5 text-xs opacity-80">Las líneas, coincidencias y faltantes se actualizaran cuando termine la extracción.</p>
           </div>
         </div>
       ) : null}
@@ -1035,7 +1035,7 @@ export function AssistedRequestPanel({
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
               <p className="font-semibold">No se pudo completar una lectura automática confiable</p>
-              <p className="mt-0.5 text-xs opacity-80">El caso requiere revisar el documento original antes de confirmar datos o catalogo.</p>
+              <p className="mt-0.5 text-xs opacity-80">El caso requiere revisar el documento original antes de confirmar datos o catálogo.</p>
               {errorMessages.length ? (
                 <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
                   {errorMessages.map((message) => (
@@ -1214,7 +1214,7 @@ export function AssistedRequestPanel({
               id={linesId}
               icon={ClipboardList}
               title="Líneas detectadas"
-              description="Texto original, cantidad y resultado del cruce de catálogo por renglon."
+              description="Texto original, cantidad y resultado del cruce de catálogo por renglón."
               aside={
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="bg-background">

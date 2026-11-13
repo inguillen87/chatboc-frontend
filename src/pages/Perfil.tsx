@@ -2727,7 +2727,7 @@ export default function Perfil() {
     {
       id: "ai-analytics",
       title: "Analítica avanzada e IA",
-      description: "Investigacion, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
+      description: "Investigación, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
       icon: Sparkles,
       actionLabel: "Abrir analitica",
       tab: "analytics",
@@ -2745,7 +2745,7 @@ export default function Perfil() {
     {
       id: "users",
       title: "Usuarios finales",
-      description: "Consultar contactos, cuentas, actividad y datos de relacion con la organizacion.",
+      description: "Consultar contactos, cuentas, actividad y datos de relación con la organización.",
       icon: UserCog,
       actionLabel: "Ver usuarios",
       tab: "usuarios",
@@ -4357,18 +4357,18 @@ export default function Perfil() {
         </WorkspacePanel>
         {workspaceCapabilities.analytics && (
           <WorkspacePanel active={activeProfileTab === "analytics" && workspaceCapabilities.analytics} label="Analítica avanzada">
-            <React.Suspense fallback={<ProfileTabFallback label="Cargando analitica IA..." />}>
+            <React.Suspense fallback={<ProfileTabFallback label="Cargando analítica IA..." />}>
               <AnalyticsPage />
             </React.Suspense>
           </WorkspacePanel>
         )}
         <WorkspacePanel active={activeProfileTab === "catalogo" && workspaceCapabilities.catalog} label="Catálogo y servicios">
-          <React.Suspense fallback={<ProfileTabFallback label="Cargando catalogo..." />}>
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando catálogo..." />}>
             <CatalogManagementPage tenantSlugOverride={derivedTenantSlug} embedded />
           </React.Suspense>
         </WorkspacePanel>
         <WorkspacePanel active={activeProfileTab === "pedidos" && workspaceCapabilities.operation} label={esMunicipio ? "Tareas y gestión" : "Ventas y pedidos"}>
-          <React.Suspense fallback={<ProfileTabFallback label="Cargando gestion..." />}>
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando gestión..." />}>
             <SmartPedidosWrapper embedded />
           </React.Suspense>
         </WorkspacePanel>

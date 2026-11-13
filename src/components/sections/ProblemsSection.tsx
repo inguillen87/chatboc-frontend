@@ -49,7 +49,7 @@ const problemsData = [
   },
   {
     icon: BarChart3,
-    title: "Operacion sin prioridad",
+    title: "Operación sin prioridad",
     description:
       "Los equipos ven listas largas, pero no saben que caso impacta mas, que fuente esta caida o que accion desbloquea valor.",
     outcome: "Prioridades, tiempos y alertas ordenan el trabajo diario.",

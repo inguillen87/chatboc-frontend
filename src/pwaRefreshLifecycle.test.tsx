@@ -109,7 +109,7 @@ describe('authenticated PWA update notification', () => {
     act(() => { toast('Temporary fixture notification'); });
     await publishUpdate();
 
-    expect(screen.getByText('Nueva version disponible')).toBeInTheDocument();
+    expect(screen.getByText('Nueva versión disponible')).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(screen.queryByText('Temporary fixture notification')).not.toBeInTheDocument();
@@ -127,7 +127,7 @@ describe('authenticated PWA update notification', () => {
   it('renders an update that arrives before the application notification renderer mounts', async () => {
     cleanup();
     await publishUpdate();
-    expect(toast.getToasts().some(entry => entry.title === 'Nueva version disponible')).toBe(true);
+    expect(toast.getToasts().some(entry => entry.title === 'Nueva versión disponible')).toBe(true);
     await act(async () => {
       render(<AppToaster />);
       await Promise.resolve();
@@ -147,7 +147,7 @@ describe('authenticated PWA update notification', () => {
     await act(async () => { render(<React.StrictMode><AppToaster /></React.StrictMode>); });
     await act(async () => { await vi.advanceTimersByTimeAsync(20); });
     expect(screen.getAllByRole('button', { name: 'Actualizar' })).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Despues' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Después' }));
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     cleanup();
     await act(async () => { render(<AppToaster />); });
@@ -186,10 +186,10 @@ describe('authenticated PWA update notification', () => {
   it('deduplicates a waiting notification and can notify a new event after dismissal', async () => {
     await publishUpdate();
     await publishUpdate();
-    expect(screen.getAllByText('Nueva version disponible')).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Despues' }));
+    expect(screen.getAllByText('Nueva versión disponible')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Después' }));
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
-    expect(screen.queryByText('Nueva version disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nueva versión disponible')).not.toBeInTheDocument();
     expect(updateSW).not.toHaveBeenCalled();
 
     await publishUpdate();
@@ -199,7 +199,7 @@ describe('authenticated PWA update notification', () => {
 
   it('clears a library dismissal and ignores a delayed callback belonging to an older toast', async () => {
     await publishUpdate();
-    const originalToast = toast.getToasts().find((entry) => entry.title === 'Nueva version disponible')!;
+    const originalToast = toast.getToasts().find((entry) => entry.title === 'Nueva versión disponible')!;
     await act(async () => {
       toast.dismiss(originalToast.id);
       await vi.advanceTimersByTimeAsync(50);
@@ -207,15 +207,15 @@ describe('authenticated PWA update notification', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
-    expect(screen.queryByText('Nueva version disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nueva versión disponible')).not.toBeInTheDocument();
     await publishUpdate();
-    const currentToast = toast.getToasts().find((entry) => entry.title === 'Nueva version disponible')!;
+    const currentToast = toast.getToasts().find((entry) => entry.title === 'Nueva versión disponible')!;
     expect(currentToast.id).not.toBe(originalToast.id);
 
     originalToast.onAutoClose?.(originalToast);
     await publishUpdate();
-    expect(screen.getAllByText('Nueva version disponible')).toHaveLength(1);
-    expect(toast.getToasts().filter((entry) => entry.title === 'Nueva version disponible')).toHaveLength(1);
+    expect(screen.getAllByText('Nueva versión disponible')).toHaveLength(1);
+    expect(toast.getToasts().filter((entry) => entry.title === 'Nueva versión disponible')).toHaveLength(1);
     expect(updateSW).not.toHaveBeenCalled();
   });
 
@@ -223,7 +223,7 @@ describe('authenticated PWA update notification', () => {
     window.history.replaceState({}, '', '/t/example-city');
     await publishUpdate();
     expect(updateSW).toHaveBeenCalledExactlyOnceWith(true);
-    expect(screen.queryByText('Nueva version disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nueva versión disponible')).not.toBeInTheDocument();
     expect(deleteCache).not.toHaveBeenCalled();expect(unregister).not.toHaveBeenCalled();
   });
 

@@ -97,7 +97,7 @@ const PERMISSION_GROUPS = [
     label: 'Reportes y encuestas',
     icon: BarChart3,
     items: [
-      { value: 'analytics.read', label: 'Ver analitica agregada' },
+      { value: 'analytics.read', label: 'Ver analítica agregada' },
       { value: 'surveys_read', label: 'Ver encuestas' },
       { value: 'surveys_write', label: 'Crear y publicar encuestas' },
       { value: 'survey.pii.read', label: 'Ver respuestas con datos sensibles' },
@@ -157,7 +157,7 @@ const ROLE_TEMPLATES = [
   {
     id: 'commerce',
     label: 'Catalogo y pedidos',
-    description: 'Gestiona pedidos, stock y catalogo.',
+    description: 'Gestiona pedidos, stock y catálogo.',
     roles: ['operador'],
     permisos: ['orders_read', 'orders_update', 'catalog_read', 'catalog_write'],
     channels: ['web_demo_widget', 'whatsapp'],
@@ -832,7 +832,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
     if (!scopeIsCurrent()) return;
     if (!nombre.trim() || !email.trim() || !password.trim()) return;
     if (!isValidEmail(email)) {
-      toast.error('Email invalido.');
+      toast.error('Email inválido.');
       return;
     }
     if (!tenantSlug) return;
@@ -1059,7 +1059,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               <section className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
-                  <p className="text-xs text-muted-foreground">El empleado entra con este email y cambia la contraseña despues.</p>
+                  <p className="text-xs text-muted-foreground">El empleado entra con este email y cambia la contraseña después.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
@@ -1080,7 +1080,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               <section className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
-                  <p className="text-xs text-muted-foreground">Elegi una plantilla y después ajusta lo necesario.</p>
+                  <p className="text-xs text-muted-foreground">Elegí una plantilla y después ajusta lo necesario.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {ROLE_TEMPLATES.map((template) => {

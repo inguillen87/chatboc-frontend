@@ -199,7 +199,7 @@ const buildSignalRows = (payload: TicketAiEnrichmentResponse | null) => {
       provider: asString(sentiment.provider),
     },
     {
-      label: 'Intencion pyme',
+      label: 'Intención pyme',
       value: asString(intent.label || intent.intent),
       score: asScore(intent.score),
       provider: asString(intent.provider),

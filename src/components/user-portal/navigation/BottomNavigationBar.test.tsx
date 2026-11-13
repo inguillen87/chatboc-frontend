@@ -28,7 +28,7 @@ describe('BottomNavigationBar mobile accessibility', () => {
     );
 
     const navigation = screen.getByRole('navigation', {
-      name: /navegacion principal del portal/i,
+      name: /navegación principal del portal/i,
     });
     expect(navigation.className).toContain('h-[calc(4rem+env(safe-area-inset-bottom))]');
     expect(navigation.className).toContain('pb-[env(safe-area-inset-bottom)]');

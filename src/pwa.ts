@@ -304,7 +304,7 @@ const registerPwaWorker = () => {
             }
 
             replayPendingRefreshToast = () => {
-              refreshToastId = toast('Nueva version disponible', {
+              refreshToastId = toast('Nueva versión disponible', {
               id: refreshToastId,
               description: 'Guardá tu trabajo antes de actualizar para recibir las últimas mejoras.',
               duration: Infinity,
@@ -318,7 +318,7 @@ const registerPwaWorker = () => {
                 },
               },
               cancel: {
-                label: 'Despues',
+                label: 'Después',
                 onClick: () => {
                   dismissRefreshToast();
                 },

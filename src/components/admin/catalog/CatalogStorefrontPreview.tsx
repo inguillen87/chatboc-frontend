@@ -51,7 +51,7 @@ export const CatalogStorefrontPreview: React.FC<CatalogStorefrontPreviewProps> =
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="rounded-xl bg-white p-3 text-zinc-900 shadow-sm">
               <div className="mb-1 text-xs font-semibold text-[#075e54]">Catálogo actualizado</div>
-              <div className="mb-3 text-sm">Estos son los productos disponibles. Elegi uno y armamos el pedido.</div>
+              <div className="mb-3 text-sm">Estos son los productos disponibles. Elegí uno y armamos el pedido.</div>
               <div className="space-y-2">
                 {products.slice(0, 3).map((product) => (
                   <div key={product.id} className="flex items-center gap-2 rounded-lg border bg-zinc-50 p-1.5">

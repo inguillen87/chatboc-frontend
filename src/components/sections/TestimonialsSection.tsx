@@ -5,12 +5,12 @@ const valueSignals = [
   {
     icon: MessageSquareText,
     title: "Conversaciones con contexto",
-    detail: "Cada mensaje puede conservar canal, motivo, adjuntos, ubicación y proxima accion.",
+    detail: "Cada mensaje puede conservar canal, motivo, adjuntos, ubicación y próxima acción.",
   },
   {
     icon: Route,
     title: "Recorridos accionables",
-    detail: "La persona no queda en un menu sin salida: puede avanzar a reclamo, pedido, encuesta o derivacion.",
+    detail: "La persona no queda en un menu sin salida: puede avanzar a reclamo, pedido, encuesta o derivación.",
   },
   {
     icon: BarChart3,
@@ -29,7 +29,7 @@ const valueSignals = [
   },
   {
     icon: ShieldCheck,
-    title: "Implementacion acompanada",
+    title: "Implementación acompanada",
     detail: "Chatboc ayuda a ordenar procesos, menus, permisos y contenidos antes de automatizar.",
   },
 ];

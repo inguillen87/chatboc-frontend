@@ -165,7 +165,7 @@ const EnterpriseOpsPage = () => {
     <section className="mx-auto w-full max-w-6xl space-y-6 py-6">
       <EnterprisePageHeader
         badge="Centro operativo"
-        title="Operacion omnicanal"
+        title="Operación omnicanal"
         description="Un tablero para ordenar conversaciones, reclamos, equipo, canales y decisiones del dia."
         meta={`${modules.length} secciones disponibles`}
       />

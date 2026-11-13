@@ -102,7 +102,7 @@ const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
   {
     id: 'receipt',
     title: 'Comprobante o cuota',
-    description: 'Recibo, transferencia, impuesto o pago para revision del equipo.',
+    description: 'Recibo, transferencia, impuesto o pago para revisión del equipo.',
     icon: ShieldCheck,
   },
   {
@@ -149,7 +149,7 @@ const ASSISTED_PUBLIC_FLOW_STEPS = [
   },
   {
     title: 'Respuesta y seguimiento',
-    description: 'Continua por WhatsApp, mail, llamada o link publico.',
+    description: 'Continua por WhatsApp, mail, llamada o link público.',
     icon: CheckCircle2,
   },
 ];
@@ -1191,7 +1191,7 @@ export default function MarketCatalogPage() {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <Alert variant="destructive">
           <AlertTitle>Falta el tenant</AlertTitle>
-          <AlertDescription>Necesitamos el identificador del espacio para mostrar el catalogo.</AlertDescription>
+          <AlertDescription>Necesitamos el identificador del espacio para mostrar el catálogo.</AlertDescription>
         </Alert>
       </div>
     );

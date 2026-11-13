@@ -1557,7 +1557,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           {
             id: 'crm_ready',
             label: 'Caso enviado al equipo',
-            description: 'Quedo en revision manual para responder sin perder el contenido original.',
+            description: 'Quedo en revisión manual para responder sin perder el contenido original.',
           },
         ]
       : [
@@ -1569,12 +1569,12 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           {
             id: 'ai_parse',
             label: 'Datos identificados',
-            description: 'Artículos, cantidades y contexto ya fueron extraidos para revision.',
+            description: 'Artículos, cantidades y contexto ya fueron extraídos para revisión.',
           },
           {
             id: 'crm_ready',
             label: 'Solicitud lista',
-            description: 'El equipo recibio el borrador, la referencia y los proximos pasos.',
+            description: 'El equipo recibio el borrador, la referencia y los próximos pasos.',
           },
         ]
     : PROCESSING_STEPS;
@@ -1727,7 +1727,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
                     </Badge>
                     <Badge variant="outline">Carga asistida</Badge>
                     <Badge variant="outline">Sin registro previo</Badge>
-                    <Badge variant="secondary">Revision humana</Badge>
+                    <Badge variant="secondary">Revisión humana</Badge>
                   </div>
                   <h2 className="mt-2 max-w-2xl text-lg font-semibold tracking-normal sm:text-xl">
                     {publicIntakeTitle}
@@ -2609,7 +2609,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         <div className="rounded-lg border bg-background p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold">Proximos pasos</p>
+              <p className="text-sm font-semibold">Próximos pasos</p>
               <p className="text-xs text-muted-foreground">La solicitud ya quedo asociada al panel del espacio.</p>
             </div>
             <Badge variant="outline">
@@ -2674,7 +2674,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       {missingItems.length > 0 && (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
           <FileWarning className="h-4 w-4" />
-          <AlertTitle>Artículos para revision</AlertTitle>
+          <AlertTitle>Artículos para revisión</AlertTitle>
           <AlertDescription>
             No pudimos asociar los siguientes items: {missingItems.join(', ')}. Quedaron marcados para revision comercial.
           </AlertDescription>
@@ -2685,7 +2685,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
         <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
           <div className="flex items-start gap-2">
             <ClipboardCheck className="mt-0.5 h-4 w-4 text-primary" />
-            <span>Si el archivo o texto es claro, se arma un borrador con cantidades y productos del catalogo.</span>
+            <span>Si el archivo o texto es claro, se arma un borrador con cantidades y productos del catálogo.</span>
           </div>
           <div className="flex items-start gap-2">
             <MessageCircle className="mt-0.5 h-4 w-4 text-primary" />

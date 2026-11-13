@@ -30,7 +30,7 @@ const operatingFlows = [
   { icon: ClipboardList, label: "Reclamos y casos", detail: "se registran, se priorizan y quedan listos para operar" },
   { icon: ShoppingBag, label: "Pedidos y carrito", detail: "catálogo, compra invitada, checkout y seguimiento" },
   { icon: BarChart3, label: "Metricas y decisiones", detail: "actividad, tiempos, zonas, respuestas y comentarios" },
-  { icon: Users, label: "Derivacion humana", detail: "cuando el caso lo necesita, el equipo recibe contexto completo" },
+  { icon: Users, label: "Derivación humana", detail: "cuando el caso lo necesita, el equipo recibe contexto completo" },
 ];
 
 const verticalStories = [

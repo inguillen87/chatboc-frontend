@@ -20,7 +20,7 @@ const commonGovernment = {
   packages: [
     { name: "Mesa digital", detail: "Consultas, turnos y reclamos basicos.", price: "Demo incluido" },
     { name: "Operaciones", detail: "Tiempos, mapas, reportes y prioridades.", price: "Plan gobierno" },
-    { name: "Omnicanal", detail: "WhatsApp, chat web, llamadas con IA y derivacion humana.", price: "Plan enterprise" },
+    { name: "Omnicanal", detail: "WhatsApp, chat web, llamadas con IA y derivación humana.", price: "Plan enterprise" },
   ],
   workflows: ["Crear caso con categoria", "Pedir datos faltantes", "Consultar estado", "Derivar urgencias"],
 };
@@ -29,7 +29,7 @@ const commonBusiness = {
   highlights: ["Catalogo con precios", "Pedidos guiados", "Contactos calificados", "Resumen por WhatsApp"],
   packages: [
     { name: "Catalogo demo", detail: "Productos, servicios y FAQs comerciales.", price: "Demo incluido" },
-    { name: "Ventas asistidas", detail: "Pedidos, cobro guiado y derivacion comercial.", price: "Plan pyme" },
+    { name: "Ventas asistidas", detail: "Pedidos, cobro guiado y derivación comercial.", price: "Plan pyme" },
     { name: "Operacion premium", detail: "Métricas, beneficios, pagos y llamadas con IA.", price: "Plan enterprise" },
   ],
   workflows: ["Consultar disponibilidad", "Crear pedido", "Capturar lead", "Derivar a ventas"],
@@ -53,7 +53,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "gobierno",
     href: "/demo-catalogs/municipio.pdf",
     subtitle: "Atención ciudadana, reclamos y trámites con IA.",
-    description: "Catálogo demo para probar reclamos con ubicación, consulta de estado, turnos, derivacion humana y seguimiento por WhatsApp.",
+    description: "Catálogo demo para probar reclamos con ubicación, consulta de estado, turnos, derivación humana y seguimiento por WhatsApp.",
     questions: ["Quiero iniciar un reclamo por luminaria", "Donde reporto baches con ubicacion?", "Consultar estado del ticket 1234"],
   },
   {
@@ -63,7 +63,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "gobierno",
     href: "/demo-catalogs/concejo-deliberante.pdf",
     subtitle: "Consultas legislativas, expedientes y participación vecinal.",
-    description: "Experiencia demo para sesiones, proyectos, agenda pública, reclamos vinculados y derivacion al area correcta.",
+    description: "Experiencia demo para sesiones, proyectos, agenda pública, reclamos vinculados y derivación al area correcta.",
   },
   {
     ...commonGovernment,
@@ -98,11 +98,11 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Bodega boutique",
     sector: "empresas",
     href: "/demo-catalogs/bodega.pdf",
-    subtitle: "Venta consultiva de vinos, catas privadas y envios premium.",
+    subtitle: "Venta consultiva de vinos, catas privadas y envíos premium.",
     description: "Demo para probar recomendaciones por ocasion, maridajes, combos, stock guiado y pedido confirmado.",
     packages: [
       { name: "Malbec Reserva", detail: "Caja x6 con ficha de cata y maridaje.", price: "$54.000" },
-      { name: "Blend Degustacion", detail: "Seleccion mixta para regalo corporativo.", price: "$72.000" },
+      { name: "Blend Degustacion", detail: "Selección mixta para regalo corporativo.", price: "$72.000" },
       { name: "Experiencia Cata", detail: "Cata guiada para 8 personas.", price: "$180.000" },
     ],
     questions: ["Necesito vinos para un asado", "Arma un regalo para 10 clientes", "Quiero reservar una cata"],
@@ -128,7 +128,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
   {
     ...commonBusiness,
     slug: "ferreteria",
-    title: "Ferreteria tecnica",
+    title: "Ferreteria técnica",
     sector: "empresas",
     href: "/demo-catalogs/ferreteria.pdf",
     subtitle: "Asesoramiento, cotizaciones y stock por sucursal.",
@@ -150,7 +150,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "empresas",
     href: "/demo-catalogs/logistica.pdf",
     subtitle: "Seguimiento, cotizaciones, retiros y entregas programadas.",
-    description: "Demo para cotizar envios, consultar estado, recibir documentacion y escalar incidentes.",
+    description: "Demo para cotizar envíos, consultar estado, recibir documentacion y escalar incidentes.",
   },
   {
     ...commonBusiness,
@@ -158,7 +158,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Seguros",
     sector: "empresas",
     href: "/demo-catalogs/seguros.pdf",
-    subtitle: "Polizas, siniestros, leads y derivacion humana.",
+    subtitle: "Polizas, siniestros, leads y derivación humana.",
     description: "Demo para orientar coberturas, iniciar siniestros, pedir adjuntos y entregar resumen al asesor.",
   },
   {
@@ -177,7 +177,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "empresas",
     href: "/demo-catalogs/inmobiliaria.pdf",
     subtitle: "Propiedades, visitas, reservas y leads calificados.",
-    description: "Demo para recomendar propiedades, coordinar visita y capturar intencion comercial.",
+    description: "Demo para recomendar propiedades, coordinar visita y capturar intención comercial.",
   },
   {
     ...commonBusiness,
@@ -185,7 +185,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Industria y energia",
     sector: "empresas",
     href: "/demo-catalogs/industria.pdf",
-    subtitle: "Soporte tecnico, ventas B2B y mantenimiento.",
+    subtitle: "Soporte técnico, ventas B2B y mantenimiento.",
     description: "Demo para registrar incidencias, pedir adjuntos tecnicos y priorizar operaciones.",
   },
   {
@@ -195,7 +195,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "empresas",
     href: "/demo-catalogs/clinica.pdf",
     subtitle: "Turnos, estudios, consultas y recordatorios.",
-    description: "Demo para orientar al paciente, tomar datos minimos y derivar a recepcion.",
+    description: "Demo para orientar al paciente, tomar datos minimos y derivar a recepción.",
   },
   {
     ...commonBusiness,
@@ -213,7 +213,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "educacion",
     href: "/demo-catalogs/colegio-demo.pdf",
     subtitle: "Secretaria, familias, inasistencias y casos escolares.",
-    description: "Catálogo demo para probar menu escolar, justificativos, comunicados, admisiones, pagos y derivacion humana.",
+    description: "Catálogo demo para probar menu escolar, justificativos, comunicados, admisiones, pagos y derivación humana.",
     questions: ["Quiero justificar una inasistencia", "Necesito un certificado de alumno regular", "Quiero consultar admisiones"],
   },
   {

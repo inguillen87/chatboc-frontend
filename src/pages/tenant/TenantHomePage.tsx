@@ -247,7 +247,7 @@ const TenantPublicLanding = () => {
             <CardTitle>Selecciona un espacio</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>Elegilo desde el selector superior para ver los canales publicos disponibles.</p>
+            <p>Elegilo desde el selector superior para ver los canales públicos disponibles.</p>
           </CardContent>
         </Card>
       ) : (
@@ -317,7 +317,7 @@ const TenantPublicLanding = () => {
             <LandingSectionShell
               icon={Newspaper}
               title={newsNavItem.label}
-              description="Actualizaciones y comunicados publicados por la organizacion."
+              description="Actualizaciones y comunicados publicados por la organización."
               action={newsTarget ? (
                 <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={newsTarget}>Ver todo</Link>

@@ -306,7 +306,7 @@ function buildPlatformWidgetFallbackConfig() {
       id: "educacion",
       sector: "educacion",
       label: "Colegios",
-      description: "Familias, cuotas, comprobantes y gestion escolar.",
+      description: "Familias, cuotas, comprobantes y gestión escolar.",
     },
   ];
 
@@ -1978,7 +1978,7 @@ function ChatWidgetInner({
     const hasPortalDestination = Boolean(portalUrl || portalHistoryEndpoint || slug);
 
     if (!slug || !portalEnabled || !hasPortalDestination) {
-      toast.error("El portal de usuario no esta disponible para esta sesion.");
+      toast.error("El portal de usuario no esta disponible para esta sesión.");
       return;
     }
 
@@ -3458,7 +3458,7 @@ function ChatWidgetInner({
                   fallback={
                     <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-card rounded-2xl px-6 text-center">
                       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                      <p className="text-sm font-semibold text-foreground">Cargando conversacion</p>
+                      <p className="text-sm font-semibold text-foreground">Cargando conversación</p>
                     </div>
                   }
                 >

@@ -769,7 +769,7 @@ export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord
           <div className="rounded-[8px] border border-primary/20 bg-primary/[0.03] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="font-semibold text-foreground">Plan de salida a produccion finance</h3>
+                <h3 className="font-semibold text-foreground">Plan de salida a producción finance</h3>
                 <p className="text-xs text-muted-foreground">
                   Checklist operativo para activar pagos, KYC, firma, soporte y cobranzas sin sacar al usuario de WhatsApp.
                 </p>
@@ -1022,7 +1022,7 @@ export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord
             </div>
 
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-              <h3 className="font-semibold">Politica de seguridad</h3>
+              <h3 className="font-semibold">Política de seguridad</h3>
               <div className="mt-3 grid gap-2 text-xs">
                 <ContractLine label="Tarjeta en chat" value={financeSecurity.card_data_in_chat_allowed ? "permitido" : "no permitido"} />
                 <ContractLine label="Identidad en chat" value={financeSecurity.identity_data_in_chat_allowed ? "permitido" : "no permitido"} />

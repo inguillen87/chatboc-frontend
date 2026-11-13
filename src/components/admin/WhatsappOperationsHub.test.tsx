@@ -319,7 +319,7 @@ describe("WhatsappOperationsHub", () => {
       />,
     );
 
-    expect(screen.getByText("Creacion real bloqueada")).toBeInTheDocument();
+    expect(screen.getByText("Creación real bloqueada")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Crear en Twilio/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Refrescar estado/i })).toBeDisabled();
 
@@ -963,7 +963,7 @@ describe("WhatsappOperationsHub", () => {
         canManageFlows={false}
       />,
     );
-    expect(screen.getAllByText(/Administracion protegida/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Administración protegida/i).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Validar envio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Crear wrapper en Twilio/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Validar payload/i })).not.toBeInTheDocument();

@@ -181,7 +181,7 @@ export default function FinanceWebviewPage() {
 
   const load = async () => {
     if (!tenantSlug || !flow || !operationCode) {
-      setError('El link no contiene tenant, flujo u operacion.');
+      setError('El link no contiene tenant, flujo u operación.');
       return;
     }
     setLoading(true);
@@ -325,7 +325,7 @@ export default function FinanceWebviewPage() {
                     <div className="flex items-start gap-3">
                       <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-emerald-200" />
                       <div>
-                        <h3 className="font-semibold text-emerald-50">Politica de seguridad</h3>
+                        <h3 className="font-semibold text-emerald-50">Política de seguridad</h3>
                         <p className="mt-1 text-sm leading-6 text-emerald-100/80">
                           No se aceptan tarjetas, documentos completos ni claves dentro del chat. La confirmacion se registra servidor a servidor.
                         </p>

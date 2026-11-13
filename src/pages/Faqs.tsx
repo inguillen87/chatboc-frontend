@@ -41,7 +41,7 @@ const HelpPage = () => (
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Necesito un equipo tecnico para empezar?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Necesito un equipo técnico para empezar?</h2>
           <p className="text-muted-foreground">
             No. Chatboc acompana la configuracion inicial y ayuda a ordenar el recorrido para que usuarios,
             operadores y administradores lo entiendan rapido.

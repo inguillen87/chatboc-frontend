@@ -876,7 +876,7 @@ const EnterpriseRules = ({ experience }: { experience: WhatsappExperienceV2 }) =
             <ShieldCheck className="h-4 w-4 text-primary" />
             Reglas enterprise
           </CardTitle>
-          <CardDescription>Limites y politica de salida configurados para este canal.</CardDescription>
+          <CardDescription>Limites y política de salida configurados para este canal.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
           <Metric label="Configured" value={boolish(rules.configured) ? "Si" : "No"} tone={boolish(rules.configured) ? "ready" : "warning"} />
@@ -1914,7 +1914,7 @@ const MetaPlatformPanel = ({
 
         {!canManageFlows ? (
           <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
-            <p className="text-sm font-semibold text-foreground">Administracion protegida</p>
+            <p className="text-sm font-semibold text-foreground">Administración protegida</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Podes consultar el estado del canal. La activacion y los envios de prueba requieren una cuenta administradora del tenant.
             </p>
@@ -2054,7 +2054,7 @@ const MetaPlatformPanel = ({
             <div className="space-y-3 border-t border-border/60 pt-5" data-testid="meta-flow-publication">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Publicacion oficial en Meta</p>
+                  <p className="text-sm font-semibold text-foreground">Publicación oficial en Meta</p>
                   <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
                     El backend crea o reutiliza el borrador, carga este artefacto exacto, valida, publica y compara el hash remoto.
                   </p>
@@ -2690,7 +2690,7 @@ const TemplateBlueprintPanel = ({
             ) : null}
             {templateCreationLocked ? (
               <div className="mb-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-3 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-50">
-                <p className="text-sm font-semibold">Creacion real bloqueada</p>
+                <p className="text-sm font-semibold">Creación real bloqueada</p>
                 <p className="mt-1 text-xs leading-5">{lockedMessage}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-normal">
                   <StatusPill tone="warning">Plan {readText(access.required_plan) || "full"}</StatusPill>
@@ -2700,7 +2700,7 @@ const TemplateBlueprintPanel = ({
             ) : null}
             {!canManageFlows ? (
               <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-                <p className="text-sm font-semibold text-foreground">Administracion protegida</p>
+                <p className="text-sm font-semibold text-foreground">Administración protegida</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   Podes revisar el manifiesto y los estados. Validar, crear o refrescar plantillas requiere una cuenta administradora del tenant.
                 </p>

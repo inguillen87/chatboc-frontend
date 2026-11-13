@@ -84,7 +84,7 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
               <FormLabel>Descripción</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Describe tu promocion..."
+                  placeholder="Describe tu promoción..."
                   className="resize-y"
                   {...field}
                 />

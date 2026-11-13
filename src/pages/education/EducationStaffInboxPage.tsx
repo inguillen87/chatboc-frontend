@@ -100,7 +100,7 @@ export default function EducationStaffInboxPage() {
                 ))}
               </div>
             ) : (
-              <p>Ficha contextual pendiente segun permisos del staff.</p>
+              <p>Ficha contextual pendiente según permisos del staff.</p>
             )}
             <FilterGroup
               title="Filtros de caso"

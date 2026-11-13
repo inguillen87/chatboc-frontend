@@ -117,7 +117,7 @@ export default function ProductImageManager({
       </DialogTrigger>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Imagenes del producto</DialogTitle>
+          <DialogTitle>Imágenes del producto</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 md:grid-cols-[220px_1fr]">

@@ -180,7 +180,7 @@ export default function InstitutionalProfileAccess({ includeDomainSettings = fal
       </a>
     </Button>
     <p id={descriptionId} className="text-sm text-muted-foreground">
-      Se abre en una nueva pestaña de Chatboc; tus borradores de integraciones se conservan.
+      Se abre en una pestaña nueva; tus borradores de integraciones se conservan.
     </p>
     {matching.profile.editability.message ? <p className="text-sm text-muted-foreground">{matching.profile.editability.message}</p> : null}
     {includeDomainSettings ? <TenantAddressesSettings key={context.scopeKey} tenant={matching.profile.tenant} scopeKey={context.scopeKey} /> : null}

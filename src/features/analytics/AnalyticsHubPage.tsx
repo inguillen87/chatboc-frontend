@@ -73,7 +73,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   if (!isOnline && !data) {
     return (
       <div className="p-4">
-        <ViewState status="offline" description="Los indicadores se van a refrescar cuando vuelva la conexion." />
+        <ViewState status="offline" description="Los indicadores se van a refrescar cuando vuelva la conexión." />
       </div>
     );
   }
@@ -108,7 +108,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   if (!data || !hasAnyMetric) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
-        <ViewState status="empty" description="Todavía no hay suficientes datos para mostrar metricas." />
+        <ViewState status="empty" description="Todavía no hay suficientes datos para mostrar métricas." />
         <OperationsDashboardPanel />
       </div>
     );
@@ -183,7 +183,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Experiencia</CardTitle>
-            <CardDescription>Indicadores que dependen de encuestas, handoff y conversacion.</CardDescription>
+            <CardDescription>Indicadores que dependen de encuestas, handoff y conversación.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <MetricRow label="Conversaciones" value={formatMetric(data.conversations)} />
