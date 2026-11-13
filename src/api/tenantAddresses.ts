@@ -79,6 +79,9 @@ export const PLATFORM_SUFFIX = '.chatboc.ar';
 const asRecord = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
+const isUnixTimestamp = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && Number.isFinite(new Date((value as number) * 1000).getTime());
+
 const isSafeCopy = (value: unknown): value is string =>
   typeof value === 'string' && value.length <= 1000 && !/[\p{Cc}\p{Cf}]/u.test(value);
 
@@ -117,7 +120,7 @@ function readSlot(raw: unknown, kind: AddressKind, nowSeconds: number): AddressS
     throw new TenantAddressesContractError();
   }
   if (slot.active
-    ? !Number.isSafeInteger(slot.valid_until) || (slot.valid_until as number) <= nowSeconds
+    ? !isUnixTimestamp(slot.valid_until) || slot.valid_until <= nowSeconds
     : slot.valid_until !== null) {
     throw new TenantAddressesContractError();
   }
@@ -128,7 +131,7 @@ function readSlot(raw: unknown, kind: AddressKind, nowSeconds: number): AddressS
     // El subdominio de la plataforma nunca pide un TXT al cliente.
     if (kind !== 'custom' || !host || proof.type !== 'TXT' || proof.name !== `_chatboc-verify.${host}` ||
       typeof proof.value !== 'string' || !/^chatboc-domain-verification=[0-9a-f]{64}$/.test(proof.value) ||
-      !Number.isSafeInteger(proof.expires_at)) {
+      !isUnixTimestamp(proof.expires_at)) {
       throw new TenantAddressesContractError();
     }
     dnsProof = { type: 'TXT', name: proof.name, value: proof.value, expires_at: proof.expires_at as number };
@@ -222,7 +225,32 @@ const ERROR_MESSAGES: Record<string, string> = {
   address_dns_unavailable: 'No pudimos consultar el DNS. Podés reintentar sin perder la dirección.',
   address_revoke_required: 'Primero desvinculá la dirección actual antes de pedir otra.',
   address_save_unconfirmed: 'No pudimos confirmar el cambio. Recargá para revisar el estado antes de repetirlo.',
+  address_host_invalid: 'Revisá la dirección: sin https://, puerto ni ruta.',
+  address_host_in_use: 'Esa dirección ya está en uso. Probá con otra.',
+  address_pro_required: 'Esta dirección requiere el plan Pro o Full.',
+  address_full_required: 'El dominio propio requiere el plan Full.',
+  address_not_configured: 'La dirección no está configurada. Actualizá el estado antes de continuar.',
+  address_dns_not_applicable: 'Esta dirección no requiere comprobar un registro TXT.',
+  address_dns_request_expired: 'El plazo del registro TXT venció. Actualizá el estado antes de continuar.',
+  address_not_found: 'No pudimos encontrar las direcciones de esta organización.',
+  address_maintenance: 'Los cambios de direcciones están en pausa por mantenimiento. Probá más tarde.',
+  address_rate_limited: 'Se hicieron varias solicitudes seguidas. Esperá antes de volver a intentarlo.',
+  address_rate_storage_unavailable: 'No pudimos comprobar la disponibilidad para guardar. Actualizá el estado antes de continuar.',
+  address_storage_invalid: 'No pudimos confirmar la configuración guardada. Actualizá el estado antes de continuar.',
+  address_storage_conflict: 'La configuración necesita revisión. Actualizá el estado antes de continuar.',
+  address_runtime_unavailable: 'La gestión de direcciones no está disponible por ahora. Actualizá el estado más tarde.',
+  platform_alias_unavailable: 'Este alias no está disponible para la organización.',
 };
+
+/** Only an explicit v2 rejection proves that a failed PUT did not write. */
+export function addressSaveRequiresStatusCheck(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  const body = asRecord(error.body);
+  return body.contract_version !== 'organization.addresses_error.v2' || body.writes_performed !== false ||
+    typeof body.reason_code !== 'string' || !REASON_CODE.test(body.reason_code) ||
+    (body.requires_status_check !== undefined && body.requires_status_check !== false) || body.reason_code === 'address_save_unconfirmed' ||
+    body.reason_code === 'address_revision_conflict' || body.reason_code === 'address_revision_required';
+}
 
 export function tenantAddressesErrorMessage(error: unknown): string {
   if (error instanceof TenantAddressesContractError) return error.message;
@@ -254,7 +282,12 @@ export async function getTenantAddresses(scope: AddressTenantScope, isCurrent: (
   try {
     data = await apiFetch<unknown>(endpointFor(scope), requestOptions(scope, isCurrent));
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) throw new TenantAddressesUnavailableError();
+    if (!isCurrent()) throw new DOMException('Address scope changed', 'AbortError');
+    const body = error instanceof ApiError ? asRecord(error.body) : {};
+    if (error instanceof ApiError && error.status === 404 &&
+      body.contract_version === 'shared.error.v1' && body.reason_code === 'not_found') {
+      throw new TenantAddressesUnavailableError();
+    }
     throw error;
   }
   if (!isCurrent()) throw new DOMException('Address scope changed', 'AbortError');

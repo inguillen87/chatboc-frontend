@@ -77,7 +77,7 @@ describe('organization addresses', () => {
     expect(await screen.findByText('Configuración anterior de dominio')).toBeInTheDocument();
   });
 
-  it('keeps the last confirmed state and the draft when a save fails', async () => {
+  it('keeps the draft and marks the prior state unconfirmed when a save fails', async () => {
     mocks.save.mockRejectedValue(new Error('network'));
     mount();
     const platform = within(await screen.findByRole('region', { name: 'Subdominio' }));
@@ -85,6 +85,7 @@ describe('organization addresses', () => {
     fireEvent.click(platform.getByRole('button', { name: 'Solicitar subdominio' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos consultar o confirmar las direcciones');
     expect(platform.getByLabelText('Nombre del subdominio')).toHaveValue('alpha');
-    expect(within(section('Subdominio')).getByText('Sin configurar')).toBeInTheDocument();
+    expect(within(section('Subdominio')).getByText('Estado pendiente de actualización')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Solicitar subdominio' })).toBeDisabled();
   });
 });

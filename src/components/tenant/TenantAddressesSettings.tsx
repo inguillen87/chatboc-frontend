@@ -8,7 +8,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  PLATFORM_SUFFIX, TenantAddressesUnavailableError, addressUnavailableReason, getTenantAddresses,
+  PLATFORM_SUFFIX, TenantAddressesUnavailableError, addressSaveRequiresStatusCheck, addressUnavailableReason, getTenantAddresses,
   normalizeAddressDraft, saveTenantAddress, tenantAddressesErrorMessage,
   type AddressKind, type AddressOperation, type AddressSlot, type AddressSlotCapabilities,
   type AddressTenantScope, type TenantAddresses,
@@ -31,7 +31,7 @@ const SLOT_COPY: Record<AddressKind, {
       pending_dns: 'En verificación',
       pending_platform: 'Solicitado · falta publicarlo',
       active: 'Activo',
-      revoked: 'Desvinculado',
+      revoked: 'Desvinculado · ya no abre la organización',
       verification_expired: 'Verificación vencida',
       suspended: 'Suspendido',
     },
@@ -47,7 +47,7 @@ const SLOT_COPY: Record<AddressKind, {
       pending_dns: 'Falta verificar el DNS',
       pending_platform: 'DNS confirmado · falta publicación y HTTPS',
       active: 'Activo',
-      revoked: 'Desvinculado',
+      revoked: 'Desvinculado · ya no abre la organización',
       verification_expired: 'Verificación vencida',
       suspended: 'Suspendido',
     },
@@ -55,6 +55,45 @@ const SLOT_COPY: Record<AddressKind, {
 };
 
 const PENDING_STATUSES: ReadonlyArray<AddressSlot['status']> = ['pending_dns', 'pending_platform'];
+
+const slotDeadline = (slot: AddressSlot): number | null =>
+  slot.active ? slot.valid_until : slot.status === 'pending_dns' ? slot.dns_proof?.expires_at ?? null : null;
+
+function useSlotExpiry(slot: AddressSlot) {
+  const deadline = slotDeadline(slot);
+  const [clock, setClock] = useState(Date.now);
+  const latest = useRef(clock);
+  latest.current = Math.max(latest.current, clock, Date.now());
+  const expired = deadline !== null && deadline * 1000 <= latest.current;
+  const checkExpired = () => {
+    latest.current = Math.max(latest.current, Date.now());
+    const stale = deadline !== null && deadline * 1000 <= latest.current;
+    if (stale) setClock(latest.current);
+    return stale;
+  };
+
+  useEffect(() => {
+    if (deadline === null) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      latest.current = Math.max(latest.current, Date.now());
+      setClock(latest.current);
+      if (deadline * 1000 > latest.current) {
+        timer = setTimeout(refresh, Math.min(deadline * 1000 - latest.current, 2_147_483_647));
+      }
+    };
+    refresh();
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [deadline]);
+  return { expired, checkExpired };
+}
 
 type ViewState =
   | { phase: 'loading'; addresses: TenantAddresses | null }
@@ -71,12 +110,16 @@ function StatusLabel({ active, children }: { active: boolean; children: ReactNod
   );
 }
 
-function CopyButton({ value, label, disabled }: { value: string; label: string; disabled?: boolean }) {
+function CopyButton({ value, label, disabled, canCopy }: {
+  value: string; label: string; disabled?: boolean; canCopy?: () => boolean;
+}) {
   const [outcome, setOutcome] = useState<'idle' | 'copied' | 'failed'>('idle');
+  useEffect(() => setOutcome('idle'), [value, disabled]);
   const copy = async () => {
+    if (disabled || canCopy?.() === false) return;
     try {
       await navigator.clipboard.writeText(value);
-      setOutcome('copied');
+      if (canCopy?.() !== false) setOutcome('copied');
     } catch {
       setOutcome('failed');
     }
@@ -99,20 +142,29 @@ interface SlotSectionProps {
   canManage: boolean;
   writesBlocked: boolean;
   busy: boolean;
+  requiresStatusCheck: boolean;
+  canUseObservation: () => boolean;
   onRun: (kind: AddressKind, operation: AddressOperation, draft?: string) => Promise<boolean>;
 }
 
-function SlotSection({ slot, capabilities, canManage, writesBlocked, busy, onRun }: SlotSectionProps) {
+function SlotSection({ slot, capabilities, canManage, writesBlocked, busy, requiresStatusCheck, canUseObservation, onRun }: SlotSectionProps) {
   const copy = SLOT_COPY[slot.kind];
   const headingId = useId(), inputId = useId(), hintId = useId(), errorId = useId();
   const [draft, setDraft] = useState('');
   const [draftError, setDraftError] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const { expired, checkExpired } = useSlotExpiry(slot);
 
-  const locked = busy || writesBlocked;
+  const unconfirmed = requiresStatusCheck || expired;
+  const locked = busy || writesBlocked || unconfirmed;
   const occupied = slot.active || PENDING_STATUSES.includes(slot.status);
   const showForm = canManage && capabilities.can_request && !occupied;
   const showUnavailable = canManage && !occupied && !capabilities.can_request;
+  const observationUsable = () => !checkExpired() && canUseObservation();
+  const run = (operation: AddressOperation, draft?: string) => {
+    if (locked || !observationUsable()) return Promise.resolve(false);
+    return onRun(slot.kind, operation, draft);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -121,21 +173,35 @@ function SlotSection({ slot, capabilities, canManage, writesBlocked, busy, onRun
       return;
     }
     setDraftError(null);
-    if (await onRun(slot.kind, 'request', draft)) setDraft('');
+    if (await run('request', draft)) setDraft('');
   };
 
   return (
     <section aria-labelledby={headingId} className="space-y-3 border-t pt-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 id={headingId} className="text-base font-semibold">{copy.title}</h3>
-        <StatusLabel active={slot.active}>{copy.statuses[slot.status]}</StatusLabel>
+        <StatusLabel active={slot.active && !unconfirmed}>
+          {unconfirmed ? 'Estado pendiente de actualización' : copy.statuses[slot.status]}
+        </StatusLabel>
       </div>
 
       {slot.host ? <p className="break-all font-mono text-sm">{slot.host}</p> : null}
       <p className="text-sm text-muted-foreground">{slot.scope_note}</p>
+      {slot.valid_until !== null ? (
+        <p className="text-sm text-muted-foreground">
+          Vigencia informada hasta: <time dateTime={new Date(slot.valid_until * 1000).toISOString()}>
+            {new Date(slot.valid_until * 1000).toLocaleString('es-AR')}
+          </time>
+        </p>
+      ) : null}
+      {expired ? <p className="text-sm">
+        {slot.status === 'pending_dns' ? 'El plazo de este registro TXT venció.' : 'La vigencia informada venció.'}
+        {' '}Actualizá el estado antes de continuar.
+      </p> : null}
 
-      {slot.active && slot.host ? (
-        <a className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4" href={`https://${slot.host}/`} target="_blank" rel="noopener noreferrer">
+      {slot.active && slot.host && !unconfirmed ? (
+        <a className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4" href={`https://${slot.host}/`} target="_blank" rel="noopener noreferrer"
+          onClick={event => { if (!observationUsable()) event.preventDefault(); }}>
           Abrir {slot.host}
         </a>
       ) : null}
@@ -155,9 +221,9 @@ function SlotSection({ slot, capabilities, canManage, writesBlocked, busy, onRun
             <dt className="text-muted-foreground">Valor</dt><dd className="select-text break-all font-mono">{slot.dns_proof.value}</dd>
           </dl>
           <div className="flex flex-wrap items-center gap-2">
-            <CopyButton value={slot.dns_proof.value} label="Copiar valor" disabled={busy} />
+            <CopyButton value={slot.dns_proof.value} label="Copiar valor" disabled={busy || unconfirmed} canCopy={observationUsable} />
             {canManage && capabilities.can_verify_dns ? (
-              <Button type="button" className="min-h-11" disabled={locked} onClick={() => void onRun(slot.kind, 'verify_dns')}>
+              <Button type="button" className="min-h-11" disabled={locked} onClick={() => void run('verify_dns')}>
                 Comprobar registro
               </Button>
             ) : null}
@@ -196,7 +262,8 @@ function SlotSection({ slot, capabilities, canManage, writesBlocked, busy, onRun
 
       {canManage && capabilities.can_revoke && slot.host ? (
         <>
-          <Button type="button" variant="outline" className="min-h-11" disabled={locked} onClick={() => setConfirmRevoke(true)}>
+          <Button type="button" variant="outline" className="min-h-11" disabled={locked}
+            onClick={() => { if (observationUsable()) setConfirmRevoke(true); }}>
             Desvincular
           </Button>
           <AlertDialog open={confirmRevoke} onOpenChange={setConfirmRevoke}>
@@ -209,7 +276,7 @@ function SlotSection({ slot, capabilities, canManage, writesBlocked, busy, onRun
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction disabled={locked} onClick={() => void onRun(slot.kind, 'revoke')}>
+                <AlertDialogAction disabled={locked} onClick={() => void run('revoke')}>
                   Confirmar
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -232,6 +299,9 @@ export function TenantAddressesSettings({ tenant, scopeKey }: { tenant: AddressT
   const activeKey = useRef(requestKey);
   activeKey.current = requestKey;
   const inFlight = useRef(false);
+  const pendingStatusCheck = useRef(false);
+  const observedV2 = useRef(false);
+  const [requiresStatusCheck, setRequiresStatusCheck] = useState(false);
   const [view, setView] = useState<ViewState>({ phase: 'loading', addresses: null });
 
   const load = useCallback(async () => {
@@ -242,10 +312,16 @@ export function TenantAddressesSettings({ tenant, scopeKey }: { tenant: AddressT
     setView(previous => ({ phase: 'loading', addresses: 'addresses' in previous ? previous.addresses : null }));
     try {
       const addresses = await getTenantAddresses(tenant, isCurrent);
-      if (isCurrent()) setView({ phase: 'ready', addresses });
+      if (isCurrent()) {
+        observedV2.current = true;
+        pendingStatusCheck.current = false;
+        setRequiresStatusCheck(false);
+        setView({ phase: 'ready', addresses });
+      }
     } catch (error) {
       if (!isCurrent()) return;
-      if (error instanceof TenantAddressesUnavailableError) {
+      // A missing route cannot reconcile a previously observed v2 write/state.
+      if (error instanceof TenantAddressesUnavailableError && !observedV2.current && !pendingStatusCheck.current) {
         setView({ phase: 'legacy' });
       } else {
         // Un rechazo de acceso retira lo que se había mostrado antes.
@@ -270,7 +346,14 @@ export function TenantAddressesSettings({ tenant, scopeKey }: { tenant: AddressT
   }, [requestKey, load]);
 
   const run = useCallback(async (kind: AddressKind, operation: AddressOperation, draft?: string): Promise<boolean> => {
-    if (inFlight.current || view.phase === 'legacy' || !view.addresses) return false;
+    if (inFlight.current || pendingStatusCheck.current || activeKey.current !== requestKey ||
+      view.phase === 'legacy' || !view.addresses) return false;
+    const capabilities = view.addresses.capabilities;
+    const allowed = operation === 'request' ? capabilities[kind].can_request
+      : operation === 'verify_dns' ? capabilities[kind].can_verify_dns : capabilities[kind].can_revoke;
+    const deadline = slotDeadline(view.addresses[kind]);
+    if (!capabilities.can_manage || capabilities.writes_blocked || !allowed ||
+      (deadline !== null && deadline * 1000 <= Date.now())) return false;
     inFlight.current = true;
     const initiating = requestKey;
     const isCurrent = () => activeKey.current === initiating;
@@ -278,11 +361,15 @@ export function TenantAddressesSettings({ tenant, scopeKey }: { tenant: AddressT
     setView({ phase: 'loading', addresses: before });
     try {
       const addresses = await saveTenantAddress(tenant, before, kind, operation, draft, isCurrent);
-      if (isCurrent()) setView({ phase: 'ready', addresses });
+      if (!isCurrent()) return false;
+      observedV2.current = true;
+      setView({ phase: 'ready', addresses });
       return true;
     } catch (error) {
       if (isCurrent()) {
         const denied = error instanceof ApiError && [401, 403].includes(error.status);
+        pendingStatusCheck.current = addressSaveRequiresStatusCheck(error);
+        setRequiresStatusCheck(pendingStatusCheck.current);
         setView({ phase: 'error', addresses: denied ? null : before, message: tenantAddressesErrorMessage(error) });
       }
       return false;
@@ -325,6 +412,8 @@ export function TenantAddressesSettings({ tenant, scopeKey }: { tenant: AddressT
                 canManage={addresses.capabilities.can_manage}
                 writesBlocked={addresses.capabilities.writes_blocked}
                 busy={busy}
+                requiresStatusCheck={requiresStatusCheck}
+                canUseObservation={() => activeKey.current === requestKey && !pendingStatusCheck.current && !inFlight.current}
                 onRun={run}
               />
             ))}
@@ -346,6 +435,9 @@ export function TenantAddressesSettings({ tenant, scopeKey }: { tenant: AddressT
         )}
 
         {view.phase === 'error' ? <p role="alert" className="text-sm text-destructive">{view.message}</p> : null}
+        {requiresStatusCheck ? <p role="status" className="text-sm">
+          El estado del cambio necesita confirmación. Actualizá el estado antes de volver a modificar las direcciones.
+        </p> : null}
 
         <div className="border-t pt-5">
           <Button type="button" variant="outline" className="min-h-11" disabled={busy} onClick={() => void load()}>
