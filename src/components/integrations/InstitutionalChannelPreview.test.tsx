@@ -439,8 +439,8 @@ describe('public institutional preview — local synthetic fixtures', () => {
         tenant: { id: 701, slug: 'qa-office' }, status: 'unconfigured', host: null,
         dns_proof: null, can_revoke: false, save_endpoint: domainPath,
       }));
-      // El servidor de esta prueba todavía no publica direcciones v2: se usa la pantalla anterior.
-      if (path === addressesPath) return json({ reason_code: 'not_found' }, 404);
+      // Respuesta real de producción mientras la ruta v2 no existe: sólo ese 404 habilita la pantalla anterior.
+      if (path === addressesPath) return json({ contract_version: 'shared.error.v1', reason_code: 'not_found' }, 404);
       if (path === publicPath) return json(model());
       if (path === `${publicPath}/nodes/requirements`) return json({ reason_code: 'temporary_failure' }, 503);
       throw new Error(`Unexpected synthetic read: ${path}`);
