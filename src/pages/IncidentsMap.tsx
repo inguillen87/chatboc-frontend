@@ -1271,12 +1271,17 @@ export default function IncidentsMap({ tenantSlugOverride }: IncidentsMapProps =
     () => resolveTerritoryDataProvenance(operationsHeatmap, false, operationsHeatmap?.points ?? []),
     [operationsHeatmap],
   );
+  // Sin ningún punto no hay nada que validar: decir "datos disponibles" sería
+  // afirmar algo que la pantalla no muestra.
+  const operationsHasPoints = (operationsHeatmap?.points?.length ?? 0) > 0;
   const operationsTrustLabel =
     operationsDataProvenance.state === 'real'
       ? 'Datos territoriales verificados'
       : operationsDataProvenance.state === 'synthetic' || operationsDataProvenance.state === 'demo'
         ? 'Datos de demostración declarados'
-        : 'Datos disponibles sin validación completa';
+        : operationsHasPoints
+          ? 'Datos disponibles sin validación completa'
+          : 'Sin ubicaciones cargadas todavía';
   const syntheticResponsesExcluded = readFiniteNumber(
     operationsHeatmap?.response_provenance?.synthetic_responses_excluded,
   );
