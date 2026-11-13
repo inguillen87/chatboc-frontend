@@ -108,7 +108,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
   if (!data || !hasAnyMetric) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
-        <ViewState status="empty" description="Todavia no hay suficientes datos para mostrar metricas." />
+        <ViewState status="empty" description="Todavía no hay suficientes datos para mostrar metricas." />
         <OperationsDashboardPanel />
       </div>
     );
@@ -132,7 +132,7 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
       {missingMetrics > 0 ? (
         <ViewState
           status="partial"
-          title="Metricas parciales"
+          title="Métricas parciales"
           description="Algunos indicadores todavía no tienen datos verificables y se muestran sin valor."
           className="min-h-[120px]"
         />

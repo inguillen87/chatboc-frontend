@@ -406,7 +406,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                         <Store className="mt-0.5 h-4 w-4 text-primary" />
                         <div>
                           <p className="text-sm font-medium">Pyme</p>
-                          <p className="text-xs text-muted-foreground">Pedidos, catalogo y leads comerciales.</p>
+                          <p className="text-xs text-muted-foreground">Pedidos, catálogo y leads comerciales.</p>
                         </div>
                       </div>
                     </div>

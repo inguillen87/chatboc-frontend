@@ -158,7 +158,7 @@ export default function ChatComposer({
     }
     const endpoint = mode?.upload_endpoint?.trim();
     if (!endpoint) {
-      setError('Esta accion no esta disponible en esta demo.');
+      setError('Esta acción no esta disponible en esta demo.');
       return null;
     }
     const responseKey = mode?.upload_response_key || 'attachmentInfo';

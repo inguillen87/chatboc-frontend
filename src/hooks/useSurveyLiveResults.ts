@@ -174,7 +174,7 @@ export const resolveSurveyLiveStatus = ({
     return {
       status: 'idle',
       label: 'En espera',
-      description: 'Los resultados en vivo todavia no estan activos.',
+      description: 'Los resultados en vivo todavía no están activos.',
     };
   }
 
@@ -189,7 +189,7 @@ export const resolveSurveyLiveStatus = ({
   if (hasError && !hasData) {
     return {
       status: 'error',
-      label: 'Sin conexion live',
+      label: 'Sin conexión live',
       description: 'No pudimos cargar los resultados en vivo.',
     };
   }
@@ -206,7 +206,7 @@ export const resolveSurveyLiveStatus = ({
     return {
       status: 'stale',
       label: 'Pausado',
-      description: 'La actualizacion baja frecuencia mientras la pestana no esta activa.',
+      description: 'La actualización baja frecuencia mientras la pestana no esta activa.',
     };
   }
 
@@ -221,7 +221,7 @@ export const resolveSurveyLiveStatus = ({
   if (hasData && !hasActivity) {
     return {
       status: 'empty',
-      label: 'Sin respuestas todavia',
+      label: 'Sin respuestas todavía',
       description: 'La sala esta lista y va a mostrar actividad cuando entren respuestas.',
     };
   }

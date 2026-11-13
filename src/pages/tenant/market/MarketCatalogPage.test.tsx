@@ -108,7 +108,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
           client_signal_channel: 'dataLayer',
           recommended_events: ['catalog_viewed', 'assisted_upload_started'],
           funnel: [
-            { stage: 'catalog', event: 'catalog_viewed', label: 'Catalogo visto' },
+            { stage: 'catalog', event: 'catalog_viewed', label: 'Catálogo visto' },
             { stage: 'assist', event: 'assisted_upload_submitted', label: 'Pedido asistido' },
             { stage: 'cart', event: 'cart_started', label: 'Carrito iniciado' },
             { stage: 'checkout', event: 'checkout_session_created', label: 'Checkout creado' },
@@ -138,7 +138,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
     expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
-    expect(screen.getByText('Catalogo visto')).toBeInTheDocument();
+    expect(screen.getByText('Catálogo visto')).toBeInTheDocument();
     expect(screen.getByText('Pedido asistido')).toBeInTheDocument();
     expect(screen.getByText('Carrito iniciado')).toBeInTheDocument();
     expect(screen.getByText('Checkout creado')).toBeInTheDocument();
@@ -177,7 +177,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(controls.compareDocumentPosition(emptyState) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Marketplace' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Buscar producto/i)).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /Filtrar por categoria/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Filtrar por categoría/i })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /Ordenar productos/i })).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-header-rail')).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-upload-cta')).toHaveTextContent('Subir pedido o documento');
@@ -212,7 +212,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getByText('Respuesta lista')).toBeInTheDocument();
     expect(screen.getByTestId('market-commerce-loop')).toBeInTheDocument();
     expect(screen.getByText('Pedido trazable de punta a punta')).toBeInTheDocument();
-    expect(screen.getByText('Catalogo visto')).toBeInTheDocument();
+    expect(screen.getByText('Catálogo visto')).toBeInTheDocument();
     expect(screen.getByText('Pedido asistido')).toBeInTheDocument();
     expect(screen.getByText('Carrito iniciado')).toBeInTheDocument();
     expect(screen.getByText('Checkout creado')).toBeInTheDocument();
@@ -546,7 +546,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
     expect(screen.getAllByText(/sin registro/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-empty-state')).toHaveTextContent(
-      'Catalogo sin productos visibles, pedido asistido disponible.',
+      'Catálogo sin productos visibles, pedido asistido disponible.',
     );
     expect(screen.getByTestId('assisted-upload-dropzone')).toBeInTheDocument();
     expect(document.querySelector('[data-assisted-textarea="true"]')).toBeInTheDocument();

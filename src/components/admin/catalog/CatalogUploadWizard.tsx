@@ -305,7 +305,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
 
       setResultData(commitResponse);
       setStep('result');
-      toast.success("Catalogo importado correctamente");
+      toast.success("Catálogo importado correctamente");
     } catch (err: any) {
       const failure=catalogImportUserError(err,'commit');
       toast.error(failure.title,{description:`${failure.message} ${failure.action}`});
@@ -545,7 +545,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         <CheckCircle2 className="h-10 w-10 text-green-600" />
       </div>
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold">Catalogo publicado</h2>
+        <h2 className="text-2xl font-bold">Catálogo publicado</h2>
         <p className="text-muted-foreground">
           La importacion quedo confirmada por backend. Revisa request_id, catalog_version y filas omitidas antes de operar.
         </p>
@@ -592,7 +592,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       <CardHeader>
         <div className="flex items-center justify-between">
            <div>
-             <CardTitle>Importar catalogo con IA</CardTitle>
+             <CardTitle>Importar catálogo con IA</CardTitle>
              <CardDescription>Convierte archivos reales en productos editables para el marketplace</CardDescription>
            </div>
            {/* Step Indicator */}

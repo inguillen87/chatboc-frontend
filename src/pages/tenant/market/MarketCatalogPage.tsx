@@ -71,7 +71,7 @@ const promotionBadge = (promotion: PromotionItem): string | null => {
 const ASSISTED_UPLOAD_ANCHOR_ID = 'market-assisted-upload';
 
 const DEFAULT_COMMERCE_LOOP_STEPS = [
-  { stage: 'catalog', event: 'catalog_viewed', label: 'Catalogo visto' },
+  { stage: 'catalog', event: 'catalog_viewed', label: 'Catálogo visto' },
   { stage: 'assist', event: 'assisted_upload_submitted', label: 'Pedido asistido' },
   { stage: 'cart', event: 'cart_started', label: 'Carrito iniciado' },
   { stage: 'checkout', event: 'checkout_session_created', label: 'Checkout creado' },
@@ -96,7 +96,7 @@ const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
   {
     id: 'service_request',
     title: 'Reclamo o tramite',
-    description: 'Direccion, foto, boleta, certificado o dato faltante para derivar.',
+    description: 'Dirección, foto, boleta, certificado o dato faltante para derivar.',
     icon: ClipboardList,
   },
   {
@@ -116,17 +116,17 @@ const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
 const ASSISTED_TEAM_HANDOFFS = [
   {
     title: 'Pedido desmenuzado',
-    description: 'Articulos, cantidades, tramite o reclamo separados para que el equipo no vuelva a interpretar la nota.',
+    description: 'Artículos, cantidades, trámite o reclamo separados para que el equipo no vuelva a interpretar la nota.',
     icon: ClipboardList,
   },
   {
     title: 'Datos faltantes',
-    description: 'Direccion, contacto, stock, precio o documentacion pendiente quedan marcados como proximo paso.',
+    description: 'Dirección, contacto, stock, precio o documentacion pendiente quedan marcados como proximo paso.',
     icon: FileText,
   },
   {
     title: 'Respuesta lista',
-    description: 'Borrador y seguimiento publico para continuar por WhatsApp, mail, llamada o panel.',
+    description: 'Borrador y seguimiento público para continuar por WhatsApp, mail, llamada o panel.',
     icon: MessageCircle,
   },
 ];
@@ -139,7 +139,7 @@ const ASSISTED_PUBLIC_FLOW_STEPS = [
   },
   {
     title: 'Lectura ordenada',
-    description: 'Se separan articulos, cantidades, direccion y faltantes.',
+    description: 'Se separan artículos, cantidades, dirección y faltantes.',
     icon: Search,
   },
   {
@@ -274,7 +274,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
     'Link publico de seguimiento',
   ],
   empty_state: {
-    title: 'Catalogo sin productos visibles, pedido asistido disponible.',
+    title: 'Catálogo sin productos visibles, pedido asistido disponible.',
     description:
       'Aunque no haya productos publicados todavia, podes subir una foto, boleta, PDF o nota manuscrita para que el equipo la gestione.',
     primary_cta: 'Subir pedido o documento',
@@ -514,7 +514,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         setTotalUnfiltered(null);
         setHeroSubtitle(null);
         setShareMeta({ publicCartUrl: null, whatsappShareUrl: null });
-        setError(err instanceof Error ? err.message : 'No se pudo cargar el catalogo real.');
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo real.');
       })
       .finally(() => setIsLoading(false));
   }, [deferredSearchTerm, promotionOnly, selectedCategory, selectedSort, tenantSlug]);
@@ -694,14 +694,14 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               </Link>
             </Button>
           ) : null}
-          <div className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Compartir catalogo">
+          <div className="hidden shrink-0 items-center gap-1 md:flex" aria-label="Compartir catálogo">
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={copyShareUrl}
               disabled={!shareUrl || !canUseClipboard}
-              aria-label="Copiar enlace del catalogo"
+              aria-label="Copiar enlace del catálogo"
               title="Copiar enlace"
             >
               <Copy className="h-4 w-4" />
@@ -723,8 +723,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               size="icon"
               onClick={() => openQrShare('desktop_qr_button')}
               disabled={!shareUrl}
-              aria-label="Abrir codigo QR"
-              title="Codigo QR"
+              aria-label="Abrir código QR"
+              title="Código QR"
             >
               <QrCode className="h-4 w-4" />
             </Button>
@@ -734,7 +734,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               size="icon"
               onClick={() => openCatalogDownload('desktop_pdf_button')}
               disabled={!catalogDownloadUrl}
-              aria-label="Descargar catalogo PDF"
+              aria-label="Descargar catálogo PDF"
               title="Descargar PDF"
             >
               <FileDown className="h-4 w-4" />
@@ -764,7 +764,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             />
           </div>
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full min-w-0" aria-label="Filtrar por categoria">
+            <SelectTrigger className="w-full min-w-0" aria-label="Filtrar por categoría">
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
@@ -811,7 +811,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
       <main
         data-testid="market-products-region"
         className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-        aria-label="Productos del catalogo"
+        aria-label="Productos del catálogo"
       >
         {isLoading
           ? [0, 1, 2].map((item) => (
@@ -1030,7 +1030,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             ) : null}
 
             {showAssistedIntake ? (
-              <section data-testid="market-assisted-team-handoff" className="py-4" aria-label="Informacion para el equipo">
+              <section data-testid="market-assisted-team-handoff" className="py-4" aria-label="Información para el equipo">
                 <h3 className="text-sm font-semibold">Lo que recibe el equipo</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   {ASSISTED_TEAM_HANDOFFS.map((handoff) => {
@@ -1076,7 +1076,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
               </section>
             ) : null}
 
-            <section className="py-4 md:hidden" aria-label="Compartir catalogo desde el celular">
+            <section className="py-4 md:hidden" aria-label="Compartir catálogo desde el celular">
               <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
                 <Button
                   type="button"

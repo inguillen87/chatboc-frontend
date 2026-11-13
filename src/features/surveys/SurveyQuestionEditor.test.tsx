@@ -63,7 +63,7 @@ describe('SurveyQuestionEditor materializable questions', () => {
 
     expect(screen.getByDisplayValue('Portal web')).toBeInTheDocument();
     expect(screen.getByLabelText('Opcion 3 de pregunta 1')).toHaveValue('Opcion 3');
-    expect(screen.getByLabelText('Maximo de selecciones')).toHaveValue(3);
+    expect(screen.getByLabelText('Máximo de selecciones')).toHaveValue(3);
     expect(screen.getAllByRole('button', { name: /eliminar opcion/i })).toHaveLength(3);
   });
 

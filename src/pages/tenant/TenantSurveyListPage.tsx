@@ -117,31 +117,31 @@ const TenantSurveyListPage = () => {
             </CardContent>
           </Card>
         ) : navigationQuery.isLoading ? (
-          <ViewState status="loading" title="Cargando participacion" />
+          <ViewState status="loading" title="Cargando participación" />
         ) : !surveyNavItem ? (
           <ViewState
             status="empty"
             title="Participacion no publicada"
-            description="Este espacio no tiene una instancia publica de participacion habilitada."
+            description="Este espacio no tiene una instancia publica de participación habilitada."
           />
         ) : !hasEndpoint(surveyNavItem) ? (
           <ViewState
             status="empty"
             title="Participacion no disponible"
-            description="La organizacion todavia no publico el listado para esta seccion."
+            description="La organización todavía no publico el listado para esta seccion."
           />
         ) : !isOnline && !surveysQuery.data ? (
           <ViewState
             status="offline"
-            title="Sin conexion para consultar participacion"
-            description="Revisa tu conexion y reintenta."
+            title="Sin conexión para consultar participación"
+            description="Revisa tu conexión y reintenta."
           />
         ) : surveysQuery.isLoading ? (
-          <ViewState status="loading" title="Cargando participacion" />
+          <ViewState status="loading" title="Cargando participación" />
         ) : surveysQuery.error ? (
           <ViewState
             status="error"
-            title="No pudimos cargar la participacion"
+            title="No pudimos cargar la participación"
             description={publicErrorMessage(surveysQuery.error)}
           />
         ) : surveys.length ? (

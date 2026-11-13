@@ -430,7 +430,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           <CardTitle className="text-base flex items-center gap-2">
             <Ticket className="h-4 w-4" /> Mis tickets
           </CardTitle>
-          <CardDescription>Seguimiento rapido de tus gestiones recientes.</CardDescription>
+          <CardDescription>Seguimiento rápido de tus gestiones recientes.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-2">

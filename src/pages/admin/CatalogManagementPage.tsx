@@ -284,11 +284,11 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     const newPrice = editPrice.trim() ? Number(editPrice) : null;
     const newStock = editStock.trim() ? Number(editStock) : null;
     if (editPrice.trim() && !Number.isFinite(newPrice)) {
-      toast.error('Precio invalido');
+      toast.error('Precio inválido');
       return;
     }
     if (editStock.trim() && !Number.isFinite(newStock)) {
-      toast.error('Stock invalido');
+      toast.error('Stock inválido');
       return;
     }
 
@@ -441,7 +441,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     const fixedAmount = Number(promotionDraft.fixedAmount);
     const minCart = Number(promotionDraft.minCart);
     if (!promotionDraft.name.trim()) {
-      toast.error('La promocion necesita un nombre.');
+      toast.error('La promoción necesita un nombre.');
       return;
     }
     if (promotionDraft.scope !== 'cart' && (!Number.isFinite(value) || value <= 0)) {
@@ -464,7 +464,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
 
     if (promotionDraft.scope === 'category') {
       if (!promotionDraft.category || promotionDraft.category === 'all') {
-        toast.error('Elegi una categoria para aplicar el descuento.');
+        toast.error('Elegi una categoría para aplicar el descuento.');
         return;
       }
       payload.tipo_promocion = 'PORCENTAJE_CATEGORIA';
@@ -487,7 +487,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
       const created = await apiClient.adminCreatePromotion(promotionOwnerId, payload, effectiveTenantSlug || undefined);
       setPromotions((prev) => [created, ...prev.filter((promotion) => promotion.id !== created.id)]);
       setPromotionDraft(emptyPromotionDraft);
-      toast.success('Promocion creada y lista para el marketplace.');
+      toast.success('Promoción creada y lista para el marketplace.');
     } catch (error) {
       console.error('Error creating promotion:', error);
       toast.error('No se pudo crear la promocion.');
@@ -537,8 +537,8 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto sm:max-w-[800px]">
               <DialogHeader className="sr-only">
-                <DialogTitle>Importar catalogo</DialogTitle>
-                <DialogDescription>Sube un archivo para analizarlo y actualizar el catalogo del tenant.</DialogDescription>
+                <DialogTitle>Importar catálogo</DialogTitle>
+                <DialogDescription>Sube un archivo para analizarlo y actualizar el catálogo del tenant.</DialogDescription>
               </DialogHeader>
               <CatalogUploadWizard tenantSlug={effectiveTenantSlug || ''} onFinish={() => { setUploadOpen(false); void loadProducts(); }} />
             </DialogContent>
@@ -664,7 +664,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
 
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mb-4">
-              <p className="font-semibold">Nueva promocion rapida</p>
+              <p className="font-semibold">Nueva promoción rápida</p>
               <p className="text-sm text-muted-foreground">Publica reglas simples que el carrito ya puede evaluar.</p>
             </div>
             <div className="space-y-3">

@@ -145,7 +145,7 @@ export default function ProductCheckoutPage() {
 
         if (!cartData.items || cartData.items.length === 0) {
           toast({
-            title: 'Carrito vacio',
+            title: 'Carrito vacío',
             description: 'No hay productos para finalizar la compra.',
             variant: 'destructive',
           });

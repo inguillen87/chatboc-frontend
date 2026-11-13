@@ -294,7 +294,7 @@ function buildPlatformWidgetFallbackConfig() {
       id: "gobierno",
       sector: "gobierno",
       label: "Gobiernos",
-      description: "Reclamos, tramites y atencion ciudadana.",
+      description: "Reclamos, trámites y atención ciudadana.",
     },
     {
       id: "empresas",

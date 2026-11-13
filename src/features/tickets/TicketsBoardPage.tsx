@@ -189,7 +189,7 @@ function QueueFilters({
               id="queue-category"
               name="category"
               defaultValue={filters.category ?? ''}
-              placeholder="Categoria exacta"
+              placeholder="Categoría exacta"
               maxLength={100}
               autoComplete="off"
             />
@@ -412,7 +412,7 @@ export default function TicketsBoardPage() {
         <div className="flex items-start gap-3">
           <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium">Lectura operativa viva, no snapshot historico</p>
+            <p className="font-medium">Lectura operativa viva, no snapshot histórico</p>
             <p>
               Los casos con fecha de creacion quedan anclados al {formatTimestamp(firstPage?.as_of ?? null)}. Los casos
               sin fecha se incluyen al final como calidad desconocida. Estado, asignacion y SLA se leen en vivo en cada

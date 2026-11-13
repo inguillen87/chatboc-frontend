@@ -134,7 +134,7 @@ const ChannelTechnicalGrid: React.FC<{
               <AlertTriangle className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-foreground">Sincronizacion pendiente</h3>
+              <h3 className="text-sm font-bold text-foreground">Sincronización pendiente</h3>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 Cuando el backend tenga el contrato disponible, acá vas a ver identidad, accesibilidad, territorio,
                 canales, operación y analítica con sus acciones concretas.

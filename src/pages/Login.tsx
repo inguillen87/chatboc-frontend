@@ -596,13 +596,13 @@ const LoginSession = () => {
     {
       id: "gobierno",
       title: "Demo gobierno",
-      description: "Reclamos, tramites, ubicaciones, noticias y seguimiento ciudadano.",
+      description: "Reclamos, trámites, ubicaciones, noticias y seguimiento ciudadano.",
       payload: { sector: "gobierno", tenant_slug: "municipio", rubro: "municipio" },
     },
     {
       id: "empresas",
       title: "Demo empresa",
-      description: "Catalogo, consultas, pedidos, carrito y contacto comercial.",
+      description: "Catálogo, consultas, pedidos, carrito y contacto comercial.",
       payload: { sector: "empresas", tenant_slug: "bodega", rubro: "local_comercial_general" },
     },
   ] as const;

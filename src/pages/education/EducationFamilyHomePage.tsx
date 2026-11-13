@@ -54,7 +54,7 @@ export default function EducationFamilyHomePage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             {backendQuickActions.length === 0 ? (
-              <p>Todavia no hay acciones disponibles para este perfil.</p>
+              <p>Todavía no hay acciones disponibles para este perfil.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {backendQuickActions.map((action) => (

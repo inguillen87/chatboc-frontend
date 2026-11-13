@@ -407,7 +407,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
                 <Input
                   value={form.descripcion_corta}
                   onChange={(event) => setForm((prev) => ({ ...prev, descripcion_corta: event.target.value }))}
-                  placeholder="Descripcion corta"
+                  placeholder="Descripción corta"
                 />
                 <Input
                   value={form.promocion_info}

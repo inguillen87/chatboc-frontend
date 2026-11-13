@@ -452,7 +452,7 @@ const DEFAULT_MARKETPLACE_PIPELINE = [
   {
     id: 'ai_parse',
     label: 'Lectura ordenada',
-    description: 'Chatboc separa articulos, cantidades, direccion, tramite y faltantes.',
+    description: 'Chatboc separa artículos, cantidades, dirección, trámite y faltantes.',
   },
   {
     id: 'crm_handoff',
@@ -462,7 +462,7 @@ const DEFAULT_MARKETPLACE_PIPELINE = [
   {
     id: 'public_follow_up',
     label: 'Respuesta y seguimiento',
-    description: 'La respuesta sigue por WhatsApp, mail, llamada o link publico seguro.',
+    description: 'La respuesta sigue por WhatsApp, mail, llamada o link público seguro.',
   },
 ] as const;
 
@@ -553,11 +553,11 @@ const ASSISTED_OUTCOMES = [
   },
   {
     label: 'Reclamo o tramite',
-    description: 'Direccion, categoria, foto, boleta, certificado o dato faltante para el area correcta.',
+    description: 'Dirección, categoría, foto, boleta, certificado o dato faltante para el area correcta.',
   },
   {
     label: 'Lead listo para responder',
-    description: 'Contacto, canal sugerido, respuesta borrador y seguimiento publico para el equipo.',
+    description: 'Contacto, canal sugerido, respuesta borrador y seguimiento público para el equipo.',
   },
 ];
 
@@ -570,7 +570,7 @@ const PROCESSING_STEPS = [
   {
     id: 'ai_parse',
     label: 'Analizando datos',
-    description: 'Buscamos articulos, cantidades, reclamos, tramites y datos faltantes.',
+    description: 'Buscamos artículos, cantidades, reclamos, trámites y datos faltantes.',
   },
   {
     id: 'crm_ready',
@@ -1258,15 +1258,15 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       return;
     }
     if (!canSubmitToServer) {
-      setError('Este marketplace todavia no habilito la carga asistida desde el backend.');
+      setError('Este marketplace todavía no habilito la carga asistida desde el backend.');
       return;
     }
     if (turnstileUnavailable) {
-      setError('Cloudflare Turnstile esta requerido, pero falta configurar la site key publica en el frontend.');
+      setError('Cloudflare Turnstile esta requerido, pero falta configurar la site key pública en el frontend.');
       return;
     }
     if (turnstileRequiresToken && !turnstileToken.trim()) {
-      setError('Completa la verificacion de seguridad para enviar la solicitud anonima.');
+      setError('Completa la verificación de seguridad para enviar la solicitud anonima.');
       return;
     }
     if (file && !fileMatchesAcceptedSpec(file, submitAcceptedFileSpec)) {
@@ -1467,7 +1467,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));
         }
       } else if (uploadError instanceof TypeError) {
-        setError('No pudimos procesar el archivo. Verifica tu conexion y vuelve a intentarlo.');
+        setError('No pudimos procesar el archivo. Verifica tu conexión y vuelve a intentarlo.');
       } else {
         setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));
       }
@@ -1569,7 +1569,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
           {
             id: 'ai_parse',
             label: 'Datos identificados',
-            description: 'Articulos, cantidades y contexto ya fueron extraidos para revision.',
+            description: 'Artículos, cantidades y contexto ya fueron extraidos para revision.',
           },
           {
             id: 'crm_ready',
@@ -2674,7 +2674,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({
       {missingItems.length > 0 && (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
           <FileWarning className="h-4 w-4" />
-          <AlertTitle>Articulos para revision</AlertTitle>
+          <AlertTitle>Artículos para revision</AlertTitle>
           <AlertDescription>
             No pudimos asociar los siguientes items: {missingItems.join(', ')}. Quedaron marcados para revision comercial.
           </AlertDescription>

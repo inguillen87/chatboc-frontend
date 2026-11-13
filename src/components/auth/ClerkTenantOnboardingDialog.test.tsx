@@ -47,7 +47,7 @@ describe('ClerkTenantOnboardingDialog', () => {
     expect(submit).toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
     expect(submit).toHaveAttribute('aria-describedby', 'clerk-onboarding-submit-help');
     expect(screen.getByText(/completa el nombre de la organización/i)).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: /configuracion inicial/i })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: /configuración inicial/i })).toBeInTheDocument();
   });
 
   it('shows the task that will resume after Clerk onboarding', () => {

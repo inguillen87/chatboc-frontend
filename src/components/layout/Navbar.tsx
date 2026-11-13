@@ -297,7 +297,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
       roles: ["super_admin", "superadmin"],
     });
 
-    if(publicSiteSlug)links.push({ to: hostBinding && publicSiteSlug === hostBinding.tenant.slug ? hostBinding.paths.home : buildTenantPath("/", publicSiteSlug), label: "Ver sitio publico", icon: Layout });
+    if(publicSiteSlug)links.push({ to: hostBinding && publicSiteSlug === hostBinding.tenant.slug ? hostBinding.paths.home : buildTenantPath("/", publicSiteSlug), label: "Ver sitio público", icon: Layout });
 
     const hasBackendCapabilities = capabilities.length > 0;
 

@@ -1068,7 +1068,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       <TicketPanelState
         testId="tickets-loading-timeout-state"
         title="La bandeja tarda más de lo esperado"
-        description="Todavia no recibimos la cola completa. Podes reintentar sin salir del centro de reclamos."
+        description="Todavía no recibimos la cola completa. Podes reintentar sin salir del centro de reclamos."
         icon={AlertTriangle}
         tone="warning"
       >

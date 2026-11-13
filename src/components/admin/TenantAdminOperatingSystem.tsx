@@ -906,7 +906,7 @@ export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord
               })}
             </div>
           ) : (
-            <EmptyPanel label="El backend todavia no expuso el runtime finance_transactional para este tenant." />
+            <EmptyPanel label="El backend todavía no expuso el runtime finance_transactional para este tenant." />
           )}
         </div>
 
@@ -953,7 +953,7 @@ export const TransactionsModulePanel = ({ experience }: { experience?: AnyRecord
                   );
                 })
               ) : (
-                <EmptyPanel label="El backend todavia no expuso flujos finance para este tenant." />
+                <EmptyPanel label="El backend todavía no expuso flujos finance para este tenant." />
               )}
             </div>
           </div>
@@ -1182,7 +1182,7 @@ export const ConversationalFlowReadinessPanel = ({
 
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <ContractLine label="Entrada" value={readFlowEntry(flow)} />
-                <ContractLine label="Proxima accion" value={flow.next_action || "validar flujo"} />
+                <ContractLine label="Próxima acción" value={flow.next_action || "validar flujo"} />
               </div>
 
               {evidence.length ? (

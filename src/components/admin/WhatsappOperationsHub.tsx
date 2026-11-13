@@ -704,13 +704,13 @@ const SetupChecklist = ({ experience }: { experience: WhatsappExperienceV2 }) =>
   const checks = [
     {
       id: "number",
-      label: "Numero del canal",
+      label: "Número del canal",
       ok: Boolean(first(channel, ["number", "phone_number", "sender_id"])),
       detail: first(channel, ["number", "phone_number", "sender_id"]) || channel.reason_code,
     },
     {
       id: "webhook",
-      label: "Webhook publico",
+      label: "Webhook público",
       ok: Boolean(channel.webhook),
       detail: channel.webhook,
     },
@@ -728,13 +728,13 @@ const SetupChecklist = ({ experience }: { experience: WhatsappExperienceV2 }) =>
     },
     {
       id: "content",
-      label: "Modulos de contenido",
+      label: "Módulos de contenido",
       ok: Object.values(modules).some((value) => boolish(asRecord(value).enabled)),
       detail: "catalogo, encuestas, novedades o links",
     },
     {
       id: "tracking",
-      label: "Tracking publico",
+      label: "Tracking público",
       ok: Boolean(claims.experience_endpoint || orders.experience_endpoint),
       detail: claims.experience_endpoint || orders.experience_endpoint,
     },
@@ -1103,7 +1103,7 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
     },
     {
       id: "pdf_catalog",
-      label: "Generar catalogo PDF",
+      label: "Generar catálogo PDF",
       detail: "Material comercial",
       endpoint: first(catalog, ["pdf_catalog_endpoint", "catalog_pdf_endpoint", "pdf_endpoint"]),
       icon: PackageCheck,
@@ -1117,7 +1117,7 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
           <PackageCheck className="h-4 w-4 text-primary" />
           Modulos de contenido
         </CardTitle>
-        <CardDescription>Catalogo, encuestas, novedades, promociones y links configurables.</CardDescription>
+        <CardDescription>Catálogo, encuestas, novedades, promociones y links configurables.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -1175,7 +1175,7 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
               ) : (
                 <>
                   <EndpointLine label="Imagenes" value={`${imageCoverage}%`} />
-                  <EndpointLine label="Editor catalogo" value={catalog.endpoint} />
+                  <EndpointLine label="Editor catálogo" value={catalog.endpoint} />
                   <EndpointLine label="Bulk import" value={catalog.bulk_import_endpoint} />
                 </>
               )}
@@ -1217,7 +1217,7 @@ const metaCapabilityState = (capability: AnyRecord) => {
   if (capability.supported_by_provider === false) {
     return { label: "No disponible", tone: "neutral" as const };
   }
-  return { label: "Configuracion pendiente", tone: "warning" as const };
+  return { label: "Configuración pendiente", tone: "warning" as const };
 };
 
 const MetaCapabilityRow = ({
@@ -1865,7 +1865,7 @@ const MetaPlatformPanel = ({
               <ShieldCheck className="h-4 w-4 text-primary" />
               Meta Business Platform
             </CardTitle>
-            <CardDescription>Flows, llamadas, catalogo y alta de senders con estados verificables.</CardDescription>
+            <CardDescription>Flows, llamadas, catálogo y alta de senders con estados verificables.</CardDescription>
           </div>
           <StatusPill tone={platformState.tone}>{platformState.label}</StatusPill>
         </div>
@@ -1892,9 +1892,9 @@ const MetaPlatformPanel = ({
           />
           <MetaCapabilityRow
             icon={PackageCheck}
-            title="Catalogo de productos"
+            title="Catálogo de productos"
             capability={catalog}
-            detail="Sincronizacion del catalogo Chatboc con mensajes de producto de Meta."
+            detail="Sincronización del catálogo Chatboc con mensajes de producto de Meta."
             metrics={[
               `${formatNumber(catalog.chatboc_catalog_items)} articulos Chatboc`,
               boolish(catalog.catalog_id_present) ? "Catalog ID vinculado" : "Catalog ID pendiente",
@@ -1904,7 +1904,7 @@ const MetaPlatformPanel = ({
             icon={Link2}
             title="Embedded Signup"
             capability={embeddedSignup}
-            detail="Onboarding guiado del WABA y numero del tenant sin copiar credenciales manualmente."
+            detail="Onboarding guiado del WABA y número del tenant sin copiar credenciales manualmente."
             metrics={[
               boolish(embeddedSignup.platform_configured) ? "Plataforma configurada" : "Config Meta pendiente",
               boolish(embeddedSignup.tenant_completed) ? "Tenant vinculado" : "Tenant sin vincular",
@@ -2872,7 +2872,7 @@ const TemplateBlueprintPanel = ({
             <StatusPill tone={boolish(webview.enabled) ? "ready" : "warning"}>{boolish(webview.enabled) ? "Activo" : "Bloqueado"}</StatusPill>
           </div>
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            <Metric label="Sesion firmada" value={boolish(webviewSecurity.signed_session_required) ? "Si" : "No"} tone={boolish(webviewSecurity.signed_session_required) ? "ready" : "warning"} />
+            <Metric label="Sesión firmada" value={boolish(webviewSecurity.signed_session_required) ? "Si" : "No"} tone={boolish(webviewSecurity.signed_session_required) ? "ready" : "warning"} />
             <Metric label="Webhook server" value={boolish(webviewSecurity.server_to_server_confirmation) ? "Si" : "No"} tone={boolish(webviewSecurity.server_to_server_confirmation) ? "ready" : "warning"} />
             <Metric label="Tarjeta en chat" value={boolish(webviewSecurity.card_data_in_chat_allowed) ? "Permitido" : "No"} tone={boolish(webviewSecurity.card_data_in_chat_allowed) ? "danger" : "ready"} />
             <Metric label="Plan full" value={boolish(webviewSecurity.requires_full_plan) ? "Requerido" : "No"} />

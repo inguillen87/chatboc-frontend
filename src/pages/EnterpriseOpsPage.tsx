@@ -105,7 +105,7 @@ const EnterpriseOpsPage = () => {
     },
     {
       key: 'tenant-health',
-      title: 'Salud de la organizacion',
+      title: 'Salud de la organización',
       to: '/enterprise',
       icon: HeartPulse,
       note: 'Integraciones, colas, alertas y acciones recomendadas.',
@@ -153,7 +153,7 @@ const EnterpriseOpsPage = () => {
     },
     {
       key: 'live-chat',
-      title: 'Atencion en vivo',
+      title: 'Atención en vivo',
       to: '/chatcrm',
       icon: MessagesSquare,
       note: 'Continuidad entre conversaciones, derivacion humana y contexto.',
@@ -232,7 +232,7 @@ const EnterpriseOpsPage = () => {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <ContractLine label="Base operativa" value={foundationQuery.data?.ok ? 'activo' : undefined} />
-            <ContractLine label="Perfil de la organizacion" value={currentTenantQuery.data?.tenant?.slug ? 'activo' : undefined} />
+            <ContractLine label="Perfil de la organización" value={currentTenantQuery.data?.tenant?.slug ? 'activo' : undefined} />
             <ContractLine label="Salud operativa" value={healthQuery.data ? 'activo' : undefined} />
             <ContractLine label="Equipo" value={coverageQuery.data ? 'activo' : undefined} />
             <ContractLine label="Canales" value={hooksQuery.data ? 'activo' : undefined} />

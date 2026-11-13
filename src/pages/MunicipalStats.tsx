@@ -1675,7 +1675,7 @@ export default function MunicipalStats() {
       setUsingDerivedSummary(normalized.derivedFromTickets);
     } catch (err) {
       console.error('Error fetching municipal stats', err);
-      setError('No se pudieron cargar las estadisticas municipales.');
+      setError('No se pudieron cargar las estadísticas municipales.');
       setData(null);
       setUsingDerivedSummary(false);
     } finally {

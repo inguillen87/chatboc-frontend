@@ -50,7 +50,7 @@ export const CatalogStorefrontPreview: React.FC<CatalogStorefrontPreviewProps> =
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="rounded-xl bg-white p-3 text-zinc-900 shadow-sm">
-              <div className="mb-1 text-xs font-semibold text-[#075e54]">Catalogo actualizado</div>
+              <div className="mb-1 text-xs font-semibold text-[#075e54]">Catálogo actualizado</div>
               <div className="mb-3 text-sm">Estos son los productos disponibles. Elegi uno y armamos el pedido.</div>
               <div className="space-y-2">
                 {products.slice(0, 3).map((product) => (
@@ -63,7 +63,7 @@ export const CatalogStorefrontPreview: React.FC<CatalogStorefrontPreviewProps> =
                   </div>
                 ))}
               </div>
-              <div className="mt-3 border-t pt-2 text-center text-[12px] font-medium text-blue-600">Ver catalogo completo</div>
+              <div className="mt-3 border-t pt-2 text-center text-[12px] font-medium text-blue-600">Ver catálogo completo</div>
             </div>
           </div>
         </div>
@@ -81,7 +81,7 @@ export const CatalogStorefrontPreview: React.FC<CatalogStorefrontPreviewProps> =
           </div>
           <div className="flex-1 overflow-y-auto bg-muted/20 p-4">
             <div className="max-w-[88%] rounded-xl border bg-background p-3 shadow-sm">
-              <p className="mb-2 text-sm">Te dejo el catalogo actualizado:</p>
+              <p className="mb-2 text-sm">Te dejo el catálogo actualizado:</p>
               <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2">
                 {products.slice(0, 4).map((product) => (
                   <div key={product.id} className="w-32 shrink-0 snap-center overflow-hidden rounded-lg border bg-card">

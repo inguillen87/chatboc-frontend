@@ -185,7 +185,7 @@ describe('Navbar account menu routing', () => {
     useTenantMock.mockReturnValue({ currentSlug: 'tierra-del-fuego' });
     render(<MemoryRouter initialEntries={['/perfil?tab=perfil&tenant_slug=tierra-del-fuego']}><Navbar /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', {name: /abrir men/i}));
-    expect(screen.getByRole('link', {name: 'Ver sitio publico'})).toHaveAttribute('href', '/t/junin');
+    expect(screen.getByRole('link', {name: 'Ver sitio público'})).toHaveAttribute('href', '/t/junin');
     expect(screen.getByRole('link', {name: 'Panel de Verified institution'})).toHaveAttribute('href', '/perfil');
     expect(screen.getByRole('link', {name: 'Perfil y organización'})).toHaveAttribute('href', '/perfil?tab=perfil&tenant_slug=junin&section=general');
     expect(screen.getByRole('link', {name: 'Pedidos'})).toHaveAttribute('href', '/perfil?tab=pedidos&tenant_slug=junin');
@@ -203,7 +203,7 @@ describe('Navbar account menu routing', () => {
     expect(screen.queryByText('Plan Inicial')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Perfil y organización' })).toHaveAttribute('href', '/perfil?tab=perfil&tenant_slug=selected-organization');
     expect(screen.getByRole('link', { name: 'Pedidos' })).toHaveAttribute('href', '/perfil?tab=pedidos&tenant_slug=selected-organization');
-    expect(screen.getByRole('link', { name: 'Ver sitio publico' })).toHaveAttribute('href', '/t/selected-organization');
+    expect(screen.getByRole('link', { name: 'Ver sitio público' })).toHaveAttribute('href', '/t/selected-organization');
   });
   it.each(['pending','foreign','unverified','missing'])('uses a neutral selected organization label while identity is %s', state => {
     useUserMock.mockReturnValue({ organizationProfileVerified: state !== 'unverified', user: { rol: 'superadmin', name: 'Marcelo', nombre_empresa: 'MyB Store' } });

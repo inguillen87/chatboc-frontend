@@ -177,7 +177,7 @@ const GestionPlantillasPage: React.FC = () => {
 
       toast({
         title: currentPlantilla.id ? "Plantilla actualizada" : "Plantilla creada",
-        description: "La respuesta rapida quedo disponible para el equipo.",
+        description: "La respuesta rápida quedo disponible para el equipo.",
       });
       setIsFormOpen(false);
       setCurrentPlantilla(null);
@@ -239,7 +239,7 @@ const GestionPlantillasPage: React.FC = () => {
       if (!response.generated_text) throw new Error("Respuesta sin texto generado.");
       setCurrentPlantilla((prev) => ({ ...prev, text: response.generated_text }));
       setPromptIA("");
-      toast({ title: "Texto generado", description: "La IA preparo una version editable." });
+      toast({ title: "Texto generado", description: "La IA preparo una versión editable." });
     } catch (error) {
       toast({
         title: "Error IA",

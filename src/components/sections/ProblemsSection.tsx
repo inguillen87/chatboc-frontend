@@ -21,7 +21,7 @@ const problemsData = [
   },
   {
     icon: Settings2,
-    title: "Configuracion dificil de mantener",
+    title: "Configuración difícil de mantener",
     description:
       "Los flujos rigidos envejecen rapido. Cada cambio de tramite, producto o politica obliga a tocar reglas y pantallas.",
     outcome: "La experiencia cambia sin rehacer pantallas.",
@@ -58,7 +58,7 @@ const problemsData = [
 
 const diagnosticRows = [
   { label: "Contexto unificado", value: "la persona no repite todo", tone: "bg-primary" },
-  { label: "Proxima accion clara", value: "el equipo sabe que hacer", tone: "bg-emerald-500" },
+  { label: "Próxima acción clara", value: "el equipo sabe que hacer", tone: "bg-emerald-500" },
   { label: "Resultado medible", value: "caso, pedido, encuesta o lead", tone: "bg-amber-500" },
 ];
 
@@ -82,7 +82,7 @@ const ProblemsSection = () => {
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-foreground">Diagnostico operativo</p>
-                <p className="mt-1 text-sm text-muted-foreground">Primero ordenamos el recorrido; despues automatizamos lo que tiene sentido.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Primero ordenamos el recorrido; después automatizamos lo que tiene sentido.</p>
               </div>
             </div>
 

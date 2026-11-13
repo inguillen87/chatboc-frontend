@@ -18,11 +18,11 @@ import { Loader2 } from 'lucide-react';
 const promotionFormSchema = z.object({
   title: z
     .string()
-    .min(3, { message: 'El titulo debe tener al menos 3 caracteres.' })
+    .min(3, { message: 'El título debe tener al menos 3 caracteres.' })
     .max(100),
   description: z
     .string()
-    .min(5, { message: 'La descripcion debe tener al menos 5 caracteres.' }),
+    .min(5, { message: 'La descripción debe tener al menos 5 caracteres.' }),
   link: z
     .string()
     .url({ message: 'Por favor, introduce una URL valida.' }),
@@ -70,7 +70,7 @@ export const PromotionForm: React.FC<PromotionFormProps> = ({
             <FormItem>
               <FormLabel>Titulo</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: Promocion de verano" {...field} />
+                <Input placeholder="Ej: Promoción de verano" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

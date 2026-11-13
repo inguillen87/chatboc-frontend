@@ -247,7 +247,7 @@ describe('AssistedRequestPanel', () => {
     expect(within(panel).getByText('Confirmar stock antes de responder.')).toBeTruthy();
     expect(within(panel).getByText('Confianza Media')).toBeTruthy();
 
-    const linesTable = within(panel).getByRole('table', { name: 'Lineas detectadas y coincidencias de catalogo' });
+    const linesTable = within(panel).getByRole('table', { name: 'Líneas detectadas y coincidencias de catálogo' });
     expect(within(linesTable).getByRole('columnheader', { name: 'Texto detectado' })).toBeTruthy();
     expect(within(linesTable).getByRole('rowheader', { name: 'Chapas galvanizadas' })).toBeTruthy();
     expect(within(linesTable).getByRole('rowheader', { name: 'Clavos 2 pulgadas' })).toBeTruthy();
@@ -259,7 +259,7 @@ describe('AssistedRequestPanel', () => {
     expect(within(panel).getByText('Direccion')).toBeTruthy();
     expect(within(panel).getByText('Resolucion de catalogo')).toBeTruthy();
 
-    expect(within(panel).getByRole('heading', { name: 'Alternativas de catalogo' })).toBeTruthy();
+    expect(within(panel).getByRole('heading', { name: 'Alternativas de catálogo' })).toBeTruthy();
     expect(within(panel).getByText('Clavos punta paris')).toBeTruthy();
     expect(within(panel).getByText('Score 88%')).toBeTruthy();
     expect(within(panel).getByText('Confianza Alta')).toBeTruthy();
@@ -329,10 +329,10 @@ describe('AssistedRequestPanel', () => {
       />,
     );
 
-    expect(screen.getByText('No hay lineas detectadas')).toBeTruthy();
+    expect(screen.getByText('No hay líneas detectadas')).toBeTruthy();
     expect(screen.getByText('Sin resumen IA disponible.')).toBeTruthy();
     expect(screen.getByText('Sin adjunto ni texto original disponible en el contrato.')).toBeTruthy();
-    expect(screen.getByText('Sin alternativas de catalogo')).toBeTruthy();
+    expect(screen.getByText('Sin alternativas de catálogo')).toBeTruthy();
     expect(screen.getByText('Chapas para cotizar')).toBeTruthy();
   });
 
@@ -390,7 +390,7 @@ describe('AssistedRequestPanel', () => {
 
     const panel = screen.getByRole('region', { name: 'Lectura manual / IA no disponible' });
     const alert = within(panel).getByRole('alert');
-    expect(within(alert).getByText('No se pudo completar una lectura automatica confiable')).toBeTruthy();
+    expect(within(alert).getByText('No se pudo completar una lectura automática confiable')).toBeTruthy();
     expect(within(alert).getByText('El proveedor de IA no estuvo disponible.')).toBeTruthy();
     expect(within(alert).getByText('No se pudo leer la nota')).toBeTruthy();
     expect(within(panel).getByText('Sin resumen IA confiable.')).toBeTruthy();

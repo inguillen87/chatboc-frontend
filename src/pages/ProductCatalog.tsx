@@ -278,7 +278,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
     if (!effectiveTenantSlug) {
       setAllProducts([]);
       setFilteredProducts([]);
-      setError('No se pudo resolver el comercio para cargar el catalogo real.');
+      setError('No se pudo resolver el comercio para cargar el catálogo real.');
       setLoading(false);
       return;
     }
@@ -383,7 +383,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
               if (statusData.status === 'completed') {
                   clearInterval(pollInterval);
                   setImportLoading(false);
-                  toast.success("Catalogo actualizado", { id: toastId, description: "La busqueda inteligente esta lista." });
+                  toast.success("Catálogo actualizado", { id: toastId, description: "La búsqueda inteligente esta lista." });
                   setTimeout(() => window.location.reload(), 1500);
               } else if (statusData.status === 'failed' || statusData.status === 'error') {
                   clearInterval(pollInterval);
@@ -452,7 +452,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
           if (!catalogItemId || !hasRealCartId(product)) {
             toast({
               title: 'Producto no disponible',
-              description: 'Este item no tiene un identificador de catalogo valido para comprar.',
+              description: 'Este item no tiene un identificador de catálogo valido para comprar.',
               variant: 'destructive',
             });
             return;
@@ -520,7 +520,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
     <div className="container mx-auto p-4 md:p-8">
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catalogo</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
           <div className="flex gap-2 w-full sm:w-auto">
             {isAdmin && (
               <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
@@ -529,7 +529,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
                 </Button>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Importar Catalogo</DialogTitle>
+                    <DialogTitle>Importar Catálogo</DialogTitle>
                     <DialogDescription>Sube un archivo CSV o Excel para actualizar tus productos masivamente.</DialogDescription>
                   </DialogHeader>
                   <div className="grid w-full items-center gap-4 py-4">
@@ -626,7 +626,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar productos por nombre, descripcion, categoria..."
+            placeholder="Buscar productos por nombre, descripción, categoria..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-10 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"

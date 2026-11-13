@@ -1024,7 +1024,7 @@ export function AssistedRequestPanel({
           <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
           <div>
             <p className="font-semibold">Analizando documento</p>
-            <p className="mt-0.5 text-xs opacity-80">Las lineas, coincidencias y faltantes se actualizaran cuando termine la extraccion.</p>
+            <p className="mt-0.5 text-xs opacity-80">Las líneas, coincidencias y faltantes se actualizaran cuando termine la extraccion.</p>
           </div>
         </div>
       ) : null}
@@ -1034,7 +1034,7 @@ export function AssistedRequestPanel({
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
-              <p className="font-semibold">No se pudo completar una lectura automatica confiable</p>
+              <p className="font-semibold">No se pudo completar una lectura automática confiable</p>
               <p className="mt-0.5 text-xs opacity-80">El caso requiere revisar el documento original antes de confirmar datos o catalogo.</p>
               {errorMessages.length ? (
                 <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
@@ -1076,7 +1076,7 @@ export function AssistedRequestPanel({
 
       <dl className="grid grid-cols-2 divide-x divide-y border-b sm:grid-cols-4 sm:divide-y-0">
         <div className="px-4 py-3">
-          <dt className="text-xs font-medium text-muted-foreground">Lineas detectadas</dt>
+          <dt className="text-xs font-medium text-muted-foreground">Líneas detectadas</dt>
           <dd
             className="mt-1 text-xl font-bold"
             aria-label={`${detectedCount} ${detectedCount === 1 ? 'linea detectada' : 'lineas detectadas'}`}
@@ -1213,8 +1213,8 @@ export function AssistedRequestPanel({
             <SectionHeading
               id={linesId}
               icon={ClipboardList}
-              title="Lineas detectadas"
-              description="Texto original, cantidad y resultado del cruce de catalogo por renglon."
+              title="Líneas detectadas"
+              description="Texto original, cantidad y resultado del cruce de catálogo por renglon."
               aside={
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="bg-background">
@@ -1238,12 +1238,12 @@ export function AssistedRequestPanel({
             {lines.length ? (
               <div className="mt-3 max-h-[30rem] overflow-auto border">
                 <table className="w-full min-w-[44rem] border-collapse text-left text-sm">
-                  <caption className="sr-only">Lineas detectadas y coincidencias de catalogo</caption>
+                  <caption className="sr-only">Líneas detectadas y coincidencias de catálogo</caption>
                   <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground">
                     <tr>
                       <th scope="col" className="px-3 py-2 font-semibold">Texto detectado</th>
                       <th scope="col" className="px-3 py-2 font-semibold">Cantidad</th>
-                      <th scope="col" className="px-3 py-2 font-semibold">Estado de catalogo</th>
+                      <th scope="col" className="px-3 py-2 font-semibold">Estado de catálogo</th>
                       <th scope="col" className="px-3 py-2 font-semibold">Coincidencia</th>
                     </tr>
                   </thead>
@@ -1287,7 +1287,7 @@ export function AssistedRequestPanel({
               <div className="mt-3 flex items-start gap-3 border border-dashed p-4 text-sm text-muted-foreground" role="status">
                 <FileQuestion className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
                 <div>
-                  <p className="font-semibold text-foreground">No hay lineas detectadas</p>
+                  <p className="font-semibold text-foreground">No hay líneas detectadas</p>
                   <p className="mt-1 text-xs">
                     {isProcessing
                       ? 'La lectura sigue en curso.'
@@ -1305,8 +1305,8 @@ export function AssistedRequestPanel({
               <SectionHeading
                 id={catalogId}
                 icon={ClipboardCheck}
-                title="Alternativas de catalogo"
-                description="Candidatos reales enviados por el backend para resolver las lineas sin coincidencia."
+                title="Alternativas de catálogo"
+                description="Candidatos reales enviados por el backend para resolver las líneas sin coincidencia."
                 aside={
                   catalogCandidateGroups.length ? (
                     <Badge variant="outline" className="bg-background">
@@ -1414,8 +1414,8 @@ export function AssistedRequestPanel({
                 </div>
               ) : unmatchedItems.length || unmatchedCount ? (
                 <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-100" role="status">
-                  <p className="font-semibold">Sin alternativas de catalogo</p>
-                  <p className="mt-1 text-xs opacity-80">El backend marco lineas pendientes, pero no envio candidatos para vincular.</p>
+                  <p className="font-semibold">Sin alternativas de catálogo</p>
+                  <p className="mt-1 text-xs opacity-80">El backend marco líneas pendientes, pero no envio candidatos para vincular.</p>
                   {unmatchedItems.length ? (
                     <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
                       {unmatchedItems.map((item) => (
@@ -1440,7 +1440,7 @@ export function AssistedRequestPanel({
               id={missingId}
               icon={AlertTriangle}
               title="Datos faltantes y bloqueos"
-              description="Informacion que debe resolverse antes de confirmar o responder."
+              description="Información que debe resolverse antes de confirmar o responder."
             />
 
             {missingFields.length ? (
@@ -1538,7 +1538,7 @@ export function AssistedRequestPanel({
 
           {followUpCode || followUpHref || followUpChannels.length ? (
             <section className={cn('border-b', paddingClassName)} aria-labelledby={`${contactId}-follow-up`}>
-              <SectionHeading id={`${contactId}-follow-up`} icon={ClipboardCheck} title="Seguimiento" description="Continuidad publica recibida en el contrato." />
+              <SectionHeading id={`${contactId}-follow-up`} icon={ClipboardCheck} title="Seguimiento" description="Continuidad pública recibida en el contrato." />
               {followUpCode ? <p className="mt-3 break-all font-mono text-sm font-semibold">{followUpCode}</p> : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {followUpHref ? (

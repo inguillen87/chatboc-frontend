@@ -181,7 +181,7 @@ const buildSignalRows = (payload: TicketAiEnrichmentResponse | null) => {
 
   const rows = [
     {
-      label: 'Categoria sugerida',
+      label: 'Categoría sugerida',
       value: asString(category.categoria || category.label),
       score: asScore(category.score),
       provider: asString(category.provider),

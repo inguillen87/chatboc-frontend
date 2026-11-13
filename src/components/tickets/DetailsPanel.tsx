@@ -947,7 +947,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
   const openActionHref = (href: string) => {
     if (!href) return;
     if (href.startsWith('/api/')) {
-      toast.info('Accion disponible como endpoint JSON. Se usa dentro del panel, no como pagina.');
+      toast.info('Acción disponible como endpoint JSON. Se usa dentro del panel, no como pagina.');
       return;
     }
     window.open(href, '_blank', 'noopener,noreferrer');
