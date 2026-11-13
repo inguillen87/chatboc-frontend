@@ -412,9 +412,13 @@ export default defineConfig(({ mode }) => {
             if (id.includes('jszip') || id.includes('fflate') || id.includes('pako')) {
               return 'vendor-compression';
             }
-            if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('framer-motion')) {
-              return 'vendor-ui';
+            // Tres grupos separados: quien sólo necesita animación o íconos
+            // (por ejemplo el widget embebido) no descarga los otros dos.
+            if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) {
+              return 'vendor-motion';
             }
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('@radix-ui')) return 'vendor-ui';
 
             return;
           },
