@@ -1,3 +1,4 @@
+import type { PublicWorkspaceAppearance } from '@/utils/publicWorkspaceAppearance';
 import type {PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
 import type { RealtimeVoiceCapabilities } from './realtimeVoice';
 
@@ -32,6 +33,8 @@ export interface TenantPublicInfo {
   nombre: string;
   logo_url?: string | null;
   tema?: TenantThemeConfig | Record<string, unknown> | null;
+  /** Paleta pública vigente del organismo; null si el backend no la proyecta para este slug exacto. */
+  workspace_appearance?: PublicWorkspaceAppearance | null;
   tipo?: string | null;
   descripcion?: string | null;
   public_base_url?: string | null;
