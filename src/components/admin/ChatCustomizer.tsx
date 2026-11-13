@@ -912,7 +912,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                 </span>
                                 <div className="space-y-3">
                                     <div>
-                                        <p className="font-semibold text-foreground">Integracion web bloqueada por plan</p>
+                                        <p className="font-semibold text-foreground">Integración web bloqueada por plan</p>
                                         <p className="mt-1 text-sm text-muted-foreground">{widgetLockMessage}</p>
                                     </div>
                                     <div className="flex flex-wrap gap-2 text-xs">

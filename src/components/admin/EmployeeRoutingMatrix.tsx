@@ -438,7 +438,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
               </div>
             </div>
             {assignResult ? <AssignmentResultSummary result={assignResult} /> : (
-              <p className="text-sm text-muted-foreground">Sin ejecucion reciente.</p>
+              <p className="text-sm text-muted-foreground">Sin ejecución reciente.</p>
             )}
             {previewAssignments.length ? (
               <div className="mt-3 space-y-2">

@@ -590,7 +590,7 @@ const LoginSession = () => {
     {
       id: "educacion",
       title: "Demo colegio",
-      description: "Secretaria, familias, inasistencias, documentos y derivacion humana.",
+      description: "Secretaria, familias, inasistencias, documentos y derivación humana.",
       payload: { sector: "educacion", tenant_slug: "colegio-demo", rubro: "colegios" },
     },
     {

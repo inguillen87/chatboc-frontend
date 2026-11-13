@@ -277,7 +277,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     if (!effectiveTenantSlug) return;
     const itemId = getCatalogItemId(product);
     if (!itemId) {
-      toast.error('El item no tiene identificador de catalogo.');
+      toast.error('El item no tiene identificador de catálogo.');
       return;
     }
 
@@ -464,7 +464,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
 
     if (promotionDraft.scope === 'category') {
       if (!promotionDraft.category || promotionDraft.category === 'all') {
-        toast.error('Elegi una categoría para aplicar el descuento.');
+        toast.error('Elegí una categoría para aplicar el descuento.');
         return;
       }
       payload.tipo_promocion = 'PORCENTAJE_CATEGORIA';
@@ -474,7 +474,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
 
     if (promotionDraft.scope === 'product') {
       if (!promotionDraft.productId || promotionDraft.productId === 'none') {
-        toast.error('Elegi un producto para aplicar el descuento.');
+        toast.error('Elegí un producto para aplicar el descuento.');
         return;
       }
       payload.tipo_promocion = 'PORCENTAJE_PRODUCTO';
@@ -490,7 +490,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
       toast.success('Promoción creada y lista para el marketplace.');
     } catch (error) {
       console.error('Error creating promotion:', error);
-      toast.error('No se pudo crear la promocion.');
+      toast.error('No se pudo crear la promoción.');
     } finally {
       setCreatingPromotion(false);
     }
@@ -511,7 +511,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
       toast.success(nextActive ? 'Promocion activada.' : 'Promocion pausada.');
     } catch (error) {
       console.error('Error toggling promotion:', error);
-      toast.error('No se pudo actualizar la promocion.');
+      toast.error('No se pudo actualizar la promoción.');
     } finally {
       setTogglingPromotionId(null);
     }

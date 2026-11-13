@@ -291,7 +291,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       await fetchCategories();
     } catch {
       if (!scopeIsCurrent()) return;
-      setError('No pudimos eliminar la categoria. Revisa si tiene tickets o reglas asociadas.');
+      setError('No pudimos eliminar la categoría. Revisa si tiene tickets o reglas asociadas.');
     } finally {
       mutationInFlight.current = false; if (scopeIsCurrent()) setIsSaving(false);
     }
@@ -328,7 +328,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       setUnconfirmedCategory(null);setSavedCategory(nombre); setCreateDraft(''); setIsDialogOpen(false);
     } catch {
       if (!scopeIsCurrent()) return;
-      setError('No pudimos guardar la categoria. Revisa el nombre y vuelve a intentar.');
+      setError('No pudimos guardar la categoría. Revisa el nombre y vuelve a intentar.');
     } finally {
       mutationInFlight.current = false; if (scopeIsCurrent()) setIsSaving(false);
     }

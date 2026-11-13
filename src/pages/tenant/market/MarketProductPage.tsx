@@ -164,7 +164,7 @@ const normalizeStockStatus = (product: MarketProduct) => {
     };
   }
   return {
-    label: 'Operacion asistida',
+    label: 'Operación asistida',
     detail: 'El equipo puede confirmar disponibilidad por WhatsApp o desde el CRM.',
     tone: 'neutral',
   };

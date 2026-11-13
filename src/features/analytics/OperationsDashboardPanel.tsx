@@ -3351,7 +3351,7 @@ function OperationsHeatmapPanel({
       category_layers: [],
       quality: {
         state: 'degraded',
-        label: 'Mapa en recuperacion',
+        label: 'Mapa en recuperación',
         coverage_percent: 0,
         visible_points: 0,
         pending_geocode: 0,

@@ -236,7 +236,7 @@ export function SurveyLiveResultsPanel({
   tenantSlug,
   enabled = true,
   title = 'Resultados en vivo',
-  description = 'Pulso operativo con socket, polling, mapa de calor e inteligencia de participacion.',
+  description = 'Pulso operativo con socket, polling, mapa de calor e inteligencia de participación.',
   className,
 }: SurveyLiveResultsPanelProps) {
   const normalizedSlug = slug?.trim() ?? '';
@@ -551,7 +551,7 @@ export function SurveyLiveResultsPanel({
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-muted-foreground">Sin preguntas activas todavia.</p>
+                      <p className="text-sm text-muted-foreground">Sin preguntas activas todavía.</p>
                     )}
                   </div>
                 </div>

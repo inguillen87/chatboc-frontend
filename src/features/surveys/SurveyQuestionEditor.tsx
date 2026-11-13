@@ -11,7 +11,7 @@ import type { SurveyQuestionDraft, SurveyQuestionType } from './surveyTypes';
 
 const QUESTION_TYPE_OPTIONS: Array<{ value: SurveyQuestionType; label: string }> = [
   { value: 'single', label: 'Opción única' },
-  { value: 'multi', label: 'Seleccion multiple' },
+  { value: 'multi', label: 'Selección multiple' },
   { value: 'rating', label: 'Rating' },
   { value: 'text', label: 'Texto libre' },
   { value: 'nps', label: 'NPS (cuarentena)' },

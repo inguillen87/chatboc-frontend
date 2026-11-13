@@ -108,7 +108,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
 
   return (
     <nav
-      aria-label="Navegacion principal del portal"
+      aria-label="Navegación principal del portal"
       className="fixed bottom-0 left-0 right-0 z-30 h-[calc(4rem+env(safe-area-inset-bottom))] border-t border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-t-lg md:hidden"
     >
       <ul className="mx-auto flex h-16 max-w-full items-center justify-around">

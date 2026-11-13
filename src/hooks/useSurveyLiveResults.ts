@@ -198,7 +198,7 @@ export const resolveSurveyLiveStatus = ({
     return {
       status: consecutiveErrors > 2 ? 'reconnecting' : 'stale',
       label: 'Reintentando',
-      description: 'Se muestran datos previos mientras vuelve la conexion.',
+      description: 'Se muestran datos previos mientras vuelve la conexión.',
     };
   }
 

@@ -199,7 +199,7 @@ export default function ChatComposer({
     try {
       const coords = await requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
       if (!coords) {
-        setError('No se pudo obtener la ubicacion.');
+        setError('No se pudo obtener la ubicación.');
         return;
       }
       onSend({

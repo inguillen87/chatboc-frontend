@@ -883,7 +883,7 @@ const PedidosPage = ({ tenantSlug: currentSlug }: { tenantSlug: string }) => {
     } catch (error) {
       if (!isCurrent()) return;
       console.error('Failed to resolve catalog candidate', error);
-      toast.error('No se pudo vincular el producto del catalogo.');
+      toast.error('No se pudo vincular el producto del catálogo.');
     } finally {
       if (isCurrent()) setResolvingCatalogCandidateKey(null);
     }

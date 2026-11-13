@@ -2346,7 +2346,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       const draft = event.detail.draft.trim();
       updateActiveDraft(draft);
       window.requestAnimationFrame(() => composerRef.current?.focus());
-      toast.success('Borrador IA cargado en la conversacion.');
+      toast.success('Borrador IA cargado en la conversación.');
     };
 
     window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);

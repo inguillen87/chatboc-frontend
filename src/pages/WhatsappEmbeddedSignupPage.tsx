@@ -389,7 +389,7 @@ export default function WhatsappEmbeddedSignupPage() {
         <div className="rounded-2xl border bg-card/70 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-semibold text-foreground">Progreso de autorizacion</p>
+              <p className="text-sm font-semibold text-foreground">Progreso de autorización</p>
               <p className="mt-1 text-xs text-muted-foreground">{completedStages}/{stages.length} pasos completados</p>
             </div>
             <div role="status" aria-live="polite" aria-atomic="true" className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">

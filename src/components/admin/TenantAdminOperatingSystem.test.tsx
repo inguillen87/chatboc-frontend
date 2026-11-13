@@ -354,7 +354,7 @@ describe("TransactionsModulePanel", () => {
   it("renders the finance activation plan from the backend contract", () => {
     render(<TransactionsModulePanel experience={financeExperience} />);
 
-    expect(screen.getByText("Plan de salida a produccion finance")).toBeInTheDocument();
+    expect(screen.getByText("Plan de salida a producción finance")).toBeInTheDocument();
     expect(screen.getByText("Cobranzas, pagos y firma")).toBeInTheDocument();
     expect(screen.getAllByText("Proveedor de identidad/KYC").length).toBeGreaterThan(0);
     expect(screen.getByText("Checkout o gateway seguro")).toBeInTheDocument();

@@ -187,7 +187,7 @@ const focusCopy = {
   },
   comments: {
     title: 'Foco operativo: comentarios ciudadanos',
-    description: 'Priorizamos encuestas con debate habilitado para responder y moderar conversaciones publicas.',
+    description: 'Priorizamos encuestas con debate habilitado para responder y moderar conversaciones públicas.',
     badge: 'Comentarios',
     empty: 'No hay encuestas con comentarios habilitados.',
     icon: MessageSquareText,

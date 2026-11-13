@@ -291,7 +291,7 @@ const SURVEY_ANALYTICS_FOCUS_COPY: Record<Exclude<SurveyAnalyticsFocusMode, null
   },
   comments: {
     title: 'Foco operativo: comentarios ciudadanos',
-    description: 'Llegaste desde la cola operativa para revisar comentarios, reportes y moderacion de la encuesta.',
+    description: 'Llegaste desde la cola operativa para revisar comentarios, reportes y moderación de la encuesta.',
     badge: 'Comentarios',
     targetId: 'survey-comments-focus',
   },
@@ -1612,7 +1612,7 @@ export default function SurveyAnalyticsPage() {
             tenantSlug={effectiveTenantSlug}
             enabled={liveResultsEnabled}
             title="Sala live de la encuesta"
-            description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la página publica."
+            description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la página pública."
           />
         </div>
       ) : liveResultsEnabled ? (

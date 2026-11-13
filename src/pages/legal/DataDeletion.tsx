@@ -3,7 +3,7 @@ export default function DataDeletionPage() {
     <main className="min-h-screen bg-background text-foreground">
       <section className="mx-auto w-full max-w-4xl px-5 py-12 sm:px-8">
         <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-primary">Chatboc.ar</p>
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Eliminacion de datos</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Eliminación de datos</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
           Esta pagina informa como solicitar la eliminacion, rectificacion o acceso a datos personales
           tratados por Chatboc.ar o por una organizacion que usa Chatboc.ar como plataforma de atencion.
@@ -11,7 +11,7 @@ export default function DataDeletionPage() {
 
         <div className="mt-10 space-y-8 text-sm leading-7 sm:text-base">
           <section>
-            <h2 className="text-xl font-semibold">Como pedir la eliminacion</h2>
+            <h2 className="text-xl font-semibold">Como pedir la eliminación</h2>
             <p className="mt-3 text-muted-foreground">
               Envia un email a{" "}
               <a className="text-primary underline underline-offset-4" href="mailto:info@chatboc.ar">

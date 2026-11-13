@@ -362,7 +362,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
   const handleImportCatalog = async () => {
     if (!effectiveTenantSlug || !importFile) return;
     setImportLoading(true);
-    const toastId = toast.loading("Subiendo catalogo...", { description: "Por favor espere." });
+    const toastId = toast.loading("Subiendo catálogo...", { description: "Por favor espere." });
 
     try {
       const formData = new FormData();
@@ -626,7 +626,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar productos por nombre, descripción, categoria..."
+            placeholder="Buscar productos por nombre, descripción, categoría..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-10 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
@@ -698,7 +698,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
             {allProducts.length > 0 ? "No se encontraron productos para tu busqueda." : "Aun no hay productos en el catalogo."}
           </p>
           {allProducts.length > 0 && searchTerm && (
-             <p className="text-sm text-muted-foreground mt-2">Intenta con otros terminos de busqueda.</p>
+             <p className="text-sm text-muted-foreground mt-2">Intenta con otros terminos de búsqueda.</p>
           )}
         </div>
       )}

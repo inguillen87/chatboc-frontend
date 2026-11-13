@@ -164,7 +164,7 @@ const MarketingFooter = () => {
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">Credenciales institucionales</p>
-              <h3 className="text-base font-bold text-foreground">Validaciones publicas de Chatboc</h3>
+              <h3 className="text-base font-bold text-foreground">Validaciones públicas de Chatboc</h3>
             </div>
             <p className="max-w-xl text-xs leading-5 text-slate-700 dark:text-slate-300">
               Accesos oficiales para revisar informacion fiscal y descargar el certificado MiPyME.
