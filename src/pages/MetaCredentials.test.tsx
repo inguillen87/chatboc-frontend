@@ -12,7 +12,7 @@ vi.mock('@/hooks/useUser', () => ({ useUser: () => session }));
 vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
 vi.mock('@/features/metaCredentials/metaCredentialApi', async () => ({
   ...await vi.importActual('@/features/metaCredentials/metaCredentialApi'),
-  metaCredentialApi: { status: vi.fn(), plan: vi.fn(), apply: vi.fn() },
+  metaCredentialApi: { status: vi.fn(), plan: vi.fn(), apply: vi.fn(), inspectConnection: vi.fn() },
 }));
 const api = vi.mocked(metaCredentialApi);
 const app = () => <MemoryRouter initialEntries={['/integracion/meta/credenciales']}><Routes>
@@ -107,12 +107,15 @@ describe('private credential loading', () => {
 
   it('clears both entered values after successful confirmation and never sends them through status', async () => {
     render(app()); const inputs = await review();
+    expect(screen.queryByRole('button', { name: 'Verificar conexión' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar credenciales validadas' }));
     await screen.findByText('Las credenciales se guardaron y el servidor confirmó las nuevas revisiones.');
     inputs.forEach(input => expect(input.value).toBe(''));
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(api.apply.mock.calls.map(call => call[1])).toEqual(META_CREDENTIAL_TARGETS.map(tokenFor));
     expect(api.status.mock.calls.every(call => call.length === 2 && typeof call[1] === 'object')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Verificar conexión' })).toBeEnabled();
+    expect(api.inspectConnection).not.toHaveBeenCalled();
   });
 
   it('erases both fields on a validation error and shows only a fixed message', async () => {
@@ -131,6 +134,7 @@ describe('private credential loading', () => {
     render(app()); const inputs = await review();
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar credenciales validadas' }));
     await screen.findByRole('button', { name: 'Verificar resultado' });
+    expect(screen.queryByRole('button', { name: 'Verificar conexión' })).not.toBeInTheDocument();
     expect(screen.getByText(/^Revisión 1 confirmada/)).toBeInTheDocument();
     inputs.forEach(input => expect(input.value).toBe(''));
     const plan = planFor(statusFor('tdf-sandbox'));

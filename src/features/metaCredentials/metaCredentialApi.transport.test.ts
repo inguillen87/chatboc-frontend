@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
 import { metaCredentialApi } from './metaCredentialApi';
-import { planFor, planPayload, statusFor, tokenFor } from './__tests__/fixtures';
+import { installedStatusFor, inspectionPayload, planFor, planPayload, statusFor, tokenFor } from './__tests__/fixtures';
 
 vi.mock('@/utils/api', async () => await vi.importActual('@/utils/api'));
 vi.mock('@/utils/backendBootstrapGate', () => ({ ensureBackendRuntimeReady: async () => undefined }));
@@ -37,6 +37,23 @@ afterEach(() => {
 });
 
 describe('private credentials over the real authenticated API client', () => {
+  it('inspects through one cookie request containing only the fixed target, with no token or widget identity', async () => {
+    const statuses = [installedStatusFor('junin-production'), installedStatusFor('tdf-sandbox')];
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...inspectionPayload(statuses), private_echo: token }), {
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    const result = await metaCredentialApi.inspectConnection(statuses, scope);
+    expect(global.fetch).toHaveBeenCalledOnce();
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(url).toBe('https://www.chatboc.ar/api/internal/meta-credentials/inspect-junin-webhook');
+    expect(init).toMatchObject({ method: 'POST', credentials: 'include', redirect: 'error', cache: 'no-store' });
+    expect(JSON.parse(init!.body as string)).toEqual({ target: 'junin-production' });
+    const headers = new Headers(init?.headers);
+    for (const header of ['Authorization', 'X-Entity-Token', 'X-Token', 'X-Tenant-Slug', 'X-Chat-Session-Id']) expect(headers.has(header)).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(token);
+    expect(JSON.stringify(logs.flatMap(log => log.mock.calls))).not.toContain(token);
+    expect(JSON.stringify(window.localStorage)).not.toContain(token);
+  });
   it('uses one HTTPS cookie request with no widget identity or private body in debug logs/storage', async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(planPayload()), { headers: { 'Content-Type': 'application/json' } }));
     await metaCredentialApi.plan(statusFor('junin-production'), token, scope);
