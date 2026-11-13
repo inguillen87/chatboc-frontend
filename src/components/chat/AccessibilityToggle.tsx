@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useEffect, useId, useMemo, useState, type ComponentType } from "react";
 import { BookOpen, Captions, Eye, List, MousePointer2, PauseCircle } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Button } from "@/components/ui/button";
@@ -150,6 +150,7 @@ export default function AccessibilityToggle({
   hints?: ChatWidgetUiHints["accessibility"];
 }) {
   const [prefs, setPrefs] = useState<Prefs>(readAccessibilityPrefs);
+  const panelTitleId = useId();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -228,9 +229,20 @@ export default function AccessibilityToggle({
           </TooltipTrigger>
           <TooltipContent side="top">Accesibilidad</TooltipContent>
         </Tooltip>
-        <PopoverContent align="end" side="bottom" className="z-[1000002] w-[min(320px,calc(100vw-24px))] rounded-2xl p-3">
+        <PopoverContent
+          align="end"
+          side="bottom"
+          collisionPadding={12}
+          aria-labelledby={panelTitleId}
+          className="z-[1000002] w-[min(320px,calc(100vw-24px))] rounded-2xl p-3"
+          style={{
+            maxHeight: "min(var(--radix-popover-content-available-height, 100dvh), calc(100dvh - 24px))",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+          }}
+        >
           <div className="mb-3">
-            <p className="text-sm font-semibold">Accesibilidad</p>
+            <p id={panelTitleId} className="text-sm font-semibold">Accesibilidad</p>
             <p className="text-xs text-muted-foreground">
               Ajustes rapidos para leer, escuchar y tocar mejor.
             </p>

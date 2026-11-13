@@ -95,10 +95,32 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
   </DialogContent>
  </Dialog>;
 }
+// This is an informational preview of an untrusted JSON file, not a schema,
+// permission or editorial approval check. The server still validates the import.
+const previewRecord=(value:unknown):Record<string,unknown>|null=>value!==null&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;
+const previewText=(value:unknown,limit:number)=>typeof value==='string'&&value.trim().length>0&&value.trim().length<=limit?value.trim():null;
+function knowledgeImportPreview(value:unknown){
+ const bundle=previewRecord(value),tenant=previewRecord(bundle?.tenant),sources=previewRecord(bundle?.sources);
+ const sourceCount=sources?Object.keys(sources).length:null;
+ return {version:previewText(bundle?.version,60),tenant:previewText(tenant?.slug,80),
+  sourceCount:sourceCount!==null&&sourceCount>=1&&sourceCount<=64?sourceCount:null,
+  evaluationOnly:typeof bundle?.evaluation_only==='boolean'?bundle.evaluation_only:null,
+  approvalStatus:previewText(bundle?.approval_status,120)};
+}
+const importReviewUiKeys=['import_review_current_version','import_review_proposed_version',
+ 'import_review_empty_current','import_review_destination','import_review_declared_tenant',
+ 'import_review_declared_sources','import_review_evaluation_only','import_review_approval_status',
+ 'import_review_not_reported','import_review_yes','import_review_no','import_review_notice'] as const;
+type ImportReviewUi=Record<(typeof importReviewUiKeys)[number],string>;
+function knowledgeImportReviewUi(ui:Record<string,string>):ImportReviewUi|null{
+ return importReviewUiKeys.every(key=>Object.prototype.hasOwnProperty.call(ui,key)&&previewText(ui[key],1000)!==null)?ui as ImportReviewUi:null;
+}
 export function KnowledgeReviewDialog({workspace,pending,onCancel,onConfirm,restoreFocus,largeText=false}:{pending:KnowledgeReview|null;onCancel:()=>void;onConfirm:()=>void}&BaseProps){
  const cancel=useRef<HTMLButtonElement>(null),ui=workspace.ui;
  const heading=pending?.operation==='import'?ui.import:pending?.operation==='publish'?ui.publish:ui.retire;
  const description=pending?.operation==='import'?ui.import_help:pending?.operation==='publish'?ui.confirm_publish:ui.confirm_retire;
+ const preview=pending?.operation==='import'?knowledgeImportPreview(pending.bundle):null;
+ const reviewUi=preview?knowledgeImportReviewUi(ui):null;
  return <Dialog open={pending!==null} onOpenChange={open=>{if(!open)onCancel();}}>
   <DialogContent showCloseButton={false} overlayClassName={INSTITUTIONAL_DIALOG_LAYER} className={`${INSTITUTIONAL_DIALOG_LAYER} institutional-assistant-dialog institutional-assistant-dialog--review${largeText?' institutional-assistant-dialog--large':''}`}
    onOpenAutoFocus={event=>{event.preventDefault();cancel.current?.focus();}}
@@ -106,10 +128,28 @@ export function KnowledgeReviewDialog({workspace,pending,onCancel,onConfirm,rest
    <header className="institutional-assistant-dialog__header"><div>
     <p>{workspace.tenant.name}</p><DialogTitle>{heading}</DialogTitle>
    </div></header>
-   <div className="institutional-assistant-dialog__review">
+   <div className="institutional-assistant-dialog__review" role="region" tabIndex={0} aria-label={heading}>
     <DialogDescription>{description}</DialogDescription>
     {pending?.filename?<p className="institutional-assistant-dialog__filename">{pending.filename}</p>:null}
-    {workspace.knowledge?<p className="institutional-assistant-dialog__version">{ui.version} {workspace.knowledge.version}</p>:null}
+    {preview&&reviewUi?<>
+     <section role="group" aria-label={reviewUi.import_review_current_version} className="space-y-2 rounded-lg border p-3">
+      <h3 className="font-medium">{reviewUi.import_review_current_version}</h3>
+      <p className="institutional-assistant-dialog__version">{workspace.knowledge?.version??reviewUi.import_review_empty_current}</p>
+      <dl className="text-sm"><div><dt>{reviewUi.import_review_destination}</dt><dd className="break-words">{workspace.tenant.slug}</dd></div></dl>
+     </section>
+     <section role="group" aria-label={reviewUi.import_review_proposed_version} className="space-y-2 rounded-lg border p-3">
+      <h3 className="font-medium">{reviewUi.import_review_proposed_version}</h3>
+      <p className="institutional-assistant-dialog__version break-words">{preview.version??reviewUi.import_review_not_reported}</p>
+      <dl className="space-y-2 text-sm">
+       <div><dt>{reviewUi.import_review_declared_tenant}</dt><dd className="break-words">{preview.tenant??reviewUi.import_review_not_reported}</dd></div>
+       <div><dt>{reviewUi.import_review_declared_sources}</dt><dd>{preview.sourceCount??reviewUi.import_review_not_reported}</dd></div>
+       <div><dt>{reviewUi.import_review_evaluation_only}</dt><dd>{preview.evaluationOnly===null?reviewUi.import_review_not_reported:preview.evaluationOnly?reviewUi.import_review_yes:reviewUi.import_review_no}</dd></div>
+       <div><dt>{reviewUi.import_review_approval_status}</dt><dd className="break-words">{preview.approvalStatus??reviewUi.import_review_not_reported}</dd></div>
+      </dl>
+     </section>
+     <p className="text-sm text-muted-foreground">{reviewUi.import_review_notice}</p>
+    </>:pending?.operation==='import'?(preview?.version?<p className="institutional-assistant-dialog__version">{ui.version} {preview.version}</p>:null)
+     :workspace.knowledge?<p className="institutional-assistant-dialog__version">{ui.version} {workspace.knowledge.version}</p>:null}
    </div>
    <footer className="institutional-assistant-dialog__footer">
     <button ref={cancel} type="button" onClick={onCancel}>{ui.cancel}</button>

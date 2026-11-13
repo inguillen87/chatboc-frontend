@@ -77,10 +77,10 @@ try{
     },chartFile);
     assert.deepEqual(chartProof,{bars:3,finiteGeometry:true,painted:true});assert.deepEqual(errors,[]);
    }
-   results.push({route,width,height,dark,passed:true,scriptRequests:resources.length,decodedScriptBytes:resources.reduce((sum,item)=>sum+item.decodedBytes,0),heavy,chartProof,resources,scriptReadiness});
+   results.push({route,width,height,dark,passed:true,scriptRequests:resources.length,decodedScriptBytes:resources.reduce((sum,item)=>sum+item.decodedBytes,0),heavy,chartProof,resources,scriptReadiness,scriptDiagnostics:scripts.diagnostics()});
   }catch(error){
    await page.screenshot({path:`${folder}/${id}-failure.png`,fullPage:true}).catch(()=>{});
-   results.push({route,width,height,dark,passed:false,error:error.message,errors,writes,scriptReadiness:scripts.snapshot()});
+   results.push({route,width,height,dark,passed:false,error:error.message,errors,writes,scriptReadiness:scripts.snapshot(),scriptDiagnostics:scripts.diagnostics()});
   }finally{await context.close();}
  }
 }finally{await browser.close();await new Promise(resolve=>server.httpServer.close(resolve));}
