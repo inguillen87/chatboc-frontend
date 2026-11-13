@@ -34,7 +34,7 @@ import type { SurveyDocument } from './surveyDocument';
 import type { SurveyDraftPersistenceAck, SurveyDraftSaveInput, SurveyQuestionDraft } from './surveyTypes';
 
 const QUESTION_TYPES: Array<{ type: SurveyQuestionDraft['type']; label: string }> = [
-  { type: 'single', label: 'Opcion unica' },
+  { type: 'single', label: 'Opción única' },
   { type: 'multi', label: 'Multiple' },
   { type: 'rating', label: 'Rating' },
   { type: 'text', label: 'Texto' },
@@ -882,7 +882,7 @@ export default function SurveyBuilderPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Preview</CardTitle>
-              <CardDescription>Validacion rapida de estructura antes de guardar.</CardDescription>
+              <CardDescription>Validación rápida de estructura antes de guardar.</CardDescription>
             </CardHeader>
             <CardContent>
               <SurveyPreview questions={questions} />

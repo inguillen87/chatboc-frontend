@@ -2249,7 +2249,7 @@ export const SurveyForm = ({
                 resetSignal={turnstileResetSignal}
                 disabled={loading || submitting}
                 testId="survey-turnstile-challenge"
-                description="Protege la votacion o encuesta publica sin pedirte registro previo."
+                description="Protege la votación o encuesta pública sin pedirte registro previo."
               />
             ) : null}
 

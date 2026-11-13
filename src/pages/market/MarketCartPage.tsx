@@ -325,7 +325,7 @@ export default function MarketCartPage() {
 
     if (checkoutBlockedReason) {
       toast({
-        title: 'Checkout pendiente de validacion',
+        title: 'Checkout pendiente de validación',
         description: checkoutBlockedReason,
       });
       return;
@@ -680,7 +680,7 @@ export default function MarketCartPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
                 <img
                   src={heroImage}
-                  alt="Portada del catalogo"
+                  alt="Portada del catálogo"
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
@@ -764,7 +764,7 @@ export default function MarketCartPage() {
 
             {catalogServerError ? (
               <Alert variant="destructive">
-                <AlertTitle>No pudimos cargar el catalogo</AlertTitle>
+                <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
                 <AlertDescription>
                   {catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}
                 </AlertDescription>

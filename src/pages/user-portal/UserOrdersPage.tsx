@@ -279,7 +279,7 @@ const UserOrdersPage = () => {
           <Package className="mb-4 h-12 w-12 opacity-20" />
           <p>No tenés pedidos registrados aún.</p>
           {catalogEnabled ? (
-            <Button variant="link" className="mt-2" asChild><a href={catalogPath}>Explorar catalogo</a></Button>
+            <Button variant="link" className="mt-2" asChild><a href={catalogPath}>Explorar catálogo</a></Button>
           ) : null}
         </div>
       ) : (

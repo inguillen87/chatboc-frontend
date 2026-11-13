@@ -27,7 +27,7 @@ export default function EducationFamilyVerificationPage() {
               ))}
             </div>
           ) : (
-            <p>Todavia no hay pasos de validacion disponibles para este perfil.</p>
+            <p>Todavía no hay pasos de validación disponibles para este perfil.</p>
           )}
         </CardContent>
       </Card>

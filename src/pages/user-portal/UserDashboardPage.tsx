@@ -407,7 +407,7 @@ const UserDashboardPage = () => {
                   </ul>
               ) : (
                   <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground p-4 bg-muted/20 rounded-lg border border-dashed">
-                      <p className="text-sm">Todavia no hay actividad registrada para esta cuenta.</p>
+                      <p className="text-sm">Todavía no hay actividad registrada para esta cuenta.</p>
                   </div>
               )}
             </SummaryCard>

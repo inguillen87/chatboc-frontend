@@ -394,7 +394,7 @@ const ClerkTenantOnboardingDialog: React.FC<ClerkTenantOnboardingDialogProps> = 
                 </div>
               ) : (
                 <>
-                  <ol aria-label="Configuracion inicial" className="grid min-w-0 gap-3 sm:grid-cols-4">
+                  <ol aria-label="Configuración inicial" className="grid min-w-0 gap-3 sm:grid-cols-4">
                     {summaryCards.slice(0, 4).map((card, index) => (
                       <li key={card.id} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
                         <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-sm font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">

@@ -342,7 +342,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
 
   const operationCards = [
     {
-      label: 'Temas de atencion',
+      label: 'Temas de atención',
       value: visibleCategories.length,
       helper: categorySourcesSummary,
       icon: FolderTree,

@@ -30,7 +30,7 @@ const commonBusiness = {
   packages: [
     { name: "Catalogo demo", detail: "Productos, servicios y FAQs comerciales.", price: "Demo incluido" },
     { name: "Ventas asistidas", detail: "Pedidos, cobro guiado y derivacion comercial.", price: "Plan pyme" },
-    { name: "Operacion premium", detail: "Metricas, beneficios, pagos y llamadas con IA.", price: "Plan enterprise" },
+    { name: "Operacion premium", detail: "Métricas, beneficios, pagos y llamadas con IA.", price: "Plan enterprise" },
   ],
   workflows: ["Consultar disponibilidad", "Crear pedido", "Capturar lead", "Derivar a ventas"],
 };
@@ -52,8 +52,8 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Municipio inteligente",
     sector: "gobierno",
     href: "/demo-catalogs/municipio.pdf",
-    subtitle: "Atencion ciudadana, reclamos y tramites con IA.",
-    description: "Catalogo demo para probar reclamos con ubicacion, consulta de estado, turnos, derivacion humana y seguimiento por WhatsApp.",
+    subtitle: "Atención ciudadana, reclamos y trámites con IA.",
+    description: "Catálogo demo para probar reclamos con ubicación, consulta de estado, turnos, derivacion humana y seguimiento por WhatsApp.",
     questions: ["Quiero iniciar un reclamo por luminaria", "Donde reporto baches con ubicacion?", "Consultar estado del ticket 1234"],
   },
   {
@@ -62,8 +62,8 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Concejo deliberante",
     sector: "gobierno",
     href: "/demo-catalogs/concejo-deliberante.pdf",
-    subtitle: "Consultas legislativas, expedientes y participacion vecinal.",
-    description: "Experiencia demo para sesiones, proyectos, agenda publica, reclamos vinculados y derivacion al area correcta.",
+    subtitle: "Consultas legislativas, expedientes y participación vecinal.",
+    description: "Experiencia demo para sesiones, proyectos, agenda pública, reclamos vinculados y derivacion al area correcta.",
   },
   {
     ...commonGovernment,
@@ -90,7 +90,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "empresas",
     href: "/demo-catalogs/almacen.pdf",
     subtitle: "Pedidos rapidos, promos semanales y entrega barrial.",
-    description: "Catalogo demo para consultar productos, armar pedidos, pedir entrega y capturar contacto sin friccion.",
+    description: "Catálogo demo para consultar productos, armar pedidos, pedir entrega y capturar contacto sin friccion.",
   },
   {
     ...commonBusiness,
@@ -114,7 +114,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "empresas",
     href: "/demo-catalogs/kiosco.pdf",
     subtitle: "Combos, snacks, bebidas y pedidos por WhatsApp.",
-    description: "Demo para venta rapida, consulta de disponibilidad, combos nocturnos y retiro en tienda.",
+    description: "Demo para venta rápida, consulta de disponibilidad, combos nocturnos y retiro en tienda.",
   },
   {
     ...commonBusiness,
@@ -213,7 +213,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "educacion",
     href: "/demo-catalogs/colegio-demo.pdf",
     subtitle: "Secretaria, familias, inasistencias y casos escolares.",
-    description: "Catalogo demo para probar menu escolar, justificativos, comunicados, admisiones, pagos y derivacion humana.",
+    description: "Catálogo demo para probar menu escolar, justificativos, comunicados, admisiones, pagos y derivacion humana.",
     questions: ["Quiero justificar una inasistencia", "Necesito un certificado de alumno regular", "Quiero consultar admisiones"],
   },
   {
@@ -228,7 +228,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
   {
     ...commonEducation,
     slug: "escuela-publica",
-    title: "Escuela publica",
+    title: "Escuela pública",
     sector: "educacion",
     href: "/demo-catalogs/escuela-publica.pdf",
     subtitle: "Asistencia, certificados, comedor y orientacion.",

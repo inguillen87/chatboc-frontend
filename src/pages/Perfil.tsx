@@ -150,7 +150,7 @@ const InternalUsers = React.lazy(() => import('@/pages/InternalUsers'));
 const IncidentsMap = React.lazy(() => import('@/pages/IncidentsMap'));
 const CatalogManagementPage = React.lazy(() => import('@/pages/admin/CatalogManagementPage'));
 
-const ProfileTabFallback = ({ label = "Cargando modulo operativo..." }: { label?: string }) => (
+const ProfileTabFallback = ({ label = "Cargando módulo operativo..." }: { label?: string }) => (
   <div className="flex min-h-[320px] w-full items-center justify-center rounded-xl border border-border/70 bg-card/80 p-6 text-center">
     <div>
       <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
@@ -2697,7 +2697,7 @@ export default function Perfil() {
     {
       id: "surveys",
       title: "Encuestas y sondeos",
-      description: "Gestionar participacion, votaciones, comentarios y resultados en vivo.",
+      description: "Gestionar participación, votaciones, comentarios y resultados en vivo.",
       icon: Vote,
       actionLabel: "Abrir encuestas",
       path: "/admin/encuestas",
@@ -2718,7 +2718,7 @@ export default function Perfil() {
     {
       id: "catalog",
       title: "Catalogo e inventario",
-      description: "Productos, recursos, stock, importaciones y calidad del catalogo publicados por backend.",
+      description: "Productos, recursos, stock, importaciones y calidad del catálogo publicados por backend.",
       icon: Package,
       actionLabel: "Abrir catalogo",
       tab: "catalogo",
@@ -2726,7 +2726,7 @@ export default function Perfil() {
     },
     {
       id: "ai-analytics",
-      title: "Analitica avanzada e IA",
+      title: "Analítica avanzada e IA",
       description: "Investigacion, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
       icon: Sparkles,
       actionLabel: "Abrir analitica",

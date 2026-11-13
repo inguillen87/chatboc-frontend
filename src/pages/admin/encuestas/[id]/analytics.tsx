@@ -1612,7 +1612,7 @@ export default function SurveyAnalyticsPage() {
             tenantSlug={effectiveTenantSlug}
             enabled={liveResultsEnabled}
             title="Sala live de la encuesta"
-            description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la pagina publica."
+            description="Resultados en vivo dentro del CRM: socket, polling, mapa de calor y lectura IA sin abrir la página publica."
           />
         </div>
       ) : liveResultsEnabled ? (

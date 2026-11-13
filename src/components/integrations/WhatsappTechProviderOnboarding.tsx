@@ -1130,7 +1130,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
                 <ShoppingBag className="h-4 w-4 text-emerald-200" />
-                <p className="mt-3 text-sm font-semibold text-white">Catalogo conectado</p>
+                <p className="mt-3 text-sm font-semibold text-white">Catálogo conectado</p>
                 <p className="mt-1 text-xs leading-5 text-slate-300">Usa marketplace y pedido asistido mientras se habilita Full.</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
@@ -1878,7 +1878,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                   <ShoppingBag className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">Catalogo para WhatsApp</p>
+                  <p className="text-sm font-semibold text-foreground">Catálogo para WhatsApp</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     Conecta productos, promos, stock, webviews de pedido y checkout para que el cliente compre o pida asistencia sin salir del canal.
                   </p>

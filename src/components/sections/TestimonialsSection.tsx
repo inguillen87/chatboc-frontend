@@ -5,7 +5,7 @@ const valueSignals = [
   {
     icon: MessageSquareText,
     title: "Conversaciones con contexto",
-    detail: "Cada mensaje puede conservar canal, motivo, adjuntos, ubicacion y proxima accion.",
+    detail: "Cada mensaje puede conservar canal, motivo, adjuntos, ubicación y proxima accion.",
   },
   {
     icon: Route,

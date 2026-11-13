@@ -72,8 +72,8 @@ export const TurnstileChallenge = ({
   disabled,
   resetSignal,
   testId = 'turnstile-challenge',
-  title = 'Verificacion de seguridad',
-  description = 'Protege esta accion publica sin pedirte registro previo.',
+  title = 'Verificación de seguridad',
+  description = 'Protege esta acción pública sin pedirte registro previo.',
 }: {
   siteKey: string;
   onToken: (token: string) => void;

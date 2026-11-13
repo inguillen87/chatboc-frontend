@@ -66,7 +66,7 @@ export default function ProductImageManager({
       return;
     }
     if (nextFile.size > MAX_IMAGE_BYTES) {
-      toast.error("La imagen supera el tamano maximo permitido.");
+      toast.error("La imagen supera el tamaño máximo permitido.");
       event.target.value = "";
       return;
     }

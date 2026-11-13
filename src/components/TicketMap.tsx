@@ -125,15 +125,15 @@ const resolveLocationQuality = (
 
   if (hasAddress) {
     return {
-      label: 'Direccion detectada',
+      label: 'Dirección detectada',
       detail: 'Pendiente de coordenadas precisas',
       tone: 'text-amber-100 border-amber-300/30 bg-amber-500/15',
     };
   }
 
   return {
-    label: 'Sin ubicacion',
-    detail: 'Esperando direccion o GPS',
+    label: 'Sin ubicación',
+    detail: 'Esperando dirección o GPS',
     tone: 'text-slate-200 border-white/15 bg-slate-950/45',
   };
 };
@@ -236,7 +236,7 @@ const TicketMap: React.FC<TicketMapProps> = ({
   ticket,
   className,
   hideTitle = false,
-  title = 'Ubicacion aproximada',
+  title = 'Ubicación aproximada',
   heightClassName,
   showAddressHint = true,
   showOverlay = true,

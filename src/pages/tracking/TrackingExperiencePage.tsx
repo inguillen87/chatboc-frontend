@@ -1013,8 +1013,8 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
               size="icon"
               onClick={copyTrackingCode}
               disabled={trackingCodeLabel === "-"}
-              aria-label="Copiar codigo de seguimiento"
-              title="Copiar codigo de seguimiento"
+              aria-label="Copiar código de seguimiento"
+              title="Copiar código de seguimiento"
             >
               <Clipboard />
             </Button>
