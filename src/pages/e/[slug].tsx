@@ -33,7 +33,7 @@ import {
   trackSurveySubmission,
   trackSurveyDemoInteraction,
 } from '@/utils/surveyAnalytics';
-import { mapSurveyError } from '@/utils/mapSurveyError';
+import { mapSurveyError, SURVEY_ERROR_FALLBACK_DESCRIPTION } from '@/utils/mapSurveyError';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
 import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
@@ -783,7 +783,7 @@ const PublicSurveyPage = () => {
     return {
       ...mapped,
       title: mapped.title,
-      subtitle: !isTransientError && mapped.description === 'Probá nuevamente en unos segundos.' ? 'Solicitá un enlace vigente a la organización o consultá las encuestas disponibles.' : normalizedDescription,
+      subtitle: !isTransientError && mapped.description === SURVEY_ERROR_FALLBACK_DESCRIPTION ? 'Solicitá un enlace vigente a la organización o consultá las encuestas disponibles.' : normalizedDescription,
       actionHint: !isTransientError && mapped.actionHint !== 'go_home' ? 'view_other_surveys' : mapped.actionHint,
       primaryLabel: !isTransientError && mapped.actionHint !== 'go_home' ? 'Ver encuestas' : payloadPrimaryCta ?? mapped.primaryCta,
       secondaryLabel: mode !== 'embed' ? payloadSecondaryCta ?? mapped.secondaryCta : null,

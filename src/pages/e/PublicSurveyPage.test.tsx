@@ -396,6 +396,17 @@ describe('PublicSurveyPage loading experience', () => {
     expect(retryLoad).not.toHaveBeenCalled();
   });
 
+  it('asks for a valid link, not a quick retry, after a definitive error without a public description', async () => {
+    mocks.useSurveyPublic.mockReturnValue({
+      ...mocks.useSurveyPublic(), isLoading: false, error: 'Acceso denegado',
+      errorStatus: 403, errorDetails: { retryable: false }, errorReasonCode: undefined, isTransientError: false, retryLoad: vi.fn(),
+    });
+    render(<MemoryRouter initialEntries={['/e/unavailable?tenant_slug=tenant']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/e/:slug" element={<PublicSurveyPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText('Solicitá un enlace vigente a la organización o consultá las encuestas disponibles.')).toBeInTheDocument();
+    expect(screen.queryByText(/nuevamente en unos segundos/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver encuestas' })).toBeInTheDocument();
+  });
+
   it('vetoes survey and socket snapshots after live public access is withdrawn', async () => {
     const survey = {
       ...publicBrandSurvey({ slug: 'tenant', nombre: 'Organización' }, 'tenant'),
