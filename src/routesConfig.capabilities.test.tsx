@@ -88,7 +88,7 @@ describe('routesConfig route capabilities', () => {
     const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
     const content = fs.readFileSync(routesConfigPath, 'utf8');
 
-    expect(content).toContain("...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage />, allowGuest: true })");
+    expect(content).toContain("...withTenantPrefixes('/:tenant/cart', { tenantHost: 'public', element: <MarketCartPage />, allowGuest: true })");
     expect(content).not.toContain("...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> })");
   });
 

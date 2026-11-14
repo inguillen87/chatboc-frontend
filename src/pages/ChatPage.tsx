@@ -1,11 +1,11 @@
 // src/pages/ChatPage.tsx
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { apiFetch, ApiError, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
@@ -32,6 +32,12 @@ import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid'; // <--- IMPORTAR uuid
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useTenantContextPresence } from '@/context/TenantContext';
+import { audioRecoveryMessage, captureAudioRecoveryOwner } from '@/features/chat/audioRecovery';
+import { subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { usePanelSessionStore } from '@/stores';
+import { useSessionAuthority } from '@/components/access/SessionAuthorityContext';
+import { readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
 
 // Si SendPayload no está en @/types/chat.ts o necesita ser específico aquí:
 // interface SendPayload {
@@ -56,6 +62,21 @@ const FRASES_EXITO = [
   "Tu número de chat es", "ticket **M-",
 ];
 
+// Scalar observation only retires an attempt; store data never grants authority.
+const audioStoreRetirementKey = (state: ReturnType<typeof usePanelSessionStore.getState>) => {
+  const user = state.user;
+  const scalar = (value: unknown) => typeof value === 'string' || typeof value === 'number'
+    || typeof value === 'boolean' ? value : value == null ? null : 'invalid';
+  return JSON.stringify([
+    state.authToken, user?.id, user?.tenant_id, user?.tenant?.id,
+    user?.tenant_slug, user?.tenantSlug, user?.tenant?.slug, user?.tenant?.tenant_slug,
+    user?.organization_profile?.contract_version,
+    user?.organization_profile?.tenant?.id, user?.organization_profile?.tenant?.slug,
+    user?.organization_workspace?.contract_version,
+    user?.organization_workspace?.tenant?.id, user?.organization_workspace?.tenant?.slug,
+  ].map(scalar));
+};
+
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -74,7 +95,12 @@ const ChatPage = () => {
   const ultimoMensajeIdRef = useRef<number>(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { user, refreshUser, loading } = useUser();
+  const { user, refreshUser, loading, organizationProfileVerified } = useUser();
+  const { hasVerifiedSession } = useSessionAuthority();
+  const privateAudioIdentity = readVerifiedOrganizationIdentity(user, {
+    hasVerifiedSession, profileVerified: organizationProfileVerified === true, loading,
+  });
+  const tenantContext = useTenantContextPresence();
   const isDarkMode = useDarkMode();
   const authToken = safeLocalStorage.getItem("authToken");
   const isAnonimo = !authToken;
@@ -113,6 +139,51 @@ const ChatPage = () => {
   const tipoChat: "pyme" | "municipio" = esRubroPublico(rubroNormalizado) ? "municipio" : "pyme";
   const isMobile = useIsMobile();
   const welcomeRef = useRef(false);
+  const [audioRetirementGeneration, setAudioRetirementGeneration] = useState(0);
+  // Transient ownership only: this key is never rendered, persisted or sent.
+  const audioPageScope = JSON.stringify([
+    authToken, anonId, user?.id ?? null, tipoChat, rubroNormalizado,
+    activeTicketId, tenantContext?.currentSlug ?? null,
+    tenantContext?.tenant?.slug ?? null,
+    tenantContext?.tenant?.publishedIdentity?.tenantId ?? null,
+    tenantContext?.isLoadingTenant ?? false, Boolean(tenantContext?.tenantError),
+    privateAudioIdentity?.tenantId ?? null, privateAudioIdentity?.tenantSlug ?? null,
+    hasVerifiedSession, organizationProfileVerified === true, loading,
+  ]);
+  const audioContextKey = JSON.stringify([audioPageScope, audioRetirementGeneration]);
+  const audioGenerationRef = useRef(0);
+  const audioMountedRef = useRef(false);
+  const typingOwnerRef = useRef<symbol | null>(null);
+  const audioTypingOwnerRef = useRef<symbol | null>(null);
+  const retireAudioTyping = useCallback(() => {
+    if (audioTypingOwnerRef.current && typingOwnerRef.current === audioTypingOwnerRef.current) {
+      typingOwnerRef.current = null;
+      setIsTyping(false);
+    }
+    audioTypingOwnerRef.current = null;
+  }, []);
+  useLayoutEffect(() => {
+    audioGenerationRef.current += 1;
+    audioMountedRef.current = true;
+    retireAudioTyping();
+    return () => { audioMountedRef.current = false; audioGenerationRef.current += 1; };
+  }, [audioPageScope, retireAudioTyping]);
+  useLayoutEffect(() => subscribeChatbocSessionRevision(() => {
+    audioGenerationRef.current += 1;
+    retireAudioTyping();
+  }), [retireAudioTyping]);
+  useLayoutEffect(() => {
+    let previous = audioStoreRetirementKey(usePanelSessionStore.getState());
+    return usePanelSessionStore.subscribe(state => {
+      const current = audioStoreRetirementKey(state);
+      if (current === previous) return;
+      previous = current;
+      // Retire synchronously, including A-B-A before React renders again.
+      audioGenerationRef.current += 1;
+      retireAudioTyping();
+      setAudioRetirementGeneration(generation => generation + 1);
+    });
+  }, [retireAudioTyping]);
 
   useEffect(() => {
     if (!welcomeRef.current && messages.length === 0) {
@@ -263,6 +334,13 @@ const ChatPage = () => {
   const handleSend = useCallback(
     async (payload: TypeSendPayload) => {
       const userMessageText = payload.text.trim();
+      const audioRecovery = payload.audioRecovery;
+      const audioGeneration = audioGenerationRef.current;
+      const pageAudioIsCurrent = audioRecovery ? captureAudioRecoveryOwner(() =>
+        audioMountedRef.current && audioGenerationRef.current === audioGeneration,
+      ) : () => true;
+      const audioIsCurrent = () => pageAudioIsCurrent() && audioRecovery?.isCurrent() !== false;
+      if (audioRecovery && !audioIsCurrent()) return;
 
       // No enviar si es solo un texto vacío y no hay adjunto ni acción
       if (!userMessageText && !payload.attachmentInfo && !payload.action && !payload.ubicacion_usuario) {
@@ -298,7 +376,24 @@ const ChatPage = () => {
       };
       setMessages((prev) => [...prev, userMessageObject]);
       lastQueryRef.current = userMessageText; 
+      const typingOwner = Symbol('chat-page-send');
+      typingOwnerRef.current = typingOwner;
+      audioTypingOwnerRef.current = audioRecovery ? typingOwner : null;
       setIsTyping(true);
+      const releaseTyping = () => {
+        if (typingOwnerRef.current !== typingOwner) return;
+        typingOwnerRef.current = null;
+        if (!audioRecovery || pageAudioIsCurrent()) setIsTyping(false);
+      };
+      if (audioRecovery) audioRecovery.onPending?.(releaseTyping);
+      let audioAcknowledged = false;
+      const acknowledgeAudio = () => {
+        if (audioRecovery && audioIsCurrent()) {
+          audioAcknowledged = true;
+          audioRecovery.onSuccess();
+          releaseTyping();
+        }
+      };
 
       try {
         if (activeTicketId) {
@@ -313,12 +408,20 @@ const ChatPage = () => {
             body.foto_url = payload.archivo_url; // Legado
           }
 
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
+          const reply = await apiFetch<any>(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
             body: body,
             sendAnonId: isAnonimo,
             sendEntityToken: true,
+            ...(audioRecovery ? { singleAttempt: true, isCurrent: audioIsCurrent } : {}),
           });
+          if (audioRecovery && !audioIsCurrent()) return;
+          if (audioRecovery && reply?.success === true && reply.ticket_id === activeTicketId &&
+            ['tickets.public_chat_reply.v1', 'tickets.public_chat_reply.v2'].includes(reply.contract_version)) {
+            acknowledgeAudio();
+          } else if (audioRecovery) {
+            audioRecovery.onFailure({ message: audioRecoveryMessage(false) });
+          }
           requestTicketHistoryEmail({
             tipo: tipoChat,
             ticketId: activeTicketId,
@@ -365,7 +468,9 @@ const ChatPage = () => {
             body: requestPayload,
             skipAuth: !authToken,
             sendEntityToken: true,
+            ...(audioRecovery ? { singleAttempt: true, isCurrent: audioIsCurrent } : {}),
           });
+          if (audioRecovery && !audioIsCurrent()) return;
 
           setContexto(data.contexto_actualizado || {});
 
@@ -386,6 +491,10 @@ const ChatPage = () => {
           };
           setMessages((prev) => [...prev, botMessage]);
           lastQueryRef.current = null;
+          if (audioRecovery) {
+            if (typeof data.respuesta_usuario === 'string' && data.respuesta_usuario.trim()) acknowledgeAudio();
+            else audioRecovery.onFailure({ message: audioRecoveryMessage(false) });
+          }
 
           if (data.ticket_id) {
             const wasNewTicket = !activeTicketId;
@@ -411,9 +520,21 @@ const ChatPage = () => {
                 });
             }
           }
-          if (!isAnonimo) await refreshUser();
+          if (!isAnonimo) {
+            if (audioAcknowledged) {
+              // Profile refresh is secondary to the already acknowledged message.
+              try { await refreshUser(); }
+              catch (error) { if (audioIsCurrent()) console.error('Error refreshing user after audio reply:', error); }
+            } else await refreshUser();
+          }
         }
       } catch (error: any) {
+        if (audioRecovery && !audioIsCurrent()) return;
+        if (audioRecovery && !audioAcknowledged) {
+          // 400 is a determined rejection, unlike a lost or unavailable ACK.
+          audioRecovery.onFailure({ message: error instanceof ApiError && error.status === 400
+            ? getErrorMessage(error) : audioRecoveryMessage(false) });
+        }
         const errorMsg = getErrorMessage(
           error,
           '⚠️ No se pudo conectar con el servidor.'
@@ -435,7 +556,7 @@ const ChatPage = () => {
           duration: 5000,
         });
       } finally {
-        setIsTyping(false);
+        releaseTyping();
       }
     },
     [esperandoDireccion, activeTicketId, isAnonimo, anonId, contexto, tipoChat, rubroNormalizado, authToken, fetchTicketInfo, refreshUser]
@@ -580,6 +701,7 @@ const ChatPage = () => {
               <ChatInput
                 onSendMessage={handleSend} // handleSend se pasa a ChatInput
                 isTyping={isTyping}
+                audioContextKey={audioContextKey}
               />
             ) : (
               <p className="text-center text-sm text-muted-foreground py-2">Conversación finalizada.</p>

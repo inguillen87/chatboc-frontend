@@ -16,6 +16,7 @@ import Layout from "./components/layout/Layout";
 import NotFound from "./pages/NotFound";
 import routes from "./routesConfig";
 import AccessRoute from "@/components/access/AccessRoute";
+import { TenantHostRouteBoundary } from "@/components/tenant/TenantHostRouteBoundary";
 import SessionBootstrapGuard from "@/components/access/SessionBootstrapGuard";
 import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
@@ -465,6 +466,7 @@ function AppRoutes() {
   }, [ocultarWidgetGlobalEnApp]);
 
   return (
+    <TenantHostRouteBoundary routes={routes}>
     <TokenRedirectWrapper>
       <React.Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
@@ -539,6 +541,7 @@ function AppRoutes() {
         </React.Suspense>
       )}
     </TokenRedirectWrapper>
+    </TenantHostRouteBoundary>
   );
 }
 

@@ -136,6 +136,8 @@ const UserAccountPage = React.lazy(() => import('@/pages/user-portal/UserAccount
 
 export interface RouteConfig {
   path: string;
+  tenantHost?: 'public' | 'private';
+  tenantHostParam?: 'tenant' | 'tenantSlug' | 'slug';
   element: React.ReactElement;
   requiresSession?: boolean; // Bloquea el bootstrap privado antes de montar providers remotos
   roles?: string[]; // Roles para admin/empleado de Chatboc
@@ -241,6 +243,8 @@ const withTenantPrefixes = (
 ): RouteConfig[] =>
   TENANT_ROUTE_PREFIXES.filter((prefix) => prefix === 't').map((prefix) => ({
     ...config,
+    tenantHost: config.tenantHost,
+    tenantHostParam: config.tenantHostParam ?? (pathSuffix.startsWith('/:tenant') ? 'tenant' : undefined),
     path: `/${prefix}${pathSuffix}`,
   }));
 
@@ -253,61 +257,63 @@ const withTenantPrefixesExcept = (
 
   return TENANT_ROUTE_PREFIXES.filter((prefix) => !exclusionSet.has(prefix.toLowerCase())).map((prefix) => ({
     ...config,
+    tenantHost: config.tenantHost,
+    tenantHostParam: config.tenantHostParam ?? (pathSuffix.startsWith('/:tenant') ? 'tenant' : undefined),
     path: `/${prefix}${pathSuffix}`,
   }));
 };
 
 const userPortalRoutes: RouteConfig[] = [
   {
-    path: '/portal/dashboard',
+    path: '/portal/dashboard', tenantHost: 'public',
     element: <UserDashboardPage />,
     userPortal: true,
     allowGuest: true
   },
   {
-    path: '/portal/catalogo',
+    path: '/portal/catalogo', tenantHost: 'public',
     element: <UserCatalogPage />,
     userPortal: true,
     allowGuest: true
   },
   {
-    path: '/portal/pedidos',
+    path: '/portal/pedidos', tenantHost: 'public',
     element: <UserOrdersPage />,
     userPortal: true,
     allowGuest: true
   },
   {
-    path: '/portal/reclamos',
+    path: '/portal/reclamos', tenantHost: 'public',
     element: <UserClaimsPage />,
     userPortal: true,
     allowGuest: true
   },
   {
-    path: '/portal/noticias',
+    path: '/portal/noticias', tenantHost: 'public',
     element: <UserNewsPage />,
     userPortal: true,
     allowGuest: true,
   },
   {
-    path: '/portal/eventos',
+    path: '/portal/eventos', tenantHost: 'public',
     element: <UserEventsPage />,
     userPortal: true,
     allowGuest: true,
   },
   {
-    path: '/portal/beneficios',
+    path: '/portal/beneficios', tenantHost: 'public',
     element: <UserBenefitsPage />,
     userPortal: true,
     allowGuest: true,
   },
   {
-    path: '/portal/encuestas',
+    path: '/portal/encuestas', tenantHost: 'public',
     element: <UserSurveysPage />,
     userPortal: true,
     allowGuest: true,
   },
   {
-    path: '/portal/cuenta',
+    path: '/portal/cuenta', tenantHost: 'public',
     element: <UserAccountPage />,
     userPortal: true,
     allowGuest: true,
@@ -316,17 +322,17 @@ const userPortalRoutes: RouteConfig[] = [
 
 const publicLegacyRoutes: RouteConfig[] = [
   {
-    path: '/noticias/eventos',
+    path: '/noticias/eventos', tenantHost: 'public',
     element: <TenantEventsPage />,
     allowGuest: true,
   },
   {
-    path: '/noticias/encuestas',
+    path: '/noticias/encuestas', tenantHost: 'public',
     element: <PublicSurveysIndex />,
     allowGuest: true,
   },
   {
-    path: '/municipio/reclamos/nuevo',
+    path: '/municipio/reclamos/nuevo', tenantHost: 'public',
     element: <TenantTicketFormPage />,
     allowGuest: true,
   },
@@ -344,6 +350,8 @@ const canonicalTenantPortalRoutes: RouteConfig[] = userPortalRoutes.flatMap((rou
     element: route.element,
     userPortal: route.userPortal,
     allowGuest: route.allowGuest,
+    tenantHost: route.tenantHost,
+    tenantHostParam: route.tenantHostParam,
     roles: route.roles,
     requiredCapabilities: route.requiredCapabilities,
     requiredAllCapabilities: route.requiredAllCapabilities,
@@ -355,94 +363,94 @@ const routes: RouteConfig[] = [
   // --- SPECIFIC ROUTES FIRST (Priority) ---
 
   // Cart & Checkout (Tenant) - Must be before generic tenant home
-  ...withTenantPrefixes('/:tenant/cart', { element: <MarketCartPage />, allowGuest: true }),
-  ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
-  ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
-  ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
+  ...withTenantPrefixes('/:tenant/cart', { tenantHost: 'public', element: <MarketCartPage />, allowGuest: true }),
+  ...withTenantPrefixes('/:tenant/productos', { tenantHost: 'public', element: <ProductCatalog /> }),
+  ...withTenantPrefixes('/:tenant/checkout-productos', { tenantHost: 'public', element: <ProductCheckoutPage /> }),
+  ...withTenantPrefixes('/:tenant/pedido/confirmado', { tenantHost: 'public', element: <OrderConfirmationPage /> }),
 
   // FIX: Short routes for direct access (e.g. /municipio/productos without slug)
   // This allows the router to match /municipio/productos specifically before /municipio/:tenant (where tenant="productos")
-  ...withTenantPrefixes('/cart', { element: <CartPage /> }),
-  ...withTenantPrefixes('/productos', { element: <ProductCatalog /> }),
-  ...withTenantPrefixes('/checkout-productos', { element: <ProductCheckoutPage /> }),
-  ...withTenantPrefixes('/encuestas', { element: <PublicSurveysIndex /> }),
+  ...withTenantPrefixes('/cart', { tenantHost: 'public', element: <CartPage /> }),
+  ...withTenantPrefixes('/productos', { tenantHost: 'public', element: <ProductCatalog /> }),
+  ...withTenantPrefixes('/checkout-productos', { tenantHost: 'public', element: <ProductCheckoutPage /> }),
+  ...withTenantPrefixes('/encuestas', { tenantHost: 'public', element: <PublicSurveysIndex /> }),
 
   // Market specific
-  ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage />, allowGuest: true }),
-  ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage />, allowGuest: true }),
-  ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage />, allowGuest: true }),
+  ...withTenantPrefixes('/:tenant/market', { tenantHost: 'public', element: <MarketCatalogPage />, allowGuest: true }),
+  ...withTenantPrefixes('/:tenant/product/:slug', { tenantHost: 'public', element: <MarketProductPage />, allowGuest: true }),
+  ...withTenantPrefixes('/:tenant/checkout', { tenantHost: 'public', element: <MarketCheckoutPage />, allowGuest: true }),
   ...withTenantPrefixes('/:tenant/market/blueprint', { element: <MarketplaceBlueprintPage /> }),
 
   // Tenant Portal Sections
-  ...withTenantPrefixes('/:tenant/noticias', { element: <TenantNewsPage /> }),
-  ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
-  ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
+  ...withTenantPrefixes('/:tenant/noticias', { tenantHost: 'public', element: <TenantNewsPage /> }),
+  ...withTenantPrefixes('/:tenant/eventos', { tenantHost: 'public', element: <TenantEventsPage /> }),
+  ...withTenantPrefixes('/:tenant/reclamos/nuevo', { tenantHost: 'public', element: <TenantTicketFormPage /> }),
 
   // Explicit aliases to match user mental model
-  ...withTenantPrefixes('/:tenant/reclamos', {
+  ...withTenantPrefixes('/:tenant/reclamos', { tenantHost: 'private',
     element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
-  ...withTenantPrefixes('/:tenant/tickets/board', {
+  ...withTenantPrefixes('/:tenant/tickets/board', { tenantHost: 'private',
     element: <TicketsBoardPage />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
-  ...withTenantPrefixes('/:tenant/tickets', {
+  ...withTenantPrefixes('/:tenant/tickets', { tenantHost: 'private',
     element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
-  ...withTenantPrefixes('/:tenant/inbox', {
+  ...withTenantPrefixes('/:tenant/inbox', { tenantHost: 'private',
     element: <TenantTicketWorkspaceRoute />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   }),
-  ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
-  ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
-  ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
-  ...withTenantPrefixes('/:tenant/categorias', { element: <CategoryManagementPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
+  ...withTenantPrefixes('/:tenant/pedidos', { tenantHost: 'private', element: <SmartPedidosWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos/:id', { tenantHost: 'private', element: <AdminOrderDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/notificaciones', { tenantHost: 'private', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/categorias', { tenantHost: 'private', element: <CategoryManagementPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
 
   // CRM
-  ...withTenantPrefixes('/:tenant/crm/clientes', { element: <ClientsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
-  ...withTenantPrefixes('/:tenant/crm/clientes/:contactId', { element: <ClientDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/crm/clientes', { tenantHost: 'private', element: <ClientsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/crm/clientes/:contactId', { tenantHost: 'private', element: <ClientDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
 
   // Surveys
   ...(FEATURE_ENCUESTAS
     ? [
-        { path: '/encuestas', element: <PublicSurveysIndex /> },
-        { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
-        { path: '/e/:slug', element: <PublicSurveyPage /> },
+        { path: '/encuestas', tenantHost: 'public', element: <PublicSurveysIndex /> },
+        { path: '/encuestas/:slug/qr', tenantHost: 'public', element: <SurveyQrPage /> },
+        { path: '/e/:slug', tenantHost: 'public', element: <PublicSurveyPage /> },
         { path: '/pruebas/encuestas/:tenantSlug/:runId', element: <RehearsalPage />, allowGuest: true },
-        ...withTenantPrefixes('/:tenant/encuestas', { element: <TenantSurveyListPage /> }),
-        ...withTenantPrefixes('/:tenant/encuestas/:slug', { element: <TenantSurveyDetailPage /> }),
-      ]
+        ...withTenantPrefixes('/:tenant/encuestas', { tenantHost: 'public', element: <TenantSurveyListPage /> }),
+        ...withTenantPrefixes('/:tenant/encuestas/:slug', { tenantHost: 'public', element: <TenantSurveyDetailPage /> }),
+      ] satisfies RouteConfig[]
     : []),
 
   // Auth (Tenant)
-  ...withTenantPrefixes('/:tenant/login', { element: <Login /> }),
-  ...withTenantPrefixes('/:tenant/register', { element: <UserRegister /> }),
-  ...withTenantPrefixes('/:tenant/user/login', { element: <UserLogin /> }),
-  ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
+  ...withTenantPrefixes('/:tenant/login', { tenantHost: 'public', element: <Login /> }),
+  ...withTenantPrefixes('/:tenant/register', { tenantHost: 'public', element: <UserRegister /> }),
+  ...withTenantPrefixes('/:tenant/user/login', { tenantHost: 'public', element: <UserLogin /> }),
+  ...withTenantPrefixes('/:tenant/user/register', { tenantHost: 'public', element: <UserRegister /> }),
 
   // Integrations & Admin (Tenant Scoped)
-  ...withTenantPrefixes('/:tenant/integracion', {
+  ...withTenantPrefixes('/:tenant/integracion', { tenantHost: 'private',
     element: <IntegracionesPage />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['settings.tenant.write'],
   }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/new', {
+  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { tenantHost: 'private',
     element: <CatalogMappingPage />,
     roles: ['tenant_admin', 'superadmin', 'catalog_manager'],
     requiredAllCapabilities: ['market.catalog.write'],
   }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', {
+  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { tenantHost: 'private',
     element: <CatalogMappingPage />,
     roles: ['tenant_admin', 'superadmin', 'catalog_manager'],
     requiredAllCapabilities: ['market.catalog.write'],
   }),
-  ...withTenantPrefixes('/:tenant/admin/catalog', {
+  ...withTenantPrefixes('/:tenant/admin/catalog', { tenantHost: 'private',
     element: <CatalogManagementPage />,
     roles: ['tenant_admin', 'superadmin', 'empleado'],
     requiredAllCapabilities: ['market.catalog.write'],
@@ -452,46 +460,46 @@ const routes: RouteConfig[] = [
   // --- EDUCATION FOUNDATION ROUTES ---
   ...(EDUCATION_FEATURE_FLAGS.education_enabled
     ? [
-        { path: '/educacion', element: <EducationPublicPage /> },
+        { path: '/educacion', tenantHost: 'public', element: <EducationPublicPage /> },
         ...(EDUCATION_FEATURE_FLAGS.family_portal_enabled
           ? [
-              { path: '/educacion/familia', element: <EducationFamilyHomePage />, allowGuest: true },
-              { path: '/educacion/familia/verificacion', element: <EducationFamilyVerificationPage />, allowGuest: true },
-            ]
+              { path: '/educacion/familia', tenantHost: 'public', element: <EducationFamilyHomePage />, allowGuest: true },
+              { path: '/educacion/familia/verificacion', tenantHost: 'public', element: <EducationFamilyVerificationPage />, allowGuest: true },
+            ] satisfies RouteConfig[]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.attendance_enabled
-          ? [{ path: '/educacion/familia/asistencia', element: <EducationAttendancePage />, allowGuest: true }]
+          ? [{ path: '/educacion/familia/asistencia', tenantHost: 'public', element: <EducationAttendancePage />, allowGuest: true }] satisfies RouteConfig[]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.documents_enabled
-          ? [{ path: '/educacion/familia/documentos', element: <EducationDocumentsPage />, allowGuest: true }]
+          ? [{ path: '/educacion/familia/documentos', tenantHost: 'public', element: <EducationDocumentsPage />, allowGuest: true }] satisfies RouteConfig[]
           : []),
-        { path: '/educacion/staff/inbox', element: <EducationStaffLegacyRedirect />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-        { path: '/t/:tenant/educacion/staff/inbox', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/educacion/staff/inbox', tenantHost: 'private', element: <EducationStaffLegacyRedirect />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/t/:tenant/educacion/staff/inbox', tenantHost: 'private', tenantHostParam: 'tenant', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         ...(EDUCATION_FEATURE_FLAGS.admissions_enabled
           ? [
-              { path: '/educacion/staff/admisiones', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+              { path: '/educacion/staff/admisiones', tenantHost: 'private', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
               {
-                path: '/t/:tenant/educacion/staff/admisiones',
+                path: '/t/:tenant/educacion/staff/admisiones', tenantHost: 'private', tenantHostParam: 'tenant',
                 element: <EducationAdmissionsPage />,
                 roles: ['tenant_admin', 'employee', 'superadmin'],
                 requiredAllCapabilities: ['interviews.cases.read'],
               },
               {
-                path: '/t/:tenant/educacion/staff/admisiones/:sessionId',
+                path: '/t/:tenant/educacion/staff/admisiones/:sessionId', tenantHost: 'private', tenantHostParam: 'tenant',
                 element: <EducationAdmissionsPage />,
                 roles: ['tenant_admin', 'employee', 'superadmin'],
                 requiredAllCapabilities: ['interviews.sessions.conduct'],
               },
-            ]
+            ] satisfies RouteConfig[]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.billing_enabled
-          ? [{ path: '/educacion/staff/cobranzas', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          ? [{ path: '/educacion/staff/cobranzas', tenantHost: 'private', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }] satisfies RouteConfig[]
           : []),
-      ]
+      ] satisfies RouteConfig[]
     : []),
 
   // --- USER PORTAL ROUTES ---
-  { path: '/portal/:tenant', element: <PortalTenantEntryRedirect />, userPortal: true, allowGuest: true },
+  { path: '/portal/:tenant', tenantHost: 'public', tenantHostParam: 'tenant', element: <PortalTenantEntryRedirect />, userPortal: true, allowGuest: true },
   ...userPortalRoutes,
   ...canonicalTenantPortalRoutes,
   ...tenantPortalRoutes,
@@ -499,49 +507,49 @@ const routes: RouteConfig[] = [
 
   // --- GENERIC / FALLBACK ROUTES ---
 
-  { path: '/', element: <TenantHostHomeRoute><Index /></TenantHostHomeRoute> },
+  { path: '/', tenantHost: 'public', element: <TenantHostHomeRoute><Index /></TenantHostHomeRoute> },
 
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
-  { path: '/:tenant/productos', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
-  { path: '/:tenant/catalogo', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
-  { path: '/:tenant/cart', element: <LegacyTenantAliasRedirect suffix="/cart" /> },
-  { path: '/:tenant/checkout-productos', element: <LegacyTenantAliasRedirect suffix="/checkout-productos" /> },
-  { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
+  { path: '/:tenant/productos', tenantHost: 'public', tenantHostParam: 'tenant', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/catalogo', tenantHost: 'public', tenantHostParam: 'tenant', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/cart', tenantHost: 'public', tenantHostParam: 'tenant', element: <LegacyTenantAliasRedirect suffix="/cart" /> },
+  { path: '/:tenant/checkout-productos', tenantHost: 'public', tenantHostParam: 'tenant', element: <LegacyTenantAliasRedirect suffix="/checkout-productos" /> },
+  { path: '/:tenant/pedido/confirmado', tenantHost: 'public', tenantHostParam: 'tenant', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
   // Public Order Tracking
-  { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
-  { path: '/tracking/claim', element: <TrackingExperiencePage kind="claim" /> },
-  { path: '/tracking/claim/:code', element: <TrackingExperiencePage kind="claim" /> },
-  { path: '/tracking/order', element: <TrackingExperiencePage kind="order" /> },
-  { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
-  { path: '/t/chat/:ticketId', element: <TwilioTicketTemplateRedirect /> },
-  { path: '/chat/chat/:ticketId', element: <LegacyDoubleChatTicketRedirect /> },
-  { path: '/catalogo/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/market" />, allowGuest: true },
-  { path: '/checkout/:slug', element: <LegacyPublicTenantSlugRedirect suffix="/checkout" />, allowGuest: true },
-  { path: '/finanzas/:tenantSlug/:flow/:operationCode', element: <FinanceWebviewPage />, allowGuest: true },
+  { path: '/pyme/pedidos/:nro_pedido', tenantHost: 'public', element: <OrderTrackingPage /> },
+  { path: '/tracking/claim', tenantHost: 'public', element: <TrackingExperiencePage kind="claim" /> },
+  { path: '/tracking/claim/:code', tenantHost: 'public', element: <TrackingExperiencePage kind="claim" /> },
+  { path: '/tracking/order', tenantHost: 'public', element: <TrackingExperiencePage kind="order" /> },
+  { path: '/tracking/order/:code', tenantHost: 'public', element: <TrackingExperiencePage kind="order" /> },
+  { path: '/t/chat/:ticketId', tenantHost: 'public', element: <TwilioTicketTemplateRedirect /> },
+  { path: '/chat/chat/:ticketId', tenantHost: 'public', element: <LegacyDoubleChatTicketRedirect /> },
+  { path: '/catalogo/:slug', tenantHost: 'public', tenantHostParam: 'slug', element: <LegacyPublicTenantSlugRedirect suffix="/market" />, allowGuest: true },
+  { path: '/checkout/:slug', tenantHost: 'public', tenantHostParam: 'slug', element: <LegacyPublicTenantSlugRedirect suffix="/checkout" />, allowGuest: true },
+  { path: '/finanzas/:tenantSlug/:flow/:operationCode', tenantHost: 'public', tenantHostParam: 'tenantSlug', element: <FinanceWebviewPage />, allowGuest: true },
   // Missing root integration route
   {
-    path: '/:tenant/integracion',
+    path: '/:tenant/integracion', tenantHost: 'private', tenantHostParam: 'tenant',
     element: <LegacyTenantAliasRedirect suffix="/integracion" />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['settings.tenant.write'],
   },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
-  ...withTenantPrefixes('/:tenant', { element: <TenantHomeRoute /> }),
-  { path: '/:tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
+  ...withTenantPrefixes('/:tenant', { tenantHost: 'public', element: <TenantHomeRoute /> }),
+  { path: '/:tenant', tenantHost: 'public', tenantHostParam: 'tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
 
   // Global Routes
-  { path: '/admin', element: <Navigate to="/perfil" replace />, requiresSession: true },
-  { path: '/login', element: <Login /> },
+  { path: '/admin', tenantHost: 'private', element: <Navigate to="/perfil" replace />, requiresSession: true },
+  { path: '/login', tenantHost: 'public', element: <Login /> },
   { path: '/register', element: <Register /> },
-  { path: '/sso-callback', element: <ClerkSsoCallbackPage /> },
-  { path: '/auth/sso-callback', element: <ClerkSsoCallbackPage /> },
-  { path: '/user/login', element: <UserLogin /> },
-  ...withTenantPrefixes('/:tenant/user/login', { element: <UserLogin /> }),
-  { path: '/user/register', element: <UserRegister /> },
-  ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
-  { path: '/cuenta', element: <UserAccount /> },
+  { path: '/sso-callback', tenantHost: 'public', element: <ClerkSsoCallbackPage /> },
+  { path: '/auth/sso-callback', tenantHost: 'public', element: <ClerkSsoCallbackPage /> },
+  { path: '/user/login', tenantHost: 'public', element: <UserLogin /> },
+  ...withTenantPrefixes('/:tenant/user/login', { tenantHost: 'public', element: <UserLogin /> }),
+  { path: '/user/register', tenantHost: 'public', element: <UserRegister /> },
+  ...withTenantPrefixes('/:tenant/user/register', { tenantHost: 'public', element: <UserRegister /> }),
+  { path: '/cuenta', tenantHost: 'public', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
   { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
@@ -561,10 +569,10 @@ const routes: RouteConfig[] = [
   { path: '/colegios', element: <Navigate to="/demo?sector=educacion" replace /> },
   { path: '/soluciones/gobierno', element: <Navigate to="/demo?sector=gobierno" replace /> },
   { path: '/soluciones/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
-  { path: '/perfil', element: <Perfil />, requiresSession: true },
-  { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/perfil', tenantHost: 'private', element: <Perfil />, requiresSession: true },
+  { path: '/enterprise', tenantHost: 'private', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
-    path: '/admin/knowledge',
+    path: '/admin/knowledge', tenantHost: 'private',
     element: <KnowledgeSourcesPage />,
     requiresSession: true,
     roles: ['tenant_admin', 'superadmin'],
@@ -572,18 +580,18 @@ const routes: RouteConfig[] = [
     enforceCapabilities: true,
   },
   {
-    path: '/implementacion',
+    path: '/implementacion', tenantHost: 'private',
     element: <TenantImplementationCenterPage />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['settings.tenant.write'],
   },
-  { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
-  { path: '/perfil/pedidos', element: <Navigate to="/pedidos" replace />, requiresSession: true },
+  { path: '/bot-settings', tenantHost: 'private', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
+  { path: '/perfil/pedidos', tenantHost: 'private', element: <Navigate to="/pedidos" replace />, requiresSession: true },
   { path: '/chat', element: <ChatPage /> },
-  { path: '/chat/:ticketId', element: <TicketLookup /> },
+  { path: '/chat/:ticketId', tenantHost: 'public', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
   { path: '/chatpos', element: <ChatPosPage /> },
-  { path: '/chatcrm', element: <ChatCRMPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/chatcrm', tenantHost: 'private', element: <ChatCRMPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/opinar', element: <OpinarArPage /> },
   {
     path: '/integracion/meta/credenciales',
@@ -592,65 +600,65 @@ const routes: RouteConfig[] = [
     roles: ['superadmin'],
   },
   {
-    path: '/integracion/whatsapp/connect',
+    path: '/integracion/whatsapp/connect', tenantHost: 'private',
     element: <WhatsappEmbeddedSignupPage />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['settings.tenant.write'],
   },
   {
-    path: '/integracion',
+    path: '/integracion', tenantHost: 'private',
     element: <Integracion />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['settings.tenant.write'],
   },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
-  { path: '/productos', element: <ProductCatalog /> },
-  { path: '/cart', element: <CartPage /> },
+  { path: '/productos', tenantHost: 'public', element: <ProductCatalog /> },
+  { path: '/cart', tenantHost: 'public', element: <CartPage /> },
   { path: '/market/blueprint', element: <MarketplaceBlueprintPage /> },
-  { path: '/checkout-productos', element: <ProductCheckoutPage /> },
-  { path: '/pedido/confirmado', element: <OrderConfirmationPage /> },
-  { path: '/legal/privacy', element: <Privacy /> },
-  { path: '/legal/terms', element: <Terms /> },
-  { path: '/legal/cookies', element: <Cookies /> },
-  { path: '/legal/data-deletion', element: <DataDeletion /> },
-  { path: '/privacidad', element: <Privacy /> },
-  { path: '/terminos', element: <Terms /> },
-  { path: '/eliminacion-datos', element: <DataDeletion /> },
+  { path: '/checkout-productos', tenantHost: 'public', element: <ProductCheckoutPage /> },
+  { path: '/pedido/confirmado', tenantHost: 'public', element: <OrderConfirmationPage /> },
+  { path: '/legal/privacy', tenantHost: 'public', element: <Privacy /> },
+  { path: '/legal/terms', tenantHost: 'public', element: <Terms /> },
+  { path: '/legal/cookies', tenantHost: 'public', element: <Cookies /> },
+  { path: '/legal/data-deletion', tenantHost: 'public', element: <DataDeletion /> },
+  { path: '/privacidad', tenantHost: 'public', element: <Privacy /> },
+  { path: '/terminos', tenantHost: 'public', element: <Terms /> },
+  { path: '/eliminacion-datos', tenantHost: 'public', element: <DataDeletion /> },
   {
-    path: '/tickets',
+    path: '/tickets', tenantHost: 'private',
     element: <TicketDeskRedirect />,
     requiresSession: true,
   },
-  { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/notificaciones', tenantHost: 'private', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
-    path: '/tickets/board',
+    path: '/tickets/board', tenantHost: 'private',
     element: <TicketsBoardPage />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: TICKET_READ_CAPABILITIES,
   },
-  { path: '/surveys', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  { path: '/analytics/hub', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  { path: '/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/surveys', tenantHost: 'private', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/analytics/hub', tenantHost: 'private', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/analytics/operations', tenantHost: 'private', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
-    path: '/pedidos',
+    path: '/pedidos', tenantHost: 'private',
     element: <SmartPedidosWrapper />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: ['market.orders.read'],
   },
   {
-    path: '/usuarios',
+    path: '/usuarios', tenantHost: 'private',
     element: <UsuariosPage />,
     roles: ['tenant_admin', 'superadmin'],
   },
   { path: '/notifications', element: <NotificationSettings /> },
-  { path: '/ticket', element: <TicketLookup /> },
-  { path: '/ticket/:ticketId', element: <TicketLookup /> },
+  { path: '/ticket', tenantHost: 'public', element: <TicketLookup /> },
+  { path: '/ticket/:ticketId', tenantHost: 'public', element: <TicketLookup /> },
   { path: '/historial', element: <CustomerHistory /> },
   { path: '/presupuestos', element: <BudgetRequest /> },
   { path: '/recordatorios', element: <Reminders /> },
   {
-    path: '/logs',
+    path: '/logs', tenantHost: 'private',
     element: <LogWorkbench />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: ['tickets.admin'],
@@ -658,69 +666,69 @@ const routes: RouteConfig[] = [
   { path: '/pyme/metrics', element: <BusinessMetrics /> },
   { path: '/crm/integrations', element: <CrmIntegrations /> },
   { path: '/consultas', element: <PredefinedQueries /> },
-  { path: '/403', element: <PermissionDenied /> },
+  { path: '/403', tenantHost: 'public', element: <PermissionDenied /> },
   ...(FEATURE_ENCUESTAS
     ? [
-        { path: '/admin/encuestas', element: <AdminSurveysIndex />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-        { path: '/admin/encuestas/new', element: <NewSurveyPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-        { path: '/admin/encuestas/:id', element: <SurveyDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-        { path: '/admin/encuestas/:id/analytics', element: <SurveyAnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-      ]
+        { path: '/admin/encuestas', tenantHost: 'private', element: <AdminSurveysIndex />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/admin/encuestas/new', tenantHost: 'private', element: <NewSurveyPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/admin/encuestas/:id', tenantHost: 'private', element: <SurveyDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/admin/encuestas/:id/analytics', tenantHost: 'private', element: <SurveyAnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+      ] satisfies RouteConfig[]
     : []),
-  { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/categorias', element: <CategoryManagementPage />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/pyme/catalog', tenantHost: 'private', element: <ProductCatalog />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/tramites', tenantHost: 'private', element: <TramitesCatalog />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/categorias', tenantHost: 'private', element: <CategoryManagementPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/usuarios', tenantHost: 'private', element: <InternalUsers />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/whatsapp', tenantHost: 'private', element: <WhatsappIntegration />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/integrations', tenantHost: 'private', element: <MunicipalSystems />, roles: ['tenant_admin', 'superadmin'] },
   {
-    path: '/municipal/surveys',
+    path: '/municipal/surveys', tenantHost: 'private',
     element: <SatisfactionSurveys />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
   },
-  { path: '/municipal/playbook', element: <MunicipalPlaybookPage />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/stats', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/municipal/incidents', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/playbook', tenantHost: 'private', element: <MunicipalPlaybookPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/message-metrics', tenantHost: 'private', element: <MunicipalMessageMetrics />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/analytics', tenantHost: 'private', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/stats', tenantHost: 'private', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/incidents', tenantHost: 'private', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
   {
-    path: '/estadisticas',
+    path: '/estadisticas', tenantHost: 'private',
     element: <EstadisticasPage />,
     roles: ['tenant_admin', 'superadmin'],
     requiredCapabilities: ['analytics.read'],
   },
-  { path: '/:tenant/estadisticas', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
-  ...withTenantPrefixes('/:tenant/estadisticas', { element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin', 'analytics_viewer'] }),
+  { path: '/:tenant/estadisticas', tenantHost: 'private', tenantHostParam: 'tenant', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/estadisticas', { tenantHost: 'private', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin', 'analytics_viewer'] }),
   {
-    path: '/analytics',
+    path: '/analytics', tenantHost: 'private',
     element: <AnalyticsPage />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: ['analytics.read'],
   },
-  { path: '/:tenant/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  ...withTenantPrefixes('/:tenant/analytics/operations', { element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
-  { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
-  { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-  ...withTenantPrefixes('/:tenant/perfil/plantillas-respuesta', {
+  { path: '/:tenant/analytics/operations', tenantHost: 'private', tenantHostParam: 'tenant', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/analytics/operations', { tenantHost: 'private', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
+  { path: '/:tenant/analytics', tenantHost: 'private', tenantHostParam: 'tenant', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/analytics', { tenantHost: 'private', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
+  { path: '/perfil/plantillas-respuesta', tenantHost: 'private', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/perfil/plantillas-respuesta', { tenantHost: 'private',
     element: <GestionPlantillasPage />,
     roles: ['tenant_admin', 'employee', 'superadmin'],
   }),
 
   {
-    path: '/admin/catalog',
+    path: '/admin/catalog', tenantHost: 'private',
     element: <CatalogManagementPage />,
     roles: ['tenant_admin', 'superadmin', 'empleado'],
     requiredAllCapabilities: ['market.catalog.write'],
   },
   {
-    path: '/catalog-mappings/new',
+    path: '/catalog-mappings/new', tenantHost: 'private',
     element: <CatalogMappingPage />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['market.catalog.write'],
   },
   {
-    path: '/catalog-mappings/:mappingId',
+    path: '/catalog-mappings/:mappingId', tenantHost: 'private',
     element: <CatalogMappingPage />,
     roles: ['tenant_admin', 'superadmin'],
     requiredAllCapabilities: ['market.catalog.write'],
