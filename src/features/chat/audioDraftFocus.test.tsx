@@ -5,6 +5,7 @@ import ChatInput from '@/components/chat/ChatInput';
 import ChatPanel from './ChatPanel';
 import { ApiError, apiFetch } from '@/utils/api';
 import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { useChatLogic } from '@/hooks/useChatLogic';
 vi.mock('@/utils/api', async original => ({ ...await original<typeof import('@/utils/api')>(), apiFetch: vi.fn() }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: null }) }));
 vi.mock('@/utils/widgetTelemetry', () => ({ trackWidgetEvent: vi.fn() }));
@@ -28,6 +29,7 @@ const prepare = { ok: true, contract_version: 'chat.attachment.direct.v1', opera
   constraints: { max_file_bytes: 1024, exact_size_required: true } };
 const uploaded = { ok: true, url: 'https://objects.example.test/synthetic-audio.webm', filename: 'synthetic-audio.webm', mime_type: 'audio/webm' };
 const caps = (endpoint: string) => ({ composer: { actions: [{ id: 'audio', type: 'audio', label: 'Nota de voz' }] }, input_modes: { audio: { enabled: true, chat_endpoint: endpoint, multipart_field: 'audio_file' } } });
+const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; };
 const context = (slug = 'synthetic-tdf', endpoint = '/ask') => ({ tipoChat: 'municipio' as const, sector: 'gobierno', tenantSlug: slug, chatBootstrap: {
   contract_version: 'demo.chat_bootstrap.v1', endpoint, method: 'POST', payload: { tipo_chat: 'municipio', tenant_slug: slug },
   session: { chat_session_id: 'synthetic-audio-session', tenant_slug: slug },
@@ -122,5 +124,84 @@ describe('audio draft keeps a keyboard exit after an upload or runtime error', (
     expect(screen.queryByRole('button', { name: 'Comprobar envío' })).toBeNull();
     expect(messageField()).not.toHaveFocus(); expect(document.activeElement).toBe(document.body);
     expect(apiFetch).toHaveBeenCalledOnce();
+  });
+});
+
+describe('explicit «Comprobar envío» keeps keyboard focus while it is pending', () => {
+  function HookInput() {
+    const logic = useChatLogic({ tipoChat: 'municipio', tenantSlug: 'synthetic-tdf', skipAuth: true, socketEnabled: false, autoInitEnabled: false });
+    return <><output data-testid="typing">{String(logic.isTyping)}</output>
+      {logic.messages.map(message => <p key={message.id}>{message.text}</p>)}
+      <ChatInput onSendMessage={payload => { void logic.handleSend(payload); }} isTyping={logic.isTyping} tenantSlug="synthetic-tdf" mediaCapabilities={caps('/ask/municipio')} /></>;
+  }
+
+  const expectPendingButKeptFocus = (retry: HTMLElement) => {
+    expect(retry).toBeInTheDocument();
+    expect(retry).not.toBeDisabled();
+    expect(retry).toHaveAttribute('aria-disabled', 'true');
+    expect(retry).toHaveFocus();
+  };
+
+  it('widget: the pressed button stays focused and inert until the same intent is confirmed', async () => {
+    const send = vi.fn(payload => payload.audioRecovery?.onSuccess()), ack = deferred<unknown>();
+    vi.mocked(apiFetch).mockResolvedValueOnce(prepare).mockRejectedValueOnce(new TypeError('completion_ack_lost')).mockReturnValueOnce(ack.promise);
+    render(<ChatInput onSendMessage={send} isTyping={false} tenantSlug="synthetic-tdf" />); await recordAndStop();
+    await screen.findByRole('button', { name: 'Comprobar envío' });
+    await act(async () => { activate('Comprobar envío'); });
+    const retry = screen.getByRole('button', { name: 'Comprobar envío' });
+    expectPendingButKeptFocus(retry);
+    fireEvent.keyDown(retry, { key: 'Enter' }); fireEvent.click(retry);
+    expect(apiFetch).toHaveBeenCalledTimes(3); expect(objectPut).toHaveBeenCalledOnce();
+    await act(async () => { ack.resolve(uploaded); });
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Comprobar envío' })).toBeNull());
+    expect(recordAction()).toHaveFocus();
+  });
+
+  it('web panel: the pressed button stays focused and inert until the municipal replay answers', async () => {
+    const ack = deferred<unknown>();
+    vi.mocked(apiFetch).mockRejectedValueOnce(new TypeError('ack_lost')).mockReturnValueOnce(ack.promise);
+    render(<ChatPanel variant="standalone" context={context('synthetic-tdf', '/ask/municipio')} mediaCapabilities={caps('/ask/municipio')} />); await recordAndStop('Nota de voz');
+    await screen.findByRole('button', { name: 'Comprobar envío' });
+    await act(async () => { activate('Comprobar envío'); });
+    const retry = screen.getByRole('button', { name: 'Comprobar envío' });
+    expectPendingButKeptFocus(retry);
+    fireEvent.click(retry);
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    await act(async () => { ack.resolve({ message_body: 'synthetic_recovered_reply' }); });
+    expect(await screen.findByText('synthetic_recovered_reply')).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Comprobar envío' })).toBeNull());
+    expect(recordAction('Nota de voz')).toHaveFocus();
+  });
+
+  it('widget runtime: stays focusable while the bot typing indicator is on for the same check', async () => {
+    const ack = deferred<unknown>();
+    vi.mocked(apiFetch).mockRejectedValueOnce(new TypeError('ack_lost')).mockReturnValueOnce(ack.promise);
+    render(<HookInput />); await recordAndStop('Nota de voz');
+    await screen.findByRole('button', { name: 'Comprobar envío' });
+    await act(async () => { activate('Comprobar envío'); });
+    expect(screen.getByTestId('typing')).toHaveTextContent('true');
+    const retry = screen.getByRole('button', { name: 'Comprobar envío' });
+    expectPendingButKeptFocus(retry);
+    fireEvent.click(retry);
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    await act(async () => { ack.resolve({ message_body: 'synthetic_recovered_reply' }); });
+    expect(await screen.findByText('synthetic_recovered_reply')).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Comprobar envío' })).toBeNull());
+    expect(recordAction('Nota de voz')).toHaveFocus();
+  });
+
+  it('discard stays available and keeps its exit while the check is pending', async () => {
+    const ack = deferred<unknown>();
+    vi.mocked(apiFetch).mockResolvedValueOnce(prepare).mockRejectedValueOnce(new TypeError('completion_ack_lost')).mockReturnValueOnce(ack.promise);
+    render(<ChatInput onSendMessage={vi.fn()} isTyping={false} tenantSlug="synthetic-tdf" />); await recordAndStop();
+    await screen.findByRole('button', { name: 'Comprobar envío' });
+    await act(async () => { activate('Comprobar envío'); });
+    activate('Descartar grabación');
+    expect(screen.queryByRole('button', { name: 'Descartar grabación' })).toBeNull();
+    expect(recordAction()).toHaveFocus();
+    await act(async () => { ack.resolve(uploaded); });
+    expect(screen.queryByRole('button', { name: 'Comprobar envío' })).toBeNull();
+    expect(apiFetch).toHaveBeenCalledTimes(3);
   });
 });

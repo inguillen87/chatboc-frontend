@@ -340,10 +340,12 @@ export default function ChatComposer({
       {currentAudioDraft ? <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground">
         <p role="status">{currentAudioDraft.notice.message}</p>
         <div className="mt-2 flex flex-wrap gap-2">
-          {currentAudioDraft.notice.retry?<Button type="button" size="sm" disabled={disabled||currentAudioDraft.pending}
+          {/* Mientras espera queda inerte pero enfocable: deshabilitarlo sacaba el foco de quien lo activó. */}
+          {currentAudioDraft.notice.retry?<Button type="button" size="sm" disabled={disabled} aria-disabled={currentAudioDraft.pending||undefined}
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             onClick={async()=>{
               const draft=currentAudioDraft;
-              if(!draft.isCurrent()||audioCompletion.current?.isCurrent())return;
+              if(draft.pending||!draft.isCurrent()||audioCompletion.current?.isCurrent())return;
               markAudioDraftExit(draft.blob);
               const token=Symbol('audio-recovery');audioCompletion.current={token,isCurrent:draft.isCurrent};
               setAudioDraft({...draft,pending:true});

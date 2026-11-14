@@ -809,10 +809,12 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
         <p role="status">{currentRecordingDraft.recovery?.message||(isTyping?'Guardamos tu grabación mientras termina la respuesta. Podés enviarla cuando esté disponible.':'Tu grabación está lista. Podés enviarla o descartarla.')}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {!currentRecordingDraft.recovery||currentRecordingDraft.recovery.retry?
-          <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            disabled={isTyping||disabled||currentRecordingDraft.pending} onClick={async()=>{
+          <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            // El envío que la persona activó queda inerte pero enfocable mientras espera (aunque el bot empiece a responder):
+            // deshabilitarlo le sacaba el foco. Un borrador retenido sin activar sigue deshabilitado mientras responde el bot.
+            disabled={disabled||(isTyping&&!currentRecordingDraft.pending)} aria-disabled={currentRecordingDraft.pending||undefined} onClick={async()=>{
               const draft=currentRecordingDraft;
-              if(!draft.isCurrent()||typingNow.current||audioCompletion.current?.isCurrent())return;
+              if(draft.pending||!draft.isCurrent()||typingNow.current||audioCompletion.current?.isCurrent())return;
               markRecordingDraftExit(draft.blob);
               const completion=Symbol('recording-draft');audioCompletion.current={token:completion,isCurrent:draft.isCurrent};
               setRecordingDraft({...draft,pending:true});
