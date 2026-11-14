@@ -677,6 +677,8 @@ const LoginSession = () => {
           <div className="space-y-2">
             <ClerkAuthButtons
               mode="login"
+              // Un acceso de organización (dominio propio o /t/<slug>/login) es exclusivo de sus cuentas.
+              tenantSlug={accessScope.tenantSlug}
               className="pt-1"
               disabled={isLoading || isPasskeyLoading || isDemoLoading || isActivatingDemoWhatsapp}
             />
