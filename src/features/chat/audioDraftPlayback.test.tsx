@@ -145,4 +145,22 @@ describe('the person can listen to the audio draft before deciding', () => {
     expect(revoked).toEqual([created[0].url]);
     expect(play).not.toHaveBeenCalled(); expectNoStoredAudio();
   });
+  it('web panel: playing the draft never submits the message the person is typing', async () => {
+    vi.mocked(apiFetch).mockRejectedValueOnce(new ApiError('unavailable', 503));
+    render(<ChatPanel variant="standalone" context={context()} mediaCapabilities={caps('/ask')} />); await recordAndStop('Nota de voz');
+    await screen.findByRole('button', { name: 'Descartar grabación' });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Mensaje' }), { target: { value: 'Texto sin terminar' } });
+    const calls = vi.mocked(apiFetch).mock.calls.length;
+    const audio = draftAudio()!;
+    Object.defineProperty(audio, 'duration', { configurable: true, value: 3 });
+    act(() => { audio.dispatchEvent(new Event('loadedmetadata')); audio.dispatchEvent(new Event('canplay')); });
+    const toggle = within(draftPanel()).getByRole('button', { name: 'Reproducir audio de voz' });
+    expect(toggle).toBeEnabled();
+    await act(async () => { fireEvent.click(toggle); });
+    expect(play).toHaveBeenCalledOnce();
+    expect(screen.getByRole('textbox', { name: 'Mensaje' })).toHaveValue('Texto sin terminar');
+    expect(screen.queryByText('Texto sin terminar', { selector: 'p' })).toBeNull();
+    expect(vi.mocked(apiFetch).mock.calls.length).toBe(calls);
+    expect(screen.getByRole('button', { name: 'Descartar grabación' })).toBeVisible();
+  });
 });

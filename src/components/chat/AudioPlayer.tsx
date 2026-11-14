@@ -213,8 +213,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, className }) => {
     >
       <audio key={ownerRef.current.generation} ref={audioRef} src={src} preload="metadata" />
 
-      {/* Play / Pause button */}
+      {/* Play / Pause button. Never a submit button: the player can live inside a composer form. */}
       <Button
+        type="button"
         onClick={togglePlayPause}
         variant="default"
         size="icon"
