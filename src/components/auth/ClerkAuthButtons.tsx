@@ -32,6 +32,8 @@ interface ClerkAuthButtonsProps {
   authIntent?: ClerkAuthIntent;
   tenantSlug?: string | null;
   returnTo?: string | null;
+  /** Offer the secondary «create account» action. Off on an organization's own domain. */
+  allowSignUp?: boolean;
 }
 
 const SOCIAL_PROVIDER_LABELS: Record<string, string> = {
@@ -87,6 +89,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   authIntent = 'tenant_owner',
   tenantSlug,
   returnTo,
+  allowSignUp = true,
   clerkRuntime,
 }) => {
   const signInApi = useSignIn();
@@ -242,14 +245,14 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
                 {secondaryLabel}
               </Button>
             </SignInButton>
-          ) : (
+          ) : allowSignUp ? (
             <SignUpButton mode="modal">
               <Button type="button" variant="ghost" className="h-10 w-full justify-center gap-2 text-muted-foreground" disabled={disabled} onClick={rememberAuthContext}>
                 <ShieldCheck className="h-4 w-4" />
                 {secondaryLabel}
               </Button>
             </SignUpButton>
-          )}
+          ) : null}
           {oauthError ? (
             <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {oauthError}
