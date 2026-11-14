@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Tenant } from '@/types/superAdmin';
 import { NativeAdminLegacyMembershipCard } from '@/components/admin/platform/NativeAdminLegacyMembershipCard';
+import { OrganizationAddressActivationPanel } from '@/components/admin/platform/OrganizationAddressActivationPanel';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import { Building2, GraduationCap, Loader2, MessageCircle, ShieldCheck, Store, X } from 'lucide-react';
@@ -381,6 +382,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                             </div>
                         </form>
                     </Form>
+                    {isOpen && activeTab === 'integrations' && tenantToEdit ? <OrganizationAddressActivationPanel tenant={tenantToEdit} /> : null}
                 </TabsContent>
             </Tabs>
         ) : (

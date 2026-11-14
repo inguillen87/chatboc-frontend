@@ -378,6 +378,23 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     profile.profile_picture_consent ??
     false;
 
+  const hasCanonicalField = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
+  const rawLeadScore = hasCanonicalField("lead_score") ? raw.lead_score : raw.leadScore;
+  const rawLeadTemperature = hasCanonicalField("lead_temperature")
+    ? raw.lead_temperature
+    : raw.leadTemperature;
+  const rawMarketing = hasCanonicalField("acepta_marketing")
+    ? raw.acepta_marketing
+    : hasCanonicalField("marketing") ? raw.marketing : raw.opt_in_marketing;
+  const numericLeadScore = typeof rawLeadScore === "number"
+    ? rawLeadScore
+    : typeof rawLeadScore === "string" && rawLeadScore.trim()
+      ? Number(rawLeadScore)
+      : undefined;
+  const leadScore = typeof numericLeadScore === "number" && Number.isFinite(numericLeadScore)
+    ? numericLeadScore
+    : undefined;
+
   return {
     id: raw.id ?? raw.user_id ?? index,
     nombre: rawName,
@@ -399,7 +416,7 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
       normalizeString(raw.ultima_interaccion) ||
       normalizeString(raw.updated_at) ||
       normalizeString(raw.updatedAt),
-    marketing: Boolean(raw.acepta_marketing ?? raw.marketing ?? raw.opt_in_marketing),
+    marketing: Boolean(rawMarketing),
     profileExcerpt,
     nameQuality,
     totalOrders: Number(raw.total_orders ?? raw.totalOrders ?? 0) || 0,
@@ -408,8 +425,8 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     resumen,
     motivo,
     lastIntent,
-    leadTemperature: normalizeString(raw.lead_temperature || raw.leadTemperature),
-    leadScore: Number(raw.lead_score ?? raw.leadScore ?? 0) || 0,
+    leadTemperature: normalizeString(rawLeadTemperature),
+    leadScore,
     conversationStatus: normalizeString(raw.conversation_status || raw.conversationStatus),
     suggestedActions,
     interactionCount: raw.interaction_count ?? raw.interactionCount ?? null,
