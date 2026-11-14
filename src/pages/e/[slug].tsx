@@ -33,7 +33,7 @@ import {
   trackSurveySubmission,
   trackSurveyDemoInteraction,
 } from '@/utils/surveyAnalytics';
-import { mapSurveyError } from '@/utils/mapSurveyError';
+import { mapSurveyError, SURVEY_ERROR_FALLBACK_DESCRIPTION } from '@/utils/mapSurveyError';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
 import { hasSurveyLiveActivity, useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
@@ -713,7 +713,7 @@ const PublicSurveyPage = () => {
   const liveStatusDescription = textOr(liveResultsUi?.[`status_${liveStatus.status}_description`], liveStatus.description);
   const liveEmptyStateLabel = textOr(
     liveDashboard?.render_contract?.empty_state,
-    textOr(liveResultsUi?.empty_state, 'Todavia no hay respuestas para los filtros actuales.'),
+    textOr(liveResultsUi?.empty_state, 'Todavía no hay respuestas para los filtros actuales.'),
   );
   const manualUpdateLabel = textOr(liveResultsUi?.manual_refresh_label, 'Actualizar resultados en vivo');
   const handleExportLiveCsv = useCallback(() => {
@@ -783,7 +783,7 @@ const PublicSurveyPage = () => {
     return {
       ...mapped,
       title: mapped.title,
-      subtitle: !isTransientError && mapped.description === 'Proba nuevamente en unos segundos.' ? 'Solicitá un enlace vigente a la organización o consultá las encuestas disponibles.' : normalizedDescription,
+      subtitle: !isTransientError && mapped.description === SURVEY_ERROR_FALLBACK_DESCRIPTION ? 'Solicitá un enlace vigente a la organización o consultá las encuestas disponibles.' : normalizedDescription,
       actionHint: !isTransientError && mapped.actionHint !== 'go_home' ? 'view_other_surveys' : mapped.actionHint,
       primaryLabel: !isTransientError && mapped.actionHint !== 'go_home' ? 'Ver encuestas' : payloadPrimaryCta ?? mapped.primaryCta,
       secondaryLabel: mode !== 'embed' ? payloadSecondaryCta ?? mapped.secondaryCta : null,
@@ -836,7 +836,7 @@ const PublicSurveyPage = () => {
     return (
       <SurveyErrorState
         title="Espacio institucional inválido"
-        description="El enlace no identifica un espacio institucional valido. Solicita un enlace nuevo a la organización."
+        description="El enlace no identifica un espacio institucional válido. Solicitá un enlace nuevo a la organización."
         primaryLabel="Ver encuestas"
         onPrimary={() => navigate('/encuestas')}
         reasonCode="tenant_resolution_failed"
@@ -1341,7 +1341,7 @@ const PublicSurveyPage = () => {
                           </div>
                           <div className="space-y-2">
                             {(Array.isArray(question.opciones) ? question.opciones : []).map((option, optionIndex) => {
-                              const optionLabel = toDisplayText(option.texto ?? option.label ?? option.value) || `Opcion ${optionIndex + 1}`;
+                              const optionLabel = toDisplayText(option.texto ?? option.label ?? option.value) || `Opción ${optionIndex + 1}`;
                               const optionVotes = Number(option.votos ?? 0);
                               const optionPercentage = Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)));
                               return (

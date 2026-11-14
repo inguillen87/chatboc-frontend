@@ -251,7 +251,7 @@ describe("TrackingExperiencePage support contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "Actualizar estado" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Ingresa el PIN");
+    expect(alert).toHaveTextContent("Ingresá el PIN");
     await waitFor(() => expect(pinInput).toHaveFocus());
     expect(pinInput).toHaveAttribute("aria-invalid", "true");
     expect(pinInput).toHaveAttribute("aria-describedby", "tracking-pin-help tracking-page-error");

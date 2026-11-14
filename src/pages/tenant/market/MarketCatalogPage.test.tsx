@@ -544,7 +544,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
 
     expect(screen.getByTestId('market-assisted-empty-state')).toBeInTheDocument();
     expect(screen.getAllByText(/sin registro/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Funciona aunque el catalogo este vacio/i)).toBeInTheDocument();
+    expect(screen.getByText(/Funciona aunque el catálogo esté vacío/i)).toBeInTheDocument();
     expect(screen.getByTestId('market-assisted-empty-state')).toHaveTextContent(
       'Catálogo sin productos visibles, pedido asistido disponible.',
     );
@@ -610,7 +610,7 @@ describe('MarketCatalogPage assisted marketplace entry', () => {
       expect(textarea.value).toContain('Busco: no existe');
     });
     expect(textarea.value).toContain('Busco: no existe');
-    expect(textarea.value).toContain('No lo encontre en el catalogo');
+    expect(textarea.value).toContain('No lo encontré en el catálogo');
 
     expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
     await waitFor(() => {

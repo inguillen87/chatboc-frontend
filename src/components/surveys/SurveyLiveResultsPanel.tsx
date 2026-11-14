@@ -392,7 +392,7 @@ export function SurveyLiveResultsPanel({
       <Card className={className} data-testid="survey-live-results-panel-disabled">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
-          <CardDescription>Activa resultados en vivo y publica la encuesta para ver la sala operativa.</CardDescription>
+          <CardDescription>Activá resultados en vivo y publicá la encuesta para ver la sala operativa.</CardDescription>
         </CardHeader>
       </Card>
     );

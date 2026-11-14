@@ -152,7 +152,7 @@ const normalizeStockStatus = (product: MarketProduct) => {
       label: 'Stock validado',
       detail: product.stock_quantity
         ? `${product.stock_quantity} ${product.unit ?? 'u'} disponibles`
-        : 'Disponibilidad confirmada por el catalogo.',
+        : 'Disponibilidad confirmada por el catálogo.',
       tone: 'success',
     };
   }

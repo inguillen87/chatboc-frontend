@@ -90,7 +90,7 @@ const UserAccountPage = () => {
     setAvatarError(null);
 
     if (!user) {
-      setAvatarError('Inicia sesion para guardar una foto de perfil.');
+      setAvatarError('Iniciá sesión para guardar una foto de perfil.');
       return;
     }
     if (!PROFILE_IMAGE_ALLOWED_TYPES.has(file.type)) {
@@ -109,7 +109,7 @@ const UserAccountPage = () => {
       setAvatarMessage('Foto de perfil actualizada.');
       setAvatarStatus('saved');
     } catch {
-      setAvatarError('No se pudo subir la foto. Proba con otra imagen.');
+      setAvatarError('No se pudo subir la foto. Probá con otra imagen.');
       setAvatarStatus('idle');
     }
   };
@@ -142,7 +142,7 @@ const UserAccountPage = () => {
     };
 
     if (!payload.name || (!payload.phone && !payload.email)) {
-      setLocalError('Completa nombre y al menos un telefono o email.');
+      setLocalError('Completá nombre y al menos un teléfono o email.');
       return;
     }
 
