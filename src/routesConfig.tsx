@@ -425,7 +425,7 @@ const routes: RouteConfig[] = [
         { path: '/pruebas/encuestas/:tenantSlug/:runId', element: <RehearsalPage />, allowGuest: true },
         ...withTenantPrefixes('/:tenant/encuestas', { tenantHost: 'public', element: <TenantSurveyListPage /> }),
         ...withTenantPrefixes('/:tenant/encuestas/:slug', { tenantHost: 'public', element: <TenantSurveyDetailPage /> }),
-      ]
+      ] satisfies RouteConfig[]
     : []),
 
   // Auth (Tenant)
@@ -465,13 +465,13 @@ const routes: RouteConfig[] = [
           ? [
               { path: '/educacion/familia', tenantHost: 'public', element: <EducationFamilyHomePage />, allowGuest: true },
               { path: '/educacion/familia/verificacion', tenantHost: 'public', element: <EducationFamilyVerificationPage />, allowGuest: true },
-            ]
+            ] satisfies RouteConfig[]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.attendance_enabled
-          ? [{ path: '/educacion/familia/asistencia', tenantHost: 'public', element: <EducationAttendancePage />, allowGuest: true }]
+          ? [{ path: '/educacion/familia/asistencia', tenantHost: 'public', element: <EducationAttendancePage />, allowGuest: true }] satisfies RouteConfig[]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.documents_enabled
-          ? [{ path: '/educacion/familia/documentos', tenantHost: 'public', element: <EducationDocumentsPage />, allowGuest: true }]
+          ? [{ path: '/educacion/familia/documentos', tenantHost: 'public', element: <EducationDocumentsPage />, allowGuest: true }] satisfies RouteConfig[]
           : []),
         { path: '/educacion/staff/inbox', tenantHost: 'private', element: <EducationStaffLegacyRedirect />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         { path: '/t/:tenant/educacion/staff/inbox', tenantHost: 'private', tenantHostParam: 'tenant', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
@@ -490,12 +490,12 @@ const routes: RouteConfig[] = [
                 roles: ['tenant_admin', 'employee', 'superadmin'],
                 requiredAllCapabilities: ['interviews.sessions.conduct'],
               },
-            ]
+            ] satisfies RouteConfig[]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.billing_enabled
-          ? [{ path: '/educacion/staff/cobranzas', tenantHost: 'private', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          ? [{ path: '/educacion/staff/cobranzas', tenantHost: 'private', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }] satisfies RouteConfig[]
           : []),
-      ]
+      ] satisfies RouteConfig[]
     : []),
 
   // --- USER PORTAL ROUTES ---
@@ -673,7 +673,7 @@ const routes: RouteConfig[] = [
         { path: '/admin/encuestas/new', tenantHost: 'private', element: <NewSurveyPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         { path: '/admin/encuestas/:id', tenantHost: 'private', element: <SurveyDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         { path: '/admin/encuestas/:id/analytics', tenantHost: 'private', element: <SurveyAnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
-      ]
+      ] satisfies RouteConfig[]
     : []),
   { path: '/pyme/catalog', tenantHost: 'private', element: <ProductCatalog />, roles: ['tenant_admin', 'superadmin'] },
   { path: '/municipal/tramites', tenantHost: 'private', element: <TramitesCatalog />, roles: ['tenant_admin', 'superadmin'] },
