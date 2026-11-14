@@ -83,7 +83,7 @@ const limitItems = <T,>(items: T[] | undefined, size: number): T[] => {
 const publicErrorMessage = (error: unknown) => {
   const message = getErrorMessage(error);
   if (/<[a-z][\s\S]*>/i.test(message)) {
-    return 'La informacion no esta disponible en este momento.';
+    return 'La información no está disponible en este momento.';
   }
   return message;
 };
@@ -244,7 +244,7 @@ const TenantPublicLanding = () => {
       {!slug ? (
         <Card className="border-2 border-dashed">
           <CardHeader>
-            <CardTitle>Selecciona un espacio</CardTitle>
+            <CardTitle>Seleccioná un espacio</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>Elegilo desde el selector superior para ver los canales públicos disponibles.</p>
@@ -274,7 +274,7 @@ const TenantPublicLanding = () => {
                   {ticketTarget ? (
                     <Button asChild size="lg" className="rounded-2xl shadow-lg shadow-primary/15">
                       <Link to={ticketTarget}>
-                        {ticketNavItem?.label ?? 'Iniciar gestion'}
+                        {ticketNavItem?.label ?? 'Iniciar gestión'}
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
@@ -378,7 +378,7 @@ const TenantPublicLanding = () => {
             <LandingSectionShell
               icon={Calendar}
               title={eventsNavItem.label}
-              description="Agenda publica y actividades disponibles para este espacio."
+              description="Agenda pública y actividades disponibles para este espacio."
               action={eventsTarget ? (
                 <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={eventsTarget}>Ver agenda</Link>

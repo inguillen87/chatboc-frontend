@@ -264,7 +264,7 @@ const UserOrdersPage = () => {
         <h1 className="text-2xl font-bold">Mis pedidos</h1>
         {catalogEnabled ? (
           <Button variant="outline" size="sm" asChild>
-            <a href={catalogPath}>{commerceSession?.catalog?.cta_label || commerceSession?.catalog?.label || 'Ir al catalogo'}</a>
+            <a href={catalogPath}>{commerceSession?.catalog?.cta_label || commerceSession?.catalog?.label || 'Ir al catálogo'}</a>
           </Button>
         ) : null}
       </div>

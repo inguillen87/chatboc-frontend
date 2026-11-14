@@ -1194,7 +1194,7 @@ export const SurveyForm = ({
     }
     if (requiresAuthenticatedParticipant && !user) {
       setSubmissionErrorTitle('Necesitas identificarte para participar');
-      setSubmissionErrorDetails('Inicia sesion con tu cuenta para que el voto quede asociado de forma segura.');
+      setSubmissionErrorDetails('Iniciá sesión con tu cuenta para que el voto quede asociado de forma segura.');
       return;
     }
     if (publicGovernance.required && !publicGovernance.valid) {
@@ -1254,7 +1254,7 @@ export const SurveyForm = ({
     }
     if (turnstileMissingToken) {
       setSubmissionErrorTitle('Falta verificacion de seguridad');
-      setSubmissionErrorDetails('Completa la verificacion antes de enviar tu respuesta.');
+      setSubmissionErrorDetails('Completá la verificación antes de enviar tu respuesta.');
       return;
     }
 

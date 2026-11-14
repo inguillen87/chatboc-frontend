@@ -142,7 +142,7 @@ export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
       status: 'error' as const,
       paymentUrl: null,
       orderId: orderId ? String(orderId) : null,
-      message: response?.message ?? validation.reason ?? 'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
+      message: response?.message ?? validation.reason ?? 'Plan Full requerido para cobrar desde WhatsApp, widget o checkout público.',
     };
   }
 

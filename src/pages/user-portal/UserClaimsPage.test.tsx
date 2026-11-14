@@ -179,7 +179,7 @@ describe('UserClaimsPage public claim actions', () => {
         </MemoryRouter>,
       );
 
-      await waitFor(() => expect(screen.getByText(/No tenes reclamos registrados aun/i)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText(/No tenés reclamos registrados aún/i)).toBeInTheDocument());
       expect(claimsMocks.listClaims).not.toHaveBeenCalled();
       expect(screen.queryByText(/Persona Stale Privada|stale-claims@example\.test/)).not.toBeInTheDocument();
     },
