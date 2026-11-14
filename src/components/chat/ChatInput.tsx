@@ -22,6 +22,8 @@ import { useChatInputDraft } from './useChatInputDraft';
 import { uploadChatAttachment, createChatAttachmentUploadAttempt } from "@/features/chat/uploadChatAttachment";
 import { audioRecoveryMessage, type AudioRecoveryNotice } from '@/features/chat/audioRecovery';
 import { useAudioDraftFocusExit } from '@/features/chat/audioDraftFocus';
+import { useDraftAudioUrl } from '@/features/chat/useDraftAudioUrl';
+import AudioPlayer from './AudioPlayer';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {
   getChatAttachmentAcceptedTypes,
@@ -316,6 +318,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const currentRecordingDraft=recordingDraft?.isCurrent()?recordingDraft:null;
   const audioActionRef=useRef<HTMLButtonElement|null>(null);
   // La salida vuelve al control que inició la grabación; no abre el teclado en pantalla en móvil.
+  // Escuchar antes de enviar: solo en memoria, sin reproducción automática.
+  const recordingDraftUrl=useDraftAudioUrl(currentRecordingDraft?.blob??null);
   const markRecordingDraftExit=useAudioDraftFocusExit(currentRecordingDraft?.blob??null,audioScopeKey,[()=>audioActionRef.current,()=>internalRef.current]);
   useLayoutEffect(()=>{setRecordingDraft(null);return()=>{recordingDraftRef.current?.discard?.();};},[audioScopeKey]);
   useLayoutEffect(()=>subscribeChatbocSessionRevision(()=>{recordingDraftRef.current?.discard?.();setRecordingDraft(null);audioCompletion.current=null;}),[]);
@@ -807,6 +811,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       ) : null}
       {currentRecordingDraft?<div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
         <p role="status">{currentRecordingDraft.recovery?.message||(isTyping?'Guardamos tu grabación mientras termina la respuesta. Podés enviarla cuando esté disponible.':'Tu grabación está lista. Podés enviarla o descartarla.')}</p>
+        {recordingDraftUrl?<AudioPlayer src={recordingDraftUrl} className="mt-2" />:null}
         <div className="mt-2 flex flex-wrap gap-2">
           {!currentRecordingDraft.recovery||currentRecordingDraft.recovery.retry?
           <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-disabled:cursor-not-allowed aria-disabled:opacity-50"

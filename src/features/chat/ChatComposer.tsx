@@ -9,6 +9,8 @@ import type { ChatMediaCapabilities, ChatMediaInputModeConfig } from '@/types/ch
 import type { AudioRecoveryCallbacks, AudioRecoveryNotice } from './audioRecovery';
 import { subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 import { useAudioDraftFocusExit } from './audioDraftFocus';
+import { useDraftAudioUrl } from './useDraftAudioUrl';
+import AudioPlayer from '@/components/chat/AudioPlayer';
 import { uploadChatAttachment } from './uploadChatAttachment';
 import {
   getChatAttachmentAcceptedTypes,
@@ -102,6 +104,8 @@ export default function ChatComposer({
   const currentAudioDraft=audioDraft?.isCurrent()?audioDraft:null;
   const audioActionRef=useRef<HTMLButtonElement|null>(null),messageFieldRef=useRef<HTMLInputElement|null>(null);
   // La salida vuelve al control que inició la grabación; no abre el teclado en pantalla en móvil.
+  // Escuchar antes de enviar: solo en memoria, sin reproducción automática.
+  const audioDraftUrl=useDraftAudioUrl(currentAudioDraft?.blob??null);
   const markAudioDraftExit=useAudioDraftFocusExit(currentAudioDraft?.blob??null,audioScopeKey,[()=>audioActionRef.current,()=>messageFieldRef.current]);
   useEffect(()=>{setAudioDraft(null);return()=>{audioDraftRef.current?.discard();};},[audioScopeKey]);
   useEffect(()=>subscribeChatbocSessionRevision(()=>{audioDraftRef.current?.discard();setAudioDraft(null);}),[]);
@@ -339,6 +343,7 @@ export default function ChatComposer({
       />
       {currentAudioDraft ? <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground">
         <p role="status">{currentAudioDraft.notice.message}</p>
+        {audioDraftUrl?<AudioPlayer src={audioDraftUrl} className="mt-2" />:null}
         <div className="mt-2 flex flex-wrap gap-2">
           {/* Mientras espera queda inerte pero enfocable: deshabilitarlo sacaba el foco de quien lo activó. */}
           {currentAudioDraft.notice.retry?<Button type="button" size="sm" disabled={disabled} aria-disabled={currentAudioDraft.pending||undefined}
