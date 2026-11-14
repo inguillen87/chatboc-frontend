@@ -2,6 +2,7 @@ import {PrivateWorkspaceBrand} from '@/components/brand/PrivateWorkspaceBrand';
 import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
 import {InstitutionalAccessBrand} from '@/components/brand/InstitutionalAccessBrand';
 import {readPanelLoginScope} from '@/utils/panelLoginScope';
+import {exactInstitutionSlug,readPublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
 import '@/components/auth/panelLogin.css';
 // src/components/layout/Navbar.tsx
 
@@ -110,11 +111,32 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   const [isDark, setIsDark] = useState(false);
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const desktopThemeButtonRef = useRef<HTMLButtonElement>(null);
   const location = useLocation();
   const navigate=useNavigate();
   const { user, organizationProfileVerified, loading: userLoading } = useUser();
   const { currentSlug,tenant,isLoadingTenant,tenantError,hostBinding } = useTenant();
-  const cartCount = useCartCount(!privateShell.active && !hostBinding);
+  // Only the published public root uses this presentation; commerce and login routes keep their own contracts.
+  const publicRootMatch = /^\/t\/([^/]+)\/?$/i.exec(location.pathname);
+  const isPublicTenantPage = Boolean(publicRootMatch && !hostBinding && !privateShell.active);
+  let publicRootSlug: string | null = null;
+  if (isPublicTenantPage && publicRootMatch) {
+    try { publicRootSlug = exactInstitutionSlug(decodeURIComponent(publicRootMatch[1])); } catch { /* Invalid route stays neutral. */ }
+  }
+  let publicIdentity: ReturnType<typeof readPublishedTenantIdentity> = null;
+  const published = tenant?.publishedIdentity;
+  if (publicRootSlug && !isLoadingTenant && !tenantError
+    && exactInstitutionSlug(currentSlug) === publicRootSlug && exactInstitutionSlug(tenant?.slug) === publicRootSlug
+    && published && Number.isSafeInteger(published.tenantId) && published.tenantId > 0) {
+    try {
+      publicIdentity = readPublishedTenantIdentity({ id: published.tenantId, slug: published.tenantSlug,
+        nombre: published.name, logo_url: published.logoUrl }, publicRootSlug);
+    } catch { /* A retained or mismatched public identity must not brand this route. */ }
+  }
+  const publicLoginPath = publicIdentity ? buildTenantPath('/login', publicIdentity.tenantSlug) : null;
+  // Tenant commerce is not a platform upsell; no published type or URL disables it.
+  const showTenantCart = !isPublicTenantPage || Boolean(publicIdentity);
+  const cartCount = useCartCount(!privateShell.active && !hostBinding && showTenantCart);
   const clerkRuntime = useClerkRuntime();
   const institutionBrandRef=useRef<HTMLAnchorElement>(null);
   const loginScope=readPanelLoginScope(location.pathname);
@@ -131,6 +153,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     hasVerifiedSession &&
       (user || (hasPersistedSession && safeLocalStorage.getItem("user"))),
   );
+  const showAccountMenu = isLoggedIn && !isPublicTenantPage;
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
@@ -358,7 +381,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     const desktopNavigation = window.matchMedia(DESKTOP_NAVIGATION_QUERY);
     const closeForDesktop = () => {
       setMenuOpen(false);
-      (privateBrandRef.current || institutionBrandRef.current || brandHomeButtonRef.current)?.focus({ preventScroll: true });
+      (privateBrandRef.current || institutionBrandRef.current || brandHomeButtonRef.current || desktopThemeButtonRef.current)?.focus({ preventScroll: true });
     };
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) closeForDesktop();
@@ -418,9 +441,9 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} ${inFlow ? 'relative shrink-0' : 'fixed left-0 right-0 top-0'} z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
+    <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding || isPublicTenantPage ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} ${inFlow ? 'relative shrink-0' : 'fixed left-0 right-0 top-0'} z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
-        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : <button
+        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} ref={institutionBrandRef}/> : publicIdentity ? <InstitutionalAccessBrand key={JSON.stringify([publicIdentity.tenantId,publicIdentity.tenantSlug,publicIdentity.logoUrl])} identity={publicIdentity} ref={institutionBrandRef}/> : isPublicTenantPage ? <span className="institutional-access-brand" data-testid="public-workspace-pending" aria-hidden="true"><Building2 size={30}/></span> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
@@ -445,7 +468,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
+          {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showTenantCart ? (
             <RouterLink
               to={cartPath}
               className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
@@ -460,7 +483,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
             </RouterLink>
           ) : null}
 
-          {isLoggedIn ? (
+          {showAccountMenu ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -559,16 +582,17 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
             </DropdownMenu>
           ) : (
             <>
-              <RouterLink to="/login" className={`${hostBinding ? 'border bg-primary text-primary-foreground' : 'chatboc-cta-secondary'} rounded-[8px] px-3 py-1.5 text-sm font-semibold`}>
+              {!isPublicTenantPage || publicLoginPath ? <RouterLink to={publicLoginPath ?? "/login"} className={`${hostBinding || isPublicTenantPage ? 'border bg-primary text-primary-foreground' : 'chatboc-cta-secondary'} rounded-[8px] px-3 py-1.5 text-sm font-semibold`}>
                 Iniciar sesión
-              </RouterLink>
-              {!hostBinding ? <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
+              </RouterLink> : null}
+              {!hostBinding && !isPublicTenantPage ? <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
                 Ver demo
               </RouterLink> : null}
             </>
           )}
 
           <button
+            ref={desktopThemeButtonRef}
             onClick={toggleDarkMode}
             title="Modo claro / oscuro"
             aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
@@ -606,7 +630,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                   </button>
                 ))
               : null}
-            {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding ? (
+            {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showTenantCart ? (
               <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                 <ShoppingCart className="h-4 w-4" />
                 Carrito
@@ -618,7 +642,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
               </RouterLink>
             ) : null}
 
-            {isLoggedIn ? (
+            {showAccountMenu ? (
               <>
                 <div className="mt-1 rounded-lg border border-border/70 bg-muted/25 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}</p>
@@ -692,10 +716,10 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
               </>
             ) : (
               <>
-                <RouterLink to="/login" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
+                {!isPublicTenantPage || publicLoginPath ? <RouterLink to={publicLoginPath ?? "/login"} onClick={() => setMenuOpen(false)} className={mobileItemClass}>
                   Iniciar sesión
-                </RouterLink>
-                {!hostBinding ? <RouterLink
+                </RouterLink> : null}
+                {!hostBinding && !isPublicTenantPage ? <RouterLink
                   to="/demo"
                   onClick={() => setMenuOpen(false)}
                   className="chatboc-cta-primary mt-1 rounded-[8px] px-4 py-2 text-center text-sm font-semibold"

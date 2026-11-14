@@ -529,6 +529,24 @@ export const TenantProvider = ({
     }));
   }, [hostBinding, hostScopeMismatch]);
 
+  // Paleta pública del organismo en /t/<slug>: solo con identidad vigente (carga terminada, sin error,
+  // slug de ruta, selección y perfil coincidentes). En transición, error o cambio de organización se retira.
+  const publicAppearance = tenant?.workspace_appearance ?? null;
+  const publicAppearanceSlug = useMemo(() => {
+    const match = /^\/t\/([^/]+)/i.exec(location.pathname)?.[1];
+    if (!match) return null;
+    try { return decodeURIComponent(match).toLowerCase(); } catch { return null; }
+  }, [location.pathname]);
+  const publicAppearanceActive = Boolean(!hostBinding && publicAppearance && publicAppearanceSlug && !isLoadingTenant && !tenantError &&
+    currentSlug?.toLowerCase() === publicAppearanceSlug && tenant?.slug?.toLowerCase() === publicAppearanceSlug &&
+    publicAppearance.tenantSlug === publicAppearanceSlug);
+  const publicPrimary = publicAppearanceActive ? publicAppearance?.primary : undefined;
+  const publicAccent = publicAppearanceActive ? publicAppearance?.accent : undefined;
+  useLayoutEffect(() => {
+    if (!publicPrimary || !publicAccent) return;
+    return applyWidgetThemeVariables(document.documentElement, widgetThemeVariables({}, { primary: publicPrimary, secondary: publicAccent }));
+  }, [publicPrimary, publicAccent]);
+
   useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;
 

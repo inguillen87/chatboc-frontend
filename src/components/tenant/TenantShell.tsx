@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -114,6 +114,17 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
       ? resolvedTenantSlug
       : null;
   const slugForPath = resolvedTenantSlug ?? currentSlug ?? null;
+  // La pestaña nombra al organismo solo cuando su identidad coincide con la ruta y la carga terminó;
+  // en transición o error vuelve al título previo al espacio, igual que al salir.
+  const authoritativeTitle = navigationTenantSlug ? resolvedTenant?.nombre?.trim() || null : null;
+  const titleBeforeSpace = useRef<string | null>(null);
+  useEffect(() => {
+    if (titleBeforeSpace.current === null) titleBeforeSpace.current = document.title;
+    document.title = authoritativeTitle ?? titleBeforeSpace.current;
+  }, [authoritativeTitle]);
+  useEffect(() => () => {
+    if (titleBeforeSpace.current !== null) document.title = titleBeforeSpace.current;
+  }, []);
   const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
 
   const handleRetry = async (event: MouseEvent<HTMLButtonElement>) => {
