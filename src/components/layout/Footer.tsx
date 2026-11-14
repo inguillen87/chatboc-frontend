@@ -4,7 +4,7 @@ import {PrivateWorkspaceFooter} from '@/components/brand/PrivateWorkspaceBrand';
 
 import { useState } from "react";
 import { useTenant } from '@/context/TenantContext';
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Copy,
   Download,
@@ -71,7 +71,7 @@ const MarketingFooter = () => {
                   className="m-0 cursor-pointer border-none bg-transparent p-0 text-slate-700 transition-colors hover:text-primary dark:text-slate-300"
                   onClick={() => scrollToSection("solucion")}
                 >
-                  Que hace
+                  Qué hace
                 </button>
               </li>
               <li>
@@ -101,7 +101,7 @@ const MarketingFooter = () => {
               </li>
               <li>
                 <Link to="/documentacion" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
-                  Guia de uso
+                  Guía de uso
                 </Link>
               </li>
               <li className="flex items-center space-x-2">
@@ -138,22 +138,22 @@ const MarketingFooter = () => {
             <ul className="space-y-2">
               <li>
                 <Link to="/privacidad" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
-                  Politica de privacidad
+                  Política de privacidad
                 </Link>
               </li>
               <li>
                 <Link to="/terminos" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
-                  Terminos y condiciones
+                  Términos y condiciones
                 </Link>
               </li>
               <li>
                 <Link to="/legal/cookies" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
-                  Politica de cookies
+                  Política de cookies
                 </Link>
               </li>
               <li>
                 <Link to="/eliminacion-datos" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
-                  Eliminacion de datos
+                  Eliminación de datos
                 </Link>
               </li>
             </ul>
@@ -245,13 +245,26 @@ const MarketingFooter = () => {
   );
 };
 
-const Footer=()=>{
-  const presentation=usePrivateWorkspacePresentation();
-  const {hostBinding}=useTenant();
-  if(hostBinding)return <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 border-t px-6 py-5 text-sm text-muted-foreground" aria-label="Información del espacio">
-    <Link to={hostBinding.paths.home} className="min-h-11 py-3 font-medium">{hostBinding.tenant.nombre}</Link>
+/** Pie único de un espacio publicado: el mismo para dominio propio y para /t/<slug>. */
+const SpaceFooter=({name,home}:{name?:string;home?:string})=><footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 border-t px-6 py-5 text-sm text-muted-foreground" aria-label="Información del espacio">
+    {name&&home?<Link to={home} className="min-h-11 py-3 font-medium">{name}</Link>:<span aria-hidden="true"/>}
     <nav className="flex flex-wrap gap-4" aria-label="Información legal de la plataforma"><Link className="min-h-11 py-3" to="/privacidad">Privacidad de la plataforma</Link><Link className="min-h-11 py-3" to="/terminos">Términos de la plataforma</Link></nav>
   </footer>;
+
+const Footer=()=>{
+  const presentation=usePrivateWorkspacePresentation();
+  const {hostBinding,tenant,currentSlug,isLoadingTenant,tenantError}=useTenant();
+  const {pathname}=useLocation();
+  // Un espacio publicado en /t/<slug> es del organismo, no una página comercial de Chatboc.
+  const spaceSlug=/^\/t\/([^/]+)/i.exec(pathname)?.[1]?.toLowerCase();
+  if(!hostBinding&&!presentation.active&&spaceSlug){
+    const same=(value?:string|null)=>value?.trim().toLowerCase()===spaceSlug;
+    // Solo nombra al organismo con identidad vigente: carga terminada, sin error y slug coincidente.
+    const authoritative=!isLoadingTenant&&!tenantError&&same(currentSlug)&&same(tenant?.slug)&&Boolean(tenant?.nombre?.trim());
+    // En carga, error o cambio de organización el pie queda neutral: ni el organismo anterior ni el pie comercial.
+    return authoritative&&tenant?<SpaceFooter name={tenant.nombre} home={`/t/${tenant.slug}`}/>:<SpaceFooter/>;
+  }
+  if(hostBinding)return <SpaceFooter name={hostBinding.tenant.nombre} home={hostBinding.paths.home}/>;
   return presentation.active?<PrivateWorkspaceFooter identity={presentation.identity}/>:<MarketingFooter/>;
 };
 export default Footer;

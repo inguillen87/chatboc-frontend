@@ -157,14 +157,13 @@ describe('Layout ticket workspace shell', () => {
     expect(main).not.toHaveClass('lg:px-16');
   });
 
-  it('gives the public landing a full-width canvas and an accessible skip link', () => {
+  it('gives the public landing a full-width canvas and a single skip-link target', () => {
     renderLayout('/');
 
     expect(screen.getByText('landing outlet')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Saltar al contenido' })).toHaveAttribute(
-      'href',
-      '#main-content',
-    );
+    // AppAccessibility aporta el único enlace de salto; Layout no debe duplicarlo.
+    expect(screen.queryByRole('link', { name: /Saltar al contenido/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
 
     const main = screen.getByRole('main');
     expect(main).toHaveClass('w-full', 'flex-1', 'pt-20');
