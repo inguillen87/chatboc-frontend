@@ -26,6 +26,8 @@ export interface AddressSlot {
   status: AddressStatus;
   active: boolean;
   valid_until: number | null;
+  /** Deadline of a request still waiting for verification (also once lapsed); null otherwise. */
+  pending_until: number | null;
   dns_proof: AddressDnsProof | null;
   scope_note: string;
 }
@@ -55,6 +57,7 @@ export interface TenantAddresses {
     activation?: AddressActivationCapabilities;
   };
   operator_ui?: AddressOperatorUI;
+  operator_guidance?: AddressOperatorGuidance;
 }
 
 /** El servidor todavía no publica este contrato: la pantalla usa la versión anterior. */
@@ -127,6 +130,14 @@ function readSlot(raw: unknown, kind: AddressKind, nowSeconds: number): AddressS
     throw new TenantAddressesContractError();
   }
 
+  // A server without this field keeps working; a present value must be a deadline of a
+  // record that is (or was) waiting for verification.
+  const pendingUntil = slot.pending_until === undefined ? null : slot.pending_until;
+  if (pendingUntil !== null && (!isUnixTimestamp(pendingUntil) ||
+    !['pending_dns', 'pending_platform', 'verification_expired'].includes(status))) {
+    throw new TenantAddressesContractError();
+  }
+
   let dnsProof: AddressDnsProof | null = null;
   if (slot.dns_proof !== null) {
     const proof = asRecord(slot.dns_proof);
@@ -142,6 +153,7 @@ function readSlot(raw: unknown, kind: AddressKind, nowSeconds: number): AddressS
   return {
     kind, source, host, status, active: slot.active,
     valid_until: slot.valid_until as number | null,
+    pending_until: pendingUntil as number | null,
     dns_proof: dnsProof, scope_note: slot.scope_note,
   };
 }
@@ -169,6 +181,7 @@ export function readTenantAddresses(payload: unknown, scope: AddressTenantScope,
   const path = endpointFor(scope);
   const activation = readActivationCapabilities(capabilities.activation);
   const operatorUI = readOperatorUI(value.operator_ui);
+  const operatorGuidance = readOperatorGuidance(value.operator_guidance);
 
   if (value.contract_version !== 'organization.addresses.v2' || tenant.id !== scope.id || tenant.slug !== scope.slug ||
     typeof value.revision !== 'string' || !REVISION.test(value.revision) ||
@@ -196,6 +209,7 @@ export function readTenantAddresses(payload: unknown, scope: AddressTenantScope,
       ...(activation ? { activation } : {}),
     },
     ...(operatorUI ? { operator_ui: operatorUI } : {}),
+    ...(operatorGuidance ? { operator_guidance: operatorGuidance } : {}),
   };
 }
 
@@ -358,6 +372,15 @@ export interface AddressOperatorUI {
   labels: Record<typeof ADDRESS_OPERATOR_LABELS[number], string>;
   messages: Record<typeof ADDRESS_OPERATOR_MESSAGES[number], string>;
 }
+export const ADDRESS_GUIDANCE_LABELS = ['blocked_title', 'next_action', 'pending_until', 'expired_since', 'active_until'] as const;
+export const ADDRESS_GUIDANCE_MESSAGES = ['pending_window', 'expired_action', 'active_expiry'] as const;
+/** Additive server copy: what blocks an activation and the one action the operator can take. */
+export interface AddressOperatorGuidance {
+  contract_version: 'organization.address_operator_guidance.v1';
+  labels: Record<typeof ADDRESS_GUIDANCE_LABELS[number], string>;
+  messages: Record<typeof ADDRESS_GUIDANCE_MESSAGES[number], string>;
+  blocking: Record<string, { message: string; action: string }>;
+}
 export interface AddressActivationCandidate {
   frontend_deployment: string; frontend_source: string; routes_sha256: string;
 }
@@ -395,6 +418,31 @@ function readOperatorUI(raw: unknown): AddressOperatorUI | undefined {
   return { contract_version: 'organization.address_operator_ui.v1',
     labels: Object.fromEntries(ADDRESS_OPERATOR_LABELS.map(key => [key, labels[key]])) as AddressOperatorUI['labels'],
     messages: Object.fromEntries(ADDRESS_OPERATOR_MESSAGES.map(key => [key, messages[key]])) as AddressOperatorUI['messages'] };
+}
+const filledCopy = (value: unknown): value is string => isSafeCopy(value) && value.trim().length > 0;
+function readOperatorGuidance(raw: unknown): AddressOperatorGuidance | undefined {
+  const value = asRecord(raw), labels = asRecord(value.labels), messages = asRecord(value.messages);
+  const blocking = asRecord(value.blocking), reasons = Object.keys(blocking);
+  if (value.contract_version !== 'organization.address_operator_guidance.v1' ||
+    !ADDRESS_GUIDANCE_LABELS.every(key => filledCopy(labels[key])) ||
+    !ADDRESS_GUIDANCE_MESSAGES.every(key => filledCopy(messages[key])) || reasons.length > 64 ||
+    !reasons.every(reason => REASON_CODE.test(reason) &&
+      filledCopy(asRecord(blocking[reason]).message) && filledCopy(asRecord(blocking[reason]).action))) return undefined;
+  return { contract_version: 'organization.address_operator_guidance.v1',
+    labels: Object.fromEntries(ADDRESS_GUIDANCE_LABELS.map(key => [key, labels[key]])) as AddressOperatorGuidance['labels'],
+    messages: Object.fromEntries(ADDRESS_GUIDANCE_MESSAGES.map(key => [key, messages[key]])) as AddressOperatorGuidance['messages'],
+    blocking: Object.fromEntries(reasons.map(reason => {
+      const entry = asRecord(blocking[reason]);
+      return [reason, { message: entry.message as string, action: entry.action as string }];
+    })) };
+}
+/** Fixed reason of a refused observation (never provider data), only from an explicit no-write rejection. */
+export function addressActivationBlockingReason(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const body = asRecord(error.body);
+  return body.contract_version === 'organization.addresses_error.v2' && body.writes_performed === false &&
+    body.reason_code === 'address_provider_verification_failed' &&
+    typeof body.blocking_reason === 'string' && REASON_CODE.test(body.blocking_reason) ? body.blocking_reason : null;
 }
 export function normalizeAddressActivationCandidate(value: AddressActivationCandidate): AddressActivationCandidate | null {
   if (!value || typeof value.frontend_deployment !== 'string' || typeof value.frontend_source !== 'string' ||

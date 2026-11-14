@@ -75,6 +75,80 @@ const UI = {
 // Separate backend presentation bootstrap; deliberately distinct from local ViewState defaults.
 const RECOVERY_UI = { ...UI, labels: { ...UI.labels, title: 'Synthetic publication recovery', refresh: 'Synthetic refresh action' },
   messages: { ...UI.messages, descriptor_error: 'Synthetic server-owned read recovery description' } };
+// Additive guidance copied from the backend literal producer (operator_guidance.v1).
+const GUIDANCE = {
+  "contract_version": "organization.address_operator_guidance.v1",
+  "labels": {
+    "blocked_title": "Activación bloqueada",
+    "next_action": "Qué hacer",
+    "pending_until": "La solicitud vence",
+    "expired_since": "La solicitud venció",
+    "active_until": "Vigente hasta"
+  },
+  "messages": {
+    "pending_window": "La solicitud tiene un plazo fijo. Si vence antes de activar la vinculación, hay que revocarla y volver a pedirla.",
+    "expired_action": "Revocá la solicitud vencida y volvé a pedir la dirección para iniciar un plazo nuevo. Hasta entonces la dirección no se publica.",
+    "active_expiry": "La vinculación activa deja de publicarse al vencer su vigencia. Todavía no hay renovación: después hay que revocarla, pedirla de nuevo y verificarla otra vez, y la dirección no se publica mientras tanto."
+  },
+  "blocking": {
+    "provider_routes_unavailable": {
+      "message": "El proveedor no informa las rutas de esta publicación. Sin esa evidencia el servidor no puede comparar la huella revisada y no activa la vinculación.",
+      "action": "Conservá la solicitud. No cargues una huella calculada fuera del proveedor: escalá el caso a la operación de la plataforma para definir una evidencia verificable."
+    },
+    "reviewed_route_setup_required": {
+      "message": "La huella de rutas no coincide con la publicación actual en Producción.",
+      "action": "Copiá la huella de la publicación revisada que está en Producción y prepará la revisión de nuevo."
+    },
+    "same_origin_backend_proxy_required": {
+      "message": "La publicación no envía las consultas de la aplicación al servidor de la plataforma.",
+      "action": "Revisá la configuración de rutas del frontend; la activación no continúa sin ese desvío."
+    },
+    "exact_production_target_required": {
+      "message": "La publicación indicada no es la vigente en Producción, todavía no está lista o no corresponde a la revisión del frontend.",
+      "action": "Actualizá el identificador y la revisión con la publicación vigente en Producción y prepará la revisión de nuevo."
+    },
+    "exact_frontend_deployment_required": {
+      "message": "La publicación indicada no está lista o no corresponde a la revisión del frontend.",
+      "action": "Revisá el identificador y la revisión del frontend y prepará la revisión de nuevo."
+    },
+    "provider_ownership_pending": {
+      "message": "El proveedor todavía no confirma la dirección en el proyecto del frontend.",
+      "action": "Esperá la confirmación del proveedor, actualizá el estado y reintentá."
+    },
+    "exact_project_domain_required": {
+      "message": "La dirección no está asignada al proyecto del frontend o tiene una redirección.",
+      "action": "Revisá la asignación de la dirección en el proyecto del frontend y reintentá."
+    },
+    "exact_customer_alias_required": {
+      "message": "La dirección todavía no apunta a la publicación indicada.",
+      "action": "Esperá a que la dirección apunte a la publicación vigente y reintentá."
+    },
+    "public_dns_required": {
+      "message": "La dirección no resuelve a una red pública.",
+      "action": "Revisá el DNS de la dirección y reintentá cuando resuelva públicamente."
+    },
+    "public_https_unavailable": {
+      "message": "No se pudo comprobar la dirección por HTTPS.",
+      "action": "Comprobá que la dirección responda por HTTPS con un certificado válido y reintentá."
+    },
+    "exact_https_readiness_required": {
+      "message": "La dirección respondió por HTTPS sin la confirmación esperada.",
+      "action": "Comprobá que la dirección sirva la publicación vigente y reintentá."
+    },
+    "exact_pending_runtime_required": {
+      "message": "La dirección respondió, pero no confirmó la solicitud pendiente de esta organización.",
+      "action": "Actualizá el estado. Si la solicitud cambió o venció, prepará una revisión nueva."
+    },
+    "fresh_platform_observation_required": {
+      "message": "La comprobación tardó más de lo permitido.",
+      "action": "Reintentá la preparación de la revisión."
+    },
+    "address_binding_expired": {
+      "message": "La solicitud venció durante la comprobación.",
+      "action": "Revocá la solicitud, volvé a pedir la dirección y prepará una revisión nueva."
+    }
+  }
+} as const;
 const A = { id: 17, slug: 'synthetic-organization' };
 const CANDIDATE = { frontend_deployment: 'dpl_syntheticExisting123', frontend_source: 'a'.repeat(40), routes_sha256: 'c'.repeat(64) };
 const OLD_REVISION = '1'.repeat(64), NEW_REVISION = '2'.repeat(64), DIGEST = '3'.repeat(64);
@@ -89,12 +163,14 @@ let target: Scope, activeKind: Kind | null, noCopy: boolean, noCapability: boole
 let failedReads: number, readFailure: 'http' | 'throw', loseAck: boolean, deniedPlan: boolean, expiredPlan: boolean;
 let planGate: ReturnType<typeof deferred<void>> | null;
 let recoveryCopy: unknown, recoveryGate: ReturnType<typeof deferred<void>> | null;
+let withGuidance: boolean, pendingUntil: number | null, blockedPlan: string | null;
 const seconds = () => Math.floor(Date.now() / 1000);
 const host = (kind: Kind) => kind === 'platform' ? 'synthetic-organization.chatboc.ar' : 'synthetic-organization.example.test';
 function descriptor(scope = target) {
   const slot = (kind: Kind) => ({ kind, source: 'v2', host: host(kind),
     status: activeKind === kind ? 'active' : 'pending_platform', active: activeKind === kind,
-    valid_until: activeKind === kind ? seconds() + 600 : null, dns_proof: null,
+    valid_until: activeKind === kind ? seconds() + 600 : null,
+    ...(pendingUntil !== null && activeKind !== kind ? { pending_until: pendingUntil } : {}), dns_proof: null,
     scope_note: 'Synthetic server-owned address scope' });
   return { contract_version: 'organization.addresses.v2', tenant: clone(scope),
     revision: activeKind ? NEW_REVISION : OLD_REVISION, version: activeKind ? 2 : 1,
@@ -107,6 +183,7 @@ function descriptor(scope = target) {
       ...(!noCapability ? { activation: { mode: 'platform_operator', available: true, can_plan: true,
         can_activate: true, reason_code: 'ready', provider_changes_supported: false } } : {}) },
     ...(!noCopy ? { operator_ui: clone(UI) } : {}),
+    ...(withGuidance ? { operator_guidance: clone(GUIDANCE) } : {}),
     save_endpoint: `/api/admin/tenants/${scope.slug}/addresses`, provider_changes_performed: false };
 }
 function plan(scope: Scope, body: any) {
@@ -146,6 +223,7 @@ beforeEach(() => {
   target = clone(A); activeKind = null; noCopy = noCapability = loseAck = deniedPlan = expiredPlan = false;
   failedReads = 0; readFailure = 'http'; planGate = null; calls = [];
   recoveryCopy = clone(RECOVERY_UI); recoveryGate = null;
+  withGuidance = false; pendingUntil = null; blockedPlan = null;
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() })));
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -165,6 +243,8 @@ beforeEach(() => {
     }
     if (method === 'POST' && path.endsWith('/activation-plan')) {
       if (deniedPlan) return reply({ contract_version: 'organization.addresses_error.v2', reason_code: 'address_forbidden', writes_performed: false }, 403);
+      if (blockedPlan) return reply({ contract_version: 'organization.addresses_error.v2', reason_code: 'address_provider_verification_failed',
+        retryable: false, writes_performed: false, blocking_reason: blockedPlan }, 409);
       const result = plan(clone(target), body); const gate = planGate; planGate = null;
       if (gate) await gate.promise;
       return reply(result);
@@ -287,5 +367,42 @@ describe('Organization address operator with real HTTP client and explicit revie
     expect(screen.queryByRole('heading', { name: UI.labels.review_title })).toBeNull();
     deniedPlan = false; await userEvent.click(screen.getByRole('button', { name: 'Actualizar estado' })); await loaded();
     expect(count('GET')).toBe(2); expect(count('POST', '/activation-plan')).toBe(1); expect(count('POST', '/activate')).toBe(0);
+  });
+});
+
+describe('Organization address operator guidance from the server', () => {
+  it('shows the request deadline and, when provider routes are missing, the server reason and action', async () => {
+    withGuidance = true; pendingUntil = seconds() + 3600; blockedPlan = 'provider_routes_unavailable';
+    render(view()); await loaded();
+    expect(screen.getByText(GUIDANCE.labels.pending_until + ':')).toBeInTheDocument();
+    expect(screen.getByText(GUIDANCE.messages.pending_window)).toBeInTheDocument();
+    expect(document.querySelector('time')?.getAttribute('dateTime')).toBe(new Date(pendingUntil * 1000).toISOString());
+    await fillVersion(); await userEvent.click(screen.getByRole('button', { name: UI.labels.plan }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(GUIDANCE.labels.blocked_title);
+    expect(alert).toHaveTextContent(GUIDANCE.blocking.provider_routes_unavailable.message);
+    expect(alert).toHaveTextContent(GUIDANCE.blocking.provider_routes_unavailable.action);
+    expect(screen.queryByText(UI.messages.plan_error)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(count('POST', '/activation-plan')).toBe(1); expect(count('POST', '/activate')).toBe(0);
+    expect(screen.queryByRole('heading', { name: UI.labels.review_title })).not.toBeInTheDocument();
+    blockedPlan = null;
+    await userEvent.click(screen.getByRole('button', { name: UI.labels.refresh })); await loaded();
+    expect(screen.queryByText(GUIDANCE.labels.blocked_title)).not.toBeInTheDocument();
+  });
+  it('never invents copy for a reason the server did not describe', async () => {
+    withGuidance = true; blockedPlan = 'synthetic_unlisted_reason';
+    render(view()); await loaded();
+    await fillVersion(); await userEvent.click(screen.getByRole('button', { name: UI.labels.plan }));
+    await screen.findByText(UI.messages.plan_error);
+    expect(screen.queryByText(GUIDANCE.labels.blocked_title)).not.toBeInTheDocument();
+  });
+  it('keeps the generic message when the server sends no guidance', async () => {
+    pendingUntil = seconds() + 3600; blockedPlan = 'provider_routes_unavailable';
+    render(view()); await loaded();
+    expect(screen.queryByText(GUIDANCE.messages.pending_window)).not.toBeInTheDocument();
+    await fillVersion(); await userEvent.click(screen.getByRole('button', { name: UI.labels.plan }));
+    await screen.findByText(UI.messages.plan_error);
+    expect(screen.queryByText(GUIDANCE.labels.blocked_title)).not.toBeInTheDocument();
   });
 });
