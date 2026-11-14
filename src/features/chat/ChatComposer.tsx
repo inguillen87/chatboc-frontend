@@ -8,6 +8,7 @@ import useAudioRecorder,{recordedAudioFilename} from '@/hooks/useAudioRecorder';
 import type { ChatMediaCapabilities, ChatMediaInputModeConfig } from '@/types/chat';
 import type { AudioRecoveryCallbacks, AudioRecoveryNotice } from './audioRecovery';
 import { subscribeChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { useAudioDraftFocusExit } from './audioDraftFocus';
 import { uploadChatAttachment } from './uploadChatAttachment';
 import {
   getChatAttachmentAcceptedTypes,
@@ -99,6 +100,9 @@ export default function ChatComposer({
     audioEnabled,audioMode?.chat_endpoint??null,audioMode?.multipart_field??null,audioContextKey??null,mediaCapabilities??null]);
   const {recorderState,isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:audioEnabled});
   const currentAudioDraft=audioDraft?.isCurrent()?audioDraft:null;
+  const audioActionRef=useRef<HTMLButtonElement|null>(null),messageFieldRef=useRef<HTMLInputElement|null>(null);
+  // La salida vuelve al control que inició la grabación; no abre el teclado en pantalla en móvil.
+  const markAudioDraftExit=useAudioDraftFocusExit(currentAudioDraft?.blob??null,audioScopeKey,[()=>audioActionRef.current,()=>messageFieldRef.current]);
   useEffect(()=>{setAudioDraft(null);return()=>{audioDraftRef.current?.discard();};},[audioScopeKey]);
   useEffect(()=>subscribeChatbocSessionRevision(()=>{audioDraftRef.current?.discard();setAudioDraft(null);}),[]);
   if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
@@ -340,6 +344,7 @@ export default function ChatComposer({
             onClick={async()=>{
               const draft=currentAudioDraft;
               if(!draft.isCurrent()||audioCompletion.current?.isCurrent())return;
+              markAudioDraftExit(draft.blob);
               const token=Symbol('audio-recovery');audioCompletion.current={token,isCurrent:draft.isCurrent};
               setAudioDraft({...draft,pending:true});
               try{await draft.notice.retry?.();}finally{
@@ -347,7 +352,7 @@ export default function ChatComposer({
                 if(draft.isCurrent())setAudioDraft(current=>current?.blob===draft.blob?{...current,pending:false}:current);
               }
             }}>Comprobar envío</Button>:null}
-          <Button type="button" size="sm" variant="outline" onClick={()=>{currentAudioDraft.discard();setAudioDraft(null);}}>Descartar grabación</Button>
+          <Button type="button" size="sm" variant="outline" onClick={()=>{markAudioDraftExit(currentAudioDraft.blob);currentAudioDraft.discard();setAudioDraft(null);}}>Descartar grabación</Button>
         </div>
       </div>:null}
       {attachmentDraft ? (
@@ -393,6 +398,7 @@ export default function ChatComposer({
       ) : null}
       <div className="flex gap-2">
         <input
+          ref={messageFieldRef}
           className="min-w-0 flex-1 rounded border bg-background px-2 py-1 text-foreground placeholder:text-muted-foreground"
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -411,6 +417,7 @@ export default function ChatComposer({
             return (
               <Button
                 key={action.id}
+                ref={action.type==='audio'?audioActionRef:undefined}
                 type="button"
                 size="sm"
                 variant="outline"

@@ -21,6 +21,7 @@ import { ensureAbsoluteUrl } from "@/utils/chatButtons";
 import { useChatInputDraft } from './useChatInputDraft';
 import { uploadChatAttachment, createChatAttachmentUploadAttempt } from "@/features/chat/uploadChatAttachment";
 import { audioRecoveryMessage, type AudioRecoveryNotice } from '@/features/chat/audioRecovery';
+import { useAudioDraftFocusExit } from '@/features/chat/audioDraftFocus';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {
   getChatAttachmentAcceptedTypes,
@@ -313,6 +314,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const {isRecording,isStarting,startRecording,stopRecording,cancelRecording,captureRecordingOwner}=useAudioRecorder({scopeKey:audioScopeKey,enabled:showAudioAction&&!disabled});
   if(audioCompletion.current&&!audioCompletion.current.isCurrent())audioCompletion.current=null;
   const currentRecordingDraft=recordingDraft?.isCurrent()?recordingDraft:null;
+  const audioActionRef=useRef<HTMLButtonElement|null>(null);
+  // La salida vuelve al control que inició la grabación; no abre el teclado en pantalla en móvil.
+  const markRecordingDraftExit=useAudioDraftFocusExit(currentRecordingDraft?.blob??null,audioScopeKey,[()=>audioActionRef.current,()=>internalRef.current]);
   useLayoutEffect(()=>{setRecordingDraft(null);return()=>{recordingDraftRef.current?.discard?.();};},[audioScopeKey]);
   useLayoutEffect(()=>subscribeChatbocSessionRevision(()=>{recordingDraftRef.current?.discard?.();setRecordingDraft(null);audioCompletion.current=null;}),[]);
   const showEmojiAction = shouldShowToolbarAction("emoji");
@@ -809,6 +813,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             disabled={isTyping||disabled||currentRecordingDraft.pending} onClick={async()=>{
               const draft=currentRecordingDraft;
               if(!draft.isCurrent()||typingNow.current||audioCompletion.current?.isCurrent())return;
+              markRecordingDraftExit(draft.blob);
               const completion=Symbol('recording-draft');audioCompletion.current={token:completion,isCurrent:draft.isCurrent};
               setRecordingDraft({...draft,pending:true});
               try{if(draft.recovery?.retry)await draft.recovery.retry();else await handleSendAudio(draft.blob,draft.isCurrent);}finally{
@@ -817,7 +822,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
               }
             }}>{currentRecordingDraft.recovery?'Comprobar envío':'Enviar grabación'}</button>:null}
           <button type="button" className="rounded-lg border border-border bg-background px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            onClick={()=>{currentRecordingDraft.discard?.();setRecordingDraft(null);}}>Descartar grabación</button>
+            onClick={()=>{markRecordingDraftExit(currentRecordingDraft.blob);currentRecordingDraft.discard?.();setRecordingDraft(null);}}>Descartar grabación</button>
         </div>
       </div>:null}
       {draftRecovered ? (
@@ -994,6 +999,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             ) : null}
             {showAudioAction ? (
             <button
+              ref={audioActionRef}
               onClick={async () => {
                 if(audioCompletion.current?.isCurrent())return;
                 audioCompletion.current=null;
