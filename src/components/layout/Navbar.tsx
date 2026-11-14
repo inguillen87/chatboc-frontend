@@ -153,7 +153,6 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     hasVerifiedSession &&
       (user || (hasPersistedSession && safeLocalStorage.getItem("user"))),
   );
-  const showAccountMenu = isLoggedIn && !isPublicTenantPage;
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
@@ -164,6 +163,11 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   const authenticatedOrganization = readVerifiedOrganizationIdentity(user, {
     hasVerifiedSession, profileVerified: organizationProfileVerified, loading: userLoading,
   });
+  const showAccountMenu = isLoggedIn && !isPublicTenantPage && (!hostBinding || Boolean(
+    authenticatedOrganization && authenticatedOrganization.tenantId === hostBinding.tenant.id &&
+    authenticatedOrganization.tenantSlug === hostBinding.tenant.slug,
+  ));
+  const showHostSessionAction = Boolean(hostBinding && isLoggedIn && !showAccountMenu);
   const hasOrganizationContracts = hasOrganizationIdentityContracts(effectiveUser);
 
   const userRole = typeof effectiveUser?.rol === "string" ? effectiveUser.rol : undefined;
@@ -585,6 +589,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
               {!isPublicTenantPage || publicLoginPath ? <RouterLink to={publicLoginPath ?? "/login"} className={`${hostBinding || isPublicTenantPage ? 'border bg-primary text-primary-foreground' : 'chatboc-cta-secondary'} rounded-[8px] px-3 py-1.5 text-sm font-semibold`}>
                 Iniciar sesión
               </RouterLink> : null}
+              {showHostSessionAction ? <button type="button" onClick={handleLogout} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold"><LogOut className="h-4 w-4" />Cerrar sesión</button> : null}
               {!hostBinding && !isPublicTenantPage ? <RouterLink to="/demo" className="chatboc-cta-primary rounded-[8px] px-3 py-1.5 text-sm font-semibold">
                 Ver demo
               </RouterLink> : null}
@@ -719,6 +724,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                 {!isPublicTenantPage || publicLoginPath ? <RouterLink to={publicLoginPath ?? "/login"} onClick={() => setMenuOpen(false)} className={mobileItemClass}>
                   Iniciar sesión
                 </RouterLink> : null}
+                {showHostSessionAction ? <button type="button" onClick={handleLogout} className={`${mobileItemClass} flex items-center gap-2`}><LogOut className="h-4 w-4" />Cerrar sesión</button> : null}
                 {!hostBinding && !isPublicTenantPage ? <RouterLink
                   to="/demo"
                   onClick={() => setMenuOpen(false)}

@@ -52,7 +52,9 @@ export interface TenantAddresses {
     writes_blocked: boolean;
     platform: AddressSlotCapabilities;
     custom: AddressSlotCapabilities;
+    activation?: AddressActivationCapabilities;
   };
+  operator_ui?: AddressOperatorUI;
 }
 
 /** El servidor todavía no publica este contrato: la pantalla usa la versión anterior. */
@@ -165,6 +167,8 @@ export function readTenantAddresses(payload: unknown, scope: AddressTenantScope,
   const base = asRecord(value.base);
   const capabilities = asRecord(value.capabilities);
   const path = endpointFor(scope);
+  const activation = readActivationCapabilities(capabilities.activation);
+  const operatorUI = readOperatorUI(value.operator_ui);
 
   if (value.contract_version !== 'organization.addresses.v2' || tenant.id !== scope.id || tenant.slug !== scope.slug ||
     typeof value.revision !== 'string' || !REVISION.test(value.revision) ||
@@ -189,7 +193,9 @@ export function readTenantAddresses(payload: unknown, scope: AddressTenantScope,
       writes_blocked: capabilities.writes_blocked,
       platform: readSlotCapabilities(capabilities.platform),
       custom: readSlotCapabilities(capabilities.custom),
+      ...(activation ? { activation } : {}),
     },
+    ...(operatorUI ? { operator_ui: operatorUI } : {}),
   };
 }
 
@@ -321,3 +327,142 @@ export async function saveTenantAddress(
   }
   return readTenantAddresses(response.addresses, scope);
 }
+
+
+export interface AddressActivationCapabilities {
+  mode: 'platform_operator'; available: boolean; can_plan: boolean; can_activate: boolean;
+  reason_code: string; provider_changes_supported: false;
+}
+export const ADDRESS_OPERATOR_LABELS = [
+  'title', 'description', 'kind', 'platform', 'custom', 'advanced_title', 'advanced_description',
+  'deployment', 'source', 'routes', 'reviewed_version', 'refresh', 'plan', 'review_title', 'tenant',
+  'host', 'revision', 'digest', 'observed', 'expires', 'backend_source', 'confirm_title',
+  'confirm_description', 'confirm', 'cancel', 'loading', 'planning', 'activating', 'active', 'plan_ready',
+] as const;
+export const ADDRESS_OPERATOR_MESSAGES = [
+  'not_ready', 'descriptor_error', 'plan_error', 'activation_error', 'uncertain', 'expired',
+  'input_invalid', 'descriptor_changed', 'platform_admin_required', 'operator_runtime_unavailable',
+  'maintenance', 'not_pending', 'success',
+] as const;
+export interface AddressOperatorUI {
+  contract_version: 'organization.address_operator_ui.v1';
+  labels: Record<typeof ADDRESS_OPERATOR_LABELS[number], string>;
+  messages: Record<typeof ADDRESS_OPERATOR_MESSAGES[number], string>;
+}
+export interface AddressActivationCandidate {
+  frontend_deployment: string; frontend_source: string; routes_sha256: string;
+}
+export interface AddressActivationRequest extends AddressActivationCandidate {
+  kind: AddressKind; expected_revision: string;
+}
+export interface AddressActivationPlan {
+  contract_version: 'organization.address_activation_plan.v2';
+  plan: {
+    host: string; tenant_id: number; tenant_slug: string; kind: AddressKind; revision: string;
+    valid_until: number; frontend_deployment: string; frontend_source: string; backend_source: string;
+    routes_sha256: string; allowed_aliases: string[]; project_id: string;
+  };
+  plan_sha256: string; observed_at: number; valid_until: number;
+  writes_performed: false; provider_changes_performed: false; auth_e2e_verified: false;
+}
+const SOURCE_REVISION = /^[a-f0-9]{40}$/;
+const DEPLOYMENT_ID = /^dpl_[A-Za-z0-9]{8,128}$/;
+
+function readActivationCapabilities(raw: unknown): AddressActivationCapabilities | undefined {
+  const value = asRecord(raw);
+  if (value.mode !== 'platform_operator' || value.provider_changes_supported !== false ||
+    [value.available, value.can_plan, value.can_activate].some(flag => typeof flag !== 'boolean') ||
+    typeof value.reason_code !== 'string' || !REASON_CODE.test(value.reason_code) ||
+    (value.available === false && (value.can_plan === true || value.can_activate === true))) return undefined;
+  return { mode: 'platform_operator', available: value.available as boolean,
+    can_plan: value.can_plan as boolean, can_activate: value.can_activate as boolean,
+    reason_code: value.reason_code, provider_changes_supported: false };
+}
+function readOperatorUI(raw: unknown): AddressOperatorUI | undefined {
+  const value = asRecord(raw), labels = asRecord(value.labels), messages = asRecord(value.messages);
+  if (value.contract_version !== 'organization.address_operator_ui.v1' ||
+    !ADDRESS_OPERATOR_LABELS.every(key => isSafeCopy(labels[key]) && (labels[key] as string).trim()) ||
+    !ADDRESS_OPERATOR_MESSAGES.every(key => isSafeCopy(messages[key]) && (messages[key] as string).trim())) return undefined;
+  return { contract_version: 'organization.address_operator_ui.v1',
+    labels: Object.fromEntries(ADDRESS_OPERATOR_LABELS.map(key => [key, labels[key]])) as AddressOperatorUI['labels'],
+    messages: Object.fromEntries(ADDRESS_OPERATOR_MESSAGES.map(key => [key, messages[key]])) as AddressOperatorUI['messages'] };
+}
+export function normalizeAddressActivationCandidate(value: AddressActivationCandidate): AddressActivationCandidate | null {
+  if (!value || typeof value.frontend_deployment !== 'string' || typeof value.frontend_source !== 'string' ||
+    typeof value.routes_sha256 !== 'string') return null;
+  const candidate = { frontend_deployment: value.frontend_deployment.trim(),
+    frontend_source: value.frontend_source.trim(), routes_sha256: value.routes_sha256.trim() };
+  return DEPLOYMENT_ID.test(candidate.frontend_deployment) && SOURCE_REVISION.test(candidate.frontend_source) &&
+    REVISION.test(candidate.routes_sha256) ? candidate : null;
+}
+function activationRequest(scope: AddressTenantScope, current: TenantAddresses, kind: AddressKind,
+  candidate: AddressActivationCandidate, action: 'plan' | 'activate', isCurrent: () => boolean): AddressActivationRequest {
+  endpointFor(scope);
+  const capability = current.capabilities.activation, normalized = normalizeAddressActivationCandidate(candidate);
+  if ((kind !== 'platform' && kind !== 'custom') || !isCurrent() || current.tenant.id !== scope.id || current.tenant.slug !== scope.slug ||
+    !REVISION.test(current.revision) || !normalized || current.capabilities.writes_blocked ||
+    !capability?.available || capability.mode !== 'platform_operator' ||
+    !(action === 'plan' ? capability.can_plan : capability.can_activate) ||
+    current[kind]?.kind !== kind || current[kind].status !== 'pending_platform' || !current[kind].host ||
+    !current.capabilities[kind].eligible) throw new TenantAddressesContractError();
+  return { kind, expected_revision: current.revision, ...normalized };
+}
+export function readAddressActivationPlan(payload: unknown, scope: AddressTenantScope, current: TenantAddresses,
+  request: AddressActivationRequest, nowSeconds = Date.now() / 1000): AddressActivationPlan {
+  const value = asRecord(payload), plan = asRecord(value.plan);
+  const slot = current[request.kind];
+  if (value.contract_version !== 'organization.address_activation_plan.v2' ||
+    value.writes_performed !== false || value.provider_changes_performed !== false || value.auth_e2e_verified !== false ||
+    typeof value.plan_sha256 !== 'string' || !REVISION.test(value.plan_sha256) ||
+    !isUnixTimestamp(value.observed_at) || !isUnixTimestamp(value.valid_until) ||
+    value.observed_at >= value.valid_until || value.valid_until <= nowSeconds ||
+    plan.tenant_id !== scope.id || plan.tenant_slug !== scope.slug || plan.kind !== request.kind ||
+    current.tenant.id !== scope.id || current.tenant.slug !== scope.slug ||
+    plan.revision !== current.revision || plan.revision !== request.expected_revision ||
+    typeof plan.host !== 'string' || plan.host !== slot.host || normalizeTenantHostname(plan.host) !== plan.host ||
+    !isUnixTimestamp(plan.valid_until) || plan.valid_until < value.valid_until ||
+    plan.frontend_deployment !== request.frontend_deployment || plan.frontend_source !== request.frontend_source ||
+    plan.routes_sha256 !== request.routes_sha256 || typeof plan.backend_source !== 'string' || !SOURCE_REVISION.test(plan.backend_source) ||
+    typeof plan.project_id !== 'string' || !/^prj_[A-Za-z0-9]{8,128}$/.test(plan.project_id) ||
+    !Array.isArray(plan.allowed_aliases) || plan.allowed_aliases.length > 32 ||
+    plan.allowed_aliases.some(host => typeof host !== 'string' || normalizeTenantHostname(host) !== host)) {
+    throw new TenantAddressesContractError();
+  }
+  return { contract_version: 'organization.address_activation_plan.v2',
+    plan: { host: plan.host, tenant_id: scope.id, tenant_slug: scope.slug, kind: request.kind,
+      revision: request.expected_revision, valid_until: plan.valid_until as number,
+      ...normalizeAddressActivationCandidate(request)!, backend_source: plan.backend_source,
+      project_id: plan.project_id, allowed_aliases: [...plan.allowed_aliases] as string[] },
+    plan_sha256: value.plan_sha256, observed_at: value.observed_at as number, valid_until: value.valid_until as number,
+    writes_performed: false, provider_changes_performed: false, auth_e2e_verified: false };
+}
+export async function planTenantAddressActivation(scope: AddressTenantScope, current: TenantAddresses,
+  kind: AddressKind, candidate: AddressActivationCandidate, isCurrent: () => boolean): Promise<AddressActivationPlan> {
+  const body = activationRequest(scope, current, kind, candidate, 'plan', isCurrent);
+  const payload: unknown = await apiFetch<unknown>(endpointFor(scope) + '/activation-plan', {
+    ...requestOptions(scope, isCurrent), sendEntityToken: false, method: 'POST', body,
+  });
+  if (!isCurrent()) throw new DOMException('Address scope changed', 'AbortError');
+  return readAddressActivationPlan(payload, scope, current, body);
+}
+export async function activateTenantAddress(scope: AddressTenantScope, current: TenantAddresses,
+  kind: AddressKind, candidate: AddressActivationCandidate, review: AddressActivationPlan,
+  isCurrent: () => boolean): Promise<TenantAddresses> {
+  const body = activationRequest(scope, current, kind, candidate, 'activate', isCurrent);
+  const approved = readAddressActivationPlan(review, scope, current, body);
+  const payload = asRecord(await apiFetch<unknown>(endpointFor(scope) + '/activate', {
+    ...requestOptions(scope, isCurrent), sendEntityToken: false, method: 'POST',
+    body: { ...body, approved_plan_sha256: approved.plan_sha256 },
+  }));
+  if (!isCurrent()) throw new DOMException('Address scope changed', 'AbortError');
+  if (payload.contract_version !== 'organization.addresses_save.v2' || payload.saved !== true || payload.committed !== true ||
+    payload.writes_performed !== true || payload.provider_changes_performed !== false ||
+    payload.approved_plan_sha256 !== approved.plan_sha256) throw new TenantAddressesContractError();
+  const addresses = readTenantAddresses(payload.addresses, scope);
+  if (!addresses[kind].active || addresses[kind].status !== 'active' || addresses[kind].host !== approved.plan.host ||
+    addresses.revision === current.revision) throw new TenantAddressesContractError();
+  return addresses;
+}
+
+/** Reused generic recovery action already displayed by TenantAddressesSettings. */
+export const TENANT_ADDRESSES_REFRESH_LABEL = 'Actualizar estado';

@@ -3662,7 +3662,7 @@ function ChatWidgetInner({
                 />
                 {!isMobileView && !isOpen ? (
                   <span className="pointer-events-none absolute -top-10 right-0 whitespace-nowrap rounded-lg border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-semibold text-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-                    Chatboc · Asistente digital
+                    {headerTitle || "Chatboc"} · Asistente digital
                   </span>
                 ) : null}
               </motion.button>

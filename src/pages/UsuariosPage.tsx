@@ -29,6 +29,7 @@ import {
   useCrmPeopleDirectory,
 } from "@/features/crm/people/useCrmPeopleDirectory";
 import { cn } from "@/lib/utils";
+import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision } from "@/utils/chatbocSessionRevision";
 
 type RawUsuario = Record<string, any>;
 
@@ -378,6 +379,23 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     profile.profile_picture_consent ??
     false;
 
+  const hasCanonicalField = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
+  const rawLeadScore = hasCanonicalField("lead_score") ? raw.lead_score : raw.leadScore;
+  const rawLeadTemperature = hasCanonicalField("lead_temperature")
+    ? raw.lead_temperature
+    : raw.leadTemperature;
+  const rawMarketing = hasCanonicalField("acepta_marketing")
+    ? raw.acepta_marketing
+    : hasCanonicalField("marketing") ? raw.marketing : raw.opt_in_marketing;
+  const numericLeadScore = typeof rawLeadScore === "number"
+    ? rawLeadScore
+    : typeof rawLeadScore === "string" && rawLeadScore.trim()
+      ? Number(rawLeadScore)
+      : undefined;
+  const leadScore = typeof numericLeadScore === "number" && Number.isFinite(numericLeadScore)
+    ? numericLeadScore
+    : undefined;
+
   return {
     id: raw.id ?? raw.user_id ?? index,
     nombre: rawName,
@@ -399,7 +417,7 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
       normalizeString(raw.ultima_interaccion) ||
       normalizeString(raw.updated_at) ||
       normalizeString(raw.updatedAt),
-    marketing: Boolean(raw.acepta_marketing ?? raw.marketing ?? raw.opt_in_marketing),
+    marketing: Boolean(rawMarketing),
     profileExcerpt,
     nameQuality,
     totalOrders: Number(raw.total_orders ?? raw.totalOrders ?? 0) || 0,
@@ -408,8 +426,8 @@ export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
     resumen,
     motivo,
     lastIntent,
-    leadTemperature: normalizeString(raw.lead_temperature || raw.leadTemperature),
-    leadScore: Number(raw.lead_score ?? raw.leadScore ?? 0) || 0,
+    leadTemperature: normalizeString(rawLeadTemperature),
+    leadScore,
     conversationStatus: normalizeString(raw.conversation_status || raw.conversationStatus),
     suggestedActions,
     interactionCount: raw.interaction_count ?? raw.interactionCount ?? null,
@@ -606,6 +624,14 @@ export interface UsuariosPageProps {
   embedded?: boolean;
 }
 
+interface CampaignActivityState {
+  owner: object;
+  history: CampaignHistoryItem[];
+  ledger: CampaignLedgerItem[];
+  notifications: NotificationCenterItem[];
+  loading: boolean;
+}
+
 export default function UsuariosPage({ tenantSlugOverride, embedded = false }: UsuariosPageProps = {}) {
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
   const navigate = useNavigate();
@@ -613,12 +639,9 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   const { socket, isConnected } = useSocket();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [protectedSelectionId, setProtectedSelectionId] = useState<string | null>(null);
-  const [campaignHistory, setCampaignHistory] = useState<CampaignHistoryItem[]>([]);
-  const [campaignLedger, setCampaignLedger] = useState<CampaignLedgerItem[]>([]);
-  const [notificationCenter, setNotificationCenter] = useState<NotificationCenterItem[]>([]);
-  const [campaignActivityLoading, setCampaignActivityLoading] = useState(false);
-  const [realtimeEvents, setRealtimeEvents] = useState(0);
-  const transportPresentation = getCrmTransportPresentation(isConnected, realtimeEvents);
+  const [campaignActivity, setCampaignActivity] = useState<CampaignActivityState | null>(null);
+  const [realtimeActivity, setRealtimeActivity] = useState<{ owner: object; count: number } | null>(null);
+  const sessionRevision = React.useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
   const {
     activeView,
     selectedContactId,
@@ -648,6 +671,29 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       }),
     [tenantSlugOverride, user],
   );
+  // Identity owns the displayed resource as well as its pending requests. A new
+  // owner hides the previous data during render, before effect cleanup runs.
+  const activityTenant = normalizeTenantIdentity(tenantSlug);
+  const activityActor = user?.id ?? null;
+  const activityOwner = React.useMemo(() => ({ tenant: activityTenant, actor: activityActor, sessionRevision }), [activityTenant, activityActor, sessionRevision]);
+  const activityOwnerRef = React.useRef<object | null>(activityOwner);
+  const activityRequestRef = React.useRef<symbol | null>(null);
+  const currentActivity = campaignActivity?.owner === activityOwner ? campaignActivity : null;
+  const campaignHistory = currentActivity?.history ?? [];
+  const campaignLedger = currentActivity?.ledger ?? [];
+  const notificationCenter = currentActivity?.notifications ?? [];
+  const campaignActivityLoading = currentActivity?.loading ?? false;
+  const realtimeEvents = realtimeActivity?.owner === activityOwner ? realtimeActivity.count : 0;
+  const transportPresentation = getCrmTransportPresentation(isConnected, realtimeEvents);
+  React.useLayoutEffect(() => {
+    activityOwnerRef.current = activityOwner;
+    return () => {
+      if (activityOwnerRef.current === activityOwner) {
+        activityOwnerRef.current = null;
+        activityRequestRef.current = null;
+      }
+    };
+  }, [activityOwner]);
   const directoryQuery = useCrmPeopleDirectory({
     tenantSlug,
     q: search,
@@ -737,24 +783,35 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
   );
 
   const fetchCampaignActivity = React.useCallback(async () => {
-    if (!tenantSlug) return;
-    setCampaignActivityLoading(true);
+    if (!tenantSlug || activityOwnerRef.current !== activityOwner || !isChatbocSessionRevisionCurrent(sessionRevision)) return;
+    const request = Symbol('crm-activity');
+    activityRequestRef.current = request;
+    const isCurrent = () => activityOwnerRef.current === activityOwner && activityRequestRef.current === request && isChatbocSessionRevisionCurrent(sessionRevision);
+    setCampaignActivity((previous) => isCurrent() ? {
+      ...(previous?.owner === activityOwner ? previous : { owner: activityOwner, history: [], ledger: [], notifications: [] }),
+      loading: true,
+    } : previous);
     try {
       const encoded = encodeURIComponent(tenantSlug);
       const [historyResponse, ledgerResponse, notificationResponse] = await Promise.all([
-        apiFetch<{ items?: CampaignHistoryItem[] }>(`/api/admin/tenants/${encoded}/campaigns/history?limit=6&days=30`, { tenantSlug }),
-        apiFetch<{ items?: CampaignLedgerItem[] }>(`/api/admin/tenants/${encoded}/campaigns/ledger?limit=10&days=30`, { tenantSlug }),
-        apiFetch<{ items?: NotificationCenterItem[]; counts?: Record<string, number> }>(`/api/admin/tenants/${encoded}/notifications/center?limit=8`, { tenantSlug }),
+        apiFetch<{ items?: CampaignHistoryItem[] }>(`/api/admin/tenants/${encoded}/campaigns/history?limit=6&days=30`, { tenantSlug, isCurrent }),
+        apiFetch<{ items?: CampaignLedgerItem[] }>(`/api/admin/tenants/${encoded}/campaigns/ledger?limit=10&days=30`, { tenantSlug, isCurrent }),
+        apiFetch<{ items?: NotificationCenterItem[]; counts?: Record<string, number> }>(`/api/admin/tenants/${encoded}/notifications/center?limit=8`, { tenantSlug, isCurrent }),
       ]);
-      setCampaignHistory(Array.isArray(historyResponse?.items) ? historyResponse.items : []);
-      setCampaignLedger(Array.isArray(ledgerResponse?.items) ? ledgerResponse.items : []);
-      setNotificationCenter(Array.isArray(notificationResponse?.items) ? notificationResponse.items : []);
+      if (!isCurrent()) return;
+      setCampaignActivity((previous) => isCurrent() ? {
+        owner: activityOwner,
+        history: Array.isArray(historyResponse?.items) ? historyResponse.items : [],
+        ledger: Array.isArray(ledgerResponse?.items) ? ledgerResponse.items : [],
+        notifications: Array.isArray(notificationResponse?.items) ? notificationResponse.items : [],
+        loading: false,
+      } : previous);
     } catch (activityError) {
-      console.warn("No se pudo cargar actividad de campanas CRM", activityError);
+      if (isCurrent()) console.warn("No se pudo cargar actividad de campanas CRM", activityError);
     } finally {
-      setCampaignActivityLoading(false);
+      if (isCurrent()) setCampaignActivity((previous) => isCurrent() && previous?.owner === activityOwner ? { ...previous, loading: false } : previous);
     }
-  }, [tenantSlug]);
+  }, [activityOwner, sessionRevision, tenantSlug]);
 
   useEffect(() => {
     if (activeView === "campanas" || activeView === "actividad") {
@@ -773,13 +830,15 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
     };
 
     const refreshActivityFromRealtime = (payload: any) => {
+      if (activityOwnerRef.current !== activityOwner || !isChatbocSessionRevisionCurrent(sessionRevision)) return;
       const payloadSlug =
         payload?.tenant_slug ||
         payload?.tenant ||
         payload?.payload?.tenant_slug ||
         payload?.notification?.tenant_slug;
       if (payloadSlug && tenantSlug && payloadSlug !== tenantSlug) return;
-      setRealtimeEvents((prev) => prev + 1);
+      setRealtimeActivity((previous) => activityOwnerRef.current === activityOwner && isChatbocSessionRevisionCurrent(sessionRevision)
+        ? { owner: activityOwner, count: previous?.owner === activityOwner ? previous.count + 1 : 1 } : previous);
       if (activeView === "campanas" || activeView === "actividad") {
         void fetchCampaignActivity();
       }
@@ -801,7 +860,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
       socket.off("notification.sent", refreshActivityFromRealtime);
       socket.off("notification.failed", refreshActivityFromRealtime);
     };
-  }, [activeView, directoryQuery.refetch, fetchCampaignActivity, socket, tenantSlug]);
+  }, [activeView, activityOwner, directoryQuery.refetch, fetchCampaignActivity, sessionRevision, socket, tenantSlug]);
 
   useEffect(() => {
     setSelectedIds((prev) => {

@@ -318,6 +318,31 @@ const resolveTenantBootstrap = (
   return { slug: null, widgetToken: null };
 };
 
+const TenantHostAvailability = ({
+  loading,
+  scopeMismatch,
+  onRetry,
+}: {
+  loading: boolean;
+  scopeMismatch: boolean;
+  onRetry: () => void;
+}) => {
+  const heading = loading ? 'Cargando espacio' : 'Este dominio no está disponible';
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = heading;
+    return () => {
+      if (document.title === heading) document.title = previousTitle;
+    };
+  }, [heading]);
+
+  return <main id="main-content" className="mx-auto flex min-h-[65vh] max-w-2xl flex-col justify-center gap-4 px-6 py-12" aria-busy={loading}>
+    <h1 className="text-2xl font-semibold">{heading}</h1>
+    <p role={loading ? 'status' : 'alert'}>{loading ? 'Estamos comprobando la organización de este dominio.' : scopeMismatch ? 'La dirección solicitada no corresponde a la organización de este dominio.' : 'No pudimos confirmar un espacio activo y verificado. Reintentá en unos minutos.'}</p>
+    {!loading ? <button type="button" className="min-h-11 rounded-lg border px-4 py-2 text-sm font-semibold" onClick={onRetry}>Reintentar</button> : null}
+  </main>;
+};
+
 export const TenantProvider = ({
   children,
   bootstrapEnabled = true,
@@ -679,11 +704,7 @@ export const TenantProvider = ({
   const hostProfilePending = !tenantBootstrapSuppressed && (!tenant || isLoadingTenant || currentSlug !== hostBinding?.tenant.slug);
   if (hostResolution.required && (hostResolution.status !== 'active' || hostScopeMismatch || tenantError || hostProfilePending)) {
     const loading = hostResolution.status === 'loading' || (hostResolution.status === 'active' && hostProfilePending && !hostScopeMismatch && !tenantError);
-    return <main id="main-content" className="mx-auto flex min-h-[65vh] max-w-2xl flex-col justify-center gap-4 px-6 py-12" aria-busy={loading}>
-      <h1 className="text-2xl font-semibold">{loading ? 'Cargando espacio' : 'Este dominio no está disponible'}</h1>
-      <p role={loading ? 'status' : 'alert'}>{loading ? 'Estamos comprobando la organización de este dominio.' : hostScopeMismatch ? 'La dirección solicitada no corresponde a la organización de este dominio.' : 'No pudimos confirmar un espacio activo y verificado. Reintentá en unos minutos.'}</p>
-      {!loading ? <button type="button" className="min-h-11 rounded-lg border px-4 py-2 text-sm font-semibold" onClick={hostResolution.refresh}>Reintentar</button> : null}
-    </main>;
+    return <TenantHostAvailability loading={loading} scopeMismatch={hostScopeMismatch} onRetry={hostResolution.refresh} />;
   }
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 };
