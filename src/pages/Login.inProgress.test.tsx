@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Login from './Login';
 import { ClerkRuntimeProvider } from '@/components/auth/ClerkRuntimeContext';
 import { tenantHostFixture } from '@/test/fixtures/tenantHost';
+import { readClerkAuthContext } from '@/utils/clerkAuthContext';
 
 const mocks = vi.hoisted(() => ({
   credentialLogin: vi.fn(),
@@ -104,6 +105,20 @@ describe('Login in-progress authentication', () => {
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'unused-fixture' } });
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
     expect(mocks.credentialLogin).toHaveBeenCalledWith('fixture@example.invalid', 'unused-fixture', '/t/government-east/login', expect.any(Function));
+  });
+
+  it('carries the organization scope into Clerk so a foreign account cannot enter a bound host', () => {
+    const binding = tenantHostFixture();
+    mocks.tenantContext.mockReturnValue({ hostBinding: binding, currentSlug: binding.tenant.slug, tenant: { slug: binding.tenant.slug, publishedIdentity: binding.identity }, isLoadingTenant: false });
+    renderLogin(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Ingresar con email' }));
+    expect(readClerkAuthContext()).toMatchObject({ intent: 'tenant_owner', tenantSlug: 'government-east' });
+  });
+
+  it('keeps the central Clerk access without an organization scope', () => {
+    renderLogin(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Ingresar con email' }));
+    expect(readClerkAuthContext()).toMatchObject({ intent: 'tenant_owner', tenantSlug: null });
   });
 
   it('keeps the same exclusion for a pending passkey request', async () => {
