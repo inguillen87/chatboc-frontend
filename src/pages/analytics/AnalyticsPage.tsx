@@ -552,18 +552,15 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-8 text-center text-red-500">
-        <AlertCircle className="w-12 h-12 mx-auto mb-4" />
-        <p>{error}</p>
-        <Button onClick={fetchData} variant="outline" className="mt-4">Reintentar</Button>
-      </div>
-    );
-  }
-
   return (
     <div className={`space-y-6 ${isEmbeddedInProfile ? 'p-0 bg-transparent min-h-0' : 'p-3 sm:p-6 bg-gray-50 dark:bg-slate-950 min-h-screen'}`}>
+      {error ? (
+        <div role="alert" className="p-8 text-center text-red-500">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4" />
+          <p>{error}</p>
+          <Button onClick={fetchData} variant="outline" className="mt-4">Reintentar</Button>
+        </div>
+      ) : null}
       {!isEmbeddedInProfile ? (
       <section className="overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -654,15 +651,17 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
           <p className="mt-2 text-xs text-muted-foreground">Estos filtros corresponden al resumen y sus exportaciones. Operaciones mantiene sus propios filtros y período.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filterControls}</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>Export CSV</Button>
-            <Button variant="outline" size="sm" onClick={() => handleExport('pdf')}>Export PDF</Button>
-            <Button size="sm" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
+            <Button variant="outline" size="sm" disabled={Boolean(error)} onClick={() => handleExport('csv')}>Export CSV</Button>
+            <Button variant="outline" size="sm" disabled={Boolean(error)} onClick={() => handleExport('pdf')}>Export PDF</Button>
+            <Button size="sm" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary || Boolean(error)}>
               {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
             </Button>
           </div>
         </details>
       </section>
 
+      {!error ? (
+        <>
       {summaryError ? <p className="text-sm text-destructive">{summaryError}</p> : null}
 
       {executiveSummary ? (
@@ -853,6 +852,8 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
           <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
         </SectionErrorBoundary>
       </div>
+        </>
+      ) : null}
     </div>
   );
 };
