@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   oauthRedirect: vi.fn(),
   passkeyLogin: vi.fn(),
   tenantContext: vi.fn(),
+  hostNeedsLookup: vi.fn(() => false),
 }));
 
 vi.mock('@clerk/clerk-react', () => ({
@@ -35,6 +36,7 @@ vi.mock('@/api/panelLogin', () => ({ loginPanelWithCredentials: mocks.credential
 vi.mock('@/api/v2/auth', () => ({ loginWithGoogle: mocks.googleExchange }));
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ setUser: vi.fn(), refreshUser: vi.fn().mockResolvedValue(undefined) }) }));
 vi.mock('@/context/TenantContext', () => ({ useTenant: () => mocks.tenantContext() }));
+vi.mock('@/utils/tenantHostBinding', async original => ({ ...await original<typeof import('@/utils/tenantHostBinding')>(), requiresTenantHostLookup: () => mocks.hostNeedsLookup() }));
 vi.mock('@/hooks/useDateSettings', () => ({ useDateSettings: () => ({ timezone: 'America/Argentina/Buenos_Aires', locale: 'es-AR', updateSettings: vi.fn() }) }));
 vi.mock('@/services/passkeys', () => ({ isPasskeySupported: () => Promise.resolve(true), loginPasskey: mocks.passkeyLogin }));
 vi.mock('@/services/enterpriseService', async original => ({
@@ -65,6 +67,7 @@ describe('Login in-progress authentication', () => {
     mocks.tenantContext.mockReturnValue({ currentSlug: null, tenant: null, isLoadingTenant: false });
     mocks.credentialLogin.mockReturnValue(new Promise(() => {}));
     mocks.passkeyLogin.mockReturnValue(new Promise(() => {}));
+    mocks.hostNeedsLookup.mockReturnValue(false);
   });
 
   it('prevents OAuth redirects and email modal actions while credentials are pending, then recovers after failure', async () => {
@@ -119,6 +122,29 @@ describe('Login in-progress authentication', () => {
     renderLogin(true);
     fireEvent.click(screen.getByRole('button', { name: 'Ingresar con email' }));
     expect(readClerkAuthContext()).toMatchObject({ intent: 'tenant_owner', tenantSlug: null });
+  });
+
+  describe('account creation on an organization domain', () => {
+    const signUpOffered = () => Boolean(screen.queryByRole('button', { name: 'Crear cuenta nueva' })) || Boolean(screen.queryByRole('button', { name: 'Registrate' }));
+    it('is not offered on a resolved own domain', () => {
+      const binding = tenantHostFixture();
+      mocks.hostNeedsLookup.mockReturnValue(true);
+      mocks.tenantContext.mockReturnValue({ hostBinding: binding, currentSlug: binding.tenant.slug, tenant: { slug: binding.tenant.slug, publishedIdentity: binding.identity }, isLoadingTenant: false });
+      renderLogin(true);
+      expect(screen.getByRole('button', { name: 'Ingresar con email' })).toBeInTheDocument();
+      expect(signUpOffered()).toBe(false);
+    });
+    it('fails closed on an unknown host that has not resolved', () => {
+      mocks.hostNeedsLookup.mockReturnValue(true);
+      mocks.tenantContext.mockReturnValue({ hostBinding: null, currentSlug: null, tenant: null, isLoadingTenant: false });
+      renderLogin(true);
+      expect(signUpOffered()).toBe(false);
+    });
+    it('is offered on an active platform host with the general access', () => {
+      renderLogin(true);
+      expect(screen.getByRole('button', { name: 'Crear cuenta nueva' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Registrate' })).toBeInTheDocument();
+    });
   });
 
   it('keeps the same exclusion for a pending passkey request', async () => {
