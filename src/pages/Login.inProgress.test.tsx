@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@clerk/clerk-react', () => ({
   SignedOut: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SignedIn: () => null,
-  SignInButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SignInButton: ({ children, ...props }: { children: React.ReactNode }) => <span data-testid="clerk-sign-in-modal" data-options={JSON.stringify(props)}>{children}</span>,
   SignUpButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useSignIn: () => ({ isLoaded: true, signIn: { authenticateWithRedirect: mocks.oauthRedirect } }),
   useSignUp: () => ({ isLoaded: true, signUp: { authenticateWithRedirect: mocks.oauthRedirect } }),
@@ -125,6 +125,7 @@ describe('Login in-progress authentication', () => {
   });
 
   describe('account creation on an organization domain', () => {
+    const signInModalOptions = () => JSON.parse(screen.getByTestId('clerk-sign-in-modal').getAttribute('data-options') || '{}');
     const signUpOffered = () => Boolean(screen.queryByRole('button', { name: 'Crear cuenta nueva' })) || Boolean(screen.queryByRole('button', { name: 'Registrate' }));
     it('is not offered on a resolved own domain', () => {
       const binding = tenantHostFixture();
@@ -133,15 +134,18 @@ describe('Login in-progress authentication', () => {
       renderLogin(true);
       expect(screen.getByRole('button', { name: 'Ingresar con email' })).toBeInTheDocument();
       expect(signUpOffered()).toBe(false);
+      expect(signInModalOptions()).toMatchObject({ mode: 'modal', withSignUp: false, appearance: { elements: { footerAction: { display: 'none' } } } });
     });
     it('fails closed on an unknown host that has not resolved', () => {
       mocks.hostNeedsLookup.mockReturnValue(true);
       mocks.tenantContext.mockReturnValue({ hostBinding: null, currentSlug: null, tenant: null, isLoadingTenant: false });
       renderLogin(true);
       expect(signUpOffered()).toBe(false);
+      expect(signInModalOptions()).toMatchObject({ withSignUp: false });
     });
     it('is offered on an active platform host with the general access', () => {
       renderLogin(true);
+      expect(signInModalOptions()).toEqual({ mode: 'modal' });
       expect(screen.getByRole('button', { name: 'Crear cuenta nueva' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Registrate' })).toBeInTheDocument();
     });

@@ -114,6 +114,11 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   const providerLabel = socialProviderLabel(clerkRuntime.socialProviders);
   const emailFallbackLabel = mode === 'register' ? 'Crear con email' : 'Ingresar con email';
   const secondaryLabel = mode === 'register' ? 'Ya tengo cuenta' : 'Crear cuenta nueva';
+  // Without sign-up the Clerk modal must not offer it either: no combined sign-in-or-up flow and
+  // no «create account» footer link inside the modal.
+  const signInModalOptions = allowSignUp
+    ? {}
+    : { withSignUp: false, appearance: { elements: { footerAction: { display: 'none' } } } };
   const socialProviders = normalizeSocialProviders(clerkRuntime.socialProviders).filter(isSupportedOAuthProvider);
 
   const rememberAuthContext = React.useCallback(() => {
@@ -230,7 +235,7 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
               </Button>
             </SignUpButton>
           ) : (
-            <SignInButton mode="modal">
+            <SignInButton mode="modal" {...signInModalOptions}>
               <Button type="button" variant={socialProviders.length ? 'secondary' : 'default'} className="h-11 w-full justify-center gap-2" disabled={disabled} onClick={rememberAuthContext}>
                 <Mail className="h-4 w-4" />
                 {emailFallbackLabel}
