@@ -58,6 +58,14 @@ describe('ChatUserPanel avatar policy', () => {
     });
   });
 
+  it('names the communications consent switch for assistive technology', async () => {
+    render(<ChatUserPanel onClose={vi.fn()} />);
+
+    const consent = await screen.findByRole('switch', { name: 'Permitir comunicaciones' });
+    expect(consent).toHaveAccessibleDescription('Avisos de estado, recordatorios y novedades importantes.');
+    expect(consent).toHaveAttribute('aria-checked', 'false');
+  });
+
   it('shows a safe deterministic fallback instead of implying WhatsApp profile scraping', async () => {
     render(<ChatUserPanel onClose={vi.fn()} />);
 

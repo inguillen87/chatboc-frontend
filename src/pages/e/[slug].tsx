@@ -929,7 +929,7 @@ const PublicSurveyPage = () => {
             {/* Show Results Here if enabled */}
             {shouldRevealLiveResults && (
               <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
-                <h3 className="mb-4 font-semibold text-lg">{textOr(votacionUi?.resultados_titulo, 'Resultados en vivo')}</h3>
+                <h2 className="mb-4 font-semibold text-lg">{textOr(votacionUi?.resultados_titulo, 'Resultados en vivo')}</h2>
                 <SurveyForm
                   key={participationScopeKey}
                   survey={survey}

@@ -63,7 +63,7 @@ const PublicOrderCard = ({ order }: { order: WidgetPortalOrder }) => {
               {order.nroPedido ? <span className="font-bold text-lg">#{order.nroPedido}</span> : null}
               {order.status ? <Badge className="capitalize">{order.status}</Badge> : null}
             </div>
-            {title ? <h3 className="text-lg font-semibold">{title}</h3> : null}
+            {title ? <h2 className="text-lg font-semibold">{title}</h2> : null}
             {(order.customerName || order.customerPhone) ? (
               <div className="text-sm text-muted-foreground">
                 {[order.customerName, order.customerPhone].filter(Boolean).join(' - ')}

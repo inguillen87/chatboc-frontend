@@ -79,6 +79,7 @@ vi.mock('@/utils/surveyAnalytics', () => ({
 import PublicSurveyPage, { resolvePublicSurveyBrandLabel } from './[slug]';
 import type { SurveyPublic } from '@/types/encuestas';
 import { ApiError } from '@/utils/api';
+import { headingSkips } from '@/test/headingOutline';
 
 const publicBrandSurvey = (
   tenant: SurveyPublic['tenant'],
@@ -731,6 +732,8 @@ describe('PublicSurveyPage loading experience', () => {
     expect(screen.queryByText(/Puntos obtenidos/i)).not.toBeInTheDocument();
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('heading', { name: 'Participación demo guardada en Preview' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 2, name: 'Resultados en vivo' })).toBeInTheDocument();
+    expect(headingSkips()).toEqual([]);
     expect(mocks.trackSurveyDemoInteraction).toHaveBeenCalledWith(expect.objectContaining({
       persisted: true,
       durable: true,

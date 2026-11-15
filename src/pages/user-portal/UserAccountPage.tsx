@@ -173,7 +173,7 @@ const UserAccountPage = () => {
 
       <Card className="border border-muted/70 shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle level={2} className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
             Identidad visual
           </CardTitle>
@@ -209,6 +209,8 @@ const UserAccountPage = () => {
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
                 onChange={handleAvatarUpload}
                 disabled={!user || avatarStatus === 'uploading' || avatarStatus === 'deleting'}
               />
@@ -269,7 +271,7 @@ const UserAccountPage = () => {
 
       <Card className="border border-muted/70 shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle level={2} className="flex items-center gap-2">
             <UserCircle className="h-5 w-5 text-primary" />
             Datos de contacto
           </CardTitle>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +43,7 @@ interface QuickActionConfig {
 }
 
 const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
+  const consentId = useId();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -412,10 +413,15 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/40">
               <div>
-                <p className="text-sm font-medium">Permitir comunicaciones</p>
-                <p className="text-xs text-muted-foreground">Avisos de estado, recordatorios y novedades importantes.</p>
+                <p id={`${consentId}-label`} className="text-sm font-medium">Permitir comunicaciones</p>
+                <p id={`${consentId}-hint`} className="text-xs text-muted-foreground">Avisos de estado, recordatorios y novedades importantes.</p>
               </div>
-              <Switch checked={marketingOptIn} onCheckedChange={(v) => setMarketingOptIn(Boolean(v))} />
+              <Switch
+                checked={marketingOptIn}
+                onCheckedChange={(v) => setMarketingOptIn(Boolean(v))}
+                aria-labelledby={`${consentId}-label`}
+                aria-describedby={`${consentId}-hint`}
+              />
             </div>
             {error && <div className="text-destructive text-sm px-2">{error}</div>}
             <Button type="submit" className="w-full mt-1" disabled={saving}>

@@ -33,7 +33,7 @@ const UserSurveysPage = () => {
       {summary?.hasParticipationMetrics ? (
         <Card className="border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle>Resumen de participación</CardTitle>
+            <CardTitle level={2}>Resumen de participación</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
@@ -58,7 +58,7 @@ const UserSurveysPage = () => {
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-card/80 border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle level={2} className="flex items-center gap-2">
               <MessageSquareQuote className="h-5 w-5 text-primary" />
               Encuestas pendientes
             </CardTitle>
@@ -85,7 +85,7 @@ const UserSurveysPage = () => {
 
         <Card className="bg-card/80 border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle level={2} className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5 text-primary" />
               Sugerencias y reclamos
             </CardTitle>

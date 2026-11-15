@@ -124,6 +124,13 @@ describe('SurveyLiveHeatmapPreview', () => {
     expect(screen.getByTestId('survey-live-heatmap-channel-ranking')).toHaveTextContent('whatsapp');
     expect(screen.getByTestId('survey-live-heatmap-executive-summary')).toHaveTextContent('Mayor participación');
     expect(screen.getByTestId('survey-live-heatmap-executive-summary')).toHaveTextContent('Centro');
+    // Description lists only group dt/dd (assistive technology pairs each term with its values).
+    for (const list of Array.from(document.querySelectorAll('dl'))) {
+      for (const child of Array.from(list.children)) {
+        const items = child.tagName === 'DIV' ? Array.from(child.children) : [child];
+        expect(items.every((item) => item.tagName === 'DT' || item.tagName === 'DD')).toBe(true);
+      }
+    }
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Fallback local seguro');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('encuesta o votacion');
     expect(screen.getByTestId('survey-live-heatmap-ai-signal')).toHaveTextContent('Reforzar difusión por WhatsApp');

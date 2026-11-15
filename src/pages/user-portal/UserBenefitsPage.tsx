@@ -170,7 +170,7 @@ const UserBenefitsPage = () => {
       {summary ? (
         <Card className="border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle>Resumen de puntos</CardTitle>
+            <CardTitle level={2}>Resumen de puntos</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
@@ -199,7 +199,7 @@ const UserBenefitsPage = () => {
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-card/80 border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle>Canjes disponibles</CardTitle>
+            <CardTitle level={2}>Canjes disponibles</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -246,7 +246,7 @@ const UserBenefitsPage = () => {
 
         <Card className="bg-card/80 border border-muted/70 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle level={2} className="flex items-center gap-2">
               <History className="h-5 w-5" />
               Historial de movimientos
             </CardTitle>

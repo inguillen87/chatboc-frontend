@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import UserAccountPage from './UserAccountPage';
 import { deleteProfileAvatar, uploadProfileAvatar } from '@/services/profileAvatarService';
+import { headingSkips } from '@/test/headingOutline';
 
 const accountMocks = vi.hoisted(() => ({
   user: {
@@ -71,6 +72,18 @@ describe('UserAccountPage identity avatar', () => {
     expect(screen.getByText(/No usamos scraping ni fotos de WhatsApp/i)).toBeInTheDocument();
     expect(screen.getByText(/reclamos, pedidos, encuestas y votaciones/i)).toBeInTheDocument();
     expect(screen.getByText('MG')).toBeInTheDocument();
+  });
+
+  it('keeps one named control for the photo upload and an outline without skipped headings', () => {
+    render(<UserAccountPage />);
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Identidad visual' })).toBeInTheDocument();
+    expect(headingSkips()).toEqual([]);
+    // The visible button is the control; the file input is only its programmatic target.
+    expect(screen.getByRole('button', { name: 'Subir foto' })).toBeEnabled();
+    const fileInput = document.getElementById('profile-avatar-upload');
+    expect(fileInput).toHaveAttribute('tabindex', '-1');
+    expect(fileInput).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('uploads a consented profile image and updates the local user context', async () => {

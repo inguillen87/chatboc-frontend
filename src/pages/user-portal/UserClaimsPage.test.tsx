@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import UserClaimsPage from './UserClaimsPage';
+import { headingSkips } from '@/test/headingOutline';
 
 const routerFuture = {
   v7_startTransition: true,
@@ -120,6 +121,7 @@ describe('UserClaimsPage public claim actions', () => {
     expect(commentLink).not.toHaveAttribute('href', '/chat');
     expect(commentLink).not.toHaveAttribute('target', '_blank');
     expect(photoLink).not.toHaveAttribute('target', '_blank');
+    expect(headingSkips()).toEqual([]);
   });
 
   it.each([
