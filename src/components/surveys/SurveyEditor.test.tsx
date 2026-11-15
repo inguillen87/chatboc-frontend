@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { SurveyEditor } from './SurveyEditor';
 import type { SurveyAdmin, SurveyDraftPayload } from '@/types/encuestas';
@@ -648,6 +648,62 @@ describe('SurveyEditor save and publish flow', () => {
     expect(minimum).toHaveValue(1);
     expect(maximum).toHaveValue(2);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('names icon-only delete actions with the visible option and question and keeps removing only that item', () => {
+    const onSave = vi.fn();
+    render(<SurveyEditor initialDraft={multiSourceAdaptiveDraft} onSave={onSave} />);
+
+    expect(screen.getByRole('button', { name: 'Eliminar opción «Web» de la pregunta «Canal»' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Eliminar pregunta «Canal»' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar opción «Mobile» de la pregunta «Dispositivo»' }));
+    expect(screen.queryByDisplayValue('Mobile')).not.toBeInTheDocument();
+    for (const kept of ['Desktop', 'Web', 'WhatsApp', 'Canal', 'Dispositivo', 'Detalle']) {
+      expect(screen.getByDisplayValue(kept)).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar pregunta «Detalle»' }));
+    expect(screen.queryByDisplayValue('Detalle')).not.toBeInTheDocument();
+    for (const kept of ['Canal', 'Dispositivo', 'Desktop', 'Web', 'WhatsApp']) {
+      expect(screen.getByDisplayValue(kept)).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: /^Eliminar pregunta «Detalle»/ })).not.toBeInTheDocument();
+
+    // While the visible text is empty, the name falls back to its position, and follows the text once typed.
+    fireEvent.change(screen.getByDisplayValue('Desktop'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Eliminar opción 1 de la pregunta «Dispositivo»' })).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue('Dispositivo'), { target: { value: ' ' } });
+    expect(screen.getByRole('button', { name: 'Eliminar pregunta 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eliminar opción 1 de la pregunta 2' })).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('names the public link copy action and keeps copying the same URL', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const previousClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    onTestFinished(() => {
+      if (previousClipboard) Object.defineProperty(navigator, 'clipboard', previousClipboard);
+      else delete (navigator as { clipboard?: unknown }).clipboard;
+    });
+    const survey = {
+      ...initialDraft,
+      id: 42,
+      estado: 'publicada',
+      url_publica: 'https://www.chatboc.ar/e/votacion-si-no',
+      preguntas: initialDraft.preguntas.map((question, questionIndex) => ({
+        ...question,
+        id: questionIndex + 1,
+        opciones: question.opciones?.map((option, optionIndex) => ({ ...option, id: optionIndex + 1 })),
+      })),
+    } as SurveyAdmin;
+    render(<SurveyEditor survey={survey} tenantSlug="org-demo" onSave={vi.fn()} />);
+
+    const visibleUrl = screen.getByText(/https:\/\/www\.chatboc\.ar\/e\/votacion-si-no/).textContent;
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar enlace público' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText).toHaveBeenCalledWith(visibleUrl);
   });
 
   it('opens the current adaptive draft in an isolated visual tester', async () => {

@@ -559,6 +559,19 @@ const serializeConditionalRule = (
   };
 };
 
+// Accessible names for icon-only actions. They keep the visible words of the option or question;
+// the position only fills in while that text is still empty.
+const visibleOrPosition = (texto: string | undefined, index: number) => {
+  const visible = (texto ?? '').trim();
+  return visible ? `«${visible}»` : String(index + 1);
+};
+
+const removeOptionLabel = (optionText: string | undefined, optionIndex: number, questionText: string | undefined, questionIndex: number) =>
+  `Eliminar opción ${visibleOrPosition(optionText, optionIndex)} de la pregunta ${visibleOrPosition(questionText, questionIndex)}`;
+
+const removeQuestionLabel = (questionText: string | undefined, questionIndex: number) =>
+  `Eliminar pregunta ${visibleOrPosition(questionText, questionIndex)}`;
+
 export const SurveyEditor = ({
   survey,
   tenantSlug,
@@ -1705,10 +1718,11 @@ export const SurveyEditor = ({
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label={removeOptionLabel(option.texto, optionIndex, question.texto, questionIndex)}
                                 disabled={structureLocked}
                                 onClick={() => handleRemoveOption(question.localId, option.localId)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </div>
                           ))}
@@ -1730,11 +1744,12 @@ export const SurveyEditor = ({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    aria-label={removeQuestionLabel(question.texto, questionIndex)}
                     disabled={structureLocked}
                     onClick={() => handleRemoveQuestion(question.localId)}
                     className="text-muted-foreground hover:text-destructive"
                   >
-                    <Trash2 className="h-5 w-5" />
+                    <Trash2 className="h-5 w-5" aria-hidden="true" />
                   </Button>
                 </div>
               </Reorder.Item>
@@ -1797,6 +1812,7 @@ export const SurveyEditor = ({
                   <Button
                     variant="outline"
                     size="icon"
+                    aria-label="Copiar enlace público"
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(publicUrl);
@@ -1810,7 +1826,7 @@ export const SurveyEditor = ({
                       }
                     }}
                   >
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-4 w-4" aria-hidden="true" />
                   </Button>
                   {whatsappShareUrl && (
                     <Button variant="outline" asChild>
