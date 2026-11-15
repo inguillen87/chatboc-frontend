@@ -620,11 +620,12 @@ describe('SurveyEditor save and publish flow', () => {
 
     const previewTester = screen.getByTestId('survey-preview-tester');
     expect(await within(previewTester).findByTestId('survey-preview-route')).toHaveTextContent(/2 de 3 preguntas visibles/i);
-    expect(within(previewTester).queryByText(/que paso en whatsapp/i, { selector: 'h3' })).not.toBeInTheDocument();
+    // The tester mirrors the citizen form: its own h1, then questions at h2.
+    expect(within(previewTester).queryByRole('heading', { level: 2, name: /que paso en whatsapp/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('WhatsApp'));
 
     expect(await within(previewTester).findByText(/3 de 3 preguntas visibles/i)).toBeInTheDocument();
-    expect(within(previewTester).getByText(/que paso en whatsapp/i, { selector: 'h3' })).toBeInTheDocument();
+    expect(within(previewTester).getByRole('heading', { level: 2, name: /que paso en whatsapp/i })).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
     expect(window.localStorage).toHaveLength(0);
   });
