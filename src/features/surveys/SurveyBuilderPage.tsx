@@ -814,7 +814,7 @@ export default function SurveyBuilderPage() {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Datos del draft</CardTitle>
+              <CardTitle level={2} className="text-lg">Datos del draft</CardTitle>
               <CardDescription>Información editable antes de publicar o entregar al backend.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -849,7 +849,7 @@ export default function SurveyBuilderPage() {
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
               <div className="space-y-1.5">
-                <CardTitle className="text-lg">Preguntas</CardTitle>
+                <CardTitle level={2} className="text-lg">Preguntas</CardTitle>
                 <CardDescription>
                   Los tipos experimentales se conservan, pero quedan en cuarentena hasta tener ejecucion backend.
                 </CardDescription>
@@ -881,7 +881,7 @@ export default function SurveyBuilderPage() {
         <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Preview</CardTitle>
+              <CardTitle level={2} className="text-lg">Preview</CardTitle>
               <CardDescription>Validación rápida de estructura antes de guardar.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -891,7 +891,7 @@ export default function SurveyBuilderPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Guardado</CardTitle>
+              <CardTitle level={2} className="text-lg">Guardado</CardTitle>
               <CardDescription>Solo se considera durable cuando el endpoint v2 devuelve persisted=true.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

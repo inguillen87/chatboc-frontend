@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Reorder } from 'framer-motion';
 import { CalendarDays, Copy, GripVertical, MessageCircle, Plus, Trash2, UploadCloud } from 'lucide-react';
 
@@ -569,6 +569,8 @@ export const SurveyEditor = ({
   isPublishing,
   structureLocked = false,
 }: SurveyEditorProps) => {
+  // Ids that tie each control to the visible title and hint next to it.
+  const fieldIds = useId();
   const [formValues, setFormValues] = useState<SurveyDraftPayload>(() => buildInitialDraft(survey, initialDraft));
   const [questions, setQuestions] = useState<LocalQuestion[]>(() => buildInitialQuestions(survey, initialDraft));
   const [submissionAction, setSubmissionAction] = useState<'save' | 'publish' | null>(null);
@@ -1140,10 +1142,12 @@ export const SurveyEditor = ({
             <Label className="flex items-center justify-between">Anonimato</Label>
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm font-medium">Encuesta anónima</p>
-                <p className="text-xs text-muted-foreground">No se solicitarán datos personales.</p>
+                <p id={`${fieldIds}-anonimato-title`} className="text-sm font-medium">Encuesta anónima</p>
+                <p id={`${fieldIds}-anonimato-hint`} className="text-xs text-muted-foreground">No se solicitarán datos personales.</p>
               </div>
               <Switch
+                aria-labelledby={`${fieldIds}-anonimato-title`}
+                aria-describedby={`${fieldIds}-anonimato-hint`}
                 checked={formValues.anonimato}
                 onCheckedChange={(checked) =>
                   setFormValues((prev) => ({ ...prev, anonimato: checked, requiere_datos_contacto: !checked }))
@@ -1155,10 +1159,12 @@ export const SurveyEditor = ({
             <Label className="flex items-center justify-between">Control de duplicados</Label>
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm font-medium">Solicitar datos de contacto</p>
-                <p className="text-xs text-muted-foreground">Usá DNI o teléfono para validar respuestas.</p>
+                <p id={`${fieldIds}-contacto-title`} className="text-sm font-medium">Solicitar datos de contacto</p>
+                <p id={`${fieldIds}-contacto-hint`} className="text-xs text-muted-foreground">Usá DNI o teléfono para validar respuestas.</p>
               </div>
               <Switch
+                aria-labelledby={`${fieldIds}-contacto-title`}
+                aria-describedby={`${fieldIds}-contacto-hint`}
                 checked={formValues.requiere_datos_contacto}
                 onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, requiere_datos_contacto: checked }))}
               />
@@ -1177,10 +1183,12 @@ export const SurveyEditor = ({
             <Label className="flex items-center justify-between">Modo en vivo</Label>
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm font-medium">Activar votación en vivo</p>
-                <p className="text-xs text-muted-foreground">Habilita el layout estilo YouTube y resultados dinámicos.</p>
+                <p id={`${fieldIds}-envivo-title`} className="text-sm font-medium">Activar votación en vivo</p>
+                <p id={`${fieldIds}-envivo-hint`} className="text-xs text-muted-foreground">Habilita el layout estilo YouTube y resultados dinámicos.</p>
               </div>
               <Switch
+                aria-labelledby={`${fieldIds}-envivo-title`}
+                aria-describedby={`${fieldIds}-envivo-hint`}
                 checked={Boolean(formValues.es_votacion_envivo)}
                 onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, es_votacion_envivo: checked }))}
               />
@@ -1190,10 +1198,12 @@ export const SurveyEditor = ({
             <Label className="flex items-center justify-between">Resultados en tiempo real</Label>
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm font-medium">Mostrar resultados en vivo</p>
-                <p className="text-xs text-muted-foreground">Actualiza barras y porcentajes automáticamente.</p>
+                <p id={`${fieldIds}-resultados-title`} className="text-sm font-medium">Mostrar resultados en vivo</p>
+                <p id={`${fieldIds}-resultados-hint`} className="text-xs text-muted-foreground">Actualiza barras y porcentajes automáticamente.</p>
               </div>
               <Switch
+                aria-labelledby={`${fieldIds}-resultados-title`}
+                aria-describedby={`${fieldIds}-resultados-hint`}
                 checked={Boolean(formValues.mostrar_resultados_envivo)}
                 onCheckedChange={(checked) =>
                   setFormValues((prev) => ({ ...prev, mostrar_resultados_envivo: checked }))
@@ -1205,10 +1215,12 @@ export const SurveyEditor = ({
             <Label className="flex items-center justify-between">Comentarios</Label>
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div>
-                <p className="text-sm font-medium">Permitir comentarios</p>
-                <p className="text-xs text-muted-foreground">Agregá debate anónimo y login social.</p>
+                <p id={`${fieldIds}-comentarios-title`} className="text-sm font-medium">Permitir comentarios</p>
+                <p id={`${fieldIds}-comentarios-hint`} className="text-xs text-muted-foreground">Agregá debate anónimo y login social.</p>
               </div>
               <Switch
+                aria-labelledby={`${fieldIds}-comentarios-title`}
+                aria-describedby={`${fieldIds}-comentarios-hint`}
                 checked={Boolean(formValues.permitir_comentarios)}
                 onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, permitir_comentarios: checked }))}
               />
@@ -1277,6 +1289,7 @@ export const SurveyEditor = ({
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                       <Input
+                        id={`${fieldIds}-question-${question.localId}-text`}
                         value={question.texto}
                         onChange={(event) => handleQuestionChange(question.localId, { texto: event.target.value })}
                         placeholder="Enunciado de la pregunta"
@@ -1318,10 +1331,12 @@ export const SurveyEditor = ({
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label>Obligatoria</Label>
+                        <Label id={`${fieldIds}-question-${question.localId}-required`}>Obligatoria</Label>
                         <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                          <span className="text-sm text-muted-foreground">Requerir respuesta</span>
+                          <span id={`${fieldIds}-question-${question.localId}-required-hint`} className="text-sm text-muted-foreground">Requerir respuesta</span>
                           <Switch
+                            aria-labelledby={`${fieldIds}-question-${question.localId}-required ${fieldIds}-question-${question.localId}-text`}
+                            aria-describedby={`${fieldIds}-question-${question.localId}-required-hint`}
                             checked={question.obligatoria}
                             onCheckedChange={(checked) => handleQuestionChange(question.localId, { obligatoria: checked })}
                           />
@@ -1373,8 +1388,9 @@ export const SurveyEditor = ({
                       {question.tipo === 'multiple' && (
                         <>
                           <div className="space-y-2">
-                            <Label>Mínimo de selecciones</Label>
+                            <Label htmlFor={`${fieldIds}-question-${question.localId}-min`}>Mínimo de selecciones</Label>
                             <Input
+                              id={`${fieldIds}-question-${question.localId}-min`}
                               type="number"
                               min={0}
                               value={question.min_selecciones ?? 0}
@@ -1386,8 +1402,9 @@ export const SurveyEditor = ({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Máximo de selecciones</Label>
+                            <Label htmlFor={`${fieldIds}-question-${question.localId}-max`}>Máximo de selecciones</Label>
                             <Input
+                              id={`${fieldIds}-question-${question.localId}-max`}
                               type="number"
                               min={0}
                               value={question.max_selecciones ?? 0}

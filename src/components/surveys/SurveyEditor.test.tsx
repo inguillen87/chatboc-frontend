@@ -610,6 +610,46 @@ describe('SurveyEditor save and publish flow', () => {
     });
   });
 
+  it('names every settings and question control from its visible label without changing its value', () => {
+    const onSave = vi.fn();
+    render(<SurveyEditor initialDraft={multiSourceAdaptiveDraft} onSave={onSave} />);
+
+    const settings: Array<[string, string]> = [
+      ['Encuesta anónima', 'No se solicitarán datos personales.'],
+      ['Solicitar datos de contacto', 'Usá DNI o teléfono para validar respuestas.'],
+      ['Activar votación en vivo', 'Habilita el layout estilo YouTube y resultados dinámicos.'],
+      ['Mostrar resultados en vivo', 'Actualiza barras y porcentajes automáticamente.'],
+      ['Permitir comentarios', 'Agregá debate anónimo y login social.'],
+    ];
+    for (const [name, hint] of settings) {
+      expect(screen.getByRole('switch', { name })).toHaveAccessibleDescription(hint);
+    }
+    // Same coupling as before: anonymity off asks for contact data.
+    const anonymous = screen.getByRole('switch', { name: 'Encuesta anónima' });
+    const contact = screen.getByRole('switch', { name: 'Solicitar datos de contacto' });
+    expect(anonymous).toBeChecked();
+    expect(contact).not.toBeChecked();
+    fireEvent.click(anonymous);
+    expect(anonymous).not.toBeChecked();
+    expect(contact).toBeChecked();
+
+    // Each required switch says which question it belongs to (its visible statement).
+    const required = screen.getByRole('switch', { name: 'Obligatoria Dispositivo' });
+    expect(required).toHaveAccessibleDescription('Requerir respuesta');
+    expect(required).toBeChecked();
+    fireEvent.click(required);
+    expect(required).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Obligatoria Detalle' })).not.toBeChecked();
+
+    const minimum = screen.getByRole('spinbutton', { name: 'Mínimo de selecciones' });
+    const maximum = screen.getByRole('spinbutton', { name: 'Máximo de selecciones' });
+    fireEvent.change(minimum, { target: { value: '1' } });
+    fireEvent.change(maximum, { target: { value: '2' } });
+    expect(minimum).toHaveValue(1);
+    expect(maximum).toHaveValue(2);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('opens the current adaptive draft in an isolated visual tester', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<SurveyEditor initialDraft={adaptiveDraft} onSave={onSave} />);

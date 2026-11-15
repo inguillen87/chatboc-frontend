@@ -52,6 +52,17 @@ describe('SurveyResultEvidencePanel', () => {
     expect(screen.getByText('a'.repeat(64))).toBeInTheDocument();
     expect(screen.getByText('d'.repeat(64))).toBeInTheDocument();
     expect(screen.getByText('f'.repeat(64))).toBeInTheDocument();
+    // Every hash pair is a dt/dd group directly inside its <dl>, including the wide one.
+    const humanReview = screen.getByText('Huella de la revisión humana');
+    expect(humanReview.tagName).toBe('DT');
+    expect(humanReview.parentElement?.parentElement?.tagName).toBe('DL');
+    expect(humanReview.parentElement).toHaveClass('lg:col-span-2');
+    for (const list of Array.from(document.querySelectorAll('dl'))) {
+      for (const child of Array.from(list.children)) {
+        const items = child.tagName === 'DIV' ? Array.from(child.children) : [child];
+        expect(items.every((item) => item.tagName === 'DT' || item.tagName === 'DD')).toBe(true);
+      }
+    }
     expect(screen.getByText('Respuestas reales').parentElement).toHaveTextContent('8');
     expect(screen.getByText('Sintéticas separadas').parentElement).toHaveTextContent('<5');
     expect(screen.getByText('No verificadas separadas').parentElement).toHaveTextContent('<5');

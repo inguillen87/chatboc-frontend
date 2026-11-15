@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import {
   privacySafeSurveyEvidenceCount,
   serializeSurveyResultEvidenceReceipt,
@@ -43,8 +44,9 @@ const formatPrivacySafeCount = (value: number | null) => {
   return String(safeCount.value ?? 0);
 };
 
-const HashEvidence = ({ label, value }: { label: string; value: string }) => (
-  <div className="min-w-0 rounded-xl border border-border/70 bg-background/70 p-3">
+// Each term/value pair is a direct <div> child of the <dl> (no extra wrapper around it).
+const HashEvidence = ({ label, value, className }: { label: string; value: string; className?: string }) => (
+  <div className={cn('min-w-0 rounded-xl border border-border/70 bg-background/70 p-3', className)}>
     <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
     <dd className="mt-2 break-all font-mono text-xs leading-5 text-foreground" title={value}>
       {value}
@@ -171,9 +173,11 @@ export function SurveyResultEvidencePanel({
               <HashEvidence label="Snapshot del instrumento" value={release.snapshotSha256} />
               <HashEvidence label="Hash de la política" value={release.policySha256} />
               <HashEvidence label="Hash del conjunto de respuestas" value={release.responseSetSha256} />
-              <div className="lg:col-span-2">
-                <HashEvidence label="Huella de la revisión humana" value={release.humanReviewReferenceSha256} />
-              </div>
+              <HashEvidence
+                className="lg:col-span-2"
+                label="Huella de la revisión humana"
+                value={release.humanReviewReferenceSha256}
+              />
             </dl>
           </>
         ) : null}
