@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { subscribeMarketCartChanges } from '@/utils/marketStorage';
 
 const apiFetchMock = vi.fn();
 
@@ -17,6 +19,8 @@ vi.mock('@/utils/api', () => ({
 import { ApiError } from '@/utils/api';
 import {
   addMarketItem,
+  removeMarketItem,
+  clearMarketCart,
   fetchMarketCart,
   fetchMarketCatalog,
   fetchRewardsProfile,
@@ -27,6 +31,20 @@ import {
 describe('market api continuity normalization', () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+  });
+
+  it.each(['add', 'remove', 'clear'] as const)('does not notify the new session when a prior %s acknowledgement arrives', async operation => {
+    let resolve!: (response: unknown) => void;
+    apiFetchMock.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    const changed = vi.fn(); const unsubscribe = subscribeMarketCartChanges(changed);
+    try {
+      const pending = operation === 'add' ? addMarketItem('tenant', { productId: 'p1', quantity: 1 })
+        : operation === 'remove' ? removeMarketItem('tenant', 'p1') : clearMarketCart('tenant');
+      advanceChatbocSessionRevision();
+      resolve({ items: [{ id: 'p1', quantity: 1 }] });
+      await pending;
+      expect(changed).not.toHaveBeenCalled();
+    } finally { unsubscribe(); }
   });
 
   it('normalizes continuity.portal_links and conversation_id from cart payload', async () => {

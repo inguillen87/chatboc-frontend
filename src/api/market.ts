@@ -1,4 +1,6 @@
 import { apiFetch, ApiError } from '@/utils/api';
+import { captureChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
+import { notifyMarketCartChanged } from '@/utils/marketStorage';
 import {
   MarketCartResponse,
   MarketCartItem,
@@ -1258,6 +1260,7 @@ const normalizeAddToCartPayload = (payload: AddToCartPayload): AddToCartPayload 
 };
 
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
+  const sessionRevision = captureChatbocSessionRevision();
   const endpoint = resolveMarketCartEndpoint(tenantSlug, 'add') ?? `/api/${tenantSlug}/carrito`;
   const response = await apiFetch<MarketCartResponse>(endpoint, {
     ...marketCartFetchOptions(endpoint, tenantSlug),
@@ -1265,25 +1268,33 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
     body: normalizeAddToCartPayload(payload),
     headers: { 'X-Persist-Session': 'true' }
   });
-  return normalizeMarketCartResponse(response);
+  const cart = normalizeMarketCartResponse(response);
+  notifyMarketCartChanged(tenantSlug, sessionRevision);
+  return cart;
 }
 
 export async function removeMarketItem(tenantSlug: string, itemId: string): Promise<MarketCartResponse> {
+  const sessionRevision = captureChatbocSessionRevision();
   const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito/${itemId}`, {
     method: 'DELETE',
     tenantSlug,
     omitChatSessionId: true,
   });
-  return normalizeMarketCartResponse(response);
+  const cart = normalizeMarketCartResponse(response);
+  notifyMarketCartChanged(tenantSlug, sessionRevision);
+  return cart;
 }
 
 export async function clearMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  const sessionRevision = captureChatbocSessionRevision();
   const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
     method: 'DELETE',
     tenantSlug,
     omitChatSessionId: true,
   });
-  return normalizeMarketCartResponse(response);
+  const cart = normalizeMarketCartResponse(response);
+  notifyMarketCartChanged(tenantSlug, sessionRevision);
+  return cart;
 }
 
 export async function startMarketCheckout(tenantSlug: string, payload: CheckoutStartPayload): Promise<CheckoutStartResponse> {
