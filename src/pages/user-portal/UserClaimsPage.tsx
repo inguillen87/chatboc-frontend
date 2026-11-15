@@ -524,7 +524,7 @@ const UserClaimsPage = () => {
     };
   }, [commerceSession?.session?.widget_session_token, currentSlug, widgetToken]);
   const emptyTitle = useMemo(
-    () => (user ? 'No tenes reclamos registrados aun.' : 'Todavia no hay reclamos vinculados a esta sesion.'),
+    () => (user ? 'No tenés reclamos registrados aún.' : 'Todavía no hay reclamos vinculados a esta sesión.'),
     [user],
   );
 

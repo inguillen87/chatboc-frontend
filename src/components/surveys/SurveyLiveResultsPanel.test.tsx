@@ -271,7 +271,7 @@ describe('SurveyLiveResultsPanel', () => {
   it('keeps an actionable disabled state without a public slug', () => {
     render(<SurveyLiveResultsPanel slug="" enabled={false} />);
 
-    expect(screen.getByTestId('survey-live-results-panel-disabled')).toHaveTextContent('Activa resultados en vivo');
+    expect(screen.getByTestId('survey-live-results-panel-disabled')).toHaveTextContent('Activá resultados en vivo');
   });
 
   it('keeps HTTP polling active without opening a socket when the backend disables it', () => {

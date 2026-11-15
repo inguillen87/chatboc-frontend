@@ -272,8 +272,8 @@ export const PublicSurveyShareActions = ({
       {
         id: 'status',
         icon: CheckCircle2,
-        label: submission ? 'Respuesta registrada' : 'Link publico activo',
-        detail: submission ? 'La participacion ya entro al tablero.' : 'Listo para copiar, publicar y medir.',
+        label: submission ? 'Respuesta registrada' : 'Link público activo',
+        detail: submission ? 'La participación ya entró al tablero.' : 'Listo para copiar, publicar y medir.',
       },
       {
         id: 'realtime',

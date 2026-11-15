@@ -103,7 +103,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
         ? [
             {
               path: buildTenantPath('/portal/catalogo', effectiveSlug),
-              label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Tramites' : 'Catalogo'),
+              label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Trámites' : 'Catálogo'),
               icon: isMunicipio ? <ClipboardList className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />,
             },
           ]
@@ -246,10 +246,10 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
             className={`flex items-center w-full px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 group
                      text-destructive hover:bg-destructive/10 focus:bg-destructive/10
                      ${isCollapsed ? 'justify-center' : ''}`}
-            title={isCollapsed ? 'Cerrar sesion' : undefined}
+            title={isCollapsed ? 'Cerrar sesión' : undefined}
           >
             <span className={`text-destructive ${isCollapsed ? '' : 'mr-3'}`}><LogOut className="h-5 w-5" /></span>
-            {!isCollapsed && 'Cerrar sesion'}
+            {!isCollapsed && 'Cerrar sesión'}
           </button>
         ) : null}
       </div>

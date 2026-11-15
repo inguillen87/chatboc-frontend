@@ -794,7 +794,7 @@ export const SurveyEditor = ({
       && replacementSource?.tipo === 'opcion_unica'
       && otherLeaves.some((leaf) => leaf.question_ref === replacement.question_ref)
     ) {
-      setSubmissionError('AND no puede exigir dos respuestas distintas de una pregunta de opcion unica.');
+      setSubmissionError('AND no puede exigir dos respuestas distintas de una pregunta de opción única.');
       return;
     }
     setSubmissionError(null);
@@ -975,7 +975,7 @@ export const SurveyEditor = ({
     }
     if (questions.some((question) => question.conditionalLogicInvalid)) {
       setSubmissionError('Hay una ruta adaptativa invalida. Corregila o desactivala antes de guardar.');
-      toast({ title: 'Revisa las rutas adaptativas', variant: 'destructive' });
+      toast({ title: 'Revisá las rutas adaptativas', variant: 'destructive' });
       return false;
     }
     const demographicContractError = getDemographicContractError(questions);
@@ -1540,7 +1540,7 @@ export const SurveyEditor = ({
                                         <SelectContent>
                                           {(Array.isArray(leafSource?.opciones) ? leafSource.opciones : []).filter((option) => Boolean(option.option_ref)).map((option, optionIndex) => (
                                             <SelectItem key={option.localId} value={option.option_ref!}>
-                                              {option.texto || `Opcion ${optionIndex + 1}`}
+                                              {option.texto || `Opción ${optionIndex + 1}`}
                                             </SelectItem>
                                           ))}
                                         </SelectContent>
@@ -1620,7 +1620,7 @@ export const SurveyEditor = ({
                                 <SelectContent>
                                   {(Array.isArray(selectedSource.opciones) ? selectedSource.opciones : []).map((sourceOption, optionIndex) => (
                                     <SelectItem key={sourceOption.localId} value={sourceOption.localId}>
-                                      {sourceOption.texto || `Opcion ${optionIndex + 1}`}
+                                      {sourceOption.texto || `Opción ${optionIndex + 1}`}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>

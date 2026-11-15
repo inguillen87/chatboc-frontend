@@ -58,7 +58,7 @@ const promotionDetail = (promotion: PromotionItem): string => {
   if (typeof promotion.cantidad_minima_aplicable === 'number' && promotion.cantidad_minima_aplicable > 1) {
     pieces.push(`minimo ${promotion.cantidad_minima_aplicable} unidades`);
   }
-  if (promotion.codigo_promocion) pieces.push(`codigo ${promotion.codigo_promocion}`);
+  if (promotion.codigo_promocion) pieces.push(`código ${promotion.codigo_promocion}`);
 
   return pieces.join(' - ');
 };
@@ -95,7 +95,7 @@ const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
   },
   {
     id: 'service_request',
-    title: 'Reclamo o tramite',
+    title: 'Reclamo o trámite',
     description: 'Dirección, foto, boleta, certificado o dato faltante para derivar.',
     icon: ClipboardList,
   },
@@ -107,7 +107,7 @@ const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
   },
   {
     id: 'follow_up',
-    title: 'Seguimiento publico',
+    title: 'Seguimiento público',
     description: 'Referencia para consultar estado y continuar por WhatsApp o link seguro.',
     icon: MessageCircle,
   },
@@ -172,10 +172,10 @@ const commerceLoopDescription = (stageOrEvent: string) => {
   const normalized = stageOrEvent.toLowerCase();
   if (normalized.includes('catalog')) return 'El cliente ve disponibilidad y promociones.';
   if (normalized.includes('assist') || normalized.includes('upload')) return 'Puede subir foto, texto o documento si no encuentra el producto.';
-  if (normalized.includes('cart')) return 'Carrito persistente por sesion anonima o usuario.';
+  if (normalized.includes('cart')) return 'Carrito persistente por sesión anónima o usuario.';
   if (normalized.includes('checkout')) return 'Checkout seguro con pagos habilitados por tenant.';
   if (normalized.includes('order')) return 'Pedido o solicitud queda en el panel operativo.';
-  if (normalized.includes('tracking')) return 'Seguimiento publico para continuar sin perder contexto.';
+  if (normalized.includes('tracking')) return 'Seguimiento público para continuar sin perder contexto.';
   return 'Paso operativo registrado para que el equipo pueda responder.';
 };
 
@@ -211,7 +211,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   mode: 'assisted_first',
   title: 'Subi una nota, foto o pedido y Chatboc lo convierte en solicitud trazable',
   summary:
-    'Funciona aunque el catalogo este vacio: interpreta articulos, documentos, reclamos o datos de contacto y deja una solicitud clara para responder.',
+    'Funciona aunque el catálogo esté vacío: interpreta artículos, documentos, reclamos o datos de contacto y deja una solicitud clara para responder.',
   anonymous_intake: true,
   catalog_matching: true,
   show_on_empty_catalog: true,
@@ -235,7 +235,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
     'Foto de una nota manuscrita',
     'Pedido pegado desde WhatsApp',
     'Boleta, comprobante o certificado',
-    'Reclamo vecinal con direccion',
+    'Reclamo vecinal con dirección',
   ],
   text_examples: [
     {
@@ -257,26 +257,26 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
     { id: 'quote_request', label: 'Cotizacion', helper: 'Pedido para presupuestar o revisar stock.' },
     { id: 'receipt', label: 'Factura / recibo', helper: 'Pago, factura, recibo o constancia.' },
     { id: 'tax_bill', label: 'Boleta / impuesto', helper: 'Tasa, impuesto, padron o vencimiento.' },
-    { id: 'certificate', label: 'Certificado / tramite', helper: 'Documentacion o permiso para validar.' },
+    { id: 'certificate', label: 'Certificado / trámite', helper: 'Documentacion o permiso para validar.' },
     { id: 'service_request', label: 'Reclamo vecinal', helper: 'Bache, luminaria, agua, limpieza o solicitud municipal.' },
   ],
   pipeline: [
-    { id: 'capture', label: 'Carga publica', description: 'Foto, PDF, texto o nota escrita sin registro.' },
-    { id: 'ai_parse', label: 'Datos ordenados', description: 'Productos, cantidades, tramite, reclamo y faltantes.' },
+    { id: 'capture', label: 'Carga pública', description: 'Foto, PDF, texto o nota escrita sin registro.' },
+    { id: 'ai_parse', label: 'Datos ordenados', description: 'Productos, cantidades, trámite, reclamo y faltantes.' },
     { id: 'crm_handoff', label: 'Equipo informado', description: 'Resumen, archivo original y respuesta sugerida.' },
     { id: 'public_follow_up', label: 'Seguimiento', description: 'Link o WhatsApp para continuar sin perder contexto.' },
   ],
   crm_receives: [
     'Archivo o texto original',
     'Resumen con articulos, reclamos o datos detectados',
-    'Cruce con catalogo cuando exista',
+    'Cruce con catálogo cuando exista',
     'Datos faltantes y respuesta sugerida',
-    'Link publico de seguimiento',
+    'Link público de seguimiento',
   ],
   empty_state: {
     title: 'Catálogo sin productos visibles, pedido asistido disponible.',
     description:
-      'Aunque no haya productos publicados todavia, podes subir una foto, boleta, PDF o nota manuscrita para que el equipo la gestione.',
+      'Aunque no haya productos publicados todavía, podés subir una foto, boleta, PDF o nota manuscrita para que el equipo la gestione.',
     primary_cta: 'Subir pedido o documento',
   },
   frontend_contract: {
@@ -341,7 +341,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const shareMessage = useMemo(() => {
     if (shareMeta?.whatsappShareUrl) return shareMeta.whatsappShareUrl;
     if (!shareUrl) return '';
-    const prefix = tenantSlug ? `Catalogo de ${tenantSlug}` : 'Catalogo';
+    const prefix = tenantSlug ? `Catálogo de ${tenantSlug}` : 'Catálogo';
     return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
   }, [shareMeta?.whatsappShareUrl, shareUrl, tenantSlug]);
   const catalogDownloadUrl = useMemo(() => {
@@ -408,7 +408,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     const publishedCount = typeof totalUnfiltered === 'number' ? totalUnfiltered : products.length;
     if (visibleCount === 0 && publishedCount === 0) {
       return assistedIntakeExplicitlyDisabled
-        ? 'Catalogo sin productos publicados por ahora. Usa los canales de contacto del tenant para continuar.'
+        ? 'Catálogo sin productos publicados por ahora. Usá los canales de contacto del tenant para continuar.'
         : 'Subi una foto, lista, boleta o reclamo. El equipo recibe una solicitud ordenada y responde con seguimiento.';
     }
     const parts = [`${visibleCount} ${visibleCount === 1 ? 'visible' : 'visibles'}`];
@@ -448,12 +448,12 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     : '';
   const buildNoResultsSearchDraft = (term: string) => [
     `Busco: ${term}`,
-    'No lo encontre en el catalogo. Quiero que el equipo revise disponibilidad, precio o alternativa y me responda.',
+    'No lo encontré en el catálogo. Quiero que el equipo revise disponibilidad, precio o alternativa y me responda.',
   ].join('\n');
   const buildProductConsultDraft = (product: MarketProduct, reason?: string | null) => [
     `Busco: ${product.name}`,
     product.sku ? `SKU: ${product.sku}` : null,
-    product.category ? `Categoria: ${product.category}` : null,
+    product.category ? `Categoría: ${product.category}` : null,
     product.priceText ? `Precio publicado: ${product.priceText}` : null,
     reason ? `Motivo: ${reason}` : 'Necesito confirmar disponibilidad, precio o alternativa.',
     'Quiero que el equipo revise este producto y me responda para completar el pedido.',
@@ -531,10 +531,10 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     'Vega Marketplace IA';
   const assistedEmptyTitle =
     publicMarketplaceText(effectiveAssistedIntake?.empty_state?.title) ||
-    'Catalogo sin productos visibles, solicitud asistida activa.';
+    'Catálogo sin productos visibles, solicitud asistida activa.';
   const assistedEmptyDescription =
     publicMarketplaceText(effectiveAssistedIntake?.empty_state?.description) ||
-    'Podes subir una foto, PDF, boleta o nota manuscrita. El equipo recibe la solicitud ordenada con seguimiento para responderte sin que tengas que navegar el catalogo.';
+    'Podés subir una foto, PDF, boleta o nota manuscrita. El equipo recibe la solicitud ordenada con seguimiento para responderte sin que tengas que navegar el catálogo.';
   const canUseClipboard = typeof navigator !== 'undefined' && Boolean(navigator.clipboard);
   const trackMarketplaceCta = (eventName: string, source: string, extra: Record<string, unknown> = {}) => {
     trackFrontendEvent(eventName, {
@@ -667,7 +667,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           <div className="min-w-0">
             <h1 className="text-xl font-semibold sm:text-2xl">Marketplace</h1>
             <p className="line-clamp-2 text-sm text-muted-foreground">
-              {heroSubtitle ?? 'Busca productos o envia una nota, foto o texto para recibir una respuesta.'}
+              {heroSubtitle ?? 'Buscá productos o enviá una nota, foto o texto para recibir una respuesta.'}
             </p>
           </div>
         </div>
@@ -830,21 +830,21 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
             className="order-1 border-y border-dashed py-5 md:col-span-2 lg:col-span-3"
           >
             <Badge variant="secondary" className="mb-2">
-              {showAssistedIntake ? 'Sin productos' : 'Catalogo pendiente'}
+              {showAssistedIntake ? 'Sin productos' : 'Catálogo pendiente'}
             </Badge>
             <h2 className="max-w-3xl text-lg font-semibold sm:text-xl">
               {hasActiveFilters && !catalogActuallyEmpty
                 ? 'No hay productos para esos filtros.'
                 : showAssistedIntake
                   ? assistedEmptyTitle
-                  : 'No hay productos disponibles en este catalogo.'}
+                  : 'No hay productos disponibles en este catálogo.'}
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
               {hasActiveFilters && !catalogActuallyEmpty
                 ? 'Limpia los filtros o usa la carga asistida para consultar disponibilidad, precio o una alternativa.'
                 : showAssistedIntake
                   ? assistedEmptyDescription
-                  : 'El tenant todavia no publico productos. Usa los canales disponibles para pedir informacion.'}
+                  : 'El tenant todavía no publicó productos. Usá los canales disponibles para pedir información.'}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {hasActiveFilters ? (

@@ -1,3 +1,6 @@
+/** Generic description used when the backend gives none. Compared by identity, never re-typed. */
+export const SURVEY_ERROR_FALLBACK_DESCRIPTION = 'Probá nuevamente en unos segundos.';
+
 export interface SurveyErrorViewModel {
   title: string;
   description: string;
@@ -165,7 +168,7 @@ export const mapSurveyError = (
 
   return {
     title: payloadTitle ?? 'No pudimos cargar esta encuesta',
-    description: payloadDescription ?? 'Proba nuevamente en unos segundos.',
+    description: payloadDescription ?? SURVEY_ERROR_FALLBACK_DESCRIPTION,
     primaryCta: payloadPrimary ?? 'Reintentar',
     secondaryCta: payloadSecondary ?? 'Volver al inicio',
     actionHint: actionHint ?? 'retry',

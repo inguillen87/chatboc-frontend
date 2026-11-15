@@ -72,6 +72,9 @@ const UI = {
     "success": "El servidor confirmó la vinculación activa."
   }
 } as const;
+// Separate backend presentation bootstrap; deliberately distinct from local ViewState defaults.
+const RECOVERY_UI = { ...UI, labels: { ...UI.labels, title: 'Synthetic publication recovery', refresh: 'Synthetic refresh action' },
+  messages: { ...UI.messages, descriptor_error: 'Synthetic server-owned read recovery description' } };
 const A = { id: 17, slug: 'synthetic-organization' };
 const CANDIDATE = { frontend_deployment: 'dpl_syntheticExisting123', frontend_source: 'a'.repeat(40), routes_sha256: 'c'.repeat(64) };
 const OLD_REVISION = '1'.repeat(64), NEW_REVISION = '2'.repeat(64), DIGEST = '3'.repeat(64);
@@ -85,6 +88,7 @@ let calls: Call[];
 let target: Scope, activeKind: Kind | null, noCopy: boolean, noCapability: boolean;
 let failedReads: number, readFailure: 'http' | 'throw', loseAck: boolean, deniedPlan: boolean, expiredPlan: boolean;
 let planGate: ReturnType<typeof deferred<void>> | null;
+let recoveryCopy: unknown, recoveryGate: ReturnType<typeof deferred<void>> | null;
 const seconds = () => Math.floor(Date.now() / 1000);
 const host = (kind: Kind) => kind === 'platform' ? 'synthetic-organization.chatboc.ar' : 'synthetic-organization.example.test';
 function descriptor(scope = target) {
@@ -141,14 +145,20 @@ beforeEach(() => {
   authority.verified = authority.profile = true; authority.ready.mockReset().mockResolvedValue(undefined);
   target = clone(A); activeKind = null; noCopy = noCapability = loseAck = deniedPlan = expiredPlan = false;
   failedReads = 0; readFailure = 'http'; planGate = null; calls = [];
+  recoveryCopy = clone(RECOVERY_UI); recoveryGate = null;
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() })));
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'http://localhost');
     const method = init?.method ?? 'GET'; const path = url.pathname;
-    if (url.search || !/\/(?:api\/)?admin\/tenants\/synthetic-organization\/addresses(?:\/activation-plan|\/activate)?$/.test(path)) throw new Error('unexpected synthetic HTTP destination');
+    if (url.search || !/\/(?:api\/)?admin\/tenants\/synthetic-organization\/addresses(?:\/activation-plan|\/activate|\/operator-ui)?$/.test(path)) throw new Error('unexpected synthetic HTTP destination');
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
     calls.push({ method, path, body, headers: new Headers(init?.headers) });
+    if (method === 'GET' && path.endsWith('/operator-ui')) {
+      const copy = clone(recoveryCopy); const gate = recoveryGate; recoveryGate = null;
+      if (gate) await gate.promise;
+      return reply(copy);
+    }
     if (method === 'GET' && path.endsWith('/addresses')) {
       if (failedReads-- > 0) { if (readFailure === 'throw') throw new TypeError('synthetic read unavailable'); return reply({ reason_code: 'synthetic_unavailable' }, 500); }
       return reply(descriptor());
@@ -173,9 +183,13 @@ afterEach(() => { cleanup(); usePanelSessionStore.getState().clearSession(); vi.
 describe('Organization address operator with real HTTP client and explicit review', () => {
   it.each(['http', 'throw'] as const)('shows a failed initial %s read and performs one manual GET to recover without a POST', async failure => {
     failedReads = 1; readFailure = failure; render(view());
-    await screen.findByRole('heading', { name: 'No pudimos cargar los datos' });
+    await screen.findByRole('heading', { name: RECOVERY_UI.labels.title });
+    expect(screen.getByText(RECOVERY_UI.messages.descriptor_error)).toBeInTheDocument();
     expect(count('GET')).toBe(1); expect(count('POST', '/activation-plan')).toBe(0);
-    await userEvent.click(screen.getByRole('button', { name: 'Actualizar estado' })); await loaded();
+    expect(count('GET', '/operator-ui')).toBe(1);
+    const presentation = calls.find(call => call.path.endsWith('/operator-ui'))!;
+    expect(presentation.headers.get('X-Tenant-Slug')).toBe(A.slug);
+    await userEvent.click(screen.getByRole('button', { name: RECOVERY_UI.labels.refresh })); await loaded();
     expect(count('GET')).toBe(2); expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
   });
   it.each(['platform', 'custom'] as const)('keeps %s planning separate from confirmation and accepts only the confirmed ACK', async kind => {
@@ -212,8 +226,29 @@ describe('Organization address operator with real HTTP client and explicit revie
     render(view()); await act(async () => { await Promise.resolve(); }); expect(calls).toHaveLength(0);
   });
   it('keeps an older descriptor without operator copy non-actionable', async () => {
-    noCopy = true; render(view()); await screen.findByRole('heading', { name: 'Contenido parcial disponible' });
+    noCopy = true; render(view()); await screen.findByRole('heading', { name: RECOVERY_UI.labels.title });
+    expect(count('GET', '/operator-ui')).toBe(1);
+    expect(screen.getByText(RECOVERY_UI.messages.descriptor_error)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: UI.labels.plan })).toBeNull();
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+  });
+  it('does not fabricate a title or action when the recovery presentation is invalid', async () => {
+    noCopy = true; recoveryCopy = { ...RECOVERY_UI, labels: {} }; const mounted = render(view());
+    await waitFor(() => expect(count('GET', '/operator-ui')).toBe(1));
+    await act(async () => { await Promise.resolve(); });
+    expect(mounted.container.textContent).toBe('');
+    expect(screen.queryByRole('heading')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+  });
+  it('retires a delayed presentation bootstrap when the target changes', async () => {
+    noCopy = true; const pending = deferred<void>(); recoveryGate = pending;
+    const mounted = render(view());
+    await waitFor(() => expect(count('GET', '/operator-ui')).toBe(1));
+    noCopy = false; target = { ...A, id: 18 }; mounted.rerender(view(target)); await loaded();
+    await act(async () => { pending.resolve(); await Promise.resolve(); });
+    expect(screen.queryByRole('heading', { name: RECOVERY_UI.labels.title })).toBeNull();
+    expect(screen.getByRole('heading', { name: UI.labels.title })).toBeInTheDocument();
     expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
   });
   it('does not enable a plan when the activation capability is missing', async () => {
@@ -248,7 +283,7 @@ describe('Organization address operator with real HTTP client and explicit revie
   it('shows a mid-flow 403 and allows only an explicit descriptor GET to recover', async () => {
     deniedPlan = true; render(view()); await loaded(); await fillVersion();
     await userEvent.click(screen.getByRole('button', { name: UI.labels.plan }));
-    await screen.findByRole('heading', { name: 'No pudimos cargar los datos' }); expect(count('POST', '/activation-plan')).toBe(1);
+    await screen.findByText(UI.messages.descriptor_error); expect(count('POST', '/activation-plan')).toBe(1);
     expect(screen.queryByRole('heading', { name: UI.labels.review_title })).toBeNull();
     deniedPlan = false; await userEvent.click(screen.getByRole('button', { name: 'Actualizar estado' })); await loaded();
     expect(count('GET')).toBe(2); expect(count('POST', '/activation-plan')).toBe(1); expect(count('POST', '/activate')).toBe(0);

@@ -27,6 +27,7 @@ import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
+import { requiresTenantHostLookup } from "@/utils/tenantHostBinding";
 import { getSafeAuthNextPath } from "@/utils/authRedirect";
 import { persistPanelLoginSession } from "@/utils/panelLoginSession";
 import { hasRequiredRole } from "@/utils/roles";
@@ -65,6 +66,9 @@ const LoginSession = () => {
   const credentialPathname = hostBinding && /^\/login\/?$/i.test(location.pathname)
     ? `/t/${encodeURIComponent(hostBinding.tenant.slug)}/login` : location.pathname;
   const accessScope = readPanelLoginScope(credentialPathname);
+  // White label: an organization's own domain admits only its accounts, so it never offers
+  // creating a new one. Fails closed on any host that is not an exact platform host.
+  const ownDomainAccess = Boolean(hostBinding) || requiresTenantHostLookup(typeof window === 'undefined' ? null : window.location.hostname);
   const institutionalIdentity = !isLoadingTenant && !tenantError && accessScope.tenantSlug &&
     tenant?.slug?.toLowerCase() === accessScope.tenantSlug && tenant.publishedIdentity?.tenantSlug === accessScope.tenantSlug
       ? tenant.publishedIdentity : null;
@@ -677,6 +681,9 @@ const LoginSession = () => {
           <div className="space-y-2">
             <ClerkAuthButtons
               mode="login"
+              // Un acceso de organización (dominio propio o /t/<slug>/login) es exclusivo de sus cuentas.
+              tenantSlug={accessScope.tenantSlug}
+              allowSignUp={!ownDomainAccess}
               className="pt-1"
               disabled={isLoading || isPasskeyLoading || isDemoLoading || isActivatingDemoWhatsapp}
             />
@@ -841,12 +848,14 @@ const LoginSession = () => {
           </Button>
         ) : null}
 
-        <div className="text-center text-sm text-muted-foreground mt-4">
-          ¿No tenés cuenta?{" "}
-          <button onClick={() => navigate(registerTarget)} className="text-primary hover:underline">
-            Registrate
-          </button>
-        </div>
+        {!ownDomainAccess ? (
+          <div className="text-center text-sm text-muted-foreground mt-4">
+            ¿No tenés cuenta?{" "}
+            <button onClick={() => navigate(registerTarget)} className="text-primary hover:underline">
+              Registrate
+            </button>
+          </div>
+        ) : null}
 
         <AlertDialog open={Boolean(upgradeBlockedFeature)} onOpenChange={(open) => { if (!open) setUpgradeBlockedFeature(null); }}>
           <AlertDialogContent>

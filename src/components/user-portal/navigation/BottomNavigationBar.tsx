@@ -68,7 +68,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
         ? [
             {
               path: buildTenantPath('/portal/catalogo', effectiveSlug),
-              label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Tramites' : 'Catalogo'),
+              label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Trámites' : 'Catálogo'),
               icon: <ShoppingBag aria-hidden="true" className="h-5 w-5" />,
             },
           ]

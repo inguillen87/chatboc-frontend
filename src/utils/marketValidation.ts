@@ -227,7 +227,7 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
     setReason(
       messageCopy ??
       customerLockedCopy ??
-        'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
+        'Plan Full requerido para cobrar desde WhatsApp, widget o checkout público.',
     );
   }
   if (demoDisablesConfirm) setReason('Esta demo no confirma pedidos reales.');
