@@ -706,6 +706,22 @@ describe('SurveyEditor save and publish flow', () => {
     expect(writeText).toHaveBeenCalledWith(visibleUrl);
   });
 
+  it('names every selector from its visible label and keeps changing the same value', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<SurveyEditor initialDraft={initialDraft} onSave={onSave} />);
+
+    expect(screen.getByRole('combobox', { name: 'Tipo' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Política de unicidad' })).toBeInTheDocument();
+    const questionType = screen.getByRole('combobox', { name: 'Tipo de pregunta' });
+    expect(questionType).toHaveTextContent(/opción única/i);
+
+    fireEvent.keyDown(questionType, { key: 'ArrowDown' });
+    fireEvent.pointerUp(await screen.findByRole('option', { name: /selección múltiple/i }), { button: 0 });
+    expect(screen.getByRole('combobox', { name: 'Tipo de pregunta' })).toHaveTextContent(/selección múltiple/i);
+    expect(screen.getByRole('spinbutton', { name: 'Mínimo de selecciones' })).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('opens the current adaptive draft in an isolated visual tester', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<SurveyEditor initialDraft={adaptiveDraft} onSave={onSave} />);

@@ -1096,12 +1096,12 @@ export const SurveyEditor = ({
             />
           </div>
           <div className="space-y-2">
-            <Label>Tipo</Label>
+            <Label htmlFor={`${fieldIds}-tipo`}>Tipo</Label>
             <Select
               value={formValues.tipo}
               onValueChange={(value: SurveyTipo) => setFormValues((prev) => ({ ...prev, tipo: value }))}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${fieldIds}-tipo`}>
                 <SelectValue placeholder="Seleccioná un tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -1114,14 +1114,14 @@ export const SurveyEditor = ({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Política de unicidad</Label>
+            <Label htmlFor={`${fieldIds}-politica-unicidad`}>Política de unicidad</Label>
             <Select
               value={formValues.politica_unicidad}
               onValueChange={(value: SurveyDraftPayload['politica_unicidad']) =>
                 setFormValues((prev) => ({ ...prev, politica_unicidad: value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${fieldIds}-politica-unicidad`}>
                 <SelectValue placeholder="Seleccioná una opción" />
               </SelectTrigger>
               <SelectContent>
@@ -1310,7 +1310,7 @@ export const SurveyEditor = ({
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Tipo de pregunta</Label>
+                        <Label htmlFor={`${fieldIds}-question-${question.localId}-tipo`}>Tipo de pregunta</Label>
                         <Select
                           value={question.tipo}
                           disabled={structureLocked || demographicRole !== 'general'}
@@ -1326,7 +1326,7 @@ export const SurveyEditor = ({
                             });
                           }}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id={`${fieldIds}-question-${question.localId}-tipo`}>
                             <SelectValue placeholder="Seleccioná un tipo" />
                           </SelectTrigger>
                           <SelectContent>
