@@ -1288,7 +1288,7 @@ const FaroChatWidget = ({
     <div className="tdf-faro-widget fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3">
       <AnimatePresence>
         {open ? (
-          <motion.aside
+          <motion.div
             key="faro-widget-panel"
             id="faro-widget-panel"
             role="dialog"
@@ -1300,11 +1300,11 @@ const FaroChatWidget = ({
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: reduceMotion ? 0 : 0.24 }}
           >
-            <header className="flex items-center gap-3 rounded-t-[1.45rem] bg-[#071f38] p-4 text-white">
+            <div className="flex items-center gap-3 rounded-t-[1.45rem] bg-[#071f38] p-4 text-white">
               <motion.img src={FARO_ICON_ASSET} alt="" className="h-14 w-14 shrink-0 object-contain" width="56" height="56" initial={reduceMotion ? false : { opacity: 0.7, rotate: 4, scale: 0.94 }} animate={{ opacity: 1, rotate: 0, scale: 1 }} transition={{ duration: reduceMotion ? 0 : 0.4 }} />
               <div className="min-w-0 flex-1"><p id="faro-widget-title" className="text-base font-bold">Faro TDF</p><p className="text-xs leading-5 text-white/72">{content.brand.slogan}</p></div>
               <button ref={closeButtonRef} type="button" className={`${faroBlueFocusRing} grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white focus-visible:ring-white focus-visible:ring-offset-[#071f38]`} aria-label="Cerrar chat de Faro" onClick={closeWidget}><X className="h-5 w-5" aria-hidden="true" /></button>
-            </header>
+            </div>
             <div className="p-4">
               <span className="inline-flex rounded-full bg-[#e6f3fa] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#075f91]">Muestra conceptual · no envía datos</span>
               <div className="mt-3 rounded-2xl rounded-bl-md bg-[#eef5f9] p-3 text-sm leading-6 text-[#173c57]">Hola, soy Faro. Elegí un tema y te muestro cómo una consulta podría pasar del chat al CRM.</div>
@@ -1317,7 +1317,7 @@ const FaroChatWidget = ({
               {agentMessage ? <button type="button" className={`${faroBlueFocusRing} mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#075f91] px-4 text-sm font-bold text-white hover:bg-[#064d78]`} onClick={openInCrm}><Activity className="h-4 w-4" aria-hidden="true" />Ver cómo llega al CRM</button> : null}
               <p className="mt-3 text-[11px] leading-4 text-[#526b7d]">No reemplaza información oficial ni atención profesional. La versión funcional requerirá fuentes, permisos y validaciones.</p>
             </div>
-          </motion.aside>
+          </motion.div>
         ) : null}
       </AnimatePresence>
       <button ref={launcherRef} type="button" className={`${faroBlueFocusRing} flex min-h-14 items-center gap-2 rounded-full border border-[#5bd7ec]/55 bg-[#075f91] p-1.5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(7,79,128,0.34)] hover:bg-[#064d78] sm:pl-2 sm:pr-4`} aria-label={open ? 'Cerrar chat de Faro' : 'Abrir chat de Faro'} aria-controls="faro-widget-panel" aria-expanded={open} onClick={() => { if (open) closeWidget(); else setOpen(true); }}><motion.img src={FARO_ICON_ASSET} alt="" className="h-11 w-11 object-contain" width="44" height="44" animate={reduceMotion || open ? undefined : { y: [0,-2,0] }} transition={reduceMotion || open ? undefined : { duration: 2.1, repeat: Infinity, repeatDelay: 4.2, ease: 'easeInOut' }} /><span className="hidden sm:inline">{open ? 'Cerrar' : 'Hablar con Faro'}</span></button>

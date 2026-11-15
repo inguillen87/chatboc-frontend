@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import axe from 'axe-core';
 
 import DisabilityAIAgentDemoPage from './DisabilityAIAgentDemoPage';
 
@@ -256,6 +257,26 @@ describe('DisabilityAIAgentDemoPage', () => {
     expect(screen.getByRole('dialog', { name: 'Faro TDF' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'CUD y CMO' }));
     expect(screen.getByText(/Quiero saber qué necesito para iniciar el CUD/i)).toBeInTheDocument();
+  });
+
+  it('keeps the Faro dialog on an element that permits its ARIA role', async () => {
+    render(<DisabilityAIAgentDemoPage />);
+    await screen.findByRole('region', { name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego' });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir chat de Faro' }));
+    const dialog = screen.getByRole('dialog', { name: 'Faro TDF' });
+    expect(dialog).toHaveAttribute('aria-modal', 'false');
+
+    const results = await axe.run(dialog, { runOnly: { type: 'rule', values: ['aria-allowed-role'] } });
+    expect(results.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(node => node.target) }))).toEqual([]);
+  });
+
+  it('keeps the page banner unique when opening Faro', async () => {
+    render(<DisabilityAIAgentDemoPage />);
+    await screen.findByRole('region', { name: 'Mapa MapLibre de demanda conceptual y simulada en Tierra del Fuego' });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir chat de Faro' }));
+    expect(screen.getByRole('dialog', { name: 'Faro TDF' })).toBeInTheDocument();
+    const results = await axe.run(document, { runOnly: { type: 'rule', values: ['landmark-no-duplicate-banner'] } });
+    expect(results.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(node => node.target) }))).toEqual([]);
   });
 
   it('renders heat and all 24 representative points together, with complete territorial filters', async () => {
