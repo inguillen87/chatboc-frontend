@@ -428,7 +428,7 @@ const UserDashboardPage = () => {
                     {notifications.slice(0, 3).map((notification) => (
                     <div key={notification.id} className="p-3 rounded-lg bg-accent/50 border border-border">
                         <div className="flex justify-between items-start mb-1">
-                            <h5 className="text-sm font-semibold">{notification.title}</h5>
+                            <h3 className="text-sm font-semibold">{notification.title}</h3>
                             {notification.severity === 'warning' && <span className="h-2 w-2 rounded-full bg-yellow-500" />}
                             {notification.severity === 'error' && <span className="h-2 w-2 rounded-full bg-red-500" />}
                         </div>
