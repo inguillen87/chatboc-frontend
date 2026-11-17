@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { activateTenantAddress, getTenantAddresses, getTenantAddressOperatorUI, normalizeAddressActivationCandidate, planTenantAddressActivation,
+import { activateTenantAddress, addressActivationBlockingReason, getTenantAddresses, getTenantAddressOperatorUI, normalizeAddressActivationCandidate, planTenantAddressActivation,
   type AddressActivationCandidate, type AddressActivationPlan, type AddressKind, type AddressOperatorUI, type AddressTenantScope,
   type TenantAddresses } from '@/api/tenantAddresses';
 
@@ -45,11 +45,13 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState<keyof NonNullable<TenantAddresses['operator_ui']>['messages'] | null>(null);
   const [requiresStatusCheck, setRequiresStatusCheck] = useState(false);
+  // Fixed server reason of the last refused observation; its copy comes from operator_guidance.
+  const [blocking, setBlocking] = useState<string | null>(null);
   const [readError, setReadError] = useState<unknown>(null);
   const ui = descriptor?.operator_ui;
   const mountedCurrent = () => alive.current && isChatbocSessionRevisionCurrent(sessionRevision);
   const retireReview = () => {
-    epoch.current += 1; setReview(null); setConfirmOpen(false); setMessage(null);
+    epoch.current += 1; setReview(null); setConfirmOpen(false); setMessage(null); setBlocking(null);
     if (busy === 'activate') setRequiresStatusCheck(true);
   };
   const begin = (phase: Exclude<Busy, null>) => {
@@ -80,7 +82,7 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
   };
   const refresh = async () => {
     const request = begin('descriptor'); if (!request) return;
-    setReview(null); setConfirmOpen(false); setMessage(null);
+    setReview(null); setConfirmOpen(false); setMessage(null); setBlocking(null);
     reviewedRef.current = false; setVersionReviewed(false);
     try {
       const next = await getTenantAddresses(tenant, request.current);
@@ -131,7 +133,7 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
     const selectedCandidate = normalizeAddressActivationCandidate(fieldsRef.current);
     if (!canPlan || !current || !selectedCandidate || !reviewedRef.current) return;
     const request = begin('plan'); if (!request) return;
-    setReview(null); setConfirmOpen(false); setMessage(null);
+    setReview(null); setConfirmOpen(false); setMessage(null); setBlocking(null);
     const started = epoch.current;
     try {
       const result = await planTenantAddressActivation(tenant, current, selectedKind, selectedCandidate, request.current);
@@ -140,7 +142,7 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
       if (request.current()) {
         if (denied(error)) { clearDenied(); setReadError(error); }
         if (error instanceof ApiError && [409, 412, 428].includes(error.status)) setRequiresStatusCheck(true);
-        setReview(null); setMessage('plan_error');
+        setReview(null); setMessage('plan_error'); setBlocking(addressActivationBlockingReason(error));
       }
     } finally { finish(request.token); }
   };
@@ -152,7 +154,7 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
       retireReview(); setMessage('descriptor_changed'); return;
     }
     const request = begin('activate'); if (!request) return;
-    setMessage(null);
+    setMessage(null); setBlocking(null);
     try {
       const next = await activateTenantAddress(tenant, current, snapshot.kind, snapshot.candidate, snapshot.plan, request.current);
       if (request.current()) { setDescriptor(next); setReview(null); setConfirmOpen(false); setRequiresStatusCheck(false); setMessage('success'); }
@@ -161,6 +163,7 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
         if (denied(error)) { clearDenied(); setReadError(error); }
         // A sent request cannot be undone. Only a fresh GET can reconcile it.
         setReview(null); setConfirmOpen(false); setRequiresStatusCheck(true); setMessage('uncertain');
+        setBlocking(addressActivationBlockingReason(error));
       }
     } finally { finish(request.token); }
   };
@@ -181,6 +184,17 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
     ? ui.messages[reason as keyof typeof ui.messages] : ui.messages.not_ready;
   const statusText = busy ? ui.labels[busy === 'descriptor' ? 'loading' : busy === 'plan' ? 'planning' : 'activating'] : null;
   const planData = review?.plan;
+  const guidance = descriptor?.operator_guidance;
+  const blockingEntry = guidance && blocking && Object.prototype.hasOwnProperty.call(guidance.blocking, blocking)
+    ? guidance.blocking[blocking] : undefined;
+  const deadline = !guidance || !slot ? null
+    : slot.status === 'verification_expired' && slot.pending_until !== null
+      ? { label: guidance.labels.expired_since, at: slot.pending_until, note: guidance.messages.expired_action }
+    : (slot.status === 'pending_platform' || slot.status === 'pending_dns') && slot.pending_until !== null
+      ? { label: guidance.labels.pending_until, at: slot.pending_until, note: guidance.messages.pending_window }
+    : slot.active && slot.valid_until !== null
+      ? { label: guidance.labels.active_until, at: slot.valid_until, note: guidance.messages.active_expiry }
+    : null;
   return <section className="space-y-4 rounded-xl border p-4" aria-labelledby={id + '-title'} aria-busy={Boolean(busy)}>
     <h3 id={id + '-title'} className="font-semibold">{ui.labels.title}</h3>
     <p className="text-sm text-muted-foreground">{ui.labels.description}</p>
@@ -193,6 +207,11 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
       {slot?.host ? <p className="break-all font-mono text-sm">{slot.host}</p> : null}
       {slot ? <p className="text-sm text-muted-foreground">{slot.scope_note}</p> : null}
       {slot?.active ? <p role="status">{ui.labels.active}</p> : !ready ? <p role="status">{slot?.status === 'pending_platform' ? unavailable : ui.messages.not_pending}</p> : null}
+      {deadline ? <div className="space-y-1 text-sm">
+        <p><span className="text-muted-foreground">{deadline.label}: </span>
+          <time dateTime={new Date(deadline.at * 1000).toISOString()}>{new Date(deadline.at * 1000).toLocaleString('es-AR')}</time></p>
+        <p className="text-muted-foreground">{deadline.note}</p>
+      </div> : null}
     </div>
     <details className="rounded-lg border p-3">
       <summary className="cursor-pointer font-medium">{ui.labels.advanced_title}</summary>
@@ -217,7 +236,12 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
       <Button type="button" disabled={!canPlan} onClick={() => void plan()}>{ui.labels.plan}</Button>
     </div>
     {statusText ? <p role="status">{statusText}</p> : null}
-    {message && message !== 'not_ready' ? <p role={requiresStatusCheck ? 'alert' : 'status'}>{ui.messages[message]}</p> : null}
+    {message && message !== 'not_ready' && !blockingEntry ? <p role={requiresStatusCheck ? 'alert' : 'status'}>{ui.messages[message]}</p> : null}
+    {guidance && blockingEntry ? <div role="alert" className="space-y-1 rounded-lg border border-destructive/40 p-3 text-sm">
+      <p className="font-medium">{guidance.labels.blocked_title}</p>
+      <p>{blockingEntry.message}</p>
+      <p><span className="font-medium">{guidance.labels.next_action}: </span>{blockingEntry.action}</p>
+    </div> : null}
     {planData ? <div className="space-y-3 rounded-lg border p-3">
       <h4 className="font-medium">{ui.labels.review_title}</h4><p role="status">{ui.labels.plan_ready}</p>
       <dl className="space-y-2 text-sm">
