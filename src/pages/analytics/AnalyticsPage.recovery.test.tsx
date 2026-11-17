@@ -1,5 +1,6 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
@@ -91,6 +92,47 @@ describe('analytics contextual-error recovery with real page and client', () => 
       { path: hubReads()[0].path, scope: 'municipio', profile: '22', category: 'arbolado' },
       { path: hubReads()[0].path, scope: 'municipio', profile: '22', category: 'arbolado' },
     ]);
+  });
+
+  it('keeps the focused filter and open segments mounted while editing and after another failed read', async () => {
+    mount();
+    await screen.findByRole('alert');
+    const user = userEvent.setup();
+    const summary = screen.getByText('Segmentos, exportaciones y resumen IA');
+    await user.click(summary);
+    const segments = summary.closest('details')!;
+    const category = screen.getByRole('textbox', { name: 'Categoría' });
+    const originalFetch = fetchFixture.getMockImplementation()!;
+    const pending: Array<(response: Response) => void> = [];
+    fetchFixture.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, 'http://localhost');
+      if (!/\/analytics\/hub$/.test(url.pathname)) return originalFetch(input, init);
+      reads.push({ path: url.pathname, search: url.searchParams, method: init?.method ?? 'GET', tenant: new Headers(init?.headers).get('X-Tenant-Slug') });
+      return new Promise<Response>(resolve => pending.push(resolve));
+    });
+
+    await user.clear(category);
+    await user.type(category, 'plazas');
+    expect(screen.getByRole('textbox', { name: 'Categoría' })).toBe(category);
+    expect(category).toHaveValue('plazas');
+    expect(category).toHaveFocus();
+    expect(segments).toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
+    await waitFor(() => expect(hubReads().at(-1)?.search.get('categoria')).toBe('plazas'));
+
+    await act(async () => {
+      pending.forEach(resolve => resolve(new Response(JSON.stringify({ error: 'synthetic invalid filter' }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } })));
+    });
+    await screen.findByText('No se pudo cargar el dashboard.');
+    expect(screen.getByRole('textbox', { name: 'Categoría' })).toBe(category);
+    expect(category).toHaveFocus();
+    expect(category).toHaveValue('plazas');
+    expect(segments).toHaveAttribute('open');
+    expect(new URLSearchParams(screen.getByTestId('location').textContent ?? '').get('categoria')).toBe('plazas');
+    expect(summaryReads()).toHaveLength(0);
+    expect(hubReads().every(read => read.method === 'GET' && read.tenant === 'junin' && read.search.get('scope') === 'municipio')).toBe(true);
   });
 
   it('canonicalizes an incompatible URL scope from verified identity without trying another organization kind', async () => {

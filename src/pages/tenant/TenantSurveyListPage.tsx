@@ -57,7 +57,7 @@ const hasEndpoint = (item?: TenantPublicNavigationItem) =>
 const publicErrorMessage = (error: unknown) => {
   const message = getErrorMessage(error);
   if (/<[a-z][\s\S]*>/i.test(message)) {
-    return 'La informacion no esta disponible en este momento.';
+    return 'La información no está disponible en este momento.';
   }
   return message;
 };
@@ -110,7 +110,7 @@ const TenantSurveyListPage = () => {
         {!slug ? (
           <Card>
             <CardHeader>
-              <CardTitle>Selecciona un espacio</CardTitle>
+              <CardTitle>Seleccioná un espacio</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               Elegi un espacio para ver sus instancias publicas disponibles.
@@ -122,19 +122,19 @@ const TenantSurveyListPage = () => {
           <ViewState
             status="empty"
             title="Participación no publicada"
-            description="Este espacio no tiene una instancia publica de participación habilitada."
+            description="Este espacio no tiene una instancia pública de participación habilitada."
           />
         ) : !hasEndpoint(surveyNavItem) ? (
           <ViewState
             status="empty"
             title="Participación no disponible"
-            description="La organización todavía no publico el listado para esta sección."
+            description="La organización todavía no publicó el listado para esta sección."
           />
         ) : !isOnline && !surveysQuery.data ? (
           <ViewState
             status="offline"
             title="Sin conexión para consultar participación"
-            description="Revisa tu conexión y reintenta."
+            description="Revisá tu conexión y reintentá."
           />
         ) : surveysQuery.isLoading ? (
           <ViewState status="loading" title="Cargando participación" />
@@ -181,8 +181,8 @@ const TenantSurveyListPage = () => {
         ) : (
           <ViewState
             status={isStale ? 'stale' : 'empty'}
-            title={isStale ? 'Actualizando participacion' : 'No hay instancias activas'}
-            description={isStale ? 'Se muestran datos previos mientras se actualizan.' : 'Este espacio todavia no publico instancias activas.'}
+            title={isStale ? 'Actualizando participación' : 'No hay instancias activas'}
+            description={isStale ? 'Se muestran datos previos mientras se actualizan.' : 'Este espacio todavía no publicó instancias activas.'}
           />
         )}
       </section>

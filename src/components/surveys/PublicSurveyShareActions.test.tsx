@@ -29,7 +29,7 @@ describe('PublicSurveyShareActions', () => {
 
     const status = screen.getByTestId('public-survey-distribution-status');
     expect(status).toHaveTextContent('Difusion operativa');
-    expect(status).toHaveTextContent('Link publico activo');
+    expect(status).toHaveTextContent('Link público activo');
     expect(status).toHaveTextContent('Realtime encendido');
     expect(status).toHaveTextContent('QR para sala');
     expect(status).toHaveTextContent('Share multicanal');

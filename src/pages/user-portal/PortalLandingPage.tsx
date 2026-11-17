@@ -18,7 +18,7 @@ export const PortalLandingPage: React.FC = () => {
     const returnTo = searchParams.get('return_to');
 
     if (contactKey || conversationId) {
-      setStatus('Conectando tu historial de atencion...');
+      setStatus('Conectando tu historial de atención...');
       setOmnichannelIdentity(contactKey, conversationId);
     }
 

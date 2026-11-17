@@ -346,7 +346,7 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null, kind: Trac
   const responseExpectationFallback = liveAvailable
     ? slaTargetMinutes
       ? `Respuesta esperada en hasta ${slaTargetMinutes} min`
-      : "Atencion inmediata"
+      : "Atención inmediata"
     : slaTargetMinutes
       ? `El equipo lo ve en el CRM. SLA objetivo ${slaTargetMinutes} min`
       : "El equipo responde desde el CRM";
@@ -731,10 +731,10 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
     if (!trackingCodeLabel || trackingCodeLabel === "-" || typeof navigator === "undefined" || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(trackingCodeLabel);
-      setPageNotice({ message: `Codigo ${trackingCodeLabel} copiado.`, tone: "status" });
+      setPageNotice({ message: `Código ${trackingCodeLabel} copiado.`, tone: "status" });
     } catch {
       setPageNotice({
-        message: `No se pudo copiar el codigo. Referencia: ${trackingCodeLabel}`,
+        message: `No se pudo copiar el código. Referencia: ${trackingCodeLabel}`,
         tone: "error",
       });
     }
@@ -743,7 +743,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
   const load = async ({ background = false }: TrackingLoadOptions = {}) => {
     if (!mountedRef.current || !code || loadPendingRef.current) return;
     if (requiresPinForLoad) {
-      setError("Ingresa el PIN para consultar el estado del reclamo.");
+      setError("Ingresá el PIN para consultar el estado del reclamo.");
       setErrorTarget("pin");
       focusAfterRender(pinInputRef);
       return;
@@ -1362,7 +1362,7 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                     ref={supportComposerRef}
                     value={supportMessage}
                     onChange={(event) => setSupportMessage(event.target.value)}
-                    placeholder={support.liveAvailable ? "Escribi para hablar con la mesa de ayuda..." : "Deja tu mensaje offline para este reclamo..."}
+                    placeholder={support.liveAvailable ? "Escribí para hablar con la mesa de ayuda..." : "Deja tu mensaje offline para este reclamo..."}
                     className="mt-1.5 min-h-20 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     disabled={supportSending || !support.endpoint}
                     aria-describedby={`tracking-support-message-help${supportNotice ? " tracking-support-message-notice" : ""}`}
@@ -1584,8 +1584,8 @@ function TrackingExperienceView({ kind }: { kind: TrackingKind }) {
                     ["Permanencia", support.stayInsideTracking ? "Dentro del seguimiento" : "Puede requerir salida"],
                     ["Estado de cola", support.queueState],
                     ["Mensajes pendientes", String(support.pendingCustomerMessages)],
-                    ["Proxima accion", support.nextTeamActionLabel],
-                    ["Accion del canal", support.nextAction || support.primaryCtaAction],
+                    ["Próxima acción", support.nextTeamActionLabel],
+                    ["Acción del canal", support.nextAction || support.primaryCtaAction],
                   ].map(([label, value]) => (
                     <div key={label} className="border-b border-border/60 pb-2">
                       <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>

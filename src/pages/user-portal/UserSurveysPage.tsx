@@ -50,7 +50,7 @@ const UserSurveysPage = () => {
             </div>
           </CardContent>
           <CardFooter className="text-xs text-muted-foreground">
-            {error ? 'No se pudieron cargar todos los datos de participacion.' : 'Datos entregados por el portal del tenant.'}
+            {error ? 'No se pudieron cargar todos los datos de participación.' : 'Datos entregados por el portal del tenant.'}
           </CardFooter>
         </Card>
       ) : null}

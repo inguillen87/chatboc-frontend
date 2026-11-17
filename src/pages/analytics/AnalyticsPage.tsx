@@ -286,7 +286,6 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     const ownsRequest = () => summaryRequest.current === request && isChatbocSessionRevisionCurrent(sessionRevision);
     const isCurrent = () => ownsRequest() && !controller.signal.aborted;
     setLoading(true);
-    setError(null);
     try {
       const requestPayload = {
         tenant_profile_id: tenantId,
@@ -327,6 +326,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
 
       if (!isCurrent()) return;
       setData(result);
+      setError(null);
       if (tenantId) {
         fireAndForgetTrackEvent({
           tenant_profile_id: tenantId,
@@ -540,7 +540,8 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     </>
   );
 
-  if (loading && !data) {
+  // Keep recovery filters mounted while their edits refetch, until a valid response replaces the error.
+  if (loading && !data && !error) {
     return (
       <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/60 p-8 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

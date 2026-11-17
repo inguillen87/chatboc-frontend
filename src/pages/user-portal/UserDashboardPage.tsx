@@ -132,7 +132,7 @@ const UserDashboardPage = () => {
     const phone = registrationForm.phone.trim();
     const email = registrationForm.email.trim();
     if (!name || (!phone && !email)) {
-      setLocalRegistrationError('Completa nombre y al menos un telefono o email.');
+      setLocalRegistrationError('Completá nombre y al menos un teléfono o email.');
       return;
     }
     setRegistrationStatus('saving');
@@ -250,7 +250,7 @@ const UserDashboardPage = () => {
               onClick={() => navigate(buildTenantPath('/portal/catalogo', currentSlug))}
             >
               {isMunicipio ? <ClipboardList className="h-6 w-6" /> : <ShoppingBag className="h-6 w-6" />}
-              <span>{actionLabels.catalog || commerceSession?.catalog?.cta_label || commerceSession?.catalog?.label || (isMunicipio ? 'Ver tramites' : 'Ver catalogo')}</span>
+              <span>{actionLabels.catalog || commerceSession?.catalog?.cta_label || commerceSession?.catalog?.label || (isMunicipio ? 'Ver tramites' : 'Ver catálogo')}</span>
             </Button>
           ) : null}
           {historyEnabled ? (
@@ -458,7 +458,7 @@ const UserDashboardPage = () => {
                             <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Puntos Acumulados</div>
                             <div className="mt-4 pt-4 border-t w-full">
                                 <Link to={buildTenantPath('/portal/beneficios', currentSlug)} className="text-sm text-primary hover:underline">
-                                    Ver catalogo de premios
+                                    Ver catálogo de premios
                                 </Link>
                             </div>
                         </>

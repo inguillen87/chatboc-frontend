@@ -9,9 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { activateTenantAddress, getTenantAddresses, normalizeAddressActivationCandidate, planTenantAddressActivation,
-  TENANT_ADDRESSES_REFRESH_LABEL, TenantAddressesContractError, tenantAddressesErrorMessage,
-  type AddressActivationCandidate, type AddressActivationPlan, type AddressKind, type AddressTenantScope,
+import { activateTenantAddress, getTenantAddresses, getTenantAddressOperatorUI, normalizeAddressActivationCandidate, planTenantAddressActivation,
+  type AddressActivationCandidate, type AddressActivationPlan, type AddressKind, type AddressOperatorUI, type AddressTenantScope,
   type TenantAddresses } from '@/api/tenantAddresses';
 
 const emptyCandidate = (): AddressActivationCandidate => ({ frontend_deployment: '', frontend_source: '', routes_sha256: '' });
@@ -35,6 +34,7 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
   const id = useId(), alive = useRef(false), epoch = useRef(0);
   const flight = useRef<symbol | null>(null);
   const [descriptor, setDescriptor] = useState<TenantAddresses | null>(null);
+  const [recoveryUI, setRecoveryUI] = useState<AddressOperatorUI | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [kind, setKind] = useState<AddressKind>('platform');
   const [fields, setFields] = useState<AddressActivationCandidate>(emptyCandidate);
@@ -62,8 +62,21 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
     if (mountedCurrent() && flight.current === token) { flight.current = null; setBusy(null); }
   };
   const clearDenied = () => {
+    // Retain only server-authored presentation; capabilities and address state are retired.
+    setRecoveryUI(ui ?? recoveryUI);
     setDescriptor(null); fieldsRef.current = emptyCandidate(); setFields(fieldsRef.current);
     reviewedRef.current = false; setVersionReviewed(false);
+  };
+  const recoverPresentation = async (isCurrent: () => boolean) => {
+    if (ui) { if (isCurrent()) setRecoveryUI(ui); return; }
+    if (recoveryUI) return;
+    try {
+      const next = await getTenantAddressOperatorUI(tenant, isCurrent);
+      if (isCurrent()) setRecoveryUI(next);
+    } catch {
+      // Without a validated backend presentation there is no local title, description or action.
+      if (isCurrent()) setRecoveryUI(null);
+    }
   };
   const refresh = async () => {
     const request = begin('descriptor'); if (!request) return;
@@ -71,9 +84,16 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
     reviewedRef.current = false; setVersionReviewed(false);
     try {
       const next = await getTenantAddresses(tenant, request.current);
-      if (request.current()) { setDescriptor(next); setReadError(null); setRequiresStatusCheck(false); }
+      if (request.current()) {
+        setDescriptor(next); setReadError(null); setRequiresStatusCheck(false);
+        if (!next.operator_ui) await recoverPresentation(request.current);
+      }
     } catch (error) {
-      if (request.current()) { if (denied(error)) clearDenied(); setReadError(error); setMessage('descriptor_error'); setRequiresStatusCheck(true); }
+      if (request.current()) {
+        if (denied(error)) clearDenied();
+        setReadError(error); setMessage('descriptor_error'); setRequiresStatusCheck(true);
+        await recoverPresentation(request.current);
+      }
     } finally { finish(request.token); }
   };
   useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; epoch.current += 1; }; }, []);
@@ -148,10 +168,12 @@ function AddressActivationSession({ tenant, sessionRevision }: { tenant: Address
   // A missing/invalid presentation contract never enables the new operator flow.
   if (!ui) {
     const loading = busy === 'descriptor' || (!descriptor && !readError);
+    if (!recoveryUI) return loading ? <div aria-busy="true" className="min-h-[220px] animate-pulse rounded-lg border bg-muted/20" /> : null;
     return <ViewState status={loading ? 'loading' : descriptor ? 'partial' : 'error'}
-      description={loading ? undefined : tenantAddressesErrorMessage(readError ?? new TenantAddressesContractError())}
+      title={loading ? recoveryUI.labels.loading : recoveryUI.labels.title}
+      description={loading ? undefined : recoveryUI.messages.descriptor_error}
       action={loading ? undefined : <Button type="button" variant="outline" disabled={Boolean(busy)} onClick={() => void refresh()}>
-        {TENANT_ADDRESSES_REFRESH_LABEL}
+        {recoveryUI.labels.refresh}
       </Button>} />;
   }
   const reason = capability?.reason_code;

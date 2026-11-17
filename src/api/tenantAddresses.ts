@@ -300,6 +300,15 @@ export async function getTenantAddresses(scope: AddressTenantScope, isCurrent: (
   return readTenantAddresses(data, scope);
 }
 
+/** Presentation-only recovery endpoint. It never supplies capabilities or address state. */
+export async function getTenantAddressOperatorUI(scope: AddressTenantScope, isCurrent: () => boolean): Promise<AddressOperatorUI> {
+  const data = await apiFetch<unknown>(`${endpointFor(scope)}/operator-ui`, requestOptions(scope, isCurrent));
+  if (!isCurrent()) throw new DOMException('Address scope changed', 'AbortError');
+  const ui = readOperatorUI(data);
+  if (!ui) throw new TenantAddressesContractError();
+  return ui;
+}
+
 export async function saveTenantAddress(
   scope: AddressTenantScope,
   current: TenantAddresses,
@@ -463,6 +472,3 @@ export async function activateTenantAddress(scope: AddressTenantScope, current: 
     addresses.revision === current.revision) throw new TenantAddressesContractError();
   return addresses;
 }
-
-/** Reused generic recovery action already displayed by TenantAddressesSettings. */
-export const TENANT_ADDRESSES_REFRESH_LABEL = 'Actualizar estado';

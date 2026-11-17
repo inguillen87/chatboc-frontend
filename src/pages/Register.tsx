@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/utils/api';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser } from '@/hooks/useUser';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
@@ -10,6 +10,7 @@ import { isPasskeySupported, registerPasskey } from '@/services/passkeys';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import ClerkAuthButtons from '@/components/auth/ClerkAuthButtons';
+import { requiresTenantHostLookup } from '@/utils/tenantHostBinding';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse {
@@ -24,7 +25,7 @@ const Register = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { refreshUser } = useUser();
-  const { currentSlug } = useTenant();
+  const { currentSlug, hostBinding } = useTenant();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -143,6 +144,12 @@ const Register = () => {
       setIsPasskeyLoading(false);
     }
   };
+
+  // White label: an organization's own domain admits only its accounts; account creation stays on
+  // the platform. Fails closed on any host that is not an exact platform host.
+  if (hostBinding || requiresTenantHostLookup(typeof window === 'undefined' ? null : window.location.hostname)) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
