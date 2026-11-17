@@ -3398,7 +3398,9 @@ function ChatWidgetInner({
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
               role="dialog"
               aria-modal="true"
-              aria-label="Chatboc asistente virtual"
+              // White label: assistive technology hears the organization's assistant (the
+              // visible header title); the platform name is only the fallback.
+              aria-label={(typeof headerTitle === "string" && headerTitle.trim()) || "Chatboc asistente virtual"}
               id={`${widgetId}-panel`}
               tabIndex={-1}
               onKeyDown={handleOpenPanelKeyDown}

@@ -24,7 +24,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     <Card className={`shadow-lg flex flex-col ${className}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold text-dark">{title}</CardTitle>
+          <CardTitle level={2} className="text-lg font-semibold text-dark">{title}</CardTitle>
           {icon && <div className="text-primary">{icon}</div>}
         </div>
       </CardHeader>

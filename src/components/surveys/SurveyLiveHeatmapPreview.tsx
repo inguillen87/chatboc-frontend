@@ -858,12 +858,12 @@ export function SurveyLiveHeatmapPreview({
                 <div className="py-3 first:pt-0">
                   <dt className="text-xs text-slate-400">Mayor participación</dt>
                   <dd className="mt-1 font-semibold text-white">{focusZone?.label ?? 'Sin zona identificada'}</dd>
-                  {focusZone ? <p className="mt-0.5 text-xs text-blue-100">{formatMetric(focusZone.value)} · {formatPercent(focusZone.value, totalSignal)}</p> : null}
+                  {focusZone ? <dd className="mt-0.5 text-xs text-blue-100">{formatMetric(focusZone.value)} · {formatPercent(focusZone.value, totalSignal)}</dd> : null}
                 </div>
                 <div className="py-3">
                   <dt className="text-xs text-slate-400">Canal principal</dt>
                   <dd className="mt-1 font-semibold text-white">{dominantChannel?.label ?? 'No informado'}</dd>
-                  {dominantChannel ? <p className="mt-0.5 text-xs text-blue-100">{formatMetric(dominantChannel.value)} · {formatPercent(dominantChannel.value, totalSignal)}</p> : null}
+                  {dominantChannel ? <dd className="mt-0.5 text-xs text-blue-100">{formatMetric(dominantChannel.value)} · {formatPercent(dominantChannel.value, totalSignal)}</dd> : null}
                 </div>
                 <div className="py-3 last:pb-0">
                   <dt className="text-xs text-slate-400">Próxima acción</dt>

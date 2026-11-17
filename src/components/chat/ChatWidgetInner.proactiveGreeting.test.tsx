@@ -119,7 +119,7 @@ describe('proactive greeting ownership and keyboard behavior', () => {
     const activate = screen.getByRole('button', { name: greeting, exact: true });
     act(() => { activate.focus(); }); fireEvent.click(activate);
     await tick(500);
-    expect(screen.getByRole('dialog', { name: 'Chatboc asistente virtual', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Asistente qa-a', exact: true })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('pending_widget_action')!)).toEqual({ action: 'trigger_intent', payload: 'backend-intent-unchanged', text: greeting });
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar panel de prueba' }));
     await tick(400);

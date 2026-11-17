@@ -67,7 +67,8 @@ afterEach(() => {
 const renderWidget = () => render(<React.Suspense fallback={null}><MemoryRouter initialEntries={['/t/qa-widget']}>
   <ChatWidgetInner mode="standalone" defaultOpen tenantSlug="qa-widget" />
 </MemoryRouter></React.Suspense>);
-const widget = () => screen.getByRole('dialog', { name: 'Chatboc asistente virtual', exact: true });
+// White label: the dialog carries the organization's assistant name, never the platform brand.
+const widget = () => screen.getByRole('dialog', { name: 'Asistente de prueba', exact: true });
 const pressEscape = (element: Element) => {
   const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
   fireEvent(element, event);
@@ -75,6 +76,13 @@ const pressEscape = (element: Element) => {
 };
 
 describe('widget nested Escape ownership', () => {
+  it('names the open assistant after the organization instead of the platform brand', async () => {
+    renderWidget();
+    await screen.findByTitle('Asistente de prueba');
+    expect(widget()).toHaveAttribute('aria-modal', 'true');
+    expect(screen.queryByRole('dialog', { name: /chatboc/i })).not.toBeInTheDocument();
+  });
+
   it.each([
     ['Leer bienvenida completa', 'welcome'],
     ['Abrir ajustes de accesibilidad', 'accessibility'],
@@ -106,7 +114,7 @@ describe('widget nested Escape ownership', () => {
     }
     await new Promise(resolve => setTimeout(resolve, 50));
     pressEscape(trigger);
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Chatboc asistente virtual', exact: true })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Asistente de prueba', exact: true })).not.toBeInTheDocument());
     expect(localStorage.getItem('widget_manually_closed')).toBe('1');
   });
 
@@ -114,7 +122,7 @@ describe('widget nested Escape ownership', () => {
     renderWidget();
     const composer = await screen.findByRole('textbox', { name: 'Mensaje sintético', exact: true });
     composer.focus(); pressEscape(composer);
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Chatboc asistente virtual', exact: true })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Asistente de prueba', exact: true })).not.toBeInTheDocument());
     expect(localStorage.getItem('widget_manually_closed')).toBe('1');
   });
 });

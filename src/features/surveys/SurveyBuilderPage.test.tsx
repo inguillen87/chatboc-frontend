@@ -34,6 +34,7 @@ import {
   surveyDocumentToDurableBuilderDraft,
 } from './surveyDocument';
 import type { SurveyQuestionDraft } from './surveyTypes';
+import { headingSkips } from '@/test/headingOutline';
 
 const durableAck = (draftId: string, revision: number, title: string) => ({
   ok: true,
@@ -85,6 +86,8 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
       raw: {},
     });
     render(<SurveyBuilderPage />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Datos del draft' })).toBeInTheDocument();
+    expect(headingSkips()).toEqual([]);
     fireEvent.change(screen.getByLabelText('Titulo'), { target: { value: 'Encuesta sin ack' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar draft' }));
 

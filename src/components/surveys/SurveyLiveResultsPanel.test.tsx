@@ -157,6 +157,7 @@ describe('SurveyLiveResultsPanel', () => {
       '/admin/encuestas/1/analytics?focus=heatmap&include_heatmap=1',
     );
     expect(screen.getByText('Polling automático', { selector: '[role="status"]' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Timeline live' })).toHaveValue('60');
     expect(screen.getByText('Prioridad barrial')).toBeInTheDocument();
     expect(screen.getByText('Centro concentra la actividad reciente.')).toBeInTheDocument();
     expect(screen.getByTestId('survey-live-heatmap-preview')).toBeInTheDocument();

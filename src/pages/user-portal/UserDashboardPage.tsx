@@ -428,7 +428,7 @@ const UserDashboardPage = () => {
                     {notifications.slice(0, 3).map((notification) => (
                     <div key={notification.id} className="p-3 rounded-lg bg-accent/50 border border-border">
                         <div className="flex justify-between items-start mb-1">
-                            <h5 className="text-sm font-semibold">{notification.title}</h5>
+                            <h3 className="text-sm font-semibold">{notification.title}</h3>
                             {notification.severity === 'warning' && <span className="h-2 w-2 rounded-full bg-yellow-500" />}
                             {notification.severity === 'error' && <span className="h-2 w-2 rounded-full bg-red-500" />}
                         </div>
@@ -488,7 +488,7 @@ const UserDashboardPage = () => {
                 <motion.div variants={itemVariants}>
                     <SummaryCard title="Encuestas Pendientes" icon={<MessageSquareQuote className="h-5 w-5" />}>
                         <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
-                            <h4 className="font-semibold text-primary mb-2">{pendingSurveys[0].title}</h4>
+                            <h3 className="font-semibold text-primary mb-2">{pendingSurveys[0].title}</h3>
                             <p className="text-xs text-muted-foreground mb-4">Tu opinion ayuda a mejorar. Participa cuando la organización tenga encuestas activas.</p>
                             {pendingSurveys[0].link ? (
                               <Button size="sm" className="w-full" onClick={() => navigate(buildTenantPath(pendingSurveys[0].link!, currentSlug))}>
@@ -522,7 +522,7 @@ const UserDashboardPage = () => {
                                         )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                                         <div className="absolute bottom-0 left-0 p-3 text-white">
-                                            <h4 className="font-semibold text-sm line-clamp-2 leading-snug text-shadow-sm">{news.title}</h4>
+                                            <h3 className="font-semibold text-sm line-clamp-2 leading-snug text-shadow-sm">{news.title}</h3>
                                             {news.date ? <span className="text-xs opacity-80 mt-1 block">{news.date}</span> : null}
                                         </div>
                                     </div>

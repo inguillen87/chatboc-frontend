@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { SurveyEditor } from './SurveyEditor';
 import type { SurveyAdmin, SurveyDraftPayload } from '@/types/encuestas';
@@ -610,6 +610,118 @@ describe('SurveyEditor save and publish flow', () => {
     });
   });
 
+  it('names every settings and question control from its visible label without changing its value', () => {
+    const onSave = vi.fn();
+    render(<SurveyEditor initialDraft={multiSourceAdaptiveDraft} onSave={onSave} />);
+
+    const settings: Array<[string, string]> = [
+      ['Encuesta anónima', 'No se solicitarán datos personales.'],
+      ['Solicitar datos de contacto', 'Usá DNI o teléfono para validar respuestas.'],
+      ['Activar votación en vivo', 'Habilita el layout estilo YouTube y resultados dinámicos.'],
+      ['Mostrar resultados en vivo', 'Actualiza barras y porcentajes automáticamente.'],
+      ['Permitir comentarios', 'Agregá debate anónimo y login social.'],
+    ];
+    for (const [name, hint] of settings) {
+      expect(screen.getByRole('switch', { name })).toHaveAccessibleDescription(hint);
+    }
+    // Same coupling as before: anonymity off asks for contact data.
+    const anonymous = screen.getByRole('switch', { name: 'Encuesta anónima' });
+    const contact = screen.getByRole('switch', { name: 'Solicitar datos de contacto' });
+    expect(anonymous).toBeChecked();
+    expect(contact).not.toBeChecked();
+    fireEvent.click(anonymous);
+    expect(anonymous).not.toBeChecked();
+    expect(contact).toBeChecked();
+
+    // Each required switch says which question it belongs to (its visible statement).
+    const required = screen.getByRole('switch', { name: 'Obligatoria Dispositivo' });
+    expect(required).toHaveAccessibleDescription('Requerir respuesta');
+    expect(required).toBeChecked();
+    fireEvent.click(required);
+    expect(required).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Obligatoria Detalle' })).not.toBeChecked();
+
+    const minimum = screen.getByRole('spinbutton', { name: 'Mínimo de selecciones' });
+    const maximum = screen.getByRole('spinbutton', { name: 'Máximo de selecciones' });
+    fireEvent.change(minimum, { target: { value: '1' } });
+    fireEvent.change(maximum, { target: { value: '2' } });
+    expect(minimum).toHaveValue(1);
+    expect(maximum).toHaveValue(2);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('names icon-only delete actions with the visible option and question and keeps removing only that item', () => {
+    const onSave = vi.fn();
+    render(<SurveyEditor initialDraft={multiSourceAdaptiveDraft} onSave={onSave} />);
+
+    expect(screen.getByRole('button', { name: 'Eliminar opción «Web» de la pregunta «Canal»' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Eliminar pregunta «Canal»' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar opción «Mobile» de la pregunta «Dispositivo»' }));
+    expect(screen.queryByDisplayValue('Mobile')).not.toBeInTheDocument();
+    for (const kept of ['Desktop', 'Web', 'WhatsApp', 'Canal', 'Dispositivo', 'Detalle']) {
+      expect(screen.getByDisplayValue(kept)).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar pregunta «Detalle»' }));
+    expect(screen.queryByDisplayValue('Detalle')).not.toBeInTheDocument();
+    for (const kept of ['Canal', 'Dispositivo', 'Desktop', 'Web', 'WhatsApp']) {
+      expect(screen.getByDisplayValue(kept)).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: /^Eliminar pregunta «Detalle»/ })).not.toBeInTheDocument();
+
+    // While the visible text is empty, the name falls back to its position, and follows the text once typed.
+    fireEvent.change(screen.getByDisplayValue('Desktop'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Eliminar opción 1 de la pregunta «Dispositivo»' })).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue('Dispositivo'), { target: { value: ' ' } });
+    expect(screen.getByRole('button', { name: 'Eliminar pregunta 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eliminar opción 1 de la pregunta 2' })).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('names the public link copy action and keeps copying the same URL', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const previousClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    onTestFinished(() => {
+      if (previousClipboard) Object.defineProperty(navigator, 'clipboard', previousClipboard);
+      else delete (navigator as { clipboard?: unknown }).clipboard;
+    });
+    const survey = {
+      ...initialDraft,
+      id: 42,
+      estado: 'publicada',
+      url_publica: 'https://www.chatboc.ar/e/votacion-si-no',
+      preguntas: initialDraft.preguntas.map((question, questionIndex) => ({
+        ...question,
+        id: questionIndex + 1,
+        opciones: question.opciones?.map((option, optionIndex) => ({ ...option, id: optionIndex + 1 })),
+      })),
+    } as SurveyAdmin;
+    render(<SurveyEditor survey={survey} tenantSlug="org-demo" onSave={vi.fn()} />);
+
+    const visibleUrl = screen.getByText(/https:\/\/www\.chatboc\.ar\/e\/votacion-si-no/).textContent;
+    fireEvent.click(screen.getByRole('button', { name: 'Copiar enlace público' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText).toHaveBeenCalledWith(visibleUrl);
+  });
+
+  it('names every selector from its visible label and keeps changing the same value', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<SurveyEditor initialDraft={initialDraft} onSave={onSave} />);
+
+    expect(screen.getByRole('combobox', { name: 'Tipo' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Política de unicidad' })).toBeInTheDocument();
+    const questionType = screen.getByRole('combobox', { name: 'Tipo de pregunta' });
+    expect(questionType).toHaveTextContent(/opción única/i);
+
+    fireEvent.keyDown(questionType, { key: 'ArrowDown' });
+    fireEvent.pointerUp(await screen.findByRole('option', { name: /selección múltiple/i }), { button: 0 });
+    expect(screen.getByRole('combobox', { name: 'Tipo de pregunta' })).toHaveTextContent(/selección múltiple/i);
+    expect(screen.getByRole('spinbutton', { name: 'Mínimo de selecciones' })).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('opens the current adaptive draft in an isolated visual tester', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<SurveyEditor initialDraft={adaptiveDraft} onSave={onSave} />);
@@ -620,11 +732,12 @@ describe('SurveyEditor save and publish flow', () => {
 
     const previewTester = screen.getByTestId('survey-preview-tester');
     expect(await within(previewTester).findByTestId('survey-preview-route')).toHaveTextContent(/2 de 3 preguntas visibles/i);
-    expect(within(previewTester).queryByText(/que paso en whatsapp/i, { selector: 'h3' })).not.toBeInTheDocument();
+    // The tester mirrors the citizen form: its own h1, then questions at h2.
+    expect(within(previewTester).queryByRole('heading', { level: 2, name: /que paso en whatsapp/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('WhatsApp'));
 
     expect(await within(previewTester).findByText(/3 de 3 preguntas visibles/i)).toBeInTheDocument();
-    expect(within(previewTester).getByText(/que paso en whatsapp/i, { selector: 'h3' })).toBeInTheDocument();
+    expect(within(previewTester).getByRole('heading', { level: 2, name: /que paso en whatsapp/i })).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
     expect(window.localStorage).toHaveLength(0);
   });

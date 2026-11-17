@@ -307,6 +307,8 @@ interface SurveyFormProps {
   showLiveResults?: boolean;
   readOnly?: boolean;
   showHeader?: boolean;
+  /** Level of the form's section headings (questions, notices). Defaults to 2 under its own h1, else 3. */
+  headingLevel?: 2 | 3;
   variant?: 'default' | 'votacion';
   submitLabel?: string;
   demographicsPresentation?: 'expanded' | 'collapsed' | 'hidden';
@@ -374,6 +376,7 @@ export const SurveyForm = ({
   showLiveResults,
   readOnly = false,
   showHeader = true,
+  headingLevel,
   variant = 'default',
   submitLabel,
   demographicsPresentation = 'expanded',
@@ -382,6 +385,8 @@ export const SurveyForm = ({
   const { user, loading: authLoading } = useUser();
   const clerkRuntime = useClerkRuntime();
   const isVotingVariant = variant === 'votacion';
+  const sectionLevel = headingLevel ?? (showHeader ? 2 : 3);
+  const SectionHeading = `h${sectionLevel}` as 'h2' | 'h3';
   const authMode = useMemo(() => getSurveyAuthMode(survey), [survey]);
   const publicGovernance = useMemo(
     () => resolveSurveyPublicGovernance(survey),
@@ -1443,7 +1448,7 @@ export const SurveyForm = ({
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-xl">Identifica tu participación</CardTitle>
+            <CardTitle level={sectionLevel} className="text-xl">Identifica tu participación</CardTitle>
             <CardDescription>
               Esta consulta registra un voto por persona. Tu cuenta valida la participacion sin enviar tu identificador dentro de la respuesta.
             </CardDescription>
@@ -1498,10 +1503,10 @@ export const SurveyForm = ({
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1">
-                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <SectionHeading className="flex items-center gap-2 text-sm font-semibold">
                   <Route className="h-4 w-4" aria-hidden="true" />
                   Ruta activa de la simulación
-                </h3>
+                </SectionHeading>
                 <p className="text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
                   {visibleQuestions.length} de {survey.preguntas.length} preguntas visibles
                   {hiddenQuestionsCount > 0 ? ` · ${hiddenQuestionsCount} fuera de esta ruta` : ''}.
@@ -1544,10 +1549,10 @@ export const SurveyForm = ({
               data-testid="survey-governance-ack"
             >
               <div>
-                <h3 id="survey-governance-title" className="flex items-center gap-2 font-semibold">
+                <SectionHeading id="survey-governance-title" className="flex items-center gap-2 font-semibold">
                   <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                   Participación con política versionada
-                </h3>
+                </SectionHeading>
                 <p className="mt-1 text-sm">
                   Release v{publicGovernance.versionNumber ?? 'sin número'} · Elegibilidad{' '}
                   {publicGovernance.eligibilityPolicyVersion} · Consentimiento{' '}
@@ -1633,7 +1638,7 @@ export const SurveyForm = ({
           ) : (
             <Alert variant="destructive" data-testid="survey-governance-invalid">
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-              <AlertTitle>Participación gobernada bloqueada</AlertTitle>
+              <AlertTitle level={sectionLevel}>Participación gobernada bloqueada</AlertTitle>
               <AlertDescription>{publicGovernance.invalidReason}</AlertDescription>
             </Alert>
           )
@@ -1647,10 +1652,10 @@ export const SurveyForm = ({
               data-eligibility-state={eligibilityStatus}
             >
               <div className="space-y-1">
-                <h3 id="survey-eligibility-title" className="flex items-center gap-2 font-semibold">
+                <SectionHeading id="survey-eligibility-title" className="flex items-center gap-2 font-semibold">
                   <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                   Validación de elegibilidad
-                </h3>
+                </SectionHeading>
                 <p className="text-sm">
                   Esta consulta requiere una credencial opaca emitida por un operador autorizado según la política
                   publicada. Chatboc no la copia al historial, la caché ni el almacenamiento local; se usa solamente
@@ -1692,7 +1697,7 @@ export const SurveyForm = ({
           ) : (
             <Alert variant="destructive" data-testid="survey-eligibility-unavailable">
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-              <AlertTitle>Validación de elegibilidad no disponible</AlertTitle>
+              <AlertTitle level={sectionLevel}>Validación de elegibilidad no disponible</AlertTitle>
               <AlertDescription>
                 {publicEligibility.invalidReason ||
                   'Conservá tu credencial y volvé a intentar cuando el municipio restablezca este acceso.'}
@@ -1723,7 +1728,7 @@ export const SurveyForm = ({
           >
             <div className="flex flex-col gap-3">
               <div>
-                <AlertTitle>{submissionErrorTitle}</AlertTitle>
+                <AlertTitle level={sectionLevel}>{submissionErrorTitle}</AlertTitle>
                 {submissionErrorDetails && (
                   <AlertDescription>
                     <p>{submissionErrorDetails}</p>
@@ -2051,9 +2056,9 @@ export const SurveyForm = ({
             }
           >
             <div className="flex flex-col gap-1">
-              <h3 id={questionTitleId} className="text-lg font-medium">
+              <SectionHeading id={questionTitleId} className="text-lg font-medium">
                 {pregunta.orden ? `${pregunta.orden}. ` : ''}{toDisplayText(pregunta.texto)}
-              </h3>
+              </SectionHeading>
               <p id={questionMetadataId} className="text-sm text-muted-foreground">
                 {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'}
                 {!isVotingVariant ? ` · Tipo: ${pregunta.tipo}` : ''}
@@ -2235,7 +2240,7 @@ export const SurveyForm = ({
             {previewMode && previewValidated ? (
               <Alert role="status" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100">
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                <AlertTitle>Ruta validada</AlertTitle>
+                <AlertTitle level={sectionLevel}>Ruta validada</AlertTitle>
                 <AlertDescription>
                   La ruta visible está completa. No se guardó ni se envió ningún voto.
                 </AlertDescription>
@@ -2255,7 +2260,7 @@ export const SurveyForm = ({
 
             {!previewMode && turnstileUnavailable ? (
               <Alert variant="destructive">
-                <AlertTitle>Verificación no disponible</AlertTitle>
+                <AlertTitle level={sectionLevel}>Verificación no disponible</AlertTitle>
                 <AlertDescription>
                   Esta encuesta requiere verificacion de seguridad, pero falta configurar la clave publica del sitio.
                 </AlertDescription>

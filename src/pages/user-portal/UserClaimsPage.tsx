@@ -282,7 +282,7 @@ const PublicClaimCard = ({
                 {status ? <Badge variant="outline" className="capitalize">{status}</Badge> : null}
                 {renderClaim.channel === 'whatsapp' ? <Badge variant="secondary">WhatsApp</Badge> : null}
               </div>
-              {title ? <h3 className="text-lg font-semibold">{title}</h3> : null}
+              {title ? <h2 className="text-lg font-semibold">{title}</h2> : null}
               {createdAt ? <p className="text-sm text-muted-foreground">{createdAt}</p> : null}
               {renderClaim.address ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -338,7 +338,7 @@ const PublicClaimCard = ({
 
           {renderClaim.timeline.length > 0 ? (
             <div>
-              <h4 className="mb-3 text-sm font-semibold">Seguimiento</h4>
+              <h3 className="mb-3 text-sm font-semibold">Seguimiento</h3>
               <ol className="space-y-3 border-l pl-4">
                 {renderClaim.timeline.map((event) => (
                   <li key={event.id} className="space-y-1">
@@ -394,7 +394,7 @@ const AuthenticatedClaimCard = ({ claim }: { claim: PortalClaim }) => {
           </div>
         </div>
         <div className="p-4">
-          <h3 className="text-lg font-medium">{claim.title}</h3>
+          <h2 className="text-lg font-medium">{claim.title}</h2>
           {claim.description ? (
             <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{claim.description}</p>
           ) : null}

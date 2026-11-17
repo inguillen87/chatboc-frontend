@@ -32,16 +32,23 @@ const Alert = React.forwardRef<
 ))
 Alert.displayName = "Alert"
 
-const AlertTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h5
-    ref={ref}
-    className={cn("mb-1 font-medium leading-none tracking-tight", className)}
-    {...props}
-  />
-))
+type AlertTitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
+  /** Heading level in the page outline (default 5). Match the surrounding section level. */
+  level?: 2 | 3 | 4 | 5 | 6
+}
+
+const AlertTitle = React.forwardRef<HTMLHeadingElement, AlertTitleProps>(
+  ({ className, level = 5, ...props }, ref) => {
+    const Heading = `h${level}` as "h2" | "h3" | "h4" | "h5" | "h6"
+    return (
+      <Heading
+        ref={ref}
+        className={cn("mb-1 font-medium leading-none tracking-tight", className)}
+        {...props}
+      />
+    )
+  }
+)
 AlertTitle.displayName = "AlertTitle"
 
 const AlertDescription = React.forwardRef<

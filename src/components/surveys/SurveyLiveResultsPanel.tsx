@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertTriangle, BarChart3, ExternalLink, Loader2, MapPinned, Radio, RefreshCw, ShieldCheck, Signal, Users } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -239,6 +239,7 @@ export function SurveyLiveResultsPanel({
   description = 'Pulso operativo con socket, polling, mapa de calor e inteligencia de participación.',
   className,
 }: SurveyLiveResultsPanelProps) {
+  const timelineLabelId = useId();
   const normalizedSlug = slug?.trim() ?? '';
   const normalizedTenant = tenantSlug?.trim() ?? '';
   const [params, setParams] = useState<SurveyLiveRequestParams>(DEFAULT_PARAMS);
@@ -557,8 +558,9 @@ export function SurveyLiveResultsPanel({
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/70 p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold">Timeline live</p>
+                    <p id={timelineLabelId} className="text-sm font-semibold">Timeline live</p>
                     <select
+                      aria-labelledby={timelineLabelId}
                       className="rounded-md border bg-background px-2 py-1 text-xs"
                       value={String(params.window_minutes ?? 60)}
                       onChange={(event) => setParams((current) => ({ ...current, window_minutes: Number(event.target.value) || 60 }))}

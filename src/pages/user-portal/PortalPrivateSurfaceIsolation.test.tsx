@@ -1,19 +1,26 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionAuthorityProvider } from '@/components/access/SessionAuthorityContext';
 import UserPortalLayout from '@/components/user-portal/layout/UserPortalLayout';
 import { UserProvider } from '@/hooks/useUser';
 import { usePanelSessionStore } from '@/stores';
+import type { PortalNotification } from '@/types/unified';
 import UserAccountPage from './UserAccountPage';
 import UserDashboardPage from './UserDashboardPage';
 
 const surfaceMocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   registerWidgetProfile: vi.fn(),
+  notifications: [] as PortalNotification[],
 }));
+
+vi.mock('react-router-dom', async (importOriginal) =>
+  importOriginal<typeof import('react-router-dom')>(),
+);
 
 vi.mock('@/context/TenantContext', () => ({
   useTenant: () => ({
@@ -26,7 +33,7 @@ vi.mock('@/context/TenantContext', () => ({
 vi.mock('@/hooks/usePortalContent', () => ({
   usePortalContent: () => ({
     content: {
-      notifications: [],
+      notifications: surfaceMocks.notifications,
       events: [],
       news: [],
       catalog: [],
@@ -119,7 +126,37 @@ const expectNoStalePii = () => {
 describe('portal private surface session isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    surfaceMocks.notifications = [];
     usePanelSessionStore.setState({ authToken: null, user: null });
+  });
+
+  it('keeps notice headings below Avisos and follows the notice within the tenant', async () => {
+    const notification: PortalNotification = {
+      id: 'notice-fixture',
+      title: 'Actualización de tu solicitud',
+      message: 'Hay novedades disponibles en el seguimiento.',
+      severity: 'info',
+      actionLabel: 'Abrir seguimiento',
+      actionHref: '/portal/reclamos',
+    };
+    surfaceMocks.notifications = [notification];
+    const user = userEvent.setup();
+    renderSurface(
+      <Routes>
+        <Route path="/t/junin/portal/dashboard" element={<UserDashboardPage />} />
+        <Route path="/t/junin/portal/reclamos" element={<h1>Destino del aviso de prueba</h1>} />
+      </Routes>,
+      'signed_out',
+    );
+
+    expect.soft(screen.queryByRole('heading', { name: 'Avisos', level: 2 })).toBeInTheDocument();
+    expect.soft(screen.queryByRole('heading', { name: notification.title, level: 3 })).toBeInTheDocument();
+    expect(screen.getByText(notification.message)).toBeInTheDocument();
+    const action = screen.getByRole('link', { name: /Abrir seguimiento/ });
+    expect(action).toHaveAttribute('href', '/t/junin/portal/reclamos');
+    await user.click(action);
+    expect(screen.getByRole('heading', { name: 'Destino del aviso de prueba', level: 1 })).toBeInTheDocument();
+    expectNoStalePii();
   });
 
   it.each(['loading', 'signed_out'] as const)(

@@ -9,6 +9,7 @@ import {
   SURVEY_RESPONSE_DUPLICATE_MESSAGE,
 } from '@/utils/surveySubmissionErrors';
 import { runBootstrapPrivacyMigrations } from '@/utils/bootstrapPrivacy';
+import { headingSkips } from '@/test/headingOutline';
 
 const envMock = vi.hoisted(() => ({ turnstileSiteKey: '' }));
 const requestLocationMock = vi.hoisted(() => vi.fn());
@@ -318,6 +319,34 @@ describe('SurveyForm security contract', () => {
     delete (window as any).turnstile;
     document.getElementById('chatboc-cloudflare-turnstile')?.remove();
     window.localStorage.clear();
+  });
+
+  it('keeps the heading outline without skips under its own title and when embedded', () => {
+    const governed = governedSurvey();
+    const malformed: SurveyPublic = { ...governed, governance: { ...governed.governance, active_release: null } };
+    const { unmount } = render(<SurveyForm survey={malformed} onSubmit={vi.fn()} />);
+    expect(screen.getByRole('heading', { level: 1, name: malformed.titulo })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /1\. Que prioridad elegis/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Participación gobernada bloqueada' })).toBeInTheDocument();
+    expect(headingSkips()).toEqual([]);
+    unmount();
+
+    // Embedded under the page h1 (public survey page passes headingLevel 2).
+    const embedded = render(<><h1>Consulta pública</h1><SurveyForm survey={baseSurvey} onSubmit={vi.fn()} showHeader={false} headingLevel={2} /></>);
+    expect(headingSkips()).toEqual([]);
+    expect(screen.getAllByRole('heading', { level: 2 }).length).toBeGreaterThan(0);
+    embedded.unmount();
+
+    // Embedded under a section h2 (live results) keeps the previous default, h3.
+    render(<><h1>Votación</h1><h2>Resultados en vivo</h2><SurveyForm survey={baseSurvey} onSubmit={vi.fn()} showHeader={false} /></>);
+    expect(headingSkips()).toEqual([]);
+    expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(1);
+  });
+
+  it('names the authentication gate as a section of its context', () => {
+    render(<><h1>Consulta pública</h1><SurveyForm survey={authenticatedSurvey} onSubmit={vi.fn()} showHeader={false} headingLevel={2} /></>);
+    expect(screen.getByRole('heading', { level: 2, name: 'Identifica tu participación' })).toBeInTheDocument();
+    expect(headingSkips()).toEqual([]);
   });
 
   it('keeps option controls accessibly named when live counters change their visual label', () => {
