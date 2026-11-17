@@ -1,8 +1,30 @@
 import { MarketCartItem, MarketCartResponse } from '@/types/market';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
 
 const STORAGE_KEY_PREFIX = 'chatboc_market_cart_';
 const CONTACT_STORAGE_KEY_PREFIX = 'chatboc_market_contact_';
+const CART_CHANGED_EVENT = 'chatboc:market-cart-changed';
+
+type MarketCartChange = { tenantSlug: string; sessionRevision: number };
+
+/** Invalidation only: observers must read the current cart from the backend. */
+export const notifyMarketCartChanged = (tenantSlug: string, sessionRevision: number) => {
+  if (typeof window === 'undefined' || !isChatbocSessionRevisionCurrent(sessionRevision)) return;
+  window.dispatchEvent(new CustomEvent<MarketCartChange>(CART_CHANGED_EVENT, { detail: { tenantSlug, sessionRevision } }));
+};
+
+export const subscribeMarketCartChanges = (listener: (change: MarketCartChange) => void) => {
+  if (typeof window === 'undefined') return () => {};
+  const handle = (event: Event) => {
+    const detail = (event as CustomEvent<Partial<MarketCartChange> | null>).detail;
+    if (detail && typeof detail.tenantSlug === 'string' && Number.isSafeInteger(detail.sessionRevision)) {
+      listener(detail as MarketCartChange);
+    }
+  };
+  window.addEventListener(CART_CHANGED_EVENT, handle);
+  return () => window.removeEventListener(CART_CHANGED_EVENT, handle);
+};
 
 const getStorageKey = (tenantSlug: string) => `${STORAGE_KEY_PREFIX}${tenantSlug}`;
 const getContactStorageKey = (tenantSlug: string) => `${CONTACT_STORAGE_KEY_PREFIX}${tenantSlug}`;
