@@ -14,3 +14,10 @@ test('automatic preview exits with ignore code without running the build',()=>{
  const result=spawnSync(process.execPath,['scripts/ignoreVercelGitPreview.mjs'],{env:{...process.env,VERCEL_ENV:'preview',VERCEL_GIT_PROVIDER:'github'},encoding:'utf8'});
  assert.equal(result.status,0);
 });
+test('only main creates automatic Git deployments, so branches never queue a preview',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const enabled=JSON.parse(readFileSync('vercel.json','utf8')).git.deploymentEnabled;
+ assert.equal(enabled['**'],false);
+ assert.equal(enabled.main,true);
+ assert.deepEqual(Object.entries(enabled).filter(([,value])=>value===true).map(([branch])=>branch),['main']);
+});
