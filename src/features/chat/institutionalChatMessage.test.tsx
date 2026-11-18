@@ -2,7 +2,7 @@ import React from 'react';
 import {act,cleanup,fireEvent,render,renderHook,screen,within} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {workspace,node} from '../../../tests/fixtures/institutional-assistant.synthetic';
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,institutionalChoiceLabel,institutionalChatBootstrapPayload,institutionalNumericChatAction} from './institutionalChatMessage';
+import {isInstitutionalChatPayload,isScopedInstitutionalNotice,parseInstitutionalChatMessage,institutionalChoiceLabel,institutionalChatBootstrapPayload,institutionalNumericChatAction} from './institutionalChatMessage';
 const mocks=vi.hoisted(()=>({fetch:vi.fn(),workspace:vi.fn()}));
 vi.mock('@/utils/api',async importOriginal=>({...await importOriginal<typeof import('@/utils/api')>(),apiFetch:(...args:unknown[])=>String(args[0]).includes('/institutional-assistant')?mocks.workspace(...args):mocks.fetch(...args)}));
 vi.mock('@/hooks/useUser',()=>({useUser:()=>({user:null})}));
@@ -148,6 +148,30 @@ describe('actual embedded chat normalization and renderer',()=>{
   expect(mocks.fetch).toHaveBeenCalledTimes(2);expect(mocks.fetch.mock.calls[1][1].body).toMatchObject({action_id:data.botones[5].action_id,pregunta:data.botones[5].texto,tenant_slug:'qa-knowledge'});
   expect(mocks.fetch.mock.calls[1][1].headers['Idempotency-Key']).toBeTruthy();
   expect(screen.queryByRole('link')).not.toBeInTheDocument();expect(reader.textContent).not.toContain('reserved-');
+ });
+ it('shows an uncovered-topic notice with its revision-bound choices only for the session tenant',async()=>{
+  const revision='b'.repeat(64);
+  const notice={fuente:'institutional_knowledge_unknown_question',knowledge_tenant:{id:701,slug:'qa-knowledge'},context_revision:revision,
+   message_body:'Esta información no está incluida en las fuentes disponibles. Seguís en «Requisitos»: podés elegir una de estas opciones o escribir otra consulta.',
+   message_type:'interactive_buttons',botones:[{texto:'Volver',action_id:`knowledge:${revision.slice(0,16)}:start`,reply_code:'9'}]};
+  expect(isScopedInstitutionalNotice(notice,'qa-knowledge')).toBe(true);
+  for(const invalid of [
+    {...notice,knowledge_tenant:{id:701,slug:'other-organization'}},{...notice,knowledge_tenant:undefined},{...notice,context_revision:'bad'},
+    {...notice,botones:[{texto:'Volver',action_id:'knowledge:cccccccccccccccc:start'}]},{...notice,botones:[{texto:'Volver',action_id:'iniciar_reclamo'}]},
+    {...notice,fuente:'institutional_knowledge'},{...notice,message_body:' '}])expect(isScopedInstitutionalNotice(invalid,'qa-knowledge')).toBe(false);
+  expect(isScopedInstitutionalNotice(notice,'other-organization')).toBe(false);
+  mocks.fetch.mockResolvedValue(notice);
+  const hook=renderHook(()=>useChatLogic({tipoChat:'municipio',tenantSlug:'qa-knowledge',skipAuth:true,socketEnabled:false,autoInitEnabled:false}));
+  await act(async()=>{await hook.result.current.initializeConversation({force:true,resetContext:true,resetMessages:true});});
+  const message=hook.result.current.messages.find(item=>item.isBot)!;
+  expect(message.text).toContain('Seguís en «Requisitos»');expect(message.text).not.toContain('No pudimos verificar');
+  expect(message.botones?.map((button:any)=>button.action_id??button.action)).toEqual([notice.botones[0].action_id]);
+  expect(message.institutional).toBeUndefined();
+  mocks.fetch.mockResolvedValue({...notice,knowledge_tenant:{id:702,slug:'other-organization'}});
+  const foreign=renderHook(()=>useChatLogic({tipoChat:'municipio',tenantSlug:'qa-knowledge',skipAuth:true,socketEnabled:false,autoInitEnabled:false}));
+  await act(async()=>{await foreign.result.current.initializeConversation({force:true,resetContext:true,resetMessages:true});});
+  const refused=foreign.result.current.messages.find(item=>item.isBot)!;
+  expect(refused.text).toContain('No pudimos verificar');expect(refused.botones).toBeUndefined();
  });
  it('does not display a foreign tenant answer or preserve its controls through generic fallback',async()=>{
   const data={...payload(),ticket_id:999,datos_estructura:{descripcion:'FOREIGN_CASE_DESCRIPTION'}};data.knowledge_tenant.slug='other-organization';mocks.fetch.mockResolvedValue(data);

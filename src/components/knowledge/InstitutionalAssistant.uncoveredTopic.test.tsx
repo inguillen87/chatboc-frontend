@@ -119,4 +119,14 @@ describe('uncovered question inside a topic',()=>{
     expect(screen.queryByText(/Seguís en/)).not.toBeInTheDocument();
     expect(mocks.fetch.mock.calls[2][1].body.node_id).toBe('second');
   });
+
+  it('keeps the public topic index available while the uncovered notice is shown',async()=>{
+    mocks.fetch.mockResolvedValueOnce(workspace({visibility:'public',can_edit:false,ui:topicUi}));
+    render(<InstitutionalAssistant tenantSlug="qa-knowledge" sessionKey="topic-index" mode="public"/>);
+    await openTopic();
+    expect(screen.getByText(assistantUi.topics,{selector:'summary'})).toBeInTheDocument();
+    mocks.fetch.mockResolvedValueOnce(uncovered());await ask('Consulta sin fuente');
+    await screen.findByText(inTopic.replace('{title}','Requisitos de la consulta'));
+    expect(screen.getByText(assistantUi.topics,{selector:'summary'})).toBeInTheDocument();
+  });
 });

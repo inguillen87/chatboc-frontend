@@ -40,6 +40,21 @@ export function institutionalPresentationMode(
 }
 const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 export const isInstitutionalChatPayload=(value:unknown):boolean=>record(value)&&typeof value.fuente==='string'&&value.fuente.startsWith('institutional_knowledge');
+const NODE_ID=/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/;
+// A question without published information inside a topic is a plain notice
+// with that topic's choices. It is shown only for the session's tenant and a
+// valid revision, and every choice must be bound to that revision.
+export function isScopedInstitutionalNotice(value:unknown,tenantSlug:string|null|undefined):boolean {
+  if(!record(value)||value.fuente!=='institutional_knowledge_unknown_question'||!tenantSlug)return false;
+  const tenant=value.knowledge_tenant,revision=value.context_revision;
+  if(!record(tenant)||tenant.slug!==tenantSlug||!Number.isSafeInteger(tenant.id)||Number(tenant.id)<1||
+    typeof revision!=='string'||!/^[a-f0-9]{64}$/.test(revision)||value.knowledge_nodes!==undefined||value.knowledge_sources!==undefined||
+    typeof value.message_body!=='string'||!value.message_body.trim()||value.message_body.length>4000)return false;
+  const prefix=`knowledge:${revision.slice(0,16)}:`,buttons=value.botones??[];
+  return Array.isArray(buttons)&&buttons.length<=30&&buttons.every(button=>record(button)&&
+    typeof button.texto==='string'&&Boolean(button.texto.trim())&&button.texto.length<=160&&
+    typeof button.action_id==='string'&&button.action_id.startsWith(prefix)&&NODE_ID.test(button.action_id.slice(prefix.length)));
+}
 
 export const institutionalChatActions=(nodes:KnowledgeNode[])=>nodes.flatMap(node=>node.actions)
   .filter((action,index,list)=>list.findIndex(other=>other.target===action.target&&other.label===action.label)===index);
