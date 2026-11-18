@@ -150,8 +150,9 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setShowSources(false);setSourceNavigation(null);const seq=++serial.current;captureRequestFocus(seq,origin);
     try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text}:{})});
       if(active.current&&serial.current===seq){
-        const uncoveredQuestion=Boolean(text)&&!isKnowledgeSourceNavigation(response)&&!response.nodes.length;
-        setTopic(uncoveredQuestion?(nodes.length?nodes:topic):[]);setNodes(response.nodes);
+        // An uncovered question, or the source catalog opened from it, keeps the topic.
+        const keepsTopic=isKnowledgeSourceNavigation(response)||Boolean(text)&&!response.nodes.length;
+        setTopic(keepsTopic?(nodes.length?nodes:topic):[]);setNodes(response.nodes);
         setPresentation(requestedPresentation==='initial-menu'&&mode==='public'?institutionalPresentationMode(response,institutionalInitialMenuContext(currentWorkspace,tenantSlug)):'answer');
         setSourceNavigation(isKnowledgeSourceNavigation(response)?{...response,originNodeId:id}:null);
         setAsked(text??'');if(text)setQuestion('');setUncovered(!isKnowledgeSourceNavigation(response)&&!response.nodes.length);focusResult(seq);}}
@@ -211,10 +212,12 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const ui=workspace.ui,knowledge=workspace.knowledge;
   const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
     ?safeInstitutionLogo(publicIdentity.logoUrl):null;
-  const context=nodes.length?nodes:topic;
-  const topicNode=!nodes.length&&knowledge&&topic.length&&topic.at(-1)!.id!==knowledge.start?topic.at(-1)!:null;
-  const uncoveredText=topicNode&&typeof ui.unknown_in_topic==='string'&&ui.unknown_in_topic.includes('{title}')
-    ?ui.unknown_in_topic.replace('{title}',topicNode.title):ui.unknown;
+  const context=nodes.length?nodes:uncovered?topic:[];
+  // The notice names the topic only for a single topic node, with wording sent by the server.
+  const topicNode=!nodes.length&&knowledge&&topic.length===1&&topic[0].id!==knowledge.start?topic[0]:null;
+  const topicNotice=topicNode?ui[topicNode.actions.length?'unknown_in_topic':'unknown_in_topic_no_options']:undefined;
+  const uncoveredText=topicNode&&typeof topicNotice==='string'&&topicNotice.includes('{title}')
+    ?topicNotice.replace('{title}',()=>topicNode.title):ui.unknown;
   const actions=context.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
   const initialMenu=presentation==='initial-menu';
   const choices=!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={context}
@@ -234,7 +237,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
         </span><ChevronRight size={16} aria-hidden="true"/>
       </button>;
     }}/>:null;
-  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(topic=><button type="button" key={topic.id} disabled={busy||Boolean(pending)} aria-current={current===topic.id?'page':undefined} onClick={event=>navigate(topic.id,undefined,event.currentTarget)}><span>{topic.label}</span><ChevronRight size={15}/></button>)}</nav>;
+  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(item=><button type="button" key={item.id} disabled={busy||Boolean(pending)} aria-current={current===item.id?'page':undefined} onClick={event=>navigate(item.id,undefined,event.currentTarget)}><span>{item.label}</span><ChevronRight size={15}/></button>)}</nav>;
   return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
