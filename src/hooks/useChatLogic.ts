@@ -57,7 +57,7 @@ import {
 import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt, getBootstrapSessionValues } from "@/features/chat/chatApi";
 import { audioRecoveryMessage, captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from '@/features/chat/audioRecovery';
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
-import {isInstitutionalChatPayload,parseInstitutionalChatMessage,isInstitutionalSourceNavigationMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
+import {isInstitutionalChatPayload,isScopedInstitutionalNotice,parseInstitutionalChatMessage,isInstitutionalSourceNavigationMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
 import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
 import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
@@ -901,7 +901,7 @@ export function useChatLogic({
       return false;
     }
 
-    const scopeInstitutionalPayload=(value:any)=>isInstitutionalChatPayload(value)&&!parseInstitutionalChatMessage(value,tenantSlug)
+    const scopeInstitutionalPayload=(value:any)=>isInstitutionalChatPayload(value)&&!parseInstitutionalChatMessage(value,tenantSlug)&&!isScopedInstitutionalNotice(value,tenantSlug)
       ? {message_body:'No pudimos verificar la información de esta organización. Volvé a consultar el menú.',fuente:'institutional_knowledge_unavailable'}
       : value;
     // Retire an incoherent envelope before it can update operational context,

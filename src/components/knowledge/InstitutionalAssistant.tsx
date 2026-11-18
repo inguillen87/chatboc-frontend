@@ -26,6 +26,8 @@ export default function InstitutionalAssistant(props:Props) {
 }
 function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowledgeAvailability}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
+  // Canonical nodes that stay the conversation topic while an uncovered question is shown.
+  const [topic,setTopic]=useState<KnowledgeNode[]>([]);
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
   const [presentation,setPresentation]=useState<InstitutionalPresentationMode>('answer');
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
@@ -94,11 +96,11 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     if(open&&(locked.current||dialog.current))return;
     dialog.current=open?'sources':null;setShowSources(open);
   };
-  const current=nodes.at(-1)?.id??sourceNavigation?.originNodeId??workspace?.knowledge?.start??'';
+  const current=nodes.at(-1)?.id??topic.at(-1)?.id??sourceNavigation?.originNodeId??workspace?.knowledge?.start??'';
   const load=async(recovery=false,origin:HTMLElement|null=null)=>{
     if(recovery&&(!active.current||locked.current||dialog.current))return;
     recoveryFocus.current=null;setSourceNavigation(null);
-    const seq=++serial.current;captureRequestFocus(seq,recovery?origin:null);locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setPresentation('answer');setPending(null);review.current=null;dialog.current=null;setShowSources(false);
+    const seq=++serial.current;captureRequestFocus(seq,recovery?origin:null);locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setTopic([]);setPresentation('answer');setPending(null);review.current=null;dialog.current=null;setShowSources(false);
     try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){if(recovery)recoveryFocus.current=seq;setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);
       setPresentation(mode==='public'&&data.knowledge&&data.revision?institutionalPresentationMode({tenant:data.tenant,revision:data.revision,nodes:[data.knowledge.initial]},institutionalInitialMenuContext(data,tenantSlug)):'answer');
       setAsked('');setUncovered(false);}}
@@ -147,7 +149,10 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
     locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setShowSources(false);setSourceNavigation(null);const seq=++serial.current;captureRequestFocus(seq,origin);
     try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text}:{})});
-      if(active.current&&serial.current===seq){setNodes(response.nodes);
+      if(active.current&&serial.current===seq){
+        // An uncovered question, or the source catalog opened from it, keeps the topic.
+        const keepsTopic=isKnowledgeSourceNavigation(response)||Boolean(text)&&!response.nodes.length;
+        setTopic(keepsTopic?(nodes.length?nodes:topic):[]);setNodes(response.nodes);
         setPresentation(requestedPresentation==='initial-menu'&&mode==='public'?institutionalPresentationMode(response,institutionalInitialMenuContext(currentWorkspace,tenantSlug)):'answer');
         setSourceNavigation(isKnowledgeSourceNavigation(response)?{...response,originNodeId:id}:null);
         setAsked(text??'');if(text)setQuestion('');setUncovered(!isKnowledgeSourceNavigation(response)&&!response.nodes.length);focusResult(seq);}}
@@ -155,7 +160,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       setError(true);
       const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;
       if(status===503)setFailedAnswer({id,text,revision:currentWorkspace.revision,tenantId:currentWorkspace.tenant.id});
-      else {setWorkspace(null);setNodes([]);setFailedAnswer(null);}
+      else {setWorkspace(null);setNodes([]);setTopic([]);setFailedAnswer(null);}
       focusResult(seq);
     }}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
@@ -181,7 +186,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   };
   const confirm=async()=>{
     if(!workspace?.can_edit||mode!=='admin'||!review.current||locked.current)return;
-    const previous=workspace;locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setSourceNavigation(null);const op=review.current;returnToHeading.current=true;review.current=null;dialog.current=null;setPending(null);setNodes([]);const seq=++serial.current;
+    const previous=workspace;locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setSourceNavigation(null);const op=review.current;returnToHeading.current=true;review.current=null;dialog.current=null;setPending(null);setNodes([]);setTopic([]);const seq=++serial.current;
     const focused=document.activeElement;
     captureRequestFocus(seq,focused instanceof HTMLElement&&focused.closest('.institutional-assistant-dialog--review')?focused:null,true);
     try{const receipt=await changeWorkspace(previous,op.operation,op.bundle);if(!active.current||serial.current!==seq)return;const fresh=await loadWorkspace(tenantSlug,mode);
@@ -207,9 +212,15 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const ui=workspace.ui,knowledge=workspace.knowledge;
   const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
     ?safeInstitutionLogo(publicIdentity.logoUrl):null;
-  const actions=nodes.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
+  const context=nodes.length?nodes:uncovered?topic:[];
+  // The notice names the topic only for a single topic node, with wording sent by the server.
+  const topicNode=!nodes.length&&knowledge&&topic.length===1&&topic[0].id!==knowledge.start?topic[0]:null;
+  const topicNotice=topicNode?ui[topicNode.actions.length?'unknown_in_topic':'unknown_in_topic_no_options']:undefined;
+  const uncoveredText=topicNode&&typeof topicNotice==='string'&&topicNotice.includes('{title}')
+    ?topicNotice.replace('{title}',()=>topicNode.title):ui.unknown;
+  const actions=context.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
   const initialMenu=presentation==='initial-menu';
-  const choices=!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={nodes}
+  const choices=!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={context}
     disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
     renderChoice={action=>{
       const label=institutionalChoiceLabel(action.label);
@@ -226,7 +237,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
         </span><ChevronRight size={16} aria-hidden="true"/>
       </button>;
     }}/>:null;
-  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(topic=><button type="button" key={topic.id} disabled={busy||Boolean(pending)} aria-current={current===topic.id?'page':undefined} onClick={event=>navigate(topic.id,undefined,event.currentTarget)}><span>{topic.label}</span><ChevronRight size={15}/></button>)}</nav>;
+  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(item=><button type="button" key={item.id} disabled={busy||Boolean(pending)} aria-current={current===item.id?'page':undefined} onClick={event=>navigate(item.id,undefined,event.currentTarget)}><span>{item.label}</span><ChevronRight size={15}/></button>)}</nav>;
   return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
@@ -244,13 +255,13 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       </aside>:null}
       <div className="institutional-assistant__conversation">
         <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget,mode==='public'?'initial-menu':'answer')}><ArrowLeft size={15}/>{ui.home}</button><span>{ui.evidence}</span></div>
-        {mode==='public'&&knowledge&&current!==knowledge.start&&nodes.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
+        {mode==='public'&&knowledge&&current!==knowledge.start&&context.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
           {asked?<div className="institutional-assistant__question"><MessageSquare size={16}/><p>{asked}</p></div>:null}
           {busy?<div className="institutional-assistant__loading" role="status"><Loader2 size={22} className="animate-spin"/><p>{ui.loading}</p></div>:null}
           {error?<div ref={element=>{heading.current=element;}} tabIndex={-1} role="alert" className="institutional-assistant__notice"><p>{ui.error}</p><button type="button" disabled={busy} onClick={retryAnswer}>{ui.retry}</button></div>:null}
           {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32}/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
-          {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{ui.unknown}</p>:null}
+          {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{uncoveredText}</p>:null}
           {sourceNavigation&&!busy&&!error?<section aria-label={ui.sources} className="institutional-assistant__answer">
             <h3 ref={element=>{heading.current=element;}} tabIndex={-1}>{ui.sources}</h3>
             <p role="status">{sourceNavigation.text}</p>
