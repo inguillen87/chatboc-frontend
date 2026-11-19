@@ -64,7 +64,7 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
       stopInstitutionalReading();onButtonClick({text:action.label,action:actionId,action_id:actionId,source:'button'});
      }}>
      <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
-     {label.emoji?<span aria-hidden="true">{label.emoji}</span>:null}<span>{label.words}</span>
+     {' '}{label.emoji?<><span aria-hidden="true">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
     </button>;
    }}/>;
   return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}${initialMenu?' institutional-chat-message--initial-menu':''}`} data-testid="institutional-chat-message" data-institutional-presentation={presentation}>

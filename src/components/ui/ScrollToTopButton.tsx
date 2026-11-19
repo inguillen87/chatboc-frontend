@@ -3,6 +3,11 @@ import { ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
+    document.documentElement.classList.contains("a11y-reduced-motion"));
+
 const ScrollToTopButton = () => {
   const [visible, setVisible] = useState(false);
 
@@ -10,26 +15,31 @@ const ScrollToTopButton = () => {
     const onScroll = () => {
       setVisible(window.scrollY > 400);
     };
-    window.addEventListener("scroll", onScroll);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   return (
     <button
       type="button"
       onClick={scrollToTop}
+      aria-label="Volver arriba"
+      // While hidden it is not a control: keep it out of the Tab order and the accessibility tree.
+      aria-hidden={visible ? undefined : true}
+      tabIndex={visible ? undefined : -1}
       className={cn(
         buttonVariants({ variant: "secondary", size: "icon" }),
-        "fixed bottom-5 right-5 z-40 transition-opacity",
+        "fixed bottom-5 right-5 z-40 h-11 w-11 transition-opacity motion-reduce:transition-none",
         visible ? "opacity-100" : "pointer-events-none opacity-0"
       )}
       title="Volver arriba"
     >
-      <ArrowUp className="h-4 w-4" />
+      <ArrowUp className="h-4 w-4" aria-hidden="true" />
     </button>
   );
 };

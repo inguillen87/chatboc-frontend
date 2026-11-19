@@ -153,9 +153,13 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
         // An uncovered question, or the source catalog opened from it, keeps the topic.
         const keepsTopic=isKnowledgeSourceNavigation(response)||Boolean(text)&&!response.nodes.length;
         setTopic(keepsTopic?(nodes.length?nodes:topic):[]);setNodes(response.nodes);
-        setPresentation(requestedPresentation==='initial-menu'&&mode==='public'?institutionalPresentationMode(response,institutionalInitialMenuContext(currentWorkspace,tenantSlug)):'answer');
+        // A typed menu command is exact navigation (no selection was performed):
+        // returning to the published start restores the same layout as Home.
+        const typedNavigation=Boolean(text)&&!isKnowledgeSourceNavigation(response)&&(response as {selection_performed?:unknown}).selection_performed===false;
+        const nextPresentation=(requestedPresentation==='initial-menu'||typedNavigation)&&mode==='public'?institutionalPresentationMode(response,institutionalInitialMenuContext(currentWorkspace,tenantSlug)):'answer';
+        setPresentation(nextPresentation);
         setSourceNavigation(isKnowledgeSourceNavigation(response)?{...response,originNodeId:id}:null);
-        setAsked(text??'');if(text)setQuestion('');setUncovered(!isKnowledgeSourceNavigation(response)&&!response.nodes.length);focusResult(seq);}}
+        setAsked(typedNavigation&&nextPresentation==='initial-menu'?'':text??'');if(text)setQuestion('');setUncovered(!isKnowledgeSourceNavigation(response)&&!response.nodes.length);focusResult(seq);}}
     catch(cause){if(active.current&&serial.current===seq){
       setError(true);
       const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;
@@ -233,34 +237,34 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       }} onClick={event=>navigate(action.target,undefined,event.currentTarget)}>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
-          {label.emoji?<span aria-hidden="true" className="shrink-0">{label.emoji}</span>:null}<span>{label.words}</span>
+          {' '}{label.emoji?<><span aria-hidden="true" className="shrink-0">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
         </span><ChevronRight size={16} aria-hidden="true"/>
       </button>;
     }}/>:null;
-  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(item=><button type="button" key={item.id} disabled={busy||Boolean(pending)} aria-current={current===item.id?'page':undefined} onClick={event=>navigate(item.id,undefined,event.currentTarget)}><span>{item.label}</span><ChevronRight size={15}/></button>)}</nav>;
+  const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(item=><button type="button" key={item.id} disabled={busy||Boolean(pending)} aria-current={current===item.id?'page':undefined} onClick={event=>navigate(item.id,undefined,event.currentTarget)}><span>{item.label}</span><ChevronRight size={15} aria-hidden="true"/></button>)}</nav>;
   return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
-      <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>setLarge(v=>!v)}><Type size={19}/></button>
-        <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17}/><span>{ui.sources}</span></button></div>
+      <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>setLarge(v=>!v)}><Type size={19} aria-hidden="true"/></button>
+        <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17} aria-hidden="true"/><span>{ui.sources}</span></button></div>
     </header>
     <div className="institutional-assistant__body">
       {mode==='admin'?<aside className="institutional-assistant__sidebar"><p className="institutional-assistant__eyebrow">{ui.topics}</p>
         {topicNavigation}
         {knowledge?<div className="institutional-assistant__version"><span>{ui.version} {knowledge.version}</span><span>{ui[workspace.visibility]??workspace.visibility}</span></div>:null}
         {workspace.can_edit?<div className="institutional-assistant__management"><input ref={upload} type="file" accept="application/json,.json" onChange={importFile} hidden/>
-          <button type="button" disabled={busy} onClick={event=>{reviewTrigger.current=event.currentTarget;upload.current?.click();}}><Plus size={16}/>{ui.import}</button>
+          <button type="button" disabled={busy} onClick={event=>{reviewTrigger.current=event.currentTarget;upload.current?.click();}}><Plus size={16} aria-hidden="true"/>{ui.import}</button>
           {knowledge?<button type="button" disabled={busy||error||Boolean(pending)} onClick={event=>openReview({operation:workspace.visibility==='public'?'retire':'publish'},event.currentTarget)}>{workspace.visibility==='public'?ui.retire:ui.publish}</button>:null}</div>:null}
       </aside>:null}
       <div className="institutional-assistant__conversation">
-        <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget,mode==='public'?'initial-menu':'answer')}><ArrowLeft size={15}/>{ui.home}</button><span>{ui.evidence}</span></div>
+        <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget,mode==='public'?'initial-menu':'answer')}><ArrowLeft size={15} aria-hidden="true"/>{ui.home}</button><span>{ui.evidence}</span></div>
         {mode==='public'&&knowledge&&current!==knowledge.start&&context.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
-          {asked?<div className="institutional-assistant__question"><MessageSquare size={16}/><p>{asked}</p></div>:null}
-          {busy?<div className="institutional-assistant__loading" role="status"><Loader2 size={22} className="animate-spin"/><p>{ui.loading}</p></div>:null}
+          {asked?<div className="institutional-assistant__question"><MessageSquare size={16} aria-hidden="true"/><p>{asked}</p></div>:null}
+          {busy?<div className="institutional-assistant__loading" role="status"><Loader2 size={22} className="animate-spin" aria-hidden="true"/><p>{ui.loading}</p></div>:null}
           {error?<div ref={element=>{heading.current=element;}} tabIndex={-1} role="alert" className="institutional-assistant__notice"><p>{ui.error}</p><button type="button" disabled={busy} onClick={retryAnswer}>{ui.retry}</button></div>:null}
-          {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32}/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
+          {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32} aria-hidden="true"/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
           {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{uncoveredText}</p>:null}
           {sourceNavigation&&!busy&&!error?<section aria-label={ui.sources} className="institutional-assistant__answer">
             <h3 ref={element=>{heading.current=element;}} tabIndex={-1}>{ui.sources}</h3>
@@ -272,8 +276,8 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3>
             {initialMenu&&index===0?choices:null}
             <div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
-            {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15}/></a>)}</div>:null}
-            <details className="institutional-assistant__citations"><summary><FileText size={15}/>{ui.source_details}</summary>
+            {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15} aria-hidden="true"/></a>)}</div>:null}
+            <details className="institutional-assistant__citations"><summary><FileText size={15} aria-hidden="true"/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
                <KnowledgeSourceMetadata source={source} compact mode={mode}/>
                <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
@@ -289,7 +293,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           const origin=submitter instanceof HTMLElement?submitter:document.activeElement===input?input:null;
           if(question.trim())void navigate(current,question.trim(),origin);
         }}>
-          <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19}/><textarea id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
+          <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19} aria-hidden="true"/><textarea id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
             onChange={event=>{setQuestion(event.target.value);if(failedAnswer){setFailedAnswer(null);setError(false);}}} placeholder={ui.placeholder} disabled={busy||Boolean(pending)}
             onKeyDown={event=>{
               if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){
@@ -297,7 +301,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
               }
             }}/>
 
-          <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21}/></button></div></form>:null}
+          <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/></button></div></form>:null}
       </div>
     </div>
     <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId} largeText={large}

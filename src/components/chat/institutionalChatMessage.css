@@ -2,7 +2,7 @@
 .institutional-chat-message h3 { margin:.5rem 0 1rem; font-size:1.15em; font-weight:650; line-height:1.5; }
 .institutional-chat-message p { white-space:pre-line; margin-block:0 1rem; }
 .institutional-chat-message button,.institutional-chat-message a,.institutional-chat-message summary { min-height:48px; font:inherit; line-height:1.5; }
-.institutional-chat-message button { display:inline-flex; align-items:center; gap:.65rem; min-width:48px; max-width:100%; border:1px solid hsl(var(--border)); border-radius:.75rem; padding:.65rem .85rem; text-align:left; white-space:normal; color:inherit; background:hsl(var(--background)); }
+.institutional-chat-message button { display:inline-flex; align-items:center; gap:.65rem; min-width:48px; max-width:100%; border:1px solid hsl(var(--muted-foreground)); border-radius:.75rem; padding:.65rem .85rem; text-align:left; white-space:normal; color:inherit; background:hsl(var(--background)); }
 .institutional-chat-message button:hover { background:hsl(var(--muted)); }
 .institutional-chat-message :focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }
 .institutional-chat-message__text-size { margin-bottom:.5rem; }

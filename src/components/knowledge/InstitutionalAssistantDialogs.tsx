@@ -12,6 +12,7 @@ interface BaseProps {workspace:KnowledgeWorkspace;restoreFocus:()=>void;largeTex
 const INSTITUTIONAL_DIALOG_LAYER = 'z-[1000004]';
 export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,mode='admin',highlightedSourceId,largeText=false}:{open:boolean;onOpenChange:(open:boolean)=>void;mode?:'admin'|'public';highlightedSourceId?:string|null}&BaseProps){
  const title=useRef<HTMLHeadingElement>(null),ui=workspace.ui;
+ const highlightedTitles=useRef(new Map<string,HTMLHeadingElement>());
  const mounted=useRef(false),visible=useRef(open),sequence=useRef(0),controller=useRef<AbortController|null>(null),url=useRef<string|null>(null),locked=useRef(false);
  const consultFocus=useRef<{sequence:number;trigger:HTMLButtonElement;dialog:HTMLElement|null;owned:boolean;cleanup:()=>void}|null>(null);
  const [pending,setPending]=useState<string|null>(null),[failure,setFailure]=useState<{id:string;message:string}|null>(null);
@@ -58,17 +59,25 @@ export function KnowledgeSourceDialog({workspace,open,onOpenChange,restoreFocus,
  };
  return <Dialog open={open} onOpenChange={value=>{if(!value)retire();onOpenChange(value);}}>
   <DialogContent showCloseButton={false} overlayClassName={INSTITUTIONAL_DIALOG_LAYER} className={`${INSTITUTIONAL_DIALOG_LAYER} institutional-assistant-dialog institutional-assistant-dialog--sources${largeText?' institutional-assistant-dialog--large':''}`}
-   aria-describedby={undefined}
-   onOpenAutoFocus={event=>{event.preventDefault();title.current?.focus();}}
+   aria-describedby={undefined} aria-modal="true"
+   onOpenAutoFocus={event=>{
+    event.preventDefault();
+    // "Ver fuente" opens the catalog at the cited source, not at its first item.
+    const cited=highlightedSourceId?highlightedTitles.current.get(highlightedSourceId):null;
+    const target=cited?.isConnected?cited:title.current;
+    target?.focus();if(target===cited)cited?.scrollIntoView?.({block:'nearest',behavior:'auto'});
+   }}
    onCloseAutoFocus={event=>{event.preventDefault();restoreFocus();}}>
    <header className="institutional-assistant-dialog__header">
     <div><p>{workspace.tenant.name}</p><DialogTitle ref={title} tabIndex={-1}>{ui.sources}</DialogTitle></div>
-    <DialogClose asChild><button type="button" aria-label={ui.close}><X size={20}/></button></DialogClose>
+    <DialogClose asChild><button type="button" aria-label={ui.close}><X size={20} aria-hidden="true"/></button></DialogClose>
    </header>
    <div className="institutional-assistant-dialog__documents" role="region" aria-label={ui.sources} tabIndex={0}>
-    {workspace.knowledge?.sources.map(source=><article key={source.id} className={source.id===highlightedSourceId?'rounded-lg ring-1 ring-border':''}>
+    {workspace.knowledge?.sources.map(source=><article key={source.id} data-cited-source={source.id===highlightedSourceId?'':undefined}>
      <FileText size={21} aria-hidden="true"/>
-     <div><h3>{source.title}</h3>
+     <div><h3 tabIndex={source.id===highlightedSourceId?-1:undefined} ref={element=>{
+      if(element)highlightedTitles.current.set(source.id,element);else highlightedTitles.current.delete(source.id);
+     }}>{source.title}</h3>
       <KnowledgeSourceMetadata source={source} mode={mode}/>
       {knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
       {source.delivery&&knowledgeSourceOriginalAllowed(source,mode)?<button type="button" className="mt-3 w-full sm:w-auto" disabled={pending!==null} onClick={event=>void consult(source.id,event.currentTarget)}>
@@ -123,7 +132,7 @@ export function KnowledgeReviewDialog({workspace,pending,onCancel,onConfirm,rest
  const reviewUi=preview?knowledgeImportReviewUi(ui):null;
  return <Dialog open={pending!==null} onOpenChange={open=>{if(!open)onCancel();}}>
   <DialogContent showCloseButton={false} overlayClassName={INSTITUTIONAL_DIALOG_LAYER} className={`${INSTITUTIONAL_DIALOG_LAYER} institutional-assistant-dialog institutional-assistant-dialog--review${largeText?' institutional-assistant-dialog--large':''}`}
-   onOpenAutoFocus={event=>{event.preventDefault();cancel.current?.focus();}}
+   aria-modal="true" onOpenAutoFocus={event=>{event.preventDefault();cancel.current?.focus();}}
    onCloseAutoFocus={event=>{event.preventDefault();restoreFocus();}}>
    <header className="institutional-assistant-dialog__header"><div>
     <p>{workspace.tenant.name}</p><DialogTitle>{heading}</DialogTitle>
