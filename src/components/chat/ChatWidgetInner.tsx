@@ -1122,6 +1122,14 @@ function ChatWidgetInner({
       ? (publicHeaderSubtitle || derivedEntitySubtitle || welcomeSubtitle)
       : welcomeSubtitle;
 
+  // Mientras carga, el widget de una organización no anuncia la marca de la
+  // plataforma: nombra al asistente del tenant si ya se conoce y, si no, a
+  // ninguno.
+  const loadingAssistantLabel =
+    typeof headerTitle === 'string' && headerTitle.trim()
+      ? `Cargando el asistente de ${headerTitle.trim()}`
+      : 'Cargando el asistente';
+
   const tenantSlugFromEntity = useMemo(() => {
     if (entityInfo?.onboarding?.mode === "demo_session") return null;
 
@@ -1489,7 +1497,7 @@ function ChatWidgetInner({
       nombre_empresa:
         welcomeTitle || (inferredTipo === 'municipio' ? 'Asistente ciudadano' : 'Asistente Virtual'),
       descripcion:
-        welcomeSubtitle || 'Atencion con IA de Chatboc disponible en modo basico.',
+        welcomeSubtitle || 'Atención con IA disponible en modo básico.',
       slug: resolvedTenantSlug || 'chatboc-platform',
       tipo_chat: inferredTipo,
       quick_menu: [],
@@ -3364,7 +3372,7 @@ function ChatWidgetInner({
             id={`${widgetId}-panel`}
             role="dialog"
             aria-modal="true"
-            aria-label="Cargando asistente Chatboc"
+            aria-label={loadingAssistantLabel}
             aria-busy="true"
             tabIndex={-1}
             onKeyDown={handleOpenPanelKeyDown}
@@ -3383,8 +3391,8 @@ function ChatWidgetInner({
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
                   <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent motion-safe:animate-spin"></div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Cargando asistente Chatboc</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Preparando mensajes, menu y accesibilidad.</p>
+                    <p className="text-sm font-semibold text-foreground">{loadingAssistantLabel}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Preparando mensajes, menú y accesibilidad.</p>
                   </div>
                 </div>
                 <div className="h-20 shrink-0 border-t border-border/60 bg-card/95 p-3">
@@ -3403,7 +3411,7 @@ function ChatWidgetInner({
             id={`${widgetId}-panel`}
             role="dialog"
             aria-modal="true"
-            aria-label="No pudimos abrir el asistente Chatboc"
+            aria-label="No pudimos abrir el asistente"
             tabIndex={-1}
             onKeyDown={handleOpenPanelKeyDown}
             className="flex h-full w-full flex-col overflow-hidden rounded-[inherit] bg-card"
