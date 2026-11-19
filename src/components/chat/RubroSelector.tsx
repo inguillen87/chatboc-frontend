@@ -77,13 +77,49 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   return (
     <div className="h-full min-h-0 overflow-y-auto pr-1">
       <Accordion type="single" collapsible className="w-full space-y-2">
-        {uniqueRubros.map((root) => (
+        {uniqueRubros.map((root) => {
+          const rootKey = String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root));
+          const hasChildren = Array.isArray(root.subrubros) && root.subrubros.length > 0;
+          const isSelectable = Boolean(root.demo || getRubroDescription(root));
+
+          // Una opción sin subniveles se elige con un solo toque: envolverla en
+          // un desplegable obligaba a abrirlo para encontrar adentro el mismo
+          // nombre repetido.
+          if (!hasChildren && isSelectable) {
+            return (
+              <motion.div key={rootKey} whileHover={{ scale: 1.01, y: -1 }} whileTap={{ scale: 0.99 }}>
+                <Button
+                  variant="secondary"
+                  className={`w-full justify-between h-auto min-h-12 py-3 px-3 border bg-gradient-to-r from-primary/[0.06] via-background to-secondary/10 text-left whitespace-normal rounded-xl shadow-sm hover:shadow-md transition-all ${getPreviewClass(getRubroDemoPreview(root)?.preset)}`}
+                  style={getPreviewStyle(getRubroDemoPreview(root))}
+                  onClick={() => onSelect(root)}
+                  data-rubro-direct-option
+                  data-widget-preset={getRubroDemoPreview(root)?.preset}
+                  data-motion-level={getRubroDemoPreview(root)?.motion_level}
+                  data-gradient-start={getRubroDemoPreview(root)?.gradient_start}
+                  data-gradient-end={getRubroDemoPreview(root)?.gradient_end}
+                >
+                  <div className="flex flex-col items-start gap-0.5">
+                    <span className="text-base font-semibold">{getRubroLabel(root)}</span>
+                    {getRubroDescription(root) && (
+                      <span className="text-xs text-muted-foreground line-clamp-2 font-normal">
+                        {getRubroDescription(root)}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+                </Button>
+              </motion.div>
+            );
+          }
+
+          return (
           <AccordionItem
-            key={String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root))}
-            value={String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root))}
+            key={rootKey}
+            value={rootKey}
             className="border border-primary/20 bg-gradient-to-r from-primary/[0.06] via-background to-secondary/10 rounded-xl px-2 shadow-sm backdrop-blur"
           >
-            <AccordionTrigger className="capitalize text-base font-semibold py-3 hover:no-underline px-1 transition-colors hover:text-primary">
+            <AccordionTrigger className="text-base font-semibold py-3 hover:no-underline px-1 transition-colors hover:text-primary">
                 {getRubroLabel(root)}
             </AccordionTrigger>
             <AccordionContent className="pb-3 pt-1">
@@ -212,7 +248,8 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
               )}
             </AccordionContent>
           </AccordionItem>
-        ))}
+          );
+        })}
       </Accordion>
     </div>
   );

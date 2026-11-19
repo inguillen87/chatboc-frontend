@@ -180,8 +180,20 @@ const normalizeRanking = (ranking: ExecutiveOverviewRanking) => {
   };
 };
 
+// El backend identifica cada fuente con el nombre de su contrato
+// (`demo.admin_preview.v1`). Ese identificador sirve para auditar, no para
+// leer: quien mira la demo ve de dónde salen los datos en palabras.
+const CONTRACT_SOURCE_LABEL = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+\.v\d+$/i;
+
+export const readableSourceLabel = (label?: string | null) => {
+  const source = label?.trim();
+  if (!source) return '';
+  if (!CONTRACT_SOURCE_LABEL.test(source)) return source;
+  return source.toLowerCase().startsWith('demo.') ? 'Escenario de demostración' : 'Datos del sistema';
+};
+
 const readDataModeLabel = (mode: ExecutiveOverviewDataMode | null | undefined) => {
-  if (mode === 'synthetic_demo_scenario') return 'Demo sintética';
+  if (mode === 'synthetic_demo_scenario') return 'Datos simulados';
   if (mode === 'session_generated_events') return 'Sesión actual';
   if (mode === 'mixed_partitioned') return 'Fuentes separadas';
   if (mode === 'verified_operational') return 'Fuente verificada';
@@ -293,7 +305,9 @@ const ScorecardGrid = ({ items, titleId }: { items: ExecutiveOverviewScorecard[]
               <dl className="mt-4 space-y-1 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground">
                 <div className="flex items-start justify-between gap-2">
                   <dt className="font-semibold">Fuente</dt>
-                  <dd className="text-right">{item.evidence.sourceLabel}</dd>
+                  <dd className="text-right" title={item.evidence.sourceLabel}>
+                    {readableSourceLabel(item.evidence.sourceLabel)}
+                  </dd>
                 </div>
                 <div className="flex items-start justify-between gap-2">
                   <dt className="font-semibold">Base</dt>
@@ -387,7 +401,7 @@ const RankingPanel = ({ ranking, titleId }: { ranking: ExecutiveOverviewRanking;
       <dl className="mt-5 grid gap-2 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground sm:grid-cols-2">
         <div>
           <dt className="font-semibold">Fuente</dt>
-          <dd>{ranking.sourceLabel}</dd>
+          <dd title={ranking.sourceLabel}>{readableSourceLabel(ranking.sourceLabel)}</dd>
         </div>
         <div className="sm:text-right">
           <dt className="font-semibold">Base</dt>
@@ -499,8 +513,11 @@ export const ExecutiveOverviewPanel = ({
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{model.description}</p>
           ) : null}
         </div>
-        <span className="w-fit rounded-full border border-border/70 bg-muted/20 px-3 py-1.5 text-[10px] font-bold text-muted-foreground">
-          Fuente · {model.source.label}
+        <span
+          className="w-fit rounded-full border border-border/70 bg-muted/20 px-3 py-1.5 text-[10px] font-bold text-muted-foreground"
+          title={model.source.label}
+        >
+          Fuente · {readableSourceLabel(model.source.label)}
         </span>
       </div>
 
