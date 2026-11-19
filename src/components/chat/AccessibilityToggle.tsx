@@ -83,31 +83,31 @@ const options = [
   {
     key: "dyslexia",
     label: "Lectura espaciada",
-    description: "Mas aire, lectura izquierda y guia visual.",
+    description: "Más aire, lectura alineada a la izquierda y guía visual.",
     icon: BookOpen,
   },
   {
     key: "simplified",
     label: "Texto simple",
-    description: "Mensajes mas cortos y faciles de escanear.",
+    description: "Mensajes más cortos y fáciles de recorrer.",
     icon: List,
   },
   {
     key: "highContrast",
     label: "Alto contraste",
-    description: "Bordes y foco mas visibles.",
+    description: "Bordes y foco más visibles.",
     icon: Eye,
   },
   {
     key: "largeControls",
     label: "Controles grandes",
-    description: "Botones tactiles mas comodos.",
+    description: "Botones táctiles más cómodos.",
     icon: MousePointer2,
   },
   {
     key: "captions",
-    label: "Subtitulos",
-    description: "Apoyo visual para audio y voz cuando este disponible.",
+    label: "Subtítulos",
+    description: "Apoyo visual para audio y voz cuando esté disponible.",
     icon: Captions,
   },
   {
@@ -244,7 +244,7 @@ export default function AccessibilityToggle({
           <div className="mb-3">
             <p id={panelTitleId} className="text-sm font-semibold">Accesibilidad</p>
             <p className="text-xs text-muted-foreground">
-              Ajustes rapidos para leer, escuchar y tocar mejor.
+              Ajustes rápidos para leer, escuchar y tocar mejor.
             </p>
           </div>
           <div className="space-y-2">

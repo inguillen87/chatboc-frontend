@@ -151,8 +151,11 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string}}:{})};
 }
 
+// A leading token made only of pictographic or other symbol characters (for
+// example ⌂) is decoration; letters, digits or punctuation keep it as words.
+const DECORATIVE_SYMBOL=/^[\p{Extended_Pictographic}\p{So}\p{Sk}\p{M}\u200D\uFE0F]+$/u;
 /** Decorative leading emoji stay visible; assistive technology reads the words. */
 export function institutionalChoiceLabel(label:string):{emoji:string|null;words:string} {
   const parts=/^(\S+)\s+(.+)$/u.exec(label.trim());
-  return parts&&/\p{Extended_Pictographic}/u.test(parts[1])?{emoji:parts[1],words:parts[2]}:{emoji:null,words:label};
+  return parts&&(/\p{Extended_Pictographic}/u.test(parts[1])||DECORATIVE_SYMBOL.test(parts[1]))?{emoji:parts[1],words:parts[2]}:{emoji:null,words:label};
 }

@@ -135,14 +135,29 @@ describe('citizen topic-first workspace',()=>{
     expect(screen.getByTestId('institutional-assistant')).toHaveAttribute('data-institutional-presentation','initial-menu');
     expect(mocks.fetch.mock.calls.map(([,options])=>options.method)).toEqual(['GET','GET','GET']);
   });
-  it('does not promote a free-text answer returning the same start node into an initial menu',async()=>{
+  it('does not promote a selected free-text answer returning the same start node into an initial menu',async()=>{
     const value=published();mocks.fetch.mockResolvedValueOnce(value);
     render(<InstitutionalAssistant tenantSlug={value.tenant.slug} mode="public"/>);
     const input=await screen.findByLabelText(value.ui.question);
-    mocks.fetch.mockResolvedValueOnce({...reply('start',value),nodes:[value.knowledge!.initial],text:value.knowledge!.initial.text});
+    mocks.fetch.mockResolvedValueOnce({...reply('start',value),nodes:[value.knowledge!.initial],text:value.knowledge!.initial.text,selection_performed:true});
     fireEvent.change(input,{target:{value:'Consulta abierta de prueba'}});fireEvent.submit(input.closest('form')!);
     await waitFor(()=>expect(screen.getByTestId('institutional-assistant')).toHaveAttribute('data-institutional-presentation','answer'));
     expect(screen.getByText('Consulta abierta de prueba')).toBeInTheDocument();
     expect(screen.getAllByRole('button',{name:'1 Tema canónico 1'})).toHaveLength(1);
+  });
+  it('restores the initial layout for a typed menu command answered without selection',async()=>{
+    const value=published();mocks.fetch.mockResolvedValueOnce(value);
+    render(<InstitutionalAssistant tenantSlug={value.tenant.slug} mode="public"/>);
+    const first=await screen.findByRole('button',{name:'1 Tema canónico 1'});
+    mocks.fetch.mockResolvedValueOnce(reply('topic-1',value));fireEvent.click(first);await screen.findByRole('heading',{name:'Requisitos de la consulta'});
+    const input=screen.getByLabelText(value.ui.question);
+    mocks.fetch.mockResolvedValueOnce({...reply('start',value),nodes:[value.knowledge!.initial],text:value.knowledge!.initial.text,selection_performed:false});
+    fireEvent.change(input,{target:{value:'volver al menú inicial'}});fireEvent.submit(input.closest('form')!);
+    await waitFor(()=>expect(screen.getByTestId('institutional-assistant')).toHaveAttribute('data-institutional-presentation','initial-menu'));
+    const assistant=screen.getByTestId('institutional-assistant');
+    before(screen.getByRole('button',{name:'1 Tema canónico 1'}),assistant.querySelector('.institutional-assistant__prose')!);
+    // Navigation is not a question: the command is not echoed back as one.
+    expect(screen.queryByText('volver al menú inicial')).not.toBeInTheDocument();
+    expect(mocks.fetch.mock.calls.at(-1)![1]).toMatchObject({method:'POST',body:{revision:value.revision,node_id:'topic-1',question:'volver al menú inicial'}});
   });
 });
