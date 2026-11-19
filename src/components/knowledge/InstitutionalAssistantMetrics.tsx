@@ -1,7 +1,7 @@
 import React,{useEffect,useId,useRef,useState} from 'react';
 import {BarChart3} from 'lucide-react';
 import type {KnowledgeWorkspace} from './institutionalAssistantContract';
-import {loadQuestionMetrics,QUESTION_OUTCOMES,type KnowledgeQuestionMetrics,type QuestionNodeCount} from './institutionalAssistantMetrics';
+import {loadQuestionMetrics,QUESTION_OUTCOMES,type KnowledgeQuestionMetrics,type QuestionNodeCount} from './institutionalQuestionMetricsContract';
 
 /** Administration-only panel. Every label comes from the server; nothing is requested until it is opened. */
 export function KnowledgeQuestionMetricsPanel({workspace,label}:{workspace:KnowledgeWorkspace;label:string}){

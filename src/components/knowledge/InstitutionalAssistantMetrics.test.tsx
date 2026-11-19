@@ -7,7 +7,7 @@ const transport=vi.hoisted(()=>({fetch:vi.fn()}));
 // Actual component and contract. HTTP responses are synthetic in jsdom.
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>transport.fetch(...args)}));
 import InstitutionalAssistant from './InstitutionalAssistant';
-import {parseQuestionMetrics} from './institutionalAssistantMetrics';
+import {parseQuestionMetrics} from './institutionalQuestionMetricsContract';
 
 const LABEL='Rótulo sintético del panel';
 const copy={title:'Título sintético',description:'Descripción sintética.',period:'Período sintético de {days} días',
