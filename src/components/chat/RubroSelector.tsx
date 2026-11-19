@@ -98,7 +98,9 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
         {uniqueRubros.map((root) => {
           const rootKey = String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root));
           const hasChildren = Array.isArray(root.subrubros) && root.subrubros.length > 0;
-          const isSelectable = Boolean(root.demo || getRubroDescription(root));
+          // Mismo criterio que el contenido del desplegable para una raíz sin
+          // subniveles: alcanza con que tenga demo o nombre.
+          const isSelectable = Boolean(root.demo || getRubroLabel(root));
           const insideOptions = hasChildren ? selectableOptionsInside(root) : [];
 
           // Una opción que no tiene nada más que elegir se toma con un solo
