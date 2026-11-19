@@ -3,6 +3,7 @@ import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,P
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
+import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
@@ -309,6 +310,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/></button></div></form>:null}
       </div>
     </div>
+    {mode==='admin'&&typeof ui.question_metrics==='string'&&ui.question_metrics.trim()?<KnowledgeQuestionMetricsPanel workspace={workspace} label={ui.question_metrics}/>:null}
     <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId} largeText={large}
       restoreFocus={()=>{const target=sourcesReturnFocus.current?.isConnected?sourcesReturnFocus.current:sourcesTrigger.current;if(active.current&&target?.isConnected)target.focus({preventScroll:true});}}/>
     <KnowledgeReviewDialog workspace={workspace} pending={pending} onCancel={cancelReview} onConfirm={()=>void confirm()} restoreFocus={restoreReviewFocus} largeText={large}/>

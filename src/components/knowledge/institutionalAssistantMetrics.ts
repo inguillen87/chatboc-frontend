@@ -1,0 +1,39 @@
+import {apiFetch} from '@/utils/api';
+import {knowledgeEndpoint,type KnowledgeWorkspace} from './institutionalAssistantContract';
+
+export const QUESTION_OUTCOMES=['answered','uncovered','typed_navigation','sources','unavailable'] as const;
+export type QuestionOutcome=(typeof QUESTION_OUTCOMES)[number];
+const UI_KEYS=['title','description','period','answered','uncovered','typed_navigation','sources','unavailable',
+  'uncovered_rate','uncovered_by_node','answered_by_node','node','count','retired_node','empty','privacy','truncated'] as const;
+export interface QuestionNodeCount {node_id:string;count:number;title:string|null;is_start:boolean}
+export interface KnowledgeQuestionMetrics {
+  tenant:{id:number;slug:string};days:number;truncated:boolean;
+  totals:Record<QuestionOutcome,number>;uncovered_rate:number|null;
+  uncovered_by_node:QuestionNodeCount[];answered_by_node:QuestionNodeCount[];
+  ui:Record<(typeof UI_KEYS)[number],string>;
+}
+const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
+const count=(value:unknown):value is number=>Number.isSafeInteger(value)&&(value as number)>=0;
+const text=(value:unknown,max:number):value is string=>typeof value==='string'&&value.trim().length>0&&value.length<=max;
+const ranking=(value:unknown):value is QuestionNodeCount[]=>Array.isArray(value)&&value.length<=50&&value.every(item=>
+  record(item)&&text(item.node_id,120)&&count(item.count)&&item.count>0&&(item.title===null||text(item.title,250))&&typeof item.is_start==='boolean');
+
+/** Accept only the administration metrics of this exact workspace's tenant. */
+export function parseQuestionMetrics(value:unknown,workspace:KnowledgeWorkspace):KnowledgeQuestionMetrics {
+  if(!record(value)||value.contract_version!=='chatboc.institutional_assistant_metrics.v1'||!record(value.tenant)||
+    value.tenant.id!==workspace.tenant.id||value.tenant.slug!==workspace.tenant.slug||
+    !count(value.days)||value.days<1||value.days>90||typeof value.truncated!=='boolean'||
+    !record(value.totals)||!QUESTION_OUTCOMES.every(outcome=>count((value.totals as Record<string,unknown>)[outcome]))||
+    !(value.uncovered_rate===null||(typeof value.uncovered_rate==='number'&&value.uncovered_rate>=0&&value.uncovered_rate<=1))||
+    !ranking(value.uncovered_by_node)||!ranking(value.answered_by_node)||
+    !record(value.ui)||!UI_KEYS.every(key=>text((value.ui as Record<string,unknown>)[key],200)))throw new Error('knowledge_metrics_invalid');
+  return value as unknown as KnowledgeQuestionMetrics;
+}
+
+/** Read-only request made when an administrator opens the panel. */
+export async function loadQuestionMetrics(workspace:KnowledgeWorkspace,options:{signal?:AbortSignal}={}) {
+  const offset=Math.max(-840,Math.min(840,-new Date().getTimezoneOffset()));
+  return parseQuestionMetrics(await apiFetch(`${knowledgeEndpoint(workspace.tenant.slug,'admin')}/metrics?days=30&utc_offset_minutes=${offset}`,{
+    tenantSlug:workspace.tenant.slug,method:'GET',cache:'no-store',singleAttempt:true,omitEntityToken:true,omitChatSessionId:true,
+    isWidgetRequest:false,persistTenantSlug:false,...(options.signal?{signal:options.signal}:{})}),workspace);
+}
