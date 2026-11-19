@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExtern
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch } from "@/utils/api";
+import { ApiError, apiFetch } from "@/utils/api";
 import { buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { useUser } from "@/hooks/useUser";
@@ -67,6 +67,8 @@ const readInstitutionalProfile = (bundle: TenantConfigBundle | null, slug: strin
   return profile;
 };
 
+const emptyDemoSources: DemoExperienceSources = { quickMenu: [], onboardingQuickMenu: [] };
+
 const Integracion = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -88,11 +90,13 @@ const Integracion = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(requestedTab);
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
-  const [embedSnippet, setEmbedSnippet] = useState("");
+  const [embed, setEmbed] = useState<{
+    scope: string; snippet: string; message: string; demo: DemoExperienceSources;
+  } | null>(null);
+  const embedRequest = useRef(0);
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
-  const [demoExperienceSources, setDemoExperienceSources] = useState<DemoExperienceSources>({ quickMenu: [], onboardingQuickMenu: [] });
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
   const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
   const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
@@ -112,6 +116,8 @@ const Integracion = () => {
   const sessionRevision = useSyncExternalStore(subscribeChatbocSessionRevision, captureChatbocSessionRevision, captureChatbocSessionRevision);
   const verifiedScope = organizationProfileVerified ? buildVerifiedSessionScopeKey({ hasVerifiedSession, tenantSlug, user }) : null;
   const scopeKey = verifiedScope ? JSON.stringify([verifiedScope, sessionRevision]) : null;
+  const currentEmbed = embed && embed.scope === scopeKey ? embed : null;
+  const demoExperienceSources = currentEmbed?.demo ?? emptyDemoSources;
   const activeScopeRef = useRef(scopeKey);
   const mountedRef = useRef(true);
   activeScopeRef.current = scopeKey;
@@ -185,28 +191,29 @@ const Integracion = () => {
 
   const loadEmbedSnippet = useCallback(async () => {
     if (!tenantSlug || !scopeKey) return;
-    const initiatingScope = scopeKey;
+    const request = ++embedRequest.current;
+    const isCurrent = () => activeScopeRef.current === scopeKey && embedRequest.current === request;
+    setEmbed(null);
     try {
       const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
-      const integrationWidget = integrationData?.widget || {};
-      const integrationSnippet = integrationWidget?.embed_snippet || "";
-      const widgetData = await tenantService.getPublicWidgetConfig(tenantSlug);
-      if (activeScopeRef.current !== initiatingScope) return;
-      const experienceSources = extractDemoExperienceSources(integrationData, widgetData);
-      setDemoExperienceSources(experienceSources);
-      if (integrationSnippet) {
-        setEmbedSnippet(integrationSnippet);
-        return;
-      }
-
-      const builderConfig = widgetData?.builder_config || widgetData?.widget?.builder_config || {};
-      const snippet = builderConfig?.embed_snippet || widgetData?.embed_snippet || "";
-      setEmbedSnippet(snippet);
+      if (!isCurrent()) return;
+      const rawSnippet = integrationData?.widget?.embed_snippet;
+      const snippet = typeof rawSnippet === 'string' ? rawSnippet.trim() : '';
+      const result = {
+        scope: scopeKey, snippet,
+        message: snippet ? '' : 'La organización todavía no tiene un código de integración disponible.',
+        demo: extractDemoExperienceSources(integrationData, null),
+      };
+      setEmbed(result);
+      const widgetData = await tenantService.getPublicWidgetConfig(tenantSlug).catch(() => null);
+      if (isCurrent() && widgetData) setEmbed({ ...result, demo: extractDemoExperienceSources(integrationData, widgetData) });
     } catch (error) {
-      if (activeScopeRef.current !== initiatingScope) return;
-      console.error("No se pudo cargar el snippet de embed", error);
-      setEmbedSnippet("");
-      setDemoExperienceSources({ quickMenu: [], onboardingQuickMenu: [] });
+      if (!isCurrent()) return;
+      const status = error instanceof ApiError ? error.status : null;
+      let message = 'No pudimos cargar el código de integración. Usá Recargar para volver a intentarlo.';
+      if (status === 401) message = 'Iniciá sesión nuevamente para consultar el código de integración.';
+      if (status === 403) message = 'Tu cuenta no tiene acceso al código de integración de esta organización.';
+      setEmbed({ scope: scopeKey, snippet: '', message, demo: emptyDemoSources });
     }
   }, [tenantSlug, scopeKey]);
 
@@ -384,11 +391,11 @@ const Integracion = () => {
   const demoActivationLimitReached = typeof demoMaxActivations === "number" && demoActivationsUsed >= demoMaxActivations;
 
   const generateEmbedCode = (type: "script" | "iframe") => {
-      if (!config) return "";
+      if (!config || !currentEmbed?.snippet) return "";
       const tenant = config.tenant.slug;
 
       if (type === "script") {
-          return embedSnippet;
+          return currentEmbed.snippet;
       } else {
           const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
           return `<iframe src="${base}/iframe?tenant=${tenant}" style="border:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:400px; height:600px;"></iframe>`;
@@ -397,6 +404,7 @@ const Integracion = () => {
 
   const copiarCodigo = async (type: "script" | "iframe") => {
       const text = generateEmbedCode(type);
+      if (!text) return;
       try {
           await navigator.clipboard.writeText(text);
           setCopiado(type);
@@ -417,6 +425,7 @@ const Integracion = () => {
 
   if (!config) {
     return <ViewState status="error" title="No se pudo cargar la configuración de la organización"
+      description={currentEmbed?.message || undefined}
       action={<Button onClick={handleReload}>Reintentar</Button>} />;
   }
 
@@ -866,14 +875,15 @@ const Integracion = () => {
                     <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
                         {generateEmbedCode("script")}
                     </div>
-                    <Button className="w-full" onClick={() => copiarCodigo("script")}>
+                    {currentEmbed?.message && <p role="alert">{currentEmbed.message}</p>}
+                    <Button className="w-full" disabled={!currentEmbed?.snippet} onClick={() => copiarCodigo("script")}>
                         {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                         Copiar Script (Recomendado)
                     </Button>
                     <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto mt-4">
                         {generateEmbedCode("iframe")}
                     </div>
-                    <Button variant="outline" className="w-full" onClick={() => copiarCodigo("iframe")}>
+                    <Button variant="outline" className="w-full" disabled={!currentEmbed?.snippet} onClick={() => copiarCodigo("iframe")}>
                         {copiado === "iframe" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                         Copiar Iframe
                     </Button>
@@ -1040,7 +1050,8 @@ const Integracion = () => {
                 <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
                     {generateEmbedCode("script")}
                 </div>
-                <Button className="w-full" onClick={() => copiarCodigo("script")}>
+                {currentEmbed?.message && <p role="alert">{currentEmbed.message}</p>}
+                <Button className="w-full" disabled={!currentEmbed?.snippet} onClick={() => copiarCodigo("script")}>
                     {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                     Copiar Script (Recomendado)
                 </Button>

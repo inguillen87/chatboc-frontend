@@ -54,6 +54,36 @@ function expectPublicReadOnlyTransport() {
   }
 }
 
+it.each([true, false])('reads an integration using only the panel session (panel bearer present: %s)', async hasBearer => {
+  if (!hasBearer) {
+    usePanelSessionStore.setState({ authToken: null });
+    safeLocalStorage.removeItem('authToken');
+  }
+  global.fetch = vi.fn().mockResolvedValue(json({ slug: 'junin', widget: {} }));
+  await tenantService.getIntegrationEmbed('junin');
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  const [url, init] = vi.mocked(global.fetch).mock.calls[0];
+  const headers = new Headers(init?.headers);
+  expect(new URL(String(url), window.location.origin).pathname).toBe('/api/portal/junin/integration');
+  expect(headers.get('X-Tenant-Slug')).toBe('junin');
+  expect(headers.get('Authorization')).toBe(hasBearer ? 'Bearer synthetic-private-session' : null);
+  expect(init?.credentials).toBe('include');
+  expect(headers.has('X-Entity-Token')).toBe(false);
+  expect(headers.has('X-Chat-Session-Id')).toBe(false);
+});
+
+it.each([401, 403])('returns panel denial %i to the integration screen', async status => {
+  global.fetch = vi.fn().mockResolvedValue(json({ message: 'test' }, status));
+  await expect(tenantService.getIntegrationEmbed('junin')).rejects.toMatchObject({ status });
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(usePanelSessionStore.getState().authToken).toBe('synthetic-private-session');
+});
+
+it('discards an integration receipt for a different organization', async () => {
+  global.fetch = vi.fn().mockResolvedValue(json({ slug: 'other-organization', widget: {} }));
+  await expect(tenantService.getIntegrationEmbed('junin')).rejects.toMatchObject({ status: 502 });
+});
+
 describe('public widget appearance independent of a private panel session', () => {
   it('finishes decoding a public 200 body while the independent panel session refreshes', async () => {
     let finishBody!: (value: string) => void;
