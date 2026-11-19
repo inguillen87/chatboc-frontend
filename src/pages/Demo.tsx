@@ -2618,6 +2618,7 @@ const Demo = () => {
           activeTarget={demoJourneyTarget}
           onSelect={handleDemoJourneySelect}
           onChangeContext={handleChangeRubro}
+          sector={sectorSeleccionado}
           scenarioContext={demoAdminPreviewForContext?.survey_voting?.items
             ?.flatMap((survey) => [survey.slug, survey.title, survey.titulo, survey.question])
             .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)

@@ -1,5 +1,12 @@
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardList, LayoutDashboard, MapPinned, MessageSquareText, Vote } from 'lucide-react';
+import {
+  ClipboardList,
+  LayoutDashboard,
+  MapPinned,
+  MessageSquareText,
+  ShoppingBag,
+  Vote,
+} from 'lucide-react';
 import {
   EXECUTIVE_DEMO_SCENARIOS,
   resolveExecutiveDemoScenarioKey,
@@ -15,6 +22,8 @@ type ExecutiveDemoJourneyProps = {
   scenarioContext?: string | null;
   scenarioScope?: string | null;
   scenarios?: readonly ExecutiveDemoScenario[];
+  /** Sector de la demo: define cómo se nombra el espacio y sus vistas. */
+  sector?: string | null;
 };
 
 type JourneyStep = {
@@ -23,13 +32,61 @@ type JourneyStep = {
   icon: LucideIcon;
 };
 
-const JOURNEY_STEPS: JourneyStep[] = [
-  { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
-  { target: 'conversation', label: 'Atención', icon: MessageSquareText },
-  { target: 'claims', label: 'Reclamos', icon: ClipboardList },
-  { target: 'surveys', label: 'Participación', icon: Vote },
-  { target: 'analytics', label: 'Territorio', icon: MapPinned },
-];
+type JourneyFraming = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  steps: JourneyStep[];
+};
+
+const GOVERNMENT_FRAMING: JourneyFraming = {
+  eyebrow: 'Chatboc · Gestión ciudadana',
+  title: 'Centro de gestión ciudadana',
+  description: 'Atención, reclamos, participación y territorio en una sola vista.',
+  steps: [
+    { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
+    { target: 'conversation', label: 'Atención', icon: MessageSquareText },
+    { target: 'claims', label: 'Reclamos', icon: ClipboardList },
+    { target: 'surveys', label: 'Participación', icon: Vote },
+    { target: 'analytics', label: 'Territorio', icon: MapPinned },
+  ],
+};
+
+// Una empresa o un colegio no gestionan «reclamos ciudadanos»: el mismo
+// espacio se presenta con el vocabulario del sector que la persona eligió.
+const BUSINESS_FRAMING: JourneyFraming = {
+  eyebrow: 'Chatboc · Ventas y atención',
+  title: 'Centro de ventas y atención',
+  description: 'Atención, pedidos, opinión de clientes y cobertura en una sola vista.',
+  steps: [
+    { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
+    { target: 'conversation', label: 'Atención', icon: MessageSquareText },
+    { target: 'claims', label: 'Pedidos y casos', icon: ShoppingBag },
+    { target: 'surveys', label: 'Encuestas', icon: Vote },
+    { target: 'analytics', label: 'Cobertura', icon: MapPinned },
+  ],
+};
+
+const EDUCATION_FRAMING: JourneyFraming = {
+  eyebrow: 'Chatboc · Comunidad educativa',
+  title: 'Centro de atención a familias',
+  description: 'Consultas, solicitudes, encuestas y alcance en una sola vista.',
+  steps: [
+    { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
+    { target: 'conversation', label: 'Atención', icon: MessageSquareText },
+    { target: 'claims', label: 'Solicitudes', icon: ClipboardList },
+    { target: 'surveys', label: 'Encuestas', icon: Vote },
+    { target: 'analytics', label: 'Alcance', icon: MapPinned },
+  ],
+};
+
+export const resolveJourneyFraming = (sector?: string | null): JourneyFraming => {
+  const key = (sector ?? '').trim().toLowerCase();
+  if (key === 'empresas') return BUSINESS_FRAMING;
+  if (key === 'educacion') return EDUCATION_FRAMING;
+  // Sin sector, o con uno que no conocemos, se conserva el marco original.
+  return GOVERNMENT_FRAMING;
+};
 
 const ExecutiveDemoJourney = ({
   activeTarget,
@@ -38,7 +95,9 @@ const ExecutiveDemoJourney = ({
   scenarioContext,
   scenarioScope,
   scenarios = EXECUTIVE_DEMO_SCENARIOS,
+  sector,
 }: ExecutiveDemoJourneyProps) => {
+  const framing = resolveJourneyFraming(sector);
   const normalizedScope = scenarioScope?.trim();
   const activeScenarioKey = resolveExecutiveDemoScenarioKey(scenarioContext, scenarios);
   const activeScenario = scenarios.find((scenario) => scenario.key === activeScenarioKey);
@@ -51,12 +110,12 @@ const ExecutiveDemoJourney = ({
     >
       <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Chatboc · Gestión ciudadana</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">{framing.eyebrow}</p>
           <h1 id="demo-executive-journey-title" className="mt-1 text-xl font-black tracking-tight text-foreground sm:text-2xl">
-            Centro de gestión ciudadana
+            {framing.title}
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Atención, reclamos, participación y territorio en una sola vista.
+            {framing.description}
           </p>
         </div>
 
@@ -75,7 +134,7 @@ const ExecutiveDemoJourney = ({
         aria-label="Vistas de la demo ejecutiva"
       >
         <div className="flex max-w-full gap-1 overflow-x-auto">
-          {JOURNEY_STEPS.map((step) => {
+          {framing.steps.map((step) => {
             const Icon = step.icon;
             const isActive = step.target === activeTarget;
 
@@ -103,7 +162,9 @@ const ExecutiveDemoJourney = ({
         <p>
           {activeScenario
             ? `Escenario activo: ${activeScenario.compactLabel}.`
-            : `${scenarios.length} escenarios demostrativos disponibles en el mismo workspace.`}
+            : framing === GOVERNMENT_FRAMING
+              ? `${scenarios.length} escenarios demostrativos disponibles en el mismo workspace.`
+              : 'Datos de ejemplo para recorrer la operación completa.'}
         </p>
         {onChangeContext ? (
           <button
