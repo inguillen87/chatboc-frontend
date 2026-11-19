@@ -175,13 +175,17 @@ export const tenantService = {
     });
   },
 
+  getIntegrationEmbed: async (slug: string): Promise<any> => {
+    const response = await apiFetch<any>(`/api/portal/${encodeURIComponent(slug)}/integration`, {
+      ...panelReadOptions(slug), suppressPanel401Redirect: true, preserveAuthOn401: true,
+    });
+    if (response?.slug !== slug) throw new ApiError('La integración no corresponde a esta organización.', 502);
+    return response;
+  },
+
   // Public endpoints
   getPublicMenu: async (slug: string, channel: "widget" | "whatsapp" = "widget"): Promise<any> => {
     return apiFetch<any>(`${PUBLIC_BASE_URL}/${slug}/menu?channel=${channel}`);
-  },
-
-  getIntegrationEmbed: async (slug: string): Promise<any> => {
-    return apiFetch<any>(`/api/portal/${slug}/integration`, { tenantSlug: slug });
   },
 
   getPlatformWidgetConfig: async (): Promise<any> => {

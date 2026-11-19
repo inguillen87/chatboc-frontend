@@ -1,10 +1,11 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import Integracion from "@/pages/Integracion";
 import { tenantService } from "@/services/tenantService";
+import { ApiError } from '@/utils/api';
 
 const whatsappOnboardingMock = vi.fn();
 const session = vi.hoisted(() => ({
@@ -129,6 +130,50 @@ describe("Integracion deep links", () => {
     renderPage('/integracion?channel=whatsapp');
     expect(screen.getByText('No pudimos validar la organización')).toBeInTheDocument();
     expect(mockedTenantService.getTenantConfig).not.toHaveBeenCalled();
+    expect(mockedTenantService.getIntegrationEmbed).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [401, 'Iniciá sesión nuevamente para consultar el código de integración.'],
+    [403, 'Tu cuenta no tiene acceso al código de integración de esta organización.'],
+  ] as const)('explains status %i and disables both copy actions', async (status, message) => {
+    mockedTenantService.getIntegrationEmbed.mockRejectedValueOnce(new ApiError('test', status));
+    renderPage('/integracion?channel=widget');
+    expect(await screen.findByText(message)).toHaveAttribute('role', 'alert');
+    expect(screen.getByRole('button', { name: /copiar script/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /copiar iframe/i })).toBeDisabled();
+    expect(mockedTenantService.getPublicWidgetConfig).not.toHaveBeenCalled();
+  });
+
+  it('keeps a withheld embed empty on the basic plan even when public presentation data contains a snippet', async () => {
+    mockedTenantService.getTenantConfig.mockResolvedValueOnce({ ...baseConfig, tenant: { ...baseConfig.tenant, plan: 'basic' } } as any);
+    mockedTenantService.getPublicWidgetConfig.mockResolvedValueOnce({ builder_config: { embed_snippet: 'public-demo-snippet' } });
+    renderPage('/integracion');
+    expect(await screen.findByText(/todavía no tiene un código de integración/)).toBeInTheDocument();
+    expect(screen.queryByText('public-demo-snippet')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copiar script/i })).toBeDisabled();
+  });
+
+  it('shows an authorized embed even if optional public presentation fails', async () => {
+    mockedTenantService.getIntegrationEmbed.mockResolvedValueOnce({ widget: { embed_snippet: 'approved-test-snippet' } });
+    mockedTenantService.getPublicWidgetConfig.mockRejectedValueOnce(new Error('test'));
+    renderPage('/integracion?channel=widget');
+    expect(await screen.findByText('approved-test-snippet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copiar iframe/i })).toBeEnabled();
+  });
+
+  it('keeps a newer denial after an earlier public presentation finishes', async () => {
+    let finish!: (data: object) => void;
+    mockedTenantService.getPublicWidgetConfig.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    mockedTenantService.getIntegrationEmbed.mockResolvedValueOnce({ widget: { embed_snippet: 'previous-test-snippet' } })
+      .mockRejectedValueOnce(new ApiError('test', 403));
+    renderPage('/integracion?channel=widget');
+    await screen.findByText('previous-test-snippet');
+    fireEvent.click(screen.getByRole('button', { name: 'Recargar' }));
+    await screen.findByText(/Tu cuenta no tiene acceso/);
+    await act(async () => finish({}));
+    expect(screen.queryByText('previous-test-snippet')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copiar script/i })).toBeDisabled();
   });
   it('does not expose a foreign configuration response under the selected organization', async () => {
     renderPage('/integracion?tenant_slug=selected-organization');
