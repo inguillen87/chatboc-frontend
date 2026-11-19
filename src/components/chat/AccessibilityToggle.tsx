@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState, type ComponentType } from "react";
 import { BookOpen, Captions, Eye, List, MousePointer2, PauseCircle } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { ensureOptionalFonts } from "@/utils/optionalFonts";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChatWidgetUiHints } from "@/types/chat";
@@ -56,6 +57,8 @@ export const applyAccessibilityPrefs = (prefs: Prefs) => {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.classList.toggle("a11y-dyslexia", !!prefs.dyslexia);
+  // The spaced-reading typeface is requested when that mode is on, not on every page.
+  if (prefs.dyslexia) ensureOptionalFonts("Lexend");
   root.classList.toggle("a11y-simplified", !!prefs.simplified);
   root.classList.toggle("a11y-high-contrast", !!prefs.highContrast);
   root.classList.toggle("a11y-large-controls", !!prefs.largeControls);
