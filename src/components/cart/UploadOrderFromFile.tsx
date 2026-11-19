@@ -476,7 +476,7 @@ const DEFAULT_MARKETPLACE_EXAMPLES = [
 const DEFAULT_TEXT_EXAMPLES: MarketAssistedIntakeTextExample[] = [
   {
     id: 'hardware_order',
-    label: 'Ferreteria',
+    label: 'Ferretería',
     document_type: 'handwritten_order',
     text: '2 chapas galvanizadas\n1 caja de clavos punta paris\n3 bolsas de cemento',
   },
@@ -553,7 +553,7 @@ const ASSISTED_OUTCOMES = [
   },
   {
     label: 'Reclamo o tramite',
-    description: 'Dirección, categoría, foto, boleta, certificado o dato faltante para el area correcta.',
+    description: 'Dirección, categoría, foto, boleta, certificado o dato faltante para el área correcta.',
   },
   {
     label: 'Lead listo para responder',

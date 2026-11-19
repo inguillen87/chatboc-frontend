@@ -90,7 +90,7 @@ const FALLBACK_ASSISTED_USE_CASES: AssistedUseCaseCard[] = [
   {
     id: 'quote_request',
     title: 'Pedido o cotizacion',
-    description: 'Ferreteria, supermercado, bebidas, repuestos o compras por lista.',
+    description: 'Ferretería, supermercado, bebidas, repuestos o compras por lista.',
     icon: ShoppingBag,
   },
   {
@@ -121,7 +121,7 @@ const ASSISTED_TEAM_HANDOFFS = [
   },
   {
     title: 'Datos faltantes',
-    description: 'Dirección, contacto, stock, precio o documentacion pendiente quedan marcados como proximo paso.',
+    description: 'Dirección, contacto, stock, precio o documentación pendiente quedan marcados como próximo paso.',
     icon: FileText,
   },
   {
@@ -240,7 +240,7 @@ const FALLBACK_ASSISTED_INTAKE: MarketAssistedIntakeEntry = {
   text_examples: [
     {
       id: 'fallback_hardware_order',
-      label: 'Ferreteria',
+      label: 'Ferretería',
       document_type: 'handwritten_order',
       text: '2 chapas galvanizadas\n1 caja de clavos punta paris\n3 bolsas de cemento',
     },

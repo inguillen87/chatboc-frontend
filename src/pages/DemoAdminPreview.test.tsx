@@ -212,7 +212,12 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByText('87 %')).toBeVisible();
     expect(screen.getByText('3,4 min')).toBeVisible();
     expect(screen.getByText('100 votos')).toBeVisible();
-    expect(screen.getAllByText('demo.admin_preview.v1')).toHaveLength(4);
+    // The contract identifier stays available for auditing, as a tooltip;
+    // what the visitor reads is where the data comes from, in words.
+    expect(screen.queryByText('demo.admin_preview.v1')).not.toBeInTheDocument();
+    const kpiSources = kpiItems.map((item) => within(item).getByTitle('demo.admin_preview.v1'));
+    expect(kpiSources).toHaveLength(4);
+    expect(kpiSources.every((source) => source.textContent === 'Escenario de demostración')).toBe(true);
     expect(screen.getAllByText('Base no informada')).toHaveLength(4);
     expect(screen.queryByText('Tarjeta anterior')).not.toBeInTheDocument();
 
@@ -460,7 +465,7 @@ describe('DemoAdminPreview executive snapshot', () => {
 
     expect(screen.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toBeVisible();
     expect(screen.getByText('Sesión actual')).toBeVisible();
-    expect(screen.getByText('Demo sintética')).toBeVisible();
+    expect(screen.getByText('Datos simulados')).toBeVisible();
     expect(screen.getByText('100 votos')).toBeVisible();
     expect(screen.queryByText(/únicamente actividad generada/i)).not.toBeInTheDocument();
   });
