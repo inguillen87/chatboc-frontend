@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import LegacyChatPanel from '@/components/chat/ChatPanel';
 import ChatMessageList from './ChatMessageList';
 import ChatComposer, { type ChatComposerPayload } from './ChatComposer';
@@ -41,6 +41,16 @@ import type {
   ChatMediaCapabilities,
 } from '@/types/chat';
 import { isSurveyMenuNavigationAction, normalizeSurveyChatMenu } from './surveyChatMenu';
+import {
+  formatDemoTrialUsage,
+  isDemoTrialLimitPayload,
+  normalizeDemoTrialUsage,
+  readDemoTrialLimitMessage,
+  readDemoTrialUpgrade,
+  readDemoTrialUsage,
+  type DemoTrialUpgrade,
+  type DemoTrialUsage,
+} from '@/features/demo/trialUsage';
 
 interface FeatureChatPanelProps {
   variant?: 'legacy-widget' | 'standalone';
@@ -61,6 +71,8 @@ interface FeatureChatPanelProps {
   onOpenWhatsApp?: () => void;
   onWaitOperator?: () => void;
   onRuntimeResult?: (response: unknown, result: LeadCaptureResponse | null) => void;
+  initialTrialUsage?: DemoTrialUsage | null;
+  onTrialUsageChange?: (usage: DemoTrialUsage) => void;
 }
 
 type LegacyChatPanelProps = React.ComponentProps<typeof LegacyChatPanel> & {
@@ -600,6 +612,8 @@ function StandaloneChatPanel({
   onOpenWhatsApp,
   onWaitOperator,
   onRuntimeResult,
+  initialTrialUsage,
+  onTrialUsageChange,
 }: StandaloneChatPanelProps) {
   const resolvedContext: ChatPanelContext = context ?? { tipoChat: 'pyme' };
   const [runtimeHandoffState, setRuntimeHandoffState] = useState<HandoffState>(handoffState);
@@ -615,6 +629,12 @@ function StandaloneChatPanel({
   const [leadError, setLeadError] = useState<string | null>(null);
   const [leadFieldErrors, setLeadFieldErrors] = useState<LeadFieldErrors>({});
   const [leadResult, setLeadResult] = useState<LeadCaptureResponse | null>(null);
+  const [trialUsage, setTrialUsage] = useState<DemoTrialUsage | null>(initialTrialUsage ?? null);
+  const [trialUpgrade, setTrialUpgrade] = useState<DemoTrialUpgrade | null>(null);
+  useEffect(() => {
+    setTrialUsage(initialTrialUsage ?? null);
+    if (!initialTrialUsage || initialTrialUsage.remaining > 0) setTrialUpgrade(null);
+  }, [initialTrialUsage]);
   const resolvedBlueprint =
     experienceBlueprint ?? resolvedContext.experienceBlueprint ?? null;
   const resolvedLeadCapture =
@@ -676,6 +696,16 @@ function StandaloneChatPanel({
     [quickMenu, quickReplies, resolvedContext.quickReplies],
   );
   const displayedReplies = runtimeReplies.length ? runtimeReplies : replies;
+  const trialExhausted = trialUsage?.remaining === 0;
+
+  const applyTrialPayload = (payload: unknown) => {
+    const nextUsage = normalizeDemoTrialUsage(readDemoTrialUsage(payload));
+    if (!nextUsage) return;
+
+    setTrialUsage(nextUsage);
+    onTrialUsageChange?.(nextUsage);
+    setTrialUpgrade(nextUsage.remaining === 0 ? readDemoTrialUpgrade(payload) : null);
+  };
 
   const leadEnabled = resolvedLeadCapture?.enabled !== false;
   const leadTriggers = useMemo(
@@ -893,6 +923,7 @@ function StandaloneChatPanel({
             response=await audioAttempt.run();
             if(!audioIsCurrent())return;
           }else response=await sendChatBootstrapMessage(resolvedChatBootstrap,payload,resolvedContext.tenantSlug);
+          applyTrialPayload(response);
           const replyText = extractChatBootstrapReplyText(response);
           if (isTechnicalAssistantReply(response, replyText)) {
             throw new Error('Respuesta tecnica del runtime de chat demo.');
@@ -944,6 +975,7 @@ function StandaloneChatPanel({
                 payload,
               );
               if (assistedResult) {
+                applyTrialPayload(assistedResult.raw ?? assistedResult);
                 setLeadResult(assistedResult);
                 onRuntimeResult?.(assistedResult.raw ?? assistedResult, assistedResult);
                 setRuntimeReplies([]);
@@ -962,6 +994,12 @@ function StandaloneChatPanel({
                 return;
               }
             } catch (assistedError) {
+              if (
+                assistedError instanceof ApiError &&
+                isDemoTrialLimitPayload(assistedError.body)
+              ) {
+                throw assistedError;
+              }
               console.warn('[ChatPanel] No se pudo crear pedido asistido desde widget; se usa runtime normal.', assistedError);
             }
           }
@@ -969,12 +1007,16 @@ function StandaloneChatPanel({
         } catch (error) {
           if(payload.audioBlob&&!audioIsCurrent())return;
           reportAudioFailure(error);
+          const errorPayload = error instanceof ApiError ? error.body : error;
+          applyTrialPayload(errorPayload);
+          const trialLimitMessage = readDemoTrialLimitMessage(errorPayload);
           const isDemoRuntime = Boolean(
             readBootstrapDemoSessionId(resolvedChatBootstrap) ||
               resolvedChatBootstrap?.payload?.demo_mode === true,
           );
           const errorText =
             payload.audioBlob?'No pudimos confirmar tu grabación. Revisá las opciones que aparecen junto al mensaje.':
+            isDemoTrialLimitPayload(errorPayload) && trialLimitMessage ? trialLimitMessage :
             runtimeUnavailableDescription ||
             runtimeUnavailableTitle ||
             (isDemoRuntime
@@ -1058,7 +1100,7 @@ function StandaloneChatPanel({
       ) : (
         <ChatMessageList messages={messages} />
       )}
-      {messages.length === 0 && sampleConversations.length ? (
+      {!trialExhausted && messages.length === 0 && sampleConversations.length ? (
         <div className="flex flex-wrap gap-2" aria-label="Conversaciones de ejemplo">
           {sampleConversations.map((item, index) => {
             const label = readBlockTitle(item);
@@ -1097,7 +1139,7 @@ function StandaloneChatPanel({
         </div>
       ) : null}
       <QuickReplies
-        items={displayedReplies}
+        items={trialExhausted ? [] : displayedReplies}
         onSelect={(item) => {
           const actionId =
             item.action_id ??
@@ -1115,7 +1157,7 @@ function StandaloneChatPanel({
           );
         }}
       />
-      {visibleCtas.length ? (
+      {!trialExhausted && visibleCtas.length ? (
         <div className="flex flex-wrap gap-2" role="group" aria-label="Acciones sugeridas">
           {visibleCtas.map((action) => (
             <Button
@@ -1129,6 +1171,49 @@ function StandaloneChatPanel({
               {action.label}
             </Button>
           ))}
+        </div>
+      ) : null}
+      {trialExhausted && trialUpgrade ? (
+        <div
+          className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm"
+          role="region"
+          aria-label="Opciones para continuar"
+        >
+          {trialUpgrade.title ? (
+            <p className="font-medium text-foreground">{trialUpgrade.title}</p>
+          ) : null}
+          {trialUpgrade.actions.length ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {trialUpgrade.actions.map((action) => {
+                if (action.href) {
+                  return (
+                    <Button key={action.id} type="button" size="sm" className="h-auto text-xs" asChild>
+                      <a href={action.href}>{action.label}</a>
+                    </Button>
+                  );
+                }
+                if (action.leadCaptureEndpoint && resolvedLeadCapture) {
+                  return (
+                    <Button
+                      key={action.id}
+                      type="button"
+                      size="sm"
+                      className="h-auto text-xs"
+                      onClick={() =>
+                        openOrSubmitLead(
+                          { ...resolvedLeadCapture, endpoint: action.leadCaptureEndpoint },
+                          { trigger: 'demo_trial_upgrade', source: 'demo_trial_limit' },
+                        )
+                      }
+                    >
+                      {action.label}
+                    </Button>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {!hasRuntimeChat && (runtimeUnavailableTitle || runtimeUnavailableDescription) ? (
@@ -1243,7 +1328,11 @@ function StandaloneChatPanel({
       ) : null}
       <ChatComposer
         onSend={appendUserMessage}
-        placeholder={resolvedContext.composerPlaceholder || undefined}
+        placeholder={
+          trialExhausted && trialUsage
+            ? formatDemoTrialUsage(trialUsage)
+            : resolvedContext.composerPlaceholder || undefined
+        }
         sendLabel={resolvedContext.sendLabel || undefined}
         mediaCapabilities={resolvedMediaCapabilities}
         draftText={composerDraft}
@@ -1253,7 +1342,7 @@ function StandaloneChatPanel({
         demoSessionId={attachmentUploadContext.demoSessionId}
         chatSessionId={attachmentUploadContext.chatSessionId}
         audioContextKey={JSON.stringify(resolvedChatBootstrap)}
-        disabled={!hasRuntimeChat}
+        disabled={!hasRuntimeChat || trialExhausted}
       />
       <ConversationRating conversationId={conversationId} />
     </section>

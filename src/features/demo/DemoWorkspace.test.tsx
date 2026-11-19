@@ -144,6 +144,20 @@ describe('DemoWorkspace rubro tools', () => {
     ).toBeInTheDocument();
   });
 
+  it('mounts the trial indicator beside the demo chat heading', () => {
+    const workspace = {
+      title: 'Municipio Inteligente',
+      chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
+      trial_usage: { channel: 'chat', limit: 5, used: 0, remaining: 5 },
+    } as DemoWorkspaceConfig;
+
+    render(<DemoWorkspace workspace={workspace} sector="gobierno" rubro="municipio" />);
+
+    const indicator = screen.getByText('Tenés 5 consultas de prueba');
+    expect(indicator).toHaveAttribute('aria-live', 'polite');
+    expect(indicator.closest('div')).toHaveTextContent('Municipio Inteligente');
+  });
+
   it('presents backend enums as professional Spanish labels', () => {
     const workspace = {
       chat_bootstrap: { same_origin_endpoint: '/api/v2/demo/chat' },
