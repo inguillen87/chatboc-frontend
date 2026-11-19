@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
 import { useProactiveGreeting, type ProactiveGreetingMessage } from './useProactiveGreeting';
+import { ensureOptionalFonts } from '@/utils/optionalFonts';
 import { accessibleForegroundHsl, normalizeColorHsl } from "@/utils/color";
 import { applyWidgetThemeVariables, widgetThemeVariables } from "@/utils/widgetTheme";
 import { apiClient } from "@/api/client";
@@ -1557,6 +1558,8 @@ function ChatWidgetInner({
     const previousFont = target.style.fontFamily;
     const restore = applyWidgetThemeVariables(target, variables);
     if (variables['--font-sans']) target.style.fontFamily = variables['--font-sans'];
+    // Roboto, Montserrat and Open Sans are requested only by widgets configured with them.
+    ensureOptionalFonts(variables['--font-sans']);
     return () => { restore(); target.style.fontFamily = previousFont; };
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
