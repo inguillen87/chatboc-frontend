@@ -19,6 +19,23 @@ type Phase = 'loading' | 'editing' | 'validating' | 'review' | 'applying' | 'unc
 const utc = (value: number | null) => value === null ? 'Sin fecha registrada' :
   `${new Date(value * 1000).toLocaleString('es-AR', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`;
 
+const renewalText = (status: MetaCredentialStatus): string | null => {
+  const renewal = status.renewal;
+  if (!renewal) return null;
+  switch (renewal.state) {
+    case 'ok':
+      return `Se renueva sola: Chatboc la vuelve a validar con Meta antes de que venza.${renewal.lastRevalidatedAt ? ` Última validación: ${utc(renewal.lastRevalidatedAt)}.` : ''}`;
+    case 'due':
+      return 'Se renueva sola: la próxima revisión diaria la valida con Meta y extiende su vigencia.';
+    case 'failed':
+      return 'Meta rechazó la credencial en la última revisión automática. Cargá una nueva para que el canal no se corte.';
+    case 'expired':
+      return 'La credencial venció. Cargá una nueva; a partir de ahí se renueva sola.';
+    default:
+      return renewal.reason === 'renewal_disabled' ? 'La renovación automática todavía no está activada para este destino.' : null;
+  }
+};
+
 const errorMessage = (error: unknown) => {
   const code = error instanceof MetaCredentialClientError ? error.reasonCode : '';
   const messages: Record<string, string> = {
@@ -211,10 +228,16 @@ export default function MetaCredentials() {
                       setEntered(previous => ({ ...previous, [status.target]: hasValue }));
                     }} />
                 </div>}
+                {!plan && !confirmed && renewalText(status) && <p data-renewal-state={status.renewal?.state}
+                  className={`text-sm ${status.renewal?.state === 'failed' || status.renewal?.state === 'expired' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>
+                  {renewalText(status)}
+                </p>}
                 {plan && !confirmed && <div className="rounded-md bg-muted/40 p-3 text-sm">
                   <p>Revisión {plan.expectedRevision} → {plan.nextRevision}</p>
                   <p>Vigencia local: {utc(plan.expiresAt)}</p>
-                  <p className="mt-1 text-muted-foreground">{plan.expirySource === 'provider' ? 'Fecha verificada con Meta.' : 'Límite local de 30 días, aplicado después de validar la credencial con Meta.'}</p>
+                  <p className="mt-1 text-muted-foreground">{plan.expirySource === 'provider' ? 'Fecha verificada con Meta.' : plan.renewal === 'automatic'
+                    ? 'Vigencia local de 30 días que se renueva sola: cada día Chatboc la vuelve a validar con Meta.'
+                    : 'Límite local de 30 días, aplicado después de validar la credencial con Meta.'}</p>
                 </div>}
                 {confirmed && <p role="status" className="text-sm text-green-700 dark:text-green-300">Revisión {confirmed.revision} confirmada · {utc(confirmed.expiresAt)}</p>}
                 {!status.operationAvailable && !confirmed && <p className="text-sm text-muted-foreground">{status.currentRevision === null ? 'Esta operación no está disponible en el estado actual.' : `Revisión actual: ${status.currentRevision}. La carga no está habilitada en el estado actual.`}</p>}

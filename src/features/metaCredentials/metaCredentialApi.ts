@@ -23,6 +23,16 @@ export interface MetaCredentialStatus {
   operationAvailable: boolean;
   lastPlanSha256: string | null;
   expiresAt: number | null;
+  /** Renovación automática informada por el backend; ausente en versiones anteriores. */
+  renewal?: MetaCredentialRenewal | null;
+}
+
+export type MetaCredentialRenewalState = 'ok' | 'due' | 'failed' | 'expired' | 'disabled';
+export interface MetaCredentialRenewal {
+  state: MetaCredentialRenewalState;
+  lastRevalidatedAt: number | null;
+  nextCheckAfter: number | null;
+  reason: string | null;
 }
 
 export interface MetaCredentialPlan {
@@ -33,6 +43,8 @@ export interface MetaCredentialPlan {
   writerEpoch: number;
   expiresAt: number;
   expirySource: string;
+  /** 'automatic' cuando el backend renueva la credencial solo; ausente en versiones anteriores. */
+  renewal?: 'automatic' | 'manual' | null;
   databaseIdentitySha256: string;
   planSha256: string;
 }
@@ -85,6 +97,24 @@ const envelope = (value: unknown, target: MetaCredentialTarget): RecordValue => 
   return data;
 };
 
+const RENEWAL_STATES: readonly MetaCredentialRenewalState[] = ['ok', 'due', 'failed', 'expired', 'disabled'];
+const optionalTimestamp = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+// El bloque es informativo: si falta o viene mal formado se omite, sin
+// invalidar el resto del estado de la credencial.
+export const parseMetaCredentialRenewal = (value: unknown): MetaCredentialRenewal | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const data = value as RecordValue;
+  if (data.mode !== 'automatic' || !RENEWAL_STATES.includes(data.state as MetaCredentialRenewalState)) return null;
+  return {
+    state: data.state as MetaCredentialRenewalState,
+    lastRevalidatedAt: optionalTimestamp(data.last_revalidated_at),
+    nextCheckAfter: optionalTimestamp(data.next_check_after),
+    reason: typeof data.reason === 'string' && /^[a-z_]{1,64}$/.test(data.reason) ? data.reason : null,
+  };
+};
+
 export const parseMetaCredentialStatus = (value: unknown, target: MetaCredentialTarget): MetaCredentialStatus => {
   const data = envelope(value, target);
   if (typeof data.operation_available !== 'boolean' || data.provider !== 'meta' ||
@@ -101,6 +131,7 @@ export const parseMetaCredentialStatus = (value: unknown, target: MetaCredential
     writerEpoch: data.expected_writer_epoch == null ? null : integer(data.expected_writer_epoch, 1), operationAvailable: data.operation_available,
     lastPlanSha256: lastOperation === null ? null : digest(lastOperation.plan_sha256),
     expiresAt: data.expires_at == null ? null : integer(data.expires_at, 1),
+    renewal: parseMetaCredentialRenewal(data.renewal),
   };
 };
 
@@ -124,6 +155,7 @@ export const parseMetaCredentialPlan = (value: unknown, status: MetaCredentialSt
     expectedRevision: status.expectedRevision, nextRevision: status.expectedRevision + 1,
     writerEpoch: integer(status.writerEpoch, 1), expiresAt,
     expirySource: text(expiry.source),
+    renewal: expiry.renewal === 'automatic' || expiry.renewal === 'manual' ? expiry.renewal : null,
     databaseIdentitySha256: digest(plan.database_identity_sha256), planSha256: digest(data.plan_sha256),
   };
 };
