@@ -88,7 +88,8 @@ export default function MetaCredentials() {
   }, [clearSecrets]);
 
   const editable = statuses.filter(status => status.operationAvailable && !receipts[status.target]);
-  const allEntered = editable.length > 0 && editable.every(status => entered[status.target]);
+  const selected = editable.filter(status => entered[status.target]);
+  const canApply = plans.length > 0 && plans.every(plan => entered[plan.target]);
   const busy = ['loading', 'validating', 'applying', 'checking'].includes(phase);
   const currentRequest = () => {
     const initiatingScope = scopeKey;
@@ -96,14 +97,16 @@ export default function MetaCredentials() {
   };
 
   const validate = async () => {
-    if (!scopeKey || !allEntered || inFlight.current || phase !== 'editing') return;
+    if (!scopeKey || !selected.length || inFlight.current || phase !== 'editing') return;
     const scope = currentRequest();
     inFlight.current = true; setPhase('validating'); setMessage(null); setPlans([]);
     try {
       const next: MetaCredentialPlan[] = [];
-      for (const status of editable) {
+      for (const status of selected) {
         if (!scope.isCurrent()) return;
-        next.push(await metaCredentialApi.plan(status, inputs.current[status.target]?.value || '', scope));
+        const token = inputs.current[status.target]?.value;
+        if (!token) throw new MetaCredentialClientError('meta_operation_token_input_invalid');
+        next.push(await metaCredentialApi.plan(status, token, scope));
       }
       if (scope.isCurrent()) { setPlans(next); setPhase('review'); }
     } catch (error) {
@@ -120,15 +123,21 @@ export default function MetaCredentials() {
   };
 
   const apply = async () => {
-    if (!scopeKey || inFlight.current || phase !== 'review' || !plans.length || !allEntered) return;
+    if (!scopeKey || inFlight.current || phase !== 'review' || !canApply) return;
     const scope = currentRequest();
     inFlight.current = true; setPhase('applying'); setMessage(null);
     let applying: MetaCredentialTarget | null = null;
     try {
       for (const plan of plans) {
         if (!scope.isCurrent()) return;
+        const token = inputs.current[plan.target]?.value;
+        if (!token) {
+          setPlans([]); setPhase('editing');
+          setMessage(errorMessage(new MetaCredentialClientError('meta_operation_token_input_invalid')));
+          return;
+        }
         applying = plan.target;
-        const receipt = await metaCredentialApi.apply(plan, inputs.current[plan.target]?.value || '', scope);
+        const receipt = await metaCredentialApi.apply(plan, token, scope);
         if (!scope.isCurrent()) return;
         markConfirmed(receipt);
         if (inputs.current[plan.target]) inputs.current[plan.target]!.value = '';
@@ -222,8 +231,8 @@ export default function MetaCredentials() {
             </Card>;
           })}
           <div className="flex flex-wrap gap-3">
-            {phase === 'editing' && editable.length > 0 && <Button type="submit" disabled={!allEntered}>Validar credenciales</Button>}
-            {phase === 'review' && <Button type="button" onClick={() => void apply()} disabled={!allEntered}>Aplicar credenciales validadas</Button>}
+            {phase === 'editing' && editable.length > 0 && <Button type="submit" disabled={!selected.length}>Validar credenciales</Button>}
+            {phase === 'review' && <Button type="button" onClick={() => void apply()} disabled={!canApply}>Aplicar credenciales validadas</Button>}
             {phase === 'review' && <Button type="button" variant="outline" onClick={() => { clearSecrets(); setPlans([]); setPhase('editing'); }}>Corregir credenciales</Button>}
             {phase === 'uncertain' && <Button type="button" onClick={() => void verifyOutcome()}><RefreshCw className="mr-2 h-4 w-4" />Verificar resultado</Button>}
             {phase === 'done' && editable.length > 0 && <Button type="button" onClick={() => setReload(value => value + 1)}>Actualizar operaciones pendientes</Button>}

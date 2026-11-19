@@ -105,6 +105,41 @@ describe('private credential loading', () => {
     expect(api.plan).toHaveBeenCalledTimes(2);
   });
 
+  it.each(META_CREDENTIAL_TARGETS)('plans and applies only %s when the other destination is empty', async target => {
+    render(app());
+    const inputs = await fill();
+    const selected = screen.getByLabelText(`Token de acceso · ${statusFor(target).label}`) as HTMLInputElement;
+    for (const input of inputs) {
+      if (input !== selected) fireEvent.change(input, { target: { value: '' } });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Validar credenciales' }));
+    const apply = await screen.findByRole('button', { name: 'Aplicar credenciales validadas' });
+    expect(api.plan.mock.calls.map(([status]) => status.target)).toEqual([target]);
+    expect(api.apply).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/^Revisión \d+ →/)).toHaveLength(1);
+    fireEvent.click(apply);
+    await screen.findByRole('button', { name: 'Actualizar operaciones pendientes' });
+    expect(api.apply.mock.calls.map(([plan, token]) => [plan.target, token])).toEqual([[target, tokenFor(target)]]);
+    expect(inputs.map(input => input.value)).toEqual(['', '']);
+  });
+
+  it('rejects an empty submission and clears the prior selection before a new review', async () => {
+    render(app());
+    const inputs = await review();
+    fireEvent.click(screen.getByRole('button', { name: 'Corregir credenciales' }));
+    const validate = screen.getByRole('button', { name: 'Validar credenciales' });
+    expect(validate).toBeDisabled();
+    fireEvent.submit(validate.closest('form')!);
+    expect(api.plan).toHaveBeenCalledTimes(2);
+    expect(inputs.map(input => input.value)).toEqual(['', '']);
+    fireEvent.change(inputs[1], { target: { value: tokenFor('tdf-sandbox') } });
+    fireEvent.click(validate);
+    fireEvent.click(await screen.findByRole('button', { name: 'Aplicar credenciales validadas' }));
+    await screen.findByRole('button', { name: 'Actualizar operaciones pendientes' });
+    expect(api.plan.mock.calls.map(([status]) => status.target)).toEqual([...META_CREDENTIAL_TARGETS, 'tdf-sandbox']);
+    expect(api.apply.mock.calls.map(([plan]) => plan.target)).toEqual(['tdf-sandbox']);
+  });
+
   it('clears both entered values after successful confirmation and never sends them through status', async () => {
     render(app()); const inputs = await review();
     expect(screen.queryByRole('button', { name: 'Verificar conexión' })).not.toBeInTheDocument();
@@ -126,6 +161,25 @@ describe('private credential loading', () => {
     inputs.forEach(input => expect(input.value).toBe(''));
     expect(screen.getByRole('alert').textContent).not.toContain(tokenFor('junin-production'));
     expect(api.apply).not.toHaveBeenCalled();
+  });
+
+  it('reconciles only a single uncertain destination without replaying its credential', async () => {
+    api.apply.mockRejectedValueOnce(new Error('acknowledgement lost'));
+    render(app());
+    const inputs = await fields();
+    const plan = planFor(statusFor('tdf-sandbox'));
+    fireEvent.change(inputs[1], { target: { value: tokenFor(plan.target) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Validar credenciales' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Aplicar credenciales validadas' }));
+    const verify = await screen.findByRole('button', { name: 'Verificar resultado' });
+    expect(inputs.map(input => input.value)).toEqual(['', '']);
+    api.status.mockClear().mockResolvedValueOnce({ ...statusFor(plan.target), currentRevision: plan.nextRevision,
+      expiresAt: plan.expiresAt, lastPlanSha256: plan.planSha256, operationAvailable: false });
+    fireEvent.click(verify);
+    await screen.findByText('El estado del servidor confirmó la credencial guardada.');
+    expect(api.status.mock.calls.map(([target]) => target)).toEqual([plan.target]);
+    expect(api.apply.mock.calls.map(([applied]) => applied.target)).toEqual([plan.target]);
+    expect(api.plan.mock.calls.map(([status]) => status.target)).toEqual([plan.target]);
   });
 
   it('preserves the first confirmation when the second write needs a status check', async () => {
