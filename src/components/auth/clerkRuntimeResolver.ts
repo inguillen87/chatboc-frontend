@@ -14,6 +14,51 @@ interface PublicPreviewPresentationOptions {
   search?: string;
 }
 
+// An organization's public home is read by anonymous visitors, often on a
+// modest phone and a metered connection. The sign-in runtime is several hundred
+// kilobytes that page never uses for them, so it stays out until they leave for
+// a page that needs it. A browser that shows any trace of a session keeps the
+// normal runtime, and so does every other route.
+const ORGANIZATION_PUBLIC_HOME = /^\/t\/[^/]+$/;
+
+export const isOrganizationPublicHomePath = (pathname?: string): boolean =>
+  ORGANIZATION_PUBLIC_HOME.test(
+    String(pathname || '').trim().toLowerCase().replace(/\/+$/, '') || '/',
+  );
+
+interface SessionTraceOptions {
+  cookie?: string;
+  search?: string;
+  storedSession?: boolean;
+}
+
+// The sign-in provider leaves these behind once someone has signed in:
+// `__client_uat` holds a timestamp ("0" after signing out), and a redirect back
+// from it carries `__clerk…` parameters. A session this application stored
+// itself counts too.
+export const hasSessionTrace = ({ cookie, search, storedSession }: SessionTraceOptions): boolean => {
+  if (storedSession) return true;
+  if (/(?:^|[?&])__clerk/i.test(String(search || ''))) return true;
+
+  return String(cookie || '').split(';').some((pair) => {
+    const separator = pair.indexOf('=');
+    const name = (separator < 0 ? pair : pair.slice(0, separator)).trim();
+    const value = separator < 0 ? '' : pair.slice(separator + 1).trim();
+    if (/^__client_uat(?:_|$)/.test(name)) return value !== '' && value !== '0';
+    return /^(?:__session|__clerk_db_jwt)(?:_|$)/.test(name) && value !== '';
+  });
+};
+
+interface GuestPublicHomeOptions extends SessionTraceOptions {
+  pathname?: string;
+}
+
+export const isGuestPublicHomePresentation = ({
+  pathname,
+  ...trace
+}: GuestPublicHomeOptions): boolean =>
+  isOrganizationPublicHomePath(pathname) && !hasSessionTrace(trace);
+
 export const isPublicPreviewPresentation = ({
   hostname,
   pathname,
@@ -147,6 +192,32 @@ export const buildPublicClerkBypassRuntime = (
   ],
 });
 
+export const buildGuestPublicHomeRuntime = (
+  publishableKey: string,
+): ClerkRuntimeValue => ({
+  ...buildClerkRuntimeFromEnv({
+    allowEnvFallback: false,
+    envEnabled: false,
+    loading: false,
+    publishableKey,
+  }),
+  configurationWarnings: [
+    {
+      code: 'public_guest_home_presentation',
+      message: 'El inicio público de una organización se abre sin el inicio de sesión cargado para visitantes anónimos.',
+    },
+  ],
+});
+
+export const isGuestPublicHomeRuntime = (
+  runtime: Pick<ClerkRuntimeValue, 'configurationWarnings'>,
+): boolean =>
+  Boolean(
+    runtime.configurationWarnings?.some(
+      (warning) => warning.code === 'public_guest_home_presentation',
+    ),
+  );
+
 export const isPublicPreviewPresentationRuntime = (
   runtime: Pick<ClerkRuntimeValue, 'configurationWarnings'>,
 ): boolean =>
@@ -174,6 +245,19 @@ interface PublicPreviewExitOptions extends PublicPreviewPresentationOptions {
 export const shouldReloadAfterPublicPreviewNavigation = ({
   runtime,
   ...location
-}: PublicPreviewExitOptions): boolean =>
-  isPublicClerkBypassRuntime(runtime) !==
-  isPublicClerkBypassPresentation(location);
+}: PublicPreviewExitOptions): boolean => {
+  // The light home only needs the reload on the way out, or when the sign-in
+  // provider sends the visitor back to it. Arriving with the runtime already
+  // loaded keeps it: nothing is gained by dropping it.
+  if (isGuestPublicHomeRuntime(runtime)) {
+    return (
+      !isOrganizationPublicHomePath(location.pathname) ||
+      hasSessionTrace({ search: location.search })
+    );
+  }
+
+  return (
+    isPublicClerkBypassRuntime(runtime) !==
+    isPublicClerkBypassPresentation(location)
+  );
+};

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClerkBackendUnavailableRuntime,
+  buildGuestPublicHomeRuntime,
   buildPublicClerkBypassRuntime,
+  hasSessionTrace,
+  isGuestPublicHomePresentation,
+  isGuestPublicHomeRuntime,
+  isOrganizationPublicHomePath,
   buildPublicPreviewPresentationRuntime,
   buildClerkRuntimeFromEnv,
   isClerkOriginCompatible,
@@ -147,6 +152,58 @@ describe('clerkRuntimeResolver', () => {
       pathname: '/demo/institucional/tdf-discapacidad',
       search: '',
     })).toBe(true);
+  });
+
+  it('opens an organization public home without the sign-in runtime only for a browser with no session trace', () => {
+    for (const pathname of ['/t/tierra-del-fuego', '/t/Tierra-del-Fuego/', '/t/junin']) {
+      expect(isOrganizationPublicHomePath(pathname)).toBe(true);
+      expect(isGuestPublicHomePresentation({ pathname, search: '', cookie: '', storedSession: false })).toBe(true);
+    }
+    // Every other route keeps the normal runtime, whatever the visitor is.
+    for (const pathname of ['/', '/t', '/t/', '/t/junin/login', '/t/junin/noticias', '/t/junin/admin/knowledge', '/junin', '/demo', '/admin/knowledge']) {
+      expect(isOrganizationPublicHomePath(pathname)).toBe(false);
+      expect(isGuestPublicHomePresentation({ pathname, search: '', cookie: '', storedSession: false })).toBe(false);
+    }
+    // A first visit, or a browser that signed out, carries no trace.
+    expect(hasSessionTrace({ cookie: 'chatboc_anon_id=abc; __client_uat=0; __client_uat_cfwnN0UG=0' })).toBe(false);
+    expect(hasSessionTrace({ cookie: '', search: '?pwa=1' })).toBe(false);
+    // Any sign of a session keeps the provider: its own markers, a redirect back from it, or a stored session.
+    for (const cookie of ['__client_uat=1795000000', 'a=1; __client_uat_cfwnN0UG=1795000000', '__session=token', '__session_cfwnN0UG=token', '__clerk_db_jwt=dev']) {
+      expect(hasSessionTrace({ cookie })).toBe(true);
+      expect(isGuestPublicHomePresentation({ pathname: '/t/junin', cookie })).toBe(false);
+    }
+    expect(isGuestPublicHomePresentation({ pathname: '/t/junin', search: '?__clerk_status=verified' })).toBe(false);
+    expect(isGuestPublicHomePresentation({ pathname: '/t/junin', search: '?next=%2F&__clerk_handshake=x' })).toBe(false);
+    expect(isGuestPublicHomePresentation({ pathname: '/t/junin', storedSession: true })).toBe(false);
+    // A cookie that merely resembles the marker is not one.
+    expect(hasSessionTrace({ cookie: 'my__client_uat=1795000000; client_uat=1; __client_uatx=5' })).toBe(false);
+  });
+
+  it('reloads once on the way out of the light home, and never on the way in', () => {
+    const runtime = buildGuestPublicHomeRuntime('pk_live_public_key');
+
+    expect(runtime.enabled).toBe(false);
+    expect(runtime.readyForSessionSync).toBe(false);
+    expect(isGuestPublicHomeRuntime(runtime)).toBe(true);
+    // It is not one of the static presentations, which reload on both sides.
+    expect(isPublicClerkBypassRuntime(runtime)).toBe(false);
+    expect(isGuestPublicHomeRuntime(buildPublicClerkBypassRuntime('pk_live_public_key'))).toBe(false);
+
+    const at = (pathname: string, search = '') => shouldReloadAfterPublicPreviewNavigation({ runtime, hostname: 'www.chatboc.ar', pathname, search });
+    expect(at('/t/tierra-del-fuego')).toBe(false);
+    expect(at('/t/tierra-del-fuego/')).toBe(false);
+    expect(at('/t/otra-organizacion')).toBe(false);
+    expect(at('/t/tierra-del-fuego/login')).toBe(true);
+    expect(at('/t/tierra-del-fuego/noticias')).toBe(true);
+    expect(at('/perfil')).toBe(true);
+    // The provider sending the visitor back to the home needs its runtime there.
+    expect(at('/t/tierra-del-fuego', '?__clerk_status=verified')).toBe(true);
+
+    // A page that already loaded the runtime keeps it when the visitor goes to the home.
+    for (const loaded of [{ configurationWarnings: [] }, { configurationWarnings: [{ code: 'backend_config_unavailable' }] }]) {
+      expect(shouldReloadAfterPublicPreviewNavigation({ runtime: loaded, hostname: 'www.chatboc.ar', pathname: '/t/tierra-del-fuego', search: '' })).toBe(false);
+      expect(shouldReloadAfterPublicPreviewNavigation({ runtime: loaded, hostname: 'www.chatboc.ar', pathname: '/t/tierra-del-fuego/noticias', search: '' })).toBe(false);
+    }
   });
 
   it('keeps production fail-closed when the backend contract is unavailable', () => {
