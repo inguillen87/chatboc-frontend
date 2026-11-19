@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
 import { useProactiveGreeting, type ProactiveGreetingMessage } from './useProactiveGreeting';
+import { useEmbeddedInstitutionalReader } from '@/features/chat/embeddedInstitutionalReader';
 import { accessibleForegroundHsl, normalizeColorHsl } from "@/utils/color";
 import { applyWidgetThemeVariables, widgetThemeVariables } from "@/utils/widgetTheme";
 import { apiClient } from "@/api/client";
@@ -1553,6 +1554,7 @@ function ChatWidgetInner({
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 
+  const embeddedInstitutionalReader = useEmbeddedInstitutionalReader();
   const proactiveMessages = useMemo(() => {
     const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
     const propText = typeof ctaMessage === 'string' ? ctaMessage.trim() : '';
@@ -1579,7 +1581,10 @@ function ChatWidgetInner({
     scopeKey: JSON.stringify([widgetId, greetingTenant]),
     bindingKey: `${location.pathname}${location.search}`,
     messages: proactiveMessages,
-    ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant,
+    // A published reader embedded in this page is already the invitation to ask;
+    // only a greeting the organization explicitly forces is raised over it.
+    ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant
+      && (!embeddedInstitutionalReader || entityInfo?.force_proactive === true),
     isOpen, isMobile: isMobileView, containerRef: widgetContainerRef,
     initialDelay: entityInfo?.force_proactive === true ? 3000 : ctaMessage?.trim() ? 2500 : 6000,
   });

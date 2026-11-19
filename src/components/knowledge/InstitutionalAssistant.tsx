@@ -8,6 +8,7 @@ import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {registerEmbeddedInstitutionalReader} from '@/features/chat/embeddedInstitutionalReader';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
 import {safeInstitutionLogo,type PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
@@ -52,6 +53,10 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     if(mode!=='public')return;
     onPublicKnowledgeAvailability?.(publishedTenantId&&publishedRevision?{tenantSlug,tenantId:publishedTenantId,revision:publishedRevision}:null);
   },[mode,tenantSlug,publishedTenantId,publishedRevision,onPublicKnowledgeAvailability]);
+  // While this published reader is the page's content, the floating widget keeps
+  // its launcher but does not raise an unsolicited greeting over the reading area.
+  useEffect(()=>mode==='public'&&publishedTenantId&&publishedRevision?registerEmbeddedInstitutionalReader():undefined,
+    [mode,publishedTenantId,publishedRevision]);
   const captureRequestFocus=(seq:number,origin:HTMLElement|null,fromReview=false)=>{
     if(frame.current!==null){cancelAnimationFrame(frame.current);frame.current=null;}
     const focused=document.activeElement;

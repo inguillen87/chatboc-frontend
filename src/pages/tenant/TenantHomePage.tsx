@@ -146,7 +146,8 @@ const TenantPublicLanding = () => {
   const hasPublishedKnowledge = Boolean(publicKnowledge && publicKnowledge.tenantSlug === slug);
 
   const navigationQuery = useQuery({
-    queryKey: ['tenant-public-navigation-home', slug],
+    // Same key as the shell's navigation query: one request serves both.
+    queryKey: ['tenant-public-navigation', slug],
     enabled: Boolean(slug),
     queryFn: () => getTenantPublicNavigation(slug),
     staleTime: 1000 * 60 * 5,
