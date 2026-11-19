@@ -28,6 +28,24 @@ const getRubroDescription = (rubro: Rubro | any) =>
 const getRubroDemoPreview = (rubro: Rubro | any): TenantDemoSummary['widget_preview'] | undefined =>
   rubro?.demo?.widget_preview || rubro?.widget_preview || rubro?.preview || undefined;
 
+// Lo que el desplegable de un grupo ofrecería al abrirse, con las mismas
+// reglas que usa su contenido: el grupo mismo si es una demo, cada hijo sin
+// subniveles y cada nieto que sea una demo.
+const selectableOptionsInside = (root: Rubro | any): Array<Rubro | any> => {
+  const options: Array<Rubro | any> = [];
+  const children = Array.isArray(root?.subrubros) ? root.subrubros : [];
+  if (children.length > 0 && (root?.demo || getRubroDescription(root))) options.push(root);
+  for (const level1 of children) {
+    const grandchildren = Array.isArray(level1?.subrubros) ? level1.subrubros : [];
+    if (grandchildren.length > 0) {
+      options.push(...grandchildren.filter((level2: any) => level2?.demo || getRubroDescription(level2)));
+    } else if (level1?.demo || getRubroLabel(level1)) {
+      options.push(level1);
+    }
+  }
+  return options;
+};
+
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   const getPreviewClass = (preset?: string) => {
     if (!preset) return 'border-primary/10 hover:border-primary/30 hover:bg-primary/10';
@@ -81,29 +99,39 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
           const rootKey = String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root));
           const hasChildren = Array.isArray(root.subrubros) && root.subrubros.length > 0;
           const isSelectable = Boolean(root.demo || getRubroDescription(root));
+          const insideOptions = hasChildren ? selectableOptionsInside(root) : [];
 
-          // Una opción sin subniveles se elige con un solo toque: envolverla en
-          // un desplegable obligaba a abrirlo para encontrar adentro el mismo
-          // nombre repetido.
-          if (!hasChildren && isSelectable) {
+          // Una opción que no tiene nada más que elegir se toma con un solo
+          // toque: un desplegable obligaba a abrirlo para encontrar adentro el
+          // mismo nombre repetido. Vale para la demo sin subniveles y para el
+          // grupo cuyo desplegable ofrecería una única opción.
+          const directOption = !hasChildren && isSelectable
+            ? root
+            : insideOptions.length === 1
+              ? insideOptions[0]
+              : null;
+          if (directOption) {
+            const label = getRubroLabel(directOption) || getRubroLabel(root);
+            const description = getRubroDescription(directOption) || getRubroDescription(root);
+            const preview = getRubroDemoPreview(directOption) ?? getRubroDemoPreview(root);
             return (
               <motion.div key={rootKey} whileHover={{ scale: 1.01, y: -1 }} whileTap={{ scale: 0.99 }}>
                 <Button
                   variant="secondary"
-                  className={`w-full justify-between h-auto min-h-12 py-3 px-3 border bg-gradient-to-r from-primary/[0.06] via-background to-secondary/10 text-left whitespace-normal rounded-xl shadow-sm hover:shadow-md transition-all ${getPreviewClass(getRubroDemoPreview(root)?.preset)}`}
-                  style={getPreviewStyle(getRubroDemoPreview(root))}
-                  onClick={() => onSelect(root)}
+                  className={`w-full justify-between h-auto min-h-12 py-3 px-3 border bg-gradient-to-r from-primary/[0.06] via-background to-secondary/10 text-left whitespace-normal rounded-xl shadow-sm hover:shadow-md transition-all ${getPreviewClass(preview?.preset)}`}
+                  style={getPreviewStyle(preview)}
+                  onClick={() => onSelect(directOption)}
                   data-rubro-direct-option
-                  data-widget-preset={getRubroDemoPreview(root)?.preset}
-                  data-motion-level={getRubroDemoPreview(root)?.motion_level}
-                  data-gradient-start={getRubroDemoPreview(root)?.gradient_start}
-                  data-gradient-end={getRubroDemoPreview(root)?.gradient_end}
+                  data-widget-preset={preview?.preset}
+                  data-motion-level={preview?.motion_level}
+                  data-gradient-start={preview?.gradient_start}
+                  data-gradient-end={preview?.gradient_end}
                 >
                   <div className="flex flex-col items-start gap-0.5">
-                    <span className="text-base font-semibold">{getRubroLabel(root)}</span>
-                    {getRubroDescription(root) && (
+                    <span className="text-base font-semibold">{label}</span>
+                    {description && (
                       <span className="text-xs text-muted-foreground line-clamp-2 font-normal">
-                        {getRubroDescription(root)}
+                        {description}
                       </span>
                     )}
                   </div>
