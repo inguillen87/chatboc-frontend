@@ -106,7 +106,7 @@ describe('TenantHomePage public navigation security', () => {
 
     renderPage();
 
-    expect(await screen.findByText(/todavia no publico canales visibles/i)).toBeInTheDocument();
+    expect(await screen.findByText(/todavía no publicó canales visibles/i)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /iniciar gestion/i })).not.toBeInTheDocument();
   });
 

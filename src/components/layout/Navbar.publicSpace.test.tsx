@@ -179,6 +179,22 @@ describe('Navbar preserved presentation boundaries',()=>{
     mount('/t/institution-a/login');expect(screen.getByRole('link',{name:'Published institution A'})).toBeInTheDocument();
     expect(screen.queryByTestId('public-workspace-pending')).not.toBeInTheDocument();
   });
+  it('does not advertise an empty cart on an organization public home, and keeps reading it',()=>{
+    fixtures.cart.mockReturnValue(0);
+    mount('/t/institution-a');
+    expect(screen.getByRole('link',{name:'Iniciar sesión'})).toHaveAttribute('href','/t/institution-a/login');
+    expect(within(header()).queryByRole('link',{name:/carrito/i})).not.toBeInTheDocument();
+    // The count is still read, so a cart that gains items appears without a reload.
+    expect(fixtures.cart).toHaveBeenLastCalledWith(true);
+    openMobile();
+    expect(within(screen.getByRole('navigation',{name:'Navegación principal móvil'})).queryByRole('link',{name:/Carrito/})).not.toBeInTheDocument();
+  });
+  it('keeps the empty cart reachable on a commerce route',()=>{
+    fixtures.cart.mockReturnValue(0);
+    mount('/t/institution-a/cart');
+    expect(screen.getByRole('link',{name:'Ver carrito'})).toHaveAttribute('href','/t/institution-a/cart');
+    expect(fixtures.cart).toHaveBeenLastCalledWith(true);
+  });
   it('preserves an existing cart with items on its commerce route',()=>{
     mount('/t/institution-a/cart');expect(screen.getByRole('link',{name:'Ver carrito'})).toHaveAttribute('href','/t/institution-a/cart');
     expect(screen.getByRole('link',{name:'Ver carrito'})).toHaveTextContent('6');

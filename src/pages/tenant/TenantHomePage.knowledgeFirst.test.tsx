@@ -25,7 +25,7 @@ const clients: QueryClient[] = [];
 const publicSlug = 'qa-knowledge';
 const otherSlug = 'qa-other';
 const privateSlug = 'qa-private';
-const genericDescription = 'Canales publicados por la organizacion para novedades, agenda, participacion y seguimiento.';
+const genericDescription = 'Canales publicados por la organización para novedades, agenda, participación y seguimiento.';
 const deferred = <T,>() => { let resolve!: (value: T) => void; return { promise: new Promise<T>(r => { resolve = r; }), resolve }; };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const tenantId = (slug: string) => slug === publicSlug ? 701 : 702;
@@ -100,7 +100,7 @@ describe('published institutional reading comes before the generic public overvi
     const heading = screen.getByRole('heading', { level: 1, name: tenantName(publicSlug) });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(heading.compareDocumentPosition(reader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(reader.compareDocumentPosition(screen.getByText('Este espacio todavia no publico canales visibles.')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(reader.compareDocumentPosition(screen.getByText('Este espacio todavía no publicó canales visibles.')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(knowledgeRequests()).toHaveLength(1);
     expect(safeLocalStorage.getItem('tenantSlug')).toBe(privateSlug);
     expect(useTenantStore.getState().slug).toBe(privateSlug);

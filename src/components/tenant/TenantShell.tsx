@@ -37,7 +37,7 @@ type RetryAttempt = {
 const sanitizePublicMessage = (message?: string | null) => {
   if (!message) return 'No pudimos cargar este espacio en este momento.';
   if (/<[a-z][\s\S]*>/i.test(message)) {
-    return 'El espacio no respondio correctamente. Reintenta en unos minutos.';
+    return 'El espacio no respondió correctamente. Reintentá en unos minutos.';
   }
   return message;
 };
@@ -175,8 +175,11 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
     retry: 1,
   });
 
+  // A section the organization has not published is left out of the menu: a
+  // greyed, non-interactive label reads as a broken control and cannot be
+  // reached by keyboard. Items without a safe destination still render inert.
   const navigationItems = useMemo(
-    () => navigationQuery.data?.items?.filter((item) => item.visible !== false) ?? [],
+    () => navigationQuery.data?.items?.filter((item) => item.visible !== false && item.enabled !== false) ?? [],
     [navigationQuery.data?.items],
   );
 
@@ -257,9 +260,9 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
       return (
         <div className="flex flex-col gap-4">
           <div>
-            <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>Explora espacios disponibles</h1>
+            <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('text-2xl font-semibold', HEADING_FOCUS_CLASS)}>Explorá espacios disponibles</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Elegi un municipio, colegio o empresa para acceder a sus canales publicados.
+              Elegí un municipio, colegio o empresa para acceder a sus canales publicados.
             </p>
           </div>
           <TenantSwitcher className="max-w-sm" />
@@ -331,11 +334,10 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
       <nav className={cn('flex flex-wrap items-center gap-2', compactHeader ? 'mt-4' : 'mt-8')}>
         {navigationItems.map((item) => {
           const key = item.id || item.route || item.label;
-          const enabled = item.enabled !== false;
           const to = tenantHostNavigationTarget(hostBinding, resolveTenantPublicNavigationTarget(item, basePath));
           const label = item.label;
 
-          if (!enabled || !to) {
+          if (!to) {
             return (
               <span
                 key={key}

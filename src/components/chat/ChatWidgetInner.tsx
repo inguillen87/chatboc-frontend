@@ -1721,7 +1721,6 @@ function ChatWidgetInner({
 
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | "portal" | null>(null);
-  const cartCount = useCartCount();
   const commerceCartCount = readFirstNumber(
     widgetCommerceCart?.items_count,
     widgetCommerceCart?.total_items,
@@ -1732,7 +1731,6 @@ function ChatWidgetInner({
     widgetCommerceHistory?.cart?.total_items,
     widgetCommerceSession?.cart?.items_count,
   );
-  const effectiveCartCount = commerceCartCount > 0 ? commerceCartCount : cartCount;
   const hasPublishedCommercialCatalog = useMemo(() => {
     const catalog = widgetCommerceSession?.catalog;
     const primaryActions = widgetCommerceSession?.frontend_contract?.primary_actions;
@@ -1758,6 +1756,12 @@ function ChatWidgetInner({
   }, [catalogCard.downloadUrl, catalogCard.viewUrl, catalogInfo, widgetCommerceSession]);
   const shouldExposeCommerceControls =
     resolvedTipoChat !== "municipio" || hasPublishedCommercialCatalog;
+  // The cart is only ever shown next to commerce controls, so a space that
+  // exposes none does not spend requests reading one. Reading waits for the
+  // organization's profile: until it arrives the kind of space is a default.
+  const commerceReadsEnabled = shouldExposeCommerceControls && Boolean(entityInfo);
+  const cartCount = useCartCount(commerceReadsEnabled);
+  const effectiveCartCount = commerceCartCount > 0 ? commerceCartCount : cartCount;
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
 
@@ -3016,7 +3020,8 @@ function ChatWidgetInner({
   useEffect(() => {
     let isActive = true;
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
-    if (isDemoSession) {
+    if (isDemoSession || !commerceReadsEnabled) {
+      // Without commerce controls nothing on screen would use this snapshot.
       setWidgetCommerceCart(null);
       return () => {
         isActive = false;
@@ -3079,6 +3084,7 @@ function ChatWidgetInner({
     widgetCommerceSession?.cart?.summary_endpoint,
     widgetCommerceSession?.session?.widget_session_token,
     entityInfo?.onboarding?.mode,
+    commerceReadsEnabled,
   ]);
 
   useEffect(() => {
