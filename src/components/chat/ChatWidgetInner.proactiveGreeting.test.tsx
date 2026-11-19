@@ -7,7 +7,13 @@ import ChatWidgetInner from './ChatWidgetInner';
 import ProactiveBubble from './ProactiveBubble';
 import { tenantService } from '@/services/tenantService';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
-import { hasEmbeddedInstitutionalReader, registerEmbeddedInstitutionalReader } from '@/features/chat/embeddedInstitutionalReader';
+// The signal a published reader leaves on the page (see InstitutionalAssistant).
+const hasEmbeddedInstitutionalReader = () => document.documentElement.hasAttribute('data-embedded-institutional-reader');
+const registerEmbeddedInstitutionalReader = () => {
+  const root = document.documentElement, announce = () => window.dispatchEvent(new Event('chatboc:embedded-institutional-reader'));
+  root.dataset.embeddedInstitutionalReader = '1'; announce();
+  return () => { delete root.dataset.embeddedInstitutionalReader; announce(); };
+};
 
 vi.mock('@/utils/api', async () => await vi.importActual('@/utils/api'));
 vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
