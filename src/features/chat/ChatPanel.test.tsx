@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChatPanel from './ChatPanel';
+import { ApiError } from '@/utils/api';
 
 const { sendChatBootstrapMessageMock, submitWidgetAssistedOrderMock } = vi.hoisted(() => ({
   sendChatBootstrapMessageMock: vi.fn(),
@@ -185,6 +186,99 @@ describe('ChatPanel widget assisted orders', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Error 404/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('ChatPanel demo trial limit', () => {
+  beforeEach(() => {
+    sendChatBootstrapMessageMock.mockReset();
+    submitWidgetAssistedOrderMock.mockReset();
+  });
+
+  it('disables the composer and renders the backend upgrade action at zero remaining', async () => {
+    sendChatBootstrapMessageMock.mockRejectedValue(
+      new ApiError('Demo limit reached', 429, {
+        error: 'demo_limit_reached',
+        reason_code: 'demo_message_limit_reached',
+        message: 'Llegaste al límite de mensajes gratis de esta demo.',
+        trial_usage: { channel: 'chat', limit: 5, used: 5, remaining: 0 },
+        upgrade: {
+          title: 'Ya viste la demo real. Sigamos con una prueba guiada.',
+          cta_label: 'Dejar datos',
+          lead_capture_endpoint: '/api/public/lead-capture',
+        },
+      }),
+    );
+    const onTrialUsageChange = vi.fn();
+
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'municipio',
+          sector: 'gobierno',
+          chatBootstrap: {
+            endpoint: '/api/ask/municipio',
+            payload: { demo_mode: true },
+          },
+        }}
+        initialTrialUsage={{ channel: 'chat', limit: 5, used: 4, remaining: 1 }}
+        onTrialUsageChange={onTrialUsageChange}
+        leadCapture={{
+          enabled: true,
+          fields: [{ name: 'email', label: 'Correo electrónico', type: 'email' }],
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Mensaje'), { target: { value: 'Una consulta más' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    expect(
+      await screen.findByText('Llegaste al límite de mensajes gratis de esta demo.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Mensaje')).toBeDisabled();
+    expect(screen.getByLabelText('Mensaje')).toHaveAttribute(
+      'placeholder',
+      'Usaste tus 5 consultas de prueba',
+    );
+    expect(screen.getByRole('region', { name: 'Opciones para continuar' })).toHaveTextContent(
+      'Ya viste la demo real. Sigamos con una prueba guiada.',
+    );
+    expect(onTrialUsageChange).toHaveBeenCalledWith({
+      channel: 'chat',
+      limit: 5,
+      used: 5,
+      remaining: 0,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dejar datos' }));
+    expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
+  });
+
+  it('ignores an invalid usage update and keeps the composer available', async () => {
+    sendChatBootstrapMessageMock.mockResolvedValue({
+      message_body: 'Respuesta de la demo.',
+      trial_usage: { channel: 'chat', limit: 5, used: 2, remaining: 6 },
+    });
+    const onTrialUsageChange = vi.fn();
+
+    render(
+      <ChatPanel
+        context={{
+          tipoChat: 'municipio',
+          chatBootstrap: { endpoint: '/api/ask/municipio', payload: { demo_mode: true } },
+        }}
+        initialTrialUsage={{ channel: 'chat', limit: 5, used: 1, remaining: 4 }}
+        onTrialUsageChange={onTrialUsageChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Mensaje'), { target: { value: 'Consulta válida' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    expect(await screen.findByText('Respuesta de la demo.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mensaje')).not.toBeDisabled();
+    expect(onTrialUsageChange).not.toHaveBeenCalled();
   });
 });
 

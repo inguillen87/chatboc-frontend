@@ -7,6 +7,7 @@ import type {
   ChatLeadCaptureConfig,
   ChatMediaCapabilities,
 } from '@/types/chat';
+import type { DemoTrialPolicy, DemoTrialUsage } from './trialUsage';
 import type { HandoffLabels, QuickReplyItem } from '@/features/chat/chatTypes';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
 
@@ -417,6 +418,8 @@ export interface DemoSessionResponse {
   catalog_resources?: DemoCatalogResource[];
   analytics_summary?: Record<string, unknown> | null;
   handoff_labels?: HandoffLabels | null;
+  trial_policy?: DemoTrialPolicy | null;
+  trial_usage?: DemoTrialUsage | null;
 }
 
 export interface DemoChatBootstrap {
@@ -534,6 +537,8 @@ export interface DemoWorkspaceConfig {
   catalog_resources?: DemoCatalogResource[];
   analytics_summary?: Record<string, unknown> | null;
   handoff_labels?: HandoffLabels | null;
+  trial_policy?: DemoTrialPolicy | null;
+  trial_usage?: DemoTrialUsage | null;
   first_visit?: ChatExperienceBlock | null;
   sample_conversations?: ChatExperienceBlock[];
   trust_signals?: ChatExperienceBlock[];
