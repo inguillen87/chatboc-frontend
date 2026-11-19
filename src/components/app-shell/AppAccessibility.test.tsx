@@ -35,6 +35,24 @@ describe('AppAccessibility focused public routes', () => {
     );
   });
 
+  it.each(['/t/tierra-del-fuego', '/t/Tierra-del-Fuego/'])('moves the control into the top bar on the public home %s', (pathname) => {
+    renderAt(pathname);
+
+    const dock = screen.getByRole('region', { name: 'Accesibilidad de la plataforma' });
+    expect(dock).toHaveClass('chatboc-a11y-dock--public-space');
+    expect(dock).not.toHaveClass('chatboc-a11y-dock--focused-public');
+  });
+
+  it.each(['/t/tierra-del-fuego/noticias', '/t/tierra-del-fuego/admin/knowledge', '/admin/encuestas', '/'])(
+    'keeps the usual placement outside the public home on %s', (pathname) => {
+      renderAt(pathname);
+
+      expect(screen.getByRole('region', { name: 'Accesibilidad de la plataforma' })).not.toHaveClass(
+        'chatboc-a11y-dock--public-space',
+      );
+    },
+  );
+
   it('does not apply the focused layout to regular application routes', () => {
     renderAt('/admin/encuestas');
 

@@ -1988,6 +1988,21 @@ html {
     top: calc(0.65rem + env(safe-area-inset-top));
     bottom: auto;
   }
+
+  /* On an organization's public home the control sits in the fixed top bar,
+     beside the menu button and at the same touch size, instead of floating
+     over the reading column. Same spot the open mobile menu already uses. */
+  .chatboc-a11y-dock.chatboc-a11y-dock--public-space {
+    left: auto;
+    right: calc(4.75rem + env(safe-area-inset-right));
+    top: calc(0.65rem + env(safe-area-inset-top));
+    bottom: auto;
+  }
+
+  .chatboc-a11y-dock--public-space .chatboc-a11y-dock__button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }
 
 @media (max-width: 767px) {
