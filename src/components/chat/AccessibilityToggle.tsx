@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, type ComponentType } from "react";
-import { BookOpen, Captions, Eye, List, MousePointer2, PauseCircle } from "lucide-react";
+import { Accessibility, BookOpen, Captions, Eye, List, MousePointer2, PauseCircle } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { ensureOptionalFonts } from "@/utils/optionalFonts";
 import { Button } from "@/components/ui/button";
@@ -221,7 +221,9 @@ export default function AccessibilityToggle({
                 )}
                 aria-label="Abrir ajustes de accesibilidad"
               >
-                <BookOpen className="h-5 w-5" />
+                {/* The universal access figure: a book here read as "documents", the same
+                    glyph the institutional reader uses for its sources. */}
+                <Accessibility className="h-5 w-5" aria-hidden="true" />
                 {activeCount > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[10px] font-bold leading-none text-white">
                     {activeCount}

@@ -137,6 +137,10 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   // Tenant commerce is not a platform upsell; no published type or URL disables it.
   const showTenantCart = !isPublicTenantPage || Boolean(publicIdentity);
   const cartCount = useCartCount(!privateShell.active && !hostBinding && showTenantCart);
+  // An organization's public home offers the cart once it holds something. Many
+  // spaces publish no commerce, and an empty cart there reads as platform noise;
+  // commerce routes keep the link always, and a cart with items is never hidden.
+  const showCartLink = showTenantCart && (!isPublicTenantPage || cartCount > 0);
   const clerkRuntime = useClerkRuntime();
   const institutionBrandRef=useRef<HTMLAnchorElement>(null);
   const loginScope=readPanelLoginScope(location.pathname);
@@ -472,7 +476,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
         ) : null}
 
         <div className="hidden items-center gap-3 md:flex">
-          {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showTenantCart ? (
+          {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showCartLink ? (
             <RouterLink
               to={cartPath}
               className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
@@ -635,7 +639,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                   </button>
                 ))
               : null}
-            {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showTenantCart ? (
+            {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showCartLink ? (
               <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                 <ShoppingCart className="h-4 w-4" />
                 Carrito

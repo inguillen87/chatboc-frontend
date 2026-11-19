@@ -78,6 +78,27 @@ describe('TenantShell public navigation security', () => {
     expect(screen.queryByTestId('tenant-switcher')).not.toBeInTheDocument();
   });
 
+  it('leaves out of the menu the sections the organization has not published', async () => {
+    getTenantPublicNavigationMock.mockResolvedValue({
+      contract_version: 'tenant.public_navigation.v1',
+      tenant_slug: 'junin',
+      items: [
+        { id: 'home', label: 'Inicio', route: '/t/junin', enabled: true },
+        { id: 'surveys', label: 'Encuestas', route: '/t/junin/encuestas', enabled: false, empty_state: 'Todavía no hay encuestas publicadas.' },
+        { id: 'catalog', label: 'Catálogo', route: '/t/junin/catalogo', enabled: false },
+        { id: 'new_claim', label: 'Nuevo reclamo', route: '/t/junin/reclamos/nuevo', enabled: true },
+      ],
+    });
+
+    renderShell();
+    expect(await screen.findByRole('link', { name: 'Nuevo reclamo' })).toHaveAttribute('href', '/t/junin/reclamos/nuevo');
+    expect(screen.getByRole('link', { name: 'Inicio' })).toBeInTheDocument();
+    // Neither a link nor a greyed label: an unpublished section is not announced.
+    expect(screen.queryByText('Encuestas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Catálogo')).not.toBeInTheDocument();
+    expect(document.querySelector('nav [aria-disabled="true"]')).toBeNull();
+  });
+
   it('renders the legitimate route and disables every mixed-separator PoC', async () => {
     getTenantPublicNavigationMock.mockResolvedValue({
       contract_version: 'tenant.public_navigation.v1',

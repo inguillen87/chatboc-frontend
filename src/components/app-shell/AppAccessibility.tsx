@@ -46,6 +46,12 @@ function isFocusedPublicRoute(pathname: string) {
   );
 }
 
+// An organization's public home is read on a phone as one column from edge to
+// edge, so nothing fixed may sit over it: there the control joins the top bar.
+function isPublicSpaceHome(pathname: string) {
+  return /^\/t\/[^/]+\/?$/i.test(pathname);
+}
+
 function isAuthorityRejection(error: unknown) {
   const status = error && typeof error === 'object' && 'status' in error
     ? error.status : undefined;
@@ -73,6 +79,7 @@ export function AppAccessibility() {
   const hideDock = shouldHideDock(location.pathname);
   const publicTicketRoute = isPublicTicketRoute(location.pathname);
   const focusedPublicRoute = isFocusedPublicRoute(location.pathname);
+  const publicSpaceHome = isPublicSpaceHome(location.pathname);
 
   useEffect(() => {
     applyAccessibilityPrefs(readAccessibilityPrefs());
@@ -200,6 +207,8 @@ export function AppAccessibility() {
             publicTicketRoute ? " chatboc-a11y-dock--public-ticket" : ""
           }${
             focusedPublicRoute ? " chatboc-a11y-dock--focused-public" : ""
+          }${
+            publicSpaceHome ? " chatboc-a11y-dock--public-space" : ""
           }`}
           role="region"
           aria-label="Accesibilidad de la plataforma"

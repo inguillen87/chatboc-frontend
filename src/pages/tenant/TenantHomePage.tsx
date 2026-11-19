@@ -1,5 +1,5 @@
 import InstitutionalAssistant, { type PublicKnowledgeAvailability } from '@/components/knowledge/InstitutionalAssistant';
-import { useMemo, useState, type ElementType, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -110,16 +110,19 @@ const LandingSectionShell = ({
   description: string;
   action?: ReactNode;
   children: ReactNode;
-}) => (
-  <section className="space-y-5">
+}) => {
+  // The heading names the section, so assistive technology lists it as a region.
+  const headingId = useId();
+  return (
+  <section className="space-y-5" aria-labelledby={headingId}>
     <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-background/70 p-6 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
       <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+        <div aria-hidden="true" className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
           <Icon className="h-3.5 w-3.5" />
           {title}
         </div>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
+          <h2 id={headingId} className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
         </div>
       </div>
@@ -127,7 +130,8 @@ const LandingSectionShell = ({
     </div>
     {children}
   </section>
-);
+  );
+};
 
 const TenantPublicLanding = () => {
   const params = useParams<{ tenant: string }>();
@@ -261,14 +265,14 @@ const TenantPublicLanding = () => {
               <div className="space-y-5">
                 <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
                   <Sparkles className="mr-2 h-3.5 w-3.5" />
-                  Espacio publico
+                  Espacio público
                 </Badge>
                 <div className="space-y-3">
                   <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
                     {tenantName}
                   </h1>
                   <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                    Canales publicados por la organizacion para novedades, agenda, participacion y seguimiento.
+                    Canales publicados por la organización para novedades, agenda, participación y seguimiento.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -309,7 +313,7 @@ const TenantPublicLanding = () => {
           {navigationLoaded && !hasPublishedModules ? (
             <Card className="border-border/60 bg-background/70 shadow-sm">
               <CardContent className="p-6 text-sm text-muted-foreground">
-                Este espacio todavia no publico canales visibles.
+                Este espacio todavía no publicó canales visibles.
               </CardContent>
             </Card>
           ) : null}
@@ -448,7 +452,7 @@ const TenantPublicLanding = () => {
           {shouldLoadSurveys ? (
             <LandingSectionShell
               icon={ClipboardCheck}
-              title={surveysNavItem?.label ?? 'Participacion'}
+              title={surveysNavItem?.label ?? 'Participación'}
               description="Instancias activas para votar, opinar o responder desde este espacio."
               action={surveysTarget ? (
                 <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
