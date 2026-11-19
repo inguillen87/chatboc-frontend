@@ -72,4 +72,21 @@ describe('RubroSelector', () => {
 
     expect(screen.getByRole('button', { name: 'Empresas' })).toHaveAttribute('aria-expanded', 'false');
   });
+
+  it('opens the production shape in one click: a group whose children were pruned, with a name and nothing else', () => {
+    // /demo prunes unavailable children, so each group arrives as
+    // { nombre, subrubros: [] } with no demo block and no description.
+    const onSelect = vi.fn();
+    const gobierno = { id: 40, nombre: 'Gobiernos y municipios', subrubros: [] } as any;
+    const concejo = { id: 41, nombre: 'Concejo deliberante', subrubros: [] } as any;
+    render(<RubroSelector rubros={[gobierno, concejo]} onSelect={onSelect} />);
+
+    const option = screen.getByRole('button', { name: 'Gobiernos y municipios' });
+    expect(option).toHaveAttribute('data-rubro-direct-option');
+    expect(option).not.toHaveAttribute('aria-expanded');
+    expect(screen.queryAllByRole('button', { expanded: false })).toHaveLength(0);
+
+    fireEvent.click(option);
+    expect(onSelect).toHaveBeenCalledWith(gobierno);
+  });
 });
