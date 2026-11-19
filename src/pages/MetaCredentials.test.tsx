@@ -196,4 +196,27 @@ describe('private credential loading', () => {
     expect(api.plan).toHaveBeenCalledOnce();
     expect(api.apply).not.toHaveBeenCalled();
   });
+
+describe('automatic renewal status', () => {
+  it.each([
+    ['ok', 'Se renueva sola: Chatboc la vuelve a validar con Meta antes de que venza.'],
+    ['due', 'Se renueva sola: la próxima revisión diaria la valida con Meta y extiende su vigencia.'],
+    ['failed', 'Meta rechazó la credencial en la última revisión automática. Cargá una nueva para que el canal no se corte.'],
+    ['expired', 'La credencial venció. Cargá una nueva; a partir de ahí se renueva sola.'],
+  ] as const)('explains the %s state in plain words', async (state, text) => {
+    api.status.mockImplementation(async target => ({ ...statusFor(target),
+      renewal: target === 'tdf-sandbox' ? { state, lastRevalidatedAt: null, nextCheckAfter: null, reason: null } : null }));
+    render(app());
+    const note = await screen.findByText(text);
+    expect(note).toHaveAttribute('data-renewal-state', state);
+    expect(document.querySelectorAll('[data-renewal-state]')).toHaveLength(1);
+  });
+
+  it('describes the reviewed 30-day vigencia as self-renewing when the plan says so', async () => {
+    api.plan.mockImplementation(async status => ({ ...planFor(status), renewal: status.target === 'tdf-sandbox' ? 'automatic' : null }));
+    render(app());
+    await review();
+    expect(screen.getByText('Vigencia local de 30 días que se renueva sola: cada día Chatboc la vuelve a validar con Meta.')).toBeInTheDocument();
+  });
+});
 });

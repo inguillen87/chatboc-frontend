@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiFetch } from '@/utils/api';
 import {
   MetaCredentialClientError, metaCredentialApi, metaCredentialApiBase,
-  parseMetaCredentialPlan, parseMetaCredentialStatus,
+  parseMetaCredentialPlan, parseMetaCredentialRenewal, parseMetaCredentialStatus,
 } from './metaCredentialApi';
 import { expiresAt, planFor, planPayload, receiptPayload, statusFor, statusPayload, tokenFor } from './__tests__/fixtures';
 
@@ -113,4 +113,38 @@ describe('private Meta credential contract and dispatch', () => {
     await expect(metaCredentialApi.plan(statusFor('junin-production'), tokenFor('junin-production'), { isCurrent: () => false }))
       .rejects.toMatchObject({ name: 'AbortError' });
   });
+
+describe('automatic renewal block', () => {
+  it('projects the renewal state from the status and treats it as optional', () => {
+    const renewal = { mode: 'automatic', state: 'ok', last_revalidated_at: 1_795_000_000,
+      next_check_after: 1_796_000_000, reason: null };
+    const parsed = parseMetaCredentialStatus({ ...statusPayload('tdf-sandbox'), renewal }, 'tdf-sandbox');
+    expect(parsed.renewal).toEqual({ state: 'ok', lastRevalidatedAt: 1_795_000_000, nextCheckAfter: 1_796_000_000, reason: null });
+    expect(parseMetaCredentialStatus(statusPayload('tdf-sandbox'), 'tdf-sandbox').renewal).toBeNull();
+  });
+
+  it.each([
+    ['unknown state', { mode: 'automatic', state: 'renewed' }],
+    ['manual mode', { mode: 'manual', state: 'ok' }],
+    ['not an object', 'ok'],
+    ['an array', [{ mode: 'automatic', state: 'ok' }]],
+  ])('ignores a malformed block (%s) without rejecting the status', (_label, renewal) => {
+    expect(parseMetaCredentialRenewal(renewal)).toBeNull();
+    expect(() => parseMetaCredentialStatus({ ...statusPayload('tdf-sandbox'), renewal }, 'tdf-sandbox')).not.toThrow();
+  });
+
+  it('drops reasons and timestamps that are not plain codes or integers', () => {
+    expect(parseMetaCredentialRenewal({ mode: 'automatic', state: 'failed', reason: '<b>x</b>',
+      last_revalidated_at: 1.5, next_check_after: -3 }))
+      .toEqual({ state: 'failed', lastRevalidatedAt: null, nextCheckAfter: null, reason: null });
+  });
+
+  it('reads the plan renewal mode only from the reviewed expiry metadata', () => {
+    const status = statusFor('tdf-sandbox');
+    const payload = planPayload(status);
+    expect(parseMetaCredentialPlan(payload, status).renewal).toBeNull();
+    (payload.expiry as Record<string, unknown>).renewal = 'automatic';
+    expect(parseMetaCredentialPlan(payload, status).renewal).toBe('automatic');
+  });
+});
 });
