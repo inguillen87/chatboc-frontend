@@ -7,7 +7,7 @@ export const InstitutionalAccessBrand=forwardRef<HTMLAnchorElement,{identity:Pub
   return <Link ref={ref} to={homePath ?? `/t/${encodeURIComponent(identity.tenantSlug)}`} aria-label={identity.name}
     className="institutional-access-brand" data-testid="institutional-access-brand" data-tenant-id={identity.tenantId}>
     {identity.logoUrl&&!failed?<img src={identity.logoUrl} alt="" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>:<Building2 aria-hidden="true" size={30}/>}
-    <span><strong>{identity.name}</strong><small>{subtitle ?? identity.tenantSlug}</small></span>
+    <span><strong>{identity.name}</strong>{subtitle?<small>{subtitle}</small>:null}</span>
   </Link>;
 });
 InstitutionalAccessBrand.displayName='InstitutionalAccessBrand';

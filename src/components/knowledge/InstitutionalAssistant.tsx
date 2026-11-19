@@ -3,6 +3,7 @@ import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,P
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
+import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
@@ -52,6 +53,20 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     if(mode!=='public')return;
     onPublicKnowledgeAvailability?.(publishedTenantId&&publishedRevision?{tenantSlug,tenantId:publishedTenantId,revision:publishedRevision}:null);
   },[mode,tenantSlug,publishedTenantId,publishedRevision,onPublicKnowledgeAvailability]);
+  // While this published reader is the page's content, the floating widget keeps
+  // its launcher but does not raise an unsolicited greeting over the reading area.
+  // The widget reads this attribute and event (ChatWidgetInner); a shared module
+  // would add a chunk to the offline shell, so the page itself carries the signal.
+  useEffect(()=>{
+    if(mode!=='public'||!publishedTenantId||!publishedRevision)return;
+    const root=document.documentElement,announce=()=>window.dispatchEvent(new Event('chatboc:embedded-institutional-reader'));
+    root.dataset.embeddedInstitutionalReader=String(Number(root.dataset.embeddedInstitutionalReader??0)+1);announce();
+    return()=>{
+      const left=Number(root.dataset.embeddedInstitutionalReader??1)-1;
+      if(left>0)root.dataset.embeddedInstitutionalReader=String(left);else delete root.dataset.embeddedInstitutionalReader;
+      announce();
+    };
+  },[mode,publishedTenantId,publishedRevision]);
   const captureRequestFocus=(seq:number,origin:HTMLElement|null,fromReview=false)=>{
     if(frame.current!==null){cancelAnimationFrame(frame.current);frame.current=null;}
     const focused=document.activeElement;
@@ -304,6 +319,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/></button></div></form>:null}
       </div>
     </div>
+    {mode==='admin'&&typeof ui.question_metrics==='string'&&ui.question_metrics.trim()?<KnowledgeQuestionMetricsPanel workspace={workspace} label={ui.question_metrics}/>:null}
     <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId} largeText={large}
       restoreFocus={()=>{const target=sourcesReturnFocus.current?.isConnected?sourcesReturnFocus.current:sourcesTrigger.current;if(active.current&&target?.isConnected)target.focus({preventScroll:true});}}/>
     <KnowledgeReviewDialog workspace={workspace} pending={pending} onCancel={cancelReview} onConfirm={()=>void confirm()} restoreFocus={restoreReviewFocus} largeText={large}/>

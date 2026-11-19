@@ -341,7 +341,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
                 key={key}
                 aria-disabled="true"
                 title={item.disabled_reason ?? item.reason_code ?? undefined}
-                className="rounded-full bg-muted/25 px-3 py-2 text-sm font-medium text-muted-foreground/60"
+                className="inline-flex min-h-11 items-center rounded-full bg-muted/25 px-4 py-2 text-sm font-medium text-muted-foreground/60"
               >
                 {label}
               </span>
@@ -355,7 +355,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
               end={to === basePath || to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'rounded-full px-3 py-2 text-sm font-medium transition-colors',
+                  'inline-flex min-h-11 items-center rounded-full px-4 py-2 text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground',

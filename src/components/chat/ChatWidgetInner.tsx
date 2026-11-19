@@ -1,7 +1,7 @@
 // src/components/chat/ChatWidgetInner.tsx
 
 import { useWidgetSessionStore } from '@/stores';
-import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from "react";
 import { useLocation } from "react-router-dom";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -427,6 +427,14 @@ const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
+// A published institutional reader embedded in the page announces itself on
+// <html> (InstitutionalAssistant sets the attribute and dispatches the event).
+const EMBEDDED_INSTITUTIONAL_READER_EVENT = 'chatboc:embedded-institutional-reader';
+const subscribeEmbeddedInstitutionalReader = (listener: () => void) => {
+  window.addEventListener(EMBEDDED_INSTITUTIONAL_READER_EVENT, listener);
+  return () => window.removeEventListener(EMBEDDED_INSTITUTIONAL_READER_EVENT, listener);
+};
+const readEmbeddedInstitutionalReader = () => document.documentElement.hasAttribute('data-embedded-institutional-reader');
 
 function sanitizeTenantSlug(slug?: string | null) {
   try {
@@ -1556,6 +1564,7 @@ function ChatWidgetInner({
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 
+  const embeddedInstitutionalReader = useSyncExternalStore(subscribeEmbeddedInstitutionalReader, readEmbeddedInstitutionalReader, () => false);
   const proactiveMessages = useMemo(() => {
     const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
     const propText = typeof ctaMessage === 'string' ? ctaMessage.trim() : '';
@@ -1582,7 +1591,10 @@ function ChatWidgetInner({
     scopeKey: JSON.stringify([widgetId, greetingTenant]),
     bindingKey: `${location.pathname}${location.search}`,
     messages: proactiveMessages,
-    ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant,
+    // A published reader embedded in this page is already the invitation to ask;
+    // only a greeting the organization explicitly forces is raised over it.
+    ready: Boolean(entityInfo) && !isProfileLoading && !profileError && greetingProfileTenant === greetingTenant
+      && (!embeddedInstitutionalReader || entityInfo?.force_proactive === true),
     isOpen, isMobile: isMobileView, containerRef: widgetContainerRef,
     initialDelay: entityInfo?.force_proactive === true ? 3000 : ctaMessage?.trim() ? 2500 : 6000,
   });

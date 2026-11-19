@@ -7,6 +7,13 @@ import ChatWidgetInner from './ChatWidgetInner';
 import ProactiveBubble from './ProactiveBubble';
 import { tenantService } from '@/services/tenantService';
 import { usePanelSessionStore, useTenantStore, useWidgetSessionStore } from '@/stores';
+// The signal a published reader leaves on the page (see InstitutionalAssistant).
+const hasEmbeddedInstitutionalReader = () => document.documentElement.hasAttribute('data-embedded-institutional-reader');
+const registerEmbeddedInstitutionalReader = () => {
+  const root = document.documentElement, announce = () => window.dispatchEvent(new Event('chatboc:embedded-institutional-reader'));
+  root.dataset.embeddedInstitutionalReader = '1'; announce();
+  return () => { delete root.dataset.embeddedInstitutionalReader; announce(); };
+};
 
 vi.mock('@/utils/api', async () => await vi.importActual('@/utils/api'));
 vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'));
@@ -213,5 +220,36 @@ describe('proactive greeting ownership and keyboard behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: greeting, exact: true }));
     await tick(500);
     expect(JSON.parse(localStorage.getItem('pending_widget_action')!)).toEqual({ action: 'trigger_intent', payload: 'backend-intent-unchanged', text: greeting });
+  });
+});
+
+describe('proactive greeting beside an embedded published reader', () => {
+  it('keeps the launcher and raises no greeting while the reader is the page content', async () => {
+    const release = registerEmbeddedInstitutionalReader();
+    try {
+      await mountWidget(); await tick(45000);
+      expect(launcher()).toBeInTheDocument();
+      expect(screen.queryByText(greeting, { exact: true })).not.toBeInTheDocument();
+      // Leaving the reader (for example another section of the same space) restores the published greeting.
+      act(() => { release(); }); await tick(12000);
+      expect(screen.getByText(greeting, { exact: true })).toBeInTheDocument();
+      // A reader appearing later retires a greeting that is already on screen.
+      const again = registerEmbeddedInstitutionalReader();
+      try {
+        await tick(100);
+        expect(screen.queryByText(greeting, { exact: true })).not.toBeInTheDocument();
+        expect(launcher()).toBeInTheDocument();
+      } finally { act(() => { again(); }); }
+    } finally { act(() => { release(); }); }
+    expect(hasEmbeddedInstitutionalReader()).toBe(false);
+  });
+
+  it('still raises a greeting the organization explicitly forces', async () => {
+    vi.mocked(tenantService.getPublicWidgetConfig).mockImplementation(async slug => profile(slug, true));
+    const release = registerEmbeddedInstitutionalReader();
+    try {
+      await mountWidget(); await tick(3100);
+      expect(screen.getByText(greeting, { exact: true })).toBeInTheDocument();
+    } finally { act(() => { release(); }); }
   });
 });
