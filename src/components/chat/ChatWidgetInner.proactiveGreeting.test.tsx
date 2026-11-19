@@ -225,6 +225,8 @@ describe('proactive greeting ownership and keyboard behavior', () => {
 
 describe('proactive greeting beside an embedded published reader', () => {
   it('keeps the launcher and raises no greeting while the reader is the page content', async () => {
+    // Wide screens have room for both; the narrow case is covered below.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
     const release = registerEmbeddedInstitutionalReader();
     try {
       await mountWidget(); await tick(45000);

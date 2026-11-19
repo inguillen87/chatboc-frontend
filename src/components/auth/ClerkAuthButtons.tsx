@@ -8,11 +8,12 @@ import {
   useSignIn,
   useSignUp,
 } from '@clerk/clerk-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Facebook, Linkedin, Loader2, LogOut, Mail, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useClerkRuntime, type ClerkRuntimeValue } from '@/components/auth/ClerkRuntimeContext';
+import { isGuestPublicHomeRuntime } from '@/components/auth/clerkRuntimeResolver';
 import GoogleIcon from '@/components/auth/GoogleIcon';
 import { cn } from '@/lib/utils';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
@@ -291,10 +292,29 @@ const ClerkAuthButtonsInner: React.FC<ClerkAuthButtonsProps & { clerkRuntime: Cl
   );
 };
 
+// An organization's public home opens for anonymous visitors without the
+// sign-in runtime. Its chat still shows where to sign in with an existing
+// account: the organization's own page, which loads that runtime.
+const GuestHomeSignInLink: React.FC<ClerkAuthButtonsProps> = ({ mode = 'login', className, tenantSlug }) => {
+  const slug = String(tenantSlug || '').trim();
+  if (!slug) return null;
+
+  return (
+    <Button asChild variant="outline" className={cn('w-full', className)}>
+      <Link to={`/t/${encodeURIComponent(slug)}/${mode === 'register' ? 'register' : 'login'}`}>
+        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+        {mode === 'register' ? 'Crear la cuenta con Google u otra cuenta' : 'Ingresar con Google u otra cuenta'}
+      </Link>
+    </Button>
+  );
+};
+
 const ClerkAuthButtons: React.FC<ClerkAuthButtonsProps> = (props) => {
   const clerkRuntime = useClerkRuntime();
 
-  if (!clerkRuntime.enabled) return null;
+  if (!clerkRuntime.enabled) {
+    return isGuestPublicHomeRuntime(clerkRuntime) ? <GuestHomeSignInLink {...props} /> : null;
+  }
 
   return <ClerkAuthButtonsInner {...props} clerkRuntime={clerkRuntime} />;
 };

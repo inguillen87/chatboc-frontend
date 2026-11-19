@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import {isClerkSessionRetired} from '@/utils/sessionRetirement';
+import { hasAuthenticatedChatbocSession, readPersistedClerkUserId } from '@/utils/sessionLogout';
 import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
 import {subscribeChatbocSessionRevision,captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import { BrowserRouter, Routes, Route, matchPath, useLocation, useNavigate } from "react-router-dom";
@@ -42,10 +43,12 @@ import {
 } from '@/components/auth/ClerkRuntimeContext';
 import {
   buildClerkBackendUnavailableRuntime,
+  buildGuestPublicHomeRuntime,
   buildPublicClerkBypassRuntime,
   buildClerkRuntimeFromEnv,
   CLERK_RUNTIME_BOOTSTRAP_TIMEOUT_MS,
   isClerkOriginCompatible,
+  isGuestPublicHomePresentation,
   isPublicClerkBypassPresentation,
   shouldReloadAfterPublicPreviewNavigation,
 } from '@/components/auth/clerkRuntimeResolver';
@@ -242,16 +245,29 @@ const BackendBootstrapBoundary = ({ children }: { children: React.ReactNode }) =
 
 const useResolvedClerkRuntime = (): ClerkRuntimeValue => {
   const allowEnvFallback = import.meta.env.DEV;
-  const [publicClerkBypassPresentation] = React.useState(() =>
+  const [staticPublicPresentation] = React.useState(() =>
     typeof window !== 'undefined' && isPublicClerkBypassPresentation({
       hostname: window.location.hostname,
       pathname: window.location.pathname,
       search: window.location.search,
     }),
   );
+  // Decided once, before anything mounts: an anonymous visitor opening an
+  // organization's public home does not download the sign-in runtime.
+  const [guestPublicHome] = React.useState(() =>
+    typeof window !== 'undefined' && !staticPublicPresentation && isGuestPublicHomePresentation({
+      pathname: window.location.pathname,
+      search: window.location.search,
+      cookie: typeof document !== 'undefined' ? document.cookie : '',
+      storedSession: hasAuthenticatedChatbocSession() || Boolean(readPersistedClerkUserId()),
+    }),
+  );
+  const publicClerkBypassPresentation = staticPublicPresentation || guestPublicHome;
   const [runtime, setRuntime] = React.useState<ClerkRuntimeValue>(() =>
-    publicClerkBypassPresentation
+    staticPublicPresentation
       ? buildPublicClerkBypassRuntime(CLERK_PUBLISHABLE_KEY)
+      : guestPublicHome
+        ? buildGuestPublicHomeRuntime(CLERK_PUBLISHABLE_KEY)
       : buildClerkRuntimeFromEnv({
           allowEnvFallback,
           envEnabled: CLERK_AUTH_ENABLED,
