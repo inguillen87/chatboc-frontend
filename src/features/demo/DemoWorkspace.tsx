@@ -18,6 +18,11 @@ import {
 } from 'lucide-react';
 import ChatPanel from '@/features/chat/ChatPanel';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import TrialUsageIndicator from './TrialUsageIndicator';
+import {
+  resolveInitialDemoTrialUsage,
+  type DemoTrialUsage,
+} from './trialUsage';
 import { formatDemoPresentationLabel } from './demoPresentationLabels';
 import { normalizeDemoRubroTools, type NormalizedDemoRubroTool } from './demoTools';
 import { readWorkspaceActionMenu } from '@/utils/widgetActionMenu';
@@ -243,6 +248,12 @@ export default function DemoWorkspace({
   presentation?: 'full' | 'executive';
 }) {
   const isExecutive = presentation === 'executive';
+  const [trialUsage, setTrialUsage] = React.useState<DemoTrialUsage | null>(() =>
+    resolveInitialDemoTrialUsage(workspace?.trial_usage, workspace?.trial_policy),
+  );
+  React.useEffect(() => {
+    setTrialUsage(resolveInitialDemoTrialUsage(workspace?.trial_usage, workspace?.trial_policy));
+  }, [workspace]);
   const valueCards = workspace?.value_cards ?? [];
   const sampleConversations =
     workspace?.sample_conversations ?? workspace?.experience_blueprint?.sample_conversations ?? [];
@@ -286,6 +297,7 @@ export default function DemoWorkspace({
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">{chatTitle}</p>
                 <p className="truncate text-xs text-muted-foreground">{phoneSubtitle}</p>
+                <TrialUsageIndicator usage={trialUsage} />
               </div>
             </div>
             {loading ? (
@@ -376,6 +388,8 @@ export default function DemoWorkspace({
                 supportChannels={workspace?.support_channels ?? null}
                 realtimeVoice={workspace?.realtime_voice ?? workspace?.support_channels?.voice_call?.capabilities ?? null}
                 onRuntimeResult={onRuntimeResult}
+                initialTrialUsage={trialUsage}
+                onTrialUsageChange={setTrialUsage}
               />
             ) : (
               <div className="flex min-h-[520px] flex-col items-center justify-center rounded-[1rem] border border-dashed border-border/70 bg-card/50 p-6 text-center">

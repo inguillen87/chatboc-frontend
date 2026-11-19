@@ -108,6 +108,39 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem('chatboc_chat_session_id')).toBeNull();
   });
 
+  it('preserves the initial trial contract in the normalized demo workspace', async () => {
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      demo_session_id: 'demo-token-trial',
+      chat_session_id: 'sid_demo_trial',
+      tenant_slug: 'municipio',
+      trial_policy: {
+        contract_version: 'demo.trial_policy.v1',
+        scope: 'demo-session',
+        max_messages: 5,
+      },
+      trial_usage: { channel: 'chat', limit: 5, used: 0, remaining: 5 },
+      workspace: {
+        chat_bootstrap: {
+          endpoint: '/api/ask/municipio',
+          payload: { demo_mode: true },
+        },
+      },
+    });
+
+    const response = await createDemoSession({ sector: 'gobierno', tenant_slug: 'municipio' });
+
+    expect(response.workspace?.trial_policy).toEqual(
+      expect.objectContaining({ contract_version: 'demo.trial_policy.v1', max_messages: 5 }),
+    );
+    expect(response.workspace?.trial_usage).toEqual({
+      channel: 'chat',
+      limit: 5,
+      used: 0,
+      remaining: 5,
+    });
+  });
+
   it('sends the demo session only in headers and never exposes it in the admin preview URL', async () => {
     demoGetMock.mockResolvedValue({
       contract_version: 'demo.admin_preview.v1',

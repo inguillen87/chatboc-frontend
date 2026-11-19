@@ -515,6 +515,8 @@ const normalizeWorkspaceConfig = (
   const conversionCtas = workspace.conversion_ctas ?? response.conversion_ctas ?? experienceBlueprint?.conversion_ctas ?? null;
   const animationTokens = workspace.animation_tokens ?? response.animation_tokens ?? experienceBlueprint?.animation_tokens ?? null;
   const emptyStates = workspace.empty_states ?? response.empty_states ?? experienceBlueprint?.empty_states ?? undefined;
+  const trialPolicy = workspace.trial_policy ?? response.trial_policy ?? null;
+  const trialUsage = workspace.trial_usage ?? response.trial_usage ?? null;
   const education = workspace.education ?? null;
   const chatBootstrap = normalizeChatBootstrap(
     workspace.chat_bootstrap ??
@@ -559,6 +561,8 @@ const normalizeWorkspaceConfig = (
     !conversionCtas &&
     !animationTokens &&
     !emptyStates &&
+    !trialPolicy &&
+    !trialUsage &&
     !education &&
     !workspace.rubro_tools &&
     !workspace.business_tools &&
@@ -593,6 +597,8 @@ const normalizeWorkspaceConfig = (
     conversion_ctas: conversionCtas,
     animation_tokens: animationTokens,
     empty_states: emptyStates,
+    trial_policy: trialPolicy,
+    trial_usage: trialUsage,
     education,
     rubro_tools: normalizeDemoResourceUrlsDeep(workspace.rubro_tools ?? null),
     business_tools: normalizeDemoResourceUrlsDeep(workspace.business_tools ?? null),
