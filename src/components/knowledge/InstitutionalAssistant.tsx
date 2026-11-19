@@ -9,7 +9,6 @@ import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
-import {registerEmbeddedInstitutionalReader} from '@/features/chat/embeddedInstitutionalReader';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
 import {safeInstitutionLogo,type PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
@@ -56,8 +55,18 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   },[mode,tenantSlug,publishedTenantId,publishedRevision,onPublicKnowledgeAvailability]);
   // While this published reader is the page's content, the floating widget keeps
   // its launcher but does not raise an unsolicited greeting over the reading area.
-  useEffect(()=>mode==='public'&&publishedTenantId&&publishedRevision?registerEmbeddedInstitutionalReader():undefined,
-    [mode,publishedTenantId,publishedRevision]);
+  // The widget reads this attribute and event (ChatWidgetInner); a shared module
+  // would add a chunk to the offline shell, so the page itself carries the signal.
+  useEffect(()=>{
+    if(mode!=='public'||!publishedTenantId||!publishedRevision)return;
+    const root=document.documentElement,announce=()=>window.dispatchEvent(new Event('chatboc:embedded-institutional-reader'));
+    root.dataset.embeddedInstitutionalReader=String(Number(root.dataset.embeddedInstitutionalReader??0)+1);announce();
+    return()=>{
+      const left=Number(root.dataset.embeddedInstitutionalReader??1)-1;
+      if(left>0)root.dataset.embeddedInstitutionalReader=String(left);else delete root.dataset.embeddedInstitutionalReader;
+      announce();
+    };
+  },[mode,publishedTenantId,publishedRevision]);
   const captureRequestFocus=(seq:number,origin:HTMLElement|null,fromReview=false)=>{
     if(frame.current!==null){cancelAnimationFrame(frame.current);frame.current=null;}
     const focused=document.activeElement;

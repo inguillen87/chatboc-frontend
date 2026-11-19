@@ -7,7 +7,8 @@ const transport=vi.hoisted(()=>({fetch:vi.fn()}));
 vi.mock('@/utils/api',()=>({apiFetch:(...args:unknown[])=>transport.fetch(...args)}));
 import InstitutionalAssistant from '@/components/knowledge/InstitutionalAssistant';
 import {InstitutionalAccessBrand} from '@/components/brand/InstitutionalAccessBrand';
-import {hasEmbeddedInstitutionalReader,registerEmbeddedInstitutionalReader} from './embeddedInstitutionalReader';
+// The page-level signal the floating widget reads (ChatWidgetInner).
+const hasEmbeddedInstitutionalReader=()=>document.documentElement.hasAttribute('data-embedded-institutional-reader');
 
 beforeEach(()=>{transport.fetch.mockReset();});
 afterEach(cleanup);
@@ -33,12 +34,19 @@ describe('embedded published reader presence',()=>{
     await screen.findByRole('alert');
     expect(hasEmbeddedInstitutionalReader()).toBe(false);
   });
-  it('counts independent readers and tolerates a repeated release',()=>{
-    const first=registerEmbeddedInstitutionalReader(),second=registerEmbeddedInstitutionalReader();
-    first();first();
-    expect(hasEmbeddedInstitutionalReader()).toBe(true);
-    second();
-    expect(hasEmbeddedInstitutionalReader()).toBe(false);
+  it('counts independent readers and tells the widget about every change',async()=>{
+    const changes=vi.fn();window.addEventListener('chatboc:embedded-institutional-reader',changes);
+    try{
+      const value=workspace({visibility:'public',can_edit:false});transport.fetch.mockResolvedValue(value);
+      const first=render(<InstitutionalAssistant tenantSlug={value.tenant.slug} mode="public"/>);
+      const second=render(<InstitutionalAssistant tenantSlug={value.tenant.slug} mode="public"/>);
+      await waitFor(()=>expect(document.documentElement.dataset.embeddedInstitutionalReader).toBe('2'));
+      first.unmount();
+      expect(document.documentElement.dataset.embeddedInstitutionalReader).toBe('1');
+      second.unmount();
+      expect(hasEmbeddedInstitutionalReader()).toBe(false);
+      expect(changes).toHaveBeenCalledTimes(4);
+    }finally{window.removeEventListener('chatboc:embedded-institutional-reader',changes);}
   });
 });
 

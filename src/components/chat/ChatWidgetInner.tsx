@@ -1,7 +1,7 @@
 // src/components/chat/ChatWidgetInner.tsx
 
 import { useWidgetSessionStore } from '@/stores';
-import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from "react";
 import { useLocation } from "react-router-dom";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
 import { useProactiveGreeting, type ProactiveGreetingMessage } from './useProactiveGreeting';
-import { useEmbeddedInstitutionalReader } from '@/features/chat/embeddedInstitutionalReader';
 import { accessibleForegroundHsl, normalizeColorHsl } from "@/utils/color";
 import { applyWidgetThemeVariables, widgetThemeVariables } from "@/utils/widgetTheme";
 import { apiClient } from "@/api/client";
@@ -427,6 +426,14 @@ const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
+// A published institutional reader embedded in the page announces itself on
+// <html> (InstitutionalAssistant sets the attribute and dispatches the event).
+const EMBEDDED_INSTITUTIONAL_READER_EVENT = 'chatboc:embedded-institutional-reader';
+const subscribeEmbeddedInstitutionalReader = (listener: () => void) => {
+  window.addEventListener(EMBEDDED_INSTITUTIONAL_READER_EVENT, listener);
+  return () => window.removeEventListener(EMBEDDED_INSTITUTIONAL_READER_EVENT, listener);
+};
+const readEmbeddedInstitutionalReader = () => document.documentElement.hasAttribute('data-embedded-institutional-reader');
 
 function sanitizeTenantSlug(slug?: string | null) {
   try {
@@ -1554,7 +1561,7 @@ function ChatWidgetInner({
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 
-  const embeddedInstitutionalReader = useEmbeddedInstitutionalReader();
+  const embeddedInstitutionalReader = useSyncExternalStore(subscribeEmbeddedInstitutionalReader, readEmbeddedInstitutionalReader, () => false);
   const proactiveMessages = useMemo(() => {
     const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
     const propText = typeof ctaMessage === 'string' ? ctaMessage.trim() : '';
