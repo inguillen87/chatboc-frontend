@@ -12,6 +12,7 @@ import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 import type { ChatWidgetUiHints } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { headerBackground } from "./headerBrandPalette";
 
 const IconButton = {
   Close: (props: React.SVGProps<SVGSVGElement>) => (
@@ -71,6 +72,10 @@ interface Props {
   cartCount?: number;
   logoUrl?: string;
   title?: string;
+  /** Nombre a mostrar si el tenant no informó uno. La plataforma usa «Chatboc». */
+  fallbackTitle?: string;
+  /** Colores de marca del tenant para el degradado de la cabecera. */
+  brandColors?: { start?: string | null; end?: string | null } | null;
   subtitle?: string;
   logoAnimation?: string;
   onA11yChange?: (p: Prefs) => void;
@@ -118,6 +123,8 @@ const ChatHeader: React.FC<Props> = ({
   cartCount,
   logoUrl,
   title,
+  fallbackTitle = 'Chatboc',
+  brandColors = null,
   subtitle,
   logoAnimation,
   onA11yChange,
@@ -128,6 +135,7 @@ const ChatHeader: React.FC<Props> = ({
 }) => {
   const isMobile = useIsMobile();
   const isUltraCompact = compactActions && isMobile;
+  const displayTitle = title?.trim() || fallbackTitle;
   const welcomeText = subtitle?.trim() || "Asistente digital";
   const welcomeSummary = briefSubtitle(welcomeText);
   const hasFullWelcome = welcomeSummary !== welcomeText;
@@ -168,7 +176,7 @@ const ChatHeader: React.FC<Props> = ({
         text-white transition-all
       `}
       style={{
-        background: 'linear-gradient(115deg, #071a51 0%, color-mix(in srgb, hsl(var(--primary)) 78%, #0d35c3) 100%)',
+        background: headerBackground(brandColors?.start, brandColors?.end),
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
         paddingTop: isUltraCompact ? "max(0.625rem, env(safe-area-inset-top))" : undefined,
       }}
@@ -192,8 +200,8 @@ const ChatHeader: React.FC<Props> = ({
         </div>
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center gap-2">
-            <span className="break-words text-sm font-bold leading-snug tracking-[0.01em] sm:text-base" title={title || 'Chatboc'}>
-              {title || 'Chatboc'}
+            <span className="break-words text-sm font-bold leading-snug tracking-[0.01em] sm:text-base" title={displayTitle}>
+              {displayTitle}
             </span>
           </div>
           {hasFullWelcome ? (

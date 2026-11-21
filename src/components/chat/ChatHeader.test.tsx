@@ -132,4 +132,16 @@ describe("ChatHeader", () => {
     expect(screen.getByText("Orientación y ayuda")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Leer bienvenida completa" })).not.toBeInTheDocument();
   });
+
+  it("white label: an organization's header never falls back to the platform name or palette", () => {
+    const { container } = render(
+      <ChatHeader onClose={vi.fn()} title="  " fallbackTitle="Asistente virtual"
+        brandColors={{ start: "#14532d", end: "#facc15" }} />,
+    );
+    expect(screen.getByText("Asistente virtual")).toBeVisible();
+    expect(screen.queryByText("Chatboc")).not.toBeInTheDocument();
+    const header = container.firstElementChild as HTMLElement;
+    expect(header.style.background).toContain("rgb(20, 83, 45)");
+    expect(header.style.background).not.toContain("#071a51");
+  });
 });
