@@ -3203,6 +3203,15 @@ function ChatWidgetInner({
         : 0.75;
   const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView && !reduceMotion;
 
+  // Marca blanca: en el widget de una organización el nombre de respaldo es
+  // genérico; «Chatboc» queda para las superficies de la plataforma.
+  const brandFallbackTitle = isPublicPlatformSurface ? "Chatboc" : "Asistente virtual";
+  const headerBrandColors = useMemo(() => (
+    isPublicPlatformSurface
+      ? null
+      : { start: accentColor || widgetUx.gradientStart, end: primaryColor || widgetUx.gradientEnd }
+  ), [isPublicPlatformSurface, accentColor, primaryColor, widgetUx.gradientStart, widgetUx.gradientEnd]);
+
   const launcherPalette = useMemo(() => {
     const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
     const accent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
@@ -3385,6 +3394,8 @@ function ChatWidgetInner({
                   showProfile={false}
                   logoUrl={headerLogoUrl || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
                   title={headerTitle}
+                  fallbackTitle={brandFallbackTitle}
+                  brandColors={headerBrandColors}
                   subtitle={headerSubtitle}
                   compactActions={isMobileView}
                 />
@@ -3421,6 +3432,8 @@ function ChatWidgetInner({
               showProfile={false}
               logoUrl={headerLogoUrl || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
               title={headerTitle}
+              fallbackTitle={brandFallbackTitle}
+              brandColors={headerBrandColors}
               subtitle={headerSubtitle}
               compactActions={isMobileView}
             />
@@ -3440,7 +3453,7 @@ function ChatWidgetInner({
               aria-modal="true"
               // White label: assistive technology hears the organization's assistant (the
               // visible header title); the platform name is only the fallback.
-              aria-label={(typeof headerTitle === "string" && headerTitle.trim()) || "Chatboc asistente virtual"}
+              aria-label={(typeof headerTitle === "string" && headerTitle.trim()) || (isPublicPlatformSurface ? "Chatboc asistente virtual" : "Asistente virtual")}
               id={`${widgetId}-panel`}
               tabIndex={-1}
               onKeyDown={handleOpenPanelKeyDown}
@@ -3473,6 +3486,8 @@ function ChatWidgetInner({
                     cartCount={shouldExposeCommerceControls ? effectiveCartCount : 0}
                     logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     title={headerTitle}
+                    fallbackTitle={brandFallbackTitle}
+                    brandColors={headerBrandColors}
                     subtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
                     onA11yChange={setA11yPrefs}
@@ -3679,11 +3694,11 @@ function ChatWidgetInner({
                 whileHover={{ scale: 1 }}
                 whileTap={{ scale: 1 }}
                 onClick={toggleChat}
-                aria-label={`Abrir el asistente ${headerTitle || "Chatboc"}`}
+                aria-label={`Abrir el asistente ${headerTitle || brandFallbackTitle}`}
                 aria-controls={`${widgetId}-panel`}
                 aria-expanded="false"
                 aria-haspopup="dialog"
-                title={`Abrir ${headerTitle || "Chatboc"}`}
+                title={`Abrir ${headerTitle || brandFallbackTitle}`}
               >
                 <img
                   src={launcherImageSrc}
@@ -3704,7 +3719,7 @@ function ChatWidgetInner({
                 />
                 {!isMobileView && !isOpen ? (
                   <span className="pointer-events-none absolute -top-10 right-0 whitespace-nowrap rounded-lg border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-semibold text-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-                    {headerTitle || "Chatboc"} · Asistente digital
+                    {headerTitle || brandFallbackTitle} · Asistente digital
                   </span>
                 ) : null}
               </motion.button>
