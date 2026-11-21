@@ -47,6 +47,7 @@ const errorMessage = (error: unknown) => {
     meta_operation_token_input_invalid: 'Revisá el token pegado. Debe ser una sola credencial completa.',
     meta_token_authority_expired: 'La credencial venció. Generá una nueva en Meta antes de validarla.',
     meta_token_authority_invalid: 'Meta no confirmó la aplicación o los permisos de la credencial.',
+    meta_authority_denied: 'Meta rechazó la verificación. Revisá los permisos del token y comprobá que el usuario del sistema tenga asignada la cuenta del número elegido en «Cuentas de mensajes».',
     meta_phone_membership_unverified: 'La credencial no permite verificar el número asignado.',
     meta_app_subscription_unverified: 'Meta no confirmó la suscripción de la aplicación.',
     meta_operation_plan_mismatch: 'El plan ya no coincide con la operación. Volvé a validar las credenciales.',

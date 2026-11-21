@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MetaCredentials from './MetaCredentials';
-import { META_CREDENTIAL_TARGETS, metaCredentialApi, type MetaCredentialPlan } from '@/features/metaCredentials/metaCredentialApi';
+import { META_CREDENTIAL_TARGETS, MetaCredentialClientError, metaCredentialApi, type MetaCredentialPlan } from '@/features/metaCredentials/metaCredentialApi';
 import { planFor, statusFor, tokenFor } from '@/features/metaCredentials/__tests__/fixtures';
 import { advanceChatbocSessionRevision } from '@/utils/chatbocSessionRevision';
 
@@ -161,6 +161,20 @@ describe('private credential loading', () => {
     inputs.forEach(input => expect(input.value).toBe(''));
     expect(screen.getByRole('alert').textContent).not.toContain(tokenFor('junin-production'));
     expect(api.apply).not.toHaveBeenCalled();
+  });
+
+  it('explains how to check access when Meta denies the plan without retrying or applying it', async () => {
+    api.plan.mockRejectedValueOnce(new MetaCredentialClientError('meta_authority_denied'));
+    render(app());
+    const [, tdfInput] = await fields();
+    fireEvent.change(tdfInput, { target: { value: tokenFor('tdf-sandbox') } });
+    fireEvent.click(screen.getByRole('button', { name: 'Validar credenciales' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Meta rechazó la verificación. Revisá los permisos del token y comprobá que el usuario del sistema tenga asignada la cuenta del número elegido en «Cuentas de mensajes».',
+    );
+    expect(api.plan).toHaveBeenCalledOnce();
+    expect(api.apply).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Aplicar credenciales validadas' })).not.toBeInTheDocument();
   });
 
   it('reconciles only a single uncertain destination without replaying its credential', async () => {
