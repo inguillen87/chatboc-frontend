@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -16,8 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { tenantService } from "@/services/tenantService";
 import { cn } from "@/lib/utils";
-import { getErrorMessage } from "@/utils/api";
-import { buildTenantPath } from "@/utils/tenantPaths";
+import { ApiError, getErrorMessage } from "@/utils/api";
+import { buildTenantPath, readCanonicalTenantSlugFromPath } from "@/utils/tenantPaths";
 
 type FacebookAuthResponse = {
   code?: string;
@@ -143,18 +143,51 @@ const loadFacebookSdk = () => {
 
 export default function WhatsappEmbeddedSignupPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const tenant = readQueryValue(searchParams.get("tenant"));
+  const { pathname } = useLocation();
+  const routeTenant = readCanonicalTenantSlugFromPath(pathname);
+  const queryTenant = readQueryValue(searchParams.get("tenant"));
+  const tenant = routeTenant && queryTenant && routeTenant !== queryTenant ? null : routeTenant || queryTenant;
   const appId = readQueryValue(searchParams.get("app_id"));
   const configId = readQueryValue(searchParams.get("config_id"));
+  const [popupOwner, setPopupOwner] = useState<symbol | null>(null);
+  return <SignupForm key={JSON.stringify([pathname, tenant, appId, configId])}
+    tenant={tenant} appId={appId} configId={configId} popupOwner={popupOwner} setPopupOwner={setPopupOwner} />;
+}
+
+function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
+  tenant: string | null; appId: string | null; configId: string | null;
+  popupOwner: symbol | null; setPopupOwner: (owner: symbol | null) => void;
+}) {
+  const navigate = useNavigate();
+  const [formId] = useState(() => Symbol());
+  const mounted = useRef(false);
+  const attempt = useRef<symbol | null>(null);
+  // The SDK's global messages carry no Chatboc tenant. Isolate a new
+  // registration if another form still has an outstanding popup in this tab.
+  const needsNewTab = popupOwner !== null && popupOwner !== formId;
   const [sdkReady, setSdkReady] = useState(false);
   const [starting, setStarting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Listo para iniciar el registro con Meta.");
-  const [result, setResult] = useState<SignupPayload | null>(null);
+  const [result, setResult] = useState<{
+    event: SignupPayload["event"];
+    waba_id: SignupPayload["waba_id"];
+    phone_number_id: SignupPayload["phone_number_id"];
+    registerSender: boolean;
+  } | null>(null);
+  const [needsStatusCheck, setNeedsStatusCheck] = useState(false);
   const signupDataRef = useRef<SignupPayload>({});
   const completedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      attempt.current = null;
+      signupDataRef.current = {};
+    };
+  }, []);
 
   const missingConfig = useMemo(() => {
     const missing: string[] = [];
@@ -166,6 +199,7 @@ export default function WhatsappEmbeddedSignupPage() {
 
   const completeSignup = useCallback(
     async (partial: SignupPayload) => {
+      if (!tenant || !mounted.current || !attempt.current || completedRef.current) return;
       signupDataRef.current = {
         ...signupDataRef.current,
         ...partial,
@@ -175,18 +209,19 @@ export default function WhatsappEmbeddedSignupPage() {
       const waitingForAccountIds =
         !payload.waba_id || (!isOnlyWabaCompletion(payload.event) && !payload.phone_number_id);
       const waitingForCode = !payload.code;
-      if (!tenant || completedRef.current || waitingForAccountIds || waitingForCode) {
-        if (tenant && !completedRef.current) {
-          if (!waitingForAccountIds && waitingForCode) {
-            setStatus("Meta envio la cuenta. Esperando codigo de autorizacion...");
-          } else if (waitingForAccountIds && !waitingForCode) {
-            setStatus("Meta autorizo el registro. Esperando datos de la cuenta de WhatsApp...");
-          }
+      if (waitingForAccountIds || waitingForCode) {
+        if (!waitingForAccountIds && waitingForCode) {
+          setStatus("Meta envio la cuenta. Esperando codigo de autorizacion...");
+        } else if (waitingForAccountIds && !waitingForCode) {
+          setStatus("Meta autorizo el registro. Esperando datos de la cuenta de WhatsApp...");
         }
         return;
       }
 
       completedRef.current = true;
+      attempt.current = null;
+      setPopupOwner(null);
+      setStarting(false);
       setSaving(true);
       setError(null);
       setStatus("Guardando cuenta de WhatsApp Business en Chatboc...");
@@ -199,19 +234,33 @@ export default function WhatsappEmbeddedSignupPage() {
           event: payload.event ?? "FINISH",
           business_id: payload.business_id,
         });
-        setResult(payload);
-        setStatus(response?.next_action === "register_whatsapp_sender_via_senders_api"
-          ? "Registro guardado. Falta registrar el sender productivo con Twilio."
-          : "Registro guardado correctamente.");
+        if (!mounted.current) return;
+        if (response?.ok !== true || response.status !== "accepted" || response.persisted !== true || response.tenant?.slug !== tenant) {
+          throw new Error("El servidor no confirmó el registro de esta organización.");
+        }
+        const registerSender = response.next_action === "register_whatsapp_sender_via_senders_api";
+        setResult({ event: payload.event, waba_id: payload.waba_id, phone_number_id: payload.phone_number_id, registerSender });
+        setStatus(registerSender
+          ? "Registro guardado. Falta habilitar el número para enviar y recibir mensajes."
+          : "Registro guardado. Consultá el estado del número en Integraciones.");
       } catch (err) {
-        completedRef.current = false;
+        if (!mounted.current) return;
+        const rejected = err instanceof ApiError && err.status === 422 ? err.body : null;
+        const mayCorrect = rejected?.contract_version === "twilio.tech_provider.embedded_signup.v1" &&
+          rejected.ok === false && rejected.status === "rejected" && rejected.tenant?.slug === tenant &&
+          rejected.persisted === false && rejected.state_unchanged === true &&
+          rejected.provider_calls_performed === false && rejected.retryable_after_correction === true;
+        completedRef.current = !mayCorrect;
+        setNeedsStatusCheck(!mayCorrect);
         setError(getErrorMessage(err, "No se pudo guardar el registro de WhatsApp Business."));
-        setStatus("No pudimos confirmar el resultado. Vuelve a integraciones y actualiza el estado antes de intentarlo nuevamente.");
+        setStatus(mayCorrect ? "Revisá los datos e iniciá el registro nuevamente." :
+          "No pudimos confirmar el resultado. Vuelve a integraciones y actualiza el estado antes de intentarlo nuevamente.");
       } finally {
-        setSaving(false);
+        signupDataRef.current = {};
+        if (mounted.current) setSaving(false);
       }
     },
-    [tenant],
+    [tenant, setPopupOwner],
   );
 
   useEffect(() => {
@@ -240,7 +289,7 @@ export default function WhatsappEmbeddedSignupPage() {
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (!isTrustedMetaOrigin(event.origin)) return;
+      if (!mounted.current || !attempt.current || !isTrustedMetaOrigin(event.origin)) return;
       const message = parseMetaSignupMessage(event.data);
       if (!message || message.type !== "WA_EMBEDDED_SIGNUP") return;
 
@@ -259,12 +308,18 @@ export default function WhatsappEmbeddedSignupPage() {
       }
 
       if (message.event === "CANCEL") {
+        attempt.current = null;
+        signupDataRef.current = {};
+        setPopupOwner(null);
         setStarting(false);
         setStatus("El registro fue cancelado antes de finalizar.");
         return;
       }
 
       if (message.event === "ERROR") {
+        attempt.current = null;
+        signupDataRef.current = {};
+        setPopupOwner(null);
         setStarting(false);
         setError(data.error_message || "Meta informo un error durante el registro.");
         return;
@@ -277,26 +332,30 @@ export default function WhatsappEmbeddedSignupPage() {
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [completeSignup]);
+  }, [completeSignup, setPopupOwner]);
 
   const startSignup = () => {
-    if (!window.FB || !configId) return;
+    if (!window.FB || !configId || needsNewTab || attempt.current || completedRef.current) return;
+    const currentAttempt = Symbol();
+    attempt.current = currentAttempt;
+    setPopupOwner(formId);
     setStarting(true);
     setError(null);
     setStatus("Abriendo registro embebido de Meta...");
 
     window.FB.login(
       (response) => {
-        setStarting(false);
+        if (!mounted.current || attempt.current !== currentAttempt) return;
         const code = response.authResponse?.code ?? null;
         if (code) {
           void completeSignup({ code });
-          setStatus("Meta autorizo el registro. Esperando datos de la cuenta de WhatsApp...");
           return;
         }
-        if (response.status && response.status !== "connected") {
-          setStatus("Meta no completo la autorizacion. Podes intentar nuevamente.");
-        }
+        attempt.current = null;
+        signupDataRef.current = {};
+        setPopupOwner(null);
+        setStarting(false);
+        setStatus("Meta no completo la autorizacion. Podes intentar nuevamente.");
       },
       {
         config_id: configId,
@@ -334,7 +393,7 @@ export default function WhatsappEmbeddedSignupPage() {
     {
       id: "chatboc",
       label: "Guardar en Chatboc",
-      detail: "Chatboc recibe IDs, habilita sender y deja trazabilidad.",
+      detail: "Guarda los datos del registro de la cuenta. La activación del número se consulta en Integraciones.",
       done: Boolean(result),
       active: saving,
       icon: SendHorizontal,
@@ -347,12 +406,12 @@ export default function WhatsappEmbeddedSignupPage() {
     const params = new URLSearchParams({
       channel: "whatsapp",
     });
-    if (result) params.set("action", "register-sender");
+    if (result?.registerSender) params.set("action", "register-sender");
     return `${basePath}?${params.toString()}`;
   }, [result, tenant]);
   const waitingForSdk = !sdkReady && missingConfig.length === 0;
-  const startDisabled = missingConfig.length > 0 || !sdkReady || starting || saving || Boolean(result);
-  const integrationsLabel = result ? "Continuar activacion" : "Volver a integraciones";
+  const startDisabled = missingConfig.length > 0 || !sdkReady || starting || saving || needsStatusCheck || Boolean(result);
+  const integrationsLabel = result?.registerSender ? "Continuar activación" : "Volver a integraciones";
   const startLabel = result
     ? "Registro guardado"
     : missingConfig.length > 0
@@ -503,10 +562,13 @@ export default function WhatsappEmbeddedSignupPage() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button className="w-full sm:w-auto" type="button" onClick={startSignup} disabled={startDisabled} aria-busy={starting || saving || undefined}>
+              {needsNewTab && tenant && appId && configId ? <Button asChild className="w-full sm:w-auto">
+                <a href={`/integracion/whatsapp/connect?${new URLSearchParams({ tenant, app_id: appId, config_id: configId })}`}
+                  target="_blank" rel="noopener noreferrer">Iniciar registro en otra pestaña</a>
+              </Button> : <Button className="w-full sm:w-auto" type="button" onClick={startSignup} disabled={startDisabled} aria-busy={starting || saving || undefined}>
                 {waitingForSdk || starting || saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
                 {startLabel}
-              </Button>
+              </Button>}
               <Button className="w-full sm:w-auto" type="button" variant={result ? "default" : "outline"} onClick={() => navigate(integrationsPath)}>
                 {result ? <ArrowRight className="mr-2 h-4 w-4" aria-hidden="true" /> : null}
                 {integrationsLabel}

@@ -1,10 +1,11 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import WhatsappEmbeddedSignupPage from "@/pages/WhatsappEmbeddedSignupPage";
 import { tenantService } from "@/services/tenantService";
+import { ApiError } from "@/utils/api";
 
 vi.mock("@/services/tenantService", () => ({
   tenantService: {
@@ -31,6 +32,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
     vi.clearAllMocks();
     loginCallback = null;
     mockedTenantService.completeWhatsappEmbeddedSignup.mockResolvedValue({
+      ok: true, status: "accepted", persisted: true, tenant: { slug: "junin-1" },
       next_action: "register_whatsapp_sender_via_senders_api",
     });
     (window as any).FB = {
@@ -94,14 +96,18 @@ describe("WhatsappEmbeddedSignupPage", () => {
       });
     });
     expect(await screen.findByRole("button", { name: /registro guardado/i })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Falta habilitar el número");
 
-    fireEvent.click(screen.getByRole("button", { name: /continuar activacion/i }));
+    fireEvent.click(screen.getByRole("button", { name: /continuar activación/i }));
 
     expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /t/junin-1/integracion?channel=whatsapp&action=register-sender");
     consoleLogSpy.mockRestore();
   });
 
   it("accepts FINISH_ONLY_WABA without waiting for a phone number id", async () => {
+    mockedTenantService.completeWhatsappEmbeddedSignup.mockResolvedValueOnce({
+      ok: true, status: "accepted", persisted: true, tenant: { slug: "junin-1" },
+    });
     renderPage();
 
     const startButton = await screen.findByRole("button", { name: /iniciar registro con meta/i });
@@ -146,6 +152,34 @@ describe("WhatsappEmbeddedSignupPage", () => {
     });
     expect(await screen.findByText(/n.mero pendiente de registro/i)).toBeInTheDocument();
     expect(screen.getByText("Autorizar con Meta").closest("li")).toHaveTextContent("Completado");
+    expect(screen.getByRole("status")).toHaveTextContent("Consultá el estado del número en Integraciones");
+    expect(screen.queryByRole("button", { name: /continuar activación/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /volver a integraciones/i })).toBeEnabled();
+  });
+
+  it.each([
+    { status: "validated", persisted: false, slug: "junin-1" },
+    { status: "accepted", persisted: true, slug: "otra-organizacion" },
+  ])("requires a persisted receipt for this organization before continuing activation (%o)", async receipt => {
+    mockedTenantService.completeWhatsappEmbeddedSignup.mockResolvedValueOnce({
+      ok: true, status: receipt.status, persisted: receipt.persisted, tenant: { slug: receipt.slug },
+      next_action: "register_whatsapp_sender_via_senders_api",
+    });
+    renderPage();
+    const start = screen.getByRole("button", { name: /iniciar registro con meta/i });
+    await waitFor(() => expect(start).toBeEnabled());
+    fireEvent.click(start);
+    await act(async () => {
+      loginCallback?.({ status: "connected", authResponse: { code: "synthetic-code" } });
+      window.dispatchEvent(new MessageEvent("message", { origin: "https://www.facebook.com", data: {
+        type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "waba-123", phone_number_id: "phone-456" },
+      } }));
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("No pudimos confirmar el resultado");
+    expect(start).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /registro guardado|continuar activación/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /volver a integraciones/i })).toBeEnabled();
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a recoverable return path when the Meta configuration is incomplete", async () => {
@@ -182,5 +216,78 @@ describe("WhatsappEmbeddedSignupPage", () => {
     expect(screen.getByRole("button", { name: /volver a integraciones/i })).toBeEnabled();
     expect(mockedTenantService.completeWhatsappEmbeddedSignup).toHaveBeenCalledTimes(1);
     expect(window.FB?.login).toHaveBeenCalledTimes(1);
+  });
+
+  const finish = () => window.dispatchEvent(new MessageEvent("message", { origin: "https://www.facebook.com",
+    data: { type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "account-a", phone_number_id: "phone-a" } },
+  }));
+
+  it("keeps the signup closed when the tenant in the path conflicts with the query", async () => {
+    render(<MemoryRouter initialEntries={["/t/org-a/integracion/whatsapp/connect?tenant=org-b&app_id=app&config_id=cfg"]}>
+      <WhatsappEmbeddedSignupPage />
+    </MemoryRouter>);
+    expect(screen.getByRole("button", { name: /parametros incompletos/i })).toBeDisabled();
+    expect(window.FB?.init).not.toHaveBeenCalled();
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
+  });
+
+  it.each(["popup", "write"])("retires a pending %s when the organization changes on the same route", async stage => {
+    let resolveWrite!: (receipt: object) => void;
+    if (stage === "write") {
+      mockedTenantService.completeWhatsappEmbeddedSignup.mockImplementationOnce(() => new Promise(resolve => { resolveWrite = resolve; }));
+    }
+    const url = (slug: string) => `/integracion/whatsapp/connect?tenant=${slug}&app_id=app&config_id=config`;
+    function SwitchOrganization() {
+      const [, setParams] = useSearchParams();
+      return <button onClick={() => setParams({ tenant: "org-b", app_id: "app", config_id: "config" })}>Cambiar organización</button>;
+    }
+    render(<MemoryRouter initialEntries={[url("org-a")]}><SwitchOrganization /><WhatsappEmbeddedSignupPage /></MemoryRouter>);
+    const start = screen.getByRole("button", { name: /iniciar registro con meta/i });
+    await waitFor(() => expect(start).toBeEnabled());
+    fireEvent.click(start);
+    const oldCallback = loginCallback;
+    act(() => {
+      finish();
+      if (stage === "write") oldCallback?.({ authResponse: { code: "synthetic-code" } });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar organización" }));
+    await act(async () => {
+      if (stage === "popup") {
+        oldCallback?.({ authResponse: { code: "late-code" } });
+        finish();
+      } else {
+        resolveWrite({ ok: true, status: "accepted", persisted: true, tenant: { slug: "org-a" } });
+      }
+    });
+    expect(screen.getByText("org-b")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /registro guardado|continuar activación/i })).not.toBeInTheDocument();
+    if (stage === "popup") {
+      expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
+      const link = screen.getByRole("link", { name: /iniciar registro en otra pestaña/i });
+      expect(link).toHaveAttribute("href", url("org-b"));
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    } else {
+      expect(mockedTenantService.completeWhatsappEmbeddedSignup.mock.calls.map(([slug]) => slug)).toEqual(["org-a"]);
+      expect(screen.getByRole("button", { name: /iniciar registro con meta/i })).toBeEnabled();
+    }
+  });
+
+  it("starts a fresh authorization after an explicit correctable rejection without replaying the old data", async () => {
+    mockedTenantService.completeWhatsappEmbeddedSignup.mockRejectedValueOnce(new ApiError("Corregí la cuenta", 422, {
+      contract_version: "twilio.tech_provider.embedded_signup.v1", ok: false, status: "rejected", tenant: { slug: "junin-1" },
+      persisted: false, state_unchanged: true, provider_calls_performed: false, retryable_after_correction: true,
+    }));
+    renderPage();
+    const start = screen.getByRole("button", { name: /iniciar registro con meta/i });
+    await waitFor(() => expect(start).toBeEnabled());
+    fireEvent.click(start);
+    await act(async () => { finish(); loginCallback?.({ authResponse: { code: "first-code" } }); });
+    expect(screen.getByRole("status")).toHaveTextContent("Revisá los datos");
+    fireEvent.click(start);
+    await act(async () => { loginCallback?.({ authResponse: { code: "new-code" } }); });
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); });
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup.mock.calls.map(([, payload]) => payload.code))
+      .toEqual(["first-code", "new-code"]);
   });
 });
