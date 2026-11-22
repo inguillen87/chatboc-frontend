@@ -170,6 +170,30 @@ describe('tenantService config updates', () => {
     }));
   });
 
+  it('uses one tenant-scoped panel POST for each direct signup stage and resumes by state alone', async () => {
+    const slug = 'selected-organization';
+    const path = '/api/v2/tenants/selected-organization/whatsapp/tech-provider/embedded-signup';
+    const state = 's'.repeat(43);
+    const completion = {
+      signup_state: state, code: 'fixture-code', event: 'FINISH', session_id: 'fixture-session',
+      waba_id: '710000000000101', phone_number_id: '810000000000102',
+    };
+    const options = {
+      method: 'POST', tenantSlug: slug, persistTenantSlug: false, isWidgetRequest: false,
+      omitEntityToken: true, omitChatSessionId: true, omitCredentials: false,
+      singleAttempt: true, allowStartupRecovery: false,
+    };
+    const receipt = { contract_version: 'chatboc.meta_direct_embedded_signup.v1', ok: true };
+    apiFetchMock.mockResolvedValue(receipt);
+    await expect(tenantService.startDirectWhatsappSignup(slug)).resolves.toBe(receipt);
+    await expect(tenantService.finishDirectWhatsappSignup(slug, completion)).resolves.toBe(receipt);
+    await expect(tenantService.resumeDirectWhatsappSignup(slug, state)).resolves.toBe(receipt);
+    expect(apiFetchMock).toHaveBeenCalledTimes(3);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, path + '/sessions', expect.objectContaining({ ...options, body: {} }));
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, path, expect.objectContaining({ ...options, body: completion }));
+    expect(apiFetchMock).toHaveBeenNthCalledWith(3, path + '/resume', expect.objectContaining({ ...options, body: { signup_state: state } }));
+  });
+
   it('reads and writes the WidgetSettings runtime source with an explicit tenant context', async () => {
     const runtimeConfig = {
       theme_json: { light: { primary: '#0f8f4f' } },

@@ -77,6 +77,10 @@ type TechProviderContract = {
       missing?: string[] | null;
     } | null;
   } | null;
+  direct_embedded_signup?: {
+    enabled?: boolean; app_id?: string | null; configuration_id?: string | null;
+    labels?: { panel_title?: string; manage?: string; unconfigured?: string; legacy_title?: string };
+  } | null;
   embedded_signup?: {
     enabled?: boolean | null;
     required_customer_action?: string | null;
@@ -510,7 +514,14 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
   const limitations = Array.isArray(contract?.limitations)
     ? contract.limitations.map(limitationLabel).filter((item): item is string => Boolean(item))
     : [];
-  const embeddedSignup = contract?.embedded_signup ?? null;
+  const directSignup = contractVerified ? contract?.direct_embedded_signup : undefined;
+  const directLabels = directSignup?.labels;
+  const directSignupUrl = tenantSlug && directSignup?.enabled === true &&
+      typeof directSignup.app_id === "string" && directSignup.app_id.trim() &&
+      typeof directSignup.configuration_id === "string" && directSignup.configuration_id.trim()
+    ? `/integracion/whatsapp/connect?${new URLSearchParams({ tenant: tenantSlug,
+        app_id: directSignup.app_id, config_id: directSignup.configuration_id })}` : null;
+  const embeddedSignup = directSignup === undefined ? contract?.embedded_signup : null;
   const state = contractVerified ? contract?.state ?? null : null;
   const normalizedPhoneNumber = normalizeE164(requestedPhoneNumber);
   const phoneNumberValid = isValidE164(normalizedPhoneNumber);
@@ -1187,6 +1198,17 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
 
   return (
     <section aria-labelledby="whatsapp-onboarding-title" className="rounded-lg border bg-card p-4 shadow-sm">
+      {directLabels?.panel_title && directLabels.manage && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+          <div>
+            <h3 className="font-semibold">{directLabels.panel_title}</h3>
+            {!directSignupUrl && <p className="text-sm text-muted-foreground">{directLabels.unconfigured}</p>}
+          </div>
+          <Button type="button" disabled={!directSignupUrl} onClick={() => directSignupUrl && window.open(directSignupUrl, "_self")}>
+            {directLabels.manage}
+          </Button>
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
@@ -1202,7 +1224,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug, focusAction
                 WhatsApp Business Platform
               </span>
             </div>
-            <h3 id="whatsapp-onboarding-title" className="mt-1 text-lg font-semibold text-foreground">Activación guiada por Chatboc</h3>
+            <h3 id="whatsapp-onboarding-title" className="mt-1 text-lg font-semibold text-foreground">{directLabels?.legacy_title || "Activación guiada por Chatboc"}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Una persona administradora autoriza con Meta. Chatboc conserva el contexto y guía la configuración sin depender de consolas externas.
             </p>

@@ -18,6 +18,8 @@ import { tenantService } from "@/services/tenantService";
 import { cn } from "@/lib/utils";
 import { ApiError, getErrorMessage } from "@/utils/api";
 import { buildTenantPath, readCanonicalTenantSlugFromPath } from "@/utils/tenantPaths";
+import { useUser } from "@/hooks/useUser";
+import { hasDirectSignupLabels, useDirectWhatsappSignup, type DirectSignupLabels } from "./useDirectWhatsappSignup";
 
 type FacebookAuthResponse = {
   code?: string;
@@ -91,11 +93,7 @@ const parseMetaSignupMessage = (raw: unknown): MetaSignupMessage | null => {
 };
 
 const isTrustedMetaOrigin = (origin: string) =>
-  origin === "https://www.facebook.com" ||
-  origin === "https://web.facebook.com" ||
-  origin === "https://www.facebook.net" ||
-  origin.endsWith(".facebook.com") ||
-  origin.endsWith(".facebook.net");
+  origin.startsWith("https://") && (origin.endsWith(".facebook.com") || origin.endsWith(".facebook.net"));
 
 const loadFacebookSdk = () => {
   if (typeof window === "undefined") {
@@ -149,13 +147,16 @@ export default function WhatsappEmbeddedSignupPage() {
   const tenant = routeTenant && queryTenant && routeTenant !== queryTenant ? null : routeTenant || queryTenant;
   const appId = readQueryValue(searchParams.get("app_id"));
   const configId = readQueryValue(searchParams.get("config_id"));
+  const { user, organizationProfileVerified } = useUser();
+  const actorId = organizationProfileVerified ? user?.id ?? null : null;
   const [popupOwner, setPopupOwner] = useState<symbol | null>(null);
-  return <SignupForm key={JSON.stringify([pathname, tenant, appId, configId])}
-    tenant={tenant} appId={appId} configId={configId} popupOwner={popupOwner} setPopupOwner={setPopupOwner} />;
+  return <SignupForm key={JSON.stringify([pathname, tenant, appId, configId, actorId])}
+    tenant={tenant} appId={appId} configId={configId} actorId={actorId} popupOwner={popupOwner} setPopupOwner={setPopupOwner} />;
 }
 
-function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
+function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwner }: {
   tenant: string | null; appId: string | null; configId: string | null;
+  actorId: number | null;
   popupOwner: symbol | null; setPopupOwner: (owner: symbol | null) => void;
 }) {
   const navigate = useNavigate();
@@ -166,6 +167,9 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
   // registration if another form still has an outstanding popup in this tab.
   const needsNewTab = popupOwner !== null && popupOwner !== formId;
   const [sdkReady, setSdkReady] = useState(false);
+  const actionButton = useRef<HTMLButtonElement>(null);
+  const returnButton = useRef<HTMLButtonElement>(null);
+  const restoreActionFocus = useRef(false);
   const [starting, setStarting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +183,53 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
   const [needsStatusCheck, setNeedsStatusCheck] = useState(false);
   const signupDataRef = useRef<SignupPayload>({});
   const completedRef = useRef(false);
+  const [mode, setMode] = useState<"legacy" | "direct" | null>(null);
+  const [directLabels, setDirectLabels] = useState<DirectSignupLabels | null>(null);
+  const storageKey = tenant && actorId && appId && configId
+    ? `chatboc.metaSignup.v1.${JSON.stringify([tenant, actorId, appId, configId])}` : null;
+  const direct = useDirectWhatsappSignup(tenant, storageKey, mounted);
+  const { submit: submitDirect, reset: resetDirect } = direct;
+  const sessionExpiry = direct.expiresAt;
+
+  useEffect(() => {
+    if (mode !== "direct" || !starting) return;
+    const popup = attempt.current;
+    const timer = window.setTimeout(() => {
+      if (!popup || attempt.current !== popup) return;
+      attempt.current = null;
+      signupDataRef.current = {};
+      setStarting(false);
+      // The old popup can still send unscoped events. Start the next attempt in a new tab.
+      setPopupOwner(Symbol());
+      resetDirect("new_authorization");
+    }, Math.max(0, sessionExpiry.current - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [mode, starting, sessionExpiry, setPopupOwner, resetDirect]);
+
+  useEffect(() => {
+    if (!tenant || !appId || !configId) return;
+    let active = true;
+    tenantService.getWhatsappTechProvider(tenant).then(contract => {
+      if (!active) return;
+      if (contract?.contract_version !== "twilio.tech_provider.v1" || contract.tenant?.slug !== tenant) {
+        throw new Error("invalid_contract");
+      }
+      if (contract.direct_embedded_signup === undefined) {
+        setMode("legacy");
+        return;
+      }
+      const capability = contract.direct_embedded_signup;
+      if (!storageKey || capability?.enabled !== true || capability.app_id !== appId || capability.configuration_id !== configId ||
+          !hasDirectSignupLabels(capability.labels)) {
+        throw new Error("invalid_direct_config");
+      }
+      setDirectLabels(capability.labels);
+      setMode("direct");
+    }).catch(() => {
+      if (active) setError("No pudimos preparar el registro con Meta.");
+    });
+    return () => { active = false; };
+  }, [tenant, appId, configId, storageKey]);
 
   useLayoutEffect(() => {
     mounted.current = true;
@@ -206,6 +257,16 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
       };
 
       const payload = signupDataRef.current;
+      if (mode === "direct" && partial.event && (
+        partial.event !== "FINISH" || !payload.waba_id || !payload.phone_number_id
+      )) {
+        attempt.current = null;
+        signupDataRef.current = {};
+        setPopupOwner(null);
+        setStarting(false);
+        resetDirect("choose_phone");
+        return;
+      }
       const waitingForAccountIds =
         !payload.waba_id || (!isOnlyWabaCompletion(payload.event) && !payload.phone_number_id);
       const waitingForCode = !payload.code;
@@ -215,6 +276,16 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
         } else if (waitingForAccountIds && !waitingForCode) {
           setStatus("Meta autorizo el registro. Esperando datos de la cuenta de WhatsApp...");
         }
+        return;
+      }
+
+      if (mode === "direct" && payload.code && payload.phone_number_id && payload.waba_id) {
+        attempt.current = null;
+        signupDataRef.current = {};
+        setPopupOwner(null);
+        setStarting(false);
+        await submitDirect({ code: payload.code, phone_number_id: payload.phone_number_id, waba_id: payload.waba_id,
+          session_id: payload.session_id, business_id: payload.business_id, event: payload.event ?? "FINISH" });
         return;
       }
 
@@ -260,11 +331,12 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
         if (mounted.current) setSaving(false);
       }
     },
-    [tenant, setPopupOwner],
+    [tenant, mode, setPopupOwner, submitDirect, resetDirect],
   );
 
+  const needsSdk = mode === "legacy" || (mode === "direct" && direct.phase !== "resume" && direct.phase !== "connected");
   useEffect(() => {
-    if (missingConfig.length) return;
+    if (missingConfig.length || !needsSdk) return;
     let mounted = true;
     loadFacebookSdk()
       .then(() => {
@@ -285,7 +357,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
     return () => {
       mounted = false;
     };
-  }, [appId, missingConfig.length]);
+  }, [appId, missingConfig.length, needsSdk]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -302,7 +374,8 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
         session_id: data.session_id ?? data.sessionId ?? null,
       };
 
-      if (message.event === "FINISH" || message.event === "FINISH_ONLY_WABA") {
+      if (message.event === "FINISH" || message.event === "FINISH_ONLY_WABA" ||
+          (mode === "direct" && typeof message.event === "string" && message.event.startsWith("FINISH_"))) {
         void completeSignup(nextPayload);
         return;
       }
@@ -313,6 +386,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
         setPopupOwner(null);
         setStarting(false);
         setStatus("El registro fue cancelado antes de finalizar.");
+        if (mode === "direct") resetDirect("cancelled");
         return;
       }
 
@@ -321,7 +395,8 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
         signupDataRef.current = {};
         setPopupOwner(null);
         setStarting(false);
-        setError(data.error_message || "Meta informo un error durante el registro.");
+        if (mode === "direct") resetDirect("provider_error");
+        else setError(data.error_message || "Meta informo un error durante el registro.");
         return;
       }
 
@@ -332,10 +407,17 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [completeSignup, setPopupOwner]);
+  }, [completeSignup, setPopupOwner, mode, resetDirect]);
 
   const startSignup = () => {
-    if (!window.FB || !configId || needsNewTab || attempt.current || completedRef.current) return;
+    if (!mode || needsNewTab || attempt.current || completedRef.current) return;
+    if (mode === "direct") {
+      if (direct.busy || direct.phase === "connected") return;
+      restoreActionFocus.current = document.activeElement === actionButton.current;
+      if (direct.phase === "resume") { void direct.submit(); return; }
+      if (direct.phase === "ready" || Date.now() >= direct.expiresAt.current) { void direct.prepare(); return; }
+    }
+    if (!window.FB || !configId) return;
     const currentAttempt = Symbol();
     attempt.current = currentAttempt;
     setPopupOwner(formId);
@@ -356,12 +438,13 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
         setPopupOwner(null);
         setStarting(false);
         setStatus("Meta no completo la autorizacion. Podes intentar nuevamente.");
+        if (mode === "direct") resetDirect("not_authorized");
       },
       {
         config_id: configId,
         response_type: "code",
         override_default_response_type: true,
-        extras: {
+        extras: mode === "direct" ? { setup: {} } : {
           setup: {},
           featureType: "whatsapp_business_app_onboarding",
           sessionInfoVersion: "3",
@@ -370,20 +453,23 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
     );
   };
 
+  const isDirect = mode === "direct";
+  const directConnected = isDirect && direct.phase === "connected";
+  const displayStatus = isDirect && !starting && direct.message ? directLabels?.[direct.message] : status;
   const stages = [
     {
       id: "sdk",
       label: "Preparar registro",
       detail: "SDK de Meta cargado y tenant identificado.",
-      done: sdkReady && missingConfig.length === 0,
-      active: !sdkReady && missingConfig.length === 0,
+      done: directConnected || (sdkReady && missingConfig.length === 0),
+      active: needsSdk && !sdkReady && missingConfig.length === 0,
       icon: KeyRound,
     },
     {
       id: "meta",
       label: "Autorizar con Meta",
       detail: "La organización selecciona su cuenta y número dentro del flujo oficial.",
-      done: Boolean(
+      done: directConnected || Boolean(
         result?.waba_id &&
           (isOnlyWabaCompletion(result.event) || result.phone_number_id),
       ),
@@ -394,7 +480,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
       id: "chatboc",
       label: "Guardar en Chatboc",
       detail: "Guarda los datos del registro de la cuenta. La activación del número se consulta en Integraciones.",
-      done: Boolean(result),
+      done: directConnected || Boolean(result),
       active: saving,
       icon: SendHorizontal,
     },
@@ -409,10 +495,21 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
     if (result?.registerSender) params.set("action", "register-sender");
     return `${basePath}?${params.toString()}`;
   }, [result, tenant]);
-  const waitingForSdk = !sdkReady && missingConfig.length === 0;
-  const startDisabled = missingConfig.length > 0 || !sdkReady || starting || saving || needsStatusCheck || Boolean(result);
+  const waitingForSdk = needsSdk && !sdkReady && missingConfig.length === 0;
+  const startDisabled = missingConfig.length > 0 || !mode || (!sdkReady && !(isDirect && direct.phase === "resume")) ||
+    starting || saving || needsStatusCheck || Boolean(result) || (isDirect && (direct.busy || directConnected));
+  useLayoutEffect(() => {
+    if (!restoreActionFocus.current || (startDisabled && !directConnected)) return;
+    restoreActionFocus.current = false;
+    if (document.activeElement === document.body || document.activeElement === actionButton.current) {
+      (directConnected ? returnButton.current : actionButton.current)?.focus();
+    }
+  }, [directConnected, startDisabled]);
   const integrationsLabel = result?.registerSender ? "Continuar activación" : "Volver a integraciones";
-  const startLabel = result
+  const startLabel = directConnected ? directLabels?.done
+    : isDirect && direct.phase === "resume" ? directLabels?.resume
+    : isDirect && direct.phase === "ready" ? directLabels?.prepare
+    : result
     ? "Registro guardado"
     : missingConfig.length > 0
       ? "Parametros incompletos"
@@ -453,7 +550,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
             </div>
             <div role="status" aria-live="polite" aria-atomic="true" className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
               <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-              <span>{status}</span>
+              <span>{displayStatus}</span>
             </div>
           </div>
           <Progress value={progress} aria-label={`Autorizacion de WhatsApp: ${progress}% completado`} className="mt-3 h-2" />
@@ -489,7 +586,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
                       <span className="sr-only">{stage.done ? "Completado" : stage.active ? "Paso actual" : "Pendiente"}: </span>
                       {stage.label}
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{stage.detail}</p>
+                    <p className="mt-1 text-xs leading-5 text-foreground/80">{stage.detail}</p>
                   </div>
                 </div>
               </li>
@@ -540,7 +637,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
 
             <div className="rounded-xl border p-4">
               <div className="flex items-start gap-3">
-                {result ? (
+                {result || directConnected ? (
                   <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
                 ) : saving || starting ? (
                   <Loader2 className="mt-0.5 h-5 w-5 animate-spin text-primary" />
@@ -548,7 +645,7 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
                   <ShieldCheck className="mt-0.5 h-5 w-5 text-primary" />
                 )}
                 <div>
-                  <p className="font-medium">{status}</p>
+                  <p className="font-medium">{displayStatus}</p>
                   {result ? (
                     <p className="mt-1 text-sm text-muted-foreground">
                       WABA {result.waba_id}
@@ -565,11 +662,11 @@ function SignupForm({ tenant, appId, configId, popupOwner, setPopupOwner }: {
               {needsNewTab && tenant && appId && configId ? <Button asChild className="w-full sm:w-auto">
                 <a href={`/integracion/whatsapp/connect?${new URLSearchParams({ tenant, app_id: appId, config_id: configId })}`}
                   target="_blank" rel="noopener noreferrer">Iniciar registro en otra pestaña</a>
-              </Button> : <Button className="w-full sm:w-auto" type="button" onClick={startSignup} disabled={startDisabled} aria-busy={starting || saving || undefined}>
+              </Button> : <Button ref={actionButton} className="w-full sm:w-auto" type="button" onClick={startSignup} disabled={startDisabled} aria-busy={starting || saving || direct.busy || undefined}>
                 {waitingForSdk || starting || saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
                 {startLabel}
               </Button>}
-              <Button className="w-full sm:w-auto" type="button" variant={result ? "default" : "outline"} onClick={() => navigate(integrationsPath)}>
+              <Button ref={returnButton} className="w-full sm:w-auto" type="button" variant={result ? "default" : "outline"} onClick={() => navigate(integrationsPath)}>
                 {result ? <ArrowRight className="mr-2 h-4 w-4" aria-hidden="true" /> : null}
                 {integrationsLabel}
               </Button>

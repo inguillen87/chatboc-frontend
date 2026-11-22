@@ -58,6 +58,7 @@ describe("api diagnostics redaction", () => {
           clientSecret: "nested-secret",
           apiKey: "nested-api-key",
           proof:"synthetic-retirement-proof",
+          signup_state: "synthetic-opaque-state",
           safe: "safe-visible",
         },
       ],
@@ -83,6 +84,7 @@ describe("api diagnostics redaction", () => {
       clientSecret: REDACTED_API_LOG_VALUE,
       apiKey: REDACTED_API_LOG_VALUE,
       proof:REDACTED_API_LOG_VALUE,
+      signup_state: REDACTED_API_LOG_VALUE,
       safe: "safe-visible",
     });
     expect(source.headers.AUTHORIZATION).toBe("Bearer diagnostic-auth");

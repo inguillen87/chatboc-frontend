@@ -8,10 +8,17 @@ import { tenantService } from "@/services/tenantService";
 import { ApiError } from "@/utils/api";
 
 vi.mock("@/services/tenantService", () => ({
+  DIRECT_SIGNUP_CONTRACT: "chatboc.meta_direct_embedded_signup.v1",
   tenantService: {
+    getWhatsappTechProvider: vi.fn(),
+    startDirectWhatsappSignup: vi.fn(),
+    finishDirectWhatsappSignup: vi.fn(),
+    resumeDirectWhatsappSignup: vi.fn(),
     completeWhatsappEmbeddedSignup: vi.fn(),
   },
 }));
+const actor = vi.hoisted(() => ({ id: 42 }));
+vi.mock("@/hooks/useUser", () => ({ useUser: () => ({ user: actor, organizationProfileVerified: true }) }));
 
 const mockedTenantService = vi.mocked(tenantService);
 
@@ -30,6 +37,11 @@ describe("WhatsappEmbeddedSignupPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+    actor.id = 42;
+    mockedTenantService.getWhatsappTechProvider.mockImplementation(async slug => ({
+      contract_version: "twilio.tech_provider.v1", tenant: { slug },
+    }));
     loginCallback = null;
     mockedTenantService.completeWhatsappEmbeddedSignup.mockResolvedValue({
       ok: true, status: "accepted", persisted: true, tenant: { slug: "junin-1" },
@@ -221,6 +233,166 @@ describe("WhatsappEmbeddedSignupPage", () => {
   const finish = () => window.dispatchEvent(new MessageEvent("message", { origin: "https://www.facebook.com",
     data: { type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "account-a", phone_number_id: "phone-a" } },
   }));
+
+  const directContract = "chatboc.meta_direct_embedded_signup.v1";
+  const labels = {
+    prepare: "Preparar autorización",
+    resume: "Consultar estado del registro",
+    done: "WhatsApp conectado",
+    restored: "Podés consultar el resultado del registro anterior.",
+    prepared: "La autorización está lista. Continuá con Meta.",
+    prepare_failed: "No pudimos preparar el registro. Podés volver a intentarlo.",
+    connected: "Meta confirmó la conexión del número con esta organización.",
+    new_authorization: "La autorización anterior terminó. Revisá la cuenta y prepará una nueva autorización.",
+    register_phone: "Todavía falta registrar el número en Meta. Después podés consultar el estado.",
+    pending: "La conexión sigue pendiente. Podés consultar el estado del registro.",
+    unknown: "No pudimos confirmar el resultado. Consultá el estado del registro.",
+    choose_phone: "Para conectar WhatsApp, seleccioná una cuenta y su número en Meta.",
+    cancelled: "El registro fue cancelado. Podés preparar otra autorización.",
+    provider_error: "Meta no pudo completar el registro. Revisá la cuenta y volvé a intentarlo.",
+    not_authorized: "Meta no completó la autorización. Podés empezar otra.",
+    sending: "Confirmando el registro con Meta.",
+    checking: "Consultando el estado del registro.",
+  };
+  const handle = "A".repeat(43);
+  const directUrl = "/integracion/whatsapp/connect?tenant=org-a&app_id=app&config_id=cfg";
+  const enableDirect = () => {
+    mockedTenantService.getWhatsappTechProvider.mockImplementation(async slug => ({
+      contract_version: "twilio.tech_provider.v1", tenant: { slug },
+      direct_embedded_signup: { enabled: true, app_id: "app", configuration_id: "cfg", labels },
+    }));
+    mockedTenantService.startDirectWhatsappSignup.mockResolvedValue({
+      contract_version: directContract, ok: true, signup_state: handle, expires_in: 900,
+    });
+  };
+  const openDirectPopup = async () => {
+    const prepare = await screen.findByRole("button", { name: /preparar autorización/i });
+    await waitFor(() => expect(prepare).toBeEnabled());
+    fireEvent.click(prepare);
+    const open = await screen.findByRole("button", { name: /iniciar registro con meta/i });
+    expect(window.FB?.login).not.toHaveBeenCalled();
+    fireEvent.click(open);
+    expect(window.FB?.login).toHaveBeenCalledWith(expect.any(Function), {
+      config_id: "cfg", response_type: "code", override_default_response_type: true, extras: { setup: {} },
+    });
+  };
+
+  it("validates the server session before opening Meta and resumes a pending finish after reload without its code", async () => {
+    enableDirect();
+    mockedTenantService.finishDirectWhatsappSignup.mockResolvedValue({
+      contract_version: directContract, ok: false, status: "pending", reason_code: "meta_phone_registration_pending",
+    });
+    mockedTenantService.resumeDirectWhatsappSignup.mockResolvedValue({
+      contract_version: directContract, ok: true, status: "connected",
+    });
+    const firstPage = renderPage(directUrl);
+    await openDirectPopup();
+    expect(mockedTenantService.startDirectWhatsappSignup).toHaveBeenCalledExactlyOnceWith("org-a");
+    await act(async () => {
+      finish();
+      loginCallback?.({ authResponse: { code: "one-use-secret" } });
+      finish();
+    });
+    expect(mockedTenantService.finishDirectWhatsappSignup).toHaveBeenCalledExactlyOnceWith("org-a", {
+      code: "one-use-secret", signup_state: handle, phone_number_id: "phone-a", waba_id: "account-a",
+      session_id: null, business_id: null, event: "FINISH",
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("falta registrar el número");
+    expect(Object.values(sessionStorage)).toEqual([handle]);
+    expect(JSON.stringify(localStorage)).not.toContain(handle);
+    firstPage.unmount();
+    renderPage(directUrl);
+    fireEvent.click(await screen.findByRole("button", { name: /consultar estado del registro/i }));
+    expect(await screen.findByRole("button", { name: /whatsapp conectado/i })).toBeDisabled();
+    expect(mockedTenantService.resumeDirectWhatsappSignup).toHaveBeenCalledExactlyOnceWith("org-a", handle);
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
+    expect(window.FB?.login).toHaveBeenCalledTimes(1);
+    expect(Object.values(sessionStorage)).not.toContain(handle);
+  });
+
+  it.each([
+    [409, "meta_signup_credential_reauthorization_required"],
+    [403, "meta_signup_session_invalid"],
+  ] as const)("keeps uncertain writes scoped and allows fresh authorization after a terminal receipt (%s, %s)", async (status, reason) => {
+    enableDirect();
+    mockedTenantService.finishDirectWhatsappSignup.mockRejectedValueOnce(new Error("offline"));
+    mockedTenantService.resumeDirectWhatsappSignup.mockRejectedValueOnce(new ApiError("terminal", status, {
+      contract_version: directContract, ok: false, reason_code: reason,
+    }));
+    const firstPage = renderPage(directUrl);
+    await openDirectPopup();
+    await act(async () => { loginCallback?.({ authResponse: { code: "synthetic-code" } }); finish(); });
+    expect(screen.getByRole("status")).toHaveTextContent("No pudimos confirmar");
+    firstPage.unmount();
+    actor.id = 73;
+    const otherPage = renderPage(directUrl);
+    expect(await screen.findByRole("button", { name: /preparar autorización/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /consultar estado/i })).toBeNull();
+    expect(mockedTenantService.resumeDirectWhatsappSignup).not.toHaveBeenCalled();
+    otherPage.unmount();
+    actor.id = 42;
+    renderPage(directUrl);
+    fireEvent.click(await screen.findByRole("button", { name: /consultar estado del registro/i }));
+    expect(await screen.findByRole("button", { name: /preparar autorización/i })).toBeEnabled();
+    expect(Object.values(sessionStorage)).not.toContain(handle);
+    expect(mockedTenantService.startDirectWhatsappSignup).toHaveBeenCalledTimes(1);
+    expect(mockedTenantService.finishDirectWhatsappSignup).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards an unsupported final event without exchanging the code or using the legacy endpoint", async () => {
+    enableDirect();
+    renderPage(directUrl);
+    await openDirectPopup();
+    await act(async () => {
+      loginCallback?.({ authResponse: { code: "test-code" } });
+      const data = { type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "123", phone_number_id: "456" } };
+      window.dispatchEvent(new MessageEvent("message", { origin: "http://web.facebook.com", data }));
+      window.dispatchEvent(new MessageEvent("message", { origin: "https://www.facebook.com",
+        data: { ...data, event: "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" } }));
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("seleccioná una cuenta y su número");
+    expect(mockedTenantService.finishDirectWhatsappSignup).not.toHaveBeenCalled();
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
+    expect(Object.values(sessionStorage)).not.toContain(handle);
+  });
+
+  it("requires a verified reservation before opening Meta", async () => {
+    enableDirect();
+    mockedTenantService.startDirectWhatsappSignup.mockResolvedValue({ contract_version: directContract, ok: true, signup_state: "malformed" });
+    renderPage(directUrl);
+    const prepare = await screen.findByRole("button", { name: /preparar autorización/i });
+    await waitFor(() => expect(prepare).toBeEnabled());
+    fireEvent.click(prepare);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No pudimos preparar el registro"));
+    expect(window.FB?.login).not.toHaveBeenCalled();
+    expect(mockedTenantService.finishDirectWhatsappSignup).not.toHaveBeenCalled();
+  });
+
+  it("expires an unfinished popup and ignores its late callbacks", async () => {
+    enableDirect();
+    mockedTenantService.startDirectWhatsappSignup.mockResolvedValue({
+      contract_version: directContract, ok: true, signup_state: handle, expires_in: 1,
+    });
+    renderPage(directUrl);
+    await openDirectPopup();
+    const freshTab = await screen.findByRole("link", { name: /iniciar registro en otra pestaña/i }, { timeout: 3000 });
+    expect(freshTab).toHaveAttribute("rel", "noopener noreferrer");
+    await act(async () => { loginCallback?.({ authResponse: { code: "expired" } }); finish(); });
+    expect(mockedTenantService.finishDirectWhatsappSignup).not.toHaveBeenCalled();
+  });
+
+  it.each(["mismatched configuration", "mismatched tenant", "missing response"])("does not use the legacy path when direct capability cannot be verified (%s)", async problem => {
+    if (problem === "missing response") mockedTenantService.getWhatsappTechProvider.mockRejectedValueOnce(new Error("offline"));
+    else mockedTenantService.getWhatsappTechProvider.mockResolvedValueOnce({
+      contract_version: "twilio.tech_provider.v1", tenant: { slug: problem === "mismatched tenant" ? "org-b" : "org-a" },
+      direct_embedded_signup: { enabled: true, app_id: "app", configuration_id: problem === "mismatched configuration" ? null : "cfg" },
+    });
+    renderPage(directUrl);
+    expect(await screen.findByText(/No pudimos preparar el registro con Meta/i)).toBeInTheDocument();
+    expect(window.FB?.init).not.toHaveBeenCalled();
+    expect(mockedTenantService.startDirectWhatsappSignup).not.toHaveBeenCalled();
+    expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
+  });
 
   it("keeps the signup closed when the tenant in the path conflicts with the query", async () => {
     render(<MemoryRouter initialEntries={["/t/org-a/integracion/whatsapp/connect?tenant=org-b&app_id=app&config_id=cfg"]}>
