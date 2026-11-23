@@ -6,6 +6,13 @@ import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTe
 import { tenantService } from "@/services/tenantService";
 import { getTenantOpsQaPlaybookV2, runTenantOpsQaCheckV2 } from "@/api/v2/saas";
 
+const directSignupLabels = {
+  panel_title: "Conexión directa con Meta",
+  manage: "Administrar conexión con Meta",
+  unconfigured: "Se debe configurar Meta",
+  legacy_title: "Activación con Twilio",
+};
+
 vi.mock("@/services/tenantService", () => ({
   tenantService: {
     getWhatsappTechProvider: vi.fn(),
@@ -120,10 +127,15 @@ describe('WhatsApp activation readiness evidence', () => {
     { ...baseContract, tenant: undefined },
     { ...baseContract, contract_version: 'future.provider.v2' },
   ])('does not expose or operate a foreign or unverified activation contract', async contract => {
-    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract });
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...contract, direct_embedded_signup: {
+        enabled: true, app_id: '710000000000101', configuration_id: '710000000000102', labels: directSignupLabels,
+      },
+    } });
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
     await screen.findByText('No se pudo cargar el onboarding de WhatsApp.');
     expect(screen.queryByRole('button', { name: 'Registrar sender' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Administrar conexión con Meta' })).not.toBeInTheDocument();
     expect(screen.queryByText('Listo para operar')).not.toBeInTheDocument();
     expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
   });
@@ -1034,6 +1046,44 @@ describe("WhatsappTechProviderOnboarding", () => {
       "/t/junin-1/perfil/plantillas-respuesta?section=whatsapp-operations&action=twilio-content&tenant=junin-1",
       "_self",
     );
+  });
+
+  it("opens direct Meta signup for the selected organization when Twilio is unavailable", async () => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract,
+      tenant: { id: 77, slug: "direct-organization" },
+      state: {},
+      automation: { live_enabled: false, env: { ready: false, missing: ["TWILIO_ACCOUNT_SID"] } },
+      direct_embedded_signup: {
+        enabled: true, app_id: "710000000000101", configuration_id: "710000000000102", labels: directSignupLabels,
+      },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="direct-organization" />);
+    const manage = await screen.findByRole("button", { name: "Administrar conexión con Meta" });
+    expect(manage).toBeEnabled();
+    expect(window.open).not.toHaveBeenCalled();
+    fireEvent.click(manage);
+    expect(window.open).toHaveBeenCalledExactlyOnceWith(
+      "/integracion/whatsapp/connect?tenant=direct-organization&app_id=710000000000101&config_id=710000000000102",
+      "_self",
+    );
+    expect(mockedTenantService.provisionWhatsappTechProvider).not.toHaveBeenCalled();
+    expect(mockedTenantService.registerWhatsappSender).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { enabled: true, app_id: null, configuration_id: "710000000000102" },
+    { enabled: true, app_id: "710000000000101", configuration_id: null },
+    { enabled: false, app_id: "710000000000101", configuration_id: "710000000000102" },
+  ])("keeps direct Meta signup unavailable with incomplete or disabled configuration %#", async direct => {
+    mockedTenantService.getWhatsappTechProvider.mockResolvedValue({ contract: {
+      ...baseContract, direct_embedded_signup: { ...direct, labels: directSignupLabels },
+    } });
+    render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
+    const manage = await screen.findByRole("button", { name: "Administrar conexión con Meta" });
+    expect(manage).toBeDisabled();
+    fireEvent.click(manage);
+    expect(window.open).not.toHaveBeenCalled();
   });
 
   it("links WhatsApp onboarding with catalog administration and public marketplace", async () => {

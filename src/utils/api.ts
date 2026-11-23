@@ -474,6 +474,7 @@ const SENSITIVE_API_DIAGNOSTIC_KEY_FRAGMENTS = [
   "pin",
   "cookie",
   "session",
+  "signupstate",
 ] as const;
 
 const isSensitiveApiDiagnosticKey = (key: string): boolean => {

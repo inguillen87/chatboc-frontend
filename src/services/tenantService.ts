@@ -10,6 +10,20 @@ import type {
 const BASE_URL = "/api/admin/tenants";
 const PUBLIC_BASE_URL = "/api/public/tenants";
 type TenantRequestLifecycle = { isCurrent?: () => boolean };
+export const DIRECT_SIGNUP_CONTRACT = "chatboc.meta_direct_embedded_signup.v1";
+export interface DirectSignupReceipt {
+  contract_version?: string;
+  ok?: boolean;
+  status?: string;
+  signup_state?: string;
+  expires_in?: number;
+  reason_code?: string;
+}
+
+const directSignupPost = (slug: string, suffix: string, body: object) =>
+  apiFetch<DirectSignupReceipt>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/embedded-signup${suffix}`, {
+    ...panelReadOptions(slug), allowStartupRecovery: false, method: "POST", body,
+  });
 
 export const tenantService = {
   createTenant: async (payload: CreateTenantPayload): Promise<CreateTenantResponse> => {
@@ -151,6 +165,14 @@ export const tenantService = {
       tenantSlug: slug,
     });
   },
+
+  startDirectWhatsappSignup: (slug: string) => directSignupPost(slug, "/sessions", {}),
+  finishDirectWhatsappSignup: (slug: string, payload: {
+    signup_state: string; code: string; waba_id: string; phone_number_id: string;
+    session_id?: string | null; business_id?: string | null; event: string;
+  }) => directSignupPost(slug, "", payload),
+  resumeDirectWhatsappSignup: (slug: string, state: string) =>
+    directSignupPost(slug, "/resume", { signup_state: state }),
 
   registerWhatsappSender: async (slug: string, payload: Record<string, unknown> = {}): Promise<any> => {
     return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/register-sender`, {
