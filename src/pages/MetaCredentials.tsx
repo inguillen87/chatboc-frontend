@@ -53,8 +53,17 @@ const errorMessage = (error: unknown) => {
     meta_operation_plan_mismatch: 'El plan ya no coincide con la operación. Volvé a validar las credenciales.',
     meta_operation_state_changed: 'La configuración cambió. Actualizá el estado antes de volver a validar.',
     meta_operation_revision_conflict: 'La credencial ya cambió. Actualizá el estado antes de volver a validar.',
+    meta_token_granular_scope_mismatch: 'El token no tiene acceso a la cuenta de WhatsApp de este número. Asigná esa cuenta al usuario del sistema y generá el token de nuevo.',
+    meta_token_granular_scope_invalid: 'Meta devolvió permisos incompletos para el token. Generalo de nuevo con los dos permisos de WhatsApp.',
+    meta_operation_provider_phone_invalid: 'La cuenta de WhatsApp del token no tiene el número de este destino.',
+    meta_operation_provider_phone_mismatch: 'El número que informa Meta no coincide con el de este destino.',
+    meta_operation_local_expiry_exceeds_provider: 'El token vence antes que la vigencia mínima. Generá uno con caducidad «Nunca».',
+    meta_operation_app_secret_scope_invalid: 'Falta la configuración de la aplicación de Meta en el servidor para este destino.',
   };
-  return messages[code] || 'No se pudo completar la validación. Revisá el estado del servicio e intentá nuevamente.';
+  if (messages[code]) return messages[code];
+  // Los códigos son identificadores finitos del servidor: mostrarlo permite diagnosticar sin datos sensibles.
+  const reference = /^[a-z0-9_]{1,120}$/.test(code) ? ` (código: ${code})` : '';
+  return `No se pudo completar la validación${reference}. Revisá el estado del servicio e intentá nuevamente.`;
 };
 
 export default function MetaCredentials() {
