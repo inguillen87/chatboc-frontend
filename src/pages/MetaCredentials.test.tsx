@@ -177,6 +177,29 @@ describe('private credential loading', () => {
     expect(screen.queryByRole('button', { name: 'Aplicar credenciales validadas' })).not.toBeInTheDocument();
   });
 
+  it('shows the server reason code when there is no specific explanation', async () => {
+    api.plan.mockRejectedValueOnce(new MetaCredentialClientError('meta_operation_provider_proof_invalid'));
+    render(app());
+    const [, tdfInput] = await fields();
+    fireEvent.change(tdfInput, { target: { value: tokenFor('tdf-sandbox') } });
+    fireEvent.click(screen.getByRole('button', { name: 'Validar credenciales' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo completar la validación (código: meta_operation_provider_proof_invalid). Revisá el estado del servicio e intentá nuevamente.',
+    );
+    expect(tdfInput).toHaveValue('');
+  });
+
+  it('explains a token without access to the number account', async () => {
+    api.plan.mockRejectedValueOnce(new MetaCredentialClientError('meta_token_granular_scope_mismatch'));
+    render(app());
+    const [, tdfInput] = await fields();
+    fireEvent.change(tdfInput, { target: { value: tokenFor('tdf-sandbox') } });
+    fireEvent.click(screen.getByRole('button', { name: 'Validar credenciales' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'El token no tiene acceso a la cuenta de WhatsApp de este número.',
+    );
+  });
+
   it('reconciles only a single uncertain destination without replaying its credential', async () => {
     api.apply.mockRejectedValueOnce(new Error('acknowledgement lost'));
     render(app());
