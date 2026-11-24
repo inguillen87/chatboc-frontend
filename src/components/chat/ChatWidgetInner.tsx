@@ -1111,15 +1111,18 @@ function ChatWidgetInner({
     ? entityInfo.welcome_title.trim()
     : '';
   const useScopedStandaloneAppearance = !isEmbedded && !isPublicPlatformSurface && hasPublicAppearance;
+  // In standalone mode the welcome props are the platform's own texts. On an
+  // organization's surface they never replace its published identity; the
+  // header falls back to the neutral title when the organization has none.
   const headerTitle = isEmbedded
     ? (welcomeTitle || publicHeaderTitle || derivedEntityTitle)
     : useScopedStandaloneAppearance
-      ? (publicHeaderTitle || derivedEntityTitle || welcomeTitle)
+      ? (publicHeaderTitle || derivedEntityTitle)
       : welcomeTitle;
   const headerSubtitle = isEmbedded
     ? (welcomeSubtitle || publicHeaderSubtitle || derivedEntitySubtitle)
     : useScopedStandaloneAppearance
-      ? (publicHeaderSubtitle || derivedEntitySubtitle || welcomeSubtitle)
+      ? (publicHeaderSubtitle || derivedEntitySubtitle)
       : welcomeSubtitle;
 
   // Mientras carga, el widget de una organización no anuncia la marca de la
@@ -2674,7 +2677,7 @@ function ChatWidgetInner({
                 const info = {
                     ...publicConfig,
                     // Priority Merge: Props > Backend Config
-                    nombre_empresa: welcomeTitle || publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
+                    nombre_empresa: (isEmbedded ? welcomeTitle : '') || publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
                     logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url,
                     cta_messages: resolveCtaMessages(publicConfig.cta_messages, ctaMessage),
                     theme_config: publicConfig.theme_config || {},

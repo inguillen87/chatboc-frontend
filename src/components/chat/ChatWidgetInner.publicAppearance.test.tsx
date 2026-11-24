@@ -278,6 +278,25 @@ describe('shared widget public assistant appearance', () => {
     expect(screen.queryByText('Private account operator')).not.toBeInTheDocument();
   });
 
+  it('names the organization, not the platform defaults, when its public appearance has no assistant name', async () => {
+    window.history.replaceState({}, '', '/t/sin-nombre');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('sin-nombre', ''),
+      welcome_subtitle: null,
+      welcome_title: null,
+    });
+    renderWidget(
+      <MemoryRouter initialEntries={['/t/sin-nombre']}>
+        <ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir el asistente Nombre institucional' }));
+    expect(await screen.findByTitle('Nombre institucional')).toBeVisible();
+    expect(screen.queryByTitle(appDefaults.welcomeTitle)).not.toBeInTheDocument();
+    expect(screen.queryByText(appDefaults.welcomeSubtitle)).not.toBeInTheDocument();
+  });
+
   it.each(['iframe', 'preview'] as const)('preserves explicit %s display overrides', async (mode) => {
     window.history.replaceState({}, '', '/iframe');
     vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue(publicConfig('another-city', 'Asistente persistido'));
