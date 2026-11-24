@@ -33,7 +33,7 @@ describe('BrandIdentityPanel', () => {
     expect(within(preview).getByText(/Con la mascota de la organización · burbujas globa/)).toBeInTheDocument();
     expect(within(preview).getByRole('link', { name: /Ver el portal publicado/ })).toHaveAttribute('href', '/t/org-sintetica');
     expect(screen.getByRole('button', { name: 'Publicar cambios' })).toBeDisabled();
-    expect(screen.getByTestId('brand-preview-header').style.background).toContain('linear-gradient');
+    expect(screen.getByTestId('brand-preview-header').style.backgroundImage).toContain('linear-gradient');
   });
 
   it('publishes an edited palette as the whole canonical record', async () => {

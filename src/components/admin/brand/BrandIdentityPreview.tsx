@@ -35,7 +35,7 @@ export default function BrandIdentityPreview({ identity, name, portalUrl }: { id
   return (
     <div className="grid gap-4 lg:grid-cols-2" data-testid="brand-preview">
       <figure className="overflow-hidden rounded-xl border shadow-sm" style={typeStyle}>
-        <div className="flex items-center gap-3 px-4 py-3 text-white" style={{ background: header }} data-testid="brand-preview-header">
+        <div className="flex items-center gap-3 px-4 py-3 text-white" style={{ backgroundImage: header }} data-testid="brand-preview-header">
           <div className="min-w-0">
             <p className="truncate font-semibold">{name}</p>
             <p className="text-xs opacity-90">
