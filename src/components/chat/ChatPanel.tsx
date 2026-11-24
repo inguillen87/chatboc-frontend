@@ -4506,13 +4506,21 @@ const ChatPanelContent = (props: ChatPanelProps) => {
 
         {institutionalBootstrapPending&&visibleMessages.length===0?(
           <div className="flex flex-1 items-center justify-center" role="status" aria-label="Cargando conversación">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            {renderBrandAvatar ? (
+              <span data-testid="chat-loading-brand-avatar">{renderBrandAvatar("thinking", 56)}</span>
+            ) : (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            )}
           </div>
         ):visibleMessages.length === 0 ? (
              <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
-                   <MessageSquare className="w-8 h-8" />
-                </div>
+                {renderBrandAvatar ? (
+                  <div className="mb-3 sm:mb-4" data-testid="chat-empty-brand-avatar">{renderBrandAvatar("idle", 64)}</div>
+                ) : (
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
+                     <MessageSquare className="w-8 h-8" />
+                  </div>
+                )}
                 <h3 className="text-base font-semibold mb-2 text-foreground sm:text-lg dark:text-slate-50">{personalizedEmptyTitle}</h3>
                 <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
                    {emptyStateDescription}
