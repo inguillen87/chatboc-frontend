@@ -198,6 +198,14 @@ const CHAT_TRIAL_LIMIT_CODES = new Set([
   "anonymous_message_limit_reached",
 ]);
 
+/** The backend rejected a stored session of another organization or visitor; nothing ran. */
+const isSessionScopeConflict = (error: unknown): boolean =>
+  error instanceof ApiError &&
+  error.status === 409 &&
+  Boolean(error.body) &&
+  typeof error.body === "object" &&
+  (error.body as Record<string, unknown>).reason_code === "municipio_chat_idempotency_scope_conflict";
+
 const readChatTrialLimitNotice = (error: unknown): ChatTrialLimitNotice | null => {
   if (!(error instanceof ApiError)) return null;
   const body =
@@ -3220,6 +3228,22 @@ export function useChatLogic({
           };
         }
 
+        // A stored session that belongs to another organization or visitor is
+        // rejected before anything runs ("no action was performed"; the backend
+        // discards any reservation of the turn's key). The same turn then moves
+        // to a fresh session once instead of showing the conflict. Claim
+        // confirmation, audio and embed-bootstrap sessions keep their own
+        // recovery and are not resent here.
+        const retryOnceInFreshSession = async <T,>(send: () => Promise<T>): Promise<T> => {
+          try {
+            return await send();
+          } catch (error) {
+            if (!isSessionScopeConflict(error) || resolvedAction === "confirmar_reclamo" || hasAudioRecovery || !isCurrentSend()) throw error;
+            requestBody.session_id = resetChatSessionId();
+            return await send();
+          }
+        };
+
         const endpoint = audioBlob && audioEndpoint ? audioEndpoint : getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
         const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
@@ -3282,7 +3306,7 @@ export function useChatLogic({
           }),owner,error=>Boolean(requestIdempotencyKey)&&municipalEndpoint&&canReconcileMunicipalAudioError(error));
           response=await audioAttempt.run();
         } else {
-          response = await apiFetch<any>(endpoint, {
+          response = await retryOnceInFreshSession(() => apiFetch<any>(endpoint, {
             method: "POST",
             body: requestBody,
             skipAuth: effectiveSkipAuth,
@@ -3294,7 +3318,7 @@ export function useChatLogic({
               : undefined,
             isCurrent:isCurrentSend,
             ...(hasAudioRecovery?{singleAttempt:true,isCurrent:audioIsCurrent}:{}),
-          });
+          }));
         }
         if(!isCurrentSend()||(hasAudioRecovery&&!audioIsCurrent()))return;
         const renderedResponse = processBotPayload(response, {

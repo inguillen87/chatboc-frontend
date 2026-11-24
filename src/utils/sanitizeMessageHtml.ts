@@ -43,7 +43,8 @@ const ALLOWED_TAGS = [
 const urlRegex = /(^|\s)(https?:\/\/[^\s<>"'`]+|www\.[^\s<>"'`]+)/g;
 
 // Regex to find potential phone numbers, avoiding numbers that are part of URLs
-const phoneRegex = /(?<!https:\/\/wa\.me\/)(?<!\d)(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?){2,}\d{3,4}(?!\d)/g;
+// or of a longer token: a request id like "0a454962472a4b…" is not a phone.
+const phoneRegex = /(?<!https:\/\/wa\.me\/)(?<![\p{L}\p{N}_])(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?){2,}\d{3,4}(?![\p{L}\p{N}_])/gu;
 
 
 export function sanitizeMessageHtml(html: string): string {
