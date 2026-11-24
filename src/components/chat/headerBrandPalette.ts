@@ -65,10 +65,23 @@ export const readableHeaderColor = (value: unknown): string | null => {
 export const DEFAULT_HEADER_BACKGROUND =
   'linear-gradient(115deg, #071a51 0%, color-mix(in srgb, hsl(var(--primary)) 78%, #0d35c3) 100%)';
 
+// A secondary color without hue (white, grays) is usually the tenant's surface
+// color, not a brand tone: darkened it turns into a dull gray end stop.
+const isNeutral = (color: Rgb) => Math.max(color.r, color.g, color.b) - Math.min(color.r, color.g, color.b) < 24;
+
+const deeperTone = (value: unknown): string | null => {
+  const parsed = parseCssColor(value);
+  const readable = parseCssColor(readableHeaderColor(value) || '');
+  if (!parsed || !readable || isNeutral(parsed)) return null;
+  const deeper = mix(readable, NIGHT, 0.32);
+  return `rgb(${deeper.r}, ${deeper.g}, ${deeper.b})`;
+};
+
 /** Degradado de la cabecera con la marca del tenant; sin marca, el de la plataforma. */
 export const headerBackground = (start?: string | null, end?: string | null): string => {
   const from = readableHeaderColor(start);
-  const to = readableHeaderColor(end);
+  const endColor = parseCssColor(end);
+  const to = (endColor && isNeutral(endColor) && deeperTone(start)) || readableHeaderColor(end);
   if (!from && !to) return DEFAULT_HEADER_BACKGROUND;
   return `linear-gradient(115deg, ${from || to} 0%, ${to || from} 100%)`;
 };

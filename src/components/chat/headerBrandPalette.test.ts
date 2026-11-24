@@ -46,4 +46,18 @@ describe("headerBrandPalette", () => {
     expect(headerBackground("#14532d", null)).toBe("linear-gradient(115deg, rgb(20, 83, 45) 0%, rgb(20, 83, 45) 100%)");
     expect(headerBackground("#0f172a", "#14532d")).toBe("linear-gradient(115deg, rgb(15, 23, 42) 0%, rgb(20, 83, 45) 100%)");
   });
+
+  it("ends a brand gradient in a deeper brand tone when the secondary color is white or gray", () => {
+    const brand = readableHeaderColor("#3B82F6")!;
+    const withWhite = headerBackground("#3B82F6", "#ffffff");
+    expect(withWhite.startsWith(`linear-gradient(115deg, ${brand} 0%, rgb(`)).toBe(true);
+    const end = parseCssColor(withWhite.match(/(rgb\([^)]+\)) 100%/)![1])!;
+    expect(Math.max(end.r, end.g, end.b) - Math.min(end.r, end.g, end.b)).toBeGreaterThan(24);
+    expect(contrastWithWhite(end)).toBeGreaterThanOrEqual(4.5);
+    expect(headerBackground("#3B82F6", "#9ca3af")).toBe(withWhite);
+    // A neutral brand keeps its own neutral end: nothing to deepen.
+    expect(headerBackground("#000000", "#ffffff")).toBe(
+      `linear-gradient(115deg, rgb(0, 0, 0) 0%, ${readableHeaderColor("#ffffff")} 100%)`,
+    );
+  });
 });
