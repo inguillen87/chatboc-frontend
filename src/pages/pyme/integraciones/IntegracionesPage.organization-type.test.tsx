@@ -111,8 +111,9 @@ describe('integration presentation follows the selected organization type', () =
     }
     expect(screen.getByText('Email de Depósito', { exact: true })).toBeVisible();
     expect(screen.getByText('WhatsApp Logística', { exact: true })).toBeVisible();
-    expect(screen.getByDisplayValue('warehouse@example.test')).toBeVisible();
-    expect(screen.getByDisplayValue('synthetic-dispatch')).toBeVisible();
+    // The saved dispatch configuration arrives after the section renders.
+    expect(await screen.findByDisplayValue('warehouse@example.test')).toBeVisible();
+    expect(await screen.findByDisplayValue('synthetic-dispatch')).toBeVisible();
     expect(screen.getByText('0/6', { exact: true })).toBeVisible();
   });
 
