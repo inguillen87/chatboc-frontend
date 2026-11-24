@@ -5,6 +5,7 @@ import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
 import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 import ChartMount from './ChartMount';
+import { useBrandChartPalette } from '@/utils/publicBrandIdentity';
 
 interface StackedBarChartProps {
   title: string;
@@ -14,9 +15,10 @@ interface StackedBarChartProps {
   exportName: string;
 }
 
-const palette = ['#2563eb', '#16a34a', '#f97316', '#9333ea', '#facc15', '#0ea5e9'];
+const FALLBACK_PALETTE = ['#2563eb', '#16a34a', '#f97316', '#9333ea', '#facc15', '#0ea5e9'];
 
 export function StackedBarChart({ title, description, data, loading, exportName }: StackedBarChartProps) {
+  const palette = useBrandChartPalette(FALLBACK_PALETTE);
   const formatted = useMemo(() => {
     if (!data?.items?.length) return [];
     return data.items.map((item) => ({ label: item.label, value: item.value }));

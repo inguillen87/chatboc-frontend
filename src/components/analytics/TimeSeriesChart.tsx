@@ -14,6 +14,7 @@ import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
 import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 import ChartMount from './ChartMount';
+import { useBrandChartPalette } from '@/utils/publicBrandIdentity';
 
 interface TimeSeriesChartProps {
   title: string;
@@ -24,9 +25,10 @@ interface TimeSeriesChartProps {
   exportName: string;
 }
 
-const palette = ['#2563eb', '#f97316', '#16a34a', '#9333ea', '#0ea5e9', '#f43f5e'];
+const FALLBACK_PALETTE = ['#2563eb', '#f97316', '#16a34a', '#9333ea', '#0ea5e9', '#f43f5e'];
 
 export function TimeSeriesChart({ title, description, data, loading, valueFormatter, exportName }: TimeSeriesChartProps) {
+  const palette = useBrandChartPalette(FALLBACK_PALETTE);
   const formatted = useMemo(() => {
     if (!data) return [];
     return data.series.map((item) => ({
@@ -88,7 +90,7 @@ export function TimeSeriesChart({ title, description, data, loading, valueFormat
                   />
                 ))
               ) : (
-                <Area type="monotone" dataKey="total" stroke="#2563eb" fill="#2563eb" fillOpacity={0.2} />
+                <Area type="monotone" dataKey="total" stroke={palette[0]} fill={palette[0]} fillOpacity={0.2} />
               )}
               <Legend verticalAlign="top" height={24} wrapperStyle={{ fontSize: 12 }} />
             </AreaChart>
