@@ -1,10 +1,10 @@
 import React,{useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Search,Type} from 'lucide-react';
-import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
+import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,readKnowledgeAcronyms,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
-import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
@@ -296,6 +296,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3>
             {initialMenu&&index===0?choices:null}
             <div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
+            <InstitutionalAcronyms items={readKnowledgeAcronyms(node.acronyms)} label={ui.acronyms}/>
             {mode==='public'&&workspace.easy_read&&workspace.revision&&knowledge&&node.id!==knowledge.start?
               <InstitutionalEasyRead scope={{tenant:workspace.tenant,revision:workspace.revision,nodeId:node.id}} copy={workspace.easy_read}
                 autoOpenToken={easyReadRequest?.nodeId===node.id?easyReadRequest.token:null}/>:null}

@@ -38,7 +38,9 @@ export interface KnowledgeSource {
   document_visibility?:'private'|'public';
   delivery?:KnowledgeSourceDelivery;
 }
-export interface KnowledgeNode { id:string; title:string; text:string; actions:Array<{code:string;label:string;target:string}>; sources:KnowledgeSource[]; links:Array<{id:string;label:string;url:string;review_after:string}> }
+/** An acronym the node uses without explaining it, expanded by the organization's own published text. */
+export interface KnowledgeAcronym { acronym:string; expansion:string }
+export interface KnowledgeNode { id:string; title:string; text:string; actions:Array<{code:string;label:string;target:string}>; sources:KnowledgeSource[]; links:Array<{id:string;label:string;url:string;review_after:string}>; acronyms?:KnowledgeAcronym[] }
 export interface KnowledgeWorkspace {
   contract_version:'chatboc.institutional_assistant.v1';
   tenant:{id:number;slug:string;name:string}; revision:string|null; visibility:'empty'|'private'|'public'; can_edit:boolean;
@@ -110,6 +112,13 @@ export function sameKnowledgeSourceIdentity(a:KnowledgeSource,b:KnowledgeSource)
   if(keys.some(key=>a[key]!==b[key]))return false;
   if(!a.delivery||!b.delivery)return a.delivery===b.delivery;
   return (['contract_version','format','mime_type','sha256','byte_size','filename','document_visibility','publicly_accessible'] as const).every(key=>a.delivery![key]===b.delivery![key]);
+}
+/** Valid acronym entries only (at most six); anything else is ignored, never shown. */
+export function readKnowledgeAcronyms(value:unknown):KnowledgeAcronym[] {
+  if(!Array.isArray(value))return [];
+  return value.filter((item:unknown):item is KnowledgeAcronym=>record(item)&&typeof item.acronym==='string'&&
+    /^[A-ZÁÉÍÓÚÑ]{2,8}$/.test(item.acronym)&&typeof item.expansion==='string'&&item.expansion.trim().length>0&&
+    item.expansion.length<=200).slice(0,6);
 }
 export function isKnowledgeNode(value:unknown):value is KnowledgeNode {
   return record(value)&&string(value.id,120)&&string(value.title,250)&&string(value.text)&&

@@ -2,11 +2,11 @@ import React,{useEffect,useRef,useState} from 'react';
 import type {SendPayload} from '@/types/chat';
 import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,isInstitutionalSourceNavigationMessage,type InstitutionalChatMessage as InstitutionalMessage,type InstitutionalCanonicalChatMessage as CanonicalMessage,type InstitutionalSourceNavigationMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
-import {InstitutionalTextBlocks} from '@/components/knowledge/InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalTextBlocks} from '@/components/knowledge/InstitutionalTextBlocks';
 import {InstitutionalChoices} from '@/components/knowledge/InstitutionalChoices';
 import {InstitutionalResponseAudio,stopInstitutionalReading} from '@/components/knowledge/InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from '@/components/knowledge/InstitutionalEasyRead';
-import {knowledgeSourceExternalUrl} from '@/components/knowledge/institutionalAssistantContract';
+import {knowledgeSourceExternalUrl,readKnowledgeAcronyms} from '@/components/knowledge/institutionalAssistantContract';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import './institutionalChatMessage.css';
 
@@ -74,6 +74,7 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
     <h3 ref={index===0?heading:undefined} tabIndex={-1}>{node.title}</h3>
     {initialMenu&&index===0?choices:null}
     <div className="institutional-chat-message__prose"><InstitutionalTextBlocks text={node.text}/></div>
+    <InstitutionalAcronyms items={readKnowledgeAcronyms(node.acronyms)} label={answer.ui?.acronyms}/>
     {answer.easyRead&&!(initialMenu&&index===0)&&node.id!==answer.initialMenu?.startNodeId?
      <InstitutionalEasyRead scope={{tenant:answer.tenant,revision:answer.revision,nodeId:node.id}} copy={answer.easyRead}
       initialText={index===0?answer.easyReadText??null:null}/>:null}
