@@ -15,3 +15,6 @@ header[data-private-workspace="active"] .chatboc-mobile-menu :is(a,button) { min
 header[data-private-workspace="active"] .chatboc-mobile-menu p { overflow-wrap:anywhere; }
 @media(max-width:767px) { .private-workspace-brand { max-width:calc(100vw - 6.5rem); } .private-workspace-brand>img { width:36px; height:36px; } .private-workspace-brand strong { font-size:.9rem; } }
 @media(prefers-reduced-motion:reduce) { header[data-private-workspace="active"],header[data-private-workspace="active"] * { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
+/* Published brand identity: the organization's palette as a thin band under the panel header. */
+.private-workspace-band { position:absolute; inset-inline:0; bottom:-1px; height:3px; pointer-events:none; }
+@media (forced-colors:active) { .private-workspace-band { display:none; } }

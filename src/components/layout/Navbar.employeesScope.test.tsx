@@ -22,6 +22,8 @@ vi.mock('@/hooks/useCartCount', () => ({ default: () => 0 }));
 vi.mock('@/utils/backendBootstrapGate', () => ({ ensureBackendRuntimeReady: async () => undefined }));
 vi.mock('@/utils/api', async original => ({ ...await original<typeof import('@/utils/api')>(), apiFetch: (...args: unknown[]) => state.read(...args) }));
 vi.mock('@/components/admin/EmployeeRoutingMatrix', () => ({ default: () => <div>Routing presentation fixture</div> }));
+// The panel's public white-label read is covered by its own tests; these count scoped private reads only.
+vi.mock('@/components/brand/usePrivateWorkspaceBrandTheme', () => ({ usePrivateWorkspaceBrandTheme: () => null }));
 
 const canonicalActor = (role = 'superadmin') => ({
   id: 71, rol: role, nombre: 'Operador sintético', tenant_slug: 'actor-home', tenant_id: 33, tipo_chat: 'municipio',

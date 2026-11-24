@@ -1,4 +1,6 @@
 import {PrivateWorkspaceBrand} from '@/components/brand/PrivateWorkspaceBrand';
+import {usePrivateWorkspaceBrandTheme} from '@/components/brand/usePrivateWorkspaceBrandTheme';
+import {brandGradientColors} from '@/utils/publicBrandIdentity';
 import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
 import {InstitutionalAccessBrand} from '@/components/brand/InstitutionalAccessBrand';
 import {readPanelLoginScope} from '@/utils/panelLoginScope';
@@ -108,6 +110,8 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   const headerRef=useRef<HTMLElement>(null);
   const privateBrandRef=useRef<HTMLAnchorElement>(null);
   const privateShell=usePrivateWorkspacePresentation();
+  const privateBrand=usePrivateWorkspaceBrandTheme(privateShell.identity,privateShell.active);
+  const privateBandColors=privateBrand?brandGradientColors(privateBrand):[];
   const [isDark, setIsDark] = useState(false);
   const brandHomeButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -450,8 +454,10 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
 
   return (
     <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding || isPublicTenantPage ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} ${inFlow ? 'relative shrink-0' : 'fixed left-0 right-0 top-0'} z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
+      {privateShell.active&&privateBandColors.length>=2?<span aria-hidden="true" className="private-workspace-band" data-testid="private-workspace-band"
+        style={{backgroundImage:`linear-gradient(90deg, ${privateBandColors.join(', ')})`}}/>:null}
       <div className={`mx-auto flex items-center justify-between gap-3 ${isPlatformAdmin ? 'max-w-[100rem]' : 'max-w-7xl'}`}>
-        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl])} identity={privateShell.identity} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} subtitle={accessIdentity.tenantSlug} ref={institutionBrandRef}/> : publicIdentity ? <InstitutionalAccessBrand key={JSON.stringify([publicIdentity.tenantId,publicIdentity.tenantSlug,publicIdentity.logoUrl])} identity={publicIdentity} ref={institutionBrandRef}/> : isPublicTenantPage ? <span className="institutional-access-brand" data-testid="public-workspace-pending" aria-hidden="true"><Building2 size={30}/></span> : <button
+        {hostBinding ? <InstitutionalAccessBrand key={JSON.stringify([hostBinding.host,hostBinding.identity.logoUrl])} identity={hostBinding.identity} homePath={hostBinding.paths.home} subtitle={hostBinding.host} ref={institutionBrandRef}/> : privateShell.active ? <PrivateWorkspaceBrand key={JSON.stringify([privateShell.identity?.tenantSlug,privateShell.identity?.logoUrl,privateBrand?.logo?.mark])} identity={privateShell.identity} markUrl={privateBrand?.logo?.mark??null} ref={privateBrandRef}/> : accessIdentity ? <InstitutionalAccessBrand key={JSON.stringify([accessIdentity.tenantId,accessIdentity.logoUrl])} identity={accessIdentity} subtitle={accessIdentity.tenantSlug} ref={institutionBrandRef}/> : publicIdentity ? <InstitutionalAccessBrand key={JSON.stringify([publicIdentity.tenantId,publicIdentity.tenantSlug,publicIdentity.logoUrl])} identity={publicIdentity} ref={institutionBrandRef}/> : isPublicTenantPage ? <span className="institutional-access-brand" data-testid="public-workspace-pending" aria-hidden="true"><Building2 size={30}/></span> : <button
           ref={brandHomeButtonRef}
           type="button"
           onClick={handleLogoClick}
