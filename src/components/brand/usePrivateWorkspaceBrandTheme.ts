@@ -22,7 +22,16 @@ export const resetPrivateWorkspaceBrandThemeCache=()=>cache.clear();
  * when the panel closes or the organization changes.
  */
 export function usePrivateWorkspaceBrandTheme(identity:PrivateWorkspaceIdentity|null,active:boolean):PublicBrandIdentity|null {
-  const slug=active?exactInstitutionSlug(identity?.tenantSlug):null;
+  return useOrganizationBrandTheme(active?identity?.tenantSlug:null);
+}
+
+/**
+ * The same white label for any page of one organization (for example a public
+ * survey): `slug` has to be already verified for the page; without it the
+ * page keeps the platform look.
+ */
+export function useOrganizationBrandTheme(organizationSlug:string|null|undefined):PublicBrandIdentity|null {
+  const slug=exactInstitutionSlug(organizationSlug);
   const [theme,setTheme]=useState<PrivateWorkspaceBrandTheme|null>(()=>slug?cache.get(slug)??null:null);
   useEffect(()=>{
     if(!slug){setTheme(null);return;}

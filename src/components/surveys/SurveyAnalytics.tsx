@@ -36,6 +36,7 @@ import type {
 import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
+import { useBrandChartPalette } from '@/utils/publicBrandIdentity';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -53,16 +54,16 @@ interface SurveyAnalyticsProps {
   route?: string;
 }
 
-const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
+const FALLBACK_PALETTE = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
 const CHART_ANIMATION_DURATION = 650;
 const CHART_ANIMATION_EASING = 'ease-out';
 
 const colorFromCategory = (value: string, fallbackIndex = 0) => {
   const normalized = value.trim().toLowerCase();
-  if (!normalized) return palette[fallbackIndex % palette.length];
+  if (!normalized) return FALLBACK_PALETTE[fallbackIndex % FALLBACK_PALETTE.length];
   let hash = 0;
   for (let i = 0; i < normalized.length; i += 1) hash = (hash << 5) - hash + normalized.charCodeAt(i);
-  return palette[Math.abs(hash) % palette.length];
+  return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length];
 };
 const DEMOGRAPHIC_LABELS: Record<string, string> = {
   genero: 'Género',
@@ -1195,6 +1196,7 @@ export const SurveyAnalytics = ({
   tenantId,
   route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
+  const palette = useBrandChartPalette(FALLBACK_PALETTE);
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
   const summaryRecord = useMemo(
     () => (summary && typeof summary === 'object' ? (summary as unknown as Record<string, unknown>) : null),
@@ -1792,7 +1794,7 @@ export const SurveyAnalytics = ({
                 <Line
                   type="monotone"
                   dataKey="respuestas"
-                  stroke="#2563eb"
+                  stroke={palette[0]}
                   strokeWidth={2}
                   dot
                   isAnimationActive
@@ -1830,7 +1832,7 @@ export const SurveyAnalytics = ({
                   <Legend />
                   <Bar
                     dataKey={hasEligibilityMetrics ? 'respuestasSeleccionaron' : 'respuestas'}
-                    fill="#7c3aed"
+                    fill={palette[1]}
                     isAnimationActive
                     animationDuration={CHART_ANIMATION_DURATION}
                     animationEasing={CHART_ANIMATION_EASING}

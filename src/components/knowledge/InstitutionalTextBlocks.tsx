@@ -1,4 +1,5 @@
 import React from 'react';
+import type {KnowledgeAcronym} from './institutionalAssistantContract';
 
 type TextBlock =
   | {kind:'paragraph'; text:string}
@@ -42,4 +43,17 @@ export function InstitutionalTextBlocks({text}:{text:string}) {
       ?<ol key={index} start={block.items[0].number} className="mb-[15px] list-decimal space-y-2 pl-6">{items}</ol>
       :<ul key={index} className="mb-[15px] list-disc space-y-2 pl-6">{items}</ul>;
   })}</>;
+}
+
+/**
+ * Acronyms of an answer with the meaning the organization published. The
+ * label comes from the backend; without it, or without acronyms, nothing renders.
+ */
+export function InstitutionalAcronyms({items,label}:{items:KnowledgeAcronym[];label?:string|null}) {
+  const title=label?.trim();
+  if(!items.length||!title)return null;
+  return <div className="institutional-acronyms" role="group" aria-label={title} data-testid="institutional-acronyms">
+    <p className="institutional-acronyms__label" aria-hidden="true">{title}</p>
+    <dl>{items.map(item=><div key={item.acronym}><dt><abbr title={item.expansion}>{item.acronym}</abbr></dt><dd>{item.expansion}</dd></div>)}</dl>
+  </div>;
 }

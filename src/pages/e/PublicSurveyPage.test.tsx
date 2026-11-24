@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
   formSubmissionResolved: vi.fn(),
   formSubmissionRejected: vi.fn(),
   socketOptions: undefined as any,
+  useOrganizationBrandTheme: vi.fn(),
+}));
+
+vi.mock('@/components/brand/usePrivateWorkspaceBrandTheme', () => ({
+  useOrganizationBrandTheme: mocks.useOrganizationBrandTheme,
 }));
 
 vi.mock('@/hooks/useSurveyPublic', () => ({
@@ -76,7 +81,7 @@ vi.mock('@/utils/surveyAnalytics', () => ({
   trackSurveyDemoInteraction: mocks.trackSurveyDemoInteraction,
 }));
 
-import PublicSurveyPage, { resolvePublicSurveyBrandLabel } from './[slug]';
+import PublicSurveyPage, { resolvePublicSurveyBrandLabel, resolvePublicSurveyTenantSlug } from './[slug]';
 import type { SurveyPublic } from '@/types/encuestas';
 import { ApiError } from '@/utils/api';
 import { headingSkips } from '@/test/headingOutline';
@@ -123,6 +128,17 @@ describe('public survey tenant branding', () => {
     );
 
     expect(resolvePublicSurveyBrandLabel(survey, 'mendoza')).toBe('Participación ciudadana');
+  });
+
+  it('gives the page its organization only when every declared scope agrees', () => {
+    const survey = publicBrandSurvey({ slug: 'tdf', nombre: 'Gobierno de Tierra del Fuego' }, 'tdf');
+
+    expect(resolvePublicSurveyTenantSlug(survey, 'tdf')).toBe('tdf');
+    expect(resolvePublicSurveyTenantSlug(survey, null)).toBe('tdf');
+    expect(resolvePublicSurveyTenantSlug(survey, 'mendoza')).toBeNull();
+    expect(resolvePublicSurveyTenantSlug(survey, '../tdf')).toBeNull();
+    expect(resolvePublicSurveyTenantSlug(publicBrandSurvey(null, 'tdf'), 'tdf')).toBeNull();
+    expect(resolvePublicSurveyTenantSlug(undefined, 'tdf')).toBeNull();
   });
 
   it('fails closed when a supplied tenant selector is malformed', () => {
@@ -359,6 +375,32 @@ describe('PublicSurveyPage loading experience', () => {
       expect(submit).toHaveBeenCalledTimes(1);
     },
   );
+
+  it.each([
+    ['tdf', 'tdf'],
+    ['mendoza', null],
+  ])('applies the organization brand only for a verified survey scope (%s)', (requested, expected) => {
+    const defaults = mocks.useSurveyPublic();
+    mocks.useSurveyPublic.mockReturnValue({
+      ...defaults,
+      isLoading: false,
+      survey: publicBrandSurvey({ slug: 'tdf', nombre: 'Gobierno de Tierra del Fuego' }, 'tdf'),
+    });
+    mocks.useOrganizationBrandTheme.mockReset();
+    render(
+      <MemoryRouter
+        initialEntries={[`/e/consulta-publica?tenant_slug=${requested}`]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/e/:slug" element={<PublicSurveyPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(mocks.useOrganizationBrandTheme).toHaveBeenCalled();
+    expect(mocks.useOrganizationBrandTheme.mock.calls.every(([slug]) => slug === expected)).toBe(true);
+  });
 
   it('keeps the survey route informative and accessible while data loads', () => {
     render(

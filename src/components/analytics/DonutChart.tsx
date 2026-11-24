@@ -5,6 +5,7 @@ import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
 import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 import ChartMount from './ChartMount';
+import { useBrandChartPalette } from '@/utils/publicBrandIdentity';
 
 interface DonutChartProps {
   title: string;
@@ -14,9 +15,10 @@ interface DonutChartProps {
   loading?: boolean;
 }
 
-const palette = ['#2563eb', '#f97316', '#22d3ee', '#16a34a', '#f43f5e', '#9333ea', '#facc15', '#0ea5e9'];
+const FALLBACK_PALETTE = ['#2563eb', '#f97316', '#22d3ee', '#16a34a', '#f43f5e', '#9333ea', '#facc15', '#0ea5e9'];
 
 export function DonutChart({ title, description, data, exportName, loading }: DonutChartProps) {
+  const palette = useBrandChartPalette(FALLBACK_PALETTE);
   const formatted = useMemo(() => {
     if (!data?.items?.length) return [];
     return data.items

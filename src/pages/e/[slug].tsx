@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, RefreshCw, Timer, TrendingUp, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
+import { useOrganizationBrandTheme } from '@/components/brand/usePrivateWorkspaceBrandTheme';
 import { SurveyParticipationAssurance } from '@/components/surveys/SurveyParticipationAssurance';
 import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
 import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
@@ -83,13 +84,18 @@ const asTenantSlug = (value: unknown): string | null => {
   return /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(normalized) ? normalized : null;
 };
 
-export const resolvePublicSurveyBrandLabel = (
+/**
+ * The organization of a public survey, only when every declared scope agrees:
+ * the payload's organization, the survey's declared organization and the one
+ * the link asked for. Any disagreement leaves the page without an organization.
+ */
+export const resolvePublicSurveyTenantSlug = (
   survey?: SurveyPublic,
   requestedTenantSlug?: string | null,
-): string => {
-  if (!survey) return PUBLIC_PARTICIPATION_FALLBACK;
+): string | null => {
+  if (!survey) return null;
   const tenant = asRecord(survey.tenant);
-  if (!tenant) return PUBLIC_PARTICIPATION_FALLBACK;
+  if (!tenant) return null;
 
   const payloadTenantSlug = asTenantSlug(tenant.slug);
   const requestedSlug = asTenantSlug(requestedTenantSlug);
@@ -103,9 +109,17 @@ export const resolvePublicSurveyBrandLabel = (
     (requestedSlug !== null && requestedSlug !== payloadTenantSlug) ||
     (declaredSurveySlug !== null && declaredSurveySlug !== payloadTenantSlug)
   ) {
-    return PUBLIC_PARTICIPATION_FALLBACK;
+    return null;
   }
+  return payloadTenantSlug;
+};
 
+export const resolvePublicSurveyBrandLabel = (
+  survey?: SurveyPublic,
+  requestedTenantSlug?: string | null,
+): string => {
+  if (!resolvePublicSurveyTenantSlug(survey, requestedTenantSlug)) return PUBLIC_PARTICIPATION_FALLBACK;
+  const tenant = asRecord(survey?.tenant) ?? {};
   const tenantBranding = asRecord(tenant.branding);
   const candidates = [
     tenantBranding?.public_name,
@@ -263,6 +277,8 @@ const PublicSurveyPage = () => {
       surveyResources?.demo_mode === true,
   );
   const publicParticipationBrand = resolvePublicSurveyBrandLabel(survey, tenantSlug);
+  // The organization's published palette, typography and accents, as in its portal.
+  useOrganizationBrandTheme(resolvePublicSurveyTenantSlug(survey, tenantSlug));
   const shareSubmission = isDemoParticipationSurvey ? null : lastSubmission;
   const shouldRevealLiveResults = Boolean(survey?.mostrar_resultados_envivo);
   const liveSlug = useMemo(() => resolveSurveyLiveSlug(survey, slug), [survey, slug]);
