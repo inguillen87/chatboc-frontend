@@ -12,7 +12,7 @@ vi.mock('@/hooks/useChatLogic', async original => ({ ...await original<typeof im
 vi.mock('@/hooks/useUser', () => ({ useUser: () => ({ user: null }) }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/hooks/useBusinessHours', () => ({ useBusinessHours: () => ({ isLiveChatEnabled: false, horariosAtencion: '', availabilityLabel: '', timezone: '' }) }));
-vi.mock('./ChatInput', () => ({ default: () => <input aria-label="Borrador sintético" /> }));
+vi.mock('./ChatInput', () => ({ default: ({ toolbarStart }: { toolbarStart?: import('react').ReactNode }) => <>{toolbarStart}<input aria-label="Borrador sintético" /></> }));
 vi.mock('./RealtimeAvatarStage', () => ({ default: () => null }));
 vi.mock('@/components/ui/ScrollToBottomButton', () => ({ default: () => null }));
 vi.mock('@/utils/frontendTelemetry', () => ({ trackFrontendEvent: vi.fn() }));

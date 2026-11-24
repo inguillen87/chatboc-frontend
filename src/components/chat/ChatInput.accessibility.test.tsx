@@ -142,3 +142,18 @@ describe('ChatInput accessible validation', () => {
     expect(screen.queryByText(emailError)).not.toBeInTheDocument();
   });
 });
+
+describe('ChatInput toolbar slot', () => {
+  it('renders the panel control as the first action of the message toolbar', () => {
+    render(
+      <ChatInput
+        isTyping={false}
+        onSendMessage={vi.fn()}
+        toolbarStart={<button type="button" aria-label="Ver acciones" />}
+      />,
+    );
+    const toolbar = screen.getByRole('toolbar', { name: 'Acciones del mensaje' });
+    const actions = Array.from(toolbar.querySelectorAll('button'));
+    expect(actions[0]).toBe(screen.getByRole('button', { name: 'Ver acciones' }));
+  });
+});

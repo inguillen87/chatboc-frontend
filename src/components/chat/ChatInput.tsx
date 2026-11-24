@@ -57,6 +57,8 @@ interface Props {
   demoSessionId?: string | null;
   chatSessionId?: string | null;
   audioContextKey?: string;
+  /** Control rendered first in the composer toolbar (e.g. the panel's actions toggle). */
+  toolbarStart?: React.ReactNode;
 }
 
 
@@ -145,6 +147,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   demoSessionId,
   chatSessionId,
   audioContextKey,
+  toolbarStart = null,
 }, ref) => {
   const { input, setInput, draftRecovered, clearDraft } = useChatInputDraft({ tenantSlug, demoSessionId, chatSessionId, onTypingChange });
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -973,6 +976,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
             </div>
           )}
           <div className={`flex min-w-0 items-center gap-1.5 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
+            {toolbarStart}
             {showAttachAction ? (
               <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md [&_button]:h-9 [&_button]:w-9 sm:[&_button]:h-10 sm:[&_button]:w-10" title={attachmentLabel}>
               <AdjuntarArchivo
