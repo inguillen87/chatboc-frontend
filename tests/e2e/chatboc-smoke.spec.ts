@@ -208,7 +208,7 @@ test.describe('Chatboc smoke e2e', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: /Convert[ií] conversaciones en operaciones reales/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Agentes IA con tu marca que atienden y resuelven/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Solicitar demostraci[oó]n/i }).first()).toBeVisible();
     expect(realtimeRequests).toEqual([]);
   });
