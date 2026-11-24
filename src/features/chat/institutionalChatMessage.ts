@@ -2,6 +2,7 @@ import {isKnowledgeNode,isKnowledgeSource,sameKnowledgeSourceIdentity,parseWorks
 import {ApiError} from '@/utils/api';
 import {readInstitutionalChoiceNavigation,type InstitutionalChoiceNavigation} from '@/components/knowledge/InstitutionalChoices';
 import {readInstitutionalAudioReading,type InstitutionalAudioReading} from '@/components/knowledge/institutionalAssistantAudio';
+import {isInstitutionalEasyReadText,readInstitutionalEasyReadCopy,type InstitutionalEasyReadCopy} from '@/components/knowledge/institutionalAssistantEasyRead';
 import type {Message} from '@/types/chat';
 
 export interface InstitutionalCanonicalChatMessage {
@@ -9,12 +10,15 @@ export interface InstitutionalCanonicalChatMessage {
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
   ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string};
   audioReading?:InstitutionalAudioReading;
+  easyRead?:InstitutionalEasyReadCopy;
+  /** Verified easy-read text of the first node, when the person asked for it by writing. */
+  easyReadText?:string;
   /** Local presentation authority from a validated public workspace, never a remote hint. */
   initialMenu?:InstitutionalInitialMenuContext;
 }
 export interface InstitutionalSourceNavigationMessage {
   kind:'source_navigation'; tenant:{id:number;slug:string}; revision:string; nodes:[]; sources:KnowledgeSource[]; text:string;
-  ui:{sources:string;source_details:string;large_text:string}; audioReading?:undefined; initialMenu?:undefined;
+  ui:{sources:string;source_details:string;large_text:string}; audioReading?:undefined; easyRead?:undefined; easyReadText?:undefined; initialMenu?:undefined;
 }
 export type InstitutionalChatMessage=InstitutionalCanonicalChatMessage|InstitutionalSourceNavigationMessage;
 export const isInstitutionalSourceNavigationMessage=(answer:InstitutionalChatMessage):answer is InstitutionalSourceNavigationMessage=>answer.kind==='source_navigation';
@@ -93,6 +97,7 @@ export function institutionalChatBootstrapPayload(value:unknown,tenantSlug:strin
     knowledge_tenant:answer.tenant,knowledge_nodes:answer.nodes,
     knowledge_sources:answer.nodes.flatMap(node=>node.sources),message_body:answer.text,
     ...(workspace.audio_reading?{knowledge_audio_reading:workspace.audio_reading}:{}),
+    ...(workspace.easy_read?{knowledge_easy_read:workspace.easy_read}:{}),
     ...(readInstitutionalChoiceNavigation(workspace.ui)?{knowledge_ui:{...readInstitutionalChoiceNavigation(workspace.ui),large_text:workspace.ui.large_text,source_details:workspace.ui.source_details}}:{}),
     botones:institutionalChatActions(answer.nodes).map(action=>({texto:action.label,
       action_id:`knowledge:${answer.revision.slice(0,16)}:${action.target}`}))};
@@ -113,7 +118,7 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     if(!tenantSlug||!record(value.knowledge_tenant)||value.knowledge_tenant.slug!==tenantSlug||
       !Number.isSafeInteger(value.knowledge_tenant.id)||Number(value.knowledge_tenant.id)<1||
       typeof value.context_revision!=='string'||!/^[a-f0-9]{64}$/.test(value.context_revision)||
-      value.knowledge_nodes!==undefined||value.knowledge_audio_reading!==undefined||
+      value.knowledge_nodes!==undefined||value.knowledge_audio_reading!==undefined||value.knowledge_easy_read!==undefined||
       (value.botones!==undefined&&(!Array.isArray(value.botones)||value.botones.length!==0))||
       typeof value.message_body!=='string'||!value.message_body.trim()||value.message_body.length>40000||
       !record(ui)||!['sources','source_details','large_text'].every(key=>typeof ui[key]==='string'&&ui[key].trim()&&ui[key].length<=1000)||
@@ -132,6 +137,10 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
   const revision=value.context_revision;
   const audioReading=readInstitutionalAudioReading(value.knowledge_audio_reading);
   if(value.knowledge_audio_reading!==undefined&&!audioReading)return null;
+  const easyRead=readInstitutionalEasyReadCopy(value.knowledge_easy_read);
+  if(value.knowledge_easy_read!==undefined&&!easyRead)return null;
+  if(value.knowledge_easy_read_text!==undefined&&(!easyRead||!isInstitutionalEasyReadText(value.knowledge_easy_read_text)||
+    value.knowledge_nodes.length!==1))return null;
   const suppliedUi=record(value.knowledge_ui)?value.knowledge_ui:null,navigation=readInstitutionalChoiceNavigation(suppliedUi);
   if(value.knowledge_ui!==undefined&&(!navigation||!suppliedUi||
     !['large_text','source_details'].every(key=>typeof suppliedUi[key]==='string'&&suppliedUi[key].trim()&&suppliedUi[key].length<=200)))return null;
@@ -148,6 +157,8 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     button.texto!==expected[index].label||button.action_id!==`knowledge:${revision.slice(0,16)}:${expected[index].target}`))return null;
   return {tenant:{id:Number(value.knowledge_tenant.id),slug:tenantSlug},revision,nodes:value.knowledge_nodes,sources:[...sources.values()],
     ...(audioReading?{audioReading}:{}),
+    ...(easyRead?{easyRead}:{}),
+    ...(easyRead&&typeof value.knowledge_easy_read_text==='string'?{easyReadText:value.knowledge_easy_read_text}:{}),
     ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string}}:{})};
 }
 
