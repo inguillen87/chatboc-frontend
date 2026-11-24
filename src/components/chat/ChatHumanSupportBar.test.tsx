@@ -69,4 +69,23 @@ describe("ChatHumanSupportBar", () => {
     expect(screen.getByRole("button", { name: "Escribir al equipo" })).toHaveClass("bg-primary");
     expect(screen.queryByText("Equipo disponible ahora")).not.toBeInTheDocument();
   });
+
+  it("stays on a single compact mobile row with 44px targets and accessible labels when both channels exist", () => {
+    const { container } = render(
+      <ChatHumanSupportBar
+        liveChatLabel="Dejar mensaje"
+        whatsappLabel="WhatsApp"
+        onLiveChat={vi.fn()}
+        onWhatsApp={vi.fn()}
+      />,
+    );
+
+    const row = container.querySelector("section > div");
+    expect(row).toHaveClass("flex-nowrap");
+    expect(screen.getByText("Ayuda de una persona")).toHaveClass("truncate");
+    const primary = screen.getByRole("button", { name: "Dejar mensaje" });
+    const secondary = screen.getByRole("button", { name: "WhatsApp" });
+    expect(primary).toHaveClass("min-h-11", "min-w-11", "shrink-0");
+    expect(secondary).toHaveClass("min-h-11", "min-w-11", "shrink-0");
+  });
 });

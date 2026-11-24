@@ -105,4 +105,43 @@ describe('tenant widget while its profile loads', () => {
     expect(await screen.findByRole('dialog', { name: 'Cargando el asistente' })).toBeInTheDocument();
     expect(screen.getByText('Cargando el asistente')).toBeVisible();
   });
+
+  it('never flashes App platform defaults on launcher or header while an organization config loads', async () => {
+    window.history.replaceState({}, '', '/t/qa-loading');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockImplementation(() => new Promise(() => {}));
+
+    renderWidget(
+      <MemoryRouter initialEntries={['/t/qa-loading']}>
+        <ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} />
+      </MemoryRouter>,
+    );
+
+    const launcher = await screen.findByRole('button', { name: 'Abrir el asistente' });
+    expect(launcher).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText(/Asistente Virtual/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Chatboc/i)).not.toBeInTheDocument();
+
+    fireEvent.click(launcher);
+    const panel = await screen.findByRole('dialog', { name: 'Cargando el asistente' });
+    expect(panel).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Cargando asistente')).toBeInTheDocument();
+    expect(screen.queryByTitle('Asistente Virtual')).not.toBeInTheDocument();
+    expect(screen.queryByText(appDefaults.welcomeTitle)).not.toBeInTheDocument();
+    expect(screen.queryByText(appDefaults.welcomeSubtitle)).not.toBeInTheDocument();
+  });
+
+  it('keeps platform defaults intact on the Chatboc landing page', async () => {
+    window.history.replaceState({}, '', '/');
+    const publicRead = vi.spyOn(tenantService, 'getPublicWidgetConfig');
+
+    renderWidget(
+      <MemoryRouter initialEntries={['/']}>
+        <ChatWidgetInner mode="standalone" defaultOpen {...appDefaults} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByTitle(appDefaults.welcomeTitle)).toBeVisible());
+    expect(screen.getByText(appDefaults.welcomeSubtitle)).toBeVisible();
+    expect(publicRead).not.toHaveBeenCalled();
+  });
 });

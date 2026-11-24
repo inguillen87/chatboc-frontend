@@ -61,6 +61,7 @@ const IconButton = {
 interface Props {
   recommendationLabel?: string | null;
   compactActions?: boolean;
+  isLoading?: boolean;
   onClose: () => void;
   isTyping?: boolean;
   onProfile?: () => void;
@@ -114,6 +115,7 @@ const briefSubtitle = (text: string) => {
 const ChatHeader: React.FC<Props> = ({
   onClose,
   isTyping = false,
+  isLoading = false,
   onProfile,
   onBack,
   showProfile = true,
@@ -135,10 +137,11 @@ const ChatHeader: React.FC<Props> = ({
 }) => {
   const isMobile = useIsMobile();
   const isUltraCompact = compactActions && isMobile;
+  const showNeutralLoading = Boolean(isLoading && !title?.trim());
   const displayTitle = title?.trim() || fallbackTitle;
   const welcomeText = subtitle?.trim() || "Asistente digital";
   const welcomeSummary = briefSubtitle(welcomeText);
-  const hasFullWelcome = welcomeSummary !== welcomeText;
+  const hasFullWelcome = !showNeutralLoading && welcomeSummary !== welcomeText;
   const liveChatSocketEnabled = isEnabledFlag(
     supportChannels?.live_chat?.socket_enabled,
     false,
@@ -162,91 +165,114 @@ const ChatHeader: React.FC<Props> = ({
     return blocked.has(normalized.toLowerCase()) ? null : normalized;
   })();
   const hasSecondaryActions = Boolean((onProfile && showProfile) || onCart || onToggleSound);
-  const actionButtonClass = cn(
-    "flex items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white/90 transition-colors hover:bg-white/18 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary",
-    isUltraCompact ? "h-8 w-8 p-1.5" : "h-9 w-9 p-2",
-  );
+  const actionButtonClass =
+    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-slate-950/25 text-white transition-colors hover:bg-slate-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950";
+  const closeButtonClass =
+    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/40 bg-slate-950/35 text-white transition-colors hover:bg-slate-950/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950";
 
   return (
     <div
-      aria-busy={isTyping}
+      aria-busy={isTyping || showNeutralLoading}
       className={`
         relative flex items-center justify-between gap-2 flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
-        border-b border-white/10 px-2.5 py-2.5 sm:px-4 sm:py-3
+        border-b border-white/10 px-2 py-2 sm:px-4 sm:py-3
         text-white transition-all
       `}
       style={{
         background: headerBackground(brandColors?.start, brandColors?.end),
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
-        paddingTop: isUltraCompact ? "max(0.625rem, env(safe-area-inset-top))" : undefined,
+        paddingTop: isUltraCompact ? "max(0.5rem, env(safe-area-inset-top))" : undefined,
       }}
     >
-      <div className="relative flex min-w-0 flex-1 items-center gap-2.5">
+      <div className="relative flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
         <div className={cn(
-          "relative flex shrink-0 items-center justify-center border border-white/25 bg-white/10 shadow-sm",
-          isUltraCompact ? "h-9 w-9 rounded-lg" : "h-11 w-11 rounded-xl",
+          "relative flex shrink-0 items-center justify-center border border-white/25 bg-slate-950/20 shadow-sm",
+          isUltraCompact ? "h-9 w-9 rounded-xl" : "h-11 w-11 rounded-xl",
         )}>
-          <div className="relative flex items-center justify-center">
-            <ChatbocLogoAnimated
-              src={logoUrl}
-              size={isUltraCompact ? 26 : 32}
-              smiling={isTyping}
-              movingEyes={isTyping}
-              blinking
-              pulsing={false}
-              animation={logoAnimation}
+          {showNeutralLoading ? (
+            <span
+              aria-hidden="true"
+              className="h-5 w-5 rounded-full bg-white/30 motion-safe:animate-pulse"
             />
-          </div>
-        </div>
-        <div className="min-w-0 overflow-hidden">
-          <div className="flex items-center gap-2">
-            <span className="break-words text-sm font-bold leading-snug tracking-[0.01em] sm:text-base" title={displayTitle}>
-              {displayTitle}
-            </span>
-          </div>
-          {hasFullWelcome ? (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Leer bienvenida completa"
-                  className="mt-0.5 flex min-h-11 w-full items-center gap-1.5 rounded-md text-left text-[11px] text-white/90 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:text-xs"
-                >
-                  <MessageCircleMore className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 line-clamp-2 break-words font-medium leading-snug">{welcomeSummary}</span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="start"
-                role="dialog"
-                aria-label="Bienvenida completa"
-                className="z-[1000004] max-h-[min(50dvh,20rem)] w-80 max-w-[calc(100vw-24px)] overflow-y-auto text-sm leading-relaxed"
-              >
-                <p className="whitespace-pre-line break-words">{welcomeText}</p>
-              </PopoverContent>
-            </Popover>
           ) : (
-            <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-white/90 sm:text-xs">
-              <MessageCircleMore className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 break-words font-medium leading-snug">{welcomeText}</span>
+            <div className="relative flex items-center justify-center">
+              <ChatbocLogoAnimated
+                src={logoUrl}
+                size={isUltraCompact ? 26 : 32}
+                smiling={isTyping}
+                movingEyes={isTyping}
+                blinking
+                pulsing={false}
+                animation={logoAnimation}
+              />
             </div>
           )}
-          {statusLabel && !isUltraCompact ? (
-            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/80">
-              <span className={cn("h-1.5 w-1.5 rounded-full", liveChatVisible ? "bg-emerald-300" : "bg-sky-200")} />
-              <span className="truncate">{statusLabel}</span>
+        </div>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {showNeutralLoading ? (
+            <div className="space-y-1.5 py-0.5" role="status" aria-live="polite">
+              <span className="sr-only">Cargando asistente</span>
+              <span
+                aria-hidden="true"
+                className="block h-3.5 w-24 max-w-full rounded-full bg-white/35 motion-safe:animate-pulse"
+              />
+              <span
+                aria-hidden="true"
+                className="block h-2.5 w-32 max-w-full rounded-full bg-white/20 motion-safe:animate-pulse"
+              />
             </div>
-          ) : null}
-          {isTyping && !isUltraCompact ? (
-            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75 motion-safe:animate-ping" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
-              </span>
-              Preparando respuesta
-            </div>
-          ) : null}
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="break-words text-sm font-bold leading-snug tracking-[0.01em] sm:text-base" title={displayTitle}>
+                  {displayTitle}
+                </span>
+              </div>
+              {hasFullWelcome ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Leer bienvenida completa"
+                      className="mt-0.5 flex min-h-11 w-full items-center gap-1.5 rounded-md text-left text-[11px] text-white/95 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:text-xs"
+                    >
+                      <MessageCircleMore className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 line-clamp-2 break-words font-medium leading-snug">{welcomeSummary}</span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    role="dialog"
+                    aria-label="Bienvenida completa"
+                    className="z-[1000004] max-h-[min(50dvh,20rem)] w-80 max-w-[calc(100vw-24px)] overflow-y-auto text-sm leading-relaxed"
+                  >
+                    <p className="whitespace-pre-line break-words">{welcomeText}</p>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <div className="mt-0.5 flex items-start gap-1.5 text-[11px] text-white/95 sm:text-xs">
+                  <MessageCircleMore className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 break-words font-medium leading-snug">{welcomeText}</span>
+                </div>
+              )}
+              {statusLabel && !isUltraCompact ? (
+                <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/90">
+                  <span className={cn("h-1.5 w-1.5 rounded-full", liveChatVisible ? "bg-emerald-300" : "bg-sky-200")} />
+                  <span className="truncate">{statusLabel}</span>
+                </div>
+              ) : null}
+              {isTyping && !isUltraCompact ? (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75 motion-safe:animate-ping" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
+                  </span>
+                  Preparando respuesta
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
       <div className="relative flex shrink-0 items-center gap-1">
@@ -254,10 +280,11 @@ const ChatHeader: React.FC<Props> = ({
           onChange={onA11yChange}
           compact={compactActions}
           hints={accessibilityHints}
-          className={isUltraCompact ? "h-8 w-8" : undefined}
+          variant="header"
         />
         {onBack ? (
           <button
+            type="button"
             onClick={onBack}
             className={actionButtonClass}
             aria-label="Volver"
@@ -305,12 +332,13 @@ const ChatHeader: React.FC<Props> = ({
           </DropdownMenu>
         ) : null}
         <button
+          type="button"
           onClick={onClose}
-          className={actionButtonClass}
+          className={closeButtonClass}
           aria-label="Cerrar chat"
           title="Cerrar chat"
         >
-          <IconButton.Close className="h-5 w-5" />
+          <IconButton.Close className="h-5 w-5" strokeWidth={2.25} />
         </button>
       </div>
     </div>

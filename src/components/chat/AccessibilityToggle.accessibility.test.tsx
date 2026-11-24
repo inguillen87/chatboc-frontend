@@ -64,4 +64,29 @@ describe('AccessibilityToggle named keyboard panel', () => {
     expect(secondTitle).not.toBe(firstTitle);
     expect(document.getElementById(secondTitle!)).toHaveTextContent(/^Accesibilidad$/);
   });
+
+  it('uses unified 44px header styling without a noisy default badge and announces what the counter counts', async () => {
+    const user = userEvent.setup();
+    render(<AccessibilityToggle variant="header" compact />);
+
+    const trigger = screen.getByRole('button', { name: 'Abrir ajustes de accesibilidad' });
+    expect(trigger).toHaveClass('h-11', 'w-11', 'rounded-xl', 'text-white');
+    expect(trigger).not.toHaveClass('bg-amber-100', 'rounded-full');
+    expect(trigger.textContent?.trim()).toBe('');
+
+    await user.click(trigger);
+    await user.click(await screen.findByRole('button', { name: /^Alto contraste/ }));
+    expect(trigger).toHaveAttribute(
+      'aria-label',
+      'Abrir ajustes de accesibilidad (1 ajuste de accesibilidad activo)',
+    );
+    expect(trigger.textContent?.trim()).toBe('1');
+
+    await user.click(screen.getByRole('button', { name: /^Menos movimiento/ }));
+    expect(trigger).toHaveAttribute(
+      'aria-label',
+      'Abrir ajustes de accesibilidad (2 ajustes de accesibilidad activos)',
+    );
+    expect(trigger.textContent?.trim()).toBe('2');
+  });
 });

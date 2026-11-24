@@ -144,4 +144,43 @@ describe("ChatHeader", () => {
     expect(header.style.background).toContain("rgb(20, 83, 45)");
     expect(header.style.background).not.toContain("#071a51");
   });
+
+  it("unifies header action buttons at 44px touch targets with high-contrast surfaces and clear close control", () => {
+    render(
+      <ChatHeader
+        onClose={vi.fn()}
+        onBack={vi.fn()}
+        onToggleSound={vi.fn()}
+        compactActions
+        title="JUNÍ"
+        brandColors={{ start: "#3B82F6", end: "#2563EB" }}
+      />,
+    );
+
+    const back = screen.getByRole("button", { name: "Volver" });
+    const options = screen.getByRole("button", { name: "Opciones del chat" });
+    const close = screen.getByRole("button", { name: "Cerrar chat" });
+
+    for (const button of [back, options, close]) {
+      expect(button).toHaveClass("h-11", "w-11", "rounded-xl", "text-white");
+    }
+    expect(close).toHaveClass("border-white/40", "bg-slate-950/35");
+  });
+
+  it("renders a neutral aria-busy loading skeleton instead of platform text while waiting for tenant identity", () => {
+    const { container } = render(
+      <ChatHeader
+        onClose={vi.fn()}
+        title=""
+        fallbackTitle="Asistente virtual"
+        isLoading
+      />,
+    );
+
+    const header = container.firstElementChild as HTMLElement;
+    expect(header).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando asistente");
+    expect(screen.queryByText("Asistente virtual")).not.toBeInTheDocument();
+    expect(screen.queryByText("Chatboc")).not.toBeInTheDocument();
+  });
 });

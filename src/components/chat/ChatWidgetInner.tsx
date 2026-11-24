@@ -17,6 +17,10 @@ import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
+import {
+  resolveMobileOpenViewportStyle,
+  useMobileVisualViewport,
+} from "./mobileVisualViewport";
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { ACCESSIBILITY_EVENT, readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -77,6 +81,16 @@ const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 
 const MOBILE_PORTAL_NAV_BREAKPOINT_PX = 768;
 const MOBILE_PORTAL_NAV_HEIGHT = "4rem";
+
+const isPlatformDefaultCopy = (value?: string | null) => {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!normalized) return false;
+  return (
+    normalized === "asistente virtual" ||
+    normalized === "chatboc" ||
+    normalized.includes("chatboc")
+  );
+};
 
 export const STANDALONE_MOBILE_OPEN_VIEWPORT = Object.freeze({
   left: 0,
@@ -1110,20 +1124,31 @@ function ChatWidgetInner({
   const publicHeaderSubtitle = hasPublicAppearance && typeof entityInfo?.welcome_title === 'string'
     ? entityInfo.welcome_title.trim()
     : '';
-  const useScopedStandaloneAppearance = !isEmbedded && !isPublicPlatformSurface && hasPublicAppearance;
+  const isScopedOrganizationStandalone = !isEmbedded && !isPublicPlatformSurface;
+  const scopedFallbackTitle = welcomeTitle && !isPlatformDefaultCopy(welcomeTitle) ? welcomeTitle.trim() : '';
+  const scopedFallbackSubtitle = welcomeSubtitle && !isPlatformDefaultCopy(welcomeSubtitle) ? welcomeSubtitle.trim() : '';
   // In standalone mode the welcome props are the platform's own texts. On an
-  // organization's surface they never replace its published identity; the
-  // header falls back to the neutral title when the organization has none.
+  // organization's surface they never leak while loading or replace its
+  // published identity; the header stays neutral until the organization responds.
   const headerTitle = isEmbedded
     ? (welcomeTitle || publicHeaderTitle || derivedEntityTitle)
-    : useScopedStandaloneAppearance
-      ? (publicHeaderTitle || derivedEntityTitle)
+    : isScopedOrganizationStandalone
+      ? hasPublicAppearance
+        ? (publicHeaderTitle || derivedEntityTitle)
+        : (publicHeaderTitle || derivedEntityTitle || scopedFallbackTitle)
       : welcomeTitle;
   const headerSubtitle = isEmbedded
     ? (welcomeSubtitle || publicHeaderSubtitle || derivedEntitySubtitle)
-    : useScopedStandaloneAppearance
-      ? (publicHeaderSubtitle || derivedEntitySubtitle)
+    : isScopedOrganizationStandalone
+      ? hasPublicAppearance
+        ? (publicHeaderSubtitle || derivedEntitySubtitle)
+        : (publicHeaderSubtitle || derivedEntitySubtitle || scopedFallbackSubtitle)
       : welcomeSubtitle;
+  const isHeaderIdentityLoading =
+    isScopedOrganizationStandalone &&
+    isProfileLoading &&
+    !hasPublicAppearance &&
+    !(typeof headerTitle === 'string' && headerTitle.trim());
 
   // Mientras carga, el widget de una organización no anuncia la marca de la
   // plataforma: nombra al asistente del tenant si ya se conoce y, si no, a
@@ -1496,11 +1521,15 @@ function ChatWidgetInner({
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
   const applyWidgetFallbackProfile = useCallback(() => {
     const inferredTipo = tipoChat === 'municipio' ? 'municipio' : 'pyme';
+    const fallbackTitle = isScopedOrganizationStandalone
+      ? scopedFallbackTitle
+      : (welcomeTitle || (inferredTipo === 'municipio' ? 'Asistente ciudadano' : 'Asistente Virtual'));
+    const fallbackSubtitle = isScopedOrganizationStandalone
+      ? (scopedFallbackSubtitle || 'Atención disponible en modo básico.')
+      : (welcomeSubtitle || 'Atención con IA disponible en modo básico.');
     setEntityInfo({
-      nombre_empresa:
-        welcomeTitle || (inferredTipo === 'municipio' ? 'Asistente ciudadano' : 'Asistente Virtual'),
-      descripcion:
-        welcomeSubtitle || 'Atención con IA disponible en modo básico.',
+      nombre_empresa: fallbackTitle,
+      descripcion: fallbackSubtitle,
       slug: resolvedTenantSlug || 'chatboc-platform',
       tipo_chat: inferredTipo,
       quick_menu: [],
@@ -1509,7 +1538,7 @@ function ChatWidgetInner({
     setWidgetUx(DEFAULT_WIDGET_UX);
     setResolvedTipoChat(inferredTipo);
     setProfileError(null);
-  }, [resolvedTenantSlug, tipoChat, welcomeSubtitle, welcomeTitle]);
+  }, [isScopedOrganizationStandalone, resolvedTenantSlug, scopedFallbackSubtitle, scopedFallbackTitle, tipoChat, welcomeSubtitle, welcomeTitle]);
 
   // Apply Theme Config
   useEffect(() => {
@@ -2472,7 +2501,12 @@ function ChatWidgetInner({
     viewport.width < MOBILE_PORTAL_NAV_BREAKPOINT_PX &&
     isUserPortalSurfacePath(location.pathname);
 
-  const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
+  const isStandaloneMobileOpen = mode === "standalone" && isOpen && isMobileView;
+  const mobileVisualViewport = useMobileVisualViewport(isStandaloneMobileOpen);
+  const commonPanelStyles = cn(
+    "chat-root bg-card flex flex-col overflow-hidden",
+    isStandaloneMobileOpen ? "border-0 shadow-none" : "border shadow-lg",
+  );
   const commonButtonStyles = cn(
     "chatboc-toggle-btn rounded-full flex items-center justify-center",
     "transition-transform duration-200 ease-out",
@@ -3116,7 +3150,10 @@ function ChatWidgetInner({
     if (mode === "standalone") {
       if (isOpen && isMobileView) {
         return {
-          ...STANDALONE_MOBILE_OPEN_VIEWPORT,
+          ...resolveMobileOpenViewportStyle(
+            mobileVisualViewport.metrics,
+            STANDALONE_MOBILE_OPEN_VIEWPORT,
+          ),
           zIndex: 999999,
           transition: reduceMotion ? "none" : "opacity 0.18s ease",
           transform: "none",
@@ -3181,7 +3218,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width, reduceMotion]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, mobileVisualViewport.metrics, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width, reduceMotion]);
 
   const panelAnimation = reduceMotion
     ? {
@@ -3334,6 +3371,7 @@ function ChatWidgetInner({
         data-realtime-voice-label={realtimeConfig.voiceLabel || ''}
         data-realtime-video-label={realtimeConfig.videoLabel || ''}
         data-avoids-portal-bottom-nav={String(avoidsPortalBottomNavigation)}
+        data-mobile-keyboard-open={String(mobileVisualViewport.isKeyboardOpen)}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
@@ -3388,7 +3426,10 @@ function ChatWidgetInner({
             aria-busy="true"
             tabIndex={-1}
             onKeyDown={handleOpenPanelKeyDown}
-            className="h-full min-h-0 w-full overflow-hidden rounded-[inherit] border border-border/60 bg-card text-card-foreground shadow-xl"
+            className={cn(
+              "h-full min-h-0 w-full overflow-hidden rounded-[inherit] bg-card text-card-foreground",
+              isStandaloneMobileOpen ? "border-0 shadow-none" : "border border-border/60 shadow-xl",
+            )}
           >
             {isOpen ? (
               <div className="flex h-full min-h-0 flex-col">
@@ -3401,6 +3442,7 @@ function ChatWidgetInner({
                   brandColors={headerBrandColors}
                   subtitle={headerSubtitle}
                   compactActions={isMobileView}
+                  isLoading={isHeaderIdentityLoading}
                 />
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
                   <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent motion-safe:animate-spin"></div>
@@ -3451,7 +3493,7 @@ function ChatWidgetInner({
             <motion.div
               ref={openPanelRef}
               key="chatboc-panel-open"
-              className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
+              className={cn(commonPanelStyles, "w-full h-full", !isStandaloneMobileOpen && "shadow-xl")}
               role="dialog"
               aria-modal="true"
               // White label: assistive technology hears the organization's assistant (the
@@ -3633,6 +3675,8 @@ function ChatWidgetInner({
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}
+                    fallbackTitle={brandFallbackTitle}
+                    brandColors={headerBrandColors}
                     logoAnimation={logoAnimation}
                     typingAnimation={widgetUx.typingAnimation}
                     bubbleAnimation={widgetUx.bubbleAnimation}
@@ -3697,11 +3741,12 @@ function ChatWidgetInner({
                 whileHover={{ scale: 1 }}
                 whileTap={{ scale: 1 }}
                 onClick={toggleChat}
-                aria-label={`Abrir el asistente ${headerTitle || brandFallbackTitle}`}
+                aria-busy={isHeaderIdentityLoading || undefined}
+                aria-label={isHeaderIdentityLoading ? "Abrir el asistente" : `Abrir el asistente ${headerTitle || brandFallbackTitle}`}
                 aria-controls={`${widgetId}-panel`}
                 aria-expanded="false"
                 aria-haspopup="dialog"
-                title={`Abrir ${headerTitle || brandFallbackTitle}`}
+                title={isHeaderIdentityLoading ? "Abrir el asistente" : `Abrir ${headerTitle || brandFallbackTitle}`}
               >
                 <img
                   src={launcherImageSrc}
@@ -3720,7 +3765,7 @@ function ChatWidgetInner({
                     )
                   }
                 />
-                {!isMobileView && !isOpen ? (
+                {!isMobileView && !isOpen && !isHeaderIdentityLoading ? (
                   <span className="pointer-events-none absolute -top-10 right-0 whitespace-nowrap rounded-lg border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-semibold text-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
                     {headerTitle || brandFallbackTitle} · Asistente digital
                   </span>

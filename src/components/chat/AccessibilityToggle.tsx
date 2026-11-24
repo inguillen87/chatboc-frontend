@@ -146,11 +146,13 @@ export default function AccessibilityToggle({
   compact = false,
   className,
   hints,
+  variant = "default",
 }: {
   onChange?: (p: Prefs) => void;
   compact?: boolean;
   className?: string;
   hints?: ChatWidgetUiHints["accessibility"];
+  variant?: "default" | "header";
 }) {
   const [prefs, setPrefs] = useState<Prefs>(readAccessibilityPrefs);
   const panelTitleId = useId();
@@ -197,10 +199,20 @@ export default function AccessibilityToggle({
     onChange?.(prefs);
   }, [prefs, onChange]);
 
-  const activeCount = visibleOptions.reduce(
-    (total, option) => total + Number(Boolean(prefs[option.key])),
+  const customActiveCount = visibleOptions.reduce(
+    (total, option) =>
+      total + Number(Boolean(prefs[option.key]) && !DEFAULT_ACCESSIBILITY_PREFS[option.key]),
     0,
   );
+  const isHeaderVariant = variant === "header";
+  const countDescription =
+    customActiveCount === 1
+      ? "1 ajuste de accesibilidad activo"
+      : `${customActiveCount} ajustes de accesibilidad activos`;
+  const triggerAriaLabel =
+    isHeaderVariant && customActiveCount > 0
+      ? `Abrir ajustes de accesibilidad (${countDescription})`
+      : "Abrir ajustes de accesibilidad";
 
   if (visibleOptions.length === 0) return null;
 
@@ -214,19 +226,33 @@ export default function AccessibilityToggle({
                 size="icon"
                 variant="ghost"
                 className={cn(
-                  "relative h-9 w-9 rounded-full border border-white/10 bg-white/10 text-white/90 backdrop-blur transition hover:bg-white/16 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary",
-                  compact && "h-9 w-9",
-                  activeCount > 0 && "bg-amber-100 text-amber-950 hover:bg-amber-100 hover:text-amber-950",
+                  isHeaderVariant
+                    ? "relative h-11 w-11 shrink-0 rounded-xl border border-white/25 bg-slate-950/25 text-white transition-colors hover:bg-slate-950/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    : cn(
+                        "relative h-9 w-9 rounded-full border border-white/10 bg-white/10 text-white/90 backdrop-blur transition hover:bg-white/16 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary",
+                        compact && "h-9 w-9",
+                        customActiveCount > 0 && "bg-amber-100 text-amber-950 hover:bg-amber-100 hover:text-amber-950",
+                      ),
+                  isHeaderVariant && customActiveCount > 0 && "border-white/50 bg-slate-950/40",
                   className,
                 )}
-                aria-label="Abrir ajustes de accesibilidad"
+                aria-label={triggerAriaLabel}
               >
                 {/* The universal access figure: a book here read as "documents", the same
                     glyph the institutional reader uses for its sources. */}
                 <Accessibility className="h-5 w-5" aria-hidden="true" />
-                {activeCount > 0 ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 text-[10px] font-bold leading-none text-white">
-                    {activeCount}
+                {customActiveCount > 0 ? (
+                  <span
+                    aria-hidden={isHeaderVariant ? "true" : undefined}
+                    aria-label={isHeaderVariant ? undefined : countDescription}
+                    className={cn(
+                      "pointer-events-none absolute flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none",
+                      isHeaderVariant
+                        ? "right-0.5 top-0.5 border border-slate-950/25 bg-white text-slate-950 shadow-sm"
+                        : "-right-0.5 -top-0.5 bg-emerald-700 text-white",
+                    )}
+                  >
+                    {customActiveCount}
                   </span>
                 ) : null}
               </Button>
