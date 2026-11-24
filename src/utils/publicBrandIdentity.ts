@@ -1,3 +1,5 @@
+import { useMemo, useSyncExternalStore } from 'react';
+
 /**
  * Identidad de marca pública de una organización (`public.brand_identity.v1`).
  *
@@ -117,4 +119,47 @@ export function ensureBrandStylesheet(url: string | undefined, doc: Document | u
   link.href = url;
   link.dataset.chatbocBrandFont = 'true';
   doc.head.appendChild(link);
+}
+
+const PAGE_BRAND_ACCENTS = ['--brand-accent-1', '--brand-accent-2', '--brand-accent-3', '--brand-accent-4'] as const;
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * Acentos distintos que la identidad publicada dejó en la raíz de la página
+ * (el panel y el portal los aplican al abrir la organización). Sin identidad
+ * publicada no hay acentos.
+ */
+export function readPageBrandAccents(root: HTMLElement | null = typeof document === 'undefined' ? null : document.documentElement): string[] {
+  if (!root || root.dataset.brandIdentity !== 'published') return [];
+  const accents: string[] = [];
+  for (const property of PAGE_BRAND_ACCENTS) {
+    const value = root.style.getPropertyValue(property).trim();
+    if (HEX_COLOR.test(value) && !accents.some((color) => color.toLowerCase() === value.toLowerCase())) accents.push(value);
+  }
+  return accents;
+}
+
+/** Paleta de gráficos: primero los acentos de la marca y después los colores propios, sin repetir. */
+export function brandChartPalette(accents: readonly string[], fallback: readonly string[]): string[] {
+  const used = new Set(accents.map((color) => color.toLowerCase()));
+  return [...accents, ...fallback.filter((color) => !used.has(color.toLowerCase()))];
+}
+
+const subscribePageBrand = (onChange: () => void) => {
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {};
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-brand-identity'] });
+  return () => observer.disconnect();
+};
+const pageBrandSnapshot = () => readPageBrandAccents().join(' ');
+const serverBrandSnapshot = () => '';
+
+/**
+ * Colores de los gráficos con la marca de la organización abierta. Se
+ * actualiza cuando la marca llega, cambia o se retira. `fallback` tiene que
+ * ser estable (una constante del módulo).
+ */
+export function useBrandChartPalette(fallback: readonly string[]): string[] {
+  const snapshot = useSyncExternalStore(subscribePageBrand, pageBrandSnapshot, serverBrandSnapshot);
+  return useMemo(() => brandChartPalette(snapshot ? snapshot.split(' ') : [], fallback), [snapshot, fallback]);
 }
