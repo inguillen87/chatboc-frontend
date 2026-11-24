@@ -186,7 +186,7 @@ export const describeHandoffState = (
 };
 
 const stateClassName = (tone: HandoffState['tone']): string => {
-  if (tone === 'human') return 'border-blue-400/50 bg-blue-500/10 text-blue-800 dark:text-blue-200';
+  if (tone === 'human') return 'border-primary/45 bg-primary/10 text-foreground';
   if (tone === 'queued') return 'border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-200';
   if (tone === 'ai') return 'border-emerald-400/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200';
   return 'border-border bg-muted/30 text-muted-foreground';

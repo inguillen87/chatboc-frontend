@@ -8,7 +8,7 @@ import { shiftDateByHours } from '@/utils/date';
 import { AlertTriangle, CheckCircle2, Clock, MapPin, Sparkles, UserRound } from 'lucide-react';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { TicketSlaClocks } from './TicketSlaClocks';
 import { resolveTicketSlaSource } from '@/utils/ticketSla';
 
@@ -26,21 +26,45 @@ interface TicketListItemProps {
 const getCategoryColor = (category?: string) => {
   const cat = (category || '').toLowerCase();
   if (cat.includes('alumbrad') || cat.includes('luz') || cat.includes('electr')) {
-    return { border: 'border-l-amber-500', bg: 'bg-amber-500/10 text-amber-800 dark:text-amber-300' };
+    return {
+      border: 'border-l-amber-500',
+      borderColor: 'var(--brand-accent-1, #f59e0b)',
+      bg: 'bg-amber-500/10 text-amber-800 dark:text-amber-300',
+    };
   }
   if (cat.includes('bach') || cat.includes('calle') || cat.includes('obra')) {
-    return { border: 'border-l-blue-500', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
+    return {
+      border: 'border-l-primary',
+      borderColor: 'var(--brand-accent-2, hsl(var(--primary)))',
+      bg: 'bg-primary/10 text-foreground',
+    };
   }
   if (cat.includes('arbol') || cat.includes('poda') || cat.includes('verde') || cat.includes('plaza')) {
-    return { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' };
+    return {
+      border: 'border-l-emerald-500',
+      borderColor: 'var(--brand-accent-4, #10b981)',
+      bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    };
   }
   if (cat.includes('limpieza') || cat.includes('higiene') || cat.includes('residu') || cat.includes('basura')) {
-    return { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10 text-cyan-800 dark:text-cyan-300' };
+    return {
+      border: 'border-l-primary',
+      borderColor: 'var(--brand-accent-3, #06b6d4)',
+      bg: 'bg-muted/70 text-foreground',
+    };
   }
   if (cat.includes('seguridad') || cat.includes('transit') || cat.includes('vial')) {
-    return { border: 'border-l-purple-500', bg: 'bg-purple-500/10 text-purple-700 dark:text-purple-300' };
+    return {
+      border: 'border-l-primary',
+      borderColor: 'var(--brand-accent-2, #9333ea)',
+      bg: 'bg-muted/70 text-foreground',
+    };
   }
-  return { border: 'border-l-primary', bg: 'bg-blue-500/10 text-blue-700 dark:text-blue-300' };
+  return {
+    border: 'border-l-primary',
+    borderColor: 'var(--brand-accent-1, hsl(var(--primary)))',
+    bg: 'bg-primary/10 text-foreground',
+  };
 };
 
 const TicketListItem: React.FC<TicketListItemProps> = ({
@@ -109,14 +133,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
   const normalizedStatus = normalizeTicketStatus(ticket.estado);
   const statusLabel = formatTicketStatusLabel(ticket.estado);
   
+  const reduceMotion = Boolean(useReducedMotion());
   const statusClass = cn(
     'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border',
-    normalizedStatus === 'nuevo' && 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
-    normalizedStatus === 'esperando_agente_en_vivo' && 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
-    normalizedStatus === 'en_vivo' && 'bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border-cyan-500/30',
+    normalizedStatus === 'nuevo' && 'bg-primary/10 text-foreground border-primary/30',
+    normalizedStatus === 'esperando_agente_en_vivo' && 'bg-primary/10 text-foreground border-primary/35',
+    normalizedStatus === 'en_vivo' && 'bg-primary/10 text-foreground border-primary/30',
     normalizedStatus === 'en_proceso' && 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
     normalizedStatus === 'resuelto' && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-    !normalizedStatus && 'bg-muted text-slate-700 dark:text-slate-300 border-border/80',
+    !normalizedStatus && 'bg-muted text-muted-foreground border-border/80',
   );
 
   const categoryColors = getCategoryColor(categoryLabel);
@@ -125,14 +150,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
     return (
       <motion.button
         type="button"
-        whileHover={{ x: 2 }}
-        whileTap={{ scale: 0.99 }}
+        whileHover={reduceMotion ? undefined : { x: 2 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.99 }}
+        style={{ borderLeftColor: categoryColors.borderColor }}
         className={cn(
-          'relative w-full p-2.5 text-left transition-all rounded-xl border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+          'relative w-full p-2.5 text-left transition-all rounded-xl border-l-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           categoryColors.border,
           isSelected
-            ? 'bg-primary/10 shadow-sm border border-primary/30'
-            : 'bg-card/70 hover:bg-muted/60 border-t border-r border-b border-border/50',
+            ? 'bg-primary/10 shadow-sm border border-primary/35'
+            : 'bg-card/80 hover:bg-muted/60 border-t border-r border-b border-border/60',
           hasUnread && !isSelected && 'bg-primary/[0.04]',
         )}
         onClick={onClick}
