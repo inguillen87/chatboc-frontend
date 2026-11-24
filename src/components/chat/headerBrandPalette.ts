@@ -85,3 +85,18 @@ export const headerBackground = (start?: string | null, end?: string | null): st
   if (!from && !to) return DEFAULT_HEADER_BACKGROUND;
   return `linear-gradient(115deg, ${from || to} 0%, ${to || from} 100%)`;
 };
+
+/**
+ * Brand mesh for the header: each published stop, darkened just enough for
+ * white text (AA), layered as radial gradients at its position. Returns null
+ * when fewer than two stops can be read.
+ */
+export const brandMeshBackground = (stops?: { color: string; x: number; y: number }[] | null): string | null => {
+  const readable = (stops || [])
+    .map((stop) => ({ ...stop, css: readableHeaderColor(stop.color) }))
+    .filter((stop) => stop.css && parseCssColor(stop.color));
+  if (readable.length < 2) return null;
+  const layers = readable.map((stop) =>
+    `radial-gradient(circle at ${Math.round(stop.x * 100)}% ${Math.round(stop.y * 100)}%, ${stop.css} 0%, transparent 62%)`);
+  return [...layers, `linear-gradient(115deg, ${readable[0].css} 0%, ${readable[readable.length - 1].css} 100%)`].join(', ');
+};

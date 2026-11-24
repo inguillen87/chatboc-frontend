@@ -3,6 +3,8 @@ import { motion, useReducedMotionConfig } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface TypingIndicatorProps {
+  /** Organization mascot shown instead of the platform logo. */
+  avatar?: React.ReactNode;
   logoUrl?: string;
   logoAnimation?: string;
   text?: string;
@@ -17,7 +19,7 @@ const primaryColorValue = (alpha?: number) =>
     ? `hsl(var(--primary, ${DEFAULT_PRIMARY}) / ${alpha})`
     : `hsl(var(--primary, ${DEFAULT_PRIMARY}))`;
 
-const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimation, text, typingAnimation, logoBadgeStyle }) => {
+const TypingIndicator: React.FC<TypingIndicatorProps> = ({ avatar, logoUrl, logoAnimation, text, typingAnimation, logoBadgeStyle }) => {
   const reducedMotion = useReducedMotionConfig();
   const normalizedTyping = (typingAnimation || 'wave-dots').toLowerCase();
   const useBars = normalizedTyping.includes('bar');
@@ -60,7 +62,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimatio
         className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow"
         style={avatarStyle}
       >
-        {logoUrl ? (
+        {avatar ? avatar : logoUrl ? (
           <img
             src={logoUrl}
             alt="Asistente"

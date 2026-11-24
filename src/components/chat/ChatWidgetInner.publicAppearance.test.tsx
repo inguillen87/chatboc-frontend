@@ -22,8 +22,10 @@ vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('./ChatPanel', async () => {
   const { default: ChatHeader } = await import('./ChatHeader');
   return {
-    default: ({ welcomeTitle, welcomeSubtitle, onClose }: { welcomeTitle?: string; welcomeSubtitle?: string; onClose: () => void }) => (
-      <ChatHeader onClose={onClose} title={welcomeTitle} subtitle={welcomeSubtitle} />
+    default: ({ welcomeTitle, welcomeSubtitle, onClose, bubbleStyle }: { welcomeTitle?: string; welcomeSubtitle?: string; onClose: () => void; bubbleStyle?: string }) => (
+      <div data-testid="mock-chat-panel" data-bubble-style={bubbleStyle}>
+        <ChatHeader onClose={onClose} title={welcomeTitle} subtitle={welcomeSubtitle} />
+      </div>
     ),
   };
 });
@@ -295,6 +297,70 @@ describe('shared widget public assistant appearance', () => {
     expect(await screen.findByTitle('Nombre institucional')).toBeVisible();
     expect(screen.queryByTitle(appDefaults.welcomeTitle)).not.toBeInTheDocument();
     expect(screen.queryByText(appDefaults.welcomeSubtitle)).not.toBeInTheDocument();
+  });
+
+  it('uses the organization mascot, header mesh and typography when a brand identity is published', async () => {
+    window.history.replaceState({}, '', '/t/marca-sintetica');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('marca-sintetica', 'Asistente de marca'),
+      brand_identity: {
+        contract_version: 'public.brand_identity.v1',
+        palette: ['#AA5500', '#22AA44', '#33BBEE', '#333333'],
+        gradient_stops: [{ color: '#AA5500', x: 0.1, y: 0.1 }, { color: '#33BBEE', x: 0.9, y: 0.9 }],
+        text_color: '#333333',
+        typography: { family: 'Synthetic Sans', fallback: 'system-ui, sans-serif', letter_spacing: '-0.02em' },
+        avatar: { style: 'brand_bot' },
+      },
+    });
+    const view = renderWidget(
+      <MemoryRouter initialEntries={['/t/marca-sintetica']}>
+        <ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} />
+      </MemoryRouter>,
+    );
+    const launcher = await screen.findByRole('button', { name: 'Abrir el asistente Asistente de marca' });
+    await waitFor(() => expect(launcher.querySelector('svg.cbb')).not.toBeNull());
+    expect(launcher.querySelector('img')).toBeNull();
+    const container = view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    await waitFor(() => expect(container.style.fontFamily).toContain('Synthetic Sans'));
+    expect(container.style.letterSpacing).toBe('-0.02em');
+    expect(container).toHaveAttribute('data-brand-identity', 'published');
+    expect(container.style.getPropertyValue('--brand-accent-1')).toBe('#AA5500');
+    expect(container.style.getPropertyValue('--brand-accent-2')).toBe('#33BBEE');
+    view.unmount();
+    expect(container).not.toHaveAttribute('data-brand-identity');
+    expect(container.style.getPropertyValue('--brand-accent-1')).toBe('');
+  });
+
+  it('shapes the open panel bubbles as the published «globa»', async () => {
+    window.history.replaceState({}, '', '/t/marca-globa');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('marca-globa', 'Asistente globa'),
+      brand_identity: {
+        contract_version: 'public.brand_identity.v1',
+        palette: ['#AA5500', '#22AA44', '#33BBEE', '#333333'],
+        bubble_style: 'globa',
+        avatar: { style: 'brand_bot' },
+      },
+    });
+    renderWidget(
+      <MemoryRouter initialEntries={['/t/marca-globa']}>
+        <ChatWidgetInner mode="standalone" defaultOpen {...appDefaults} />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId('mock-chat-panel')).toHaveAttribute('data-bubble-style', 'globa'));
+  });
+
+  it('keeps the Chatboc launcher when no brand identity is published', async () => {
+    window.history.replaceState({}, '', '/t/sin-marca');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue(publicConfig('sin-marca', 'Asistente neutro'));
+    renderWidget(
+      <MemoryRouter initialEntries={['/t/sin-marca']}>
+        <ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} />
+      </MemoryRouter>,
+    );
+    const launcher = await screen.findByRole('button', { name: 'Abrir el asistente Asistente neutro' });
+    expect(launcher.querySelector('svg.cbb')).toBeNull();
+    expect(launcher.querySelector('img')).not.toBeNull();
   });
 
   it.each(['iframe', 'preview'] as const)('preserves explicit %s display overrides', async (mode) => {

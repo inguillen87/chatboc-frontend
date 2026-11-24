@@ -19,6 +19,7 @@ import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
 import OwnerRealtimeVoicePanel from "./OwnerRealtimeVoicePanel";
+import type { RenderBrandAvatar } from "./BrandBotAvatar";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic, getChatBootstrapContinuityKey, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
@@ -962,6 +963,12 @@ interface ChatPanelProps {
   welcomeSubtitle?: string;
   fallbackTitle?: string;
   brandColors?: { start?: string | null; end?: string | null } | null;
+  /** Published brand header background (contrast-safe for white text). */
+  brandHeaderBackground?: string | null;
+  /** Organization mascot for the header, the typing indicator and each bot message. */
+  renderBrandAvatar?: RenderBrandAvatar | null;
+  /** Published bubble shape: "globa" is the brand speech balloon (squared corners and a tail). */
+  bubbleStyle?: "default" | "globa";
   logoAnimation?: string;
   typingAnimation?: string;
   bubbleAnimation?: string;
@@ -1111,6 +1118,9 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     welcomeSubtitle,
     fallbackTitle,
     brandColors,
+    brandHeaderBackground,
+    renderBrandAvatar,
+    bubbleStyle,
     logoAnimation,
     typingAnimation,
     bubbleAnimation,
@@ -3966,6 +3976,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           title={welcomeTitle}
           fallbackTitle={fallbackTitle}
           brandColors={brandColors}
+          background={brandHeaderBackground}
+          avatar={renderBrandAvatar ? renderBrandAvatar(isTyping ? "thinking" : "idle", 32) : undefined}
           subtitle={welcomeSubtitle}
           logoAnimation={reducedMotion ? "none" : logoAnimation}
           onA11yChange={onA11yChange}
@@ -4036,6 +4048,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           title={welcomeTitle}
           fallbackTitle={fallbackTitle}
           brandColors={brandColors}
+          background={brandHeaderBackground}
+          avatar={renderBrandAvatar ? renderBrandAvatar(isTyping ? "thinking" : "idle", 32) : undefined}
           subtitle={welcomeSubtitle}
           logoAnimation={reducedMotion ? "none" : logoAnimation}
           supportChannels={supportChannels}
@@ -4100,6 +4114,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
       role="region"
       aria-label="Chat widget"
       data-motion-level={motionLevel}
+      data-bubble-style={bubbleStyle === "globa" ? "globa" : undefined}
       className={cn(
         "chat-root flex h-full min-h-0 w-full flex-col overflow-hidden bg-gradient-to-b from-card via-card to-card/95 text-card-foreground relative",
         isMobile ? undefined : "rounded-[inherit]",
@@ -4116,6 +4131,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         title={welcomeTitle}
         fallbackTitle={fallbackTitle}
         brandColors={brandColors}
+          background={brandHeaderBackground}
+          avatar={renderBrandAvatar ? renderBrandAvatar(isTyping ? "thinking" : "idle", 32) : undefined}
         subtitle={welcomeSubtitle}
         logoAnimation={reducedMotion ? "none" : logoAnimation}
         onA11yChange={onA11yChange}
@@ -4489,13 +4506,21 @@ const ChatPanelContent = (props: ChatPanelProps) => {
 
         {institutionalBootstrapPending&&visibleMessages.length===0?(
           <div className="flex flex-1 items-center justify-center" role="status" aria-label="Cargando conversación">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            {renderBrandAvatar ? (
+              <span data-testid="chat-loading-brand-avatar">{renderBrandAvatar("thinking", 56)}</span>
+            ) : (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            )}
           </div>
         ):visibleMessages.length === 0 ? (
              <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
-                   <MessageSquare className="w-8 h-8" />
-                </div>
+                {renderBrandAvatar ? (
+                  <div className="mb-3 sm:mb-4" data-testid="chat-empty-brand-avatar">{renderBrandAvatar("idle", 64)}</div>
+                ) : (
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
+                     <MessageSquare className="w-8 h-8" />
+                  </div>
+                )}
                 <h3 className="text-base font-semibold mb-2 text-foreground sm:text-lg dark:text-slate-50">{personalizedEmptyTitle}</h3>
                 <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
                    {emptyStateDescription}
@@ -4591,6 +4616,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
+            botAvatar={renderBrandAvatar}
             logoAnimation={reducedMotion ? "none" : logoAnimation}
             messageEnterAnimation={reducedMotion ? "none" : messageEnterAnimation}
             bubbleAnimation={reducedMotion ? "none" : bubbleAnimation}
@@ -4635,6 +4661,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         )}
         {isTyping && (
           <TypingIndicator
+            avatar={renderBrandAvatar ? renderBrandAvatar("thinking", 30) : undefined}
             logoUrl={headerLogoUrl}
             logoAnimation={reducedMotion ? "none" : logoAnimation}
             text={typingText}

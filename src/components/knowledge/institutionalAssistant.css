@@ -10,7 +10,7 @@
 .institutional-assistant__identity { display:flex; align-items:center; gap:13px; min-width:0; }
 .institutional-assistant__identity>div:last-child { min-width:0; }
 .institutional-assistant__mark { width:42px; height:42px; flex-shrink:0; display:grid; place-items:center; border:1px solid hsl(var(--border)); border-radius:10px; background:hsl(var(--muted)); font-size:21px; font-weight:650; }
-.institutional-assistant__mark img { width:100%; height:100%; object-fit:contain; border-radius:inherit; }
+.institutional-assistant__mark img { width:100%; height:100%; padding:3px; object-fit:contain; border-radius:inherit; }
 .institutional-assistant__identity p { margin:0 0 3px; font-size:var(--institutional-detail-size); font-weight:550; color:hsl(var(--muted-foreground)); }
 .institutional-assistant__identity h2 { margin:0; font-size:1.2em; line-height:1.4; font-weight:650; letter-spacing:-.02em; }
 .institutional-assistant__utilities { display:flex; flex-wrap:wrap; gap:5px; flex-shrink:0; max-width:100%; }
@@ -52,6 +52,12 @@
 .institutional-assistant .institutional-choices__status { margin-top:25px; color:hsl(var(--muted-foreground)); font-size:var(--institutional-detail-size); }
 .institutional-assistant .institutional-choices__status+.institutional-assistant__choices { margin-top:9px; }
 .institutional-assistant__choices :is([data-choice-more],[data-choice-previous]) { justify-content:center; background:hsl(var(--muted)/.35); }
+/* Published brand identity: a palette stripe on each option. Decorative only; the text keeps its own contrast. */
+[data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous]) { position:relative; overflow:hidden; padding-left:1.15rem; }
+[data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous])::before { content:""; position:absolute; inset-block:0; left:0; width:4px; background:var(--brand-accent-1,transparent); pointer-events:none; }
+[data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous]):nth-child(4n+2)::before { background:var(--brand-accent-2,transparent); }
+[data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous]):nth-child(4n+3)::before { background:var(--brand-accent-3,transparent); }
+[data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous]):nth-child(4n+4)::before { background:var(--brand-accent-4,transparent); }
 .institutional-assistant__composer { padding:19px 25px 23px; border-top:1px solid hsl(var(--border)); background:hsl(var(--card)); }
 .institutional-assistant__composer label { font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); display:block; margin-bottom:9px; }
 .institutional-assistant__composer>div { display:flex; align-items:center; gap:12px; border:1px solid var(--institutional-control-border); border-radius:12px; padding:6px 7px 6px 14px; background:hsl(var(--background)); }

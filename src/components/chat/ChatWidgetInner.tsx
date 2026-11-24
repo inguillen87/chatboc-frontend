@@ -16,6 +16,9 @@ import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChatPanel from "./ChatPanel";
+import BrandBotAvatar, { type RenderBrandAvatar } from "./BrandBotAvatar";
+import { brandMeshBackground } from "./headerBrandPalette";
+import { brandAccentVariables, brandFontStack, ensureBrandStylesheet, readPublicBrandIdentity } from "@/utils/publicBrandIdentity";
 import ReadingRuler from "./ReadingRuler";
 import {
   resolveMobileOpenViewportStyle,
@@ -1595,12 +1598,31 @@ function ChatWidgetInner({
              variables['--font-sans'] = fontStack;
         }
     }
+    const publishedBrand = isPublicPlatformSurface ? null : readPublicBrandIdentity(entityInfo?.brand_identity);
+    const brandTypography = publishedBrand?.typography;
+    const brandStack = brandFontStack(brandTypography);
+    if (brandStack) {
+      variables['--font-sans'] = brandStack;
+      ensureBrandStylesheet(brandTypography?.stylesheetUrl);
+    }
+    Object.assign(variables, brandAccentVariables(publishedBrand));
     const previousFont = target.style.fontFamily;
+    const previousSpacing = target.style.letterSpacing;
+    const previousBrandMarker = target.dataset.brandIdentity;
+    if (publishedBrand) target.dataset.brandIdentity = 'published';
+    else delete target.dataset.brandIdentity;
     const restore = applyWidgetThemeVariables(target, variables);
     if (variables['--font-sans']) target.style.fontFamily = variables['--font-sans'];
+    if (brandTypography?.letterSpacing) target.style.letterSpacing = brandTypography.letterSpacing;
     // Roboto, Montserrat and Open Sans are requested only by widgets configured with them.
-    ensureOptionalFonts(variables['--font-sans']);
-    return () => { restore(); target.style.fontFamily = previousFont; };
+    if (!brandStack) ensureOptionalFonts(variables['--font-sans']);
+    return () => {
+      restore();
+      target.style.fontFamily = previousFont;
+      target.style.letterSpacing = previousSpacing;
+      if (previousBrandMarker === undefined) delete target.dataset.brandIdentity;
+      else target.dataset.brandIdentity = previousBrandMarker;
+    };
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 
@@ -3252,6 +3274,32 @@ function ChatWidgetInner({
       : { start: accentColor || widgetUx.gradientStart, end: primaryColor || widgetUx.gradientEnd }
   ), [isPublicPlatformSurface, accentColor, primaryColor, widgetUx.gradientStart, widgetUx.gradientEnd]);
 
+  // Published organization identity: mascot, header mesh and typography.
+  // Without it (or on the platform surface) the widget keeps the Chatboc look.
+  const brandIdentity = useMemo(
+    () => (isPublicPlatformSurface ? null : readPublicBrandIdentity(entityInfo?.brand_identity)),
+    [entityInfo?.brand_identity, isPublicPlatformSurface],
+  );
+  const brandHeaderBackground = useMemo(
+    () => (brandIdentity && !a11yPrefs.highContrast ? brandMeshBackground(brandIdentity.gradientStops) : null),
+    [brandIdentity, a11yPrefs.highContrast],
+  );
+  const usesBrandBot = brandIdentity?.avatarStyle === "brand_bot";
+  const renderBrandAvatar = useCallback<RenderBrandAvatar>(
+    (state, size, still) => (brandIdentity && usesBrandBot ? (
+      <BrandBotAvatar
+        palette={brandIdentity.palette}
+        gradientStops={brandIdentity.gradientStops}
+        faceColor={brandIdentity.textColor}
+        state={state}
+        size={size}
+        reducedMotion={reduceMotion}
+        still={still}
+      />
+    ) : null),
+    [brandIdentity, usesBrandBot, reduceMotion],
+  );
+
   const launcherPalette = useMemo(() => {
     const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
     const accent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
@@ -3677,6 +3725,9 @@ function ChatWidgetInner({
                     welcomeSubtitle={headerSubtitle}
                     fallbackTitle={brandFallbackTitle}
                     brandColors={headerBrandColors}
+                    brandHeaderBackground={brandHeaderBackground}
+                    renderBrandAvatar={usesBrandBot ? renderBrandAvatar : null}
+                    bubbleStyle={brandIdentity?.bubbleStyle}
                     logoAnimation={logoAnimation}
                     typingAnimation={widgetUx.typingAnimation}
                     bubbleAnimation={widgetUx.bubbleAnimation}
@@ -3748,7 +3799,18 @@ function ChatWidgetInner({
                 aria-haspopup="dialog"
                 title={isHeaderIdentityLoading ? "Abrir el asistente" : `Abrir ${headerTitle || brandFallbackTitle}`}
               >
-                <img
+                {usesBrandBot && brandIdentity ? (
+                  <span className="flex h-full w-full items-center justify-center rounded-full bg-white/95 dark:bg-slate-900/90">
+                    <BrandBotAvatar
+                      palette={brandIdentity.palette}
+                      gradientStops={brandIdentity.gradientStops}
+                      faceColor={brandIdentity.textColor}
+                      state="idle"
+                      size="78%"
+                      reducedMotion={reduceMotion}
+                    />
+                  </span>
+                ) : <img
                   src={launcherImageSrc}
                   alt=""
                   aria-hidden="true"
@@ -3764,7 +3826,7 @@ function ChatWidgetInner({
                           : customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
                     )
                   }
-                />
+                />}
                 {!isMobileView && !isOpen && !isHeaderIdentityLoading ? (
                   <span className="pointer-events-none absolute -top-10 right-0 whitespace-nowrap rounded-lg border border-border/70 bg-background/95 px-3 py-1.5 text-[11px] font-semibold text-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
                     {headerTitle || brandFallbackTitle} · Asistente digital

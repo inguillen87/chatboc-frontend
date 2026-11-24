@@ -3,6 +3,10 @@
    avoid a double border around the welcome/menu card while preserving focus and legibility. */
 .chatboc-chat-scrollarea .institutional-chat-message { margin-block:0; padding:.25rem .25rem .5rem; border:0; border-radius:0; background:transparent; }
 .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { padding:.75rem .875rem; border-radius:.875rem; background:hsl(var(--muted)/.32); }
+/* «Globa» from a published brand identity: the answer takes the brand speech-balloon shape. */
+[data-bubble-style="globa"] .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { position:relative; margin-bottom:.75rem; border-radius:.625rem; background:hsl(var(--card)); box-shadow:0 1px 2px rgb(15 23 42/.08),0 10px 24px -14px rgb(15 23 42/.35); }
+[data-bubble-style="globa"] .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu)::after { content:""; position:absolute; left:1rem; bottom:-.55rem; width:.8rem; height:.6rem; background:inherit; clip-path:polygon(0 0,100% 0,0 100%); pointer-events:none; }
+.dark [data-bubble-style="globa"] .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { background:hsl(var(--muted)/.55); box-shadow:none; }
 .institutional-chat-message h3 { margin:.5rem 0 1rem; font-size:1.15em; font-weight:650; line-height:1.5; }
 .institutional-chat-message p { white-space:pre-line; margin-block:0 1rem; }
 .institutional-chat-message button,.institutional-chat-message a,.institutional-chat-message summary { min-height:48px; font:inherit; line-height:1.5; }
@@ -18,6 +22,12 @@
 .institutional-chat-message__choices button span:last-child { min-width:0; overflow-wrap:anywhere; }
 .institutional-chat-message .institutional-choices__status { margin-top:1rem; margin-bottom:0; color:hsl(var(--muted-foreground)); }
 .institutional-chat-message__choices :is([data-choice-more],[data-choice-previous]) { justify-content:center; background:hsl(var(--muted)/.35); }
+/* Published brand identity: a palette stripe on each option. Decorative only; the text keeps its own contrast. */
+[data-brand-identity="published"] .institutional-chat-message__choices button:not([data-choice-more]):not([data-choice-previous]) { position:relative; overflow:hidden; padding-left:1.15rem; }
+[data-brand-identity="published"] .institutional-chat-message__choices button:not([data-choice-more]):not([data-choice-previous])::before { content:""; position:absolute; inset-block:0; left:0; width:4px; background:var(--brand-accent-1,transparent); pointer-events:none; }
+[data-brand-identity="published"] .institutional-chat-message__choices button:not([data-choice-more]):not([data-choice-previous]):nth-child(4n+2)::before { background:var(--brand-accent-2,transparent); }
+[data-brand-identity="published"] .institutional-chat-message__choices button:not([data-choice-more]):not([data-choice-previous]):nth-child(4n+3)::before { background:var(--brand-accent-3,transparent); }
+[data-brand-identity="published"] .institutional-chat-message__choices button:not([data-choice-more]):not([data-choice-previous]):nth-child(4n+4)::before { background:var(--brand-accent-4,transparent); }
 .institutional-chat-message__links { display:grid; gap:.5rem; margin-block:1rem; }
 .institutional-chat-message a { display:flex; align-items:center; text-decoration:underline; text-underline-offset:.2em; }
 .institutional-chat-message__sources { margin-top:1rem; border-top:1px solid hsl(var(--border)); }
