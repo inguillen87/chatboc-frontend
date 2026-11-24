@@ -66,6 +66,18 @@ export const resolveVerifiedSession = ({
       (hasBearerSession && !bearerRequiresClerkVerification),
   );
 
+/**
+ * Whether a private screen still has to wait for Clerk before reading data.
+ * A verified session (for example a native Chatboc login, which the Clerk
+ * bridge deliberately does not replace with a stale SDK identity) is already
+ * the authority: Clerk "syncing" can last forever there and must not block.
+ */
+export const isSessionAuthorityPending = ({
+  clerkStatus,
+  hasVerifiedSession,
+}: Pick<SessionAuthorityValue, 'clerkStatus' | 'hasVerifiedSession'>) =>
+  !hasVerifiedSession && (clerkStatus === 'loading' || clerkStatus === 'syncing');
+
 const DEFAULT_SESSION_AUTHORITY: SessionAuthorityValue = {
   clerkStatus: 'disabled',
   hasBearerSession: false,
