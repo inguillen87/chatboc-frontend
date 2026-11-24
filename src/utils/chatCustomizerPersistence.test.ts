@@ -125,6 +125,16 @@ describe('chatCustomizerPersistence', () => {
     expect(findPublicWidgetRuntimeMismatches(submitted, publicPayload)).toEqual([]);
   });
 
+  it('keeps a saved empty call-to-action bubble empty instead of restoring the default text', () => {
+    const submitted: ChatCustomizerConfig = { ...config, ctaMessage: '' };
+    const persisted = buildTenantRuntimeWidgetUpdate(submitted);
+    expect(persisted.cta_messages).toEqual([]);
+
+    expect(readChatCustomizerConfig(persisted, config).ctaMessage).toBe('');
+    expect(findTenantRuntimePersistenceMismatches(submitted, persisted, config)).toEqual([]);
+    expect(readChatCustomizerConfig({ cta_messages: [] }, config).ctaMessage).toBe(config.ctaMessage);
+  });
+
   it('prefers the top-level runtime fields when legacy theme values diverge', () => {
     const payload = buildTenantRuntimeWidgetUpdate(config);
     payload.primary_color = '#112233';
