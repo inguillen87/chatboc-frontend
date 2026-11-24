@@ -16,6 +16,7 @@ import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { tenantHostNavigationTarget } from '@/utils/tenantHostBinding';
 import { TenantSwitcher } from './TenantSwitcher';
+import { brandFontStack, brandGradientColors, ensureBrandStylesheet } from '@/utils/publicBrandIdentity';
 
 interface TenantShellProps {
   children: ReactNode;
@@ -68,6 +69,23 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
   const rawTenantSlug = tenant?.slug?.trim() || null;
   const resolvedTenant = rawTenantSlug && rawTenantSlug.toLowerCase() !== 'default' ? tenant : null;
   const resolvedTenantSlug = resolvedTenant?.slug?.trim() || null;
+  // Published brand identity: a palette band, its typography and its mark.
+  // Everything comes from the backend; without it the portal stays neutral.
+  const brandIdentity = resolvedTenant?.brand_identity ?? null;
+  const brandMark = brandIdentity?.logo?.mark ?? null;
+  const brandBand = useMemo(() => {
+    if (!brandIdentity) return null;
+    const colors = brandGradientColors(brandIdentity);
+    return colors.length >= 2 ? `linear-gradient(90deg, ${colors.join(', ')})` : null;
+  }, [brandIdentity]);
+  const brandTypographyStyle = useMemo(() => {
+    const fontFamily = brandFontStack(brandIdentity?.typography);
+    if (!fontFamily) return undefined;
+    return { fontFamily, letterSpacing: brandIdentity?.typography?.letterSpacing };
+  }, [brandIdentity]);
+  useEffect(() => {
+    ensureBrandStylesheet(brandIdentity?.typography?.stylesheetUrl);
+  }, [brandIdentity?.typography?.stylesheetUrl]);
   const normalizedCurrentSlug = currentSlug?.trim().toLowerCase() || null;
   const retryScope = useMemo(() => ({}), [
     location.pathname, location.search, normalizedCurrentSlug, widgetToken, hostBinding?.tenant.id, hostBinding?.tenant.slug,
@@ -287,10 +305,10 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
     return (
       <div className={cn('flex flex-col md:flex-row md:items-center md:justify-between', compactHeader ? 'gap-4' : 'gap-6')}>
         <div className="flex flex-1 items-start gap-4">
-          {resolvedTenant.logo_url ? (
+          {brandMark || resolvedTenant.logo_url ? (
             <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-card p-1.5 shadow-sm sm:block">
               <img
-                src={resolvedTenant.logo_url}
+                src={brandMark || resolvedTenant.logo_url || undefined}
                 alt={`Logo de ${resolvedTenant.nombre}`}
                 className="h-full w-full object-contain"
               />
@@ -373,11 +391,23 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
   };
 
   return (
-    <div className={cn('mx-auto w-full max-w-5xl', compactHeader ? 'space-y-5 py-6' : 'space-y-8 py-10')}>
+    <div
+      className={cn('mx-auto w-full max-w-5xl', compactHeader ? 'space-y-5 py-6' : 'space-y-8 py-10')}
+      style={brandTypographyStyle}
+      data-brand-identity={brandIdentity ? 'published' : undefined}
+    >
       <section
-        className={cn('rounded-3xl border bg-background/80 shadow-sm backdrop-blur', compactHeader ? 'p-4 sm:p-5' : 'p-6')}
+        className={cn('relative overflow-hidden rounded-3xl border bg-background/80 shadow-sm backdrop-blur', compactHeader ? 'p-4 sm:p-5' : 'p-6')}
         aria-labelledby={TENANT_SHELL_TITLE_ID}
       >
+        {brandBand ? (
+          <div
+            aria-hidden="true"
+            data-testid="tenant-brand-band"
+            className="pointer-events-none absolute inset-x-0 top-0 h-1.5"
+            style={{ backgroundImage: brandBand }}
+          />
+        ) : null}
         {renderHeaderContent()}
         {renderNavigation()}
       </section>

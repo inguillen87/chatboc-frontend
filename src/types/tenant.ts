@@ -1,4 +1,5 @@
 import type { PublicWorkspaceAppearance } from '@/utils/publicWorkspaceAppearance';
+import type { PublicBrandIdentity } from '@/utils/publicBrandIdentity';
 import type {PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
 import type { RealtimeVoiceCapabilities } from './realtimeVoice';
 
@@ -35,6 +36,8 @@ export interface TenantPublicInfo {
   tema?: TenantThemeConfig | Record<string, unknown> | null;
   /** Paleta pública vigente del organismo; null si el backend no la proyecta para este slug exacto. */
   workspace_appearance?: PublicWorkspaceAppearance | null;
+  /** Identidad de marca publicada (paleta, tipografía, logos); null si el backend no la proyecta. */
+  brand_identity?: PublicBrandIdentity | null;
   tipo?: string | null;
   descripcion?: string | null;
   public_base_url?: string | null;

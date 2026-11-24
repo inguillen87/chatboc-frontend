@@ -1,4 +1,5 @@
 import { readPublicWorkspaceAppearance } from '@/utils/publicWorkspaceAppearance';
+import { readPublicBrandIdentity } from '@/utils/publicBrandIdentity';
 import {readPublishedTenantIdentity,TenantProfileScopeError} from '@/utils/publishedTenantIdentity';
 import { apiFetch, ApiError } from '@/utils/api';
 import { SAME_ORIGIN_PROXY_BASE } from '@/config';
@@ -123,6 +124,7 @@ const normalizeTenantInfo = (
         ? (payload.tema as Record<string, unknown>)
         : null,
     workspace_appearance: readPublicWorkspaceAppearance(source.workspace_appearance ?? payload.workspace_appearance, publishedIdentity?.tenantSlug, publishedIdentity?.tenantId),
+    brand_identity: readPublicBrandIdentity(source.brand_identity ?? payload.brand_identity),
     tipo: coerceString(source.tipo) ?? coerceString(payload.tipo) ?? null,
     descripcion: coerceString(source.descripcion) ?? coerceString(payload.descripcion) ?? null,
     public_base_url:
