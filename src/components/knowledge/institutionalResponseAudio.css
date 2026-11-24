@@ -3,3 +3,15 @@
 .institutional-response-audio p { margin-bottom:.5rem; line-height:1.6; overflow-wrap:anywhere; }
 .institutional-response-audio button { min-height:48px; min-width:48px; border:1px solid hsl(var(--border)); border-radius:.75rem; padding:.65rem .85rem; font:inherit; white-space:normal; text-align:left; background:hsl(var(--background)); }
 .institutional-response-audio button:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }
+/* «Explicámelo más simple»: the verified easy-read version beside the original answer. */
+.institutional-easy-read { margin-block:.5rem .75rem; }
+.institutional-easy-read > button { min-height:44px; border:1px solid hsl(var(--primary)/.45); border-radius:999px; padding:.5rem 1rem; font:inherit; font-weight:600; background:hsl(var(--primary)/.08); color:hsl(var(--foreground)); }
+.institutional-easy-read > button:hover { background:hsl(var(--primary)/.14); }
+.institutional-easy-read > button[aria-disabled="true"] { opacity:.75; cursor:progress; }
+.institutional-easy-read > button:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }
+.institutional-easy-read > p[role="alert"] { margin-top:.5rem; font-size:.9rem; }
+.institutional-easy-read__text { margin-top:.65rem; padding:.85rem 1rem; border-radius:.75rem; border-inline-start:4px solid hsl(var(--primary)); background:hsl(var(--muted)/.35); font-size:1.05em; line-height:1.75; }
+.institutional-easy-read__text:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:3px; }
+.institutional-easy-read__text ul { padding-inline-start:1.25rem; list-style:disc; }
+.institutional-easy-read__text li + li { margin-top:.35rem; }
+.institutional-easy-read__disclosure { margin-top:.65rem; font-size:.85em; color:hsl(var(--muted-foreground)); }

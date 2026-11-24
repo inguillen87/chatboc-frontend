@@ -6,6 +6,7 @@ import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
 import {InstitutionalTextBlocks} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
+import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
@@ -27,6 +28,8 @@ export default function InstitutionalAssistant(props:Props) {
 }
 function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowledgeAvailability}:Props){
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
+  // A typed «explicámelo más simple» opens the easy-read version of that answer.
+  const [easyReadRequest,setEasyReadRequest]=useState<{nodeId:string;token:number}|null>(null);
   // Canonical nodes that stay the conversation topic while an uncovered question is shown.
   const [topic,setTopic]=useState<KnowledgeNode[]>([]);
   const [lastUi,setLastUi]=useState<Record<string,string>|null>(null);
@@ -168,6 +171,8 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
         // An uncovered question, or the source catalog opened from it, keeps the topic.
         const keepsTopic=isKnowledgeSourceNavigation(response)||Boolean(text)&&!response.nodes.length;
         setTopic(keepsTopic?(nodes.length?nodes:topic):[]);setNodes(response.nodes);
+        setEasyReadRequest(!isKnowledgeSourceNavigation(response)&&response.easy_read_requested===true&&response.nodes.length===1
+          ?{nodeId:response.nodes[0].id,token:seq}:null);
         // A typed menu command is exact navigation (no selection was performed):
         // returning to the published start restores the same layout as Home.
         const typedNavigation=Boolean(text)&&!isKnowledgeSourceNavigation(response)&&(response as {selection_performed?:unknown}).selection_performed===false;
@@ -291,6 +296,9 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3>
             {initialMenu&&index===0?choices:null}
             <div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
+            {mode==='public'&&workspace.easy_read&&workspace.revision&&knowledge&&node.id!==knowledge.start?
+              <InstitutionalEasyRead scope={{tenant:workspace.tenant,revision:workspace.revision,nodeId:node.id}} copy={workspace.easy_read}
+                autoOpenToken={easyReadRequest?.nodeId===node.id?easyReadRequest.token:null}/>:null}
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15} aria-hidden="true"/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15} aria-hidden="true"/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
