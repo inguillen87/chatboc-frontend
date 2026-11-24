@@ -8,7 +8,7 @@ import type {Message} from '@/types/chat';
 export interface InstitutionalCanonicalChatMessage {
   kind?:undefined;
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
-  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string};
+  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string;acronyms?:string};
   audioReading?:InstitutionalAudioReading;
   easyRead?:InstitutionalEasyReadCopy;
   /** Verified easy-read text of the first node, when the person asked for it by writing. */
@@ -159,7 +159,9 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     ...(audioReading?{audioReading}:{}),
     ...(easyRead?{easyRead}:{}),
     ...(easyRead&&typeof value.knowledge_easy_read_text==='string'?{easyReadText:value.knowledge_easy_read_text}:{}),
-    ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string}}:{})};
+    ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string,
+      // Optional label: an older backend omits it and the acronyms block stays hidden.
+      ...(typeof suppliedUi!.acronyms==='string'&&suppliedUi!.acronyms.trim()&&suppliedUi!.acronyms.length<=200?{acronyms:suppliedUi!.acronyms}:{})}}:{})};
 }
 
 // A leading token made only of pictographic or other symbol characters (for
