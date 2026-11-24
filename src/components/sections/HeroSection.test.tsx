@@ -29,9 +29,30 @@ describe('HeroSection backend-driven conversation demo', () => {
     );
 
     expect(container.querySelector('.chatboc-phone-demo')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Solicitar demostración' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ver recorrido' })).toBeInTheDocument();
-    expect(screen.getByText(/plataforma omnicanal para gobiernos y empresas/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Probar la demo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hablar con ventas' })).toBeInTheDocument();
+    expect(screen.getByText(/widget web, whatsapp, reclamos, encuestas y crm/i)).toBeInTheDocument();
+  });
+
+  it('renders the animated widget mockup with mascot, typing state and quick options by default', () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = render(
+        <MemoryRouter>
+          <HeroSection />
+        </MemoryRouter>,
+      );
+
+      expect(container.querySelector('.chatboc-phone-demo')).not.toBeNull();
+      expect(screen.getByRole('img', { name: 'Mascota animada de Chatboc' })).toBeInTheDocument();
+      expect(screen.getAllByText(/escribiendo/i).length).toBeGreaterThan(0);
+
+      act(() => vi.advanceTimersByTime(1500));
+      expect(screen.getByText(/recibí los datos y creé el seguimiento/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Ver recorrido' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders backend-provided operational data in one compact conversation-to-CRM view', () => {
@@ -213,5 +234,18 @@ describe('HeroSection backend-driven conversation demo', () => {
     expect(screen.getByRole('group', { name: 'Integraciones disponibles por configuración' })).toBeTruthy();
     expect(screen.queryByText('Chatboc verificado')).not.toBeInTheDocument();
     expect(screen.queryByText('Meta Business Partners')).not.toBeInTheDocument();
+  });
+
+  it('shows the animated widget mockup with mascot and quick options when no backend demo override is supplied', () => {
+    render(
+      <MemoryRouter>
+        <HeroSection experience={null} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('img', { name: 'Mascota animada de Chatboc' })).toBeInTheDocument();
+    expect(screen.getByText('Caso registrado')).toBeInTheDocument();
+    const quickOption = screen.getByRole('button', { name: 'Ver recorrido', exact: true });
+    expect(quickOption).toBeInTheDocument();
   });
 });

@@ -272,8 +272,8 @@ const DemoShowcaseSection = () => {
   const defaultValue = groups[0]?.key ? String(groups[0].key) : undefined;
 
   return (
-    <section id="demos" className="relative overflow-hidden bg-background py-16 text-foreground md:py-24">
-      <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-primary/10 to-transparent" />
+    <section id="demos" className="relative overflow-hidden bg-background py-20 text-foreground md:py-28">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-primary/10 to-transparent" aria-hidden="true" />
       <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-10 max-w-4xl text-center">
           <div className="chatboc-section-kicker mb-4">Demos</div>

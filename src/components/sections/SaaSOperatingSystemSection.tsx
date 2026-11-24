@@ -163,7 +163,7 @@ const SaaSOperatingSystemSection = () => {
     <section
       id="sistema-operativo"
       aria-labelledby="operating-system-title"
-      className="scroll-mt-24 border-y border-border/60 bg-background py-14 text-foreground md:py-20"
+      className="scroll-mt-24 border-y border-border/60 bg-background py-20 text-foreground md:py-28"
     >
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-6xl">

@@ -1190,6 +1190,79 @@
       radial-gradient(circle at 50% 78%, rgba(20, 184, 166, 0.06), transparent 34%),
       hsl(var(--background));
   }
+  .chatboc-hero-mesh-orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(68px);
+    opacity: 0.45;
+    will-change: transform;
+    animation: chatboc-mesh-drift 14s ease-in-out infinite alternate;
+  }
+  .dark .chatboc-hero-mesh-orb {
+    opacity: 0.36;
+  }
+  .chatboc-hero-mesh-orb--a {
+    left: -8%;
+    top: -12%;
+    width: 30rem;
+    height: 24rem;
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.34), transparent 70%);
+  }
+  .chatboc-hero-mesh-orb--b {
+    right: -6%;
+    top: 4%;
+    width: 34rem;
+    height: 28rem;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.3), transparent 70%);
+    animation-delay: -4s;
+  }
+  .chatboc-hero-mesh-orb--c {
+    left: 34%;
+    bottom: -18%;
+    width: 28rem;
+    height: 22rem;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.24), transparent 70%);
+    animation-delay: -8s;
+  }
+  .chatboc-hero-particle {
+    position: absolute;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: hsl(var(--primary) / 0.42);
+    box-shadow: 0 0 14px hsl(var(--primary) / 0.45);
+    animation: chatboc-particle-float 7.5s ease-in-out infinite;
+  }
+  .chatboc-typing-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+  }
+  .chatboc-typing-dots span {
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: 999px;
+    background: hsl(var(--primary));
+    animation: chatboc-dot-bounce 1.05s ease-in-out infinite;
+  }
+  .chatboc-typing-dots span:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+  .chatboc-typing-dots span:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+  @keyframes chatboc-mesh-drift {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    100% { transform: translate3d(24px, -18px, 0) scale(1.07); }
+  }
+  @keyframes chatboc-particle-float {
+    0%, 100% { transform: translateY(0); opacity: 0.35; }
+    50% { transform: translateY(-14px); opacity: 0.85; }
+  }
+  @keyframes chatboc-dot-bounce {
+    0%, 100% { transform: translateY(0); opacity: 0.45; }
+    45% { transform: translateY(-3px); opacity: 1; }
+  }
   .chatboc-hero-grid::before {
     content: "";
     position: absolute;
@@ -1234,7 +1307,10 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .chatboc-brand-lockup__agent-shell,
-    .chatboc-agent-launcher::after {
+    .chatboc-agent-launcher::after,
+    .chatboc-hero-mesh-orb,
+    .chatboc-hero-particle,
+    .chatboc-typing-dots span {
       animation: none;
     }
     .chatboc-phone-demo__sequence,

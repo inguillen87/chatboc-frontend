@@ -3,6 +3,8 @@ import { useReducedMotion } from "framer-motion";
 import { ReactLenis } from "lenis/react";
 import { safeSessionStorage } from "@/utils/safeLocalStorage";
 import HeroSection from "@/components/sections/HeroSection";
+import WhiteLabelShowcaseSection from "@/components/sections/WhiteLabelShowcaseSection";
+import ModulesBentoSection from "@/components/sections/ModulesBentoSection";
 import SaaSOperatingSystemSection from "@/components/sections/SaaSOperatingSystemSection";
 import SolutionSection from "@/components/sections/SolutionSection";
 import PricingSection from "@/components/sections/PricingSection";
@@ -22,24 +24,27 @@ const Index = () => {
     typeof window.requestAnimationFrame === "function" &&
     typeof ResizeObserver !== "undefined";
   useEffect(() => {
-    document.title = "Chatboc - Agentes IA para operar conversaciones, ventas y servicios";
+    document.title = "Chatboc - Agentes IA marca blanca para operar conversaciones, ventas y servicios";
 
     const sectionId = safeSessionStorage.getItem("pendingScrollSection");
     if (sectionId) {
       setTimeout(() => {
         const el = document.getElementById(sectionId);
         if (el) {
-          el.scrollIntoView({ behavior: "smooth" });
+          el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
         }
         safeSessionStorage.removeItem("pendingScrollSection");
       }, 200);
     }
-  }, []);
+  }, [reduceMotion]);
 
   const landing = (
       <div className="bg-background">
         <HeroSection experience={landingExperience} />
         <LegacyLandingAnchor id="diferencia-chatboc" />
+        <WhiteLabelShowcaseSection />
+        <LegacyLandingAnchor id="modulos" />
+        <ModulesBentoSection />
         <LegacyLandingAnchor id="problemas" />
         <LegacyLandingAnchor id="como-funciona" />
         <SaaSOperatingSystemSection />
@@ -47,7 +52,6 @@ const Index = () => {
         <LegacyLandingAnchor id="publico-objetivo" />
         <LegacyLandingAnchor id="senales-valor" />
         <DemoShowcaseSection />
-        <LegacyLandingAnchor id="modulos" />
         <PricingSection />
         <CtaSection />
       </div>
