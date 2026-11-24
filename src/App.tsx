@@ -30,6 +30,7 @@ import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
 import { toCanonicalTenantPath } from '@/utils/canonicalTenantRouting';
+import { isPublicPlatformSurfacePath } from '@/utils/widgetTenantResolution';
 import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
 import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
@@ -546,16 +547,19 @@ function AppRoutes() {
       </React.Suspense>
 
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
-      {!ocultarWidgetGlobalEnApp && (
-        <React.Suspense fallback={null}>
-          <ChatWidget
-            mode="standalone"
-            defaultOpen={false}
-            welcomeTitle="Asistente Virtual"
-            welcomeSubtitle="Consultas, ventas y soporte con Chatboc"
-          />
-        </React.Suspense>
-      )}
+      {!ocultarWidgetGlobalEnApp && (() => {
+        const isPlatformSurface = isPublicPlatformSurfacePath(location.pathname);
+        return (
+          <React.Suspense fallback={null}>
+            <ChatWidget
+              mode="standalone"
+              defaultOpen={false}
+              welcomeTitle={isPlatformSurface ? "Asistente Virtual" : undefined}
+              welcomeSubtitle={isPlatformSurface ? "Consultas, ventas y soporte con Chatboc" : undefined}
+            />
+          </React.Suspense>
+        );
+      })()}
     </TokenRedirectWrapper>
     </TenantHostRouteBoundary>
   );

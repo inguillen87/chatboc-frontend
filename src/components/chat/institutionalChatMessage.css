@@ -1,4 +1,8 @@
 .institutional-chat-message { width:100%; min-width:0; max-width:100%; margin-block:.5rem; padding:1rem; border:1px solid hsl(var(--border)); border-radius:1rem; background:hsl(var(--card)); color:hsl(var(--foreground)); font-family:var(--font-sans,system-ui,sans-serif); font-size:1rem; line-height:1.75; text-align:left; overflow-wrap:anywhere; }
+/* Inside the chat message area the widget panel already frames the surface:
+   avoid a double border around the welcome/menu card while preserving focus and legibility. */
+.chatboc-chat-scrollarea .institutional-chat-message { margin-block:0; padding:.25rem .25rem .5rem; border:0; border-radius:0; background:transparent; }
+.chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { padding:.75rem .875rem; border-radius:.875rem; background:hsl(var(--muted)/.32); }
 .institutional-chat-message h3 { margin:.5rem 0 1rem; font-size:1.15em; font-weight:650; line-height:1.5; }
 .institutional-chat-message p { white-space:pre-line; margin-block:0 1rem; }
 .institutional-chat-message button,.institutional-chat-message a,.institutional-chat-message summary { min-height:48px; font:inherit; line-height:1.5; }

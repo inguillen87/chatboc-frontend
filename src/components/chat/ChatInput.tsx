@@ -566,7 +566,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       if (committedSendDraft.current.attachment === submittedAttachment) setAttachmentPreview(null);
       setShowEmojis(false);
       // A delayed upload must not take focus back from the user's next control.
-      if (!submittedAttachment) internalRef.current?.focus();
+      if (!submittedAttachment) internalRef.current?.focus({ preventScroll: true });
     } finally {
       // An old completion must never unlock a newer attempt.
       if (sendAttempt.current === attempt) {

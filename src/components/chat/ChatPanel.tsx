@@ -960,6 +960,8 @@ interface ChatPanelProps {
   headerLogoUrl?: string;
   welcomeTitle?: string;
   welcomeSubtitle?: string;
+  fallbackTitle?: string;
+  brandColors?: { start?: string | null; end?: string | null } | null;
   logoAnimation?: string;
   typingAnimation?: string;
   bubbleAnimation?: string;
@@ -1107,6 +1109,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     headerLogoUrl,
     welcomeTitle,
     welcomeSubtitle,
+    fallbackTitle,
+    brandColors,
     logoAnimation,
     typingAnimation,
     bubbleAnimation,
@@ -3324,6 +3328,9 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     };
   }, [messages, visibleMessages, tenantSlug, mode, pendingActionScope, institutionalNavigation.activeMessage]);
 
+  const isPinnedToBottomRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
+
   useEffect(() => {
     const container = chatContainerRef.current;
     if (!container) return;
@@ -3331,11 +3338,42 @@ const ChatPanelContent = (props: ChatPanelProps) => {
       const { scrollHeight, scrollTop, clientHeight } = container;
       // Define tolerance for "at bottom"
       const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+      isPinnedToBottomRef.current = scrollHeight - scrollTop - clientHeight < 64;
+      lastScrollTopRef.current = scrollTop;
       setShowScrollDown(!atBottom);
     };
-    container.addEventListener("scroll", onScroll);
+    onScroll();
+    container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!isMobile || typeof window === "undefined" || !window.visualViewport) return undefined;
+    const vv = window.visualViewport;
+    let rafId: number | null = null;
+    const handleViewportResize = () => {
+      const container = chatContainerRef.current;
+      if (!container) return;
+      const keepBottom = isPinnedToBottomRef.current;
+      const preservedScrollTop = lastScrollTopRef.current;
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(() => {
+        const current = chatContainerRef.current;
+        if (!current) return;
+        if (keepBottom) {
+          current.scrollTop = current.scrollHeight;
+        } else {
+          const maxScrollTop = Math.max(0, current.scrollHeight - current.clientHeight);
+          current.scrollTop = Math.min(preservedScrollTop, maxScrollTop);
+        }
+      });
+    };
+    vv.addEventListener("resize", handleViewportResize);
+    return () => {
+      vv.removeEventListener("resize", handleViewportResize);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
+  }, [isMobile]);
 
   const handleOpenCatalog = useCallback(() => {
     onCart?.("market");
@@ -3926,6 +3964,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           cartCount={cartCount}
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
+          fallbackTitle={fallbackTitle}
+          brandColors={brandColors}
           subtitle={welcomeSubtitle}
           logoAnimation={reducedMotion ? "none" : logoAnimation}
           onA11yChange={onA11yChange}
@@ -3994,6 +4034,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           muted={muted}
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
+          fallbackTitle={fallbackTitle}
+          brandColors={brandColors}
           subtitle={welcomeSubtitle}
           logoAnimation={reducedMotion ? "none" : logoAnimation}
           supportChannels={supportChannels}
@@ -4072,6 +4114,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         cartCount={cartCount}
         logoUrl={headerLogoUrl}
         title={welcomeTitle}
+        fallbackTitle={fallbackTitle}
+        brandColors={brandColors}
         subtitle={welcomeSubtitle}
         logoAnimation={reducedMotion ? "none" : logoAnimation}
         onA11yChange={onA11yChange}
@@ -4557,7 +4601,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         ))}
             {visibleDefaultMenuButtons.length && !activeTrialLimitNotice ? (
               <div className="flex justify-center">
-                <div className="mb-1 grid w-full max-w-[340px] gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 py-2 shadow-sm sm:gap-2 dark:bg-slate-950/75">
+                <div className="mb-1 grid w-full max-w-[340px] gap-1.5 px-1 py-1 sm:gap-2">
                   <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
                     {menuContextLabel}
                   </p>
