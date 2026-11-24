@@ -19,6 +19,7 @@ import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
 import OwnerRealtimeVoicePanel from "./OwnerRealtimeVoicePanel";
+import type { BrandBotState } from "./BrandBotAvatar";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic, getChatBootstrapContinuityKey, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
@@ -962,6 +963,10 @@ interface ChatPanelProps {
   welcomeSubtitle?: string;
   fallbackTitle?: string;
   brandColors?: { start?: string | null; end?: string | null } | null;
+  /** Published brand header background (contrast-safe for white text). */
+  brandHeaderBackground?: string | null;
+  /** Organization mascot for the header and the typing indicator. */
+  renderBrandAvatar?: ((state: BrandBotState, size: number) => React.ReactNode) | null;
   logoAnimation?: string;
   typingAnimation?: string;
   bubbleAnimation?: string;
@@ -1111,6 +1116,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     welcomeSubtitle,
     fallbackTitle,
     brandColors,
+    brandHeaderBackground,
+    renderBrandAvatar,
     logoAnimation,
     typingAnimation,
     bubbleAnimation,
@@ -3966,6 +3973,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           title={welcomeTitle}
           fallbackTitle={fallbackTitle}
           brandColors={brandColors}
+          background={brandHeaderBackground}
+          avatar={renderBrandAvatar ? renderBrandAvatar(isTyping ? "thinking" : "idle", 32) : undefined}
           subtitle={welcomeSubtitle}
           logoAnimation={reducedMotion ? "none" : logoAnimation}
           onA11yChange={onA11yChange}
@@ -4036,6 +4045,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           title={welcomeTitle}
           fallbackTitle={fallbackTitle}
           brandColors={brandColors}
+          background={brandHeaderBackground}
+          avatar={renderBrandAvatar ? renderBrandAvatar(isTyping ? "thinking" : "idle", 32) : undefined}
           subtitle={welcomeSubtitle}
           logoAnimation={reducedMotion ? "none" : logoAnimation}
           supportChannels={supportChannels}
@@ -4116,6 +4127,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         title={welcomeTitle}
         fallbackTitle={fallbackTitle}
         brandColors={brandColors}
+          background={brandHeaderBackground}
+          avatar={renderBrandAvatar ? renderBrandAvatar(isTyping ? "thinking" : "idle", 32) : undefined}
         subtitle={welcomeSubtitle}
         logoAnimation={reducedMotion ? "none" : logoAnimation}
         onA11yChange={onA11yChange}
@@ -4635,6 +4648,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         )}
         {isTyping && (
           <TypingIndicator
+            avatar={renderBrandAvatar ? renderBrandAvatar("thinking", 30) : undefined}
             logoUrl={headerLogoUrl}
             logoAnimation={reducedMotion ? "none" : logoAnimation}
             text={typingText}

@@ -297,6 +297,45 @@ describe('shared widget public assistant appearance', () => {
     expect(screen.queryByText(appDefaults.welcomeSubtitle)).not.toBeInTheDocument();
   });
 
+  it('uses the organization mascot, header mesh and typography when a brand identity is published', async () => {
+    window.history.replaceState({}, '', '/t/marca-sintetica');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('marca-sintetica', 'Asistente de marca'),
+      brand_identity: {
+        contract_version: 'public.brand_identity.v1',
+        palette: ['#AA5500', '#22AA44', '#33BBEE', '#333333'],
+        gradient_stops: [{ color: '#AA5500', x: 0.1, y: 0.1 }, { color: '#33BBEE', x: 0.9, y: 0.9 }],
+        text_color: '#333333',
+        typography: { family: 'Synthetic Sans', fallback: 'system-ui, sans-serif', letter_spacing: '-0.02em' },
+        avatar: { style: 'brand_bot' },
+      },
+    });
+    const view = renderWidget(
+      <MemoryRouter initialEntries={['/t/marca-sintetica']}>
+        <ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} />
+      </MemoryRouter>,
+    );
+    const launcher = await screen.findByRole('button', { name: 'Abrir el asistente Asistente de marca' });
+    await waitFor(() => expect(launcher.querySelector('svg.cbb')).not.toBeNull());
+    expect(launcher.querySelector('img')).toBeNull();
+    const container = view.container.querySelector<HTMLElement>('.chatboc-container')!;
+    await waitFor(() => expect(container.style.fontFamily).toContain('Synthetic Sans'));
+    expect(container.style.letterSpacing).toBe('-0.02em');
+  });
+
+  it('keeps the Chatboc launcher when no brand identity is published', async () => {
+    window.history.replaceState({}, '', '/t/sin-marca');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue(publicConfig('sin-marca', 'Asistente neutro'));
+    renderWidget(
+      <MemoryRouter initialEntries={['/t/sin-marca']}>
+        <ChatWidgetInner mode="standalone" defaultOpen={false} {...appDefaults} />
+      </MemoryRouter>,
+    );
+    const launcher = await screen.findByRole('button', { name: 'Abrir el asistente Asistente neutro' });
+    expect(launcher.querySelector('svg.cbb')).toBeNull();
+    expect(launcher.querySelector('img')).not.toBeNull();
+  });
+
   it.each(['iframe', 'preview'] as const)('preserves explicit %s display overrides', async (mode) => {
     window.history.replaceState({}, '', '/iframe');
     vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue(publicConfig('another-city', 'Asistente persistido'));

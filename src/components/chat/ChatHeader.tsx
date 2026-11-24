@@ -77,6 +77,10 @@ interface Props {
   fallbackTitle?: string;
   /** Colores de marca del tenant para el degradado de la cabecera. */
   brandColors?: { start?: string | null; end?: string | null } | null;
+  /** Published brand background (already contrast-safe for white text). */
+  background?: string | null;
+  /** Organization mascot shown instead of the platform logo. */
+  avatar?: React.ReactNode;
   subtitle?: string;
   logoAnimation?: string;
   onA11yChange?: (p: Prefs) => void;
@@ -127,6 +131,8 @@ const ChatHeader: React.FC<Props> = ({
   title,
   fallbackTitle = 'Chatboc',
   brandColors = null,
+  background = null,
+  avatar = null,
   subtitle,
   logoAnimation,
   onA11yChange,
@@ -179,7 +185,7 @@ const ChatHeader: React.FC<Props> = ({
         text-white transition-all
       `}
       style={{
-        background: headerBackground(brandColors?.start, brandColors?.end),
+        background: background || headerBackground(brandColors?.start, brandColors?.end),
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
         paddingTop: isUltraCompact ? "max(0.5rem, env(safe-area-inset-top))" : undefined,
       }}
@@ -195,7 +201,9 @@ const ChatHeader: React.FC<Props> = ({
               className="h-5 w-5 rounded-full bg-white/30 motion-safe:animate-pulse"
             />
           ) : (
-            <div className="relative flex items-center justify-center">
+            avatar ? (
+              <div className="relative flex items-center justify-center">{avatar}</div>
+            ) : <div className="relative flex items-center justify-center">
               <ChatbocLogoAnimated
                 src={logoUrl}
                 size={isUltraCompact ? 26 : 32}
