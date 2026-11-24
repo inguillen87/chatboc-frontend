@@ -249,6 +249,15 @@ const firstCtaText = (value: unknown): string => {
   return '';
 };
 
+// A saved empty bubble is a choice, not a missing value: only an organization
+// that never saved one falls back to the default text.
+const readCtaMessage = (savedMessages: unknown, themeMessage: unknown, fallback: string): string => {
+  const saved = firstCtaText(savedMessages);
+  if (saved) return saved;
+  if (typeof themeMessage === 'string') return themeMessage.trim();
+  return fallback;
+};
+
 export const readChatCustomizerConfig = (
   payload: TenantRuntimeWidgetConfig | null | undefined,
   defaults: ChatCustomizerConfig,
@@ -280,7 +289,7 @@ export const readChatCustomizerConfig = (
     mode: asString(theme.mode, defaults.mode),
     botName: asString(source.welcome_subtitle, asString(content.bot_name, defaults.botName)),
     welcomeMessage: asString(source.welcome_message, asString(content.welcome_message, defaults.welcomeMessage)),
-    ctaMessage: asString(firstCtaText(source.cta_messages), asString(content.cta_message, defaults.ctaMessage)),
+    ctaMessage: readCtaMessage(source.cta_messages, content.cta_message, defaults.ctaMessage),
     faqSuggestions: asStringArray(content.faq_suggestions, defaults.faqSuggestions),
     soundEnabled: asBoolean(theme.sound_enabled, defaults.soundEnabled),
     autoOpen: asBoolean(source.default_open, asBoolean(behavior.auto_open, defaults.autoOpen)),
