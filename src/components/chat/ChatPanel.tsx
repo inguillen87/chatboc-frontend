@@ -2369,6 +2369,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     "idle" | "connecting" | "live" | "reconnecting" | "ended"
   >("idle");
   const [isActionTrayOpen, setIsActionTrayOpen] = useState(false);
+  const actionTrayId = React.useId();
   const [captionsEnabled, setCaptionsEnabled] = useState(
     Boolean(a11yPrefs?.captions || voiceCallConfig?.features?.captions),
   );
@@ -3868,6 +3869,21 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     realtimeVoiceToolLabels.length > 0 ||
     realtimeVoiceStarters.length > 0 ||
     hasSecondaryChatActions;
+  // The toggle sits in the composer toolbar, so a closed tray takes no row of
+  // its own and the conversation keeps that space.
+  const actionTrayToggle = shouldShowActionTrayToggle ? (
+    <button
+      type="button"
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground shadow-sm transition hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:h-10 sm:w-10"
+      onClick={() => setIsActionTrayOpen((open) => !open)}
+      aria-expanded={isActionTrayOpen}
+      aria-controls={isActionTrayOpen ? actionTrayId : undefined}
+      aria-label={isActionTrayOpen ? "Ocultar acciones" : "Ver acciones"}
+      title={isActionTrayOpen ? "Ocultar acciones" : "Ver acciones"}
+    >
+      <MoreHorizontal className="h-4 w-4 sm:h-5 sm:w-5" />
+    </button>
+  ) : null;
 
   const validateLeadCaptureInput = useCallback(
     (payload: { text: string; action?: string; action_id?: string }) => {
@@ -4585,8 +4601,11 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         {userTyping && !reducedMotion && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
-      <ScrollToBottomButton target={chatContainerRef.current} />
       <div className="chatboc-chat-footer sticky bottom-0 z-10 w-full min-w-0 shrink-0 border-t bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] backdrop-blur-sm sm:px-2.5 sm:py-1.5">
+        <ScrollToBottomButton
+          target={chatContainerRef.current}
+          className="bottom-full right-3 mb-2 h-9 w-9 rounded-full shadow-md"
+        />
         {smartHint && (
           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
             <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">
@@ -4604,8 +4623,10 @@ const ChatPanelContent = (props: ChatPanelProps) => {
             </div>
           </div>
         )}
-        {compactFooterActions.length > 0 || shouldShowActionTrayToggle ? (
+        {(compactFooterActions.length > 0 || shouldShowActionTrayToggle) &&
+        (isActionTrayOpen || visibleCompactFooterActions.length > 0) ? (
           <div
+            id={actionTrayId}
             className={cn(
               "mb-1 border border-border/70 bg-background/85 shadow-sm backdrop-blur dark:bg-slate-950/85",
               isActionTrayOpen
@@ -4650,18 +4671,6 @@ const ChatPanelContent = (props: ChatPanelProps) => {
                 <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-border/50 bg-muted/35 px-2 text-[11px] font-semibold text-muted-foreground">
                   +{hiddenCompactFooterActions.length}
                 </span>
-              ) : null}
-              {shouldShowActionTrayToggle ? (
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground transition hover:border-primary/35 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  onClick={() => setIsActionTrayOpen((open) => !open)}
-                  aria-expanded={isActionTrayOpen}
-                  aria-label={isActionTrayOpen ? "Ocultar acciones" : "Ver acciones"}
-                  title={isActionTrayOpen ? "Ocultar acciones" : "Ver acciones"}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
               ) : null}
             </div>
             <AnimatePresence initial={false}>
@@ -4968,6 +4977,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         ) : (
           <ChatInput
             ref={chatInputHandleRef}
+            toolbarStart={actionTrayToggle}
             onSendMessage={handleSend}
             isTyping={isTyping}
             disabled={Boolean(chatTrialLimitNotice)}

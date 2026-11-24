@@ -127,9 +127,9 @@ vi.mock("@/hooks/useBusinessHours", () => ({
 
 vi.mock("./ChatHeader", () => ({ default: () => <div data-testid="chat-header" /> }));
 vi.mock("./ChatInput", () => ({
-  default: React.forwardRef(function TestChatInput(){
+  default: React.forwardRef(function TestChatInput({ toolbarStart }: { toolbarStart?: React.ReactNode }){
     const [draft,setDraft]=React.useState('');
-    return <input data-testid="chat-input" aria-label="Borrador de consulta" value={draft} onChange={event=>setDraft(event.target.value)}/>;
+    return <>{toolbarStart}<input data-testid="chat-input" aria-label="Borrador de consulta" value={draft} onChange={event=>setDraft(event.target.value)}/></>;
   }),
 }));
 vi.mock("@/components/ui/ScrollToBottomButton", () => ({ default: () => null }));
