@@ -24,7 +24,7 @@ export default function BrandIdentityPreview({ identity, name, portalUrl }: { id
 
   const colors = brandGradientColors(identity);
   // A dark veil keeps the white name readable over any palette.
-  const header = `linear-gradient(rgb(2 6 23 / 0.38), rgb(2 6 23 / 0.38)), linear-gradient(115deg, ${(colors.length >= 2 ? colors : identity.palette).join(", ")})`;
+  const header = `linear-gradient(rgba(2, 6, 23, 0.38), rgba(2, 6, 23, 0.38)), linear-gradient(115deg, ${(colors.length >= 2 ? colors : identity.palette).join(", ")})`;
   const fontFamily = brandFontStack(identity.typography);
   const typeStyle: React.CSSProperties = { fontFamily, letterSpacing: identity.typography?.letterSpacing };
   const logos = [
