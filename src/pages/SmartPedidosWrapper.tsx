@@ -2,7 +2,7 @@ import React from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { useLocation, useParams } from 'react-router-dom';
-import { useSessionAuthority, buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
+import { isSessionAuthorityPending, useSessionAuthority, buildVerifiedSessionScopeKey } from '@/components/access/SessionAuthorityContext';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { Button } from '@/components/ui/button';
 import { exactInstitutionSlug } from '@/utils/publishedTenantIdentity';
@@ -15,12 +15,12 @@ import PymePedidosPage from '@/pages/pyme/pedidos/PedidosPage'; // New/Pyme
 const SmartPedidosWrapper: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { tenant, isLoadingTenant, tenantError } = useTenant();
   const { user, loading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
-  const { clerkStatus } = useSessionAuthority();
+  const authority = useSessionAuthority();
   const location = useLocation();
   const { tenant: routeTenant } = useParams();
   const failure = <ViewState status="error" title="No pudimos validar la organización de los pedidos"
     action={<Button onClick={() => void refreshUser()}>Reintentar</Button>} />;
-  if (loading || clerkStatus === 'loading' || clerkStatus === 'syncing') return <ViewState status="loading" title="Validando acceso" />;
+  if (loading || isSessionAuthorityPending(authority)) return <ViewState status="loading" title="Validando acceso" />;
   if (!hasVerifiedSession || !organizationProfileVerified || !user || !hasRequiredRole(user.rol || user.role, ['tenant_admin', 'employee', 'superadmin'])) return failure;
 
   const query = new URLSearchParams(location.search);

@@ -7,7 +7,7 @@ import { getErrorMessage } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { logoutChatbocSession } from '@/utils/sessionLogout';
 import { useUser } from '@/hooks/useUser';
-import { buildVerifiedSessionScopeKey, useSessionAuthority } from '@/components/access/SessionAuthorityContext';
+import { buildVerifiedSessionScopeKey, isSessionAuthorityPending, useSessionAuthority } from '@/components/access/SessionAuthorityContext';
 import { hasRequiredRole } from '@/utils/roles';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { Order } from '@/types/unified';
@@ -291,8 +291,8 @@ export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false
   const location = useLocation();
   const { tenant: routeTenant } = useParams();
   const { user, loading: profileLoading, hasVerifiedSession, organizationProfileVerified, refreshUser } = useUser();
-  const { clerkStatus } = useSessionAuthority();
-  const sessionPending = profileLoading || clerkStatus === 'loading' || clerkStatus === 'syncing';
+  const authority = useSessionAuthority();
+  const sessionPending = profileLoading || isSessionAuthorityPending(authority);
   const canReadOrders = hasVerifiedSession && organizationProfileVerified &&
     hasRequiredRole(user?.rol, ['tenant_admin', 'employee', 'superadmin']);
   const candidateTenant = scopedTenant || routeTenant || new URLSearchParams(location.search).get('tenant_slug') ||
