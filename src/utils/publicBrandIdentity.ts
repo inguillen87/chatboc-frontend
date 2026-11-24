@@ -86,6 +86,18 @@ export function brandGradientColors(identity: PublicBrandIdentity): string[] {
   return identity.palette.filter((color) => color !== identity.textColor);
 }
 
+/**
+ * Acentos de la paleta como variables CSS (`--brand-accent-1..4`), en el orden
+ * del gradiente. Sólo marcan detalles no textuales (una franja en cada opción),
+ * así que no compiten con el contraste del texto.
+ */
+export function brandAccentVariables(identity: PublicBrandIdentity | null | undefined): Record<string, string> {
+  if (!identity) return {};
+  const colors = brandGradientColors(identity).slice(0, 4);
+  if (!colors.length) return {};
+  return Object.fromEntries(Array.from({ length: 4 }, (_, index) => [`--brand-accent-${index + 1}`, colors[index % colors.length]]));
+}
+
 /** Pila tipográfica con la familia publicada primero y siempre un respaldo del sistema. */
 export function brandFontStack(typography: BrandTypography | undefined): string | undefined {
   if (!typography) return undefined;

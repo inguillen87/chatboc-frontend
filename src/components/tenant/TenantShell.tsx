@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -16,7 +16,7 @@ import { organizationTypeLabel } from '@/utils/organizationTypeLabel';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { tenantHostNavigationTarget } from '@/utils/tenantHostBinding';
 import { TenantSwitcher } from './TenantSwitcher';
-import { brandFontStack, brandGradientColors, ensureBrandStylesheet } from '@/utils/publicBrandIdentity';
+import { brandAccentVariables, brandFontStack, brandGradientColors, ensureBrandStylesheet } from '@/utils/publicBrandIdentity';
 
 interface TenantShellProps {
   children: ReactNode;
@@ -79,9 +79,13 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
     return colors.length >= 2 ? `linear-gradient(90deg, ${colors.join(', ')})` : null;
   }, [brandIdentity]);
   const brandTypographyStyle = useMemo(() => {
+    const accents = brandAccentVariables(brandIdentity);
     const fontFamily = brandFontStack(brandIdentity?.typography);
-    if (!fontFamily) return undefined;
-    return { fontFamily, letterSpacing: brandIdentity?.typography?.letterSpacing };
+    if (!fontFamily && !Object.keys(accents).length) return undefined;
+    return {
+      ...accents,
+      ...(fontFamily ? { fontFamily, letterSpacing: brandIdentity?.typography?.letterSpacing } : {}),
+    } as CSSProperties;
   }, [brandIdentity]);
   useEffect(() => {
     ensureBrandStylesheet(brandIdentity?.typography?.stylesheetUrl);

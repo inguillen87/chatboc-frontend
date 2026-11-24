@@ -18,7 +18,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChatPanel from "./ChatPanel";
 import BrandBotAvatar, { type RenderBrandAvatar } from "./BrandBotAvatar";
 import { brandMeshBackground } from "./headerBrandPalette";
-import { brandFontStack, ensureBrandStylesheet, readPublicBrandIdentity } from "@/utils/publicBrandIdentity";
+import { brandAccentVariables, brandFontStack, ensureBrandStylesheet, readPublicBrandIdentity } from "@/utils/publicBrandIdentity";
 import ReadingRuler from "./ReadingRuler";
 import {
   resolveMobileOpenViewportStyle,
@@ -1598,20 +1598,31 @@ function ChatWidgetInner({
              variables['--font-sans'] = fontStack;
         }
     }
-    const brandTypography = isPublicPlatformSurface ? undefined : readPublicBrandIdentity(entityInfo?.brand_identity)?.typography;
+    const publishedBrand = isPublicPlatformSurface ? null : readPublicBrandIdentity(entityInfo?.brand_identity);
+    const brandTypography = publishedBrand?.typography;
     const brandStack = brandFontStack(brandTypography);
     if (brandStack) {
       variables['--font-sans'] = brandStack;
       ensureBrandStylesheet(brandTypography?.stylesheetUrl);
     }
+    Object.assign(variables, brandAccentVariables(publishedBrand));
     const previousFont = target.style.fontFamily;
     const previousSpacing = target.style.letterSpacing;
+    const previousBrandMarker = target.dataset.brandIdentity;
+    if (publishedBrand) target.dataset.brandIdentity = 'published';
+    else delete target.dataset.brandIdentity;
     const restore = applyWidgetThemeVariables(target, variables);
     if (variables['--font-sans']) target.style.fontFamily = variables['--font-sans'];
     if (brandTypography?.letterSpacing) target.style.letterSpacing = brandTypography.letterSpacing;
     // Roboto, Montserrat and Open Sans are requested only by widgets configured with them.
     if (!brandStack) ensureOptionalFonts(variables['--font-sans']);
-    return () => { restore(); target.style.fontFamily = previousFont; target.style.letterSpacing = previousSpacing; };
+    return () => {
+      restore();
+      target.style.fontFamily = previousFont;
+      target.style.letterSpacing = previousSpacing;
+      if (previousBrandMarker === undefined) delete target.dataset.brandIdentity;
+      else target.dataset.brandIdentity = previousBrandMarker;
+    };
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode, a11yPrefs.highContrast]);
 

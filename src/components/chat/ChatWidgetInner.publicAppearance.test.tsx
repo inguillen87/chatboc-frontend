@@ -323,6 +323,12 @@ describe('shared widget public assistant appearance', () => {
     const container = view.container.querySelector<HTMLElement>('.chatboc-container')!;
     await waitFor(() => expect(container.style.fontFamily).toContain('Synthetic Sans'));
     expect(container.style.letterSpacing).toBe('-0.02em');
+    expect(container).toHaveAttribute('data-brand-identity', 'published');
+    expect(container.style.getPropertyValue('--brand-accent-1')).toBe('#AA5500');
+    expect(container.style.getPropertyValue('--brand-accent-2')).toBe('#33BBEE');
+    view.unmount();
+    expect(container).not.toHaveAttribute('data-brand-identity');
+    expect(container.style.getPropertyValue('--brand-accent-1')).toBe('');
   });
 
   it('shapes the open panel bubbles as the published «globa»', async () => {
