@@ -288,7 +288,7 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
       <div className={cn('flex flex-col md:flex-row md:items-center md:justify-between', compactHeader ? 'gap-4' : 'gap-6')}>
         <div className="flex flex-1 items-start gap-4">
           {resolvedTenant.logo_url ? (
-            <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-white/80 shadow-sm sm:block">
+            <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-card p-1.5 shadow-sm sm:block">
               <img
                 src={resolvedTenant.logo_url}
                 alt={`Logo de ${resolvedTenant.nombre}`}
