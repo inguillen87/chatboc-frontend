@@ -1454,6 +1454,35 @@
     background-color: var(--bot-msg-bg, hsl(var(--secondary)));
     color: var(--bot-msg-fg, hsl(var(--secondary-foreground)));
   }
+  /* «Globa» from a published brand identity: barely rounded corners and a
+     triangular tail toward whoever speaks. Small bubbles stay in a solid
+     color (brand manuals keep gradients for large pieces). */
+  [data-bubble-style="globa"] .chat-bubble-user,
+  [data-bubble-style="globa"] .chat-bubble-bot {
+    position: relative;
+    border-radius: 0.625rem;
+  }
+  [data-bubble-style="globa"] .chat-bubble-bot {
+    border-color: transparent;
+  }
+  [data-bubble-style="globa"] .chat-bubble-user::after,
+  [data-bubble-style="globa"] .chat-bubble-bot::after {
+    content: "";
+    position: absolute;
+    bottom: -0.5rem;
+    width: 0.75rem;
+    height: 0.55rem;
+    background: inherit;
+    pointer-events: none;
+  }
+  [data-bubble-style="globa"] .chat-bubble-user::after {
+    right: 0.875rem;
+    clip-path: polygon(0 0, 100% 0, 100% 100%);
+  }
+  [data-bubble-style="globa"] .chat-bubble-bot::after {
+    left: 0.875rem;
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
   .chat-container {
     @apply flex flex-col gap-4 p-4;
   }

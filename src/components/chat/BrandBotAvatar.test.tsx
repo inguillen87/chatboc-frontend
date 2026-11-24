@@ -35,6 +35,19 @@ describe('BrandBotAvatar', () => {
     expect(container.querySelector('svg')).toHaveAttribute('data-reduced-motion', 'true');
   });
 
+  it('animates with its own rules, and a still copy carries none and stays put', () => {
+    const { container, rerender } = render(<BrandBotAvatar palette={palette} />);
+    const svg = container.querySelector('svg')!;
+    expect(svg.querySelector('style')?.textContent).toContain('@keyframes cbb-float');
+    expect(svg).not.toHaveAttribute('data-reduced-motion');
+    rerender(<BrandBotAvatar palette={palette} still />);
+    expect(container.querySelector('svg style')).toBeNull();
+    expect(container.querySelector('svg')).toHaveAttribute('data-reduced-motion', 'true');
+    // Static look without the stylesheet: the listening ring stays hidden.
+    expect(container.querySelector('.cbb-antenna-ring')).toHaveAttribute('opacity', '0');
+    expect(container.querySelector('svg')!.style.overflow).toBe('visible');
+  });
+
   it('keeps two instances with separate gradient ids', () => {
     const { container } = render(<><BrandBotAvatar palette={palette} /><BrandBotAvatar palette={palette} /></>);
     const ids = Array.from(container.querySelectorAll('clipPath')).map((clip) => clip.id);

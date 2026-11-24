@@ -18,6 +18,7 @@ import {
   deriveAttachmentInfoFromPayload,
 } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
+import type { RenderBrandAvatar } from "./BrandBotAvatar";
 import EventCard from './EventCard';
 import SocialLinks from './SocialLinks';
 import { useTenant } from "@/context/TenantContext";
@@ -464,6 +465,8 @@ export interface ChatMessageBaseProps {
   onInternalAction?: (action: string) => void;
   tipoChat?: "pyme" | "municipio"; // Puede usarse para alguna lógica residual muy específica
   botLogoUrl?: string;
+  /** Organization mascot; when present it replaces the logo avatar, drawn still. */
+  botAvatar?: RenderBrandAvatar | null;
   logoAnimation?: string;
   messageEnterAnimation?: string;
   bubbleAnimation?: string;
@@ -481,6 +484,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     onButtonClick,
     onInternalAction,
     botLogoUrl,
+    botAvatar,
     logoAnimation,
     messageEnterAnimation,
     bubbleAnimation,
@@ -759,7 +763,13 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && (
           <div className={botBadgeClass}>
-            <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} reducedMotion={reducedMotion} />
+            {botAvatar ? (
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center" data-testid="chat-message-brand-avatar">
+                {botAvatar("idle", 30, true)}
+              </div>
+            ) : (
+              <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} reducedMotion={reducedMotion} />
+            )}
           </div>
         )}
 

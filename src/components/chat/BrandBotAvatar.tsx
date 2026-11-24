@@ -2,6 +2,9 @@ import React, { useId } from "react";
 
 export type BrandBotState = "idle" | "listening" | "thinking" | "speaking";
 
+/** Draws the organization mascot; `still` is for repeated places (message history). */
+export type RenderBrandAvatar = (state: BrandBotState, size: number, still?: boolean) => React.ReactNode;
+
 export interface BrandBotAvatarProps {
   /** Organization palette (#RRGGBB), as published by the backend. */
   palette: string[];
@@ -14,6 +17,12 @@ export interface BrandBotAvatarProps {
   /** Accessible name. Without it the avatar is decorative. */
   title?: string;
   reducedMotion?: boolean;
+  /**
+   * Static copy for repeated places (one per message in the history): no
+   * motion and no embedded stylesheet, so a long conversation does not carry
+   * one copy of the rules per avatar.
+   */
+  still?: boolean;
   className?: string;
 }
 
@@ -28,10 +37,11 @@ const CORNERS = [
 
 // Motion rules travel inside the SVG: no extra stylesheet (and no extra
 // offline-precache asset) for organizations that never use the mascot.
-const BRAND_BOT_CSS = `.cbb { display:block; overflow:visible; filter:drop-shadow(0 6px 10px rgb(2 6 23 / 0.28)); }
-.cbb .cbb-body { transform-box:fill-box; transform-origin:50% 60%; animation:cbb-float 3.4s ease-in-out infinite; }
+// The static look (size, shadow, hidden ring) lives in attributes, so a
+// still avatar renders the same without these rules.
+const BRAND_BOT_CSS = `.cbb .cbb-body { transform-box:fill-box; transform-origin:50% 60%; animation:cbb-float 3.4s ease-in-out infinite; }
 .cbb .cbb-eye { transform-box:fill-box; transform-origin:center; animation:cbb-blink 4.2s ease-in-out infinite; }
-.cbb .cbb-antenna-ring { transform-box:fill-box; transform-origin:center; opacity:0; }
+.cbb .cbb-antenna-ring { transform-box:fill-box; transform-origin:center; }
 
 .cbb[data-state="listening"] .cbb-eye { animation:none; transform:scale(1.12); }
 .cbb[data-state="listening"] .cbb-antenna-ring { animation:cbb-ring 1.4s ease-out infinite; }
@@ -56,6 +66,12 @@ const BRAND_BOT_CSS = `.cbb { display:block; overflow:visible; filter:drop-shado
   .cbb, .cbb * { animation:none !important; }
 }`;
 
+const SVG_STYLE: React.CSSProperties = {
+  display: "block",
+  overflow: "visible",
+  filter: "drop-shadow(0 6px 10px rgb(2 6 23 / 0.28))",
+};
+
 // The head is a speech bubble ("globa") with its tail at the bottom left.
 const HEAD_PATH =
   "M22 7h20c9.4 0 17 7.6 17 17v8c0 9.4-7.6 17-17 17H27.5l-11.2 8.1c-1.3.9-3-.2-2.7-1.7l1.4-7.4C9.6 45.6 5 39.4 5 32v-8C5 14.6 12.6 7 22 7z";
@@ -74,6 +90,7 @@ const BrandBotAvatar: React.FC<BrandBotAvatarProps> = ({
   size = 40,
   title,
   reducedMotion = false,
+  still = false,
   className,
 }) => {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -94,13 +111,14 @@ const BrandBotAvatar: React.FC<BrandBotAvatarProps> = ({
       height={size}
       className={["cbb", className].filter(Boolean).join(" ")}
       data-state={state}
-      data-reduced-motion={reducedMotion ? "true" : undefined}
+      style={SVG_STYLE}
+      data-reduced-motion={reducedMotion || still ? "true" : undefined}
       role={label ? "img" : undefined}
       aria-label={label || undefined}
       aria-hidden={label ? undefined : true}
       focusable="false"
     >
-      <style>{BRAND_BOT_CSS}</style>
+      {still ? null : <style>{BRAND_BOT_CSS}</style>}
       <defs>
         <clipPath id={clipId}>
           <path d={HEAD_PATH} />
@@ -117,7 +135,7 @@ const BrandBotAvatar: React.FC<BrandBotAvatarProps> = ({
         <g className="cbb-antenna">
           <line x1="32" y1="7.5" x2="32" y2="2.8" stroke={accent} strokeWidth="1.8" strokeLinecap="round" />
           <circle className="cbb-antenna-dot" cx="32" cy="2.8" r="2.4" fill={accent} />
-          <circle className="cbb-antenna-ring" cx="32" cy="2.8" r="2.4" fill="none" stroke={accent} strokeWidth="1.2" />
+          <circle className="cbb-antenna-ring" cx="32" cy="2.8" r="2.4" fill="none" stroke={accent} strokeWidth="1.2" opacity="0" />
         </g>
         <g clipPath={`url(#${clipId})`}>
           <rect x="0" y="0" width="64" height="64" fill={stops[0].color} />

@@ -16,7 +16,7 @@ import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChatPanel from "./ChatPanel";
-import BrandBotAvatar, { type BrandBotState } from "./BrandBotAvatar";
+import BrandBotAvatar, { type RenderBrandAvatar } from "./BrandBotAvatar";
 import { brandMeshBackground } from "./headerBrandPalette";
 import { brandFontStack, ensureBrandStylesheet, readPublicBrandIdentity } from "@/utils/publicBrandIdentity";
 import ReadingRuler from "./ReadingRuler";
@@ -3274,8 +3274,8 @@ function ChatWidgetInner({
     [brandIdentity, a11yPrefs.highContrast],
   );
   const usesBrandBot = brandIdentity?.avatarStyle === "brand_bot";
-  const renderBrandAvatar = useCallback(
-    (state: BrandBotState, size: number) => (brandIdentity && usesBrandBot ? (
+  const renderBrandAvatar = useCallback<RenderBrandAvatar>(
+    (state, size, still) => (brandIdentity && usesBrandBot ? (
       <BrandBotAvatar
         palette={brandIdentity.palette}
         gradientStops={brandIdentity.gradientStops}
@@ -3283,6 +3283,7 @@ function ChatWidgetInner({
         state={state}
         size={size}
         reducedMotion={reduceMotion}
+        still={still}
       />
     ) : null),
     [brandIdentity, usesBrandBot, reduceMotion],
@@ -3715,6 +3716,7 @@ function ChatWidgetInner({
                     brandColors={headerBrandColors}
                     brandHeaderBackground={brandHeaderBackground}
                     renderBrandAvatar={usesBrandBot ? renderBrandAvatar : null}
+                    bubbleStyle={brandIdentity?.bubbleStyle}
                     logoAnimation={logoAnimation}
                     typingAnimation={widgetUx.typingAnimation}
                     bubbleAnimation={widgetUx.bubbleAnimation}

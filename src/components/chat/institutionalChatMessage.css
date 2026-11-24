@@ -3,6 +3,10 @@
    avoid a double border around the welcome/menu card while preserving focus and legibility. */
 .chatboc-chat-scrollarea .institutional-chat-message { margin-block:0; padding:.25rem .25rem .5rem; border:0; border-radius:0; background:transparent; }
 .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { padding:.75rem .875rem; border-radius:.875rem; background:hsl(var(--muted)/.32); }
+/* «Globa» from a published brand identity: the answer takes the brand speech-balloon shape. */
+[data-bubble-style="globa"] .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { position:relative; margin-bottom:.75rem; border-radius:.625rem; background:hsl(var(--card)); box-shadow:0 1px 2px rgb(15 23 42/.08),0 10px 24px -14px rgb(15 23 42/.35); }
+[data-bubble-style="globa"] .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu)::after { content:""; position:absolute; left:1rem; bottom:-.55rem; width:.8rem; height:.6rem; background:inherit; clip-path:polygon(0 0,100% 0,0 100%); pointer-events:none; }
+.dark [data-bubble-style="globa"] .chatboc-chat-scrollarea .institutional-chat-message:not(.institutional-chat-message--initial-menu) { background:hsl(var(--muted)/.55); box-shadow:none; }
 .institutional-chat-message h3 { margin:.5rem 0 1rem; font-size:1.15em; font-weight:650; line-height:1.5; }
 .institutional-chat-message p { white-space:pre-line; margin-block:0 1rem; }
 .institutional-chat-message button,.institutional-chat-message a,.institutional-chat-message summary { min-height:48px; font:inherit; line-height:1.5; }

@@ -19,7 +19,7 @@ import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
 import OwnerRealtimeVoicePanel from "./OwnerRealtimeVoicePanel";
-import type { BrandBotState } from "./BrandBotAvatar";
+import type { RenderBrandAvatar } from "./BrandBotAvatar";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic, getChatBootstrapContinuityKey, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
@@ -965,8 +965,10 @@ interface ChatPanelProps {
   brandColors?: { start?: string | null; end?: string | null } | null;
   /** Published brand header background (contrast-safe for white text). */
   brandHeaderBackground?: string | null;
-  /** Organization mascot for the header and the typing indicator. */
-  renderBrandAvatar?: ((state: BrandBotState, size: number) => React.ReactNode) | null;
+  /** Organization mascot for the header, the typing indicator and each bot message. */
+  renderBrandAvatar?: RenderBrandAvatar | null;
+  /** Published bubble shape: "globa" is the brand speech balloon (squared corners and a tail). */
+  bubbleStyle?: "default" | "globa";
   logoAnimation?: string;
   typingAnimation?: string;
   bubbleAnimation?: string;
@@ -1118,6 +1120,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     brandColors,
     brandHeaderBackground,
     renderBrandAvatar,
+    bubbleStyle,
     logoAnimation,
     typingAnimation,
     bubbleAnimation,
@@ -4111,6 +4114,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
       role="region"
       aria-label="Chat widget"
       data-motion-level={motionLevel}
+      data-bubble-style={bubbleStyle === "globa" ? "globa" : undefined}
       className={cn(
         "chat-root flex h-full min-h-0 w-full flex-col overflow-hidden bg-gradient-to-b from-card via-card to-card/95 text-card-foreground relative",
         isMobile ? undefined : "rounded-[inherit]",
@@ -4604,6 +4608,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
+            botAvatar={renderBrandAvatar}
             logoAnimation={reducedMotion ? "none" : logoAnimation}
             messageEnterAnimation={reducedMotion ? "none" : messageEnterAnimation}
             bubbleAnimation={reducedMotion ? "none" : bubbleAnimation}

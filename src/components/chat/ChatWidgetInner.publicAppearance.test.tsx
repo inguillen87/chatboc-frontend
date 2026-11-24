@@ -22,8 +22,10 @@ vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('./ChatPanel', async () => {
   const { default: ChatHeader } = await import('./ChatHeader');
   return {
-    default: ({ welcomeTitle, welcomeSubtitle, onClose }: { welcomeTitle?: string; welcomeSubtitle?: string; onClose: () => void }) => (
-      <ChatHeader onClose={onClose} title={welcomeTitle} subtitle={welcomeSubtitle} />
+    default: ({ welcomeTitle, welcomeSubtitle, onClose, bubbleStyle }: { welcomeTitle?: string; welcomeSubtitle?: string; onClose: () => void; bubbleStyle?: string }) => (
+      <div data-testid="mock-chat-panel" data-bubble-style={bubbleStyle}>
+        <ChatHeader onClose={onClose} title={welcomeTitle} subtitle={welcomeSubtitle} />
+      </div>
     ),
   };
 });
@@ -321,6 +323,25 @@ describe('shared widget public assistant appearance', () => {
     const container = view.container.querySelector<HTMLElement>('.chatboc-container')!;
     await waitFor(() => expect(container.style.fontFamily).toContain('Synthetic Sans'));
     expect(container.style.letterSpacing).toBe('-0.02em');
+  });
+
+  it('shapes the open panel bubbles as the published «globa»', async () => {
+    window.history.replaceState({}, '', '/t/marca-globa');
+    vi.spyOn(tenantService, 'getPublicWidgetConfig').mockResolvedValue({
+      ...publicConfig('marca-globa', 'Asistente globa'),
+      brand_identity: {
+        contract_version: 'public.brand_identity.v1',
+        palette: ['#AA5500', '#22AA44', '#33BBEE', '#333333'],
+        bubble_style: 'globa',
+        avatar: { style: 'brand_bot' },
+      },
+    });
+    renderWidget(
+      <MemoryRouter initialEntries={['/t/marca-globa']}>
+        <ChatWidgetInner mode="standalone" defaultOpen {...appDefaults} />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId('mock-chat-panel')).toHaveAttribute('data-bubble-style', 'globa'));
   });
 
   it('keeps the Chatboc launcher when no brand identity is published', async () => {
