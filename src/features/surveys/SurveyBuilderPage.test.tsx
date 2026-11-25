@@ -86,9 +86,9 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
       raw: {},
     });
     render(<SurveyBuilderPage />);
-    expect(screen.getByRole('heading', { level: 2, name: 'Datos del draft' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Datos del borrador' })).toBeInTheDocument();
     expect(headingSkips()).toEqual([]);
-    fireEvent.change(screen.getByLabelText('Titulo'), { target: { value: 'Encuesta sin ack' } });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Encuesta sin ack' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar draft' }));
 
     expect(await screen.findByText(/sin confirmar persistencia durable/i)).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
     });
 
     render(<SurveyBuilderPage />);
-    fireEvent.change(screen.getByLabelText('Titulo'), { target: { value: 'No borrar' } });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'No borrar' } });
     fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Conservar tambien' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar draft' }));
 
@@ -126,7 +126,7 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
 
     render(<SurveyBuilderPage />);
     safeLocalStorage.setItem('clerkUserId', 'operator-b');
-    fireEvent.change(screen.getByLabelText('Titulo'), { target: { value: 'Privado de A' } });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Privado de A' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar draft' }));
 
     expect(await screen.findByText(/contexto de tenant u operador cambio/i)).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
     expect(screen.getByDisplayValue('Version local')).toBeInTheDocument();
     await waitFor(() => expect(mocks.getDraft).toHaveBeenCalledWith('draft-restored', 'municipio-demo'));
     expect(await screen.findByDisplayValue('Version servidor')).toBeInTheDocument();
-    expect(screen.getByText('Revision 7')).toBeInTheDocument();
+    expect(screen.getByText('Revisión 7')).toBeInTheDocument();
     await waitFor(() => {
       const stored = JSON.parse(safeLocalStorage.getItem(storageKey) || '{}');
       expect(stored).toMatchObject({ draft_id: 'draft-restored', revision: 7, persisted: true });
@@ -184,7 +184,7 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
     await waitFor(() => expect(mocks.getDraft).toHaveBeenCalled());
     expect(await screen.findByText(/revision anterior.*conservo el borrador local/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Revision local seis')).toBeInTheDocument();
-    expect(screen.getByText('Revision 6')).toBeInTheDocument();
+    expect(screen.getByText('Revisión 6')).toBeInTheDocument();
   });
 
   it('flushes a queued draft when connectivity is available and marks it durable only after the ack', async () => {
@@ -585,7 +585,7 @@ describe('SurveyBuilderPage durable draft lifecycle', () => {
     );
     expect(safeLocalStorage.getItem(getSurveyBuilderDraftStorageKey())).toContain(draftId);
 
-    fireEvent.change(screen.getByLabelText('Titulo'), { target: { value: 'Cambio posterior' } });
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Cambio posterior' } });
     expect(await screen.findByText(/hay cambios locales.*no estan incluidos/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /abrir encuesta #88/i })).toHaveAttribute(
       'href',

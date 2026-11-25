@@ -223,7 +223,7 @@ describe('BusinessMetrics real heatmap fallback', () => {
   it.each([401, 403])('never falls back to legacy heatmap after %s', async (status) => {
     mocks.operationsResponse.mockRejectedValue(Object.assign(new Error('denied'), { status }));
     renderPage();
-    await screen.findByText('Error al cargar las métricas');
+    await screen.findByText('No pudimos cargar las métricas');
     expect(mocks.apiFetch.mock.calls.some(([path]) => path.includes('/heatmap-summary'))).toBe(false);
     expect(screen.queryByTestId('premium-territory-heatmap')).not.toBeInTheDocument();
   });

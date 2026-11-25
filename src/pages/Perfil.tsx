@@ -2204,7 +2204,7 @@ export default function Perfil() {
         tenantSlug: profileTenantScope,
       });
       
-      const successMsg = data.mensaje || "Cambios guardados correctamente ✔️";
+      const successMsg = data.mensaje || "Cambios guardados correctamente.";
       const refreshedProfile = await fetchPerfil({ tenantSlug: profileTenantScope });
       if (user && refreshedProfile) {
         const refreshedTenantSlug = refreshedProfile.tenant_slug || profileTenantScope || undefined;
@@ -2234,7 +2234,7 @@ export default function Perfil() {
       }
       setMensaje(successMsg);
     } catch (err) {
-      setError(getErrorMessage(err, "Error al guardar el perfil."));
+      setError(getErrorMessage(err, "No pudimos guardar el perfil. Revisá los datos e intentá otra vez."));
     } finally {
       setLoadingGuardar(false);
     }
@@ -2294,7 +2294,7 @@ export default function Perfil() {
       refreshVectorSyncStatus();
 
     } catch (err) {
-      const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
+      const errorMessage = getErrorMessage(err, "No pudimos procesar el archivo. Revisá el formato e intentá de nuevo.");
       setResultadoCatalogo({ message: errorMessage, type: "error" });
     } finally {
       setLoadingCatalogo(false);
@@ -2378,7 +2378,7 @@ export default function Perfil() {
 
         if (shouldUseAi) {
           if (!user?.id) {
-            throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
+            throw new Error('Necesitamos el identificador de tu cuenta para leer el archivo con IA.');
           }
           const entityType = isPyme ? 'pymes' : 'municipal';
 
@@ -2453,7 +2453,7 @@ export default function Perfil() {
           }
           setAnalysisSource('excel');
         } else {
-          throw new Error('Tipo de archivo no soportado. Activá el análisis inteligente para procesar PDFs u otros formatos.');
+          throw new Error('Tipo de archivo no soportado. Activá la lectura asistida con IA para procesar PDFs u otros formatos.');
         }
 
         if (headers.length === 0) {
@@ -2515,7 +2515,7 @@ export default function Perfil() {
       await processFileWithMapping(archivo, savedMapping.id, mappingName);
 
     } catch (err) {
-      const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
+      const errorMessage = getErrorMessage(err, "No pudimos procesar el archivo. Revisá el formato e intentá de nuevo.");
       setResultadoCatalogo({ message: errorMessage, type: "error" });
       setLoadingCatalogo(false);
       // Mantener el modal abierto en caso de error para que el usuario pueda reintentar o cancelar.
@@ -2694,9 +2694,9 @@ export default function Perfil() {
       title: esMunicipio ? "Operar reclamos" : "Operar conversaciones",
       description: esMunicipio
         ? "Entrar a reclamos, estados, ubicaciones y seguimiento diario."
-        : "Ver tickets, pedidos, ventas y conversaciones que requieren accion.",
+        : "Ver tickets, pedidos, ventas y conversaciones que requieren acción.",
       icon: ClipboardList,
-      actionLabel: "Abrir operacion",
+      actionLabel: "Abrir operación",
       tab: "tickets",
       enabled: workspaceCapabilities.operation,
     },
@@ -2732,10 +2732,10 @@ export default function Perfil() {
   const secondaryControlCards: ControlCenterCard[] = ([
     {
       id: "catalog",
-      title: "Catalogo e inventario",
-      description: "Productos, recursos, stock, importaciones y calidad del catálogo publicados por backend.",
+      title: "Catálogo e inventario",
+      description: "Productos, recursos, stock, importaciones y calidad del catálogo publicados por el servidor.",
       icon: Package,
-      actionLabel: "Abrir catalogo",
+      actionLabel: "Abrir catálogo",
       tab: "catalogo",
       enabled: workspaceCapabilities.catalog,
     },
@@ -2744,7 +2744,7 @@ export default function Perfil() {
       title: "Analítica avanzada e IA",
       description: "Investigación, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
       icon: Sparkles,
-      actionLabel: "Abrir analitica",
+      actionLabel: "Abrir analítica",
       tab: "analytics",
       enabled: workspaceCapabilities.analytics,
     },
@@ -3780,7 +3780,7 @@ export default function Perfil() {
                           required
                           className="w-full h-10 rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm"
                         >
-                          <option value="">Selecciona una provincia</option>
+                          <option value="">Seleccioná una provincia</option>
                           {PROVINCIAS.map((p) => (
                             <option key={p} value={p}>
                               {p}
@@ -3793,7 +3793,7 @@ export default function Perfil() {
 
                     <div>
                       <Label className="text-muted-foreground text-sm block mb-2">
-                        Horarios de Atención
+                        Horarios de atención
                       </Label>
                       <div className="flex flex-wrap gap-2 mb-3">
                         <Button
@@ -3904,7 +3904,7 @@ export default function Perfil() {
                       type="submit"
                       className="w-full mt-auto bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base rounded-lg shadow"
                     >
-                      {loadingGuardar ? "Guardando Cambios..." : "Guardar Cambios"}
+                      {loadingGuardar ? "Guardando cambios..." : "Guardar cambios"}
                     </Button>
                     {mensaje && (
                       <div className="mt-3 text-sm text-green-700 bg-green-100 p-3 rounded-md flex items-center gap-2">
@@ -3967,7 +3967,7 @@ export default function Perfil() {
                 {isPyme && (
                   <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
                     <CardHeader>
-                      <CardTitle className="text-sm font-semibold text-primary">Estado de Sincronización</CardTitle>
+                      <CardTitle className="text-sm font-semibold text-primary">Estado de sincronización</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
@@ -4042,12 +4042,12 @@ export default function Perfil() {
                   <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
                     <CardHeader>
                       <CardTitle className="text-lg font-semibold text-primary">
-                        Gestión de Eventos y Noticias
+                        Gestión de eventos y noticias
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 flex flex-col flex-grow">
                       <p className="text-sm text-muted-foreground">
-                        Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
+                        Creá y gestioná los eventos, anuncios y noticias que se muestran a tus usuarios en el chat.
                       </p>
                       <div className="flex-grow" />
                       <div className="flex flex-col gap-2 mt-auto">
@@ -4059,7 +4059,7 @@ export default function Perfil() {
                           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
                         >
                           <PlusCircle className="w-4 h-4 mr-2" />
-                          Crear Nuevo Evento / Noticia
+                          Crear nuevo evento o noticia
                         </Button>
                         <Button
                           variant="outline"
@@ -4070,7 +4070,7 @@ export default function Perfil() {
                           className="w-full py-2.5"
                         >
                           <UploadCloud className="w-4 h-4 mr-2" />
-                          Subir Información
+                          Subir información
                         </Button>
                         <Button
                           onClick={() => {

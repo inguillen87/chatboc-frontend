@@ -168,7 +168,7 @@ export default function MarketCartPage() {
     onError: () => {
       toast({
         title: 'No se pudo actualizar el carrito',
-        description: 'Revisa tu conexión e intenta nuevamente.',
+        description: 'Revisá tu conexión e intentá nuevamente.',
         variant: 'destructive',
       });
     },
@@ -182,7 +182,7 @@ export default function MarketCartPage() {
     onError: () => {
       toast({
         title: 'No pudimos vaciar el carrito',
-        description: 'Intenta nuevamente en unos segundos.',
+        description: 'Intentá nuevamente en unos segundos.',
         variant: 'destructive',
       });
     },
@@ -206,7 +206,7 @@ export default function MarketCartPage() {
             previewExperience?.copy?.customer_locked ??
             preview.next_step_label ??
             preview.checkout_options?.gateway_hint ??
-            'El checkout todavia no esta listo para recibir pagos.',
+            'El checkout todavía no está listo para recibir pagos.',
         );
       }
       const previewValidation = getMarketCommercialValidation(preview, cartQuery.data, cartQuery.data?.checkout_options);
@@ -224,7 +224,7 @@ export default function MarketCartPage() {
       const responseValidation = getMarketCommercialValidation(response, response?.order, response?.inventory_policy);
       const resolvedPaymentUrl = responseValidation.canStartCheckout ? response?.checkoutUrl ?? response?.init_point ?? null : null;
       const confirmationParts = [
-        response?.message ?? responseValidation.reason ?? 'Solicitud registrada para validacion.',
+        response?.message ?? responseValidation.reason ?? 'Solicitud registrada para validación.',
       ];
       if (resolvedMarketOrderId) confirmationParts.push(`Orden operacional #${resolvedMarketOrderId}.`);
       if (resolvedStage) confirmationParts.push(`Estado: ${resolvedStage}.`);
@@ -236,7 +236,7 @@ export default function MarketCartPage() {
     onError: (error) => {
       toast({
         title: 'No pudimos iniciar el checkout',
-        description: getErrorMessage(error, 'Revisa tu conexión o vuelve a intentarlo.'),
+        description: getErrorMessage(error, 'Revisá tu conexión o volvé a intentarlo.'),
         variant: 'destructive',
       });
     },
@@ -263,7 +263,7 @@ export default function MarketCartPage() {
     onError: (error) => {
       toast({
         title: 'No pudimos canjear el beneficio',
-        description: getErrorMessage(error, 'Revisa tus puntos disponibles o vuelve a intentarlo.'),
+        description: getErrorMessage(error, 'Revisá tus puntos disponibles o volvé a intentarlo.'),
         variant: 'destructive',
       });
     },
@@ -309,7 +309,7 @@ export default function MarketCartPage() {
     if (!cartQuery.data?.items.length) {
       toast({
         title: 'Tu carrito está vacío',
-        description: 'Agrega productos para continuar.',
+        description: 'Agregá productos para continuar.',
       });
       return;
     }
@@ -317,7 +317,7 @@ export default function MarketCartPage() {
     if (!tenantSlug) {
       toast({
         title: 'No encontramos el catálogo',
-        description: 'Revisa el enlace o escanea nuevamente el código QR.',
+        description: 'Revisá el enlace o escaneá nuevamente el código QR.',
         variant: 'destructive',
       });
       return;
@@ -350,12 +350,12 @@ export default function MarketCartPage() {
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
   const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
   const catalogErrorMessage = catalogServerError
-    ? 'Ocurrió un error en el servidor'
+    ? 'No pudimos cargar el catálogo desde el servidor. Intentá nuevamente en unos segundos.'
     : catalogQuery.error instanceof Error
       ? catalogQuery.error.message
       : null;
   const cartErrorMessage = cartServerError
-    ? 'Ocurrió un error en el servidor'
+    ? 'No pudimos cargar tu carrito desde el servidor. Intentá nuevamente en unos segundos.'
     : cartQuery.error instanceof Error
       ? cartQuery.error.message
       : null;
@@ -652,11 +652,11 @@ export default function MarketCartPage() {
                   </p>
                 </div>
                 <div className="rounded-xl border bg-muted/40 p-4">
-                  <p className="text-xs uppercase text-muted-foreground">Experiencia</p>
+                  <p className="text-xs uppercase text-muted-foreground">Valoración</p>
                   <p className="text-xl font-semibold">
                     {averageRating ? `${averageRating} ★` : 'Listo'}
                   </p>
-                  <p className="text-xs text-muted-foreground">Animaciones suaves y fichas con puntaje.</p>
+                  <p className="text-xs text-muted-foreground">Fichas detalladas y puntaje de clientes.</p>
                 </div>
               </div>
 
@@ -766,7 +766,7 @@ export default function MarketCartPage() {
               <Alert variant="destructive">
                 <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
                 <AlertDescription>
-                  {catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}
+                  {catalogErrorMessage || 'Intentá nuevamente desde el enlace o QR.'}
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -838,14 +838,14 @@ export default function MarketCartPage() {
               <Alert variant="destructive" className="mt-3">
                 <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
                 <AlertDescription>
-                  {cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}
+                  {cartErrorMessage || 'Revisá tu conexión e intentá de nuevo.'}
                 </AlertDescription>
               </Alert>
             ) : null}
 
             <div className="mt-3 text-xs text-muted-foreground">
               <p>
-                Al confirmar, enviaremos el pedido al equipo del comercio. También puedes revisar nuestras{' '}
+                Al confirmar, enviaremos el pedido al equipo del comercio. También podés revisar nuestras{' '}
                 <Link to="/legal/privacy" className="ml-1 underline">
                   políticas
                 </Link>
@@ -953,13 +953,13 @@ export default function MarketCartPage() {
       <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Necesitas iniciar sesión</AlertDialogTitle>
+            <AlertDialogTitle>Necesitás iniciar sesión</AlertDialogTitle>
             <AlertDialogDescription>
-              Ingresa con tu número de teléfono para continuar con el pedido y volveremos a traerte aquí.
+              Ingresá con tu número de teléfono para continuar con el pedido y volveremos a traerte acá.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={goToLogin}>Ir a login</AlertDialogAction>
+            <AlertDialogAction onClick={goToLogin}>Ir a iniciar sesión</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -968,7 +968,7 @@ export default function MarketCartPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Código QR del catálogo</DialogTitle>
-            <DialogDescription>Escanealo o compártelo para abrir este catálogo en cualquier dispositivo.</DialogDescription>
+            <DialogDescription>Escanealo o compartilo para abrir este catálogo en cualquier dispositivo.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
             {qrImageUrl && !qrError ? (

@@ -99,7 +99,7 @@ const SurveyDetailPage = () => {
       const duplicated = await duplicateSurvey(surveyId);
       toast({
         title: 'Nueva versión creada',
-        description: 'Abrimos una copia editable para cambiar preguntas sin romper respuestas historicas.',
+        description: 'Abrimos una copia editable para cambiar preguntas sin romper respuestas históricas.',
       });
       navigate(`/admin/encuestas/${duplicated.id}`);
     } catch (error) {
@@ -151,7 +151,7 @@ const SurveyDetailPage = () => {
     : survey.estado === 'publicada';
   const lockMessage =
     lockedEditMessage ||
-    'Podes corregir textos, fechas y configuracion. Para cambiar preguntas u opciones, crea una nueva version editable.';
+    'Podés corregir textos, fechas y configuración. Para cambiar preguntas u opciones, creá una nueva versión editable.';
   const isDraft = survey.admin_lifecycle?.phase === 'draft' ||
     (!survey.admin_lifecycle && survey.estado === 'borrador');
   const governedSurvey = isGovernedSurvey(survey);
@@ -208,7 +208,7 @@ const SurveyDetailPage = () => {
           ) : null}
           {structureLocked || lockedEditMessage ? (
             <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-              <p className="font-semibold text-amber-100">Esta encuesta ya tiene respuestas y su estructura esta bloqueada.</p>
+              <p className="font-semibold text-amber-100">Esta encuesta ya tiene respuestas y su estructura está bloqueada.</p>
               <p className="mt-1 text-amber-100/80">{lockMessage}</p>
               <Button
                 type="button"
@@ -218,7 +218,7 @@ const SurveyDetailPage = () => {
                 onClick={handleDuplicate}
                 disabled={isDuplicating}
               >
-                {isDuplicating ? 'Creando version...' : 'Crear nueva version editable'}
+                {isDuplicating ? 'Creando versión...' : 'Crear nueva versión editable'}
               </Button>
             </div>
           ) : null}

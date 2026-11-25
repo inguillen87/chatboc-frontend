@@ -366,7 +366,7 @@ describe('SurveyAnalyticsPage operational focus', () => {
   it('uses the same survey list contract when legacy detail omits it', async () => {
     renderPage('/admin/encuestas/3/analytics?focus=live');
 
-    expect(await screen.findByTestId('survey-analytics-focus-banner')).toHaveTextContent('Foco operativo: sala live');
+    expect(await screen.findByTestId('survey-analytics-focus-banner')).toHaveTextContent('Foco operativo: sala en vivo');
     expect(screen.getByTestId('survey-live-results-focus')).toBeInTheDocument();
     expect(screen.getByTestId('mock-survey-live-results')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copiar link' })).toBeEnabled();

@@ -73,8 +73,8 @@ const WidgetEmbed = ({ token }: { token?: string }) => {
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
-      .then(() => toast.success("✅ Código copiado al portapapeles"))
-      .catch(() => toast.error("❌ No se pudo copiar"));
+      .then(() => toast.success("Código copiado al portapapeles"))
+      .catch(() => toast.error("No pudimos copiar el código. Seleccionalo y copialo manualmente."));
   };
 
   if (!token) {
@@ -101,7 +101,7 @@ const WidgetEmbed = ({ token }: { token?: string }) => {
           rows={4}
           value={embedCode}
         />
-        <Button onClick={copiar} disabled={!embedCode}>📋 Copiar código</Button>
+        <Button onClick={copiar} disabled={!embedCode}>Copiar código</Button>
       </CardContent>
     </Card>
   );

@@ -275,9 +275,9 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
     <Card className="border-border/60">
       <CardHeader className="gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <CardTitle className="text-base">Marketplace listo para vender</CardTitle>
+          <CardTitle className="text-base">Catálogo listo para vender</CardTitle>
           <CardDescription>
-            Revisa lo que la IA extrajo, completa imagenes, precios, stock y publica fichas con mejor conversion.
+            Revisá los productos importados, completá imágenes, precios y stock, y publicá fichas completas.
           </CardDescription>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={loadQuality} disabled={loading || saving}>
@@ -299,7 +299,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
           <Metric label="Listos" value={formatPercent(first(summary, ["ready_rate"]))} icon={CheckCircle2} />
           <Metric label="Productos" value={formatNumber(first(summary, ["products", "total"]))} icon={Package} />
           <Metric label="Sin imagen" value={formatNumber(first(summary, ["missing_images", "products_without_image"]))} icon={ImageOff} />
-          <Metric label="Importacion" value={asString(first(summary, ["bulk_import_status"])) || "--"} icon={Database} />
+          <Metric label="Importación" value={asString(first(summary, ["bulk_import_status"])) || "--"} icon={Database} />
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -376,7 +376,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
           <div className="rounded-2xl border border-border/60 p-4">
             <h3 className="font-semibold">Editor del producto</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Completa imagen principal, galeria, precio, stock, descripcion, promocion y enlaces de compra.
+              Completá imagen principal, galería, precio, stock, descripción, promoción y enlaces de compra.
             </p>
             {selectedItem ? (
               <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
@@ -389,7 +389,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
                 <Textarea
                   value={form.gallery_urls}
                   onChange={(event) => setForm((prev) => ({ ...prev, gallery_urls: event.target.value }))}
-                  placeholder="Una imagen de galeria por linea"
+                  placeholder="Una imagen de galería por línea"
                   className="min-h-[92px]"
                 />
                 <div className="grid grid-cols-2 gap-2">
@@ -412,7 +412,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
                 <Input
                   value={form.promocion_info}
                   onChange={(event) => setForm((prev) => ({ ...prev, promocion_info: event.target.value }))}
-                  placeholder="Promocion"
+                  placeholder="Promoción"
                 />
                 <Input
                   value={form.external_url}
@@ -433,7 +433,7 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
               </form>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                Selecciona un producto de la cola para editarlo.
+                Seleccioná un producto de la cola para editarlo.
               </div>
             )}
           </div>
@@ -441,9 +441,9 @@ function ScopedCatalogQualityCommandCenter({ tenantSlug, marketplace, revision, 
 
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-2xl border border-border/60 p-4">
-            <div className="font-semibold">Importador inteligente</div>
+            <div className="font-semibold">Importador de catálogo</div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Archivos aceptados por la organizacion para convertir listas y documentos en productos editables.
+              Archivos aceptados por la organización para convertir listas y documentos en productos editables.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {(imports?.accepted_file_types ?? []).map((item) => (

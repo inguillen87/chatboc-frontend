@@ -37,7 +37,7 @@ const DemoCatalogDownloadPage = () => {
                 </div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Catálogo demo</p>
                 <h1 className="mt-3 text-3xl font-bold leading-tight md:text-4xl">
-                  {asset?.title || "Catalogo no encontrado"}
+                  {asset?.title || "Catálogo no encontrado"}
                 </h1>
                 {asset?.subtitle ? <p className="mt-4 text-sm leading-6 text-white/80">{asset.subtitle}</p> : null}
               </div>
@@ -59,7 +59,7 @@ const DemoCatalogDownloadPage = () => {
                         Descarga lista
                       </div>
                       <p className="text-xs leading-6 text-muted-foreground">
-                        Chatboc prepara este material al instante para que puedas descargarlo aunque el archivo no venga incluido en la pagina.
+                        Chatboc prepara este material al instante para que puedas descargarlo aunque el archivo no venga incluido en la página.
                       </p>
                     </div>
                     <Button className="mt-8 h-11 rounded-xl px-5" onClick={handleDownload} disabled={isDownloading}>
@@ -70,7 +70,7 @@ const DemoCatalogDownloadPage = () => {
                 ) : (
                   <>
                     <p className="text-sm leading-7 text-muted-foreground">
-                      No encontramos ese catalogo demo. Podes volver al selector para elegir un pilar y generar un material disponible.
+                      No encontramos ese catálogo demo. Podés volver al selector para elegir un sector y generar un material disponible.
                     </p>
                     <Button asChild className="mt-8 h-11 rounded-xl px-5">
                       <Link to="/demo">Elegir demo</Link>

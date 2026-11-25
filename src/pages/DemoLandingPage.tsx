@@ -154,7 +154,7 @@ export default function DemoLandingPage() {
           <Loader2 className="mb-4 h-10 w-10 animate-spin text-primary" />
           <p className="text-base font-semibold">Preparando la demo...</p>
           <p className="mt-2 max-w-md text-sm text-muted-foreground">
-            Estamos abriendo una sesion operativa real para esta experiencia.
+            Estamos abriendo una sesión real para esta demo.
           </p>
         </main>
       </div>
@@ -170,7 +170,7 @@ export default function DemoLandingPage() {
           </span>
           <h1 className="text-2xl font-bold">No pudimos abrir esta demo</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-            {error?.message ?? "La experiencia solicitada no esta disponible en este momento."}
+            {error?.message ?? "La demo solicitada no está disponible en este momento. Probá de nuevo en unos minutos."}
           </p>
           {error?.requestId ? (
             <p className="mt-3 text-xs text-muted-foreground">request_id: {error.requestId}</p>
@@ -216,7 +216,7 @@ export default function DemoLandingPage() {
             </div>
             {session.chat_session_id ? (
               <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-                sesion activa
+                sesión activa
               </span>
             ) : null}
           </div>

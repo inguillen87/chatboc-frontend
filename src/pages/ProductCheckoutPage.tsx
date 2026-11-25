@@ -551,7 +551,7 @@ export default function ProductCheckoutPage() {
       <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Inicia sesión para canjear</DialogTitle>
+            <DialogTitle>Iniciá sesión para canjear</DialogTitle>
             <DialogDescription>
               Tus puntos están seguros. Solo necesitamos verificar tu cuenta.
             </DialogDescription>
@@ -565,13 +565,13 @@ export default function ProductCheckoutPage() {
 
       <motion.div variants={fadeInUp} className="mb-6 flex items-center justify-between">
          <Button variant="ghost" onClick={() => navigate(cartPath)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al carrito
          </Button>
          <div className="hidden sm:block text-sm text-muted-foreground">Paso final</div>
       </motion.div>
 
       <motion.h1 variants={fadeInUp} className="text-3xl md:text-4xl font-extrabold text-foreground mb-8">
-        Finalizar Compra
+        Finalizar compra
       </motion.h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -581,12 +581,12 @@ export default function ProductCheckoutPage() {
                 <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-3">
                     <div className="bg-primary/10 p-2 rounded-full"><User className="h-5 w-5 text-primary" /></div>
-                    Información de Contacto
+                    Información de contacto
                 </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                 <div>
-                    <Label htmlFor="nombre">Nombre Completo</Label>
+                    <Label htmlFor="nombre">Nombre completo</Label>
                     <Controller name="nombre" control={control} render={({ field }) => <Input id="nombre" autoComplete="name" {...field} className="mt-1.5" />} />
                     {errors.nombre && <p className="text-sm text-destructive mt-1">{errors.nombre.message}</p>}
                 </div>
@@ -616,7 +616,7 @@ export default function ProductCheckoutPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                  <div>
-                    <Label htmlFor="direccion">Dirección de Envío</Label>
+                    <Label htmlFor="direccion">Dirección de envío</Label>
                     <Controller
                     name="direccion"
                     control={control}
@@ -642,7 +642,7 @@ export default function ProductCheckoutPage() {
                 </div>
 
                  <div className="pt-2">
-                     <Label className="mb-2 block">Opciones de Entrega</Label>
+                     <Label className="mb-2 block">Opciones de entrega</Label>
                      <Controller
                         name="metodoEnvio"
                         control={control}
@@ -651,15 +651,15 @@ export default function ProductCheckoutPage() {
                                 <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${field.value === 'delivery' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted'}`}>
                                     <input type="radio" className="mt-1" value="delivery" checked={field.value === 'delivery'} onChange={() => field.onChange('delivery')} />
                                     <div>
-                                        <span className="font-semibold block">Envío a Domicilio</span>
+                                        <span className="font-semibold block">Envío a domicilio</span>
                                         <span className="text-xs text-muted-foreground">Te lo llevamos a la puerta.</span>
                                     </div>
                                 </label>
                                 <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${field.value === 'pickup' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted'}`}>
                                     <input type="radio" className="mt-1" value="pickup" checked={field.value === 'pickup'} onChange={() => field.onChange('pickup')} />
                                     <div>
-                                        <span className="font-semibold block">Retiro en Local</span>
-                                        <span className="text-xs text-muted-foreground">Pasa a buscarlo cuando quieras.</span>
+                                        <span className="font-semibold block">Retiro en local</span>
+                                        <span className="text-xs text-muted-foreground">Pasá a buscarlo cuando quieras.</span>
                                     </div>
                                 </label>
                             </div>
@@ -678,12 +678,12 @@ export default function ProductCheckoutPage() {
                             setIsLocating(true);
                             navigator.geolocation.getCurrentPosition(
                             (pos) => { setIsLocating(false); setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-                            () => { setIsLocating(false); toast({ title: 'Error', description: 'No pudimos leer tu ubicación', variant: 'destructive' }); }
+                            () => { setIsLocating(false); toast({ title: 'No pudimos leer tu ubicación', description: 'Revisá los permisos de ubicación en tu navegador.', variant: 'destructive' }); }
                             );
                         }}
                     >
                         {isLocating ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <MapPin className="mr-2 h-3 w-3" />}
-                        {shippingCoords ? 'Ubicación Guardada' : 'Adjuntar mi ubicación actual'}
+                        {shippingCoords ? 'Ubicación guardada' : 'Adjuntar mi ubicación actual'}
                     </Button>
                  </div>
                 </CardContent>
@@ -738,7 +738,7 @@ export default function ProductCheckoutPage() {
           <div className="sticky top-24 space-y-4">
              <Card className="shadow-lg border-primary/20 overflow-hidden">
                 <div className="bg-muted/50 p-4 border-b">
-                    <h3 className="font-bold text-lg">Tu Pedido</h3>
+                    <h3 className="font-bold text-lg">Tu pedido</h3>
                 </div>
                 <CardContent className="p-0">
                     <div className="max-h-[300px] overflow-y-auto p-4 space-y-3">
@@ -786,10 +786,10 @@ export default function ProductCheckoutPage() {
                         disabled={isSubmitting || isLoadingCart || hasPointsDeficit}
                     >
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                        {isSubmitting ? 'Procesando...' : 'Confirmar Pedido'}
+                        {isSubmitting ? 'Procesando...' : 'Confirmar pedido'}
                      </Button>
                      <p className="text-xs text-center text-muted-foreground">
-                        Al confirmar aceptas nuestros términos y condiciones.
+                        Al confirmar aceptás nuestros términos y condiciones.
                      </p>
                 </CardFooter>
              </Card>

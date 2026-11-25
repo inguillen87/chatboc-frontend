@@ -521,8 +521,8 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
     <div className={embedded ? 'space-y-6' : 'container mx-auto p-6 space-y-6'}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Catalogo e inventario</h1>
-          <p className="text-muted-foreground">Edita precio y stock solo con confirmacion del backend.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Catálogo e inventario</h1>
+          <p className="text-muted-foreground">Editá precio y stock solo con confirmación del servidor.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {inventoryStats.catalogVersion ? <Badge variant="outline">catalog_version: {String(inventoryStats.catalogVersion)}</Badge> : null}
             {inventoryStats.requestId ? <Badge variant="secondary">request_id: {String(inventoryStats.requestId)}</Badge> : null}
@@ -538,7 +538,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
             <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto sm:max-w-[800px]">
               <DialogHeader className="sr-only">
                 <DialogTitle>Importar catálogo</DialogTitle>
-                <DialogDescription>Sube un archivo para analizarlo y actualizar el catálogo del tenant.</DialogDescription>
+                <DialogDescription>Subí un archivo para analizarlo y actualizar el catálogo de la organización.</DialogDescription>
               </DialogHeader>
               <CatalogUploadWizard tenantSlug={effectiveTenantSlug || ''} onFinish={() => { setUploadOpen(false); void loadProducts(); }} />
             </DialogContent>
@@ -601,7 +601,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                 Marketplace y promociones
               </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                Crea descuentos por carrito, categoria o producto sin salir del catalogo operativo.
+                Creá descuentos por carrito, categoría o producto sin salir del catálogo operativo.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
@@ -615,7 +615,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
           <div className="space-y-3">
             {promotions.length === 0 ? (
               <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
-                Todavia no hay promociones configuradas. Crea una primera regla para que el marketplace, WhatsApp y checkout muestren valor comercial real.
+                Todavía no hay promociones configuradas. Creá una primera regla para mostrar descuentos en la tienda, WhatsApp y el pago.
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
@@ -623,7 +623,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                   <div key={promotion.id} className="rounded-lg border bg-background p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">{promotion.nombre_promocion || 'Promocion sin nombre'}</p>
+                        <p className="truncate font-semibold">{promotion.nombre_promocion || 'Promoción sin nombre'}</p>
                         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                           {promotion.descripcion_publica || promotion.tipo_promocion || 'Regla comercial activa'}
                         </p>
@@ -639,7 +639,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                         {String(promotion.tipo_promocion || '').includes('FIJO') ? ' fijo' : '%'}
                       </span>
                       {promotion.monto_minimo_carrito ? (
-                        <span className="rounded-full bg-muted px-2 py-1">Min ${promotion.monto_minimo_carrito}</span>
+                        <span className="rounded-full bg-muted px-2 py-1">Mín. ${promotion.monto_minimo_carrito}</span>
                       ) : null}
                       {promotion.alcances?.[0]?.nombre_categoria ? (
                         <span className="rounded-full bg-muted px-2 py-1">{promotion.alcances[0].nombre_categoria}</span>
@@ -665,7 +665,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
           <div className="rounded-xl border bg-card p-4 shadow-sm">
             <div className="mb-4">
               <p className="font-semibold">Nueva promoción rápida</p>
-              <p className="text-sm text-muted-foreground">Publica reglas simples que el carrito ya puede evaluar.</p>
+              <p className="text-sm text-muted-foreground">Publicá reglas simples que el carrito ya puede evaluar.</p>
             </div>
             <div className="space-y-3">
               <Input
@@ -676,7 +676,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
               <Input
                 value={promotionDraft.description}
                 onChange={(event) => setPromotionDraft((prev) => ({ ...prev, description: event.target.value }))}
-                placeholder="Detalle corto para WhatsApp y marketplace"
+                placeholder="Detalle corto para WhatsApp y la tienda"
               />
               <Select
                 value={promotionDraft.scope}
@@ -684,7 +684,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
               >
                 <SelectTrigger><SelectValue placeholder="Alcance" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cart">Compra minima</SelectItem>
+                  <SelectItem value="cart">Compra mínima</SelectItem>
                   <SelectItem value="category">Categoría</SelectItem>
                   <SelectItem value="product">Producto</SelectItem>
                 </SelectContent>
@@ -695,7 +695,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                   value={promotionDraft.category}
                   onValueChange={(value) => setPromotionDraft((prev) => ({ ...prev, category: value }))}
                 >
-                  <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Elegir categoría</SelectItem>
                     {categories.map((category: any) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
@@ -737,7 +737,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
                   min={0}
                   value={promotionDraft.minCart}
                   onChange={(event) => setPromotionDraft((prev) => ({ ...prev, minCart: event.target.value }))}
-                  placeholder="Min compra"
+                  placeholder="Mín. compra"
                   disabled={promotionDraft.scope !== 'cart'}
                 />
               </div>
@@ -752,7 +752,7 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
               ) : null}
               <Button className="w-full" onClick={() => void handleCreatePromotion()} disabled={creatingPromotion || !promotionOwnerId}>
                 {creatingPromotion ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Crear promocion
+                Crear promoción
               </Button>
             </div>
           </div>
@@ -767,11 +767,11 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
               <Input placeholder="Buscar por nombre..." className="pl-8" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
             </div>
             <div className="flex items-center gap-2">
-              <Input placeholder="Min $" className="w-[90px]" type="number" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} />
-              <Input placeholder="Max $" className="w-[90px]" type="number" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} />
+              <Input placeholder="Mín. $" className="w-[90px]" type="number" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} />
+              <Input placeholder="Máx. $" className="w-[90px]" type="number" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Categoría" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
                 {categories.map((category: any) => <SelectItem key={category} value={category}>{category}</SelectItem>)}

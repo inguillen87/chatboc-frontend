@@ -227,7 +227,7 @@ const ChatPage = () => {
         setShowCierre({
           show: true,
           text: match
-            ? `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`
+            ? `Listo. Tu ticket fue generado. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`
             : lastBotMsg.text as string
         });
       } else setShowCierre(null);
@@ -287,7 +287,7 @@ const ChatPage = () => {
           toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
         } catch (error) {
           console.error("Error al enviar ubicación:", error);
-          toast({ title: "Error al enviar ubicación", description: "Hubo un problema al enviar tu ubicación.", variant: "destructive", duration: 3000 });
+          toast({ title: "No pudimos enviar tu ubicación", description: "Revisá los permisos de GPS o escribí la dirección manualmente.", variant: "destructive", duration: 3000 });
         }
       });
     }
@@ -474,7 +474,7 @@ const ChatPage = () => {
 
           setContexto(data.contexto_actualizado || {});
 
-          const respuestaText = data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
+          const respuestaText = data.respuesta_usuario || "No pudimos generar una respuesta en este momento. Probá enviando el mensaje de nuevo.";
           const botones = extractButtonsFromResponse(data);
 
           // Mensaje de respuesta del Bot
@@ -537,7 +537,7 @@ const ChatPage = () => {
         }
         const errorMsg = getErrorMessage(
           error,
-          '⚠️ No se pudo conectar con el servidor.'
+          'No pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.'
         );
         setMessages((prev) => [
           ...prev,
@@ -606,7 +606,7 @@ const ChatPage = () => {
               />
               <div>
                 <h1 className="text-base sm:text-lg font-semibold text-foreground">
-                  {rubroNormalizado ? `Asistente ${rubroNormalizado}` : "Chat de Soporte"}
+                  {rubroNormalizado ? `Asistente ${rubroNormalizado}` : "Chat de soporte"}
                 </h1>
                 <p className="text-xs text-green-500">En línea</p>
               </div>

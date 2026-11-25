@@ -217,8 +217,8 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       if (!isCurrent()) return null;
       const message =
         err instanceof ApiError && err.status === 403
-          ? 'Tu cuenta puede ver el panel, pero todavia no tiene permiso para administrar categorias.'
-          : 'No pudimos cargar las categorias. Reintenta o solicita al equipo que revise el modulo.';
+          ? 'Tu cuenta puede ver el panel, pero todavía no tiene permiso para administrar categorías.'
+          : 'No pudimos cargar las categorías. Reintentá o pedile al equipo que revise el módulo.';
       setError(message);
       return null;
     } finally {
@@ -276,7 +276,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
 
   const handleDelete = async (category: Category) => {
     if (!catalogVerified || unconfirmedCategory || mutationInFlight.current || !scopeIsCurrent() || !category.id || category.source === 'routing') return;
-    if (!window.confirm('Esta categoria dejara de estar disponible para nuevos reclamos. Queres eliminarla?')) {
+    if (!window.confirm('Esta categoría dejará de estar disponible para nuevos reclamos. ¿Querés eliminarla?')) {
       return;
     }
     mutationInFlight.current = true; setIsSaving(true);
@@ -291,7 +291,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       await fetchCategories();
     } catch {
       if (!scopeIsCurrent()) return;
-      setError('No pudimos eliminar la categoría. Revisa si tiene tickets o reglas asociadas.');
+      setError('No pudimos eliminar la categoría. Revisá si tiene tickets o reglas asociadas.');
     } finally {
       mutationInFlight.current = false; if (scopeIsCurrent()) setIsSaving(false);
     }
@@ -328,7 +328,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
       setUnconfirmedCategory(null);setSavedCategory(nombre); setCreateDraft(''); setIsDialogOpen(false);
     } catch {
       if (!scopeIsCurrent()) return;
-      setError('No pudimos guardar la categoría. Revisa el nombre y vuelve a intentar.');
+      setError('No pudimos guardar la categoría. Revisá el nombre y volvé a intentar.');
     } finally {
       mutationInFlight.current = false; if (scopeIsCurrent()) setIsSaving(false);
     }
@@ -391,8 +391,8 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
             </Badge>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestión de categorías</h1>
             <p className="text-base text-muted-foreground">
-              Organiza los temas que llegan al inbox, conectalos con empleados y mantené la carga de trabajo visible.
-              Cada categoria ayuda a que el caso entre ordenado y llegue al equipo correcto.
+              Organizá los temas que llegan a la bandeja, conectalos con empleados y mantené la carga de trabajo visible.
+              Cada categoría ayuda a que el caso entre ordenado y llegue al equipo correcto.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -402,7 +402,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
             </Button>
             <Button onClick={handleCreate} disabled={isSaving || !catalogVerified || Boolean(unconfirmedCategory)}>
               <PlusCircle className="mr-2 h-4 w-4" />
-              Crear categoria
+              Crear categoría
             </Button>
           </div>
         </section>
@@ -436,9 +436,9 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
 
         <section className="grid gap-4 lg:grid-cols-3">
           {[
-            ['Clasifica lo que llega', 'Cada reclamo, consulta o pedido queda asociado a un tema operativo.'],
-            ['Deriva mejor', 'El ruteo usa estas categorias para sugerir empleados y equilibrar carga.'],
-            ['Mide con sentido', 'Las metricas, mapas y prioridades se entienden por tema, zona y canal.'],
+            ['Clasificá lo que llega', 'Cada reclamo, consulta o pedido queda asociado a un tema operativo.'],
+            ['Derivá mejor', 'El ruteo usa estas categorías para sugerir empleados y equilibrar carga.'],
+            ['Medí con sentido', 'Las métricas, mapas y prioridades se entienden por tema, zona y canal.'],
           ].map(([title, copy]) => (
             <div key={title} className="rounded-2xl border border-border/70 bg-muted/20 p-4">
               <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -455,7 +455,7 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
             <div>
               <h2 className="text-xl font-semibold text-foreground">Catálogo y temas de ruteo</h2>
               <p className="text-sm text-muted-foreground">
-                Usa esta lista para mantener claro que atiende cada equipo.
+                Usá esta lista para mantener claro qué atiende cada equipo.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -518,12 +518,12 @@ const ScopedCategoryManagement: React.FC<{ tenantSlug: string; canManageTeam: bo
               <div className="max-w-lg space-y-2">
                 <h3 className="text-xl font-semibold text-foreground">Todavía no hay categorías configuradas</h3>
                 <p className="text-sm text-muted-foreground">
-                  Crea la primera categoria para que los reclamos puedan agruparse y asignarse con mas claridad.
+                  Creá la primera categoría para que los reclamos puedan agruparse y asignarse con más claridad.
                 </p>
               </div>
                 <Button onClick={handleCreate} disabled={!catalogVerified || Boolean(unconfirmedCategory)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Crear primera categoria
+                Crear primera categoría
               </Button>
             </div>
           )}

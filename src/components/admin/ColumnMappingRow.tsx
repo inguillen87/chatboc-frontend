@@ -49,7 +49,7 @@ const ColumnMappingRow: React.FC<ColumnMappingRowProps> = ({
       {isSuggested && (
         <div className="hidden md:flex items-center space-x-2">
           <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
-            Sugerido ✨
+            Sugerido
           </Badge>
           {similarity !== undefined && (
             <span className="text-xs text-muted-foreground" title="Nivel de confianza">

@@ -1008,7 +1008,7 @@ export default function MunicipalAnalytics() {
       <ExecutiveMayorTrafficLight />
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <h1 className="text-3xl font-extrabold text-primary">Analíticas Profesionales</h1>
+        <h1 className="text-3xl font-extrabold text-primary">Analíticas municipales</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -1064,7 +1064,7 @@ export default function MunicipalAnalytics() {
           <CardContent className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-muted/30 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Municipio con mas carga
+                Municipio con más carga
               </p>
               <p className="mt-2 truncate text-xl font-bold text-foreground">
                 {topMunicipality?.name ?? 'Sin municipio'}
@@ -1077,10 +1077,10 @@ export default function MunicipalAnalytics() {
             </div>
             <div className="rounded-xl border border-border bg-muted/30 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Categoria lider
+                Categoría líder
               </p>
               <p className="mt-2 truncate text-xl font-bold text-foreground">
-                {topCategory ? formatLabel(topCategory.name) : 'Sin categoria'}
+                {topCategory ? formatLabel(topCategory.name) : 'Sin categoría'}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {topCategory ? `${formatNumber(safeNumber(topCategory.value))} tickets` : 'Sin datos'}
@@ -1391,7 +1391,7 @@ export default function MunicipalAnalytics() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <MapPinned className="h-5 w-5 text-primary" />
-              Mapa de Calor
+              Mapa de calor
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -1404,8 +1404,8 @@ export default function MunicipalAnalytics() {
                 </p>
                 <h2 className="mt-2 text-2xl font-bold">No hay puntos georreferenciados</h2>
                 <p className="mt-2 text-sm text-white/70">
-                  Los filtros actuales tienen actividad, pero no ubicaciones validas para pintar calor,
-                  clusters o zonas. Revisa direccion, barrio, latitud/longitud o amplia el rango.
+                  Los filtros actuales tienen actividad, pero no ubicaciones válidas para mostrar zonas de calor.
+                  Revisá dirección, barrio, latitud/longitud o ampliá el rango.
                 </p>
               </div>
             </div>

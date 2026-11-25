@@ -91,8 +91,8 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
         <ViewState
           status="partial"
-          title="Analytics overview no disponible"
-          description={getErrorMessage(overviewQuery.error, 'No se pudo cargar analytics.')}
+          title="Resumen analítico no disponible"
+          description={getErrorMessage(overviewQuery.error, 'No pudimos cargar las estadísticas. Reintentá en unos segundos.')}
           action={
             <Button type="button" variant="outline" onClick={() => void overviewQuery.refetch()}>
               <RefreshCw className="h-4 w-4" />
@@ -118,14 +118,14 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analytics v2</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Hub ejecutivo</h1>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estadísticas</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Resumen ejecutivo</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">Actividad y resultados de la organización para decidir con datos disponibles.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!isOnline ? <Badge variant="destructive">Offline</Badge> : null}
+          {!isOnline ? <Badge variant="destructive">Sin conexión</Badge> : null}
           {overviewQuery.isFetching ? <Badge variant="secondary">Actualizando</Badge> : null}
-          <Badge variant="outline">{availableMetrics}/{METRICS.length} metricas</Badge>
+          <Badge variant="outline">{availableMetrics}/{METRICS.length} métricas</Badge>
         </div>
       </header>
 
@@ -182,8 +182,8 @@ function ScopedAnalyticsHub({ tenantSlug, sessionScopeKey }: { tenantSlug: strin
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Experiencia</CardTitle>
-            <CardDescription>Indicadores que dependen de encuestas, handoff y conversación.</CardDescription>
+            <CardTitle className="text-lg">Atención y encuestas</CardTitle>
+            <CardDescription>Indicadores que dependen de encuestas, derivación humana y conversación.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <MetricRow label="Conversaciones" value={formatMetric(data.conversations)} />

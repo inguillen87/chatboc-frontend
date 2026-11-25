@@ -48,8 +48,8 @@ const DEFAULT_THEME: ChatCustomizerConfig = {
   mode: 'light', // light or dark
 
   // Content
-  botName: 'Asistente Virtual',
-  welcomeMessage: '¡Hola! ¿En qué puedo ayudarte hoy?',
+  botName: 'Asistente virtual',
+  welcomeMessage: '¡Hola! ¿En qué te puedo ayudar hoy?',
   ctaMessage: '¿Tenés alguna duda?',
   faqSuggestions: [] as string[],
 
@@ -72,11 +72,11 @@ const DEFAULT_THEME: ChatCustomizerConfig = {
 };
 
 const PRESETS = [
-    { name: 'Default Blue', primary: '#007aff', accent: '#005bb5', bg: '#ffffff', radius: 16, mode: 'light' },
-    { name: 'WhatsApp Style', primary: '#25D366', accent: '#128C7E', bg: '#E5DDD5', radius: 12, mode: 'light' },
-    { name: 'Midnight', primary: '#6366f1', accent: '#4f46e5', bg: '#0f172a', radius: 8, mode: 'dark' },
-    { name: 'Elegant', primary: '#18181b', accent: '#27272a', bg: '#ffffff', radius: 0, mode: 'light' },
-    { name: 'Warm', primary: '#f97316', accent: '#ea580c', bg: '#fff7ed', radius: 20, mode: 'light' },
+    { name: 'Azul clásico', primary: '#007aff', accent: '#005bb5', bg: '#ffffff', radius: 16, mode: 'light' },
+    { name: 'Estilo WhatsApp', primary: '#25D366', accent: '#128C7E', bg: '#E5DDD5', radius: 12, mode: 'light' },
+    { name: 'Noche', primary: '#6366f1', accent: '#4f46e5', bg: '#0f172a', radius: 8, mode: 'dark' },
+    { name: 'Sobrio', primary: '#18181b', accent: '#27272a', bg: '#ffffff', radius: 0, mode: 'light' },
+    { name: 'Cálido', primary: '#f97316', accent: '#ea580c', bg: '#fff7ed', radius: 20, mode: 'light' },
 ];
 
 type WidgetAccessState = {
@@ -544,11 +544,11 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             <TabsContent value="branding" className="space-y-6">
                 <Card className="border border-border/60 shadow-sm rounded-2xl overflow-hidden">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5 text-primary"/> Estilo y Marca</CardTitle>
+                        <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5 text-primary"/> Estilo y marca</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-3">
-                            <Label>Temas Predefinidos</Label>
+                            <Label>Temas predefinidos</Label>
                             <div className="flex gap-2 flex-wrap">
                                 {PRESETS.map((preset) => (
                                     <button
@@ -567,7 +567,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor={`${controlId}-primary-hex`}>Color Primario</Label>
+                                <Label htmlFor={`${controlId}-primary-hex`}>Color primario</Label>
                                 <div className="flex gap-2">
                                     <Input
                                         type="color"
@@ -587,7 +587,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor={`${controlId}-secondary-hex`}>Color Secundario</Label>
+                                <Label htmlFor={`${controlId}-secondary-hex`}>Color secundario</Label>
                                 <div className="flex gap-2">
                                     <Input
                                         type="color"
@@ -633,7 +633,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardContent className="space-y-6">
                          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                              <div className="space-y-0.5">
-                                <Label htmlFor={`${controlId}-auto-open`}>Apertura Automática</Label>
+                                <Label htmlFor={`${controlId}-auto-open`}>Apertura automática</Label>
                                 <p className="text-xs text-muted-foreground">Abrir el chat al cargar la página</p>
                              </div>
                              <Switch
@@ -660,11 +660,11 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
                         <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
-                                <Label htmlFor={`${controlId}-side-offset`}>Margen Lateral (px)</Label>
+                                <Label htmlFor={`${controlId}-side-offset`}>Margen lateral (px)</Label>
                                 <Input id={`${controlId}-side-offset`} type="number" value={config.sideOffset} onChange={(e) => handleChange('sideOffset', Number(e.target.value))} />
                              </div>
                              <div className="space-y-2">
-                                <Label htmlFor={`${controlId}-bottom-offset`}>Margen Inferior (px)</Label>
+                                <Label htmlFor={`${controlId}-bottom-offset`}>Margen inferior (px)</Label>
                                 <Input id={`${controlId}-bottom-offset`} type="number" value={config.bottomOffset} onChange={(e) => handleChange('bottomOffset', Number(e.target.value))} />
                              </div>
                         </div>
@@ -675,12 +675,12 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             <TabsContent value="content" className="space-y-6">
                 <Card className="border border-border/60 shadow-sm rounded-2xl overflow-hidden">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-primary"/> Identidad del Bot</CardTitle>
+                        <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-primary"/> Identidad del bot</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                          <div className="flex gap-4">
                              <div className="space-y-2 flex-1">
-                                <Label htmlFor={`${controlId}-bot-name`}>Nombre del Asistente</Label>
+                                <Label htmlFor={`${controlId}-bot-name`}>Nombre del asistente</Label>
                                 <Input
                                     id={`${controlId}-bot-name`}
                                     value={config.botName}
@@ -701,17 +701,17 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                          </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor={`${controlId}-welcome`}>Mensaje de Bienvenida</Label>
+                            <Label htmlFor={`${controlId}-welcome`}>Mensaje de bienvenida</Label>
                             <Input
                                 id={`${controlId}-welcome`}
                                 value={config.welcomeMessage}
                                 onChange={(e) => handleChange('welcomeMessage', e.target.value)}
-                                placeholder="Ej: ¡Hola! 👋 ¿En qué te puedo ayudar?"
+                                placeholder="Ej: ¡Hola! ¿En qué te puedo ayudar?"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor={`${controlId}-cta`}>Llamada a la Acción (Burbuja)</Label>
+                            <Label htmlFor={`${controlId}-cta`}>Llamada a la acción (burbuja)</Label>
                             <Input
                                 id={`${controlId}-cta`}
                                 value={config.ctaMessage}
@@ -730,7 +730,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             <TabsContent value="security" className="space-y-6">
                  <Card className="border border-border/60 shadow-sm rounded-2xl overflow-hidden">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary"/> Seguridad y Acceso</CardTitle>
+                        <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary"/> Seguridad y acceso</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="rounded-xl border border-amber-300/50 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100">
@@ -789,7 +789,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       <div className="lg:sticky lg:top-8 h-fit space-y-4 rounded-2xl border border-border/60 bg-card/60 p-4 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-4 flex-wrap">
              <div>
-                <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="h-5 w-5"/> Vista Previa</h3>
+                <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="h-5 w-5"/> Vista previa</h3>
              </div>
              {hasUnsavedChanges && (
                  <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded animate-pulse border border-amber-200">
@@ -830,7 +830,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                         className="h-6 px-2 text-xs"
                         onClick={() => setSimulateLoading(!simulateLoading)}
                      >
-                        {simulateLoading && <Loader2 className="w-3 h-3 mr-1 animate-spin"/>} Loading
+                        {simulateLoading && <Loader2 className="w-3 h-3 mr-1 animate-spin"/>} Cargando
                      </Button>
                      <Button
                         size="sm"
@@ -838,7 +838,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                         className="h-6 px-2 text-xs text-destructive hover:text-destructive"
                         onClick={() => setSimulateOffline(!simulateOffline)}
                      >
-                        {simulateOffline && <WifiOff className="w-3 h-3 mr-1"/>} Offline
+                        {simulateOffline && <WifiOff className="w-3 h-3 mr-1"/>} Sin conexión
                      </Button>
                       <Button
                         size="sm"
@@ -857,7 +857,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                         window.open(`${previewIframeSrc}&fullpage=true`, '_blank');
                     }}
                  >
-                    <ExternalLink className="w-3 h-3 mr-1" /> Nueva Pestaña
+                    <ExternalLink className="w-3 h-3 mr-1" /> Nueva pestaña
                  </Button>
             </div>
         )}
@@ -952,7 +952,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                         toast.success("Copiado al portapapeles");
                                     }}
                                 >
-                                    Copiar Código
+                                    Copiar código
                                 </Button>
                             </div>
                         </>

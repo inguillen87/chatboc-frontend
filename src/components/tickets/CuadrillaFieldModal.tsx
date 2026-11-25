@@ -108,7 +108,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
         fetchTasks();
       }
     } catch (e) {
-      toast.error('Error al iniciar trabajo.');
+      toast.error('No pudimos iniciar el trabajo. Verificá tu conexión e intentá de nuevo.');
     }
   };
 
@@ -123,7 +123,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
           comentario: closureComment || 'Trabajo finalizado en vía pública por la cuadrilla.',
         }),
       });
-      toast.success('Reclamo finalizado exitosamente y vecino notificado.');
+      toast.success('Reclamo finalizado y vecino notificado.');
       setSelectedTaskForClosure(null);
       setClosurePhoto('');
       setClosureComment('');
@@ -133,7 +133,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
         fetchTasks();
       }
     } catch (e) {
-      toast.error('Error al completar el reclamo.');
+      toast.error('No pudimos cerrar el reclamo. Revisá tu conexión e intentá otra vez.');
     } finally {
       setIsSubmittingClosure(false);
     }
@@ -149,7 +149,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
             className="rounded-xl border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 font-extrabold gap-2"
           >
             <HardHat className="w-4 h-4 text-amber-500" />
-            <span className="hidden sm:inline">Modo Cuadrilla PWA</span>
+            <span className="hidden sm:inline">Modo cuadrilla</span>
           </Button>
         )}
       </DialogTrigger>
@@ -163,7 +163,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
               </div>
               <div>
                 <DialogTitle className="text-lg font-extrabold tracking-tight">
-                  Cuadrillas de Calle & Operarios PWA
+                  Cuadrillas de calle y operarios
                 </DialogTitle>
                 <p className="text-xs text-muted-foreground">
                   Tareas en terreno ordenadas por cercanía GPS y cierre con foto
@@ -179,7 +179,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
               className="rounded-xl text-xs gap-1.5 h-8 font-semibold"
             >
               <LocateFixed className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'text-primary'}`} />
-              {userLocation ? 'GPS Activo' : 'Obtener GPS'}
+              {userLocation ? 'GPS activo' : 'Obtener GPS'}
             </Button>
           </div>
         </DialogHeader>
@@ -215,7 +215,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                         </Badge>
                         {task.distancia_km !== null && (
                           <Badge className="bg-primary/10 text-primary border-transparent text-[10px] font-black">
-                            📍 {task.distancia_km} km
+                            A {task.distancia_km} km
                           </Badge>
                         )}
                       </div>
@@ -233,7 +233,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                           : 'bg-blue-500/15 text-blue-600 border-blue-500/30'
                       }
                     >
-                      {task.estado === 'en_proceso' ? 'En Cuadrilla' : 'Pendiente'}
+                      {task.estado === 'en_proceso' ? 'En cuadrilla' : 'Pendiente'}
                     </Badge>
                   </div>
 
@@ -278,7 +278,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                         className="h-8 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                       >
                         <Camera className="w-3 h-3" />
-                        Cerrar con Foto
+                        Cerrar con foto
                       </Button>
                     </div>
                   </div>
@@ -301,7 +301,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                 <div className="flex items-center justify-between border-b border-border/60 pb-3">
                   <div>
                     <h3 className="text-base font-extrabold text-foreground">
-                      Finalizar Trabajo: {selectedTaskForClosure.nro_ticket}
+                      Finalizar trabajo: {selectedTaskForClosure.nro_ticket}
                     </h3>
                     <p className="text-xs text-muted-foreground">{selectedTaskForClosure.direccion}</p>
                   </div>
@@ -318,7 +318,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs font-bold text-foreground block mb-1">
-                      📸 URL de Foto de Resolución ("Después"):
+                      URL de la foto de resolución ("Después"):
                     </label>
                     <Input
                       placeholder="https://res.cloudinary.com/.../foto_reparacion.jpg"
@@ -330,7 +330,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
 
                   <div>
                     <label className="text-xs font-bold text-foreground block mb-1">
-                      📝 Comentario técnico del trabajo realizado:
+                      Comentario técnico del trabajo realizado:
                     </label>
                     <Textarea
                       placeholder="Se reparó luminaria LED 150W y se despejaron ramas circundantes."
@@ -358,7 +358,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                   className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  {isSubmittingClosure ? 'Notificando...' : 'Confirmar Cierre y Notificar'}
+                  {isSubmittingClosure ? 'Notificando...' : 'Confirmar cierre y notificar'}
                 </Button>
               </div>
             </motion.div>

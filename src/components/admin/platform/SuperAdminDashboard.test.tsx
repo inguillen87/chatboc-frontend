@@ -42,7 +42,7 @@ beforeEach(() => {
 describe('SuperAdminDashboard workspace', () => {
   it('finds an existing platform section without inventing organization navigation', async () => {
     mount('/superadmin?section=overview');
-    await screen.findByRole('heading', { name: 'Tu operación, en un solo lugar' });
+    await screen.findByRole('heading', { name: 'Operación de la plataforma' });
     fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
     const dialog = screen.getByRole('dialog', { name: 'Buscar módulo' });
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'canales' } });

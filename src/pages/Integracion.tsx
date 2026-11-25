@@ -282,7 +282,7 @@ const Integracion = () => {
       if (!isSaveCurrent()) return;
       console.error("Failed to save config", error);
       if (section === 'logo') setAppearanceError('No pudimos confirmar el guardado. Conservamos tus cambios: usá Recargar para revisar la versión actual antes de volver a guardar, o descartalos.');
-      toast.error("Error al guardar cambios");
+      toast.error("No pudimos guardar los cambios. Reintentá en unos segundos.");
     } finally {
       if (isSaveCurrent()) setSaving(false);
     }
@@ -295,7 +295,7 @@ const Integracion = () => {
       toast.success(`Número asignado: ${result.phone_number}`);
       loadConfig();
     } catch (error) {
-      toast.error("No hay números disponibles o ocurrió un error");
+      toast.error("No hay números disponibles ahora o falló la asignación. Reintentá en unos minutos.");
     }
   };
 
@@ -448,10 +448,10 @@ const Integracion = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center">
             <Settings className="mr-3 h-8 w-8" />
-            Integración y Configuración
+            Integración y configuración
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Gestiona la apariencia, menús y canales de tu organización ({config.tenant.nombre}).
+            Administrá la apariencia, los menús y los canales de tu organización ({config.tenant.nombre}).
           </p>
         </div>
         <Button onClick={handleReload} variant="outline" className="min-h-11" disabled={loading || saving}>
@@ -585,7 +585,7 @@ const Integracion = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Configuración de WhatsApp</CardTitle>
-                <CardDescription>Gestiona el número asignado a tu cuenta.</CardDescription>
+                <CardDescription>Administrá el número asignado a tu cuenta.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <MetaAppReviewApproval />
@@ -602,7 +602,7 @@ const Integracion = () => {
                   <div className="rounded-md border bg-green-50 p-4 dark:bg-green-900/20">
                     <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
                       <Check className="h-5 w-5" />
-                      <span className="font-semibold">Número Asignado Correctamente</span>
+                      <span className="font-semibold">Número asignado correctamente</span>
                     </div>
                     <div className="mt-4 grid gap-2 text-sm">
                       <div className="flex justify-between">
@@ -689,7 +689,7 @@ const Integracion = () => {
                   )}
 
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground">Onboarding Self-Serve</h3>
+                    <h3 className="text-lg font-semibold text-foreground">Activación autogestionada</h3>
                     <p className="text-sm text-muted-foreground">Elegí cómo activar tu canal de WhatsApp en tres pasos.</p>
                   </div>
 
@@ -868,8 +868,8 @@ const Integracion = () => {
 
               <Card>
                 <CardHeader>
-                    <CardTitle>Código de Integración</CardTitle>
-                    <CardDescription>Copia y pega este código en tu sitio web.</CardDescription>
+                    <CardTitle>Código de integración</CardTitle>
+                    <CardDescription>Copiá y pegá este código en tu sitio web.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
@@ -878,14 +878,14 @@ const Integracion = () => {
                     {currentEmbed?.message && <p role="alert">{currentEmbed.message}</p>}
                     <Button className="w-full" disabled={!currentEmbed?.snippet} onClick={() => copiarCodigo("script")}>
                         {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
-                        Copiar Script (Recomendado)
+                        Copiar script (recomendado)
                     </Button>
                     <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto mt-4">
                         {generateEmbedCode("iframe")}
                     </div>
                     <Button variant="outline" className="w-full" disabled={!currentEmbed?.snippet} onClick={() => copiarCodigo("iframe")}>
                         {copiado === "iframe" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
-                        Copiar Iframe
+                        Copiar iframe
                     </Button>
                 </CardContent>
               </Card>
@@ -894,9 +894,9 @@ const Integracion = () => {
             {(demoExperienceSources.demoOnboarding || demoExperienceSources.widget || demoExperienceSources.quickMenu.length > 0) && (
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>Blueprint de experiencia</CardTitle>
+                  <CardTitle>Resumen de módulos y flujos</CardTitle>
                   <CardDescription>
-                    Vista previa de componentes y playbooks configurados para este tenant.
+                    Vista previa de los bloques y recorridos configurados para esta organización.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -950,7 +950,7 @@ const Integracion = () => {
 
                   {demoExperienceSources.quickMenu.length > 0 ? (
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-foreground">Quick menu</h4>
+                      <h4 className="text-sm font-semibold text-foreground">Menú rápido</h4>
                       <div className="grid gap-2 md:grid-cols-2">
                         {demoExperienceSources.quickMenu.map((item, index) => (
                           <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
@@ -981,7 +981,7 @@ const Integracion = () => {
               <div className="grid gap-6 md:grid-cols-2">
                   <Card>
                       <CardHeader>
-                          <CardTitle>Información de Contacto</CardTitle>
+                          <CardTitle>Información de contacto</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                           <div className="space-y-2">
@@ -992,7 +992,7 @@ const Integracion = () => {
                               />
                           </div>
                           <div className="space-y-2">
-                              <Label>WhatsApp (Humano)</Label>
+                              <Label>WhatsApp (atención humana)</Label>
                               <Input
                                   value={getContactsConfig().whatsapp_humano || ""}
                                   onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), whatsapp_humano: e.target.value } } })}
@@ -1011,11 +1011,11 @@ const Integracion = () => {
                   {/* Future implementation: Links builder */}
                   <Card>
                       <CardHeader>
-                          <CardTitle>Links y Trámites</CardTitle>
-                          <CardDescription>Próximamente: Editor de enlaces directos.</CardDescription>
+                          <CardTitle>Enlaces y trámites</CardTitle>
+                          <CardDescription>Próximamente: editor de enlaces directos.</CardDescription>
                       </CardHeader>
                       <CardContent>
-                          <p className="text-muted-foreground text-sm">Esta funcionalidad estará disponible en la próxima actualización.</p>
+                          <p className="text-muted-foreground text-sm">Esta función va a estar disponible en la próxima actualización.</p>
                       </CardContent>
                   </Card>
               </div>
@@ -1025,13 +1025,13 @@ const Integracion = () => {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Información del Tenant</CardTitle>
+              <CardTitle>Información de la organización</CardTitle>
               <CardDescription>Datos básicos de la organización.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nombre / Razón Social</Label>
+                  <Label>Nombre / Razón social</Label>
                   <Input value={config.tenant.nombre} disabled className="bg-muted" />
                 </div>
                 <div className="space-y-2">
@@ -1043,8 +1043,8 @@ const Integracion = () => {
           </Card>
           <Card>
             <CardHeader>
-                <CardTitle>Código de Integración</CardTitle>
-                <CardDescription>Copia y pega este código en tu sitio web.</CardDescription>
+                <CardTitle>Código de integración</CardTitle>
+                <CardDescription>Copiá y pegá este código en tu sitio web.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
@@ -1053,18 +1053,18 @@ const Integracion = () => {
                 {currentEmbed?.message && <p role="alert">{currentEmbed.message}</p>}
                 <Button className="w-full" disabled={!currentEmbed?.snippet} onClick={() => copiarCodigo("script")}>
                     {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
-                    Copiar Script (Recomendado)
+                    Copiar script (recomendado)
                 </Button>
             </CardContent>
           </Card>
           <Card className="border-primary">
             <CardHeader>
-              <CardTitle>Mejora tu Plan</CardTitle>
+              <CardTitle>Mejorá tu plan</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-center text-muted-foreground p-8">
-                <p>Mejora tu plan a PRO o FULL para acceder a la personalización del widget, menús interactivos, integración con WhatsApp y mucho más.</p>
-                <Button className="mt-4" onClick={() => navigate(`/${tenantSlug}/perfil`)}>Ver Planes</Button>
+                <p>Pasate a un plan Pro o Full para personalizar el widget, armar menús interactivos y conectar WhatsApp.</p>
+                <Button className="mt-4" onClick={() => navigate(`/${tenantSlug}/perfil`)}>Ver planes</Button>
               </div>
             </CardContent>
           </Card>

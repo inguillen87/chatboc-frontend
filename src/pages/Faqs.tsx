@@ -6,51 +6,51 @@ const HelpPage = () => (
       <h1 className="mb-4 text-3xl font-bold text-primary">Centro de ayuda</h1>
       <div className="mb-6 space-y-5">
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Que es Chatboc?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Qué es Chatboc?</h2>
           <p className="text-muted-foreground">
-            Es una solucion para atender, vender, crear casos, medir resultados y acompanar a usuarios en web,
+            Es una plataforma para atender, vender, crear casos, medir resultados y acompañar a usuarios en web,
             WhatsApp y otros canales conectados.
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Que lo diferencia de un chatbot comun?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Qué lo diferencia de un chatbot común?</h2>
           <p className="text-muted-foreground">
             No se limita a responder. Puede pedir datos, recibir adjuntos, crear reclamos o pedidos, activar encuestas,
             derivar a una persona y dejar seguimiento para el equipo.
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Sirve para empresas, gobiernos y colegios?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Sirve para empresas, gobiernos y colegios?</h2>
           <p className="text-muted-foreground">
-            Si. La experiencia se adapta a ventas, reclamos ciudadanos, tramites, familias, staff, encuestas,
-            votaciones, casos sensibles y atencion con historial.
+            Sí. Se adapta a ventas, reclamos ciudadanos, trámites, familias, equipos escolares, encuestas,
+            votaciones, casos sensibles y atención con historial.
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Que archivos o mensajes puede entender?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Qué archivos o mensajes puede entender?</h2>
           <p className="text-muted-foreground">
-            Puede trabajar con texto, imagenes, PDFs, planillas, comprobantes, notas de voz, ubicaciones y llamadas
-            cuando el canal de la organizacion lo permite.
+            Puede trabajar con texto, imágenes, PDFs, planillas, comprobantes, notas de voz, ubicaciones y llamadas
+            cuando el canal de la organización lo permite.
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Puedo probarlo antes de contratar?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Puedo probarlo antes de contratar?</h2>
           <p className="text-muted-foreground">
-            Si. La demo permite recorrer casos por rubro y ver como una consulta puede convertirse en accion,
-            seguimiento y datos utiles para decidir.
+            Sí. La demo permite recorrer casos por rubro y ver cómo una consulta se convierte en acción,
+            seguimiento y datos útiles para decidir.
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Necesito un equipo técnico para empezar?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Necesito un equipo técnico para empezar?</h2>
           <p className="text-muted-foreground">
-            No. Chatboc acompana la configuracion inicial y ayuda a ordenar el recorrido para que usuarios,
-            operadores y administradores lo entiendan rapido.
+            No. Acompañamos la configuración inicial y ayudamos a ordenar el recorrido para que usuarios,
+            operadores y administradores lo entiendan rápido.
           </p>
         </div>
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-primary">Como cuidan la seguridad?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">¿Cómo cuidan la seguridad?</h2>
           <p className="text-muted-foreground">
-            La experiencia se configura por organizacion, con permisos, trazabilidad y canales definidos para que cada
+            Cada cuenta se configura por organización, con permisos, trazabilidad y canales definidos para que cada
             equipo vea lo que corresponde.
           </p>
         </div>
@@ -72,7 +72,7 @@ const HelpPage = () => (
         </a>
       </div>
       <div className="mt-8 text-center text-xs text-muted-foreground">
-        No encontraste tu respuesta? Escribinos y armamos el recorrido que mejor encaje con tu organizacion.
+        ¿No encontraste tu respuesta? Escribinos y armamos el recorrido que mejor encaje con tu organización.
       </div>
     </div>
   </div>

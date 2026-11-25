@@ -23,7 +23,7 @@ const ClerkSsoCallbackPage: React.FC = () => {
         <div className="mt-6 flex items-center gap-3 rounded-lg border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-slate-200">
           {unavailable ? (
             <p role="alert">
-              No pudimos validar la configuracion de acceso. Volve al inicio de sesion e intenta nuevamente.
+              No pudimos validar la configuración de acceso. Volvé al inicio de sesión e intentá nuevamente.
             </p>
           ) : (
             <>

@@ -196,10 +196,10 @@ const mapLegacyHeatmapSummary = (
       state: heatmapPoints.length ? "ready" : "empty",
       headline: heatmapPoints.length
         ? "Mapa operativo unificado"
-        : "Todavia faltan coordenadas para activar el mapa",
+        : "Todavía faltan coordenadas para activar el mapa",
       body: heatmapPoints.length
-        ? "Lectura territorial de reclamos, encuestas y actividad comercial desde el resumen operativo del tenant."
-        : "Cuando el tenant cargue direcciones geocodificadas o respuestas con zona, este modulo muestra hotspots y cobertura.",
+        ? "Lectura territorial de reclamos, encuestas y actividad comercial desde el resumen operativo de la organización."
+        : "Cuando la organización cargue direcciones geocodificadas o respuestas con zona, este módulo muestra zonas de mayor actividad y cobertura.",
     },
     map_experience: {
       contract_version: "operations.heatmap_experience.v1",
@@ -314,7 +314,7 @@ const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
     <Card className="col-span-1 overflow-hidden border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm md:col-span-2 lg:col-span-4">
         <CardHeader className="flex flex-row items-center space-x-4 pb-2">
             <BrainCircuit className="w-8 h-8 text-primary"/>
-            <CardTitle className="text-xl text-primary">Resumen Inteligente</CardTitle>
+            <CardTitle className="text-xl text-primary">Resumen de actividad</CardTitle>
         </CardHeader>
         <CardContent>
             <p className="text-primary/90">{summary}</p>
@@ -466,7 +466,7 @@ function ScopedBusinessMetrics({ scope, sessionRevision }: { scope: PrivateAnaly
   if (loading) {
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
-             <h1 className="text-3xl font-extrabold text-primary mb-6">Métricas del Negocio</h1>
+             <h1 className="text-3xl font-extrabold text-primary mb-6">Métricas del negocio</h1>
              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <Skeleton className="h-32 col-span-full" />
                 <Skeleton className="h-32" />
@@ -483,7 +483,7 @@ function ScopedBusinessMetrics({ scope, sessionRevision }: { scope: PrivateAnaly
     return (
         <div className="p-4 text-center text-destructive">
             <AlertCircle className="mx-auto h-12 w-12" />
-            <h2 className="mt-4 text-lg font-semibold">Error al cargar las métricas</h2>
+            <h2 className="mt-4 text-lg font-semibold">No pudimos cargar las métricas</h2>
             <p>{error}</p>
         <Button onClick={fetchAllMetrics} className="mt-4 gap-2 rounded-xl">
           <RefreshCw className="h-4 w-4" />
@@ -499,11 +499,11 @@ function ScopedBusinessMetrics({ scope, sessionRevision }: { scope: PrivateAnaly
         <div className="space-y-2">
           <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
             <Sparkles className="mr-2 h-3.5 w-3.5" />
-            Tenant command center
+            Centro operativo
           </Badge>
           <div>
             <h1 className="text-4xl font-black tracking-tight text-foreground">
-              Métricas del Negocio
+              Métricas del negocio
             </h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Panel operativo, cobertura, colaboración y analíticas comerciales en una vista unificada.

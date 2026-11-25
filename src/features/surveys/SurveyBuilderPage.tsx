@@ -35,12 +35,12 @@ import type { SurveyDraftPersistenceAck, SurveyDraftSaveInput, SurveyQuestionDra
 
 const QUESTION_TYPES: Array<{ type: SurveyQuestionDraft['type']; label: string }> = [
   { type: 'single', label: 'Opción única' },
-  { type: 'multi', label: 'Multiple' },
-  { type: 'rating', label: 'Rating' },
+  { type: 'multi', label: 'Múltiple' },
+  { type: 'rating', label: 'Puntaje' },
   { type: 'text', label: 'Texto' },
   { type: 'nps', label: 'NPS (cuarentena)' },
   { type: 'ranking', label: 'Ranking (cuarentena)' },
-  { type: 'location', label: 'Ubicacion (cuarentena)' },
+  { type: 'location', label: 'Ubicación (cuarentena)' },
 ];
 
 const createQuestionId = () => {
@@ -786,26 +786,26 @@ export default function SurveyBuilderPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Surveys v2</p>
           <h1 className="text-2xl font-semibold tracking-tight">Constructor de encuestas</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Borrador mobile-first con revision durable, recuperacion local y sincronizacion confirmada por backend.
+            Borrador móvil con revisión durable, recuperación local y sincronización confirmada por el servidor.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={isOnline ? 'secondary' : 'destructive'}>
             {isOnline ? <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> : <CloudOff className="mr-1 h-3.5 w-3.5" />}
-            {isOnline ? 'Online' : 'Offline queue'}
+            {isOnline ? 'En línea' : 'Cola sin conexión'}
           </Badge>
           <Badge variant="outline">{questions.length} preguntas</Badge>
           <Badge variant="outline">{completedQuestions} completas</Badge>
           {adaptiveQuestions ? <Badge variant="outline">{adaptiveQuestions} rutas adaptativas</Badge> : null}
-          {revision !== undefined ? <Badge variant="outline">Revision {revision}</Badge> : null}
+          {revision !== undefined ? <Badge variant="outline">Revisión {revision}</Badge> : null}
         </div>
       </header>
 
       {!isOnline ? (
         <ViewState
           status="offline"
-          description="Podes seguir armando el borrador. Al guardar quedara en cola local hasta que el backend confirme persistencia."
+          description="Podés seguir armando el borrador. Al guardar quedará en cola local hasta que el servidor confirme el guardado."
           className="min-h-[120px]"
         />
       ) : null}
@@ -814,12 +814,12 @@ export default function SurveyBuilderPage() {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle level={2} className="text-lg">Datos del draft</CardTitle>
-              <CardDescription>Información editable antes de publicar o entregar al backend.</CardDescription>
+              <CardTitle level={2} className="text-lg">Datos del borrador</CardTitle>
+              <CardDescription>Información editable antes de publicar o guardar en el servidor.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="survey-draft-title">Titulo</Label>
+                <Label htmlFor="survey-draft-title">Título</Label>
                 <Input
                   id="survey-draft-title"
                   value={title}
@@ -881,7 +881,7 @@ export default function SurveyBuilderPage() {
         <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
           <Card>
             <CardHeader>
-              <CardTitle level={2} className="text-lg">Preview</CardTitle>
+              <CardTitle level={2} className="text-lg">Vista previa</CardTitle>
               <CardDescription>Validación rápida de estructura antes de guardar.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -983,7 +983,7 @@ export default function SurveyBuilderPage() {
               ) : null}
               {!saveMessage && !saveError ? (
                 <p className="text-sm text-muted-foreground">
-                  Sin confirmacion durable. Guarda el borrador para persistir esta revision.
+                  Sin confirmación durable. Guardá el borrador para persistir esta revisión.
                 </p>
               ) : null}
             </CardContent>

@@ -388,7 +388,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
           }
         : {
             title: 'Respuesta no confirmada',
-            description: 'El backend devolviÃ³ otro ticket. No se aplicÃ³ el resultado en esta conversaciÃ³n.',
+            description: 'El servidor devolvió otro ticket. No aplicamos el cambio en esta conversación.',
             variant: 'destructive',
           });
       onActionComplete?.();
@@ -779,7 +779,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
       {originRows.length || locationRows.length || attachmentRows.length ? (
         <div className="grid gap-3 border-b bg-background px-4 py-3 text-xs lg:grid-cols-[1fr_1fr_1fr]">
           <MiniContractPanel title="Origen" rows={originRows} />
-          <MiniContractPanel title="Ubicacion" rows={locationRows} />
+          <MiniContractPanel title="Ubicación" rows={locationRows} />
           <MiniContractPanel title="Adjuntos" rows={attachmentRows} />
         </div>
       ) : null}
@@ -891,7 +891,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
             value={draft}
             aria-label="Respuesta al contacto"
             disabled={actionMutation.isPending}
-            placeholder="Escribe una respuesta..."
+            placeholder="Escribí una respuesta..."
             className="min-h-[80px] resize-none text-sm"
             onChange={(event) => setDraft(event.target.value)}
           />

@@ -52,10 +52,10 @@ describe('municipal Pedidos panel session authority', () => {
     expect(screen.getByText('Consultá y gestioná los pedidos institucionales de esta organización.')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar pedido o contacto')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Salir' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Volver al Perfil' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Ver Tickets' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Volver al perfil' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ver tickets' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Panel de Pedidos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Panel de pedidos' })).not.toBeInTheDocument();
     expect(runtime.list).toHaveBeenCalledExactlyOnceWith('actor-organization', { status: 'all' });
     expect(runtime.update).not.toHaveBeenCalled();
     expect(JSON.stringify(runtime.user)).toBe(originalActor);
@@ -65,8 +65,8 @@ describe('municipal Pedidos panel session authority', () => {
     render(tree());
     await screen.findByText('No hay pedidos institucionales');
     expect(screen.getByRole('button', { name: 'Salir' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Volver al Perfil' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ver Tickets' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Volver al perfil' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver tickets' })).toBeInTheDocument();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Tareas y gestión' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/pedidos');
@@ -77,7 +77,7 @@ describe('municipal Pedidos panel session authority', () => {
     const path = condition === 'foreign-selection' ? '/pedidos?tenant_slug=selected-organization' : '/pedidos';
     render(tree('ready', path, true));
     await screen.findByText('No hay pedidos');
-    expect(screen.getByRole('heading', { name: 'Operacion de pedidos' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Operación de pedidos' })).toBeInTheDocument();
     expect(screen.queryByText('Consultá y gestioná los pedidos institucionales de esta organización.')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Tareas y gestión' })).not.toBeInTheDocument();
     expect(runtime.list).toHaveBeenCalledExactlyOnceWith(condition === 'foreign-selection' ? 'selected-organization' : 'actor-organization', { status: 'all' });

@@ -14,13 +14,13 @@ const Checkout = () => {
       price: "$300.000 / mes",
       benefits: [
         "Hasta 250 preguntas e interacciones personalizadas por mes",
-        "Entrenamiento optimizado para el rubro de tu empresa",
+        "Entrenamiento adaptado al rubro de tu empresa",
         "Panel de control con métricas e historial de uso",
-        "Asistente inteligente con aprendizaje y mejoras continuas",
+        "Asistente con aprendizaje y mejoras continuas",
         "Alertas automáticas por palabra clave (ej: reclamos, urgencias)",
         "CRM integrado y registro automático de conversaciones",
         "Integraciones esenciales con formularios, catálogos y email",
-        "Soporte técnico prioritario y acceso anticipado a nuevas funcionalidades"
+        "Soporte técnico prioritario y acceso anticipado a nuevas funciones"
       ],
     },
     full: {
@@ -32,9 +32,9 @@ const Checkout = () => {
         "Envío automático de catálogos, promociones o formularios por email",
         "Integración avanzada con herramientas externas (ERP, CRM, GovTech, BI)",
         "Acceso a panel administrativo completo con historial y métricas",
-        "Dashboard mensual con indicadores de rendimiento del chatbot",
+        "Tablero mensual con indicadores de rendimiento del asistente",
         "Soporte para empresas con múltiples unidades de negocio o servicios diferenciados",
-        "Soporte técnico dedicado, onboarding y consultoría especializada"
+        "Soporte técnico dedicado, puesta en marcha y consultoría especializada"
       ],
     },
   };
@@ -44,7 +44,7 @@ const Checkout = () => {
   if (!selected) {
     return (
       <div className="text-center mt-20 bg-background text-foreground"> {/* Añadido bg-background y text-foreground */}
-        <h2 className="text-xl font-bold">❌ Plan no válido</h2>
+        <h2 className="text-xl font-bold">Plan no válido</h2>
         <Button onClick={() => navigate("/perfil")} className="mt-4">
           Volver al perfil
         </Button>
@@ -58,9 +58,9 @@ const Checkout = () => {
       <h1 className="text-3xl font-bold mb-2">{selected.title}</h1>
       <p className="text-muted-foreground mb-4">{selected.price}</p>
 
-      <ul className="text-left mb-6 space-y-2">
+      <ul className="text-left mb-6 space-y-2 list-disc pl-5">
         {selected.benefits.map((b, i) => (
-          <li key={i} className="text-sm">✅ {b}</li>
+          <li key={i} className="text-sm">{b}</li>
         ))}
       </ul>
 
@@ -91,7 +91,7 @@ const Checkout = () => {
             }
          }}
       >
-        Simular Compra (Demo)
+        Simular compra (demo)
       </Button>
 
       <p className="text-xs text-muted-foreground mt-3">

@@ -62,7 +62,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
     const startButton = await screen.findByRole("button", { name: /iniciar registro con meta/i });
     await waitFor(() => expect(startButton).not.toBeDisabled());
     expect(startButton).toHaveClass("w-full", "sm:w-auto");
-    expect(screen.getByRole("progressbar", { name: /autorizacion de whatsapp/i })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: /autorización de whatsapp/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: /pasos del registro con meta/i })).toBeInTheDocument();
     expect(screen.getByText("Autorizar con Meta").closest("li")).toHaveAttribute("aria-current", "step");
 
@@ -85,7 +85,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
       );
     });
 
-    expect((await screen.findAllByText("Meta envio la cuenta. Esperando codigo de autorizacion...")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Meta envió la cuenta. Esperando código de autorización...")).length).toBeGreaterThan(0);
     expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -142,7 +142,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
       );
     });
 
-    expect((await screen.findAllByText(/esperando codigo de autorizacion/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/esperando código de autorización/i)).length).toBeGreaterThan(0);
     expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -198,7 +198,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
     const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     renderPage("/integracion/whatsapp/connect");
 
-    expect(await screen.findByText(/la plataforma no envio todos los datos necesarios/i)).toBeInTheDocument();
+    expect(await screen.findByText(/la plataforma no envió todos los datos necesarios/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /volver a integraciones/i }));
 
     expect(consoleLogSpy).toHaveBeenCalledWith("Mocked navigate to: /integracion?channel=whatsapp");
@@ -223,7 +223,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
     await act(async () => {
       loginCallback?.({ status: "connected", authResponse: { code: "meta-code" } });
     });
-    expect((await screen.findAllByText(/No pudimos confirmar el resultado\. Vuelve a integraciones y actualiza el estado/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/No pudimos confirmar el resultado\. Volvé a integraciones y actualizá el estado/)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/No se guardaron los cambios/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /volver a integraciones/i })).toBeEnabled();
     expect(mockedTenantService.completeWhatsappEmbeddedSignup).toHaveBeenCalledTimes(1);
@@ -398,7 +398,7 @@ describe("WhatsappEmbeddedSignupPage", () => {
     render(<MemoryRouter initialEntries={["/t/org-a/integracion/whatsapp/connect?tenant=org-b&app_id=app&config_id=cfg"]}>
       <WhatsappEmbeddedSignupPage />
     </MemoryRouter>);
-    expect(screen.getByRole("button", { name: /parametros incompletos/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /parámetros incompletos/i })).toBeDisabled();
     expect(window.FB?.init).not.toHaveBeenCalled();
     expect(mockedTenantService.completeWhatsappEmbeddedSignup).not.toHaveBeenCalled();
   });

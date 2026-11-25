@@ -326,7 +326,7 @@ export default function SuperAdminDashboard() {
   const owner = tenantProfile360?.owner;
   const updatedAt = tenantProfile360?.meta?.last_updated_at;
   return <div className="platform-workspace" data-testid="platform-workspace">
-    <header className="platform-header"><div><div className="platform-eyebrow"><ShieldCheck size={15} aria-hidden="true" />Administración de plataforma</div><h1>Tu operación, en un solo lugar</h1><p>Organizaciones, relaciones comerciales y canales. Una vista compartida para decidir el próximo paso.</p></div><Button onClick={handleCreate}><Plus className="mr-2 h-4 w-4" />Nueva organización</Button></header>
+    <header className="platform-header"><div><div className="platform-eyebrow"><ShieldCheck size={15} aria-hidden="true" />Administración de plataforma</div><h1>Operación de la plataforma</h1><p>Organizaciones, relaciones comerciales y canales. Una vista compartida para decidir el próximo paso.</p></div><Button onClick={handleCreate}><Plus className="mr-2 h-4 w-4" />Nueva organización</Button></header>
     <nav className="platform-navigation" aria-label="Secciones de plataforma">{sections.map(({ id, label, icon: Icon }) => <Link key={id} to={{ search: `?${sectionUrl(id)}` }} aria-current={section === id ? 'page' : undefined}><Icon size={17} aria-hidden="true" />{label}</Link>)}</nav>
     {hasVerifiedSession ? <div className="flex justify-end"><WorkspaceModuleFinder
       contextKey={JSON.stringify(["platform", user?.id, user?.rol, hasVerifiedSession, organizationProfileVerified, selectedProfileSlug, section])}

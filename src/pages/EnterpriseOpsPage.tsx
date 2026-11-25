@@ -100,7 +100,7 @@ const EnterpriseOpsPage = () => {
       title: 'Estado general',
       to: '/enterprise',
       icon: ServerCog,
-      note: 'Base de la operacion, sesiones y datos listos para trabajar.',
+      note: 'Base de la operación, sesiones y datos listos para trabajar.',
       query: foundationQuery,
     },
     {
@@ -116,7 +116,7 @@ const EnterpriseOpsPage = () => {
       title: 'Equipo y cobertura',
       to: '/empleados',
       icon: Users,
-      note: 'Categorias, zonas, canales y carga de trabajo por persona.',
+      note: 'Categorías, zonas, canales y carga de trabajo por persona.',
       query: coverageQuery,
     },
     {
@@ -140,15 +140,15 @@ const EnterpriseOpsPage = () => {
       title: 'Canales y avisos',
       to: '/notificaciones',
       icon: BellRing,
-      note: 'Notificaciones, reglas de envio y estado de entrega.',
+      note: 'Notificaciones, reglas de envío y estado de entrega.',
       query: hooksQuery,
     },
     {
       key: 'templates',
-      title: 'Respuestas rapidas',
+      title: 'Respuestas rápidas',
       to: '/perfil/plantillas-respuesta',
       icon: FileText,
-      note: 'Mensajes reutilizables para responder mejor y mas rapido.',
+      note: 'Mensajes reutilizables para responder mejor y más rápido.',
       query: hooksQuery,
     },
     {
@@ -156,7 +156,7 @@ const EnterpriseOpsPage = () => {
       title: 'Atención en vivo',
       to: '/chatcrm',
       icon: MessagesSquare,
-      note: 'Continuidad entre conversaciones, derivacion humana y contexto.',
+      note: 'Continuidad entre conversaciones, derivación humana y contexto.',
       query: inboxQuery,
     },
   ] as const;
@@ -166,7 +166,7 @@ const EnterpriseOpsPage = () => {
       <EnterprisePageHeader
         badge="Centro operativo"
         title="Operación omnicanal"
-        description="Un tablero para ordenar conversaciones, reclamos, equipo, canales y decisiones del dia."
+        description="Un tablero para ordenar conversaciones, reclamos, equipo, canales y decisiones del día."
         meta={`${modules.length} secciones disponibles`}
       />
 
@@ -191,7 +191,7 @@ const EnterpriseOpsPage = () => {
               <CardContent>
                 <Button asChild className="w-full" variant={module.query.isError ? 'outline' : 'default'}>
                   <Link to={module.to}>
-                    Abrir modulo
+                    Abrir módulo
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -212,7 +212,7 @@ const EnterpriseOpsPage = () => {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-3">
             <ReadinessStat label="Sistema" value={foundationQuery.data?.ok ? 'listo' : '--'} />
-            <ReadinessStat label="Organizacion" value={String(currentTenantQuery.data?.tenant?.slug ?? currentSlug ?? '--')} />
+            <ReadinessStat label="Organización" value={String(currentTenantQuery.data?.tenant?.slug ?? currentSlug ?? '--')} />
             <ReadinessStat label="Salud" value={formatHealth(healthQuery.data?.health_score)} />
             <ReadinessStat label="Equipo" value={String(coverageQuery.data?.employees.length ?? 0)} />
             <ReadinessStat label="Conversaciones" value={String(inboxQuery.data?.items.length ?? 0)} />
@@ -228,7 +228,7 @@ const EnterpriseOpsPage = () => {
               <ServerCog className="h-5 w-5 text-muted-foreground" />
               Estado de secciones
             </CardTitle>
-            <CardDescription>Senales para saber que se puede usar ahora.</CardDescription>
+            <CardDescription>Señales para saber qué se puede usar ahora.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <ContractLine label="Base operativa" value={foundationQuery.data?.ok ? 'activo' : undefined} />

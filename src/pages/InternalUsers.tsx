@@ -717,7 +717,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
       setRouting(routingData);
     } catch (err: unknown) {
       if (!isCurrent()) return;
-      setError(getErrorMessage(err, 'Error al cargar empleados o categorias.'));
+      setError(getErrorMessage(err, 'No pudimos cargar empleados ni categorías. Recargá la página e intentá de nuevo.'));
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -878,7 +878,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
     } catch (err: unknown) {
       if (!scopeIsCurrent()) return;
       const backendMessage = getBackendErrorText(err);
-      toast.error(backendMessage || getErrorMessage(err, 'Error al crear empleado.'));
+      toast.error(backendMessage || getErrorMessage(err, 'No pudimos crear el empleado. Revisá los datos e intentá otra vez.'));
     }
   };
 
@@ -942,7 +942,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
     } catch (err: unknown) {
       if (!scopeIsCurrent()) return;
       const backendMessage = getBackendErrorText(err);
-      toast.error(backendMessage || getErrorMessage(err, 'Error al actualizar empleado.'));
+      toast.error(backendMessage || getErrorMessage(err, 'No pudimos actualizar el empleado. Intentá otra vez.'));
     }
   };
 
@@ -960,7 +960,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
           <div>
             <h2 className="text-3xl font-black tracking-tight text-foreground">Empleados, roles y permisos</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Crea usuarios internos y define que puede ver, que reclamos atiende y desde que canales trabaja. La configuracion operativa queda en avanzado.
+              Creá usuarios internos y definí qué puede ver, qué reclamos atiende y desde qué canales trabaja. La configuración operativa queda en avanzado.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -984,7 +984,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
           <AccordionTrigger className="rounded-2xl border border-border/60 bg-card px-4 py-3 text-left hover:no-underline">
             <span className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Diagnostico avanzado de cobertura
+              Diagnóstico avanzado de cobertura
               {uncoveredCategories.length ? (
                 <Badge variant="outline" className="ml-2 rounded-full">
                   {uncoveredCategories.length} sin responsable
@@ -1064,7 +1064,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Nombre visible</label>
-                    <Input value={nombre} onChange={(event) => setNombre(event.target.value)} placeholder="Juan Perez" required />
+                    <Input value={nombre} onChange={(event) => setNombre(event.target.value)} placeholder="Juan Pérez" required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Email de acceso</label>
@@ -1080,7 +1080,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
               <section className="space-y-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
-                  <p className="text-xs text-muted-foreground">Elegí una plantilla y después ajusta lo necesario.</p>
+                  <p className="text-xs text-muted-foreground">Elegí una plantilla y después ajustá lo necesario.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {ROLE_TEMPLATES.map((template) => {
@@ -1108,7 +1108,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   selected={roles}
                   keepOne
                   onToggle={(value) => toggleValue(value, roles, setRoles, { keepOne: true })}
-                  empty="Backend no publico roles adicionales."
+                  empty="El servidor no publicó roles adicionales."
                 />
               </section>
 
@@ -1118,7 +1118,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   <p className="text-xs text-muted-foreground">Seleccioná los temas publicados que va a atender. El catálogo se administra por separado.</p>
                 </div>
                 <SearchableOptionGroup
-                  label="Que reclamos atiende"
+                  label="Qué reclamos atiende"
                   options={categoryOptions}
                   selected={categoriaIds}
                   onToggle={(value) => toggleValue(value, categoriaIds, setCategoriaIds)}
@@ -1179,7 +1179,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
             <section className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
-                <p className="text-xs text-muted-foreground">Actualiza el nombre visible o cambia la contraseña temporal.</p>
+                <p className="text-xs text-muted-foreground">Actualizá el nombre visible o cambiá la contraseña temporal.</p>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -1196,7 +1196,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
             <section className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
-                <p className="text-xs text-muted-foreground">Usa una plantilla para no tocar permisos uno por uno.</p>
+                <p className="text-xs text-muted-foreground">Usá una plantilla para no tocar permisos uno por uno.</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {ROLE_TEMPLATES.map((template) => {
@@ -1218,16 +1218,16 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
                   );
                 })}
               </div>
-              <OptionGroup label="Rol del usuario" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="Backend no publico roles adicionales." />
+              <OptionGroup label="Rol del usuario" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="El servidor no publicó roles adicionales." />
             </section>
 
             <section className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">3. Alcance operativo</p>
-                <p className="text-xs text-muted-foreground">Asigna solo lo que este empleado debe atender.</p>
+                <p className="text-xs text-muted-foreground">Asigná solo lo que este empleado debe atender.</p>
               </div>
               <SearchableOptionGroup
-                label="Que reclamos atiende"
+                label="Qué reclamos atiende"
                 options={categoryOptions}
                 selected={editCategoriaIds}
                 onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)}
@@ -1341,7 +1341,7 @@ function ScopedInternalUsers({ tenantSlug }: { tenantSlug: string }) {
           <AccordionTrigger className="rounded-2xl border border-border/60 bg-card px-4 py-3 text-left hover:no-underline">
             <span className="flex items-center gap-2">
               <Settings className="h-4 w-4 text-primary" />
-              Matriz tecnica de ruteo
+              Matriz técnica de ruteo
             </span>
           </AccordionTrigger>
           <AccordionContent className="pt-4">
