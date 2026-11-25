@@ -106,7 +106,7 @@ const ModuleMiniVisual = ({
             <span className="h-2.5 w-2.5 rounded-full bg-primary" />
             <span className="h-2 w-24 rounded-full bg-foreground/20" />
           </div>
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-blue-800 dark:text-primary">
             En vivo
           </span>
         </div>
@@ -139,11 +139,11 @@ const ModuleMiniVisual = ({
   if (kind === "tickets") {
     return (
       <div className="mt-5 flex items-center gap-2 rounded-[12px] border border-border/70 bg-background/80 p-3 text-[11px] font-semibold" aria-hidden="true">
-        <span className="rounded-md bg-amber-500/15 px-2 py-1 text-amber-700 dark:text-amber-300">Ingresado</span>
+        <span className="rounded-md bg-amber-500/15 px-2 py-1 text-amber-800 dark:text-amber-300">Ingresado</span>
         <span className="h-px flex-1 bg-border" />
-        <span className="rounded-md bg-primary/15 px-2 py-1 text-primary">En curso</span>
+        <span className="rounded-md bg-primary/15 px-2 py-1 text-blue-800 dark:text-primary">En curso</span>
         <span className="h-px flex-1 bg-border" />
-        <span className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-700 dark:text-emerald-300">Resuelto</span>
+        <span className="rounded-md bg-emerald-500/15 px-2 py-1 text-emerald-800 dark:text-emerald-300">Resuelto</span>
       </div>
     );
   }
@@ -182,7 +182,7 @@ const ModuleMiniVisual = ({
             <Globe className="h-3.5 w-3.5 text-primary" />
             Portal + Widget + WhatsApp
           </span>
-          <span className="text-xs text-muted-foreground">Seguimiento unificado en un solo tablero</span>
+          <span className="text-xs text-slate-600 dark:text-muted-foreground">Seguimiento unificado en un solo tablero</span>
         </div>
       </div>
     );
@@ -239,13 +239,13 @@ const ModulesBentoSection = () => {
                       <span className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-primary/15 bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </span>
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-muted-foreground">
                         {mod.eyebrow}
                       </span>
                     </div>
 
                     <h3 className="mt-4 text-lg font-bold leading-snug text-foreground">{mod.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{mod.description}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-muted-foreground">{mod.description}</p>
 
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       {mod.pills.map((pill) => (

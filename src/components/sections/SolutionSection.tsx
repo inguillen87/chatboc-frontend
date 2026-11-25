@@ -89,7 +89,7 @@ const SolutionSection = () => {
 
                   <div className="flex flex-1 flex-col pt-5">
                     <p className="text-base font-semibold leading-6 text-foreground">{solution.title}</p>
-                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{solution.description}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-muted-foreground">{solution.description}</p>
                     <ul className="mt-6 space-y-3" aria-label={`Capacidades para ${solution.sector}`}>
                       {solution.capabilities.map((capability) => (
                         <li key={capability} className="flex gap-3 text-sm leading-5 text-foreground/85">
