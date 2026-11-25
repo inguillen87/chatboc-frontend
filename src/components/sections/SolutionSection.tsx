@@ -1,4 +1,5 @@
 import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Building2, Check, GraduationCap, Landmark } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -8,6 +9,7 @@ const solutions = [
   {
     icon: Landmark,
     sector: "Gobierno",
+    accent: "from-sky-500/80 via-primary/80 to-emerald-400/80",
     title: "Atención ciudadana y gestión territorial",
     description: "Recibe consultas y reclamos, registra casos y los deriva al área responsable con su contexto.",
     capabilities: [
@@ -19,6 +21,7 @@ const solutions = [
   {
     icon: Building2,
     sector: "Empresa",
+    accent: "from-primary/85 via-indigo-500/80 to-cyan-400/80",
     title: "Atención comercial conectada a la operación",
     description: "Vincula conversaciones con catálogo, pedidos y seguimiento sin separar la atención de la venta.",
     capabilities: [
@@ -30,6 +33,7 @@ const solutions = [
   {
     icon: GraduationCap,
     sector: "Educación",
+    accent: "from-violet-500/80 via-primary/80 to-sky-400/80",
     title: "Gestiones escolares con contexto",
     description: "Ordena consultas y documentación entre familias, secretaría y equipos de la institución.",
     capabilities: [
@@ -42,18 +46,20 @@ const solutions = [
 
 const SolutionSection = () => {
   const navigate = useNavigate();
+  const reduceMotion = Boolean(useReducedMotion());
+  const canAnimateInView = !reduceMotion && typeof IntersectionObserver !== "undefined";
 
   return (
     <section
       id="solucion"
       aria-labelledby="solutions-title"
-      className="bg-muted/25 py-14 text-foreground md:py-20"
+      className="bg-muted/25 py-20 text-foreground md:py-28"
     >
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <div className="chatboc-section-kicker mb-4">Soluciones</div>
-            <h2 id="solutions-title" className="chatboc-section-heading">
+            <h2 id="solutions-title" className="chatboc-section-heading text-balance">
               Una plataforma, tres formas de operar
             </h2>
             <p className="chatboc-section-copy mt-4 max-w-2xl">
@@ -61,19 +67,24 @@ const SolutionSection = () => {
             </p>
           </div>
 
-          <div className="mt-9 grid gap-4 lg:grid-cols-3">
-            {solutions.map((solution) => {
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+            {solutions.map((solution, index) => {
               const Icon = solution.icon;
               return (
-                <article
+                <motion.article
                   key={solution.sector}
-                  className="flex h-full flex-col rounded-[12px] border border-border bg-card p-5 shadow-sm sm:p-6"
+                  initial={canAnimateInView ? { opacity: 0.96, y: 18 } : false}
+                  whileInView={canAnimateInView ? { opacity: 1, y: 0 } : undefined}
+                  viewport={canAnimateInView ? { once: true, amount: 0.2 } : undefined}
+                  transition={{ duration: canAnimateInView ? 0.4 : 0, delay: canAnimateInView ? index * 0.08 : 0, ease: "easeOut" }}
+                  className="group relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)] dark:hover:shadow-[0_22px_55px_rgba(0,0,0,0.42)]"
                 >
+                  <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${solution.accent}`} aria-hidden="true" />
                   <div className="flex items-center gap-3 border-b border-border/70 pb-5">
-                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[11px] bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
                       <Icon className="h-5 w-5" aria-hidden="true" />
                     </span>
-                    <h3 className="text-lg font-semibold text-foreground">{solution.sector}</h3>
+                    <h3 className="text-lg font-bold text-foreground">{solution.sector}</h3>
                   </div>
 
                   <div className="flex flex-1 flex-col pt-5">
@@ -81,22 +92,22 @@ const SolutionSection = () => {
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">{solution.description}</p>
                     <ul className="mt-6 space-y-3" aria-label={`Capacidades para ${solution.sector}`}>
                       {solution.capabilities.map((capability) => (
-                        <li key={capability} className="flex gap-3 text-sm leading-5 text-foreground/80">
+                        <li key={capability} className="flex gap-3 text-sm leading-5 text-foreground/85">
                           <Check className="mt-0.5 h-4 w-4 flex-none text-primary" aria-hidden="true" />
                           <span>{capability}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
-                </article>
+                </motion.article>
               );
             })}
           </div>
 
-          <div className="mt-8 flex justify-start">
+          <div className="mt-10 flex justify-start">
             <Button
               size="lg"
-              className="chatboc-cta-primary w-full rounded-[8px] font-semibold sm:w-auto"
+              className="chatboc-cta-primary h-12 w-full rounded-[10px] px-6 font-semibold sm:w-auto"
               onClick={() => navigate("/contacto")}
             >
               Solicitar demostración
