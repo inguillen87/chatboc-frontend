@@ -617,17 +617,19 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
           </button>
         </div>
 
-        <button
-          ref={mobileMenuButtonRef}
-          type="button"
-          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:hidden"
-          onClick={() => setMenuOpen((current) => !current)}
-          aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
-          aria-expanded={menuOpen}
-          aria-controls={MOBILE_MENU_ID}
-        >
-          {menuOpen ? <X /> : <Menu />}
-        </button>
+        <div className="flex shrink-0 items-center pl-14 md:hidden">
+          <button
+            ref={mobileMenuButtonRef}
+            type="button"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            onClick={() => setMenuOpen((current) => !current)}
+            aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={menuOpen}
+            aria-controls={MOBILE_MENU_ID}
+          >
+            {menuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
       </div>
 
       {menuOpen ? (

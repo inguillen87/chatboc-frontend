@@ -34,7 +34,7 @@ const ScrollToTopButton = () => {
       tabIndex={visible ? undefined : -1}
       className={cn(
         buttonVariants({ variant: "secondary", size: "icon" }),
-        "fixed bottom-5 right-5 z-40 h-11 w-11 transition-opacity motion-reduce:transition-none",
+        "chatboc-scroll-top h-11 w-11 transition-opacity motion-reduce:transition-none",
         visible ? "opacity-100" : "pointer-events-none opacity-0"
       )}
       title="Volver arriba"

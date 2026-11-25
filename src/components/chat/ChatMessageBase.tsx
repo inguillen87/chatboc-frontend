@@ -578,10 +578,10 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   });
 
   const renderText = simple ? (
-    <pre className="whitespace-pre-wrap text-justify max-w-none text-sm mb-2 chat-message">{simplified}</pre>
+    <pre className="whitespace-pre-wrap text-left font-sans min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-sm mb-2 chat-message">{simplified}</pre>
   ) : (
     <div
-      className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2 chat-message"
+      className="whitespace-pre-wrap text-left min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-sm [&_p]:my-0 mb-2 chat-message"
       dangerouslySetInnerHTML={{ __html: cleanedHtml }}
     />
   );
@@ -760,7 +760,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
       transformTemplate={reducedMotion ? stationaryTransform : undefined}
     >
-      <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
+      <div className={`flex max-w-full min-w-0 items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && (
           <div className={botBadgeClass}>
             {botAvatar ? (

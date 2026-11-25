@@ -7,7 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotionConfig } from 'framer-motion';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantAwareUrl } from '@/utils/tenantUrls';
@@ -22,7 +22,7 @@ interface CategorizedButtonsProps {
 // We need a simplified button handler here since ChatButtons is complex.
 // Let's create a lean version for the accordion content.
 const SimpleButton: React.FC<{ boton: Boton, onClick: (boton: Boton) => void, resolveUrl: (url?: string) => string | undefined }> = ({ boton, onClick, resolveUrl }) => {
-    const baseClass = "rounded-xl px-3 py-1 text-sm font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all text-left";
+    const baseClass = "min-h-11 inline-flex items-center rounded-xl px-3.5 py-2 text-sm font-semibold whitespace-normal break-words bg-background/95 text-foreground border border-primary/35 hover:bg-primary/10 hover:border-primary/60 hover:shadow transition-all motion-reduce:transition-none text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60";
 
     if (boton.url) {
         const resolvedUrl = resolveUrl(boton.url);
@@ -38,7 +38,7 @@ const SimpleButton: React.FC<{ boton: Boton, onClick: (boton: Boton) => void, re
                         openExternalLink(resolvedUrl);
                     }
                 }}
-                className={`${baseClass} no-underline inline-block w-full`}
+                className={`${baseClass} no-underline w-full`}
                 title={boton.texto}
             >
                 {boton.texto}
@@ -48,6 +48,7 @@ const SimpleButton: React.FC<{ boton: Boton, onClick: (boton: Boton) => void, re
 
     return (
         <button
+            type="button"
             onClick={() => onClick(boton)}
             className={`${baseClass} w-full`}
             title={boton.texto}
@@ -64,6 +65,7 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
   onInternalAction,
 }) => {
   const { currentSlug } = useTenant();
+  const reducedMotion = Boolean(useReducedMotionConfig());
 
   const resolveUrl = useMemo(
     () => (url?: string) => {
@@ -132,14 +134,14 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
   return (
     <motion.div
       className="w-full mt-2"
-      initial={{ opacity: 0, y: -10 }}
+      initial={reducedMotion ? false : { opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      transition={reducedMotion ? { duration: 0 } : { duration: 0.3, ease: "easeOut" }}
     >
       <Accordion type="multiple" className="w-full">
         {categorias.map((categoria, index) => (
           <AccordionItem value={`cat-${index}`} key={index}>
-            <AccordionTrigger className="text-sm font-semibold hover:no-underline py-3">
+            <AccordionTrigger className="min-h-11 text-sm font-semibold hover:no-underline py-3">
               {categoria.titulo}
             </AccordionTrigger>
             <AccordionContent>

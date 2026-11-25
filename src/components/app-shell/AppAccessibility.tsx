@@ -17,9 +17,23 @@ import AccessibilityToggle, {
 import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
 import { useUser } from '@/hooks/useUser';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 
 const DOCK_HIDDEN_SEGMENTS = new Set(["iframe", "integracion"]);
 const PUBLIC_TICKET_SEGMENTS = new Set(["chat", "ticket"]);
+
+function isPortalRoute(pathname: string) {
+  const segments = pathname
+    .toLowerCase()
+    .split("/")
+    .filter(Boolean);
+  const portalIndex = segments.indexOf("portal");
+  if (portalIndex === 0 || portalIndex === 1) return true;
+  return (
+    portalIndex === 2 &&
+    TENANT_ROUTE_PREFIXES.some((prefix) => prefix === segments[0])
+  );
+}
 
 function shouldHideDock(pathname: string) {
   return pathname
@@ -80,6 +94,7 @@ export function AppAccessibility() {
   const publicTicketRoute = isPublicTicketRoute(location.pathname);
   const focusedPublicRoute = isFocusedPublicRoute(location.pathname);
   const publicSpaceHome = isPublicSpaceHome(location.pathname);
+  const portalRoute = isPortalRoute(location.pathname);
 
   useEffect(() => {
     applyAccessibilityPrefs(readAccessibilityPrefs());
@@ -209,6 +224,8 @@ export function AppAccessibility() {
             focusedPublicRoute ? " chatboc-a11y-dock--focused-public" : ""
           }${
             publicSpaceHome ? " chatboc-a11y-dock--public-space" : ""
+          }${
+            portalRoute ? " chatboc-a11y-dock--portal" : ""
           }`}
           role="region"
           aria-label="Accesibilidad de la plataforma"

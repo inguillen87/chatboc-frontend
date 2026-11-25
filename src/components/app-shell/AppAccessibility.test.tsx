@@ -60,4 +60,15 @@ describe('AppAccessibility focused public routes', () => {
       'chatboc-a11y-dock--focused-public',
     );
   });
+
+  it.each(['/portal/dashboard', '/t/junin/portal/reclamos', '/junin/portal/catalogo'])(
+    'applies the portal header layout class on %s',
+    (pathname) => {
+      renderAt(pathname);
+
+      const dock = screen.getByRole('region', { name: 'Accesibilidad de la plataforma' });
+      expect(dock).toHaveClass('chatboc-a11y-dock--portal');
+      expect(dock).not.toHaveClass('chatboc-a11y-dock--focused-public');
+    },
+  );
 });

@@ -1,6 +1,6 @@
 // src/components/chat/ChatButtons.tsx
 import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotionConfig } from 'framer-motion';
 import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { useTenant } from '@/context/TenantContext';
@@ -46,6 +46,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
 }) => {
   const { currentSlug } = useTenant();
   const isMobile = useIsMobile();
+  const reducedMotion = Boolean(useReducedMotionConfig());
   const [showAll, setShowAll] = useState(false);
 
   const resolveUrl = useMemo(
@@ -163,19 +164,19 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
   };
 
   const baseClass = isDemoSelector
-    ? "w-full min-h-11 rounded-xl px-3 py-2 text-left font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-    : "min-h-10 rounded-xl px-3 py-1.5 text-sm font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60";
+    ? "w-full min-h-11 inline-flex items-center rounded-xl px-3 py-2 text-left text-sm font-semibold whitespace-normal break-words bg-background/95 text-foreground border border-primary/35 hover:bg-primary/10 hover:border-primary/60 hover:shadow transition-all motion-reduce:transition-none shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+    : "min-h-11 inline-flex items-center justify-center rounded-xl px-3.5 py-2 text-sm font-semibold whitespace-normal break-words text-left bg-background/95 text-foreground border border-primary/35 hover:bg-primary/10 hover:border-primary/60 hover:shadow transition-all motion-reduce:transition-none shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60";
 
   const containerClass = isDemoSelector
     ? "grid grid-cols-1 gap-2 mt-3 w-full"
-    : "flex flex-wrap gap-2 mt-3";
+    : "flex flex-wrap gap-2 mt-3 max-w-full";
 
   return (
     <motion.div
       className={containerClass}
-      initial={{ opacity: 0 }}
+      initial={reducedMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ delay: 0.2, duration: 0.3 }}
+      transition={reducedMotion ? { duration: 0 } : { delay: 0.12, duration: 0.22 }}
     >
       {visibleButtons.map((boton, index) =>
         boton.url && !isApiNavigationEndpoint(boton.url) ? (
@@ -192,8 +193,8 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                 openExternalLink(resolvedUrl);
               }
             }}
-            className={`${baseClass} no-underline inline-flex items-center justify-center`}
-            style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
+            className={`${baseClass} no-underline`}
+            style={{ maxWidth: "100%" }}
             title={formatButtonLabel(boton.texto)}
             aria-label={`Abrir opción: ${boton.texto}`}
           >
@@ -205,7 +206,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             type="button"
             onClick={() => handleButtonClick(boton)}
             className={baseClass}
-            style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
+            style={{ maxWidth: "100%" }}
             title={formatButtonLabel(boton.texto)}
             aria-label={`Enviar opción: ${boton.texto}`}
           >
@@ -218,7 +219,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
           type="button"
           onClick={() => setShowAll((current) => !current)}
           className={baseClass}
-          style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
+          style={{ maxWidth: "100%" }}
           aria-expanded={showAll}
           aria-label={showAll ? "Mostrar menos opciones" : `Mostrar ${hiddenCount} opciones más`}
           title={showAll ? "Mostrar menos" : `${moreLabel} (${hiddenCount})`}
