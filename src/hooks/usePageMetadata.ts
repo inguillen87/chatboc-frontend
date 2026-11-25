@@ -21,7 +21,10 @@ const resolveAbsoluteUrl = (value?: string) => {
 export const usePageMetadata = ({ title, description, image, icon, appleTouchIcon }: MetaOptions) => {
   const previous = useRef<{
     title?: string;
+    ogTitle?: string | null;
+    twitterTitle?: string | null;
     description?: string | null;
+    twitterDescription?: string | null;
     ogImage?: string | null;
     twitterImage?: string | null;
     icons?: Array<{ element: HTMLLinkElement; href: string | null; type: string | null; sizes: string | null }>;
@@ -33,7 +36,10 @@ export const usePageMetadata = ({ title, description, image, icon, appleTouchIco
   useEffect(() => {
     previous.current = {
       title: document.title,
+      ogTitle: document.querySelector('meta[property="og:title"]')?.getAttribute('content') ?? null,
+      twitterTitle: document.querySelector('meta[name="twitter:title"]')?.getAttribute('content') ?? null,
       description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? null,
+      twitterDescription: document.querySelector('meta[name="twitter:description"]')?.getAttribute('content') ?? null,
       ogImage: document.querySelector('meta[property="og:image"]')?.getAttribute('content') ?? null,
       twitterImage: document.querySelector('meta[name="twitter:image"]')?.getAttribute('content') ?? null,
       icons: Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]')).map((element) => ({
@@ -52,6 +58,14 @@ export const usePageMetadata = ({ title, description, image, icon, appleTouchIco
 
     if (title) {
       document.title = title;
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) {
+        ogTitle.setAttribute('content', title);
+      }
+      const twitterTitle = document.querySelector('meta[name="twitter:title"]');
+      if (twitterTitle) {
+        twitterTitle.setAttribute('content', title);
+      }
     }
 
     if (description) {
@@ -63,6 +77,11 @@ export const usePageMetadata = ({ title, description, image, icon, appleTouchIco
       const ogDescription = document.querySelector('meta[property="og:description"]');
       if (ogDescription) {
         ogDescription.setAttribute('content', description);
+      }
+
+      const twitterDescription = document.querySelector('meta[name="twitter:description"]');
+      if (twitterDescription) {
+        twitterDescription.setAttribute('content', description);
       }
     }
 
@@ -111,10 +130,36 @@ export const usePageMetadata = ({ title, description, image, icon, appleTouchIco
 
     return () => {
       if (!previous.current) return;
-      const { title: oldTitle, description: oldDescription, ogImage, twitterImage, icons, appleTouchIcons, createdIcon, createdAppleTouchIcon } = previous.current;
+      const {
+        title: oldTitle,
+        ogTitle,
+        twitterTitle,
+        description: oldDescription,
+        twitterDescription,
+        ogImage,
+        twitterImage,
+        icons,
+        appleTouchIcons,
+        createdIcon,
+        createdAppleTouchIcon,
+      } = previous.current;
 
       if (oldTitle !== undefined) {
         document.title = oldTitle;
+      }
+
+      if (ogTitle !== undefined) {
+        const ogTitleMeta = document.querySelector('meta[property="og:title"]');
+        if (ogTitleMeta) {
+          ogTitleMeta.setAttribute('content', ogTitle ?? '');
+        }
+      }
+
+      if (twitterTitle !== undefined) {
+        const twitterTitleMeta = document.querySelector('meta[name="twitter:title"]');
+        if (twitterTitleMeta) {
+          twitterTitleMeta.setAttribute('content', twitterTitle ?? '');
+        }
       }
 
       if (oldDescription !== undefined) {
@@ -125,6 +170,13 @@ export const usePageMetadata = ({ title, description, image, icon, appleTouchIco
         const ogDescription = document.querySelector('meta[property="og:description"]');
         if (ogDescription) {
           ogDescription.setAttribute('content', oldDescription ?? '');
+        }
+      }
+
+      if (twitterDescription !== undefined) {
+        const twitterDescriptionMeta = document.querySelector('meta[name="twitter:description"]');
+        if (twitterDescriptionMeta) {
+          twitterDescriptionMeta.setAttribute('content', twitterDescription ?? '');
         }
       }
 

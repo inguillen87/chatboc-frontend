@@ -44,7 +44,7 @@ const TenantNewsPage = () => {
   const isStale = newsQuery.isSuccess && newsQuery.isFetching;
 
   return (
-    <TenantShell>
+    <TenantShell titleSection="Noticias">
       {!slug ? (
         <Card>
           <CardHeader>

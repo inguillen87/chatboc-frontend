@@ -11,6 +11,7 @@ import PricingSection from "@/components/sections/PricingSection";
 import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
 import CtaSection from "@/components/sections/CtaSection";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
+import { LANDING_TITLE } from "@/utils/pageTitles";
 
 const LegacyLandingAnchor = ({ id }: { id: string }) => (
   <span id={id} aria-hidden="true" className="block h-0 scroll-mt-24 overflow-hidden" />
@@ -24,7 +25,7 @@ const Index = () => {
     typeof window.requestAnimationFrame === "function" &&
     typeof ResizeObserver !== "undefined";
   useEffect(() => {
-    document.title = "Chatboc — Agentes IA con tu marca para atención, ventas y gestión";
+    document.title = LANDING_TITLE;
 
     const sectionId = safeSessionStorage.getItem("pendingScrollSection");
     if (sectionId) {
