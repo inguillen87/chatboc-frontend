@@ -6,7 +6,7 @@ import TicketFilterPopover from './TicketFilterPopover';
 import ConversationPanel from './ConversationPanel';
 import DetailsPanel from './DetailsPanel';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -336,27 +336,24 @@ const TicketOpsStat = ({
 }) => {
   const toneStyle: Record<'blue' | 'amber' | 'emerald' | 'violet', React.CSSProperties | undefined> = {
     blue: {
-      borderColor: 'color-mix(in srgb, var(--brand-accent-1, #3b82f6) 32%, transparent)',
-      backgroundColor: 'color-mix(in srgb, var(--brand-accent-1, #3b82f6) 12%, transparent)',
-      color: 'var(--brand-accent-1, #3b82f6)',
+      borderColor: 'color-mix(in srgb, var(--brand-accent-1, hsl(var(--primary))) 32%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--brand-accent-1, hsl(var(--primary))) 12%, transparent)',
     },
     amber: undefined,
     emerald: {
-      borderColor: 'color-mix(in srgb, var(--brand-accent-4, #10b981) 32%, transparent)',
-      backgroundColor: 'color-mix(in srgb, var(--brand-accent-4, #10b981) 12%, transparent)',
-      color: 'var(--brand-accent-4, #10b981)',
+      borderColor: 'color-mix(in srgb, var(--brand-accent-4, hsl(var(--primary))) 32%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--brand-accent-4, hsl(var(--primary))) 12%, transparent)',
     },
     violet: {
-      borderColor: 'color-mix(in srgb, var(--brand-accent-2, #8b5cf6) 32%, transparent)',
-      backgroundColor: 'color-mix(in srgb, var(--brand-accent-2, #8b5cf6) 12%, transparent)',
-      color: 'var(--brand-accent-2, #8b5cf6)',
+      borderColor: 'color-mix(in srgb, var(--brand-accent-2, hsl(var(--primary))) 32%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--brand-accent-2, hsl(var(--primary))) 12%, transparent)',
     },
   };
   const toneClass = {
-    blue: 'border-primary/25 bg-primary/10 text-primary',
-    amber: 'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    emerald: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-    violet: 'border-primary/25 bg-primary/10 text-primary',
+    blue: 'border-primary/25 bg-primary/10 text-foreground',
+    amber: 'border-amber-500/35 bg-amber-500/10 text-foreground',
+    emerald: 'border-emerald-500/35 bg-emerald-500/10 text-foreground',
+    violet: 'border-primary/25 bg-primary/10 text-foreground',
   }[tone];
 
   const Comp = onClick ? 'button' : 'div';
@@ -540,6 +537,18 @@ interface NewTicketsPanelProps {
 
 const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) => {
   const isMobile = useIsMobile();
+  const reduceMotion = Boolean(useReducedMotion());
+  const effectiveMobileViewVariants = React.useMemo(
+    () =>
+      reduceMotion
+        ? { enter: { opacity: 1, x: 0 }, center: { opacity: 1, x: 0 }, exit: { opacity: 1, x: 0 } }
+        : mobileViewVariants,
+    [reduceMotion],
+  );
+  const effectiveMobileViewTransition = React.useMemo(
+    () => (reduceMotion ? { duration: 0 } : mobileViewTransition),
+    [reduceMotion],
+  );
   const workspaceRef = React.useRef<HTMLDivElement>(null);
   const workspaceWidth = useTicketWorkspaceWidth(workspaceRef);
   const shouldUseDetailsDrawer = !isMobile && workspaceWidth <= DETAILS_DRAWER_MAX_WIDTH;
@@ -1035,10 +1044,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
     disabled?: boolean,
   ) =>
     cn(
-      'flex h-11 items-center justify-center gap-1.5 rounded-[8px] border px-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none',
+      'flex h-11 items-center justify-center gap-1.5 rounded-[8px] border px-2 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none',
       mobileView === value
         ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-        : 'border-border/70 bg-muted/60 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+        : 'border-border/70 bg-muted/60 text-foreground/85 hover:border-primary/40 hover:text-foreground',
       disabled && 'hover:border-border/70 hover:text-muted-foreground',
     );
 
@@ -1832,12 +1841,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {mobileView === 'tickets' && (
                 <motion.div
                   key="tickets"
-                  variants={mobileViewVariants}
-                  initial="enter"
+                  variants={effectiveMobileViewVariants}
+                  initial={reduceMotion ? false : 'enter'}
                   animate="center"
                   exit="exit"
                   custom={mobileTransitionDirection}
-                  transition={mobileViewTransition}
+                  transition={effectiveMobileViewTransition}
                   className="absolute inset-0 flex h-full min-h-0 min-w-0 overflow-hidden"
                   role="tabpanel"
                   id={getMobilePanelId('tickets')}
@@ -1856,12 +1865,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {mobileView === 'chat' && (
                 <motion.div
                   key="chat"
-                  variants={mobileViewVariants}
-                  initial="enter"
+                  variants={effectiveMobileViewVariants}
+                  initial={reduceMotion ? false : 'enter'}
                   animate="center"
                   exit="exit"
                   custom={mobileTransitionDirection}
-                  transition={mobileViewTransition}
+                  transition={effectiveMobileViewTransition}
                   className="absolute inset-0 flex h-full min-h-0 min-w-0 overflow-hidden"
                   role="tabpanel"
                   id={getMobilePanelId('chat')}
@@ -1882,12 +1891,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               {mobileView === 'details' && (
                 <motion.div
                   key="details"
-                  variants={mobileViewVariants}
-                  initial="enter"
+                  variants={effectiveMobileViewVariants}
+                  initial={reduceMotion ? false : 'enter'}
                   animate="center"
                   exit="exit"
                   custom={mobileTransitionDirection}
-                  transition={mobileViewTransition}
+                  transition={effectiveMobileViewTransition}
                   className="absolute inset-0 flex h-full min-h-0 min-w-0 overflow-hidden"
                   role="tabpanel"
                   id={getMobilePanelId('details')}
@@ -1899,6 +1908,54 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               )}
             </AnimatePresence>
           </div>
+          {selectedTicket && (mobileView === 'chat' || mobileView === 'details') ? (
+            <nav
+              data-testid="mobile-ticket-action-bar"
+              aria-label="Acciones rápidas del reclamo"
+              className="shrink-0 border-t border-border bg-card/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_hsl(var(--foreground)/0.06)] backdrop-blur"
+            >
+              <div className="grid grid-cols-3 gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-[44px] gap-1.5 px-2 text-xs font-semibold"
+                  onClick={() => setActiveMobileView('tickets')}
+                >
+                  <PanelLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Bandeja</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  className="min-h-[44px] gap-1.5 px-2 text-xs font-semibold"
+                  onClick={() => {
+                    if (mobileView !== 'chat') {
+                      setActiveMobileView('chat');
+                    }
+                    window.requestAnimationFrame(() => {
+                      const composer = workspaceRef.current?.querySelector<HTMLElement>(
+                        'textarea[aria-label="Responder ticket"], textarea, input[placeholder*="Responder"]',
+                      );
+                      composer?.focus();
+                    });
+                  }}
+                >
+                  <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Responder</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={mobileView === 'details' ? 'secondary' : 'outline'}
+                  className="min-h-[44px] gap-1.5 px-2 text-xs font-semibold"
+                  aria-pressed={mobileView === 'details'}
+                  onClick={() => setActiveMobileView(mobileView === 'details' ? 'chat' : 'details')}
+                >
+                  <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{mobileView === 'details' ? 'Chat' : 'Ficha'}</span>
+                </Button>
+              </div>
+            </nav>
+          ) : null}
         </div>
       ) : (
         <div

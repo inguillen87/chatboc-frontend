@@ -1048,7 +1048,7 @@ export const SurveyEditor = ({
       aria-busy={isSubmissionPending}
     >
       {structureLocked && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-foreground">
           Esta encuesta ya esta publicada. Podes corregir textos, fechas y configuracion, pero para agregar o quitar
           preguntas/opciones tenes que crear una nueva version editable.
         </div>
@@ -1767,14 +1767,14 @@ export const SurveyEditor = ({
       <SurveyPreviewTester draft={preparedPayload} />
 
       <div className="flex flex-wrap gap-3">
-        <Button type="button" onClick={handleSave} disabled={isSubmissionPending} className="inline-flex items-center gap-2">
-          <UploadCloud className="h-4 w-4" />{' '}
+        <Button type="button" onClick={handleSave} disabled={isSubmissionPending} className="inline-flex min-h-[44px] items-center gap-2">
+          <UploadCloud className="h-4 w-4" aria-hidden="true" />{' '}
           {submissionAction === 'save' || (isSaving && submissionAction !== 'publish')
             ? 'Guardando...'
             : 'Guardar cambios'}
         </Button>
         {onPublish && (
-          <Button type="button" variant="secondary" onClick={handlePublish} disabled={isSubmissionPending}>
+          <Button type="button" variant="secondary" onClick={handlePublish} disabled={isSubmissionPending} className="min-h-[44px]">
             {submissionAction === 'publish'
               ? 'Guardando y publicando...'
               : isPublishing

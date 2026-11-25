@@ -219,7 +219,7 @@ export const SurveyRecentResponses = ({
                   </p>
                 )}
                 <details className="mt-3 text-xs text-muted-foreground">
-                  <summary className="cursor-pointer select-none text-xs font-medium text-foreground">
+                  <summary className="inline-flex min-h-[32px] cursor-pointer select-none items-center rounded-sm py-1 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     Ver detalle de la respuesta
                   </summary>
                   {renderDetails(response)}

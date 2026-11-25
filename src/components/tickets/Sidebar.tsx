@@ -838,7 +838,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnreadCount > 0
                     ? 'border-primary/35 bg-primary/10 text-foreground'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    : 'border-border/70 bg-muted/40 text-foreground/85',
                 )}
                 style={
                   queueUnreadCount > 0
@@ -857,7 +857,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueRiskCount > 0
                     ? 'border-amber-400/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    : 'border-border/70 bg-muted/40 text-foreground/85',
                 )}
               >
                 Riesgo
@@ -868,7 +868,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnassignedCount > 0
                     ? 'border-primary/30 bg-primary/10 text-foreground'
-                    : 'border-border/70 bg-muted/55 text-muted-foreground',
+                    : 'border-border/70 bg-muted/40 text-foreground/85',
                 )}
                 style={
                   queueUnassignedCount > 0

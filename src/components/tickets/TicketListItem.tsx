@@ -239,9 +239,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
   return (
     <motion.button
       type="button"
-      whileHover={{ y: -1.5, scale: 1.008 }}
-      whileTap={{ scale: 0.99 }}
-      transition={{ duration: 0.15 }}
+      whileHover={reduceMotion ? undefined : { y: -1.5, scale: 1.008 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.99 }}
+      transition={{ duration: reduceMotion ? 0 : 0.15 }}
       className={cn(
         'relative w-full rounded-2xl border text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 border-l-[5px]',
         categoryColors.border,

@@ -1481,11 +1481,11 @@ function OperationsCommandCockpit({
                 {!card.href ? (
                   <span className="text-xs text-muted-foreground">Acceso no habilitado</span>
                 ) : card.href.startsWith('#') ? (
-                  <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
+                  <a href={card.href} className="inline-flex min-h-[32px] items-center rounded-sm py-1 text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     {card.action}
                   </a>
                 ) : (
-                  <Link to={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
+                  <Link to={card.href} className="inline-flex min-h-[32px] items-center rounded-sm py-1 text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     {card.action}
                   </Link>
                 )}
@@ -2087,8 +2087,17 @@ function AIOpsQueuePanel({
               Priorizacion de reclamos, pedidos y encuestas para operar primero.
             </CardDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} className="h-8 shrink-0">
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={refetch}
+            disabled={loading}
+            aria-label="Actualizar cola IA operativa"
+            title="Actualizar cola IA operativa"
+            className="h-9 min-w-[36px] shrink-0"
+          >
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden="true" />
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2396,7 +2405,7 @@ function KpiGrid({
 
   return (
     <details className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-      <summary className="cursor-pointer text-sm font-semibold text-foreground">
+      <summary className="flex min-h-[36px] cursor-pointer items-center py-1 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
         Ver indicadores detallados
       </summary>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -2440,8 +2449,8 @@ function AlertsStrip({ alerts }: { alerts: OperationsAlert[] }) {
             <div className="flex min-w-0 items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               <div className="min-w-0">
-                <p className="font-medium">{title}</p>
-                {message ? <p className="text-muted-foreground">{message}</p> : null}
+                <p className="font-medium text-foreground">{title}</p>
+                {message ? <p className="text-foreground/85">{message}</p> : null}
               </div>
             </div>
             {alert.severity ? (
@@ -3801,7 +3810,7 @@ function OperationsHeatmapPanel({
                               <Layers className="h-4 w-4 shrink-0" />
                               <span className="min-w-0">
                                 <span className="block truncate">{humanizeHeatmapToken(layer)}</span>
-                                <span className="block text-[11px] font-normal opacity-80">{describeHeatmapLayer(layer)}</span>
+                                <span className={cn('block text-[11px] font-normal', active ? 'text-primary-foreground' : 'text-muted-foreground')}>{describeHeatmapLayer(layer)}</span>
                               </span>
                             </Button>
                           );

@@ -594,7 +594,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             <div className="mt-1 text-[12px] flex gap-2">
               <button
                 type="button"
-                className="rounded px-1 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                className="inline-flex min-h-[28px] items-center rounded px-1.5 py-1 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
                 onClick={() => setSimple((s) => !s)}
                 aria-label={simple ? "Ver mensaje completo" : "Ver mensaje simplificado"}
               >

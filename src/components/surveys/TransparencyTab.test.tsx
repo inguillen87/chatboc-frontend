@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TransparencyTab } from './TransparencyTab';
@@ -49,7 +49,10 @@ describe('TransparencyTab containment copy', () => {
     );
 
     expect(screen.getByText(/Evidencia local, no publicación blockchain/i)).toBeInTheDocument();
-    expect(screen.getByText(/Simulacion local - no publicada/i)).toBeInTheDocument();
+    // The same snapshots render as cards (phones) and as a table (desktop).
+    for (const view of [screen.getByLabelText('Cortes locales de integridad'), screen.getByRole('region', { name: /Tabla de cortes locales/i })]) {
+      expect(within(view).getByText(/Simulacion local - no publicada/i)).toBeInTheDocument();
+    }
     expect(screen.getAllByText(/No se verificó|No verifica publicacion externa/i).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /Generar referencia local/i })).not.toBeInTheDocument();
   });
@@ -78,8 +81,11 @@ describe('TransparencyTab containment copy', () => {
     expect(range.desde).toBe(new Date('2026-07-01T00:00').toISOString());
     expect(range.hasta).toBe(new Date('2026-07-30T23:59').toISOString());
 
-    fireEvent.click(screen.getByRole('button', { name: /Generar referencia local/i }));
+    expect(screen.getAllByRole('button', { name: /Generar referencia local/i })).toHaveLength(2);
+    fireEvent.click(within(screen.getByRole('region', { name: /Tabla de cortes locales/i })).getByRole('button', { name: /Generar referencia local/i }));
     expect(onSimulateAnchor).toHaveBeenCalledWith(9);
+    fireEvent.click(within(screen.getByLabelText('Cortes locales de integridad')).getByRole('button', { name: /Generar referencia local/i }));
+    expect(onSimulateAnchor).toHaveBeenLastCalledWith(9);
     expect(screen.queryByRole('button', { name: /^Publicar/i })).not.toBeInTheDocument();
   });
 });
