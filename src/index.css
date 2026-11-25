@@ -491,11 +491,43 @@
   .chatboc-phone-demo .text-primary {
     color: var(--chatboc-phone-accent);
   }
+  .dark .chatboc-phone-demo--gobierno .text-primary {
+    color: #93c5fd;
+  }
+  .dark .chatboc-phone-demo--pyme {
+    --chatboc-phone-accent: #047857;
+  }
+  .dark .chatboc-phone-demo--pyme .text-primary {
+    color: #6ee7b7;
+  }
+  .dark .chatboc-phone-demo--educacion .text-primary {
+    color: #c4b5fd;
+  }
   .chatboc-phone-demo .bg-primary {
     background-color: var(--chatboc-phone-accent);
   }
   .chatboc-phone-demo .text-primary-foreground {
     color: var(--chatboc-phone-accent-foreground);
+  }
+  .dark .react-flow__attribution {
+    background: hsl(var(--card) / 0.92);
+    color: hsl(var(--muted-foreground));
+  }
+  .dark .react-flow__attribution a {
+    color: hsl(var(--muted-foreground));
+  }
+  .dark .react-flow__controls {
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
+  }
+  .dark .react-flow__controls-button {
+    background: hsl(var(--card));
+    border-bottom-color: hsl(var(--border));
+    color: hsl(var(--foreground));
+    fill: currentColor;
+  }
+  .dark .react-flow__controls-button:hover {
+    background: hsl(var(--accent));
   }
   .chatboc-phone-demo__chrome {
     position: relative;

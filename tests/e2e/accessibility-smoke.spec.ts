@@ -61,6 +61,37 @@ const mockPublicApis = async (page: Page) => {
       });
       return;
     }
+    if (path === '/api/v2/demo/catalog') {
+      await json(route, {
+        contract_version: 'demo.catalog.v2',
+        sectors: ['gobierno', 'empresas', 'educacion'],
+        sector_groups: [
+          {
+            key: 'gobierno',
+            label: 'Gobiernos',
+            description: 'Municipios, concejos y atención pública.',
+            cta_label: 'Iniciar demo pública',
+            tenant_slug: 'municipio-demo',
+          },
+          {
+            key: 'empresas',
+            label: 'Empresas',
+            description: 'Comercios, servicios y ventas.',
+            cta_label: 'Iniciar demo empresa',
+            tenant_slug: 'bodega-demo',
+          },
+          {
+            key: 'educacion',
+            label: 'Colegios',
+            description: 'Instituciones, familias y casos escolares.',
+            cta_label: 'Iniciar demo colegio',
+            tenant_slug: 'colegio-demo',
+          },
+        ],
+        rubros: [],
+      });
+      return;
+    }
 
     await json(route, {});
   });
@@ -77,7 +108,11 @@ const expectNoHighImpactAccessibilityViolations = async (page: Page) => {
     (violation) => violation.impact === 'critical' || violation.impact === 'serious',
   );
   const summaries = violations.map(
-    (violation) => `${violation.id}: ${violation.help} (${violation.nodes.length})`,
+    (violation) =>
+      `${violation.id} (${violation.impact}): ${violation.help} (${violation.nodes.length})\n` +
+      violation.nodes
+        .map((node) => `  - ${node.target.join(' ')} | ${node.html.slice(0, 160)} | ${node.failureSummary?.replace(/\s+/g, ' ')}`)
+        .join('\n'),
   );
 
   expect(
@@ -101,6 +136,25 @@ test.describe('public accessibility smoke', () => {
 
     await expectNoHighImpactAccessibilityViolations(page);
   });
+
+  for (const viewport of [
+    { name: '1440px', width: 1440, height: 900 },
+    { name: '390px', width: 390, height: 844 },
+  ]) {
+    test(`landing in dark mode at ${viewport.name} has no critical or serious WCAG violations`, async ({ page }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+      await page.addInitScript(() => {
+        window.localStorage.setItem('theme', 'dark');
+      });
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('heading', { name: /Agentes IA con tu marca que atienden y resuelven/i })).toBeVisible();
+      await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+      await expect(page.locator('#demos').getByRole('button', { name: /Iniciar demo colegio/i })).toBeVisible();
+
+      await expectNoHighImpactAccessibilityViolations(page);
+    });
+  }
 
   test('public survey has no critical or serious WCAG violations', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
