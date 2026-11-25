@@ -1553,12 +1553,14 @@
   }
 
   .chat-bubble-user {
-    @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+    @apply rounded-lg p-3 min-w-0 max-w-[calc(100%-2.75rem)] sm:max-w-md break-words shadow-md;
+    overflow-wrap: anywhere;
     background-color: var(--user-msg-bg, hsl(var(--primary)));
     color: var(--user-msg-fg, hsl(var(--primary-foreground)));
   }
   .chat-bubble-bot {
-    @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
+    @apply rounded-lg p-3 min-w-0 max-w-[calc(100%-2.75rem)] sm:max-w-md break-words shadow-md border border-primary/20;
+    overflow-wrap: anywhere;
     background-color: var(--bot-msg-bg, hsl(var(--secondary)));
     color: var(--bot-msg-fg, hsl(var(--secondary-foreground)));
   }
@@ -1748,10 +1750,27 @@
   transform: translateY(0);
 }
 
+:root {
+  /* Single unified safe-zone positioning tokens for floating & fixed chrome */
+  --chatboc-floating-gap: 0.75rem;
+  --chatboc-floating-edge-x: 1rem;
+  --chatboc-floating-edge-bottom: 1rem;
+  --chatboc-floating-topbar-top: calc(0.5rem + env(safe-area-inset-top));
+  --chatboc-floating-topbar-right-slot: calc(4.5rem + env(safe-area-inset-right));
+  --chatboc-floating-topbar-portal-left-slot: calc(3.75rem + env(safe-area-inset-left));
+  --chatboc-floating-bottom-bar: 0px;
+  --chatboc-floating-launcher-clearance: 0px;
+  --chatboc-floating-a11y-clearance: 3.75rem;
+}
+
+body:not(:has([data-workspace-shell])):has(.chatboc-container[data-mode="standalone"]:not([data-launcher-hidden="true"])) {
+  --chatboc-floating-launcher-clearance: 6.5rem;
+}
+
 .chatboc-a11y-dock {
   position: fixed;
-  left: calc(1rem + env(safe-area-inset-left));
-  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: calc(var(--chatboc-floating-edge-x) + env(safe-area-inset-left));
+  bottom: calc(var(--chatboc-floating-bottom-bar) + var(--chatboc-floating-edge-bottom) + env(safe-area-inset-bottom));
   z-index: 1000001;
   display: flex;
   align-items: center;
@@ -1767,8 +1786,10 @@
 
 .chatboc-pwa-install {
   position: fixed;
-  left: calc(1rem + env(safe-area-inset-left));
-  bottom: calc(4.9rem + env(safe-area-inset-bottom));
+  left: calc(var(--chatboc-floating-edge-x) + env(safe-area-inset-left));
+  bottom: calc(
+    var(--chatboc-floating-bottom-bar) + var(--chatboc-floating-edge-bottom) + var(--chatboc-floating-a11y-clearance) + env(safe-area-inset-bottom)
+  );
   z-index: 42;
   display: flex;
   width: min(420px, calc(100vw - 2rem));
@@ -1784,8 +1805,19 @@
   backdrop-filter: blur(14px);
 }
 
+.chatboc-scroll-top {
+  position: fixed;
+  right: calc(var(--chatboc-floating-edge-x) + env(safe-area-inset-right));
+  bottom: calc(
+    var(--chatboc-floating-bottom-bar) + var(--chatboc-floating-edge-bottom) + var(--chatboc-floating-launcher-clearance) + var(--chatboc-floating-gap) + env(safe-area-inset-bottom)
+  );
+  z-index: 40;
+}
+
 body.chatboc-widget-open .chatboc-a11y-dock,
-body.chatboc-widget-open .chatboc-pwa-install {
+body.chatboc-widget-open .chatboc-pwa-install,
+body.chatboc-widget-open .chatboc-scroll-top,
+body:has([data-testid="mobile-ticket-action-bar"]) .chatboc-pwa-install {
   display: none;
 }
 
@@ -2085,11 +2117,33 @@ html {
   .chatboc-chat-footer {
     padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
   }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --chatboc-floating-edge-x: 0.75rem;
+    --chatboc-floating-edge-bottom: 0.75rem;
+  }
+
+  body:has([data-portal-bottom-nav]),
+  body:has([data-testid="mobile-ticket-action-bar"]) {
+    --chatboc-floating-bottom-bar: 4.5rem;
+  }
+
+  body:not(:has([data-workspace-shell])):has(.chatboc-container[data-mode="standalone"]:not([data-launcher-hidden="true"])) {
+    --chatboc-floating-launcher-clearance: 4.75rem;
+  }
+
+  body:has(.chatboc-a11y-dock--focused-public) {
+    --chatboc-floating-launcher-clearance: 3.5rem;
+  }
 
   .chatboc-pwa-install {
-    left: calc(0.75rem + env(safe-area-inset-left));
-    right: calc(0.75rem + env(safe-area-inset-right));
-    bottom: calc(4.5rem + env(safe-area-inset-bottom));
+    left: calc(var(--chatboc-floating-edge-x) + env(safe-area-inset-left));
+    right: calc(var(--chatboc-floating-edge-x) + env(safe-area-inset-right));
+    bottom: calc(
+      var(--chatboc-floating-bottom-bar) + var(--chatboc-floating-edge-bottom) + var(--chatboc-floating-launcher-clearance) + env(safe-area-inset-bottom)
+    );
     width: auto;
     align-items: center;
     flex-direction: row;
@@ -2102,43 +2156,53 @@ html {
     justify-content: flex-end;
   }
 
+  body:has(.chatboc-pwa-install) .chatboc-scroll-top {
+    bottom: calc(
+      var(--chatboc-floating-bottom-bar) + var(--chatboc-floating-edge-bottom) + var(--chatboc-floating-launcher-clearance) + 4.75rem + env(safe-area-inset-bottom)
+    );
+  }
+
+  /* Unified mobile top-bar slot for Navbar pages (landing, panel, public tenant pages):
+     sits cleanly inside the header beside the mobile menu button so it never covers
+     page headings, composers, fixed action bars, widget launcher, or the PWA prompt. */
   .chatboc-a11y-dock {
-    left: calc(0.75rem + env(safe-area-inset-left));
-    top: calc(4.75rem + env(safe-area-inset-top));
+    left: auto;
+    right: var(--chatboc-floating-topbar-right-slot);
+    top: var(--chatboc-floating-topbar-top);
     bottom: auto;
   }
 
-  .chatboc-a11y-dock.chatboc-a11y-dock--focused-public {
-    left: auto;
-    right: calc(0.75rem + env(safe-area-inset-right));
-    top: auto;
-    bottom: calc(0.75rem + env(safe-area-inset-bottom));
-  }
-
-  .chatboc-a11y-dock.chatboc-a11y-dock--public-ticket {
-    left: auto;
-    right: calc(3.75rem + env(safe-area-inset-right));
-    top: calc(0.65rem + env(safe-area-inset-top));
-    bottom: auto;
-  }
-
-  /* On an organization's public home the control sits in the fixed top bar,
-     beside the menu button and at the same touch size, instead of floating
-     over the reading column. Same spot the open mobile menu already uses. */
-  .chatboc-a11y-dock.chatboc-a11y-dock--public-space {
-    left: auto;
-    right: calc(4.75rem + env(safe-area-inset-right));
-    top: calc(0.65rem + env(safe-area-inset-top));
-    bottom: auto;
-  }
-
-  .chatboc-a11y-dock--public-space .chatboc-a11y-dock__button {
+  .chatboc-a11y-dock__button {
     min-width: 2.75rem;
     min-height: 2.75rem;
   }
-}
 
-@media (max-width: 767px) {
+  /* User portal layout has a multi-action right cluster in its sticky header:
+     anchor inside the header right beside the organization avatar instead. */
+  .chatboc-a11y-dock.chatboc-a11y-dock--portal {
+    left: var(--chatboc-floating-topbar-portal-left-slot);
+    right: auto;
+    top: calc(0.625rem + env(safe-area-inset-top));
+    bottom: auto;
+  }
+
+  /* Focused public routes (/demo, /e/:slug) have no top navbar and no standalone widget. */
+  .chatboc-a11y-dock.chatboc-a11y-dock--focused-public {
+    left: auto;
+    right: calc(var(--chatboc-floating-edge-x) + env(safe-area-inset-right));
+    top: auto;
+    bottom: calc(var(--chatboc-floating-bottom-bar) + var(--chatboc-floating-edge-bottom) + env(safe-area-inset-bottom));
+  }
+
+  .chatboc-a11y-dock.chatboc-a11y-dock--public-ticket,
+  .chatboc-a11y-dock.chatboc-a11y-dock--public-space,
+  body.chatboc-mobile-menu-open .chatboc-a11y-dock {
+    left: auto;
+    right: var(--chatboc-floating-topbar-right-slot);
+    top: var(--chatboc-floating-topbar-top);
+    bottom: auto;
+  }
+
   .chatboc-mobile-menu {
     max-height: calc(100dvh - 5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     overflow-y: auto;
@@ -2147,20 +2211,18 @@ html {
     scroll-padding-block: 0.75rem;
     scrollbar-gutter: stable;
   }
-
-  body.chatboc-mobile-menu-open .chatboc-a11y-dock {
-    right: calc(4.75rem + env(safe-area-inset-right));
-    left: auto;
-    top: calc(0.65rem + env(safe-area-inset-top));
-    bottom: auto;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chatboc-mobile-menu,
   .chatboc-mobile-menu *,
   .chatboc-a11y-dock,
-  .chatboc-a11y-dock * {
+  .chatboc-a11y-dock *,
+  .chatboc-pwa-install,
+  .chatboc-pwa-install *,
+  .chatboc-scroll-top,
+  .chat-root,
+  .chat-root * {
     scroll-behavior: auto !important;
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;

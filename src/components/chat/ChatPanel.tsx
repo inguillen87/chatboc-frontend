@@ -1623,6 +1623,96 @@ const ChatPanelContent = (props: ChatPanelProps) => {
   const institutionalNavigation = useInstitutionalMenuNavigation({messages,tenantSlug,
     scope:pendingActionScope,busy:isTyping,send:handleSend,container:chatContainerRef,anchor:activeInstitutionalMessageRef});
   const initialInstitutionalMenu=initialInstitutionalMenuMessage(visibleMessages,tenantSlug);
+  const latestMessageElementRef = useRef<HTMLDivElement | null>(null);
+  const lastAutoScrolledMessageIdRef = useRef<Message["id"] | null>(null);
+  const pendingOptionComposerFocusRef = useRef<{
+    scope: string;
+    session: number;
+    cleanup: () => void;
+  } | null>(null);
+
+  const clearPendingOptionComposerFocus = useCallback(() => {
+    const pending = pendingOptionComposerFocusRef.current;
+    pendingOptionComposerFocusRef.current = null;
+    pending?.cleanup();
+  }, []);
+
+  const scheduleOptionComposerFocus = useCallback(() => {
+    clearPendingOptionComposerFocus();
+    const request = {
+      scope: pendingActionScopeRef.current,
+      session: captureChatbocSessionRevision(),
+      cleanup: () => {},
+    };
+    const cancel = () => {
+      if (pendingOptionComposerFocusRef.current === request) {
+        clearPendingOptionComposerFocus();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab" || event.key === "Escape") cancel();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && chatInputTextRef.current && chatInputTextRef.current.contains(target)) {
+        return;
+      }
+      cancel();
+    };
+    if (typeof document !== "undefined") {
+      // Attach on next microtask so the activating click's pointerdown does not cancel itself.
+      queueMicrotask(() => {
+        if (pendingOptionComposerFocusRef.current !== request) return;
+        document.addEventListener("keydown", onKeyDown, true);
+        document.addEventListener("pointerdown", onPointerDown, true);
+        request.cleanup = () => {
+          document.removeEventListener("keydown", onKeyDown, true);
+          document.removeEventListener("pointerdown", onPointerDown, true);
+        };
+      });
+    }
+    pendingOptionComposerFocusRef.current = request;
+  }, [clearPendingOptionComposerFocus]);
+
+  useEffect(() => {
+    clearPendingOptionComposerFocus();
+    lastAutoScrolledMessageIdRef.current = null;
+  }, [pendingActionScope, clearPendingOptionComposerFocus]);
+
+  useEffect(() => () => clearPendingOptionComposerFocus(), [clearPendingOptionComposerFocus]);
+
+  useEffect(() => {
+    const pending = pendingOptionComposerFocusRef.current;
+    if (!pending) return;
+    if (
+      pending.scope !== pendingActionScope ||
+      !isChatbocSessionRevisionCurrent(pending.session)
+    ) {
+      clearPendingOptionComposerFocus();
+      return;
+    }
+    if (isTyping) return;
+    if (contexto.estado_conversacion === "recolectando_datos_personales") {
+      clearPendingOptionComposerFocus();
+      return;
+    }
+    const rafId = window.requestAnimationFrame(() => {
+      if (pendingOptionComposerFocusRef.current !== pending) return;
+      clearPendingOptionComposerFocus();
+      const input = chatInputTextRef.current;
+      if (input && input.isConnected && !input.disabled) {
+        input.focus({ preventScroll: true });
+      }
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [
+    isTyping,
+    messages.length,
+    pendingActionScope,
+    contexto.estado_conversacion,
+    clearPendingOptionComposerFocus,
+  ]);
+
   const setInstitutionalMessageAnchor=useCallback((element:HTMLDivElement|null)=>{
     activeInstitutionalMessageRef.current=element;
     initialInstitutionalMenuRef.current=initialInstitutionalMenu?element:null;
@@ -3285,6 +3375,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
       if(['Tab','Escape','PageDown','PageUp','Home','End','ArrowDown','ArrowUp'].includes(event.key))moved();
     };
     document.addEventListener('pointerdown',moved,true);
+    document.addEventListener('touchstart',moved,{capture:true,passive:true});
     document.addEventListener('wheel',moved,{capture:true,passive:true});
     document.addEventListener('keydown',keyboard,true);
     // Wait for layout without overriding a visitor's subsequent navigation.
@@ -3307,24 +3398,53 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           // Do not undo a visitor's manual scroll on same-menu re-renders.
           return;
         }
-        const { scrollHeight, scrollTop, clientHeight } =
-          chatContainerRef.current;
+        const latestVisible = visibleMessages[visibleMessages.length - 1];
+        if (!latestVisible) return;
+        // Only auto-scroll once per newly arrived message ID so re-renders never
+        // yank a visitor who is reading a long message.
+        if (lastAutoScrolledMessageIdRef.current === latestVisible.id) return;
 
-        // Check if we are "close enough" to the bottom OR if it's the very first render/messages
-        // We increase the threshold to 500px to be more aggressive (solving "lost messages")
-        const isCloseToBottom = scrollHeight - scrollTop - clientHeight < 500;
-        const isShortConversation = messages.length <= 3;
-        const isLatestMessageMine = !messages[messages.length - 1]?.isBot;
+        const container = chatContainerRef.current;
+        const { scrollHeight, scrollTop, clientHeight } = container;
+        const isLatestMessageMine = !latestVisible.isBot;
+        const wasPinnedToBottom = isPinnedToBottomRef.current;
+        const isInitialGreeting = visibleMessages.length <= 1;
 
-        // Always scroll if:
-        // 1. We are close to bottom
-        // 2. It's a short conversation (initial load)
-        // 3. The user just sent a message (we want to see our own message)
-        if (isCloseToBottom || isShortConversation || isLatestMessageMine) {
-          // Move only the reading pane, preserving the host page position.
-          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        if (isLatestMessageMine) {
+          lastAutoScrolledMessageIdRef.current = latestVisible.id;
+          container.scrollTop = container.scrollHeight;
+          isPinnedToBottomRef.current = true;
+          lastScrollTopRef.current = container.scrollTop;
           setShowScrollDown(false);
+          return;
+        }
+
+        if (wasPinnedToBottom || isInitialGreeting || scrollHeight - scrollTop - clientHeight < 140) {
+          lastAutoScrolledMessageIdRef.current = latestVisible.id;
+          const latestEl = latestMessageElementRef.current;
+          const containerRect = container.getBoundingClientRect();
+          const msgRect = latestEl?.getBoundingClientRect();
+          const isLongBotMessage =
+            Boolean(msgRect && clientHeight > 0 && msgRect.height > clientHeight);
+
+          if (isLongBotMessage && msgRect) {
+            // Anchor to the start of a long bot reply so the visitor reads from
+            // the beginning without a jump to the bottom.
+            const deltaTop = msgRect.top - containerRect.top - 8;
+            const nextTop = Math.max(0, Math.min(container.scrollTop + deltaTop, container.scrollHeight - container.clientHeight));
+            container.scrollTop = nextTop;
+            lastScrollTopRef.current = nextTop;
+            const atBottom = container.scrollHeight - nextTop - container.clientHeight < 100;
+            isPinnedToBottomRef.current = container.scrollHeight - nextTop - container.clientHeight < 64;
+            setShowScrollDown(!atBottom);
+          } else {
+            container.scrollTop = container.scrollHeight;
+            lastScrollTopRef.current = container.scrollTop;
+            isPinnedToBottomRef.current = true;
+            setShowScrollDown(false);
+          }
         } else {
+          lastAutoScrolledMessageIdRef.current = latestVisible.id;
           // User is scrolled up reading history
           setShowScrollDown(true);
         }
@@ -3333,6 +3453,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     return () => {
       clearTimeout(timer);
       document.removeEventListener('pointerdown',moved,true);
+      document.removeEventListener('touchstart',moved,true);
       document.removeEventListener('wheel',moved,true);
       document.removeEventListener('keydown',keyboard,true);
     };
@@ -3691,6 +3812,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           source: "widget_menu",
         });
       }
+      scheduleOptionComposerFocus();
       handleSend({
         text: item.texto,
         action: actionId,
@@ -3699,7 +3821,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [defaultMenuButtons, handleSend, tenantSlug, tipoChat],
+    [defaultMenuButtons, handleSend, scheduleOptionComposerFocus, tenantSlug, tipoChat],
   );
   const rubroToolItems = useMemo(
     () =>
@@ -4540,7 +4662,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
                         key={`${item.texto || item.action || item.action_id || "menu"}-${index}`}
                         size="sm"
                         variant="outline"
-                        className="h-auto min-h-10 justify-start whitespace-normal rounded-[8px] px-3 py-2 text-left text-xs"
+                        className="h-auto min-h-11 justify-start whitespace-normal rounded-[8px] px-3 py-2 text-left text-xs"
                         onClick={() => sendDefaultMenuButton(item, "empty")}
                       >
                         <span className="min-w-0">
@@ -4566,15 +4688,16 @@ const ChatPanelContent = (props: ChatPanelProps) => {
                           key={item.id || `${label}-${index}`}
                           size="sm"
                           variant="outline"
-                          className="h-auto whitespace-normal text-xs"
-                          onClick={() =>
+                          className="h-auto min-h-11 whitespace-normal text-xs"
+                          onClick={() => {
+                            scheduleOptionComposerFocus();
                             handleSend({
                               text: item.text || label,
                               action: item.intent || undefined,
                               payload: item.payload,
                               source: "button",
-                            })
-                          }
+                            });
+                          }}
                         >
                           {label}
                         </Button>
@@ -4603,15 +4726,27 @@ const ChatPanelContent = (props: ChatPanelProps) => {
              </div>
         ) : (
           <>
-            {visibleMessages.map((msg) => (
-
+            {visibleMessages.map((msg, msgIndex) => {
+              const isInstitutionalAnchor = institutionalNavigation.activeMessage?.id === msg.id;
+              const isLatestVisible = msgIndex === visibleMessages.length - 1;
+              return (
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
-            ref={institutionalNavigation.activeMessage?.id === msg.id ? setInstitutionalMessageAnchor : undefined}
+            ref={
+              isInstitutionalAnchor || isLatestVisible
+                ? (element) => {
+                    if (isInstitutionalAnchor) setInstitutionalMessageAnchor(element);
+                    if (isLatestVisible) latestMessageElementRef.current = element;
+                  }
+                : undefined
+            }
             message={msg}
             publicVisitorName={isPublicWidget ? scopedVisitorName || null : undefined}
             isTyping={isTyping}
-            onButtonClick={payload=>institutionalNavigation.activate(msg,payload)}
+            onButtonClick={payload=>{
+              if(!msg.institutional) scheduleOptionComposerFocus();
+              institutionalNavigation.activate(msg,payload);
+            }}
             institutionalInteractive={institutionalNavigation.activeMessage===msg&&!isTyping}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
@@ -4624,7 +4759,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
             maxVisibleQuickReplies={quickReplyLimit}
             collapseExtraQuickReplies={collapseExtraQuickReplies}
           />
-        ))}
+              );
+            })}
             {visibleDefaultMenuButtons.length && !activeTrialLimitNotice ? (
               <div className="flex justify-center">
                 <div className="mb-1 grid w-full max-w-[340px] gap-1.5 px-1 py-1 sm:gap-2">
@@ -4636,7 +4772,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
                       key={`${item.texto || item.action || item.action_id || "menu"}-persistent-${index}`}
                       size="sm"
                       variant="outline"
-                      className="h-auto min-h-10 justify-start whitespace-normal rounded-[8px] px-3 py-2 text-left text-xs"
+                      className="h-auto min-h-11 justify-start whitespace-normal rounded-[8px] px-3 py-2 text-left text-xs"
                       onClick={() => sendDefaultMenuButton(item, "persistent")}
                     >
                       <span className="min-w-0">

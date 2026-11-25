@@ -2483,6 +2483,9 @@ function ChatWidgetInner({
     const heightToUse = desired ?? 680;
 
     if (mode === 'iframe') {
+      if (isMobileView) {
+        return "100dvh";
+      }
       if (desired === null) return openHeight;
       if (viewport.height >= 360) {
         return `${Math.min(heightToUse, viewport.height)}px`;
@@ -2524,7 +2527,8 @@ function ChatWidgetInner({
     isUserPortalSurfacePath(location.pathname);
 
   const isStandaloneMobileOpen = mode === "standalone" && isOpen && isMobileView;
-  const mobileVisualViewport = useMobileVisualViewport(isStandaloneMobileOpen);
+  const isMobileViewportTracked = isOpen && isMobileView && (mode === "standalone" || mode === "iframe");
+  const mobileVisualViewport = useMobileVisualViewport(isMobileViewportTracked);
   const commonPanelStyles = cn(
     "chat-root bg-card flex flex-col overflow-hidden",
     isStandaloneMobileOpen ? "border-0 shadow-none" : "border shadow-lg",
@@ -3225,6 +3229,26 @@ function ChatWidgetInner({
       };
     }
     if (mode === "iframe") {
+      if (isOpen && isMobileView) {
+        const iframeMobileFallback: React.CSSProperties = {
+          position: "relative",
+          width: "100%",
+          height: "100dvh",
+          minWidth: 0,
+          minHeight: 0,
+          maxWidth: "min(100%, 100dvw)",
+          maxHeight: "100dvh",
+          overflow: "hidden",
+          transition: reduceMotion ? "none" : "opacity 0.18s ease",
+        };
+        const resolved = resolveMobileOpenViewportStyle(
+          mobileVisualViewport.metrics,
+          iframeMobileFallback,
+        );
+        return mobileVisualViewport.isKeyboardOpen
+          ? { ...resolved, position: "fixed", minHeight: 0, zIndex: 999999 }
+          : resolved;
+      }
       const width = isOpen ? `min(100%, ${finalOpenWidth})` : launcherSize;
       const height = isOpen ? finalOpenHeight : launcherHeight;
       return {
@@ -3232,7 +3256,7 @@ function ChatWidgetInner({
         width,
         height,
         minWidth: 0,
-        minHeight: height,
+        minHeight: isOpen ? 0 : height,
         maxWidth: "min(100%, 100dvw)",
         maxHeight: "100dvh",
         overflow: "hidden",
@@ -3240,7 +3264,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, mobileVisualViewport.metrics, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width, reduceMotion]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, mobileVisualViewport.metrics, mobileVisualViewport.isKeyboardOpen, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview, location.pathname, viewport.width, reduceMotion]);
 
   const panelAnimation = reduceMotion
     ? {
@@ -3420,6 +3444,7 @@ function ChatWidgetInner({
         data-realtime-video-label={realtimeConfig.videoLabel || ''}
         data-avoids-portal-bottom-nav={String(avoidsPortalBottomNavigation)}
         data-mobile-keyboard-open={String(mobileVisualViewport.isKeyboardOpen)}
+        data-launcher-hidden={String(mode === "standalone" && isMobileView && !isOpen && hideClosedLauncherForHeroPreview)}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"

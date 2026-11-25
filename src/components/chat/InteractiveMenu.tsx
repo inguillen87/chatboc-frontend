@@ -35,7 +35,7 @@ const InteractiveMenu: React.FC<InteractiveMenuProps> = ({ sections, config, isD
         <SheetTrigger asChild>
           <Button
             variant="outline"
-            className={`w-full justify-between group transition-all ${isDemoSelector ? 'border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 shadow-sm' : 'border-primary/20 hover:bg-primary/5 hover:border-primary/50'}`}
+            className={`min-h-11 h-auto py-2.5 w-full justify-between group transition-all motion-reduce:transition-none ${isDemoSelector ? 'border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 shadow-sm' : 'border-primary/20 hover:bg-primary/5 hover:border-primary/50'}`}
           >
             <span className="flex items-center gap-2">
                 {isDemoSelector ? <Sparkles className="w-4 h-4 text-primary" /> : <List className="w-4 h-4 text-primary" />}
@@ -66,8 +66,9 @@ const InteractiveMenu: React.FC<InteractiveMenuProps> = ({ sections, config, isD
                                 {section.rows.map((row) => (
                                     <button
                                         key={row.id}
+                                        type="button"
                                         onClick={() => handleSelect(row)}
-                                        className={`flex flex-col items-start w-full rounded-xl border text-left transition-all active:scale-[0.99] ${isDemoSelector ? 'p-4 bg-gradient-to-br from-background via-background to-primary/[0.04] hover:border-primary/40 hover:bg-primary/[0.06] shadow-sm min-h-[108px]' : 'p-3 bg-card hover:bg-accent hover:border-primary/30'}`}
+                                        className={`flex flex-col items-start justify-center w-full rounded-xl border text-left transition-all motion-reduce:transition-none active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${isDemoSelector ? 'p-4 bg-gradient-to-br from-background via-background to-primary/[0.04] hover:border-primary/40 hover:bg-primary/[0.06] shadow-sm min-h-[108px]' : 'min-h-11 p-3 bg-card hover:bg-accent hover:border-primary/30'}`}
                                     >
                                         <div className="font-semibold text-base">{row.title}</div>
                                         {row.description && (

@@ -204,15 +204,26 @@ const getIframeDimensions = (params: IframeWidgetParams) => (
     : { width: params.closedWidth, height: params.closedHeight }
 );
 
-const getIframeShellStyle = (params: IframeWidgetParams): React.CSSProperties => {
+const getIframeShellStyle = (
+  params: IframeWidgetParams,
+  isNarrowViewport: boolean,
+): React.CSSProperties => {
   const dimensions = getIframeDimensions(params);
-  const width = params.defaultOpen ? `min(100%, 100dvw, ${dimensions.width})` : dimensions.width;
-  const height = params.defaultOpen ? `min(100dvh, ${dimensions.height})` : dimensions.height;
+  const width = params.defaultOpen
+    ? isNarrowViewport
+      ? "100%"
+      : `min(100%, 100dvw, ${dimensions.width})`
+    : dimensions.width;
+  const height = params.defaultOpen
+    ? isNarrowViewport
+      ? "100dvh"
+      : `min(100dvh, ${dimensions.height})`
+    : dimensions.height;
   return {
     width,
     height,
     minWidth: 0,
-    minHeight: height,
+    minHeight: params.defaultOpen ? 0 : height,
     maxWidth: "min(100%, 100dvw)",
     maxHeight: "100dvh",
     overflow: "hidden",
@@ -282,7 +293,18 @@ const IframePage = () => {
   const [entityToken, setEntityToken] = useState<string | null>(initialWidgetParams?.entityToken ?? null);
   const [tipoChat, setTipoChat] = useState<TipoChat | null>(initialWidgetParams?.endpoint ?? null);
   const [isLoading, setIsLoading] = useState(() => !initialWidgetParams);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false,
+  );
   const isInRouter = useInRouterContext();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const syncViewport = () => setIsNarrowViewport(window.innerWidth < 640);
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    return () => window.removeEventListener('resize', syncViewport);
+  }, []);
 
   useEffect(() => {
     // Add iframe-mode class for transparent background
@@ -442,8 +464,8 @@ const IframePage = () => {
   }, [entityToken, tipoChat]);
 
   const shellStyle = useMemo(
-    () => widgetParams ? getIframeShellStyle(widgetParams) : undefined,
-    [widgetParams],
+    () => (widgetParams ? getIframeShellStyle(widgetParams, isNarrowViewport) : undefined),
+    [widgetParams, isNarrowViewport],
   );
 
   if (!widgetParams || !shellStyle) return null;

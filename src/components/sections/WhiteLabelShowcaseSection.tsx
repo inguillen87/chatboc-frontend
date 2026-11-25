@@ -549,7 +549,7 @@ const WhiteLabelShowcaseSection = () => {
                   data-testid="whitelabel-widget-preview"
                   data-brand-id={active.id}
                   data-bubble-style={active.bubbleStyle.kind}
-                  initial={reduceMotion ? false : { opacity: 0.65, y: 8, scale: 0.99 }}
+                  initial={reduceMotion ? false : { opacity: 1, y: 8, scale: 0.99 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: reduceMotion ? 0 : 0.24, ease: "easeOut" }}
                   className="overflow-hidden rounded-[22px] border border-border/80 bg-card shadow-[0_26px_70px_rgba(15,23,42,0.14)] dark:shadow-[0_26px_70px_rgba(0,0,0,0.48)]"

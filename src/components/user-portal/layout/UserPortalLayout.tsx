@@ -78,11 +78,14 @@ const UserPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-light bg-gradient-to-b from-background via-background to-muted/40 dark:from-background dark:via-background dark:to-muted/20 transition-colors">
+    <div
+      data-portal-shell="true"
+      className="flex flex-col min-h-screen bg-light bg-gradient-to-b from-background via-background to-muted/40 dark:from-background dark:via-background dark:to-muted/20 transition-colors"
+    >
       {/* Navbar Superior */}
       <header className="bg-background/95 backdrop-blur-md border-b border-border/80 shadow-sm sticky top-0 z-40 h-16">
         <div className="container mx-auto px-4 flex items-center justify-between h-full">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-14 md:pr-0">
             {/* Logo de la Organización */}
             <Link to={homePath} className="flex items-center gap-2">
               <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
@@ -92,7 +95,7 @@ const UserPortalLayout: React.FC = () => {
                 </AvatarFallback>
               </Avatar>
               <span
-                className="font-semibold text-foreground hidden sm:inline-block truncate max-w-[150px] md:max-w-xs"
+                className="font-semibold text-foreground hidden md:inline-block truncate max-w-[150px] md:max-w-xs"
                 title={displayName}
               >
                 {displayName}
@@ -221,7 +224,7 @@ const UserPortalLayout: React.FC = () => {
 
         {/* Contenido Principal */}
         {/* El ml-64 para desktop debe ser condicional si el sidebar es colapsable */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-gradient-to-b from-background via-background to-muted/30 dark:from-background dark:via-background dark:to-muted/10 md:ml-64 transition-colors">
+        <main className="flex-1 overflow-y-auto p-4 pb-36 md:p-6 lg:p-8 bg-gradient-to-b from-background via-background to-muted/30 dark:from-background dark:via-background dark:to-muted/10 md:ml-64 transition-colors">
           <Outlet />
         </main>
       </div>
