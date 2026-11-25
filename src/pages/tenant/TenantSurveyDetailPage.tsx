@@ -130,7 +130,7 @@ const TenantSurveyDetailPage = () => {
   }, []);
 
   return (
-    <TenantShell>
+    <TenantShell titleSection={survey?.titulo?.trim() || 'Encuesta'}>
       {!surveySlug ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">

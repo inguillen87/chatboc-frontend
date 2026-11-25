@@ -268,7 +268,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
   );
 
   expect(offlinePortalResponse?.status()).toBe(200);
-  await expect(offlinePortalPage).toHaveTitle(/Chatboc Portal/i);
+  await expect(offlinePortalPage).toHaveTitle(/Portal · Chatboc/i);
   await expect(offlinePortalPage).toHaveURL(/\/portal\/index\.html#\/portal\/dashboard\?pwa-offline=1$/);
   await expect
     .poll(() => offlinePortalPage.locator('#root').evaluate((root) => root.childElementCount))

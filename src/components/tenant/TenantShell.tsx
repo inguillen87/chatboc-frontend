@@ -17,10 +17,12 @@ import type { TenantPublicNavigationItem } from '@/types/tenant';
 import { tenantHostNavigationTarget } from '@/utils/tenantHostBinding';
 import { TenantSwitcher } from './TenantSwitcher';
 import { brandAccentVariables, brandFontStack, brandGradientColors, ensureBrandStylesheet } from '@/utils/publicBrandIdentity';
+import { formatTenantTitle } from '@/utils/pageTitles';
 
 interface TenantShellProps {
   children: ReactNode;
   compactHeader?: boolean;
+  titleSection?: string | null;
 }
 
 const TENANT_SHELL_TITLE_ID = 'tenant-shell-title';
@@ -43,7 +45,7 @@ const sanitizePublicMessage = (message?: string | null) => {
   return message;
 };
 
-export const TenantShell = ({ children, compactHeader = false }: TenantShellProps) => {
+export const TenantShell = ({ children, compactHeader = false, titleSection }: TenantShellProps) => {
   const {
     tenant,
     currentSlug,
@@ -138,7 +140,10 @@ export const TenantShell = ({ children, compactHeader = false }: TenantShellProp
   const slugForPath = resolvedTenantSlug ?? currentSlug ?? null;
   // La pestaña nombra al organismo solo cuando su identidad coincide con la ruta y la carga terminó;
   // en transición o error vuelve al título previo al espacio, igual que al salir.
-  const authoritativeTitle = navigationTenantSlug ? resolvedTenant?.nombre?.trim() || null : null;
+  const authoritativeTitle =
+    navigationTenantSlug && resolvedTenant?.nombre?.trim()
+      ? formatTenantTitle(resolvedTenant.nombre, titleSection)
+      : null;
   const titleBeforeSpace = useRef<string | null>(null);
   useEffect(() => {
     if (titleBeforeSpace.current === null) titleBeforeSpace.current = document.title;

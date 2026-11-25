@@ -45,7 +45,7 @@ const TenantEventsPage = () => {
   const isStale = eventsQuery.isSuccess && eventsQuery.isFetching;
 
   return (
-    <TenantShell>
+    <TenantShell titleSection="Eventos">
       {!slug ? (
         <Card>
           <CardHeader>

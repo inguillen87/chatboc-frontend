@@ -34,6 +34,7 @@ import { isPublicPlatformSurfacePath } from '@/utils/widgetTenantResolution';
 import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
 import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
+import { useDocumentTitleSync } from '@/hooks/useDocumentTitleSync';
 import ClerkAuthBridge from '@/components/auth/ClerkAuthBridge';
 import { fetchClerkFrontendConfig } from '@/api/clerkAuth';
 import {
@@ -379,6 +380,7 @@ function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
   const clerkRuntime = useClerkRuntime();
+  useDocumentTitleSync();
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;

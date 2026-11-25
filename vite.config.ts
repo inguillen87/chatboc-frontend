@@ -163,9 +163,9 @@ export default defineConfig(({ mode }) => {
         includeAssets: pwaCoreStaticAssets,
         manifest: {
           id: '/',
-          name: 'Chatboc | Plataforma operativa IA',
+          name: 'Chatboc · Agentes IA con tu marca',
           short_name: 'Chatboc',
-          description: 'Chatboc - IA operativa para gobiernos, colegios y empresas.',
+          description: 'Agentes IA con tu marca para gobiernos, colegios y empresas. Web, WhatsApp, reclamos, encuestas y CRM.',
           lang: 'es-AR',
           dir: 'ltr',
           start_url: '/?pwa=1',
@@ -204,7 +204,7 @@ export default defineConfig(({ mode }) => {
             {
               name: 'Abrir demo',
               short_name: 'Demo',
-              description: 'Probar una experiencia demo de Chatboc.',
+              description: 'Probar las demos interactivas de Chatboc.',
               url: '/demo?pwa=1',
               icons: [{ src: 'favicon/favicon-192x192.png', sizes: '192x192' }],
             },

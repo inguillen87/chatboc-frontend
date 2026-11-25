@@ -309,7 +309,7 @@ const TenantTicketFormPage = () => {
   };
 
   return (
-    <TenantShell>
+    <TenantShell titleSection="Nuevo reclamo">
       {!slug ? (
         <Card>
           <CardHeader>

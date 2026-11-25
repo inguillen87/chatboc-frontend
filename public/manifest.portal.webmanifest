@@ -1,7 +1,7 @@
 {
-  "name": "Chatboc Portal",
+  "name": "Portal · Chatboc",
   "short_name": "Portal",
-  "description": "Portal de usuario final Chatboc",
+  "description": "Consultá reclamos, pedidos, turnos, encuestas y novedades desde tu portal.",
   "start_url": "/portal/index.html#/portal/dashboard?pwa=1",
   "scope": "/portal/",
   "display": "standalone",

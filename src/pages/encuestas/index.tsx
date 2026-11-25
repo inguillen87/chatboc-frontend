@@ -117,7 +117,7 @@ const SurveysPublicIndex = () => {
   });
 
   usePageMetadata({
-    title: 'Encuestas ciudadanas | Chatboc',
+    title: 'Encuestas ciudadanas · Chatboc',
     description: 'Respondé, compartí y descargá recursos para sumar más voces a los procesos participativos.',
     image: '/images/og-encuestas.svg',
   });

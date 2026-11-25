@@ -104,7 +104,7 @@ const TenantSurveyListPage = () => {
   const isStale = surveysQuery.isSuccess && surveysQuery.isFetching;
 
   return (
-    <TenantShell>
+    <TenantShell titleSection="Encuestas">
       <section aria-labelledby={TENANT_SURVEYS_REGION_TITLE_ID} className="space-y-5">
         <h2 id={TENANT_SURVEYS_REGION_TITLE_ID} className="sr-only">Encuestas</h2>
         {!slug ? (

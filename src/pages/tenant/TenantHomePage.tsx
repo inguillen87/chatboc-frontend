@@ -245,7 +245,10 @@ const TenantPublicLanding = () => {
   };
 
   return (
-    <TenantShell compactHeader={hasPublishedKnowledge}>
+    <TenantShell
+      compactHeader={hasPublishedKnowledge}
+      titleSection={hasPublishedKnowledge ? 'Información y orientación' : 'Portal'}
+    >
       {!slug ? (
         <Card className="border-2 border-dashed">
           <CardHeader>

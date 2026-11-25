@@ -13,6 +13,7 @@ import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import { TenantProvider } from "@/context/TenantContext";
 import { DateSettingsProvider } from "@/hooks/useDateSettings";
+import { useDocumentTitleSync } from "@/hooks/useDocumentTitleSync";
 import { UserProvider } from "@/hooks/useUser";
 import { GOOGLE_CLIENT_ID } from "@/env";
 import NotFound from "@/pages/NotFound";
@@ -82,6 +83,11 @@ function PortalTenantRedirect() {
   return <Navigate to={buildTenantPath("/portal/dashboard", tenant)} replace />;
 }
 
+function PortalTitleSync() {
+  useDocumentTitleSync({ portalOnly: true });
+  return null;
+}
+
 function PortalRouteTree() {
   // Hash-router navigation re-renders this boundary, so session authority is
   // recalculated after an auth transition instead of trusting a stale user.
@@ -105,6 +111,7 @@ function PortalRouteTree() {
       }}
     >
       <TenantProvider>
+        <PortalTitleSync />
         <React.Suspense fallback={<PortalLoadingFallback />}>
           <Routes>
             <Route
