@@ -82,6 +82,13 @@
 .institutional-assistant__citations blockquote{margin:12px 0;padding:6px 15px;border-left:2px solid hsl(var(--border));}.institutional-assistant__citations cite{font-size:var(--institutional-detail-size);font-style:normal;color:hsl(var(--muted-foreground));}
 
 .institutional-assistant__reading { scroll-margin-block:6rem 2rem; }
+/* On phones a second scroll area inside the page traps touch scrolling and
+   hides part of the answer behind a fixed height. The answer flows with the
+   page instead; the focused heading keeps clear of the sticky top bar. */
+@media(max-width:760px){
+ .institutional-assistant__reading{max-height:none;min-height:0;overflow:visible;overscroll-behavior:auto;}
+ .institutional-assistant__reading [tabindex="-1"]{scroll-margin-block:5.5rem 1.5rem;}
+}
 .institutional-assistant__composer textarea { resize:vertical; min-height:3rem; max-height:10rem; line-height:1.6; }
 .institutional-assistant__composer>div:focus-within { border-color:hsl(var(--ring)); box-shadow:0 0 0 1px hsl(var(--ring)); }
 .institutional-assistant__composer textarea:focus-visible { outline:none; }
