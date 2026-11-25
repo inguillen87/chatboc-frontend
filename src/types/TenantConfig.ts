@@ -1,4 +1,9 @@
 import type { OrganizationTypePresentation } from '@/utils/organizationTypeLabel';
+import type {
+  OrganizationBrandingPublishPayload,
+  OrganizationBrandingRestorePayload,
+  OrganizationBrandingSnapshot,
+} from '@/utils/organizationBranding';
 
 export type TenantType = "municipio" | "pyme" | "colegio";
 
@@ -47,6 +52,7 @@ export interface TenantConfigBundle {
     whatsapp_sender_id?: string | null;
   };
   organization_profile?: TenantOrganizationProfile | null;
+  organization_branding?: OrganizationBrandingSnapshot | null;
   configs: {
     menu: Record<string, MenuConfig>;
     contacts: Record<string, ContactsConfig>;
@@ -71,8 +77,10 @@ export interface TenantOrganizationProfile {
 
 /** Profile patches use the existing versioned save; never resend a tenant snapshot. */
 export type TenantConfigUpdate =
-  | { configs: Partial<TenantConfigBundle['configs']>; expected_revision?: never; organization_profile?: never }
-  | { expected_revision: string; organization_profile: { logo_url: string }; configs?: never };
+  | { configs: Partial<TenantConfigBundle['configs']>; expected_revision?: never; organization_profile?: never; organization_branding?: never }
+  | { expected_revision: string; organization_profile: { logo_url: string }; configs?: never; organization_branding?: never }
+  | (OrganizationBrandingPublishPayload & { configs?: never; organization_profile?: never })
+  | (OrganizationBrandingRestorePayload & { configs?: never; organization_profile?: never });
 
 export type MenuItemType = "submenu" | "ticket_category" | "link" | "action";
 

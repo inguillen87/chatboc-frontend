@@ -92,6 +92,9 @@ import InstitutionProfileWorkspace, {
   type InstitutionProfileSection,
 } from '@/components/profile/InstitutionProfileWorkspace';
 import ReceiptCampaignHeader, { isReceiptHeader, receiptHeaderUrlValid, type ReceiptHeader } from '@/components/profile/ReceiptCampaignHeader';
+import OrganizationPaletteCard from '@/components/profile/OrganizationPaletteCard';
+import { readOrganizationBranding, type OrganizationBrandingSnapshot } from '@/utils/organizationBranding';
+import { resetPrivateWorkspaceBrandThemeCache } from '@/components/brand/usePrivateWorkspaceBrandTheme';
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
@@ -541,6 +544,7 @@ export default function Perfil() {
   const [requestedTenantAuthority, setRequestedTenantAuthority] =
     useState<RequestedTenantAuthorityState | null>(null);
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfileSettings | null>(null);
+  const [organizationBranding, setOrganizationBranding] = useState<OrganizationBrandingSnapshot | null>(null);
   const [organizationProfileStatus, setOrganizationProfileStatus] =
     useState<'idle' | 'loading' | 'ready' | 'error' | 'denied'>('idle');
   const [organizationHoursEdited, setOrganizationHoursEdited] = useState(false);
@@ -648,6 +652,10 @@ export default function Perfil() {
     matchingRequestedAuthority?.status === 'authorized' &&
     (isPlatformAdministrator || organizationProfile?.tenant.id === authenticatedOrganization?.tenantId)
       ? organizationProfile : null;
+  const matchingOrganizationBranding = matchingOrganizationProfile &&
+    organizationBranding?.tenant.slug === matchingOrganizationProfile.tenant.slug &&
+    organizationBranding.tenant.id === matchingOrganizationProfile.tenant.id
+      ? organizationBranding : null;
   const verifiedOrganizationNavigationTenantSlug = hasVerifiedSession === true && !userLoading && integrationTenantSlug && (
     usesScopedOrganizationProfile
       ? organizationProfileStatus === 'ready' && matchingOrganizationProfile?.tenant.slug === integrationTenantSlug
@@ -757,6 +765,7 @@ export default function Perfil() {
     // the next scoped profile is loading.
     setProfileChannelActivation(undefined);
     setOrganizationProfile(null);
+    setOrganizationBranding(null);
     setReceiptHeaderDraft(null);
     setReceiptHeaderEdited(false);
   }, [profileIdentityScope]);
@@ -1433,7 +1442,10 @@ export default function Perfil() {
     setError(null);
     setMensaje(null);
     if (usesScopedOrganizationProfile) {
-      if (!expectedOrganizationRevision) setOrganizationProfile(null);
+      if (!expectedOrganizationRevision) {
+        setOrganizationProfile(null);
+        setOrganizationBranding(null);
+      }
       setOrganizationProfileStatus('loading');
     }
     try {
@@ -1468,6 +1480,9 @@ export default function Perfil() {
           throw new Error('No pudimos verificar la versión guardada de esta organización.');
         }
         setOrganizationProfile(profile);
+        setOrganizationBranding(
+          readOrganizationBranding(bundle.organization_branding, normalizedRequestedTenant, profile.tenant.id),
+        );
         setOrganizationProfileStatus('ready');
         setOrganizationHoursEdited(false);
         setReceiptHeaderDraft(profile.values.whatsapp_receipt_header ?? null);
@@ -3235,7 +3250,7 @@ export default function Perfil() {
             ) : null}
 
             {activeInstitutionSection === "identity" ? (
-              <div className="grid max-w-5xl gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className={usesScopedOrganizationProfile ? "max-w-4xl space-y-5" : "grid max-w-5xl gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]"}>
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <Label htmlFor="logo_url">Logo institucional</Label>
@@ -3251,6 +3266,16 @@ export default function Perfil() {
                       Identidad visual de la organización. La personalización de dominio y marca se gobierna por tenant.
                     </p>
                   </div>
+                  {usesScopedOrganizationProfile && matchingOrganizationProfile && matchingOrganizationBranding ? (
+                    <OrganizationPaletteCard
+                      tenantSlug={matchingOrganizationProfile.tenant.slug}
+                      initialBranding={matchingOrganizationBranding}
+                      onBrandingUpdated={(next) => {
+                        setOrganizationBranding(next);
+                        resetPrivateWorkspaceBrandThemeCache();
+                      }}
+                    />
+                  ) : null}
                   {usesScopedOrganizationProfile && matchingOrganizationProfile && Object.prototype.hasOwnProperty.call(matchingOrganizationProfile.values, 'whatsapp_receipt_header') ? (
                     <ReceiptCampaignHeader key={`${matchingOrganizationProfile.tenant.id}:${matchingOrganizationProfile.revision}`}
                       value={receiptHeaderDraft} onChange={next => { setReceiptHeaderDraft(next); setReceiptHeaderEdited(true); }} />
