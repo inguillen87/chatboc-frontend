@@ -207,14 +207,14 @@ const SurveyDetailPage = () => {
             </div>
           ) : null}
           {structureLocked || lockedEditMessage ? (
-            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-              <p className="font-semibold text-amber-100">Esta encuesta ya tiene respuestas y su estructura está bloqueada.</p>
-              <p className="mt-1 text-amber-100/80">{lockMessage}</p>
+            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-foreground">
+              <p className="font-semibold text-foreground">Esta encuesta ya tiene respuestas y su estructura está bloqueada.</p>
+              <p className="mt-1 text-foreground/85">{lockMessage}</p>
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                className="mt-3"
+                className="mt-3 min-h-[36px]"
                 onClick={handleDuplicate}
                 disabled={isDuplicating}
               >
@@ -240,7 +240,11 @@ const SurveyDetailPage = () => {
       {!governedSurvey ? governanceWorkspace : null}
       <SurveyEligibilityAdminPanel surveyId={survey.id} tenantSlug={tenantSlug} />
       <div className="text-sm text-muted-foreground">
-        <button className="underline" onClick={() => navigate('/admin/encuestas')}>
+        <button
+          type="button"
+          className="inline-flex min-h-[36px] items-center rounded-sm px-1 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          onClick={() => navigate('/admin/encuestas')}
+        >
           Volver al listado
         </button>
       </div>

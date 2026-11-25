@@ -1463,21 +1463,21 @@ export default function SurveyAnalyticsPage() {
               {rangeLabel}
             </span>
           </div>
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
-            <div className="space-y-4">
-              <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+            <div className="min-w-0 space-y-4">
+              <div className="min-w-0 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Enlace público de participación</p>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/30 px-3.5 py-2.5 text-sm font-mono text-foreground shadow-xs">
-                      <span className="truncate">
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-input bg-muted/30 px-3.5 py-2.5 text-sm font-mono text-foreground shadow-xs">
+                      <span className="min-w-0 flex-1 truncate">
                         {publicUrl || (isPublicationReady
                           ? 'Configurá el slug público para generar el enlace compartible.'
                           : 'Participación pública pendiente de validación.')}
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                     <Button
                       variant="default"
                       onClick={async () => {
@@ -1496,22 +1496,22 @@ export default function SurveyAnalyticsPage() {
                           });
                         }
                       }}
-                      className="inline-flex items-center gap-2 shadow-xs"
+                      className="inline-flex min-h-[44px] items-center gap-2 shadow-xs"
                       disabled={!copyPublicUrl}
                     >
-                      <Copy className="h-4 w-4" /> Copiar link
+                      <Copy className="h-4 w-4" aria-hidden="true" /> Copiar link
                     </Button>
                     {resolvedWhatsappShareUrl ? (
-                      <Button variant="outline" asChild className="inline-flex items-center gap-2 border-emerald-600/30 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-400 dark:hover:bg-emerald-950/30">
+                      <Button variant="outline" asChild className="inline-flex min-h-[44px] items-center gap-2 border-emerald-600/40 bg-emerald-500/10 text-foreground hover:bg-emerald-500/20">
                         <a href={resolvedWhatsappShareUrl} target="_blank" rel="noreferrer">
-                          <MessageCircle className="h-4 w-4" /> WhatsApp
+                          <MessageCircle className="h-4 w-4 text-emerald-700 dark:text-emerald-300" aria-hidden="true" /> WhatsApp
                         </a>
                       </Button>
                     ) : null}
                     {shouldShowLiveResultsButton && resolvedLiveResultsHref ? (
-                      <Button variant="outline" asChild className="inline-flex items-center gap-2">
+                      <Button variant="outline" asChild className="inline-flex min-h-[44px] items-center gap-2">
                         <a href={resolvedLiveResultsHref} target="_blank" rel="noreferrer">
-                          <Activity className="h-4 w-4" /> Resultados en vivo
+                          <Activity className="h-4 w-4" aria-hidden="true" /> Resultados en vivo
                         </a>
                       </Button>
                     ) : null}
@@ -1524,7 +1524,7 @@ export default function SurveyAnalyticsPage() {
             </div>
             {qrUrl ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card/80 p-3.5 shadow-sm backdrop-blur-xs">
-                <div className="overflow-hidden rounded-lg bg-white p-2 shadow-xs">
+                <div className="overflow-hidden rounded-lg border border-border/60 bg-background p-2 shadow-xs">
                   <SurveyQrPreview
                     slug={livePanelSlug}
                     title={effectiveSurvey.titulo}

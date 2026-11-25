@@ -41,13 +41,13 @@ const statePresentation: Record<TicketSlaClockState, {
   overdue: {
     label: 'Vencido',
     compactLabel: 'SLA vencido',
-    className: 'border-destructive/35 bg-destructive/10 text-destructive',
+    className: 'border-destructive/45 bg-destructive/10 text-foreground',
     icon: AlertTriangle,
   },
   due: {
     label: 'Por vencer',
     compactLabel: 'SLA por vencer',
-    className: 'border-amber-400/45 bg-amber-500/10 text-amber-800 dark:text-amber-200',
+    className: 'border-amber-500/45 bg-amber-500/10 text-foreground',
     icon: Clock,
   },
   healthy: {
@@ -59,25 +59,25 @@ const statePresentation: Record<TicketSlaClockState, {
   satisfied: {
     label: 'Cumplido',
     compactLabel: 'SLA cumplido',
-    className: 'border-emerald-400/45 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200',
+    className: 'border-emerald-500/45 bg-emerald-500/10 text-foreground',
     icon: CheckCircle2,
   },
   paused: {
     label: 'Pausado',
     compactLabel: 'SLA pausado',
-    className: 'border-slate-400/45 bg-slate-500/10 text-slate-700 dark:text-slate-200',
+    className: 'border-border bg-muted/40 text-foreground',
     icon: Clock,
   },
   inactive: {
     label: 'No activo',
     compactLabel: 'SLA no activo',
-    className: 'border-border bg-muted/30 text-muted-foreground',
+    className: 'border-border bg-muted/40 text-foreground/85',
     icon: Info,
   },
   unknown: {
     label: 'Sin evidencia',
     compactLabel: 'SLA sin evidencia',
-    className: 'border-border bg-muted/30 text-muted-foreground',
+    className: 'border-border bg-muted/40 text-foreground/85',
     icon: Info,
   },
 };
@@ -224,7 +224,7 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
     ? {
         label: 'Evidencia parcial',
         compactLabel: 'SLA parcial',
-        className: 'border-border bg-muted/30 text-muted-foreground',
+        className: 'border-border bg-muted/40 text-foreground/85',
         icon: Info,
       }
     : statePresentation[contract.state];

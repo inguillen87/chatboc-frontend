@@ -142,7 +142,58 @@ export const TransparencyTab = ({
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="space-y-3 md:hidden" aria-label="Cortes locales de integridad">
+            {normalizedSnapshots.length ? (
+              normalizedSnapshots.map((snapshot) => {
+                const status = snapshotStatus(snapshot);
+                return (
+                  <article key={`card-${snapshot.id}`} className="space-y-2 rounded-xl border border-border/70 bg-background p-3.5 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground">Snapshot #{snapshot.id}</p>
+                        <code className="block truncate text-xs text-muted-foreground" title={snapshot.root_hash}>
+                          {snapshot.root_hash}
+                        </code>
+                      </div>
+                      <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                        {snapshot.total_respuestas.toLocaleString('es-AR')} resp.
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(snapshot.desde_at).toLocaleString()} – {new Date(snapshot.hasta_at).toLocaleString()}
+                    </p>
+                    <div className={`inline-flex items-center gap-1 text-xs ${status.className}`}>
+                      {snapshot.is_simulated ? <FlaskConical className="h-4 w-4" aria-hidden="true" /> : <Clock className="h-4 w-4" aria-hidden="true" />}
+                      {status.label}
+                    </div>
+                    {!snapshot.is_simulated && !snapshot.externally_verified ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-2"
+                        onClick={() => onSimulateAnchor(snapshot.id)}
+                        disabled={isPublishing}
+                      >
+                        <FlaskConical className="h-4 w-4" aria-hidden="true" />
+                        {isPublishing ? 'Simulando...' : 'Generar referencia local'}
+                      </Button>
+                    ) : null}
+                  </article>
+                );
+              })
+            ) : (
+              <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                Todavia no hay cortes locales de integridad.
+              </p>
+            )}
+          </div>
+
+          <div
+            className="hidden overflow-x-auto rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
+            tabIndex={0}
+            role="region"
+            aria-label="Tabla de cortes locales de integridad"
+          >
             <table className="min-w-full divide-y divide-border text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground">

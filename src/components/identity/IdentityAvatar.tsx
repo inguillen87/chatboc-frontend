@@ -5,14 +5,14 @@ import { cn } from '@/lib/utils';
 import { shouldRenderProfileImage } from '@/utils/avatarConsent';
 
 const AVATAR_TONES = [
-  'bg-sky-500/15 text-sky-700 ring-sky-500/20 dark:text-sky-200',
-  'bg-emerald-500/15 text-emerald-700 ring-emerald-500/20 dark:text-emerald-200',
-  'bg-amber-500/15 text-amber-800 ring-amber-500/20 dark:text-amber-200',
-  'bg-rose-500/15 text-rose-700 ring-rose-500/20 dark:text-rose-200',
-  'bg-cyan-500/15 text-cyan-700 ring-cyan-500/20 dark:text-cyan-200',
-  'bg-violet-500/15 text-violet-700 ring-violet-500/20 dark:text-violet-200',
-  'bg-lime-500/15 text-lime-800 ring-lime-500/20 dark:text-lime-200',
-  'bg-slate-500/15 text-slate-700 ring-slate-500/20 dark:text-slate-200',
+  'bg-primary/15 text-foreground ring-primary/25',
+  'bg-emerald-500/15 text-foreground ring-emerald-500/30',
+  'bg-amber-500/15 text-foreground ring-amber-500/30',
+  'bg-rose-500/15 text-foreground ring-rose-500/30',
+  'bg-cyan-500/15 text-foreground ring-cyan-500/30',
+  'bg-violet-500/15 text-foreground ring-violet-500/30',
+  'bg-lime-500/15 text-foreground ring-lime-500/30',
+  'bg-muted text-foreground ring-border',
 ];
 
 const SIZE_CLASSES = {

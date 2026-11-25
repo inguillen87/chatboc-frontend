@@ -104,13 +104,13 @@ export const SurveyQrPreview = ({
         />
       ) : (
         <div
-          className="flex items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-[10px] text-muted-foreground"
+          className="flex items-center justify-center rounded-md border border-dashed border-border bg-muted/40 px-2 text-xs font-medium text-foreground"
           style={sharedStyle}
         >
           No disponible
         </div>
       )}
-      {error ? <p className="text-xs text-muted-foreground">{error}</p> : null}
+      {error ? <p className="text-xs text-foreground/85">{error}</p> : null}
     </div>
   );
 };

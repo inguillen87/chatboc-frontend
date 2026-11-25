@@ -1196,6 +1196,7 @@ export const SurveyAnalytics = ({
   tenantId,
   route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
+  const shouldReduceMotion = Boolean(useReducedMotion());
   const palette = useBrandChartPalette(FALLBACK_PALETTE);
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
   const summaryRecord = useMemo(
@@ -1785,20 +1786,28 @@ export const SurveyAnalytics = ({
         </CardHeader>
         <CardContent><MeasuredContainer className="h-72 min-w-0">
           {timeseriesData.length ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={260} minHeight={220}>
               <LineChart data={timeseriesData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="fecha" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="fecha" tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} width={40} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--popover))',
+                    borderColor: 'hsl(var(--border))',
+                    color: 'hsl(var(--popover-foreground))',
+                    borderRadius: '0.5rem',
+                  }}
+                />
                 <Line
                   type="monotone"
                   dataKey="respuestas"
+                  name="Respuestas"
                   stroke={palette[0]}
                   strokeWidth={2}
                   dot
-                  isAnimationActive
-                  animationDuration={CHART_ANIMATION_DURATION}
+                  isAnimationActive={!shouldReduceMotion}
+                  animationDuration={shouldReduceMotion ? 0 : CHART_ANIMATION_DURATION}
                   animationEasing={CHART_ANIMATION_EASING}
                 />
               </LineChart>
@@ -1823,18 +1832,36 @@ export const SurveyAnalytics = ({
         <CardContent className="grid gap-6 lg:grid-cols-2">
           <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
-                <BarChart data={optionData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="opcion" interval={0} angle={-25} textAnchor="end" height={90} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Legend />
+              <ResponsiveContainer width="100%" height="100%" minWidth={260} minHeight={220}>
+                <BarChart data={optionData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="opcion"
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                    height={84}
+                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }}
+                    tickFormatter={(value: string) =>
+                      String(value).length > 18 ? `${String(value).slice(0, 17)}…` : String(value)
+                    }
+                  />
+                  <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} width={40} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--popover))',
+                      borderColor: 'hsl(var(--border))',
+                      color: 'hsl(var(--popover-foreground))',
+                      borderRadius: '0.5rem',
+                    }}
+                  />
+                  <Legend wrapperStyle={{ color: 'hsl(var(--foreground))', fontSize: 12, paddingTop: 8 }} />
                   <Bar
+                    name={hasEligibilityMetrics ? 'Selecciones' : 'Respuestas'}
                     dataKey={hasEligibilityMetrics ? 'respuestasSeleccionaron' : 'respuestas'}
                     fill={palette[1]}
-                    isAnimationActive
-                    animationDuration={CHART_ANIMATION_DURATION}
+                    isAnimationActive={!shouldReduceMotion}
+                    animationDuration={shouldReduceMotion ? 0 : CHART_ANIMATION_DURATION}
                     animationEasing={CHART_ANIMATION_EASING}
                   />
                 </BarChart>
@@ -1847,8 +1874,11 @@ export const SurveyAnalytics = ({
           </MeasuredContainer>
           {optionData.length && hasEligibilityMetrics ? (
             <div
-              className="h-72 min-w-0 overflow-auto rounded-lg border"
+              className="h-72 min-w-0 overflow-auto rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               data-testid="survey-eligible-option-rates"
+              tabIndex={0}
+              role="region"
+              aria-label="Tasas por pregunta y opción"
             >
               <p
                 id="survey-eligible-option-rates-description"
@@ -1925,9 +1955,10 @@ export const SurveyAnalytics = ({
               </table>
             </div>
           ) : (
-            <MeasuredContainer className="h-72 min-w-0">
+            <div className="space-y-3 min-w-0">
+            <MeasuredContainer className="h-60 min-w-0">
               {optionData.length ? (
-                <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={260} minHeight={200}>
                   <PieChart>
                     <Pie
                       data={optionData}
@@ -1935,17 +1966,25 @@ export const SurveyAnalytics = ({
                       nameKey="opcion"
                       cx="50%"
                       cy="50%"
-                      outerRadius={110}
-                      innerRadius={60}
-                      isAnimationActive
-                      animationDuration={CHART_ANIMATION_DURATION}
+                      outerRadius={88}
+                      innerRadius={48}
+                      isAnimationActive={!shouldReduceMotion}
+                      animationDuration={shouldReduceMotion ? 0 : CHART_ANIMATION_DURATION}
                       animationEasing={CHART_ANIMATION_EASING}
                     >
                       {optionData.map((entry, index) => (
                         <Cell key={`${entry.opcion}-${index}`} fill={palette[index % palette.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                    <Tooltip
+                      formatter={(value: number) => `${value.toFixed(1)}%`}
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--popover))',
+                        borderColor: 'hsl(var(--border))',
+                        color: 'hsl(var(--popover-foreground))',
+                        borderRadius: '0.5rem',
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -1954,6 +1993,26 @@ export const SurveyAnalytics = ({
                 </div>
               )}
             </MeasuredContainer>
+            {optionData.length ? (
+              <ul className="grid gap-1.5 text-xs sm:grid-cols-2" aria-label="Leyenda de distribución por opción">
+                {optionData.slice(0, 8).map((entry, index) => (
+                  <li key={`legend-${entry.opcion}-${index}`} className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/80 px-2.5 py-1.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: palette[index % palette.length] }}
+                      />
+                      <span className="truncate font-medium text-foreground">{entry.opcion}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                      {typeof entry.porcentaje === 'number' ? `${entry.porcentaje.toFixed(1)}%` : entry.respuestas}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -2131,8 +2190,8 @@ export const SurveyAnalytics = ({
           )}
 
           {authorizedTerritoryPoints.length ? (
-            <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 p-4">
-              <div className="mb-3 flex items-center justify-between">
+            <div className="space-y-3 rounded-xl border border-border/60 bg-background/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Ranking de Participación por Zona y Barrio
                 </p>
@@ -2140,6 +2199,35 @@ export const SurveyAnalytics = ({
                   {authorizedTerritoryPoints.length} focos detectados
                 </Badge>
               </div>
+              <ul className="space-y-2 sm:hidden" aria-label="Ranking de participación por zona">
+                {authorizedTerritoryPoints.slice(0, 15).map((point, index) => {
+                  const maxVol = Math.max(1, ...authorizedTerritoryPoints.map((p) => p.respuestas || 1));
+                  const pct = Math.round(((point.respuestas || 0) / maxVol) * 100);
+                  const zoneName = point.barrio || point.ciudad || `Zona ${index + 1} (${point.lat.toFixed(2)}, ${point.lng.toFixed(2)})`;
+                  return (
+                    <li key={`zone-card-${point.lat}-${point.lng}-${index}`} className="space-y-1.5 rounded-lg border border-border/60 bg-background p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-foreground">{index + 1}. {zoneName}</span>
+                        <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                          {point.respuestas} {point.respuestas === 1 ? 'voto' : 'votos'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted/60">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(8, pct)}%` }} />
+                        </div>
+                        <span className="tabular-nums text-foreground">{pct}%</span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div
+                className="hidden overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:block"
+                tabIndex={0}
+                role="region"
+                aria-label="Tabla de ranking de participación por zona y barrio"
+              >
               <table className="min-w-full divide-y divide-border/60 text-xs">
                 <thead>
                   <tr className="text-left text-muted-foreground font-medium">
@@ -2196,6 +2284,7 @@ export const SurveyAnalytics = ({
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : null}
         </CardContent>
@@ -2219,22 +2308,31 @@ export const SurveyAnalytics = ({
                   </p>
                 </div>
                 <MeasuredContainer className="h-64 w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={260} minHeight={220}>
                     <BarChart
                       data={section.data}
                       layout="vertical"
                       margin={{ left: 0, right: 16, top: 16, bottom: 16 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                      <XAxis type="number" allowDecimals={false} tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} />
                       <YAxis
                         type="category"
                         dataKey="label"
-                        width={160}
-                        tick={{ fontSize: 12 }}
+                        width={110}
+                        tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                         interval={0}
+                        tickFormatter={(value: string) =>
+                          String(value).length > 14 ? `${String(value).slice(0, 13)}…` : String(value)
+                        }
                       />
                       <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--popover))',
+                          borderColor: 'hsl(var(--border))',
+                          color: 'hsl(var(--popover-foreground))',
+                          borderRadius: '0.5rem',
+                        }}
                         formatter={(value: number, _name, payload) => {
                           const percentage = payload?.payload?.percentage;
                           return typeof percentage === 'number'
@@ -2245,8 +2343,8 @@ export const SurveyAnalytics = ({
                       <Bar
                         dataKey="value"
                         fill={palette[sectionIndex % palette.length]}
-                        isAnimationActive
-                        animationDuration={CHART_ANIMATION_DURATION}
+                        isAnimationActive={!shouldReduceMotion}
+                        animationDuration={shouldReduceMotion ? 0 : CHART_ANIMATION_DURATION}
                         animationEasing={CHART_ANIMATION_EASING}
                       >
                         {section.data.map((item, index) => (

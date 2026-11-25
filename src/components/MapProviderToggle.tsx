@@ -47,17 +47,17 @@ export function MapProviderToggle({
       aria-label={ariaLabel}
     >
       <div className="flex items-center gap-2">
-        <RadioGroupItem value="maplibre" id={mapLibreId} />
-        <Label htmlFor={mapLibreId} className={labelClass}>
+        <RadioGroupItem value="maplibre" id={mapLibreId} className="h-6 w-6" />
+        <Label htmlFor={mapLibreId} className={cn(labelClass, "inline-flex min-h-[32px] cursor-pointer items-center")}>
           Mapa estándar
         </Label>
       </div>
       {showGoogleOption ? (
         <div className="flex items-center gap-2">
-          <RadioGroupItem value="google" id={googleId} disabled={!googleAvailable} />
+          <RadioGroupItem value="google" id={googleId} disabled={!googleAvailable} className="h-6 w-6" />
           <Label
             htmlFor={googleId}
-            className={cn(labelClass, !googleAvailable && "text-muted-foreground/60")}
+            className={cn(labelClass, "inline-flex min-h-[32px] items-center", !googleAvailable ? "text-muted-foreground/60" : "cursor-pointer")}
           >
             Mapa Google
           </Label>

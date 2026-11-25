@@ -18,7 +18,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { buildFullAddress } from '@/utils/ticketLocationAddress';
 import TicketTimeline from './TicketTimeline';
 import TicketAttachments from './TicketAttachments';
@@ -492,6 +492,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
   className,
   operationalWorkspace = false,
 }) => {
+  const reduceMotion = Boolean(useReducedMotion());
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
@@ -967,9 +968,9 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
   return (
     <motion.aside
       key={ticket.id}
-      initial={{ opacity: 0.5 }}
+      initial={reduceMotion ? false : { opacity: 0.5 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: reduceMotion ? 0 : 0.3 }}
       className={cn(
         'ticket-inspector flex h-full min-w-0 max-w-full shrink-0 flex-col overflow-hidden border-border bg-muted/20',
         onClose ? 'w-full border-0 md:border-l' : 'w-full border-l',
@@ -1077,7 +1078,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                 aria-labelledby={`next-step-${ticket.id}`}
                 className="rounded-xl border border-primary/20 bg-primary/5 p-3"
               >
-                <p id={`next-step-${ticket.id}`} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                <p id={`next-step-${ticket.id}`} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground">
                   Próximo paso
                 </p>
                 <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">

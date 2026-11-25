@@ -202,6 +202,15 @@ const focusCopy = {
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 640,
+  );
+  useEffect(() => {
+    const syncViewport = () => setIsMobileViewport(window.innerWidth < 640);
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    return () => window.removeEventListener('resize', syncViewport);
+  }, []);
   const [searchParams] = useSearchParams();
   const focusMode = normalizeFocusMode(searchParams.get('focus'));
   const includeArchived = searchParams.get('include_archived') === 'true';
@@ -445,9 +454,9 @@ const AdminSurveysIndex = () => {
           <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" disabled={relocationPending || restorePending || !tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>
-        <Button disabled={relocationPending || restorePending || !tenantSlug} onClick={() => navigate('/admin/encuestas/new')} className="inline-flex items-center gap-2">
-          <Plus className="h-4 w-4" /> Nueva encuesta
+        <Button type="button" variant="outline" className="min-h-[44px] sm:min-h-[40px]" disabled={relocationPending || restorePending || !tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>
+        <Button disabled={relocationPending || restorePending || !tenantSlug} onClick={() => navigate('/admin/encuestas/new')} className="inline-flex min-h-[44px] items-center gap-2">
+          <Plus className="h-4 w-4" aria-hidden="true" /> Nueva encuesta
         </Button>
         </div>
       </div>
@@ -571,68 +580,80 @@ const AdminSurveysIndex = () => {
                     value={workspaceQuery}
                     onChange={(event) => setWorkspaceQuery(event.target.value)}
                     placeholder="Buscar por nombre o identificador"
-                    className="h-9 pl-9"
+                    className="h-10 pl-9 sm:h-9"
                   />
                 </label>
 
-                <div
-                  role="group"
-                  aria-label="Filtrar por estado operativo"
-                  className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/25 p-1"
-                >
-                  {([
-                    ['all', 'Todos', workspaceCounts.all],
-                    ['draft', 'Borradores', workspaceCounts.draft],
-                    ['scheduled', 'Programadas', workspaceCounts.scheduled],
-                    ['collecting', 'Recibiendo', workspaceCounts.collecting],
-                    ['finished', 'Finalizados', workspaceCounts.finished],
-                    ['unverified', 'Sin verificar', workspaceCounts.unverified],
-                  ] as const).map(([value, label, count]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      variant={statusFilter === value ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className="h-7 shrink-0 gap-1 px-2 text-xs"
-                      aria-pressed={statusFilter === value}
-                      onClick={() => setStatusFilter(value)}
+                <details open={!isMobileViewport} className="group min-w-0 rounded-lg border border-border/70 bg-muted/20 p-1.5 sm:border-0 sm:bg-transparent sm:p-0">
+                  <summary className="flex min-h-[40px] cursor-pointer list-none items-center justify-between gap-2 px-2 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md sm:hidden [&::-webkit-details-marker]:hidden">
+                    <span className="inline-flex items-center gap-1.5">
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                      Filtros de estado y tipo
+                    </span>
+                    <span className="text-[11px] font-normal text-muted-foreground group-open:hidden">Abrir</span>
+                    <span className="hidden text-[11px] font-normal text-muted-foreground group-open:inline">Ocultar</span>
+                  </summary>
+                  <div className="mt-2 flex min-w-0 flex-col gap-2 sm:mt-0 xl:flex-row xl:items-center">
+                    <div
+                      role="group"
+                      aria-label="Filtrar por estado operativo"
+                      className="flex max-w-full flex-wrap gap-1 rounded-lg border border-border/70 bg-muted/25 p-1 sm:flex-nowrap sm:overflow-x-auto"
                     >
-                      {label} <span className="tabular-nums text-muted-foreground">{count.toLocaleString('es-AR')}</span>
-                    </Button>
-                  ))}
-                </div>
+                      {([
+                        ['all', 'Todos', workspaceCounts.all],
+                        ['draft', 'Borradores', workspaceCounts.draft],
+                        ['scheduled', 'Programadas', workspaceCounts.scheduled],
+                        ['collecting', 'Recibiendo', workspaceCounts.collecting],
+                        ['finished', 'Finalizados', workspaceCounts.finished],
+                        ['unverified', 'Sin verificar', workspaceCounts.unverified],
+                      ] as const).map(([value, label, count]) => (
+                        <Button
+                          key={value}
+                          type="button"
+                          variant={statusFilter === value ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-8 min-h-[32px] shrink-0 gap-1 px-2.5 text-xs"
+                          aria-pressed={statusFilter === value}
+                          onClick={() => setStatusFilter(value)}
+                        >
+                          {label} <span className="tabular-nums text-muted-foreground">{count.toLocaleString('es-AR')}</span>
+                        </Button>
+                      ))}
+                    </div>
 
-                <div
-                  role="group"
-                  aria-label="Filtrar por tipo de instrumento"
-                  className="flex gap-1 rounded-lg border border-border/70 bg-muted/25 p-1"
-                >
-                  {([
-                    ['all', 'Ambos', workspaceCounts.all],
-                    ['survey', 'Encuestas', workspaceCounts.surveys],
-                    ['voting', 'Votaciones', workspaceCounts.votings],
-                  ] as const).map(([value, label, count]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      variant={kindFilter === value ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
-                      aria-pressed={kindFilter === value}
-                      aria-label={`${label}: ${count.toLocaleString('es-AR')}`}
-                      onClick={() => setKindFilter(value)}
+                    <div
+                      role="group"
+                      aria-label="Filtrar por tipo de instrumento"
+                      className="flex flex-wrap gap-1 rounded-lg border border-border/70 bg-muted/25 p-1"
                     >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
+                      {([
+                        ['all', 'Ambos', workspaceCounts.all],
+                        ['survey', 'Encuestas', workspaceCounts.surveys],
+                        ['voting', 'Votaciones', workspaceCounts.votings],
+                      ] as const).map(([value, label, count]) => (
+                        <Button
+                          key={value}
+                          type="button"
+                          variant={kindFilter === value ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-8 min-h-[32px] gap-1 px-2.5 text-xs"
+                          aria-pressed={kindFilter === value}
+                          aria-label={`${label}: ${count.toLocaleString('es-AR')}`}
+                          onClick={() => setKindFilter(value)}
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </details>
 
                 {hasWorkspaceFilters ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 shrink-0 gap-1 px-2 text-xs"
+                    className="h-9 min-h-[36px] shrink-0 gap-1 px-2.5 text-xs"
                     onClick={() => {
                       setWorkspaceQuery('');
                       setStatusFilter('all');

@@ -3189,7 +3189,6 @@ export function PremiumTerritoryHeatmap({
                     setMapDisplayMode(mode.id);
                   }}
                   aria-checked={mapDisplayMode === mode.id}
-                  aria-pressed={mapDisplayMode === mode.id}
                   disabled={
                     mode.id === 'heat'
                       ? !showHeatLayer
@@ -4099,7 +4098,7 @@ export function PremiumTerritoryHeatmap({
 
         <aside data-testid="territory-executive-rail" className="w-full self-start">
           <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-[36px] cursor-pointer list-none items-center justify-between gap-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 text-sm font-semibold">
                 Inspector territorial
                 <span data-testid="territory-inspector-summary" className="ml-2 hidden font-normal text-muted-foreground sm:inline">
@@ -4373,7 +4372,7 @@ export function PremiumTerritoryHeatmap({
           ) : null}
 
           <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-[36px] cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Brain className="h-4 w-4 text-primary" />
               Capas de análisis

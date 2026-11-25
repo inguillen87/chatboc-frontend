@@ -541,7 +541,7 @@ export function SurveyLiveResultsPanel({
                         <div key={String(question.id ?? question.texto ?? question.titulo)} className="space-y-2">
                           <div className="flex items-center justify-between gap-3 text-sm">
                             <span className="truncate font-medium">{displayText(question.texto ?? question.titulo, 'Pregunta')}</span>
-                            <span className="shrink-0 text-muted-foreground">{question.total}</span>
+                            <span className="shrink-0 font-medium text-foreground">{question.total}</span>
                           </div>
                           <div className="h-2 overflow-hidden rounded-full bg-muted">
                             <div
