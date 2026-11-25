@@ -3472,9 +3472,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             className={cn(
               'mb-2 rounded-[8px] border px-2.5 py-2 text-xs',
               activeComposerActionDeliveryView.tone === 'queued'
-                ? 'border-blue-500/25 bg-blue-500/10 text-blue-800 dark:text-blue-200'
+                ? 'border-primary/30 bg-primary/10 text-foreground'
                 : activeComposerActionDeliveryView.tone === 'pending'
-                  ? 'border-blue-500/25 bg-blue-500/10 text-blue-800 dark:text-blue-200'
+                  ? 'border-primary/30 bg-primary/10 text-foreground'
                   : activeComposerActionDeliveryView.tone === 'success'
                     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
                     : activeComposerActionDeliveryView.tone === 'warning'
