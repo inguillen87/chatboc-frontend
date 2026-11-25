@@ -17,6 +17,14 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
     });
   });
 
+  await page.route('**/api/public/landing-experience*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{}',
+    });
+  });
+
   await page.route('**/api/public/widget-config*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -181,12 +189,15 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
   });
 };
 
-const openExecutiveConversation = async (page: import('@playwright/test').Page) => {
+const openExecutiveConversation = async (
+  page: import('@playwright/test').Page,
+  heading = 'Centro de atención a familias',
+) => {
   const journey = page.getByRole('navigation', { name: 'Vistas de la demo ejecutiva' });
   const overview = journey.getByRole('button', { name: 'Resumen', exact: true });
   const attention = journey.getByRole('button', { name: 'Atención', exact: true });
 
-  await expect(page.getByRole('heading', { name: 'Centro de gestión ciudadana' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: heading })).toBeVisible();
   await expect(overview).toHaveAttribute('aria-current', 'page');
   await attention.click();
   await expect(attention).toHaveAttribute('aria-current', 'page');
@@ -299,7 +310,7 @@ test.describe('Chatboc smoke e2e', () => {
     await showcase.getByRole('button', { name: /Iniciar demo colegio/i }).click();
 
     await expect(page).toHaveURL(/\/demo\?session=/);
-    await expect(page.getByRole('heading', { name: 'Centro de gestión ciudadana' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Centro de atención a familias' })).toBeVisible();
     await expect(
       page
         .getByRole('navigation', { name: 'Vistas de la demo ejecutiva' })
