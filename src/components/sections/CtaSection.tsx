@@ -60,8 +60,7 @@ const CtaSection = () => {
               Convertí atención, ventas y soporte en una operación conectada
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
-              Probá una demo, hablá con un asesor o creá tu cuenta para conocer un recorrido simple, claro y listo para
-              operar con tu propia identidad.
+              Probá una demo, hablá con alguien del equipo o creá tu cuenta para verlo funcionando con tu marca.
             </p>
 
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">

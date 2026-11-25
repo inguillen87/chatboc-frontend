@@ -47,7 +47,7 @@ const HowItWorksSection = () => {
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="chatboc-section-kicker mb-4">Implementación</div>
           <h2 id="implementation-title" className="chatboc-section-heading">
-            Un recorrido operativo, de punta a punta
+            Cómo lo ponemos en marcha
           </h2>
           <p className="chatboc-section-copy mt-4">
             Cada canal se incorpora con alcance, responsables y criterios de validación definidos. La organización puede

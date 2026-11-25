@@ -10,7 +10,7 @@ const pricingOptions = [
     tier: "Inicio rápido",
     headline: "Activación guiada para validar rápido",
     description:
-      "Para validar un canal, cargar contenido base y medir las primeras conversaciones con un alcance controlado.",
+      "Para activar un canal, cargar tus respuestas base y medir las primeras consultas.",
     features: [
       "Chat web marca blanca listo para activar",
       "Base inicial de respuestas y documentos",
@@ -27,15 +27,15 @@ const pricingOptions = [
   {
     name: "Plan Operativo",
     tier: "Más elegido",
-    headline: "Omnicanalidad, tickets y automatización",
+    headline: "Web, WhatsApp, tickets y seguimiento",
     description:
-      "Para equipos que atienden demanda real y necesitan conectar conversaciones, pedidos, soporte y reportes.",
+      "Para equipos con consultas diarias que necesitan conectar conversaciones, pedidos, soporte y reportes.",
     features: [
       "Todo lo del Plan Esencial",
       "Chat web, WhatsApp y panel operativo",
       "Tickets, reclamos, encuestas y acciones contextuales",
       "Identidad completa: paleta, tipografía y mascota",
-      "Acompañamiento estratégico continuo",
+      "Seguimiento y ajustes con nuestro equipo",
     ],
     cta: "Hablar con un asesor",
     ctaLink:
@@ -50,11 +50,11 @@ const pricingOptions = [
     description:
       "Para gobiernos y organizaciones que requieren seguridad, gobierno de datos, permisos e integraciones a medida.",
     features: [
-      "Consultoría de arquitectura y operación",
+      "Diseño de circuitos y puesta en marcha con tu equipo",
       "Integración con sistemas existentes y portal público",
       "Tableros ejecutivos multi-organización",
       "Tiempos, permisos y trazabilidad avanzada",
-      "Soporte dedicado para evolución continua",
+      "Soporte dedicado para sumar nuevos procesos",
     ],
     cta: "Coordinar reunión",
     ctaLink:
@@ -82,8 +82,8 @@ const PricingSection = () => {
             Planes claros para implementar y escalar
           </h2>
           <p className="chatboc-section-copy mt-4">
-            La propuesta se adapta al nivel de operación: validar un canal, conectar procesos o desplegar una solución
-            institucional con integraciones y acompañamiento.
+            Elegí según lo que necesitás hoy: activar un primer canal, ordenar la atención diaria o integrar sistemas
+            propios con nuestro equipo.
           </p>
         </div>
 

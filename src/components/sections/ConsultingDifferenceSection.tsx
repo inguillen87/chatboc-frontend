@@ -19,35 +19,35 @@ import {
 
 const capabilityRows = [
   { icon: MessageSquareText, label: "Texto y WhatsApp", detail: "consultas, ventas, turnos, reclamos y seguimiento" },
-  { icon: Mic, label: "Notas de voz", detail: "audio convertido en contexto util para responder o derivar" },
-  { icon: Image, label: "Imagenes y archivos", detail: "fotos, comprobantes, certificados, adjuntos y pedidos" },
-  { icon: MapPin, label: "Ubicacion", detail: "mapas, zonas, reclamos territoriales y recorridos de estado" },
+  { icon: Mic, label: "Notas de voz", detail: "audio convertido en contexto útil para responder o derivar" },
+  { icon: Image, label: "Imágenes y archivos", detail: "fotos, comprobantes, certificados, adjuntos y pedidos" },
+  { icon: MapPin, label: "Ubicación", detail: "mapas, zonas, reclamos territoriales y recorridos de estado" },
   { icon: PhoneCall, label: "Llamadas", detail: "voz cuando el canal y la organización la tienen habilitada" },
   { icon: Vote, label: "Encuestas y votaciones", detail: "sondeos, participación, comentarios y resultados en vivo" },
 ];
 
 const operatingFlows = [
   { icon: ClipboardList, label: "Reclamos y casos", detail: "se registran, se priorizan y quedan listos para operar" },
-  { icon: ShoppingBag, label: "Pedidos y carrito", detail: "catálogo, compra invitada, checkout y seguimiento" },
-  { icon: BarChart3, label: "Metricas y decisiones", detail: "actividad, tiempos, zonas, respuestas y comentarios" },
-  { icon: Users, label: "Derivación humana", detail: "cuando el caso lo necesita, el equipo recibe contexto completo" },
+  { icon: ShoppingBag, label: "Pedidos y carrito", detail: "catálogo, compra invitada, pago y seguimiento" },
+  { icon: BarChart3, label: "Métricas y decisiones", detail: "actividad, tiempos, zonas, respuestas y comentarios" },
+  { icon: Users, label: "Derivación humana", detail: "cuando el caso lo necesita, el equipo recibe el contexto completo" },
 ];
 
 const verticalStories = [
   {
     icon: Landmark,
     title: "Gobiernos y municipios",
-    points: ["Reclamos con foto, audio y ubicacion", "Estado por codigo o contacto", "Sondeos y participacion territorial"],
+    points: ["Reclamos con foto, audio y ubicación", "Estado por código o contacto", "Sondeos y participación territorial"],
   },
   {
     icon: Store,
     title: "Empresas y pymes",
-    points: ["Catalogo, pedidos y carrito invitado", "Leads listos para vender", "Comprobantes, stock y seguimiento"],
+    points: ["Catálogo, pedidos y carrito invitado", "Consultas listas para cerrar ventas", "Comprobantes, stock y seguimiento"],
   },
   {
     icon: GraduationCap,
     title: "Colegios",
-    points: ["Familias, secretaria y staff", "Inasistencias, certificados y admisiones", "Casos sensibles con handoff humano"],
+    points: ["Familias, secretaría y equipo docente", "Inasistencias, certificados y admisiones", "Casos sensibles con derivación humana"],
   },
 ];
 
@@ -65,12 +65,11 @@ const ConsultingDifferenceSection = () => {
       <div className="container mx-auto px-4">
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div>
-            <div className="chatboc-section-kicker mb-4">Por que no somos un chatbot mas</div>
-            <h2 className="chatboc-section-heading">Consultoria, agente IA y operación real en la misma experiencia</h2>
+            <div className="chatboc-section-kicker mb-4">Por qué no somos un chatbot más</div>
+            <h2 className="chatboc-section-heading">Consultoría, agente IA y operación real, todo conectado</h2>
             <p className="chatboc-section-copy mt-4">
-              Chatboc no se queda en responder preguntas. Ayuda a ordenar el recorrido completo: entender lo que pide
-              la persona, pedir datos utiles, crear casos o pedidos, medir lo que pasa y dejar al equipo con acciones
-              claras.
+              Chatboc no se queda en responder preguntas. Ordena el recorrido completo: entiende lo que pide la persona,
+              pide los datos útiles, crea casos o pedidos, mide lo que pasa y le deja al equipo acciones claras.
             </p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
@@ -129,7 +128,7 @@ const ConsultingDifferenceSection = () => {
               <div className="p-5">
                 <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
                   <BarChart3 className="h-4 w-4 text-primary" />
-                  Senales que se pueden medir
+                  Señales que se pueden medir
                 </div>
                 <div className="space-y-3">
                   {liveSignals.map((signal, index) => (
@@ -137,7 +136,7 @@ const ConsultingDifferenceSection = () => {
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <span className="text-sm font-medium text-foreground">{signal}</span>
                         <span className="text-xs text-muted-foreground">
-                          {index === 0 ? "participacion" : index === 1 ? "opinion" : index === 2 ? "venta" : index === 3 ? "territorio" : "equipo"}
+                          {index === 0 ? "participación" : index === 1 ? "opinión" : index === 2 ? "venta" : index === 3 ? "territorio" : "equipo"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">

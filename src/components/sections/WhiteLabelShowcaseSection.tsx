@@ -58,7 +58,7 @@ const DEMO_IDENTITIES: DemoBrandIdentity[] = [
     sector: "Gobierno local",
     tagline: "Atención ciudadana, trámites y reclamos con identidad institucional.",
     domain: "portal.municipio-demo.gob",
-    assistantName: "Asistente Ciudadano",
+    assistantName: "Asistente ciudadano",
     icon: Landmark,
     palette: ["#0F766E", "#0284C7", "#10B981", "#38BDF8"],
     gradientStops: [
@@ -90,7 +90,7 @@ const DEMO_IDENTITIES: DemoBrandIdentity[] = [
       options: [
         {
           label: "Compartir ubicación",
-          followUp: "Ubicación asociada al reclamo #4082. Te avisaremos cuando la cuadrilla tome el caso.",
+          followUp: "Ubicación asociada al reclamo #4082. Te avisamos cuando la cuadrilla tome el caso.",
         },
         {
           label: "Ver estado",
@@ -106,7 +106,7 @@ const DEMO_IDENTITIES: DemoBrandIdentity[] = [
     sector: "Salud y turnos",
     tagline: "Turnos, preparaciones de estudios y recordatorios por web y WhatsApp.",
     domain: "turnos.clinica-demo.salud",
-    assistantName: "Guía de Turnos",
+    assistantName: "Guía de turnos",
     icon: Stethoscope,
     palette: ["#1D4ED8", "#06B6D4", "#6366F1", "#14B8A6"],
     gradientStops: [
@@ -154,7 +154,7 @@ const DEMO_IDENTITIES: DemoBrandIdentity[] = [
     sector: "Retail y catálogo",
     tagline: "Catálogo interactivo, consultas de stock y pedidos en un solo hilo.",
     domain: "tienda.comercio-demo.shop",
-    assistantName: "Asistente de Ventas",
+    assistantName: "Asistente de ventas",
     icon: Store,
     palette: ["#C2410C", "#E11D48", "#D97706", "#FB7185"],
     gradientStops: [
@@ -202,7 +202,7 @@ const DEMO_IDENTITIES: DemoBrandIdentity[] = [
     sector: "Educación y familias",
     tagline: "Consultas de familias, certificados y comunicación escolar ordenada.",
     domain: "familias.instituto-demo.edu",
-    assistantName: "Secretaría Virtual",
+    assistantName: "Secretaría virtual",
     icon: GraduationCap,
     palette: ["#6D28D9", "#4F46E5", "#DB2777", "#8B5CF6"],
     gradientStops: [
@@ -351,8 +351,8 @@ const WhiteLabelShowcaseSection = () => {
               Un mismo motor, la identidad exacta de cada organización
             </h2>
             <p className="chatboc-section-copy mt-4">
-              Cambiá de identidad ficticia para ver cómo el widget adopta paleta, gradiente, tipografía, burbujas y
-              mascota animada sin escribir código nuevo.
+              Cambiá de ejemplo para ver cómo el widget adopta colores, tipografía, burbujas y mascota animada sin
+              escribir código.
             </p>
           </div>
 

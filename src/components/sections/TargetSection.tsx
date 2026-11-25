@@ -22,11 +22,11 @@ const targetGroups = [
     path: "/demo?sector=gobierno",
     cta: "Probar gobierno",
     description:
-      "Atencion ciudadana, reclamos, tramites, mapas, sondeos y participacion con seguimiento para cada area.",
+      "Atención ciudadana, reclamos, trámites, mapas, sondeos y participación con seguimiento para cada área.",
     promise: "Un vecino escribe, manda evidencia y el equipo recibe un caso ordenado para operar.",
     flow: [
-      "Texto, foto, audio o ubicacion entran por web o WhatsApp",
-      "El agente pide el dato justo y clasifica categoria, zona y prioridad",
+      "Texto, foto, audio o ubicación entran por web o WhatsApp",
+      "El agente pide el dato justo y clasifica categoría, zona y prioridad",
       "El panel deja ticket, seguimiento y lectura territorial cuando hay coordenadas",
     ],
     points: ["Reclamos trazables", "Mapas y zonas calientes", "Sondeos y votaciones"],
@@ -38,14 +38,14 @@ const targetGroups = [
     path: "/demo?sector=empresas",
     cta: "Probar pyme",
     description:
-      "Ventas asistidas, soporte, catalogo, pedidos, leads y seguimiento comercial sin cortar la conversacion.",
+      "Ventas asistidas, soporte, catálogo, pedidos y seguimiento comercial sin cortar la conversación.",
     promise: "Una consulta se convierte en pedido, oportunidad o caso de soporte con historial.",
     flow: [
-      "El cliente consulta por producto, precio, stock, envio o servicio",
+      "El cliente consulta por producto, precio, stock, envío o servicio",
       "Chatboc ordena la necesidad y captura contacto cuando hace falta",
-      "El equipo recibe lead, pedido o caso con contexto para cerrar mejor",
+      "El equipo recibe consulta, pedido o caso con contexto para cerrar mejor",
     ],
-    points: ["Catalogo y carrito", "Leads con contexto", "Soporte y ventas"],
+    points: ["Catálogo y carrito", "Consultas con contexto", "Soporte y ventas"],
   },
   {
     icon: GraduationCap,
@@ -54,30 +54,30 @@ const targetGroups = [
     path: "/demo?sector=educacion",
     cta: "Probar colegio",
     description:
-      "Familias, secretaria y direccion trabajando con consultas, documentacion, pagos, avisos y casos sensibles.",
+      "Familias, secretaría y dirección trabajando con consultas, documentación, pagos, avisos y casos sensibles.",
     promise: "Una familia pregunta, adjunta comprobantes o autorizaciones y queda un caso listo.",
     flow: [
       "La familia consulta por pagos, turnos, certificados, comunicados o autorizaciones",
       "El agente entiende el pedido y solicita adjuntos o datos faltantes",
-      "Secretaria ve caso, estado, historial y derivacion si corresponde",
+      "Secretaría ve caso, estado, historial y derivación si corresponde",
     ],
     points: ["Casos escolares", "Familias y adjuntos", "Encuestas por comunidad"],
   },
   {
     icon: Vote,
     signalIcon: Vote,
-    title: "Encuestas y participacion",
+    title: "Encuestas y participación",
     path: "/demo?sector=gobierno",
-    cta: "Ver participacion",
+    cta: "Ver participación",
     description:
-      "Sondeos, votaciones, comentarios y analitica para leer decisiones de usuarios, vecinos o comunidades.",
+      "Sondeos, votaciones, comentarios y analítica para leer decisiones de usuarios, vecinos o comunidades.",
     promise: "Cada respuesta necesita ser auditable, medible y visible en tiempo real para decidir mejor.",
     flow: [
-      "La persona responde desde una experiencia publica simple",
+      "La persona responde desde un enlace público simple",
       "El sistema registra voto, comentario, canal y contexto permitido",
-      "El panel muestra participacion, tendencias y ubicaciones cuando existen datos reales",
+      "El panel muestra participación, tendencias y ubicaciones cuando existen datos reales",
     ],
-    points: ["Resultados en vivo", "Comentarios accionables", "Analitica por canal"],
+    points: ["Resultados en vivo", "Comentarios accionables", "Analítica por canal"],
   },
 ];
 
@@ -94,8 +94,8 @@ const TargetSection = () => {
         <div className="mx-auto mb-12 max-w-4xl text-center md:mb-16">
           <h2 className="chatboc-section-heading">Demos por rubro, con valor operativo desde el primer mensaje</h2>
           <p className="chatboc-section-copy mt-4">
-            La venta no es mostrar un chat. Es mostrar como una conversacion se transforma en trabajo ordenado,
-            datos utiles y seguimiento para el equipo que atiende.
+            No mostramos un chat vacío: ves cómo una conversación pasa a trabajo ordenado, datos útiles y seguimiento
+            para el equipo que atiende.
           </p>
         </div>
 
@@ -162,7 +162,7 @@ const TargetSection = () => {
             onClick={handleConsultingClick}
           >
             <Calendar className="mr-2 h-4 w-4" />
-            Agendar consultoria de implementacion
+            Agendar consultoría de implementación
           </Button>
         </div>
       </div>

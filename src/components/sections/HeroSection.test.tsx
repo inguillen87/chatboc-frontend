@@ -227,7 +227,7 @@ describe('HeroSection backend-driven conversation demo', () => {
     );
 
     expect(screen.queryByRole('tablist')).toBeNull();
-    expect(screen.getByRole('region', { name: 'Conversacion operativa: Reclamo municipal' })).toHaveAttribute(
+    expect(screen.getByRole('region', { name: 'Conversación operativa: Reclamo municipal' })).toHaveAttribute(
       'tabindex',
       '0',
     );

@@ -155,7 +155,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
           onClick={startDemo}
           disabled={starting}
         >
-          {starting ? "Iniciando" : group?.cta_label?.trim() || "Probar demo"}
+          {starting ? "Iniciando…" : group?.cta_label?.trim() || "Probar demo"}
           {starting ? (
             <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -221,7 +221,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
       </CardContent>
       <CardFooter>
         <Button size="sm" className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold" onClick={startDemo} disabled={starting}>
-          {starting ? "Iniciando" : group.cta_label?.trim() || "Probar demo"}
+          {starting ? "Iniciando…" : group.cta_label?.trim() || "Probar demo"}
           {starting ? (
             <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -250,7 +250,7 @@ const DemoShowcaseSection = () => {
       .catch(() => {
         if (!active) return;
         setCatalog(null);
-        setLoadError("No pudimos cargar las demos reales en este momento.");
+        setLoadError("No pudimos cargar las demos en este momento. Recargá la página o probá de nuevo en unos minutos.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -286,9 +286,9 @@ const DemoShowcaseSection = () => {
 
         {loading ? (
           <Alert className="mx-auto mb-6 max-w-5xl border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-            <AlertTitle>Cargando demos reales</AlertTitle>
+            <AlertTitle>Cargando demos</AlertTitle>
             <AlertDescription>
-              Estamos consultando las experiencias publicadas para iniciar una demo real.
+              Estamos cargando las demos disponibles para que puedas probarlas.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -333,7 +333,7 @@ const DemoShowcaseSection = () => {
                       {group.description ? <p className="mt-3 text-sm text-muted-foreground">{group.description}</p> : null}
                       {cards.length ? (
                         <p className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
-                          {cards.length} experiencias publicadas para iniciar desde este pilar.
+                          {cards.length} demos listas para probar en este sector.
                         </p>
                       ) : null}
                     </div>
