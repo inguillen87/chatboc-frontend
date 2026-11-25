@@ -27,7 +27,7 @@ const ChatPosPage = () => {
           ChatPos
         </motion.h1>
         <p className="text-muted-foreground text-xl">
-          Sistema profesional de ventas, stock y facturación en la nube con asistencia inteligente.
+          Sistema de ventas, stock y facturación en la nube conectado al chat de tu negocio.
         </p>
         <div className="mt-8 flex justify-center gap-4">
           <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md">
@@ -67,13 +67,13 @@ const ChatPosPage = () => {
       {/* Integración con Chatboc */}
       <section className="bg-muted py-20 px-6 md:px-12 rounded-2xl max-w-6xl mx-auto mb-24 shadow-sm">
         <h2 className="text-3xl font-semibold text-center mb-10 text-foreground">
-          Potenciado con Chatboc
+          Conectado con Chatboc
         </h2>
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-4 text-muted-foreground text-lg">
             <p>Responde consultas frecuentes directamente desde el sistema.</p>
             <p>Integra soporte automatizado por WhatsApp, web y redes.</p>
-            <p>Convierte dudas en ventas mediante atención inteligente.</p>
+            <p>Convierte consultas en ventas con seguimiento desde el chat.</p>
           </div>
           <motion.img
             initial={{ opacity: 0, rotate: -10 }}

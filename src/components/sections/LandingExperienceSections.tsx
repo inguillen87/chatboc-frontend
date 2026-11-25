@@ -93,7 +93,7 @@ const normalizeCards = (section: LandingRecord) =>
   asArray(first(section, ["cards", "items", "features", "value_cards", "modules", "points"]))
     .map((item, index) => {
       if (!isRecord(item) && typeof item !== "string") return null;
-      const label = readItemLabel(item, `Item ${index + 1}`);
+      const label = readItemLabel(item, `Ítem ${index + 1}`);
       return {
         id: isRecord(item) ? readText(item, ["id", "key", "slug"], `item_${index + 1}`) : `item_${index + 1}`,
         label,
@@ -129,7 +129,7 @@ const normalizeMetrics = (section: LandingRecord) =>
   asArray(first(section, ["metrics", "stats", "kpis", "summary"]))
     .map((item, index) => {
       if (!isRecord(item)) return null;
-      const label = readCopyText(item, ["label", "title", "name"], `Metric ${index + 1}`);
+      const label = readCopyText(item, ["label", "title", "name"], `Indicador ${index + 1}`);
       const rawValue = first(item, ["value", "metric", "count", "score", "rate"]);
       if (rawValue === undefined || rawValue === null || rawValue === "") return null;
       const numeric = asNumber(rawValue);
@@ -294,7 +294,7 @@ const PagesRail = ({ pages }: { pages: unknown }) => {
       if (!isRecord(page) && typeof page !== "string") return null;
       return {
         id: isRecord(page) ? readText(page, ["id", "key", "slug"], `page_${index + 1}`) : `page_${index + 1}`,
-        label: readItemLabel(page, `Pagina ${index + 1}`),
+        label: readItemLabel(page, `Página ${index + 1}`),
         detail: readItemDetail(page),
         href: isRecord(page) ? readText(page, ["href", "route", "url", "path", "to"]) : "",
       };
@@ -311,13 +311,13 @@ const PagesRail = ({ pages }: { pages: unknown }) => {
               <Layers3 className="h-5 w-5" />
             </div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground">
-              {readCopyText(pagesRecord, ["title", "heading", "label"], "Mas formas de usar Chatboc")}
+              {readCopyText(pagesRecord, ["title", "heading", "label"], "Más formas de usar Chatboc")}
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {readCopyText(
                 pagesRecord,
                 ["description", "subtitle", "copy"],
-                "Explora demos, sectores y casos de uso pensados para que cualquier equipo entienda el valor en minutos.",
+                "Explorá demos, sectores y casos de uso para ver cómo trabaja el equipo en minutos.",
               )}
             </p>
           </div>

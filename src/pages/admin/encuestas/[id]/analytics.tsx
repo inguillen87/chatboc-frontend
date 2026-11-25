@@ -284,9 +284,9 @@ const SURVEY_ANALYTICS_FOCUS_COPY: Record<Exclude<SurveyAnalyticsFocusMode, null
   targetId: string;
 }> = {
   live: {
-    title: 'Foco operativo: sala live',
+    title: 'Foco operativo: sala en vivo',
     description: 'Llegaste desde la cola operativa para monitorear votos, resultados, mapa de calor y actividad en tiempo real.',
-    badge: 'Resultados live',
+    badge: 'Resultados en vivo',
     targetId: 'survey-live-results-focus',
   },
   comments: {
@@ -297,7 +297,7 @@ const SURVEY_ANALYTICS_FOCUS_COPY: Record<Exclude<SurveyAnalyticsFocusMode, null
   },
   heatmap: {
     title: 'Foco operativo: mapa de calor',
-    description: 'Llegaste desde el contrato operativo para revisar zonas calientes, cobertura territorial y calidad geografica.',
+    description: 'Llegaste desde el contrato operativo para revisar zonas calientes, cobertura territorial y calidad geográfica.',
     badge: 'Mapa de calor',
     targetId: 'survey-analytics-visuals-focus',
   },
@@ -331,7 +331,7 @@ function formatCommentDate(value?: string | null) {
 function commentStateLabel(value?: string | null) {
   const normalized = (value || '').trim().toLowerCase();
   if (normalized === 'publicado') return 'Publicado';
-  if (normalized === 'revision') return 'En revision';
+  if (normalized === 'revision') return 'En revisión';
   if (normalized === 'oculto') return 'Oculto';
   if (normalized === 'eliminado') return 'Eliminado';
   return normalized || 'Sin estado';
@@ -370,13 +370,13 @@ function SurveyAdminCommentsPanel({
       await queryClient.invalidateQueries({ queryKey: ['survey-admin-comments', surveyId, tenantSlug] });
       toast({
         title: 'Comentario actualizado',
-        description: `Accion aplicada: ${variables.accion}.`,
+        description: `Acción aplicada: ${variables.accion}.`,
       });
     },
     onError: (error) => {
       toast({
         title: 'No se pudo moderar el comentario',
-        description: getErrorMessage(error, 'Intenta nuevamente.'),
+        description: getErrorMessage(error, 'Intentá nuevamente en unos segundos.'),
         variant: 'destructive',
       });
     },
@@ -399,10 +399,10 @@ function SurveyAdminCommentsPanel({
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-primary" />
-              Moderacion de comentarios
+              Moderación de comentarios
             </CardTitle>
             <CardDescription>
-              Revisa aportes ciudadanos, reportes y estados sin salir del tablero de analytics.
+              Revisá aportes ciudadanos, reportes y estados sin salir del tablero de analíticas.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -416,7 +416,7 @@ function SurveyAdminCommentsPanel({
       <CardContent className="space-y-3">
         {!commentsEnabled ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-            Esta encuesta no tiene comentarios habilitados. Si la cola IA te trajo aca, revisa la configuracion de participacion.
+            Esta encuesta no tiene comentarios habilitados. Si llegaste desde la cola operativa, revisá la configuración de participación.
           </div>
         ) : null}
         {commentsQuery.isLoading ? (
@@ -443,7 +443,7 @@ function SurveyAdminCommentsPanel({
                           <Badge variant="destructive">{comment.report_count} reportes</Badge>
                         ) : null}
                       </div>
-                      <p className="font-medium text-foreground">{comment.nombre_autor || 'Anonimo'}</p>
+                      <p className="font-medium text-foreground">{comment.nombre_autor || 'Anónimo'}</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       <Button
@@ -485,7 +485,7 @@ function SurveyAdminCommentsPanel({
           </div>
         ) : (
           <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm text-muted-foreground">
-            Todavia no hay comentarios ciudadanos para revisar.
+            Todavía no hay comentarios ciudadanos para revisar.
           </div>
         )}
       </CardContent>

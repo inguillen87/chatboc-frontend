@@ -29,21 +29,21 @@ const providerLabels: Record<string, string> = {
 };
 
 const warningLabels: Record<string, string> = {
-  gemini_in_provider_order_but_missing_key: 'Gemini esta en el orden de proveedores pero falta la API key.',
-  ollama_in_provider_order_but_disabled: 'Ollama esta en el orden de proveedores pero sigue deshabilitado.',
-  huggingface_enabled_but_missing_token: 'Hugging Face esta habilitado pero falta el token.',
+  gemini_in_provider_order_but_missing_key: 'Gemini está en el orden de proveedores pero falta la clave API.',
+  ollama_in_provider_order_but_disabled: 'Ollama está en el orden de proveedores pero sigue deshabilitado.',
+  huggingface_enabled_but_missing_token: 'Hugging Face está habilitado pero falta el token.',
   huggingface_embeddings_enabled_but_missing_token: 'Embeddings de Hugging Face activos sin token.',
-  huggingface_quota_or_payment_required: 'Hugging Face no tiene creditos/cuota disponible; el backend usa fallback local.',
-  huggingface_rate_limited: 'Hugging Face esta limitando llamadas; el backend mantiene fallback local.',
-  huggingface_auth_failed: 'Hugging Face rechazo la credencial configurada.',
-  huggingface_timeout: 'Hugging Face esta demorando demasiado; el backend mantiene fallback local.',
-  huggingface_provider_unavailable: 'Hugging Face no esta disponible temporalmente.',
-  huggingface_provider_call_failed: 'Hugging Face fallo en runtime; revisar logs y proveedor.',
-  docling_enabled_but_package_not_installed: 'Docling esta activo pero el paquete no esta instalado.',
+  huggingface_quota_or_payment_required: 'Hugging Face no tiene créditos ni cuota disponible; el servidor usa respaldo local.',
+  huggingface_rate_limited: 'Hugging Face está limitando llamadas; el servidor mantiene respaldo local.',
+  huggingface_auth_failed: 'Hugging Face rechazó la credencial configurada.',
+  huggingface_timeout: 'Hugging Face está demorando demasiado; el servidor mantiene respaldo local.',
+  huggingface_provider_unavailable: 'Hugging Face no está disponible temporalmente.',
+  huggingface_provider_call_failed: 'Hugging Face falló en ejecución; revisá los registros y el proveedor.',
+  docling_enabled_but_package_not_installed: 'Docling está activo pero el paquete no está instalado.',
 };
 
 const providerRuntimeLabels: Record<string, string> = {
-  ready: 'runtime ok',
+  ready: 'operativo',
   degraded: 'degradado',
   not_configured: 'sin configurar',
 };
@@ -55,7 +55,7 @@ const statusCopy: Record<string, { label: string; badgeClass: string; panelClass
     panelClass: 'border-emerald-500/20 bg-emerald-500/5',
   },
   warning: {
-    label: 'Atencion',
+    label: 'Atención',
     badgeClass: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
     panelClass: 'border-amber-500/20 bg-amber-500/5',
   },
@@ -72,11 +72,11 @@ const providerIsActive = (provider: AiProviderStatusProvider) =>
 const formatProviderDetail = (key: string, provider: AiProviderStatusProvider) => {
   if (key === 'huggingface') {
     const features = [
-      provider.zero_shot_enabled ? 'clasificacion' : null,
+      provider.zero_shot_enabled ? 'clasificación' : null,
       provider.embeddings_enabled ? 'embeddings' : null,
-      provider.vision_enabled ? 'vision' : null,
+      provider.vision_enabled ? 'visión' : null,
     ].filter(Boolean);
-    const runtime = provider.runtime_status === 'degraded' ? 'fallback local activo' : null;
+    const runtime = provider.runtime_status === 'degraded' ? 'respaldo local activo' : null;
     return [features.length ? features.join(' + ') : String(provider.zero_shot_model || provider.provider || 'inference'), runtime]
       .filter(Boolean)
       .join(' · ');
@@ -158,9 +158,9 @@ const BotSettingsEnterprise = () => {
       setAiStatus(data);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
-        setAiStatusError('Solo administradores pueden ver el diagnostico IA global.');
+        setAiStatusError('Solo administradores pueden ver el diagnóstico IA global.');
       } else {
-        setAiStatusError('No se pudo cargar el diagnostico IA.');
+        setAiStatusError('No pudimos cargar el diagnóstico IA. Reintentá en unos instantes.');
       }
     } finally {
       setAiStatusLoading(false);
@@ -236,7 +236,7 @@ const BotSettingsEnterprise = () => {
                 <div>
                   <CardTitle>Matriz IA operativa</CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    Estado real de motores para WhatsApp, widget, metricas y automatizaciones.
+                    Estado real de motores para WhatsApp, widget, métricas y automatizaciones.
                   </p>
                 </div>
               </div>
@@ -265,7 +265,7 @@ const BotSettingsEnterprise = () => {
           {aiStatusError ? (
             <Alert variant={aiStatusError.includes('administradores') ? 'default' : 'destructive'}>
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Diagnostico no disponible</AlertTitle>
+              <AlertTitle>Diagnóstico no disponible</AlertTitle>
               <AlertDescription>{aiStatusError}</AlertDescription>
             </Alert>
           ) : null}
@@ -289,7 +289,7 @@ const BotSettingsEnterprise = () => {
               <p className="mt-2 text-2xl font-semibold">
                 {aiStatus?.readiness?.specialized_ai_ready ? 'Activa' : aiStatusLoading ? '...' : 'Pendiente'}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">HF, vision, embeddings y documentos.</p>
+              <p className="mt-1 text-xs text-muted-foreground">HF, visión, embeddings y documentos.</p>
             </div>
             <div className="rounded-lg border bg-background/80 p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -307,7 +307,7 @@ const BotSettingsEnterprise = () => {
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
                 <AlertCircle className="h-4 w-4" />
-                Warnings de configuracion
+                Alertas de configuración
               </div>
               <div className="space-y-1 text-sm text-amber-900">
                 {warnings.map((warning) => (
@@ -344,8 +344,8 @@ const BotSettingsEnterprise = () => {
                         {providerRuntimeLabels[String(provider.runtime_status)] || String(provider.runtime_status)}
                       </Badge>
                     ) : null}
-                    {provider.quota_depleted ? <Badge variant="destructive">sin creditos</Badge> : null}
-                    {provider.fallback_behavior ? <Badge variant="outline">fallback local</Badge> : null}
+                    {provider.quota_depleted ? <Badge variant="destructive">sin créditos</Badge> : null}
+                    {provider.fallback_behavior ? <Badge variant="outline">respaldo local</Badge> : null}
                   </div>
                 </div>
               );
@@ -355,8 +355,8 @@ const BotSettingsEnterprise = () => {
           {aiStatus?.smoke?.results?.length ? (
             <div className="rounded-lg border bg-background/80 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold">Smoke checks</p>
-                <Badge variant="outline">{aiStatus.smoke.live_enabled ? 'live habilitado' : 'config only'}</Badge>
+                <p className="text-sm font-semibold">Pruebas rápidas</p>
+                <Badge variant="outline">{aiStatus.smoke.live_enabled ? 'en vivo habilitado' : 'solo configuración'}</Badge>
               </div>
               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
                 {aiStatus.smoke.results.map((result, index) => (
@@ -366,7 +366,7 @@ const BotSettingsEnterprise = () => {
                       <Badge variant={result.ok ? 'secondary' : 'destructive'}>{result.ok ? 'ok' : 'fallo'}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {result.task || result.mode || result.reason_code || result.error_type || 'diagnostico'}
+                      {result.task || result.mode || result.reason_code || result.error_type || 'diagnóstico'}
                     </p>
                   </div>
                 ))}

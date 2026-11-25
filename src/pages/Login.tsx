@@ -712,7 +712,7 @@ const LoginSession = () => {
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
             <p className="text-sm font-semibold text-foreground">Entrar a una demo guiada</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Elegi una experiencia completa sin credenciales: chat, recursos, seguimiento y vista operativa.
+              Elegí un sector para probar el chat, los recursos, el seguimiento y la vista operativa sin credenciales.
             </p>
           </div>
           <div className="grid gap-2">

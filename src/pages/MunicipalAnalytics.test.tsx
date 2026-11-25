@@ -20,7 +20,7 @@ afterEach(cleanup);
 describe('municipal metric availability', () => {
   it('keeps absent response time and geographic coverage unavailable even when intensity is high', async () => {
     render(<MunicipalAnalytics />);
-    await screen.findByText('Analíticas Profesionales');
+    await screen.findByText('Analíticas municipales');
     expect(screen.getAllByText('No disponible')).toHaveLength(2);
     expect(screen.getByText('Cobertura geo').parentElement).toHaveTextContent('No informada');
     expect(screen.queryByText('0 h')).not.toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('municipal metric availability', () => {
     mocks.api.mockResolvedValue({ municipalities: [{ name: 'Organización', totalTickets: 10, categories: {}, averageResponseHours: 0 }] });
     mocks.heatmap.mockResolvedValue({ points: [{ lat: -33, lng: -68, weight: 1000 }], raw: { location_quality: { total: 200, with_coordinates: 1, without_coordinates: 199, [field]: 0.5 } } });
     render(<MunicipalAnalytics />);
-    await screen.findByText('Analíticas Profesionales');
+    await screen.findByText('Analíticas municipales');
     expect(screen.getByText('Cobertura geo').parentElement).toHaveTextContent('0,5%');
     expect(screen.getByText('0.0 h')).toBeVisible();
   });

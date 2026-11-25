@@ -103,7 +103,7 @@ const createTestQueryClient = () =>
   });
 
 const typeAndSend = async (message: string) => {
-  fireEvent.change(await screen.findByPlaceholderText('Escribe una respuesta...'), { target: { value: message } });
+  fireEvent.change(await screen.findByPlaceholderText('Escribí una respuesta...'), { target: { value: message } });
   fireEvent.click(screen.getByRole('button', { name: /Enviar mensaje/i }));
 };
 
@@ -394,7 +394,7 @@ describe('TicketConversationPane reply delivery contract', () => {
         <TicketConversationPane ticketId={secondTicket.id} ticket={secondTicket} tenantSlug="mendoza" />
       </QueryClientProvider>,
     );
-    const editor = await screen.findByPlaceholderText('Escribe una respuesta...');
+    const editor = await screen.findByPlaceholderText('Escribí una respuesta...');
     fireEvent.change(editor, { target: { value: 'Borrador exclusivo del ticket 84' } });
 
     await act(async () => {

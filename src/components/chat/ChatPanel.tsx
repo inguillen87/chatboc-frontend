@@ -372,7 +372,7 @@ const readRealtimeDetailLines = (details?: Record<string, unknown>) => {
       readFirstString(source.tipo_solicitud, source.tipo, source.kind),
     ],
     [
-      "Categoria",
+      "Categoría",
       readFirstString(source.categoria, source.category),
     ],
     [
@@ -380,7 +380,7 @@ const readRealtimeDetailLines = (details?: Record<string, unknown>) => {
       readFirstString(source.estado, source.status),
     ],
     [
-      "Ubicacion",
+      "Ubicación",
       readFirstString(
         location.address,
         location.direccion,
@@ -1160,7 +1160,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
   const fallbackRubroTitle = welcomeTitle || "Chatboc";
   const fallbackRubroSubtitle =
     welcomeSubtitle ||
-    "Seleccioná un rubro para personalizar la experiencia automáticamente.";
+    "Elegí un rubro para ver ejemplos y acciones adaptadas.";
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialInstitutionalMenuRef = useRef<HTMLDivElement|null>(null);
@@ -2163,7 +2163,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         if (hasReportedJoinError) return;
         hasReportedJoinError = true;
         addSystemMessage(
-          "La actualizacion en vivo no pudo conectarse. Podes seguir enviando mensajes; el equipo los vera en el ticket.",
+          "La actualización en vivo no pudo conectarse. Podés seguir enviando mensajes; el equipo los verá en el ticket.",
           "info",
         );
         trackFrontendEvent("socket_ticket_join_rejected", {
@@ -3209,17 +3209,17 @@ const ChatPanelContent = (props: ChatPanelProps) => {
             });
           } else {
             toast({
-              title: "Error",
+              title: "Ubicación no disponible",
               description:
-                "No se pudo obtener la ubicación. Por favor, revisa los permisos de tu navegador.",
+                "No pudimos obtener tu ubicación. Revisá los permisos de GPS del navegador o escribí la dirección en el chat.",
               variant: "destructive",
             });
           }
         } catch (error) {
           console.error("Error getting location:", error);
           toast({
-            title: "Error",
-            description: "Ocurrió un error al intentar obtener la ubicación.",
+            title: "Ubicación no disponible",
+            description: "No pudimos obtener tu ubicación. Revisá los permisos de GPS o escribí la dirección en el chat.",
             variant: "destructive",
           });
         }
@@ -3549,11 +3549,11 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     ? `${emptyStateTitle.replace(/[?.!¿]+$/g, "")}, ${visitorDisplayName}`
     : emptyStateTitle;
   const menuContextLabel = rubroDisplayName
-    ? `Menu corto para ${rubroDisplayName}. Elegi una opcion o escribi con tus palabras.`
-    : "Menu corto. Elegi una opcion o escribi con tus palabras.";
+    ? `Menú corto para ${rubroDisplayName}. Elegí una opción o escribí con tus palabras.`
+    : "Menú corto. Elegí una opción o escribí con tus palabras.";
   const visitorNameHint = visitorDisplayName
     ? null
-    : "Para atenderte mejor, primero podes decirme tu nombre.";
+    : "Para atenderte mejor, primero podés decirme tu nombre.";
   const bootstrapPayload = chatBootstrap?.payload as Record<string, unknown> | undefined;
   const attachmentUploadContext = useMemo(() => {
     const bootstrapSession = chatBootstrap

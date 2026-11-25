@@ -132,9 +132,9 @@ const TicketsPanelPage = ({
         {!embedded ? (
           <>
             <EnterprisePageHeader
-              badge="Mesa de atencion"
+              badge="Mesa de atención"
               title="Reclamos y conversaciones"
-              description="Prioriza, asigna y responde cada caso desde un espacio de trabajo claro."
+              description="Priorizá, asigná y respondé cada caso desde un espacio de trabajo claro."
             />
             <EnterpriseTopNav />
           </>

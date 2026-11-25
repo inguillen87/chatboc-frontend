@@ -180,9 +180,9 @@ const formatCount = (count: number, singular: string, plural: string) =>
 const focusCopy = {
   live: {
     title: 'Foco operativo: votaciones y resultados en vivo',
-    description: 'Priorizamos encuestas con live results para que el equipo vea actividad, mapa y senales IA sin buscar manualmente.',
-    badge: 'Live',
-    empty: 'No hay votaciones en vivo activas para este tenant.',
+    description: 'Priorizamos encuestas con resultados en vivo para que el equipo vea actividad, mapa y señales sin buscar manualmente.',
+    badge: 'En vivo',
+    empty: 'No hay votaciones en vivo activas para esta organización.',
     icon: Radio,
   },
   comments: {
@@ -442,7 +442,7 @@ const AdminSurveysIndex = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Centro de participación ciudadana</h1>
-          <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados en un solo lugar.</p>
+          <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" disabled={relocationPending || restorePending || !tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>

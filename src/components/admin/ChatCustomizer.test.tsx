@@ -120,7 +120,7 @@ describe('ChatCustomizer runtime persistence', () => {
     render(<ChatCustomizer />);
     await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTitle('WhatsApp Style'));
+    fireEvent.click(screen.getByTitle('Estilo WhatsApp'));
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y aplicar cambios' }));
 
     const alert = await screen.findByRole('alert');
@@ -137,7 +137,7 @@ describe('ChatCustomizer runtime persistence', () => {
     render(<ChatCustomizer />);
     await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTitle('Warm'));
+    fireEvent.click(screen.getByTitle('Cálido'));
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y aplicar cambios' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unauthorized');
@@ -189,7 +189,7 @@ describe('ChatCustomizer runtime persistence', () => {
     render(<ChatCustomizer />);
     await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTitle('Elegant'));
+    fireEvent.click(screen.getByTitle('Sobrio'));
     await waitFor(() =>
       expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)?.config.primaryColor).toBe(
         '#18181b',
@@ -326,7 +326,7 @@ describe('ChatCustomizer runtime persistence', () => {
 
     const { rerender } = render(<ChatCustomizer />);
     expect(await screen.findByTestId('widget-preview')).toHaveTextContent('Asistente Junín');
-    fireEvent.click(screen.getByTitle('Elegant'));
+    fireEvent.click(screen.getByTitle('Sobrio'));
     await waitFor(() =>
       expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)).not.toBeNull(),
     );
@@ -357,7 +357,7 @@ describe('ChatCustomizer runtime persistence', () => {
     mocks.updateRuntimeWidgetConfig.mockReturnValue(pendingSave);
     const view = render(<ChatCustomizer />);
     await waitFor(() => expect(mocks.getRuntimeWidgetConfig).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByTitle('Elegant'));
+    fireEvent.click(screen.getByTitle('Sobrio'));
     await waitFor(() => expect(readChatCustomizerDraft(window.sessionStorage, 'junin', baseConfig)).not.toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y aplicar cambios' }));
     await waitFor(() => expect(mocks.updateRuntimeWidgetConfig).toHaveBeenCalledOnce());
@@ -390,11 +390,11 @@ describe('ChatCustomizer runtime persistence', () => {
     const secondaryPicker = screen.getByLabelText('Seleccionar color secundario');
     expect(primaryPicker).toHaveAttribute('type', 'color');
     expect(secondaryPicker).toHaveAttribute('type', 'color');
-    await user.click(screen.getByText('Color Primario'));
+    await user.click(screen.getByText('Color primario'));
     expect(primaryHex).toHaveFocus();
     await user.clear(primaryHex); await user.type(primaryHex, '#123456');
     expect(primaryHex).toHaveValue('#123456'); expect(primaryPicker).toHaveValue('#123456');
-    await user.click(screen.getByText('Color Secundario'));
+    await user.click(screen.getByText('Color secundario'));
     expect(secondaryHex).toHaveFocus();
     fireEvent.change(secondaryPicker, { target: { value: '#abcdef' } });
     expect(secondaryHex).toHaveValue('#abcdef');
@@ -411,9 +411,9 @@ describe('ChatCustomizer runtime persistence', () => {
     const secondHex = second.getByRole('textbox', { name: 'Color primario, código hexadecimal' });
     expect(firstHex.id).not.toEqual(secondHex.id);
     const user = userEvent.setup();
-    await user.click(second.getByText('Color Primario'));
+    await user.click(second.getByText('Color primario'));
     expect(secondHex).toHaveFocus(); expect(firstHex).not.toHaveFocus();
-    await user.click(first.getByText('Color Primario'));
+    await user.click(first.getByText('Color primario'));
     expect(firstHex).toHaveFocus(); expect(secondHex).not.toHaveFocus();
     for (const editor of [first, second]) {
       await user.click(editor.getByRole('tab', { name: 'Contenido' }));
@@ -437,16 +437,16 @@ describe('ChatCustomizer runtime persistence', () => {
     await user.click(screen.getByText('Mostrar vista previa'));
     expect(preview).toHaveAttribute('aria-checked', 'false');
     await user.click(screen.getByRole('tab', { name: 'Comportamiento' }));
-    const autoOpen = screen.getByRole('switch', { name: 'Apertura Automática' });
-    await user.click(screen.getByText('Apertura Automática'));
+    const autoOpen = screen.getByRole('switch', { name: 'Apertura automática' });
+    await user.click(screen.getByText('Apertura automática'));
     expect(autoOpen).toHaveAttribute('aria-checked', 'true');
     const position = screen.getByRole('combobox', { name: 'Posición' });
     await user.click(screen.getByText('Posición'));
     expect(position).toHaveFocus();
-    expect(screen.getByRole('spinbutton', { name: 'Margen Lateral (px)' })).toHaveValue(20);
-    expect(screen.getByRole('spinbutton', { name: 'Margen Inferior (px)' })).toHaveValue(20);
+    expect(screen.getByRole('spinbutton', { name: 'Margen lateral (px)' })).toHaveValue(20);
+    expect(screen.getByRole('spinbutton', { name: 'Margen inferior (px)' })).toHaveValue(20);
     await user.click(screen.getByRole('tab', { name: 'Contenido' }));
-    for (const label of ['Nombre del Asistente', 'Mensaje de Bienvenida', 'Llamada a la Acción (Burbuja)', 'Avatar HTTPS']) {
+    for (const label of ['Nombre del asistente', 'Mensaje de bienvenida', 'Llamada a la acción (burbuja)', 'Avatar HTTPS']) {
       await user.click(screen.getByText(label));
       expect(screen.getByRole('textbox', { name: label })).toHaveFocus();
     }

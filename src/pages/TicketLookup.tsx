@@ -1146,7 +1146,7 @@ export default function TicketLookup() {
     },
     {
       label: "Horario",
-      value: liveChatEnabled ? liveChatScheduleLabel : "Comentario publico",
+      value: liveChatEnabled ? liveChatScheduleLabel : "Comentario público",
       icon: Clock,
     },
   ];

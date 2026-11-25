@@ -58,7 +58,7 @@ export default function MunicipalSystems() {
   if (error)
     return (
       <Alert variant="destructive" className="max-w-2xl mx-auto">
-        <AlertTitle>Error al cargar integraciones</AlertTitle>
+        <AlertTitle>No pudimos cargar las integraciones</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );
@@ -70,8 +70,7 @@ export default function MunicipalSystems() {
         <Alert>
           <AlertTitle>Aún no hay conexiones</AlertTitle>
           <AlertDescription>
-            Cuando el backend exponga las integraciones disponibles, las verás listadas en esta página. Si esperabas verlas ya, verifica que el
-            endpoint /municipal/integrations esté operativo.
+            Cuando el servicio publique las integraciones disponibles, las vas a ver listadas en esta página. Si esperabas verlas ahora, verificá tu conexión o consultá con el administrador.
           </AlertDescription>
         </Alert>
       ) : (

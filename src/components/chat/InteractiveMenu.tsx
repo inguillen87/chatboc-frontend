@@ -18,7 +18,7 @@ const InteractiveMenu: React.FC<InteractiveMenuProps> = ({ sections, config, isD
 
   // Normalize input: use config sections if available, otherwise explicit sections prop
   const activeSections = filterLegacyDemoSelectorSections(config?.sections || sections || []);
-  const buttonLabel = config?.buttonLabel || "Elegir experiencia";
+  const buttonLabel = config?.buttonLabel || "Ver opciones";
   const title = config?.title || "Seleccionar una opción";
 
   if (activeSections.length === 0) return null;
@@ -50,7 +50,7 @@ const InteractiveMenu: React.FC<InteractiveMenuProps> = ({ sections, config, isD
                     {title}
                 </SheetTitle>
                 <SheetDescription>
-                    {isDemoSelector ? 'Elegí la demo que querés explorar' : 'Selecciona una opción de la lista'}
+                    {isDemoSelector ? 'Elegí la demo que querés explorar' : 'Seleccioná una opción de la lista'}
                 </SheetDescription>
             </SheetHeader>
             <ScrollArea className="flex-1 p-6 pt-2">

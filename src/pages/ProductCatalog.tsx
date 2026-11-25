@@ -242,7 +242,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
     tenantSlug: effectiveTenantSlug,
   });
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
-  const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenes que iniciar sesion o registrarte.');
+  const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenés que iniciar sesión o registrarte.');
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
@@ -296,7 +296,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
         setFilteredProducts(normalized);
       })
       .catch((err: any) => {
-        setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo mas tarde.'));
+        setError(getErrorMessage(err, 'No pudimos cargar los productos. Intentá de nuevo más tarde.'));
       })
       .finally(() => setLoading(false));
   }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions, isAdmin, tenant, user]);
@@ -383,12 +383,12 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
               if (statusData.status === 'completed') {
                   clearInterval(pollInterval);
                   setImportLoading(false);
-                  toast.success("Catálogo actualizado", { id: toastId, description: "La búsqueda inteligente esta lista." });
+                  toast.success("Catálogo actualizado", { id: toastId, description: "La búsqueda en el catálogo ya está lista." });
                   setTimeout(() => window.location.reload(), 1500);
               } else if (statusData.status === 'failed' || statusData.status === 'error') {
                   clearInterval(pollInterval);
                   setImportLoading(false);
-                  toast.error("Error en procesamiento", { id: toastId, description: statusData.message || "Ocurrio un error." });
+                  toast.error("No pudimos procesar el archivo", { id: toastId, description: statusData.message || "Revisá el formato del archivo e intentá de nuevo." });
               } else {
                   toast.loading(`Actualizando IA (${pct}%)...`, { id: toastId });
               }
@@ -417,7 +417,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
     const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
 
     if (isPointsProduct && !user) {
-      setPointsAuthMessage('Para usar tus puntos tenes que iniciar sesion o registrarte.');
+      setPointsAuthMessage('Para usar tus puntos tenés que iniciar sesión o registrarte.');
       setShowPointsAuthPrompt(true);
       return;
     }
@@ -452,7 +452,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
           if (!catalogItemId || !hasRealCartId(product)) {
             toast({
               title: 'Producto no disponible',
-              description: 'Este item no tiene un identificador de catálogo valido para comprar.',
+              description: 'Este ítem no tiene un identificador de catálogo válido para comprar.',
               variant: 'destructive',
             });
             return;
@@ -467,7 +467,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
           });
           toast({
             title: "Producto agregado",
-            description: `${product.nombre} agregado al carrito. Escribe "Ver carrito" para continuar o toca el icono de carrito.`,
+            description: `${product.nombre} agregado al carrito. Escribí "Ver carrito" para continuar o tocá el ícono del carrito.`,
             className: "bg-green-500 text-white",
           });
       }
@@ -476,7 +476,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
       if (err instanceof ApiError && err.status === 401) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
         if (code === 'REQUIERE_LOGIN_PUNTOS') {
-          setPointsAuthMessage('Para usar tus puntos tenes que iniciar sesion o registrarte.');
+          setPointsAuthMessage('Para usar tus puntos tenés que iniciar sesión o registrarte.');
           setShowPointsAuthPrompt(true);
           return;
         }
@@ -509,7 +509,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-destructive">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <p className="text-lg font-semibold">Ocurrio un error</p>
+        <p className="text-lg font-semibold">No pudimos cargar el catálogo</p>
         <p>{error}</p>
         <Button onClick={() => window.location.reload()} className="mt-4">Reintentar</Button>
       </div>
@@ -520,7 +520,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
     <div className="container mx-auto p-4 md:p-8">
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro catálogo</h1>
           <div className="flex gap-2 w-full sm:w-auto">
             {isAdmin && (
               <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
@@ -529,8 +529,8 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
                 </Button>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Importar Catálogo</DialogTitle>
-                    <DialogDescription>Sube un archivo CSV o Excel para actualizar tus productos masivamente.</DialogDescription>
+                    <DialogTitle>Importar catálogo</DialogTitle>
+                    <DialogDescription>Subí un archivo CSV o Excel para actualizar tus productos de una sola vez.</DialogDescription>
                   </DialogHeader>
                   <div className="grid w-full items-center gap-4 py-4">
                     <div
@@ -546,7 +546,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-foreground">
-                            {importFile ? importFile.name : "Hace click para seleccionar un archivo"}
+                            {importFile ? importFile.name : "Hacé clic para seleccionar un archivo"}
                           </p>
                           {!importFile && (
                             <p className="text-xs text-muted-foreground">
@@ -577,7 +577,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
             <Button asChild variant="outline" className="w-full sm:w-auto relative">
               <Link to={cartPath} className="inline-flex items-center">
                 <ShoppingCart className="mr-2 h-4 w-4" />
-                Ver Carrito
+                Ver carrito
                 {cartCount > 0 && (
                   <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
                     {cartCount}

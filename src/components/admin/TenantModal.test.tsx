@@ -254,7 +254,7 @@ describe('tenant modal opening and authority ownership', () => {
     api.mockReturnValueOnce(pending.promise);
     const handlers = { ...props(), initialTab: kind === 'password' ? 'users' as const : 'integrations' as const };
     const placeholder = kind === 'password' ? 'Nueva contraseña' : '+54911...';
-    const button = kind === 'password' ? 'Resetear' : 'Guardar Integración';
+    const button = kind === 'password' ? 'Resetear' : 'Guardar integración';
     const view = render(<TenantModal {...handlers} />);
     fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value: kind === 'password' ? 'synthetic-reset-only-A' : '+15550000001' } });
     fireEvent.click(screen.getByRole('button', { name: button }));

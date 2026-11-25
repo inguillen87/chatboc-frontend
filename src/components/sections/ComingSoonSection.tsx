@@ -9,7 +9,7 @@ const operatingModules = [
     icon: ShoppingCart,
     title: "ChatPOS",
     description:
-      "Punto de atencion y venta para operar pedidos, servicios, pagos y seguimiento desde una pantalla simple.",
+      "Punto de atención y venta para operar pedidos, servicios, pagos y seguimiento desde una pantalla simple.",
     imageSrc: "/images/chatpos.png",
     imageAlt: "Vista de ChatPOS",
     demoLink: "/demo?module=chatpos",
@@ -21,7 +21,7 @@ const operatingModules = [
     icon: Users,
     title: "ChatCRM",
     description:
-      "Gestion de relaciones, conversaciones, perfiles y campanas conectadas a los datos reales de cada organizacion.",
+      "Gestión de clientes, conversaciones, perfiles y campañas conectadas a los datos reales de cada organización.",
     imageSrc: "/images/chatcrm.png",
     imageAlt: "Vista de ChatCRM",
     demoLink: "/demo?module=chatcrm",
@@ -38,8 +38,8 @@ const ComingSoonSection = () => {
           <div className="chatboc-section-kicker mb-4">Ecosistema</div>
           <h2 className="chatboc-section-heading">Módulos para ampliar la operación</h2>
           <p className="chatboc-section-copy mt-4">
-            La experiencia puede crecer hacia venta, seguimiento y relaciones con clientes sin separar el chat del
-            historial, el carrito, las metricas ni el trabajo del equipo.
+            Sumá venta, seguimiento y CRM sin separar el chat del historial, el carrito, las métricas ni el trabajo del
+            equipo.
           </p>
         </div>
 

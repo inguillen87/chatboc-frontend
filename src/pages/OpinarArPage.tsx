@@ -41,23 +41,23 @@ const OpinarArPage: React.FC = () => {
             opinar.ar
           </h1>
           <p className="mt-4 max-w-2xl mx-auto text-lg sm:text-xl text-muted-foreground">
-            Una consultora inteligente basada en encuestas digitales.
+            Consultora basada en encuestas digitales y análisis territorial.
           </p>
         </div>
 
         <div className="mt-20 text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4">
-            Visualice la Opinión Pública como Nunca Antes
+            Leé la opinión pública con datos claros
           </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Nuestros dashboards interactivos transforman datos crudos en insights accionables. Explore la información demográfica, geográfica y de sentimiento en tiempo real.
+            Nuestros tableros interactivos ordenan las respuestas para detectar patrones concretos. Explorá datos demográficos, geográficos y comentarios en tiempo real.
           </p>
         </div>
 
         <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-2">
           {/* Gender Distribution */}
           <div className="bg-card p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-primary mb-4 flex items-center"><Users className="mr-2" /> Distribución por Género</h3>
+            <h3 className="text-xl font-semibold text-primary mb-4 flex items-center"><Users className="mr-2" /> Distribución por género</h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie data={genderData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} fill="#8884d8" label>
@@ -73,7 +73,7 @@ const OpinarArPage: React.FC = () => {
 
           {/* Age Distribution */}
           <div className="bg-card p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-primary mb-4 flex items-center"><BarChart2 className="mr-2" /> Distribución por Edad</h3>
+            <h3 className="text-xl font-semibold text-primary mb-4 flex items-center"><BarChart2 className="mr-2" /> Distribución por edad</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={ageData}>
                 <XAxis dataKey="name" />
@@ -88,15 +88,15 @@ const OpinarArPage: React.FC = () => {
 
         <div className="mt-20 text-center">
           <h2 className="text-2xl font-bold tracking-tight">
-            Transforme la opinión en acción
+            Pasá de la opinión a decisiones concretas
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">
-            Descubra el poder de los datos en tiempo real y tome decisiones más inteligentes para su municipio o empresa.
+            Consultá los resultados en tiempo real y decidí con respaldo para tu municipio o empresa.
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
               <a href="https://opinar.ar/demo" target="_blank" rel="noopener noreferrer">
-                Probar Demo
+                Probar demo
                 <ArrowRight className="ml-2 h-5 w-5" />
               </a>
             </Button>
@@ -110,7 +110,7 @@ const OpinarArPage: React.FC = () => {
         </div>
 
         <div className="mt-24 border-t border-border pt-8 text-center">
-          <p className="text-muted-foreground">Síguenos en nuestras redes sociales</p>
+          <p className="text-muted-foreground">Seguinos en nuestras redes sociales</p>
           <div className="flex justify-center gap-6 mt-4">
             <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
               <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" /></svg>

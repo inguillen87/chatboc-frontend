@@ -65,7 +65,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Error de registro");
       } else {
-        setError("No se pudo completar el registro");
+        setError("No pudimos completar el registro. Revisá los datos e intentá de nuevo.");
       }
     } finally {
       setLoading(false);

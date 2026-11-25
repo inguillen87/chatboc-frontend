@@ -272,9 +272,9 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
       const waitingForCode = !payload.code;
       if (waitingForAccountIds || waitingForCode) {
         if (!waitingForAccountIds && waitingForCode) {
-          setStatus("Meta envio la cuenta. Esperando codigo de autorizacion...");
+          setStatus("Meta envió la cuenta. Esperando código de autorización...");
         } else if (waitingForAccountIds && !waitingForCode) {
-          setStatus("Meta autorizo el registro. Esperando datos de la cuenta de WhatsApp...");
+          setStatus("Meta autorizó el registro. Esperando datos de la cuenta de WhatsApp...");
         }
         return;
       }
@@ -325,7 +325,7 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
         setNeedsStatusCheck(!mayCorrect);
         setError(getErrorMessage(err, "No se pudo guardar el registro de WhatsApp Business."));
         setStatus(mayCorrect ? "Revisá los datos e iniciá el registro nuevamente." :
-          "No pudimos confirmar el resultado. Vuelve a integraciones y actualiza el estado antes de intentarlo nuevamente.");
+          "No pudimos confirmar el resultado. Volvé a integraciones y actualizá el estado antes de intentarlo nuevamente.");
       } finally {
         signupDataRef.current = {};
         if (mounted.current) setSaving(false);
@@ -396,12 +396,12 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
         setPopupOwner(null);
         setStarting(false);
         if (mode === "direct") resetDirect("provider_error");
-        else setError(data.error_message || "Meta informo un error durante el registro.");
+        else setError(data.error_message || "Meta informó un error durante el registro.");
         return;
       }
 
       if (data.current_step) {
-        setStatus(`Meta esta procesando: ${data.current_step}`);
+        setStatus(`Meta está procesando: ${data.current_step}`);
       }
     };
 
@@ -437,7 +437,7 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
         signupDataRef.current = {};
         setPopupOwner(null);
         setStarting(false);
-        setStatus("Meta no completo la autorizacion. Podes intentar nuevamente.");
+        setStatus("Meta no completó la autorización. Podés intentar nuevamente.");
         if (mode === "direct") resetDirect("not_authorized");
       },
       {
@@ -512,7 +512,7 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
     : result
     ? "Registro guardado"
     : missingConfig.length > 0
-      ? "Parametros incompletos"
+      ? "Parámetros incompletos"
       : "Iniciar registro con Meta";
 
   return (
@@ -532,7 +532,7 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
               </div>
               <h1 id="whatsapp-signup-title" className="mt-1 text-2xl font-semibold">Autorizar WhatsApp Business</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Conecta la cuenta de la organizacion desde Meta. Chatboc guarda la autorizacion y te devuelve al siguiente paso de activacion.
+                Conectá la cuenta de la organización desde Meta. Chatboc guarda la autorización y te devuelve al siguiente paso de activación.
               </p>
             </div>
           </div>
@@ -553,7 +553,7 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
               <span>{displayStatus}</span>
             </div>
           </div>
-          <Progress value={progress} aria-label={`Autorizacion de WhatsApp: ${progress}% completado`} className="mt-3 h-2" />
+          <Progress value={progress} aria-label={`Autorización de WhatsApp: ${progress}% completado`} className="mt-3 h-2" />
           <ol aria-label="Pasos del registro con Meta" className="mt-4 grid gap-2 md:grid-cols-3">
             {stages.map((stage) => (
               <li
@@ -597,9 +597,9 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
         {missingConfig.length ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Faltan parametros de inicio</AlertTitle>
+            <AlertTitle>Faltan parámetros de inicio</AlertTitle>
             <AlertDescription>
-              La plataforma no envio todos los datos necesarios. Volve a integraciones e inicia el registro nuevamente.
+              La plataforma no envió todos los datos necesarios. Volvé a integraciones e iniciá el registro nuevamente.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -607,7 +607,7 @@ function SignupForm({ tenant, appId, configId, actorId, popupOwner, setPopupOwne
         {error ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>No se pudo completar</AlertTitle>
+            <AlertTitle>No pudimos completar el registro</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}

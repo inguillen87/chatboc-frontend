@@ -156,7 +156,7 @@ describe('CatalogManagementPage catalog truth', () => {
     expect(screen.getByText('Sin precio informado')).toBeInTheDocument();
     expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Min $'), { target: { value: '1' } });
+    fireEvent.change(screen.getByPlaceholderText('Mín. $'), { target: { value: '1' } });
     expect(screen.getByText('Precio recuperable')).toBeInTheDocument();
     expect(screen.queryByText('Precio no informado')).not.toBeInTheDocument();
   });

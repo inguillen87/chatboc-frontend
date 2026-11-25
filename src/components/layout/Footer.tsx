@@ -44,7 +44,7 @@ const MarketingFooter = () => {
           <div className="flex flex-col items-center sm:items-start">
             <h3 className="mb-3 text-xl font-bold text-foreground">Chatboc</h3>
             <p className="mb-4 max-w-xs text-slate-700 dark:text-slate-300">
-              Tu experto virtual para atender, vender y ordenar conversaciones en cada canal conectado.
+              Atención, ventas y seguimiento en web y WhatsApp con la identidad de tu organización.
             </p>
             <div className="flex space-x-4">
               <a href="https://www.facebook.com/chatboc" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-slate-700 transition-colors hover:text-primary dark:text-slate-300">
@@ -167,7 +167,7 @@ const MarketingFooter = () => {
               <h3 className="text-base font-bold text-foreground">Validaciones públicas de Chatboc</h3>
             </div>
             <p className="max-w-xl text-xs leading-5 text-slate-700 dark:text-slate-300">
-              Accesos oficiales para revisar informacion fiscal y descargar el certificado MiPyME.
+              Accesos oficiales para revisar información fiscal y descargar el certificado MiPyME.
             </p>
           </div>
 
@@ -183,7 +183,7 @@ const MarketingFooter = () => {
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Data fiscal</p>
                   <p className="mt-1 text-sm font-bold text-foreground">Formulario F960/D</p>
                   <p className="mt-1 text-xs leading-5 text-slate-700 dark:text-slate-300">
-                    Banner de acceso a informacion publica fiscal.
+                    Acceso a la constancia pública fiscal.
                   </p>
                 </div>
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -205,7 +205,7 @@ const MarketingFooter = () => {
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-800 dark:text-emerald-300">Certificado MiPyME</p>
                   <p className="mt-1 text-sm font-bold text-foreground">Respaldo institucional SEPyME</p>
                   <p className="mt-1 text-xs leading-5 text-slate-700 dark:text-slate-300">
-                    Documento oficial disponible para clientes, partners y validacion comercial.
+                    Documento oficial disponible para clientes, socios y validación comercial.
                   </p>
                 </div>
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-600 shadow-sm dark:text-emerald-300">

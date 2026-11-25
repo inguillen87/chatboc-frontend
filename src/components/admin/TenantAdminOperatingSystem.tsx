@@ -408,7 +408,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
         <Card className="h-fit border-border/60">
           <CardHeader>
             <CardTitle className="text-base">Módulos</CardTitle>
-            <CardDescription>Menu operativo del tenant.</CardDescription>
+            <CardDescription>Menú operativo de la organización.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {modules.map((module, index) => {
@@ -463,7 +463,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                 {String(modules.find((item) => item.id === activeModule)?.label || "Resumen operativo")}
               </CardTitle>
               <CardDescription>
-                Estados, vistas y acciones se actualizan desde la configuracion del tenant.
+                Estados, vistas y acciones se actualizan desde la configuración de la organización.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

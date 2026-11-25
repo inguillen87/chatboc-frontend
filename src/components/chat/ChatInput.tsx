@@ -211,7 +211,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const imageLabel = mediaActionLabel(mediaCapabilities, 'image', channelCapabilities?.image_input_label || 'Imagen');
   const fileLabel = mediaActionLabel(mediaCapabilities, 'file', channelCapabilities?.file_upload_label || 'Archivo');
   const audioLabel = mediaActionLabel(mediaCapabilities, 'audio', channelCapabilities?.audio_input_label || 'Audio');
-  const locationLabel = mediaActionLabel(mediaCapabilities, 'location', channelCapabilities?.location_share_label || 'Ubicacion');
+  const locationLabel = mediaActionLabel(mediaCapabilities, 'location', channelCapabilities?.location_share_label || 'Ubicación');
   const imageMode = mediaCapabilities?.input_modes?.image;
   const fileMode = mediaCapabilities?.input_modes?.file;
   const audioMode = mediaCapabilities?.input_modes?.audio;
@@ -330,7 +330,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const resolvedPlaceholder =
     attachmentPreview
-      ? "Agrega un comentario..."
+      ? "Agregá un comentario..."
       : currentGuidedFieldLabel ||
         (composerPlaceholder &&
         composerPlaceholder.length > COMPACT_PLACEHOLDER_MAX_LENGTH
@@ -628,7 +628,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
     } catch (error) {
       if (!isCurrent()) return;
       console.error("Error al obtener ubicación:", error);
-      toast({ title: "Error al obtener ubicación", description: "Hubo un problema al intentar obtener tu ubicación.", variant: "destructive", duration: 5000 });
+      toast({ title: "No pudimos obtener tu ubicación", description: "Revisá los permisos de ubicación del navegador o escribí la dirección en el chat.", variant: "destructive", duration: 5000 });
     } finally {
       if (isCurrent()) {
         locationAttempt.current = null;
@@ -878,7 +878,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
       {attachmentPreview && (
         <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3">
           {attachmentPreview.previewUrl ? (
-            <img src={attachmentPreview.previewUrl} alt="Preview" className="w-14 h-14 rounded-md object-cover" />
+            <img src={attachmentPreview.previewUrl} alt="Vista previa" className="w-14 h-14 rounded-md object-cover" />
           ) : (
             <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center bg-secondary rounded-md">
               <FileText className="w-7 h-7 text-secondary-foreground" />
@@ -1027,7 +1027,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({
                     await startRecording();
                   } catch (error) {
                     if(!isCurrent())return;
-                    toast({ title: "Error al grabar", description: "No se pudo iniciar la grabación. Verifica los permisos del micrófono.", variant: "destructive" });
+                    toast({ title: "No pudimos iniciar la grabación", description: "Revisá los permisos del micrófono en tu navegador e intentá de nuevo.", variant: "destructive" });
                   }
                 }
               }}

@@ -171,7 +171,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
     } catch (error) {
       if (!isCurrent()) return;
       console.error(error);
-      toast.error(isEditing ? 'Error al actualizar' : 'Error al crear (verificar slug duplicado)');
+      toast.error(isEditing ? 'No pudimos actualizar la organización. Reintentá en unos segundos.' : 'No pudimos crear la organización. Revisá que el slug no esté en uso.');
     } finally {
       finishWrite();
     }
@@ -203,7 +203,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
           resetPassForm.reset();
       } catch (error) {
           if (!isCurrent()) return;
-          toast.error("Error al restablecer contraseña");
+          toast.error("No pudimos restablecer la contraseña. Reintentá en unos segundos.");
       } finally {
           finishWrite();
       }
@@ -219,7 +219,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
           callbacks.current.onSuccess(); // Refresh to update list state if needed
       } catch (error) {
           if (!isCurrent()) return;
-          toast.error("Error al configurar WhatsApp");
+          toast.error("No pudimos configurar WhatsApp. Revisá el número con código de país e intentá de nuevo.");
       } finally {
           finishWrite();
       }
@@ -243,8 +243,8 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
           <DialogTitle>{isEditing ? `Editar: ${tenantToEdit.nombre}` : 'Nuevo Tenant'}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Administra plan, usuarios y canal WhatsApp del tenant.'
-              : 'Crea una organizacion lista para operar con widget, CRM, permisos y onboarding WhatsApp.'}
+              ? 'Administrá el plan, los usuarios y el canal de WhatsApp de la organización.'
+              : 'Creá una organización lista para operar con widget, CRM, permisos y WhatsApp.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -314,7 +314,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                 <TabsContent value="users" className="space-y-6 py-4">
                     {isOpen && activeTab === 'users' && tenantToEdit?.tipo === 'municipio' && <NativeAdminLegacyMembershipCard key={tenantToEdit.slug} tenant={tenantToEdit} />}
                     <div className="space-y-4 border p-4 rounded-md">
-                        <h3 className="font-medium text-sm">Crear Nuevo Admin</h3>
+                        <h3 className="font-medium text-sm">Crear nuevo administrador</h3>
                         <Form {...userForm}>
                             <form onSubmit={userForm.handleSubmit(onSubmitUser)} className="space-y-3">
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -334,7 +334,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                     </div>
 
                     <div className="space-y-4 border p-4 rounded-md bg-muted/20">
-                        <h3 className="font-medium text-sm">Restablecer Contraseña (Admin Principal)</h3>
+                        <h3 className="font-medium text-sm">Restablecer contraseña (admin principal)</h3>
                         <Form {...resetPassForm}>
                             <form onSubmit={resetPassForm.handleSubmit(onSubmitResetPass)} className="flex gap-2 items-end">
                                 <div className="flex-1">
@@ -354,9 +354,9 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                         <div className="flex items-start gap-2">
                             <MessageCircle className="mt-0.5 h-4 w-4 text-primary" />
                             <div>
-                                <p className="text-sm font-medium">Sender dedicado por tenant</p>
+                                <p className="text-sm font-medium">Emisor dedicado por organización</p>
                                 <p className="text-xs text-muted-foreground">
-                                    El numero queda asociado al tenant para que webhooks, menus y CRM no se mezclen entre rubros.
+                                    El número queda asociado a la organización para que webhooks, menús y CRM no se mezclen entre rubros.
                                 </p>
                             </div>
                         </div>
@@ -378,7 +378,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                                 )}
                             />
                             <div className="flex justify-end">
-                                <Button type="submit" disabled={loading}>Guardar Integración</Button>
+                                <Button type="submit" disabled={loading}>Guardar integración</Button>
                             </div>
                         </form>
                     </Form>
@@ -418,7 +418,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Nombre</FormLabel>
-                        <FormControl><Input placeholder="Nombre del Cliente" {...field} disabled={loading} /></FormControl>
+                        <FormControl><Input placeholder="Nombre del cliente" {...field} disabled={loading} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -482,7 +482,7 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                                 <FormLabel>Email Admin</FormLabel>
                                 <FormControl><Input type="email" placeholder="admin@cliente.com (opcional)" {...field} disabled={loading} /></FormControl>
                                 <p className="text-xs text-muted-foreground">
-                                  Si lo dejas vacio, Chatboc crea un admin interno del tenant y despues podes invitar usuarios reales.
+                                  Si lo dejás vacío, Chatboc crea un admin interno y después podés invitar usuarios reales.
                                 </p>
                                 <FormMessage />
                             </FormItem>

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const formSchema = z.object({
   nombre: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
-  email: z.string().email({ message: "Por favor ingresa un email válido." }),
+  email: z.string().email({ message: "Ingresá un email válido." }),
   telefono: z.string().min(8, { message: "El teléfono debe tener al menos 8 dígitos." }),
   dni: z.string().regex(/^\d{7,8}$/, { message: "El DNI debe tener entre 7 y 8 dígitos." }),
 });
@@ -35,7 +35,7 @@ const PersonalDataForm: React.FC<PersonalDataFormProps> = ({ onSubmit, isSubmitt
   return (
     <Card className="w-full max-w-lg mx-auto my-4">
       <CardHeader>
-        <CardTitle>Información Personal</CardTitle>
+        <CardTitle>Información personal</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -45,7 +45,7 @@ const PersonalDataForm: React.FC<PersonalDataFormProps> = ({ onSubmit, isSubmitt
               name="nombre"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre Completo</FormLabel>
+                  <FormLabel>Nombre completo</FormLabel>
                   <FormControl>
                     <Input placeholder="Juan Pérez" {...field} />
                   </FormControl>
@@ -93,7 +93,7 @@ const PersonalDataForm: React.FC<PersonalDataFormProps> = ({ onSubmit, isSubmitt
               )}
             />
             <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting ? 'Enviando...' : 'Enviar Datos'}
+              {isSubmitting ? 'Enviando...' : 'Enviar datos'}
             </Button>
           </form>
         </Form>

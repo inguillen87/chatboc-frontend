@@ -339,7 +339,7 @@ function buildPlatformWidgetFallbackConfig() {
     onboarding: {
       contract_version: "public.widget_onboarding.v1",
       mode: "platform_sector_selector",
-      title: "Experiencias Chatboc",
+      title: "Demos de Chatboc",
       entry_question: "¿Qué querés probar?",
       required_step: "select_sector",
       autostart_after_selection: true,
@@ -1526,7 +1526,7 @@ function ChatWidgetInner({
     const inferredTipo = tipoChat === 'municipio' ? 'municipio' : 'pyme';
     const fallbackTitle = isScopedOrganizationStandalone
       ? scopedFallbackTitle
-      : (welcomeTitle || (inferredTipo === 'municipio' ? 'Asistente ciudadano' : 'Asistente Virtual'));
+      : (welcomeTitle || (inferredTipo === 'municipio' ? 'Asistente ciudadano' : 'Asistente virtual'));
     const fallbackSubtitle = isScopedOrganizationStandalone
       ? (scopedFallbackSubtitle || 'Atención disponible en modo básico.')
       : (welcomeSubtitle || 'Atención con IA disponible en modo básico.');

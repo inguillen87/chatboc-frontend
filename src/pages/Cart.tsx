@@ -189,7 +189,7 @@ export default function CartPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-destructive text-center">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Ocurrió un error</h2>
+        <h2 className="text-2xl font-bold mb-2">No pudimos cargar tu carrito</h2>
         <p className="text-muted-foreground max-w-md mb-6">{error}</p>
         <div className="flex gap-4">
             <Button onClick={loadCartData}>Reintentar</Button>
@@ -210,15 +210,15 @@ export default function CartPage() {
         <Button variant="ghost" onClick={() => navigate(-1)} className="hover:bg-accent/50 group">
           <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" /> Volver
         </Button>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">Tu Carrito</h1>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">Tu carrito</h1>
       </div>
 
       {!user && (
         <Alert className="mb-6 bg-muted/40 border-primary/20">
           <Package className="h-4 w-4 text-primary" />
-          <AlertTitle className="text-primary font-medium">Finaliza con tus datos</AlertTitle>
+          <AlertTitle className="text-primary font-medium">Finalizá con tus datos</AlertTitle>
           <AlertDescription>
-            Te pediremos tus datos de contacto en el siguiente paso.
+            Te vamos a pedir tus datos de contacto en el siguiente paso.
           </AlertDescription>
         </Alert>
       )}
@@ -235,12 +235,12 @@ export default function CartPage() {
         </div>
         <div className="flex items-center gap-2 mb-4">
            <Sparkles className="h-5 w-5 text-primary" />
-           <p className="text-sm uppercase tracking-wider font-bold text-muted-foreground">Resumen de Puntos</p>
+           <p className="text-sm uppercase tracking-wider font-bold text-muted-foreground">Resumen de puntos</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 relative z-10">
           <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Tu Saldo</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Tu saldo</p>
             <p className="text-2xl font-bold text-foreground">
               {isLoadingPoints ? <Loader2 className="h-5 w-5 animate-spin" /> : `${numberFormatter.format(effectivePointsBalance)} pts`}
             </p>
@@ -260,7 +260,7 @@ export default function CartPage() {
         <AnimatePresence>
             {hasPointsDeficit && (
             <motion.p initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="text-sm text-destructive mt-3 bg-destructive/10 p-2 rounded-md inline-block">
-                No tienes puntos suficientes. Ajusta tu carrito.
+                No tenés puntos suficientes. Ajustá tu carrito.
             </motion.p>
             )}
         </AnimatePresence>
@@ -280,9 +280,9 @@ export default function CartPage() {
              <ShoppingCart className="h-10 w-10 text-muted-foreground" />
           </div>
           <h3 className="text-2xl font-bold text-foreground mb-2">Tu carrito está vacío</h3>
-          <p className="text-muted-foreground mb-8 max-w-md mx-auto">Explora nuestro catálogo para encontrar productos, beneficios y recompensas increíbles.</p>
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto">Explorá el catálogo para sumar productos y beneficios a tu pedido.</p>
           <Button asChild size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20">
-            <Link to={catalogPath}>Explorar Catálogo</Link>
+            <Link to={catalogPath}>Explorar catálogo</Link>
           </Button>
         </motion.div>
       ) : (
@@ -391,11 +391,11 @@ export default function CartPage() {
                 <Card className="shadow-lg border-primary/10 overflow-hidden">
                 <div className="h-2 bg-gradient-to-r from-primary to-purple-500/50" />
                 <CardHeader>
-                    <CardTitle className="text-xl">Resumen de Cuenta</CardTitle>
+                    <CardTitle className="text-xl">Resumen de cuenta</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex justify-between text-muted-foreground text-sm">
-                    <span>Subtotal items</span>
+                    <span>Subtotal ítems</span>
                     <span>{cartItems.reduce((acc, item) => acc + item.cantidad, 0)} u.</span>
                     </div>
 
@@ -426,7 +426,7 @@ export default function CartPage() {
 
                     {requiresAuthForPoints && (
                     <div className="bg-destructive/10 text-destructive text-xs p-2 rounded border border-destructive/20">
-                        Inicia sesión para canjear productos con puntos.
+                        Iniciá sesión para canjear productos con puntos.
                     </div>
                     )}
                 </CardContent>
@@ -437,7 +437,7 @@ export default function CartPage() {
                     onClick={handleNavigateToCheckout}
                     disabled={hasPointsDeficit || requiresAuthForPoints}
                     >
-                        Confirmar Pedido
+                        Confirmar pedido
                     </Button>
                     <Button variant="outline" asChild className="w-full border-dashed">
                          <Link to={catalogPath}>Agregar más productos</Link>
@@ -454,10 +454,10 @@ export default function CartPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
-                Inicia sesión
+                Iniciá sesión
             </DialogTitle>
             <DialogDescription>
-              Para canjear beneficios y sumar puntos, necesitas una cuenta activa.
+              Para canjear beneficios y sumar puntos, necesitás una cuenta activa.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-4">

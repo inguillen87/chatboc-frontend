@@ -246,7 +246,7 @@ const OrderConfirmationPage = () => {
 
       {error && (
         <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Algo salió mal</AlertTitle>
+          <AlertTitle>No pudimos consultar el pedido</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -254,8 +254,8 @@ const OrderConfirmationPage = () => {
       {!pedidoId && (
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Identificador faltante</CardTitle>
-            <CardDescription>Revisa el enlace de confirmación o vuelve al catálogo para generar un nuevo pedido.</CardDescription>
+            <CardTitle>Falta el número de pedido</CardTitle>
+            <CardDescription>Revisá el enlace de confirmación o volvé al catálogo para generar un nuevo pedido.</CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col sm:flex-row gap-3">
             <Button onClick={() => navigate(catalogPath)}>Volver al catálogo</Button>
@@ -270,7 +270,7 @@ const OrderConfirmationPage = () => {
             <div>
               <CardTitle>Pedido #{pedidoId}</CardTitle>
               <CardDescription>
-                Consulta el detalle real del pedido después de volver de la pasarela de pago.
+                Consultá el detalle del pedido después de volver de la pasarela de pago.
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">

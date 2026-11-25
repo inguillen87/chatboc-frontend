@@ -74,7 +74,7 @@ const resolveLocationLabel = (ticket: Ticket): string => {
     direccion: normalized.direccion || ticket.direccion,
     distrito: normalized.distrito || ticket.distrito,
   });
-  return address || normalized.direccion || 'Sin ubicacion';
+  return address || normalized.direccion || 'Sin ubicación';
 };
 
 export const CaseStrip: React.FC<CaseStripProps> = ({

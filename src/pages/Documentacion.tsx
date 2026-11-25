@@ -4,30 +4,30 @@ const Documentacion = () => (
   <div className="min-h-screen bg-background text-foreground py-16 px-4 md:px-0 flex flex-col items-center">
     <div className="max-w-2xl w-full bg-card rounded-2xl shadow-lg p-8 mt-6">
 
-      <h1 className="text-3xl font-bold mb-6 text-primary">Documentación Técnica</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary">Documentación técnica</h1>
 
       {/* ===================== USUARIOS COMUNES ===================== */}
-      <h2 className="text-2xl font-semibold mt-6 mb-4 text-primary">👥 Para empresas, comercios y usuarios comunes</h2>
+      <h2 className="text-2xl font-semibold mt-6 mb-4 text-primary">Para empresas, comercios y usuarios</h2>
       <p className="mb-4 text-base">
-        <b>¿Qué podés hacer con Chatboc?</b> Usar el asistente virtual para responder consultas de tus clientes, automatizar ventas y soporte, y tener tu propio chatbot listo para usar <b>sin programar nada</b>.
+        <b>¿Qué podés hacer con Chatboc?</b> Usar el asistente para responder consultas de tus clientes, automatizar ventas y soporte, y tener tu propio chat listo para usar <b>sin programar nada</b>.
       </p>
       <ul className="list-disc ml-6 mb-4">
         <li>Ingresá a tu panel con usuario y contraseña.</li>
         <li>Personalizá tu empresa y rubro desde el perfil.</li>
-        <li>Cargá el catálogo de productos en PDF o Excel para que el bot lo utilice en respuestas.</li>
+        <li>Cargá el catálogo de productos en PDF o Excel para que el bot lo use en respuestas.</li>
         <li>Integrá Chatboc en tu web copiando el código del <b>iframe/widget</b> (disponible en tu panel).</li>
-        <li>Gestioná las respuestas, consultas y upgrades de tu plan desde la web.</li>
+        <li>Gestioná las respuestas, consultas y cambios de plan desde la web.</li>
       </ul>
 
       <div className="bg-yellow-50 dark:bg-gray-900 border-l-4 border-yellow-500 p-3 rounded text-sm text-yellow-800 dark:text-yellow-200 mb-4">
-        <b>Importante:</b> el rubro y el <code>tipo_chat</code> deben coincidir en todas las consultas. Si tu rubro pertenece a los públicos, usá siempre el endpoint y la estética de municipio. Para el resto de los rubros, utilizá pyme.
+        <b>Importante:</b> el rubro y el <code>tipo_chat</code> deben coincidir en todas las consultas. Si tu rubro pertenece a los públicos, usá siempre el endpoint y la estética de municipio. Para el resto de los rubros, usá pyme.
       </div>
       <p className="mb-4 text-base">
-        Si tenés dudas frecuentes, visitá el <a href="/faqs" className="text-blue-500 underline">Centro de Ayuda</a> o escribinos por WhatsApp.
+        Si tenés dudas frecuentes, visitá el <a href="/faqs" className="text-blue-500 underline">Centro de ayuda</a> o escribinos por WhatsApp.
       </p>
 
       {/* ===================== DESARROLLADORES ===================== */}
-      <h2 className="text-2xl font-semibold mt-10 mb-4 text-primary">💻 Para desarrolladores e integradores (API REST)</h2>
+      <h2 className="text-2xl font-semibold mt-10 mb-4 text-primary">Para desarrolladores e integradores (API REST)</h2>
       <div className="bg-yellow-50 dark:bg-gray-800 border-l-4 border-yellow-500 p-4 rounded mb-4 text-yellow-700 dark:text-yellow-200">
         <b>¡Importante!</b><br />
         <span>
@@ -136,7 +136,7 @@ print(response.json())
       <p className="mb-2">
         ¿Dudas técnicas, problemas de integración o querés acceso a la API? <br />
         Escribinos a <a href="mailto:info@chatboc.ar" className="text-blue-500 underline">info@chatboc.ar</a> o consultá el{" "}
-        <a href="/faqs" className="text-blue-500 underline">Centro de Ayuda</a>.
+        <a href="/faqs" className="text-blue-500 underline">Centro de ayuda</a>.
       </p>
       <p className="text-xs text-muted-foreground mt-8">
         *Todos los endpoints requieren autenticación y plan activo. El acceso a la API REST está sujeto a condiciones comerciales y límites según plan.

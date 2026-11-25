@@ -142,7 +142,7 @@ const CatalogMappingPage: React.FC = () => {
           toast({ title: "Configuración de mapeo cargada." });
         })
         .catch(err => {
-          setError(getErrorMessage(err, "Error al cargar la configuración de mapeo."));
+          setError(getErrorMessage(err, "No pudimos cargar la configuración de mapeo. Recargá la página e intentá de nuevo."));
           toast({ variant: "destructive", title: "Error", description: getErrorMessage(err) });
         })
         .finally(() => setIsLoading(false));
@@ -231,7 +231,7 @@ const CatalogMappingPage: React.FC = () => {
 
       if (shouldUseAi) {
         if (!entityId) {
-          throw new Error('No se encontró la entidad para ejecutar el análisis inteligente. Volvé a abrir este asistente desde el panel.');
+          throw new Error('No encontramos la organización para analizar el archivo. Volvé a abrir este asistente desde el panel.');
         }
 
         const preview = await requestDocumentPreview({
@@ -358,7 +358,7 @@ const CatalogMappingPage: React.FC = () => {
         setPreviewRecords(buildRecordsFromMatrix(headers, previewRows));
         setAnalysisSourceType('excel');
       } else {
-        throw new Error("Tipo de archivo no soportado o vacío. Probá activar el análisis inteligente para que la IA lo interprete.");
+        throw new Error("Tipo de archivo no soportado o vacío. Activá la lectura con IA para interpretar PDFs u otros formatos.");
       }
 
       setUserColumns(headers);
@@ -387,11 +387,11 @@ const CatalogMappingPage: React.FC = () => {
       }
 
     } catch (e: any) {
-      setError(getErrorMessage(e, "Error al procesar el archivo."));
+      setError(getErrorMessage(e, "No pudimos leer el archivo. Revisá el formato y volvé a intentarlo."));
       setUserColumns([]);
       setCurrentMappings({});
       setSuggestedMappingsCache({});
-        toast({ variant: "destructive", title: "Error de Parseo", description: getErrorMessage(e) });
+        toast({ variant: "destructive", title: "No pudimos leer el archivo", description: getErrorMessage(e) });
     } finally {
       setIsParsing(false);
     }
@@ -407,27 +407,27 @@ const CatalogMappingPage: React.FC = () => {
     if (file) {
       parseFileHeaders(file, hasHeaders, skipRows, excelSheetName || availableSheetNames[0], csvDelimiter);
     } else {
-      toast({ variant: "destructive", title: "Error", description: "Por favor, selecciona un archivo primero." });
+      toast({ variant: "destructive", title: "Falta el archivo", description: "Seleccioná un archivo antes de volver a leerlo." });
     }
   };
 
   const handleSaveMapping = async () => {
     if (!entityId) {
-      toast({ variant: "destructive", title: "Error", description: "ID de la entidad no encontrado." });
+      toast({ variant: "destructive", title: "Falta la organización", description: "Volvé al panel y reabrí este asistente." });
       return;
     }
     if (!mappingName.trim()) {
-      toast({ variant: "destructive", title: "Error", description: "Por favor, asigna un nombre a esta configuración de mapeo." });
+      toast({ variant: "destructive", title: "Falta el nombre", description: "Poné un nombre a esta configuración de mapeo." });
       return;
     }
     if (Object.values(currentMappings).every(v => v === null)) {
-        toast({ variant: "destructive", title: "Error", description: "Debes mapear al menos una columna." });
+        toast({ variant: "destructive", title: "Faltan columnas", description: "Asigná al menos una columna antes de guardar." });
         return;
     }
     // Basic validation: ensure at least 'nombre' (product name) is mapped
     const nameFieldKey = systemFields.find(f => f.label.toLowerCase().includes("nombre"))?.key;
     if (nameFieldKey && !currentMappings[nameFieldKey]) {
-        toast({ variant: "destructive", title: "Error", description: "El campo 'Nombre del Producto' (o similar) es obligatorio y debe ser mapeado." });
+        toast({ variant: "destructive", title: "Falta el nombre del producto", description: "El campo «Nombre del producto» es obligatorio y debe quedar asignado." });
         return;
     }
 
@@ -459,7 +459,7 @@ const CatalogMappingPage: React.FC = () => {
       toast({ title: "¡Guardado!", description: `Configuración de mapeo "${saved.name}" guardada.` });
       navigate('/perfil');
     } catch (err) {
-      toast({ variant: "destructive", title: "Error al Guardar", description: getErrorMessage(err) });
+      toast({ variant: "destructive", title: "No pudimos guardar el mapeo", description: getErrorMessage(err) });
     } finally {
       setIsLoading(false);
     }
@@ -489,7 +489,7 @@ const CatalogMappingPage: React.FC = () => {
         </Button>
 
         <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-6">
-          {mappingId ? "Editar Configuración de Mapeo" : "Crear Nueva Configuración de Mapeo de Catálogo"}
+          {mappingId ? "Editar configuración de mapeo" : "Crear configuración de mapeo de catálogo"}
         </h1>
 
         {error && (
@@ -505,21 +505,21 @@ const CatalogMappingPage: React.FC = () => {
         <div className="space-y-8">
         {/* Sección 1: Nombre y Carga de Archivo */}
         <div className="bg-card p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4 text-foreground">1. Configuración General y Archivo</h2>
+          <h2 className="text-xl font-semibold mb-4 text-foreground">1. Configuración general y archivo</h2>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="mappingName" className="text-sm font-medium">Nombre de la Configuración</Label>
+              <Label htmlFor="mappingName" className="text-sm font-medium">Nombre de la configuración</Label>
               <Input
                 id="mappingName"
                 type="text"
                 value={mappingName}
                 onChange={(e) => setMappingName(e.target.value)}
-                placeholder="Ej: Mapeo Estándar Productos, Lista Proveedor X"
+                placeholder="Ej: Mapeo estándar de productos, Lista proveedor X"
                 className="mt-1"
               />
             </div>
             <div>
-              <Label htmlFor="fileUpload" className="text-sm font-medium">Archivo de Ejemplo (CSV, Excel, PDF)</Label>
+              <Label htmlFor="fileUpload" className="text-sm font-medium">Archivo de ejemplo (CSV, Excel, PDF)</Label>
               <div className="mt-1 flex items-center space-x-3">
                 <Input
                   id="fileUpload"
@@ -530,14 +530,14 @@ const CatalogMappingPage: React.FC = () => {
                 />
                 {file && (isParsing ?
                   <Loader2 className="h-5 w-5 animate-spin text-primary" /> :
-                  <Button onClick={handleReparse} variant="outline" size="sm" title="Forzar re-análisis del archivo">
+                  <Button onClick={handleReparse} variant="outline" size="sm" title="Volver a leer el archivo">
                     <Wand2 className="h-4 w-4"/>
                   </Button>
                 )}
               </div>
               {file && <p className="text-xs text-muted-foreground mt-1">Archivo seleccionado: {file.name}</p>}
               <p className="text-xs text-muted-foreground mt-1">
-                Sube un archivo de ejemplo para detectar las columnas y configurar el mapeo. Este archivo no se guarda, solo se usa para la configuración.
+                Subí un archivo de ejemplo para detectar las columnas y armar el mapeo. No se guarda, solo se usa para leer el formato.
               </p>
             </div>
           </div>
@@ -546,7 +546,7 @@ const CatalogMappingPage: React.FC = () => {
         {/* Sección 2: Opciones de Parseo */}
         {(file || userColumns.length > 0) && (
           <div className="bg-card p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4 text-foreground">2. Opciones de Lectura del Archivo</h2>
+            <h2 className="text-xl font-semibold mb-4 text-foreground">2. Opciones de lectura del archivo</h2>
             <div className="space-y-4">
               <div className="flex items-start space-x-3">
                 <Switch
@@ -556,7 +556,7 @@ const CatalogMappingPage: React.FC = () => {
                 />
                 <div className="space-y-1">
                   <Label htmlFor="useAiAssistance" className="text-sm font-medium">
-                    Activar lectura inteligente (OpenAI)
+                    Activar lectura asistida con IA (OpenAI)
                   </Label>
                   <p className="text-xs text-muted-foreground">
                     Usa IA para detectar tablas en PDFs, notas de pedido o archivos con columnas irregulares. El archivo se envía de forma segura al backend para su interpretación.
@@ -618,7 +618,7 @@ const CatalogMappingPage: React.FC = () => {
           <div className="bg-muted/30 border border-border/60 rounded-lg p-6 shadow-inner">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">3. Vista previa inteligente del archivo</h2>
+                <h2 className="text-lg font-semibold text-foreground">3. Vista previa del archivo</h2>
                 {analysisSourceType && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Origen detectado: <span className="font-medium text-foreground">{humanizeSourceType(analysisSourceType)}</span>
@@ -692,7 +692,7 @@ const CatalogMappingPage: React.FC = () => {
 
             {previewRecords.length === 0 && !analysisSummary && analysisWarnings.length === 0 && (
               <p className="text-xs text-muted-foreground mt-3">
-                No pudimos generar una vista previa con la configuración actual. Ajustá las opciones o reintentá el análisis inteligente.
+                No pudimos generar una vista previa con esta configuración. Ajustá las opciones o volvé a leer el archivo con IA.
               </p>
             )}
           </div>
@@ -709,22 +709,22 @@ const CatalogMappingPage: React.FC = () => {
         {!isParsing && userColumns.length > 0 && (
           <div className="bg-card p-6 rounded-lg shadow">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-foreground">4. Mapeo de Columnas</h2>
+              <h2 className="text-xl font-semibold text-foreground">4. Mapeo de columnas</h2>
               {/* <Button onClick={handleAutoSuggest} variant="outline" size="sm" disabled={isParsing}>
                 <Wand2 className="mr-2 h-4 w-4" /> Re-Sugerir Mapeos
               </Button> */}
             </div>
             <p className="text-sm text-muted-foreground mb-1">
-              Para cada campo del sistema, selecciona la columna correspondiente de tu archivo.
+              Para cada campo del sistema, elegí la columna correspondiente de tu archivo.
             </p>
             <p className="text-sm text-muted-foreground mb-4">
               Los campos marcados con <span className="text-destructive">*</span> son recomendados.
-              Las sugerencias automáticas están marcadas con ✨.
+              Las sugerencias automáticas aparecen marcadas como «Sugerido».
             </p>
             <div className="border border-border rounded-md">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 items-center py-3 px-4 bg-muted/50 font-semibold border-b border-border">
-                <div>Campo del Sistema</div>
-                <div className="col-span-1 md:col-span-2">Columna de tu Archivo</div>
+                <div>Campo del sistema</div>
+                <div className="col-span-1 md:col-span-2">Columna de tu archivo</div>
               </div>
               {systemFields.map((field) => (
                 <ColumnMappingRow
@@ -749,7 +749,7 @@ const CatalogMappingPage: React.FC = () => {
           <Button onClick={handleSaveMapping} disabled={isLoading || isParsing || userColumns.length === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             <Save className="mr-2 h-4 w-4" />
-            {mappingId ? "Guardar Cambios" : "Crear Configuración"}
+            {mappingId ? "Guardar cambios" : "Crear configuración"}
           </Button>
         </div>
       </div>

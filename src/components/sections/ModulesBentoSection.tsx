@@ -182,7 +182,7 @@ const ModuleMiniVisual = ({
             <Globe className="h-3.5 w-3.5 text-primary" />
             Portal + Widget + WhatsApp
           </span>
-          <span className="text-xs text-slate-600 dark:text-muted-foreground">Seguimiento unificado en un solo tablero</span>
+          <span className="text-xs text-slate-600 dark:text-muted-foreground">Seguimiento unificado en un mismo tablero</span>
         </div>
       </div>
     );

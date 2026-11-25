@@ -241,7 +241,7 @@ const PageHeader: FC<{ onLogout: () => void; title: string }> = ({ onLogout, tit
   return (
     <div className="w-full max-w-7xl mx-auto mb-8 flex items-center justify-between">
       <Button variant="ghost" onClick={() => navigate('/perfil')} className="text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="w-5 h-5 mr-2" /> Volver al Perfil
+        <ChevronLeft className="w-5 h-5 mr-2" /> Volver al perfil
       </Button>
       <h1 className="text-3xl sm:text-4xl font-extrabold text-primary leading-tight text-center flex-1 hidden sm:block">
         {title}
@@ -250,7 +250,7 @@ const PageHeader: FC<{ onLogout: () => void; title: string }> = ({ onLogout, tit
         variant="ghost"
         onClick={() => navigate(TICKET_DESK_PATH)}
         className="hidden sm:inline-flex text-muted-foreground hover:text-foreground mr-4"
-        aria-label="Ver Tickets"
+        aria-label="Ver tickets"
       >
         <TicketIcon className="w-5 h-5 mr-1" /> Tickets
       </Button>
@@ -303,7 +303,7 @@ export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false
     hasVerifiedSession, profileVerified: organizationProfileVerified, loading: Boolean(profileLoading),
   });
   const isMunicipal = organization?.tenantSlug === tenantSlug && organization.isMunicipal;
-  const pageTitle = isMunicipal ? 'Tareas y gestión' : 'Operacion de pedidos';
+  const pageTitle = isMunicipal ? 'Tareas y gestión' : 'Operación de pedidos';
   const pageDescription = isMunicipal
     ? 'Consultá y gestioná los pedidos institucionales de esta organización.'
     : 'Estados, detalle y seguimiento comercial en una vista simple para el equipo.';
@@ -351,7 +351,7 @@ export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false
     } catch (err) {
       if (currentScopeRef.current !== requestScopeKey) return;
       console.error('Error fetching pedidos:', err);
-      setError(getErrorMessage(err, 'Error al cargar los pedidos.'));
+      setError(getErrorMessage(err, 'No pudimos cargar los pedidos. Revisá tu conexión e intentá de nuevo.'));
     } finally {
       if (currentScopeRef.current === requestScopeKey) setIsLoading(false);
     }
@@ -432,7 +432,7 @@ export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false
       fetchPedidos(); // Re-fetch all pedidos to reflect the change
     } catch (err) {
       if (currentScopeRef.current !== requestScopeKey) return;
-      setError(getErrorMessage(err, 'Error al actualizar el estado del pedido.'));
+      setError(getErrorMessage(err, 'No pudimos actualizar el estado del pedido. Intentá otra vez.'));
     }
   };
 
@@ -455,10 +455,10 @@ export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
         <AlertCircle className="w-16 h-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Ocurrió un Error</h2>
+        <h2 className="text-2xl font-semibold mb-2">No pudimos cargar los pedidos</h2>
         <p className="text-red-500 mb-6 text-center">{error}</p>
         <Button onClick={() => navigate('/login')} className="bg-primary hover:bg-primary/90">
-          <ChevronLeft className="w-4 h-4 mr-2" /> Volver a Iniciar Sesión
+          <ChevronLeft className="w-4 h-4 mr-2" /> Volver a iniciar sesión
         </Button>
       </div>
     );
@@ -466,7 +466,7 @@ export default function PedidosPage({ tenantSlug: scopedTenant, embedded = false
 
   return (
     <div className={cn('flex flex-col text-foreground', embedded ? 'min-h-0' : 'min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 py-8 px-4 md:px-6 lg:px-8')}>
-      {!embedded && <PageHeader onLogout={handleLogout} title={isMunicipal ? pageTitle : 'Panel de Pedidos'} />}
+      {!embedded && <PageHeader onLogout={handleLogout} title={isMunicipal ? pageTitle : 'Panel de pedidos'} />}
       <section aria-label={pageTitle} className="w-full max-w-7xl mx-auto space-y-4">
         <section className="rounded-[28px] border border-border/70 bg-card/85 p-4 shadow-sm md:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

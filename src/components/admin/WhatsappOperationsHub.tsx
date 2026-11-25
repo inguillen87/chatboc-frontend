@@ -241,10 +241,10 @@ const EmptyState = ({ reason }: { reason?: unknown }) => (
   <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
     <div className="flex items-center gap-2 font-semibold text-foreground">
       <Settings2 className="h-4 w-4" />
-      Setup pendiente
+      Configuración pendiente
     </div>
     <p className="mt-2">
-      {reason ? String(reason) : "El canal todavia no envio datos operativos completos."}
+      {reason ? String(reason) : "El canal todavía no envió datos operativos completos."}
     </p>
   </div>
 );

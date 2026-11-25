@@ -195,7 +195,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({
         setError(err.body?.error || "Error de registro");
       } else {
         console.error(err);
-        setError("No se pudo completar el registro");
+        setError("No pudimos completar el registro. Revisá los datos e intentá de nuevo.");
       }
     } finally {
       setLoading(false);

@@ -24,7 +24,7 @@ const Index = () => {
     typeof window.requestAnimationFrame === "function" &&
     typeof ResizeObserver !== "undefined";
   useEffect(() => {
-    document.title = "Chatboc - Agentes IA marca blanca para operar conversaciones, ventas y servicios";
+    document.title = "Chatboc — Agentes IA con tu marca para atención, ventas y gestión";
 
     const sectionId = safeSessionStorage.getItem("pendingScrollSection");
     if (sectionId) {

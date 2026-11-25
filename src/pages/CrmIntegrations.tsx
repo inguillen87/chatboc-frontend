@@ -55,7 +55,7 @@ export default function CrmIntegrations() {
   if (error)
     return (
       <Alert variant="destructive" className="max-w-2xl mx-auto">
-        <AlertTitle>Error al cargar integraciones</AlertTitle>
+        <AlertTitle>No pudimos cargar las integraciones</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );
@@ -67,7 +67,7 @@ export default function CrmIntegrations() {
         <Alert>
           <AlertTitle>No hay integraciones configuradas</AlertTitle>
           <AlertDescription>
-            Solicita al administrador habilitar o cargar integraciones CRM en el backend. Cuando existan registros, se mostrarán aquí automáticamente.
+            Pedile al administrador que habilite o cargue integraciones CRM. Cuando existan registros, van a aparecer acá.
           </AlertDescription>
         </Alert>
       ) : (

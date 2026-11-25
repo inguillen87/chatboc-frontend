@@ -25,7 +25,7 @@ describe('catalog preparation from selected routing topics',()=>{
  it('keeps an edited draft and accessible error after a denied save without replay',async()=>{
   render(<CategoryManagementPage/>);fireEvent.click(await screen.findByRole('button',{name:'Revisar y crear categoría: Alumbrado'}));const dialog=screen.getByRole('dialog');fireEvent.change(within(dialog).getByLabelText('Nombre'),{target:{value:'Nombre revisado'}});
   mocks.fetch.mockRejectedValueOnce(new ApiError('Denied',403));fireEvent.click(within(dialog).getByRole('button',{name:'Guardar'}));await within(dialog).findByRole('alert');expect(within(dialog).getByLabelText('Nombre')).toHaveValue('Nombre revisado');expect(mocks.fetch.mock.calls.filter(call=>call[1].method==='POST')).toHaveLength(1);
-  fireEvent.click(within(dialog).getByRole('button',{name:'Cancelar'}));fireEvent.click(screen.getByRole('button',{name:'Crear categoria'}));expect(screen.getByLabelText('Nombre')).toHaveValue('Nombre revisado');
+  fireEvent.click(within(dialog).getByRole('button',{name:'Cancelar'}));fireEvent.click(screen.getByRole('button',{name:'Crear categoría'}));expect(screen.getByLabelText('Nombre')).toHaveValue('Nombre revisado');
  });
  it('blocks another write after an unconfirmed receipt and permits only an explicit catalog check',async()=>{
   render(<CategoryManagementPage/>);fireEvent.click(await screen.findByRole('button',{name:'Revisar y crear categoría: Alumbrado'}));fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Guardar'}));

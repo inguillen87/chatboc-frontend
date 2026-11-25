@@ -16,53 +16,53 @@ const problemsData = [
     icon: UsersRound,
     title: "Canales dispersos",
     description:
-      "La atencion queda repartida entre WhatsApp, web, redes, planillas y llamadas. El equipo pierde contexto y el usuario repite su historia.",
-    outcome: "Conversacion, historial y proximos pasos en una experiencia consistente.",
+      "La atención queda repartida entre WhatsApp, web, redes, planillas y llamadas. El equipo pierde contexto y el usuario repite su historia.",
+    outcome: "Conversación, historial y próximos pasos en el mismo hilo.",
   },
   {
     icon: Settings2,
     title: "Configuración difícil de mantener",
     description:
-      "Los flujos rigidos envejecen rapido. Cada cambio de tramite, producto o politica obliga a tocar reglas y pantallas.",
-    outcome: "La experiencia cambia sin rehacer pantallas.",
+      "Los flujos rígidos envejecen rápido. Cada cambio de trámite, producto o política obliga a tocar reglas y pantallas.",
+    outcome: "Cambiás un proceso sin rehacer pantallas.",
   },
   {
     icon: Store,
     title: "Ventas y servicios sin continuidad",
     description:
-      "El interes aparece en el chat, pero la compra, el lead o el ticket quedan en otro sistema y se pierde trazabilidad.",
-    outcome: "Chat, marketplace, tickets y pagos comparten contexto operativo.",
+      "El interés aparece en el chat, pero la compra, la consulta o el ticket quedan en otro sistema y se pierde trazabilidad.",
+    outcome: "Chat, tienda, tickets y pagos comparten el mismo historial.",
   },
   {
     icon: SearchX,
     title: "Datos que llegan tarde",
     description:
-      "Sin estado actualizado, mapas accionables ni metricas por fuente, los paneles muestran ceros ambiguos o informacion vieja.",
-    outcome: "Metricas y mapas distinguen lo nuevo, lo pendiente y lo resuelto.",
+      "Sin estado actualizado, mapas accionables ni métricas por fuente, los paneles muestran ceros ambiguos o información vieja.",
+    outcome: "Métricas y mapas distinguen lo nuevo, lo pendiente y lo resuelto.",
   },
   {
     icon: MessageSquareX,
     title: "Bots que no resuelven",
     description:
-      "Un chatbot de guion corta la conversacion justo cuando aparece una intencion real: reclamo, pedido, pago o derivacion humana.",
-    outcome: "El agente solicita datos, registra contexto y deriva cuando corresponde.",
+      "Un chatbot de guion corta la conversación justo cuando aparece una necesidad real: reclamo, pedido, pago o derivación humana.",
+    outcome: "El agente pide datos, registra el contexto y deriva cuando corresponde.",
   },
   {
     icon: BarChart3,
     title: "Operación sin prioridad",
     description:
-      "Los equipos ven listas largas, pero no saben que caso impacta mas, que fuente esta caida o que accion desbloquea valor.",
+      "Los equipos ven listas largas, pero no saben qué caso impacta más, qué fuente está caída o qué acción destraba el día.",
     outcome: "Prioridades, tiempos y alertas ordenan el trabajo diario.",
   },
 ];
 
 const diagnosticRows = [
   { label: "Contexto unificado", value: "la persona no repite todo", tone: "bg-primary" },
-  { label: "Próxima acción clara", value: "el equipo sabe que hacer", tone: "bg-emerald-500" },
-  { label: "Resultado medible", value: "caso, pedido, encuesta o lead", tone: "bg-amber-500" },
+  { label: "Próxima acción clara", value: "el equipo sabe qué hacer", tone: "bg-emerald-500" },
+  { label: "Resultado medible", value: "caso, pedido, encuesta o consulta", tone: "bg-amber-500" },
 ];
 
-const flowNodes = ["Entrada", "Entendimiento", "Accion", "Seguimiento"];
+const flowNodes = ["Entrada", "Entendimiento", "Acción", "Seguimiento"];
 
 const ProblemsSection = () => {
   return (
@@ -70,10 +70,10 @@ const ProblemsSection = () => {
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-10 max-w-3xl text-center md:mb-14">
           <div className="chatboc-section-kicker mb-4">El problema</div>
-          <h2 className="chatboc-section-heading">Lo que frena una operación moderna</h2>
+          <h2 className="chatboc-section-heading">Lo que frena una operación ordenada</h2>
           <p className="chatboc-section-copy mt-4">
-            Chatboc esta pensado para organizaciones que ya tienen demanda real y necesitan que la experiencia digital acompane
-            al equipo, no que lo obligue a sostener otra herramienta aislada.
+            Chatboc está pensado para organizaciones que ya reciben consultas todos los días y necesitan una
+            herramienta que acompañe al equipo, no otra planilla aislada para sostener.
           </p>
         </div>
 
@@ -81,7 +81,7 @@ const ProblemsSection = () => {
           <div className="border-b border-border/70 p-5 md:p-7 lg:border-b-0 lg:border-r">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-foreground">Diagnostico operativo</p>
+                <p className="text-sm font-semibold text-foreground">Diagnóstico operativo</p>
                 <p className="mt-1 text-sm text-muted-foreground">Primero ordenamos el recorrido; después automatizamos lo que tiene sentido.</p>
               </div>
             </div>

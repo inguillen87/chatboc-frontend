@@ -226,7 +226,7 @@ describe('Integracion institutional data and explicit visual drafts', () => {
 
   it('opens the existing chat editor only for the exact public and private scope, with no legacy color save', async () => {
     render(app()); await ready();
-    expect(screen.queryByRole('textbox', { name: 'Color Primario' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Color primario/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Apariencia del chat' }));
     expect(await screen.findByTestId('chat-customizer')).toHaveTextContent('selected-government');
     expect(editorLifecycle.mount).toHaveBeenCalledOnce();

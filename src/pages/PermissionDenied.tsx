@@ -60,10 +60,10 @@ export default function PermissionDenied() {
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Acceso del equipo</p>
         <h1 className="text-3xl font-bold">Este módulo no está habilitado para tu cuenta</h1>
         <p className="text-muted-foreground">
-          Podes volver al panel o pedir que un administrador active esta seccion para tu usuario.
+          Podés volver al panel o pedir que un administrador active esta sección para tu usuario.
         </p>
         <p className="text-sm text-muted-foreground">
-          Si sos administrador, revisa el rol y los accesos asignados a esta cuenta.
+          Si sos administrador, revisá el rol y los accesos asignados a esta cuenta.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button variant="outline" onClick={() => navigate(-1)}>

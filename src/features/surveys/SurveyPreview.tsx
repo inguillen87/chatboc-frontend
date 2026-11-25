@@ -7,13 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import type { SurveyQuestionDraft } from './surveyTypes';
 
 const TYPE_LABELS: Record<SurveyQuestionDraft['type'], string> = {
-  single: 'Opcion unica',
-  multi: 'Seleccion multiple',
-  rating: 'Rating',
+  single: 'Opción única',
+  multi: 'Selección múltiple',
+  rating: 'Calificación',
   text: 'Texto libre',
   nps: 'NPS',
-  location: 'Ubicacion',
-  ranking: 'Ranking',
+  location: 'Ubicación',
+  ranking: 'Orden de prioridad',
 };
 
 export default function SurveyPreview({ questions }: { questions: SurveyQuestionDraft[] }) {
@@ -21,8 +21,8 @@ export default function SurveyPreview({ questions }: { questions: SurveyQuestion
     return (
       <ViewState
         status="empty"
-        title="Preview sin preguntas"
-        description="Agrega una pregunta para validar el recorrido antes de publicarlo."
+        title="Vista previa sin preguntas"
+        description="Agregá una pregunta para revisar el recorrido antes de publicarlo."
         className="min-h-[180px] border-dashed bg-background"
       />
     );
@@ -49,12 +49,12 @@ export default function SurveyPreview({ questions }: { questions: SurveyQuestion
               {question.type === 'rating' || question.type === 'nps' ? (
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4" />
-                  <span>Escala numerica definida al publicar.</span>
+                  <span>Escala numérica definida al publicar.</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <MessageSquareText className="h-4 w-4" />
-                  <span>Respuesta preparada para render dinamico.</span>
+                  <span>Respuesta lista para mostrar en vivo.</span>
                 </div>
               )}
             </div>

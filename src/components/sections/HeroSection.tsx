@@ -811,14 +811,14 @@ const DEFAULT_HERO_MOCKUP_FLOW: ConversationFlow = {
   label: "Atención en vivo",
   sector: "plataforma",
   message: "Hola, quiero registrar una solicitud y adjuntar una foto desde el celular.",
-  response: "Listo, recibí los datos y creé el seguimiento automático para el equipo con toda la trazabilidad.",
+  response: "Listo, recibí los datos y creé el seguimiento para el equipo.",
   inputs: [
     { kind: "image", label: "Foto", detail: "", previewUrl: "", address: "", lat: "", lng: "" },
     { kind: "location", label: "Ubicación", detail: "", previewUrl: "", address: "", lat: "", lng: "" },
   ],
   action: {
     label: "Caso registrado",
-    detail: "Derivado automáticamente con estado público y historial en el CRM.",
+    detail: "Derivado al área con estado público e historial en el CRM.",
     status: "En curso",
     ctaLabel: "",
     ctaTarget: "",
@@ -1200,7 +1200,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     aria-label={
                       conversationFlows.length > 1
                         ? undefined
-                        : `Conversacion operativa: ${getFlowTabLabel(activeFlow)}`
+                        : `Conversación operativa: ${getFlowTabLabel(activeFlow)}`
                     }
                     tabIndex={0}
                   >

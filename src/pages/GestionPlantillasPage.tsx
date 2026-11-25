@@ -177,15 +177,15 @@ const GestionPlantillasPage: React.FC = () => {
 
       toast({
         title: currentPlantilla.id ? "Plantilla actualizada" : "Plantilla creada",
-        description: "La respuesta rápida quedo disponible para el equipo.",
+        description: "La respuesta rápida quedó disponible para el equipo.",
       });
       setIsFormOpen(false);
       setCurrentPlantilla(null);
       await fetchPlantillas();
     } catch (error) {
       toast({
-        title: "No se pudo guardar",
-        description: getErrorMessage(error, "Revisa la conexion o permisos del tenant."),
+        title: "No pudimos guardar la plantilla",
+        description: getErrorMessage(error, "Revisá tu conexión o los permisos de la organización."),
         variant: "destructive",
       });
     } finally {
@@ -199,7 +199,7 @@ const GestionPlantillasPage: React.FC = () => {
       setPlantillaAEliminar(null);
       toast({
         title: "Plantilla base de solo lectura",
-        description: "Las respuestas institucionales globales no se eliminan desde un tenant.",
+        description: "Las respuestas institucionales globales no se eliminan desde una organización.",
         variant: "destructive",
       });
       return;
@@ -210,13 +210,13 @@ const GestionPlantillasPage: React.FC = () => {
         method: "DELETE",
         tenantSlug: tenantSlug || undefined,
       });
-      toast({ title: "Plantilla eliminada", description: "Se retiro del set de respuestas rapidas." });
+      toast({ title: "Plantilla eliminada", description: "Se retiró de las respuestas rápidas." });
       setPlantillaAEliminar(null);
       await fetchPlantillas();
     } catch (error) {
       toast({
-        title: "No se pudo eliminar",
-        description: getErrorMessage(error, "Intenta nuevamente."),
+        title: "No pudimos eliminar la plantilla",
+        description: getErrorMessage(error, "Intentá nuevamente."),
         variant: "destructive",
       });
     } finally {
@@ -226,7 +226,7 @@ const GestionPlantillasPage: React.FC = () => {
 
   const handleGenerarTextoConIA = async () => {
     if (!promptIA.trim()) {
-      toast({ title: "Describe la plantilla", description: "Indica el caso de uso, tono y canal." });
+      toast({ title: "Describí la plantilla", description: "Indicá el caso de uso, el tono y el canal." });
       return;
     }
     setIsGeneratingText(true);
@@ -239,11 +239,11 @@ const GestionPlantillasPage: React.FC = () => {
       if (!response.generated_text) throw new Error("Respuesta sin texto generado.");
       setCurrentPlantilla((prev) => ({ ...prev, text: response.generated_text }));
       setPromptIA("");
-      toast({ title: "Texto generado", description: "La IA preparo una versión editable." });
+      toast({ title: "Texto generado", description: "La IA preparó una versión editable." });
     } catch (error) {
       toast({
-        title: "Error IA",
-        description: getErrorMessage(error, "No se pudo generar el texto."),
+        title: "No pudimos generar el texto",
+        description: getErrorMessage(error, "Probá de nuevo en unos segundos."),
         variant: "destructive",
       });
     } finally {
@@ -254,7 +254,7 @@ const GestionPlantillasPage: React.FC = () => {
   const handleMejorarTextoConIA = async () => {
     const text = templateText(currentPlantilla).trim();
     if (!text) {
-      toast({ title: "Sin texto", description: "Primero escribe una respuesta base." });
+      toast({ title: "Sin texto", description: "Primero escribí una respuesta base." });
       return;
     }
     setIsGeneratingText(true);
@@ -266,11 +266,11 @@ const GestionPlantillasPage: React.FC = () => {
       });
       if (!response.improved_text) throw new Error("Respuesta sin texto mejorado.");
       setCurrentPlantilla((prev) => ({ ...prev, text: response.improved_text }));
-      toast({ title: "Texto mejorado", description: "La respuesta quedo mas clara y profesional." });
+      toast({ title: "Texto mejorado", description: "La respuesta quedó más clara." });
     } catch (error) {
       toast({
-        title: "Error IA",
-        description: getErrorMessage(error, "No se pudo mejorar el texto."),
+        title: "No pudimos mejorar el texto",
+        description: getErrorMessage(error, "Probá de nuevo en unos segundos."),
         variant: "destructive",
       });
     } finally {
@@ -299,17 +299,16 @@ const GestionPlantillasPage: React.FC = () => {
                   ) : null}
                 </div>
                 <h1 className="mt-5 text-3xl font-black tracking-tight md:text-5xl">
-                  Plantillas y WhatsApp Operations
+                  Plantillas y operación de WhatsApp
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground md:text-base">
-                  Controla las plantillas oficiales, webviews, QA de reclamos/pedidos/encuestas y respuestas rapidas
-                  desde una sola pantalla operativa. Esto evita flujos sueltos y deja el onboarding mas claro para
-                  gobiernos, colegios y pymes.
+                  Controlá las plantillas oficiales, vistas web, pruebas de reclamos, pedidos y encuestas, y respuestas
+                  rápidas desde la misma pantalla.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   <Button type="button" className="rounded-[8px]" onClick={abrirFormularioNueva}>
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Crear respuesta rapida
+                    Crear respuesta rápida
                   </Button>
                   <Button type="button" variant="outline" className="rounded-[8px]" onClick={fetchPlantillas}>
                     <RefreshCw className="mr-2 h-4 w-4" />
@@ -325,9 +324,9 @@ const GestionPlantillasPage: React.FC = () => {
               <div className="border-t border-border/70 bg-muted/20 p-6 lg:border-l lg:border-t-0">
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
                   <div className="rounded-2xl border border-border/70 bg-background p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Rapidas</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Rápidas</p>
                     <p className="mt-2 text-3xl font-black">{plantillas.length}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Respuestas internas y fallback de agentes.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Respuestas internas y respaldo de agentes.</p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-background p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Activas</p>
@@ -337,7 +336,7 @@ const GestionPlantillasPage: React.FC = () => {
                   <div className="rounded-2xl border border-border/70 bg-background p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Oficiales</p>
                     <p className="mt-2 text-3xl font-black">Meta</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Aprobacion y readiness en el hub.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Aprobación y estado en el panel.</p>
                   </div>
                 </div>
               </div>
@@ -355,10 +354,10 @@ const GestionPlantillasPage: React.FC = () => {
               <div>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  Respuestas rapidas del equipo
+                  Respuestas rápidas del equipo
                 </CardTitle>
                 <CardDescription>
-                  Textos editables para operadores, fallback del bot y mensajes de CRM. No reemplazan las plantillas
+                  Textos editables para operadores, respaldo del bot y mensajes de CRM. No reemplazan las plantillas
                   oficiales aprobadas por Meta.
                 </CardDescription>
               </div>
@@ -462,8 +461,8 @@ const GestionPlantillasPage: React.FC = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Eliminar plantilla</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta accion elimina "{plantillaAEliminar.name}" del set de respuestas rapidas. Las plantillas oficiales
-                de Twilio/Meta no se modifican desde esta accion.
+                Esta acción elimina "{plantillaAEliminar.name}" de las respuestas rápidas. Las plantillas oficiales
+                de Twilio y Meta no se modifican desde acá.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -483,7 +482,7 @@ const GestionPlantillasPage: React.FC = () => {
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{currentPlantilla?.id ? "Editar respuesta rapida" : "Crear respuesta rapida"}</DialogTitle>
+              <DialogTitle>{currentPlantilla?.id ? "Editar respuesta rápida" : "Crear respuesta rápida"}</DialogTitle>
             </DialogHeader>
 
             {currentPlantilla ? (

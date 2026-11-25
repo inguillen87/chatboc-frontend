@@ -10,17 +10,17 @@ const valueSignals = [
   {
     icon: Route,
     title: "Recorridos accionables",
-    detail: "La persona no queda en un menu sin salida: puede avanzar a reclamo, pedido, encuesta o derivación.",
+    detail: "La persona no queda en un menú sin salida: puede avanzar a reclamo, pedido, encuesta o derivación.",
   },
   {
     icon: BarChart3,
     title: "Resultados medibles",
-    detail: "Encuestas, votaciones, comentarios, leads, pedidos y casos alimentan paneles operativos.",
+    detail: "Encuestas, votaciones, comentarios, consultas, pedidos y casos alimentan los paneles del equipo.",
   },
   {
     icon: UsersRound,
     title: "Equipo mejor informado",
-    detail: "Cuando interviene una persona, recibe historial y datos utiles para resolver sin empezar de cero.",
+    detail: "Cuando interviene una persona, recibe historial y datos útiles para resolver sin empezar de cero.",
   },
   {
     icon: Clock,
@@ -29,8 +29,8 @@ const valueSignals = [
   },
   {
     icon: ShieldCheck,
-    title: "Implementación acompanada",
-    detail: "Chatboc ayuda a ordenar procesos, menus, permisos y contenidos antes de automatizar.",
+    title: "Implementación acompañada",
+    detail: "Ayudamos a ordenar procesos, menús, permisos y contenidos antes de automatizar.",
   },
 ];
 
@@ -39,11 +39,10 @@ const TestimonialsSection = () => {
     <section id="senales-valor" className="bg-background py-16 text-foreground md:py-24">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="chatboc-section-kicker mb-4">Senales de valor</div>
+          <div className="chatboc-section-kicker mb-4">Señales de valor</div>
           <h2 className="chatboc-section-heading">Lo que una primera demo tiene que dejar claro</h2>
           <p className="chatboc-section-copy mt-4">
-            Chatboc se vende mejor cuando la persona ve que cada conversacion puede transformarse en trabajo real:
-            datos, seguimiento, decision y accion para el equipo.
+            Cada conversación deja trabajo concreto para el equipo: datos, seguimiento, decisión y próxima acción.
           </p>
         </div>
 

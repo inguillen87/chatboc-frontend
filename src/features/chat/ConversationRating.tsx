@@ -16,15 +16,15 @@ export default function ConversationRating({ conversationId }: { conversationId?
     setSelected(value);
     try {
       const result = await sendConversationFeedback(conversationId || '', value);
-      setStatus(result === 'sent' ? '¡Gracias por tu feedback!' : 'Feedback guardado localmente.');
+      setStatus(result === 'sent' ? '¡Gracias por tu respuesta!' : 'Respuesta guardada localmente.');
     } catch {
-      setStatus('No se pudo enviar ahora. Intentalo más tarde.');
+      setStatus('No pudimos enviar tu respuesta ahora. Probá más tarde.');
     }
   };
 
   return (
     <div className="space-y-2 rounded-lg border p-3" role="group" aria-label="Calificación de conversación">
-      <p className="text-xs text-muted-foreground">¿Cómo fue tu experiencia?</p>
+      <p className="text-xs text-muted-foreground">¿Cómo te atendimos?</p>
       <div className="flex gap-2">
         {OPTIONS.map((option) => (
           <button
