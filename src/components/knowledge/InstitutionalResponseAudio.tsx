@@ -3,6 +3,13 @@ import {readInstitutionalAudio,type InstitutionalAudioReading,type Institutional
 import './institutionalResponseAudio.css';
 
 interface Props {scope:InstitutionalAudioScope;copy:InstitutionalAudioReading}
+const READING_RATES=[0.75,1,1.25,1.5] as const;
+const RATE_KEY='chatboc.institutional-reading-rate';
+const storedRate=():number=>{
+  try{const value=Number(window.localStorage.getItem(RATE_KEY));return (READING_RATES as readonly number[]).includes(value)?value:1;}
+  catch{return 1;}
+};
+const rateLabel=(rate:number)=>`${rate.toLocaleString('es-AR')}×`;
 let currentReading:{token:symbol;stop:()=>void}|null=null;
 export function stopInstitutionalReading(){currentReading?.stop();}
 /** Retiring a tenant, revision or answer also retires its audio and download. */
@@ -15,6 +22,12 @@ function ResponseAudio({scope,copy}:Props) {
   const token=useRef(Symbol('institutional-reading')),stopCurrent=useRef<()=>void>(()=>{});
   const primary=useRef<HTMLButtonElement>(null),stopControl=useRef<HTMLButtonElement>(null),restoreFocus=useRef(false),errorFocus=useRef<HTMLButtonElement|null>(null);
   const [state,setState]=useState<'idle'|'loading'|'ready'|'playing'|'paused'|'error'>('idle');
+  // Reading speed is offered only when the backend names the control. It is a
+  // per-viewer convenience: the choice survives reloads in this browser.
+  const speedLabel=typeof copy.speed==='string'&&copy.speed.trim()?copy.speed:null;
+  const [rate,setRate]=useState<number>(()=>speedLabel?storedRate():1);
+  useEffect(()=>{const audio=player.current;if(audio){audio.defaultPlaybackRate=rate;audio.playbackRate=rate;}},[rate,state]);
+  const chooseRate=(value:number)=>{setRate(value);try{window.localStorage.setItem(RATE_KEY,String(value));}catch{/* the choice still applies to this page */}};
   useLayoutEffect(()=>{
     if(restoreFocus.current&&state==='idle'){restoreFocus.current=false;primary.current?.focus({preventScroll:true});}
     if(errorFocus.current&&state==='error'){
@@ -67,6 +80,10 @@ function ResponseAudio({scope,copy}:Props) {
       </button>
       {(state==='loading'||url.current)?<button ref={stopControl} type="button" onClick={()=>stop(true)}>{copy.stop}</button>:null}
     </div>
+    {speedLabel?<div className="institutional-response-audio__speed" role="group" aria-label={speedLabel}>
+      <span aria-hidden="true">{speedLabel}</span>
+      {READING_RATES.map(value=><button key={value} type="button" aria-pressed={rate===value} onClick={()=>chooseRate(value)}>{rateLabel(value)}</button>)}
+    </div>:null}
     <audio ref={player} preload="none" onEnded={()=>{if(active.current)setState('ready');}} onError={()=>{if(active.current){release();fail();}}} />
     {state==='loading'?<p role="status">{copy.loading}</p>:null}
     {state==='error'?<p role="alert">{copy.error}</p>:null}

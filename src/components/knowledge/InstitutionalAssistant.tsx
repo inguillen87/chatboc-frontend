@@ -4,7 +4,7 @@ import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,is
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
-import {InstitutionalAcronyms,InstitutionalTextBlocks} from './InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalTextBlocks,readInstitutionalLargeText,rememberInstitutionalLargeText} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
@@ -37,7 +37,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
   const [errorStatus,setErrorStatus]=useState<number|null>(null);
   const [failedAnswer,setFailedAnswer]=useState<{id:string;text?:string;revision:string|null;tenantId:number}|null>(null);
-  const [showSources,setShowSources]=useState(false),[large,setLarge]=useState(false),[uncovered,setUncovered]=useState(false);
+  const [showSources,setShowSources]=useState(false),[large,setLarge]=useState(readInstitutionalLargeText),[uncovered,setUncovered]=useState(false);
   const [sourceNavigation,setSourceNavigation]=useState<(KnowledgeSourceNavigationAnswer&{originNodeId:string})|null>(null);
   const [highlightedSourceId,setHighlightedSourceId]=useState<string|null>(null);
   const [pending,setPending]=useState<KnowledgeReview|null>(null);
@@ -266,7 +266,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
-      <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>setLarge(v=>!v)}><Type size={19} aria-hidden="true"/></button>
+      <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}><Type size={19} aria-hidden="true"/><span>{ui.large_text}</span></button>
         <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17} aria-hidden="true"/><span>{ui.sources}</span></button></div>
     </header>
     <div className="institutional-assistant__body">

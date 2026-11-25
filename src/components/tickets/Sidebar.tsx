@@ -747,7 +747,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <span
             className={cn(
-              'max-w-[48%] truncate rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 font-semibold text-blue-800 dark:text-blue-300',
+              'max-w-[48%] truncate rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-semibold text-foreground',
               compact && 'sr-only',
             )}
           >
@@ -829,7 +829,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 role="group"
                 aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
               >
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-800 dark:text-blue-300">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-foreground">
                 Cola
                 <strong className="tabular-nums">{queueEntries.length.toLocaleString('es-AR')}</strong>
               </span>
@@ -837,9 +837,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnreadCount > 0
-                    ? 'border-violet-400/40 bg-violet-500/10 text-violet-800 dark:text-violet-200'
-                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
+                    ? 'border-primary/35 bg-primary/10 text-foreground'
+                    : 'border-border/70 bg-muted/55 text-muted-foreground',
                 )}
+                style={
+                  queueUnreadCount > 0
+                    ? {
+                        borderColor: 'color-mix(in srgb, var(--brand-accent-2, #8b5cf6) 40%, transparent)',
+                        backgroundColor: 'color-mix(in srgb, var(--brand-accent-2, #8b5cf6) 11%, transparent)',
+                      }
+                    : undefined
+                }
               >
                 No leidos
                 <strong className="tabular-nums">{queueUnreadCount.toLocaleString('es-AR')}</strong>
@@ -849,7 +857,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueRiskCount > 0
                     ? 'border-amber-400/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
+                    : 'border-border/70 bg-muted/55 text-muted-foreground',
                 )}
               >
                 Riesgo
@@ -859,9 +867,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5',
                   queueUnassignedCount > 0
-                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-800 dark:text-sky-200'
-                    : 'border-border/70 bg-muted/55 text-slate-700 dark:text-slate-300',
+                    ? 'border-primary/30 bg-primary/10 text-foreground'
+                    : 'border-border/70 bg-muted/55 text-muted-foreground',
                 )}
+                style={
+                  queueUnassignedCount > 0
+                    ? {
+                        borderColor: 'color-mix(in srgb, var(--brand-accent-3, #0ea5e9) 42%, transparent)',
+                        backgroundColor: 'color-mix(in srgb, var(--brand-accent-3, #0ea5e9) 11%, transparent)',
+                      }
+                    : undefined
+                }
               >
                 Sin resp.
                 <strong className="tabular-nums">{queueUnassignedCount.toLocaleString('es-AR')}</strong>

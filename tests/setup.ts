@@ -167,3 +167,11 @@ vi.mock('lucide-react', async () => {
 // });
 import React from 'react'; // Necesario para React.createElement en el mock de Link/lucide-react
 import { vi } from 'vitest'; // Necesario para vi.mock, vi.fn etc.
+
+// Per-viewer reading preferences live in localStorage; keep tests independent.
+afterEach(() => {
+  try {
+    window.localStorage.removeItem('chatboc.institutional-large-text');
+    window.localStorage.removeItem('chatboc.institutional-reading-rate');
+  } catch { /* no storage in this environment */ }
+});

@@ -3,6 +3,8 @@ import { sanitizePublicInternalNavigationPath } from '@/utils/tenantPaths';
 export interface InstitutionalAudioReading {
   contract_version:'chatboc.institutional_audio.v1';
   listen:string;pause:string;resume:string;stop:string;loading:string;error:string;disclosure:string;
+  /** Optional: label of the reading-speed control. Older backends omit it. */
+  speed?:string;
 }
 export function readInstitutionalAudioReading(value:unknown):InstitutionalAudioReading|null {
   const keys=['listen','pause','resume','stop','loading','error','disclosure'] as const;

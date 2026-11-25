@@ -3,7 +3,7 @@ import { Sparkles, Check, X, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CitationDrawer } from '@/components/chat/stream';
 import { Citation } from '@/schemas/api';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface AgentSuggestionBoxProps {
   suggestion: string;
@@ -16,22 +16,24 @@ interface AgentSuggestionBoxProps {
 export const AgentSuggestionBox: React.FC<AgentSuggestionBoxProps> = ({
   suggestion, citations, onAccept, onReject, onEdit
 }) => {
+  const reduceMotion = Boolean(useReducedMotion());
   if (!suggestion) return null;
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 mb-3"
+        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
+        transition={{ duration: reduceMotion ? 0 : 0.2 }}
+        className="mb-3 w-full rounded-xl border border-primary/25 bg-primary/[0.06] p-3.5 shadow-sm"
       >
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="w-4 h-4 text-indigo-500" />
-          <span className="text-xs font-medium text-indigo-700">Sugerencia del copiloto</span>
+        <div className="mb-2 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+          <span className="text-xs font-semibold text-foreground">Sugerencia del copiloto</span>
         </div>
 
-        <p className="text-sm text-foreground/90 mb-3 whitespace-pre-wrap">{suggestion}</p>
+        <p className="mb-3 whitespace-pre-wrap text-sm leading-6 text-foreground/90">{suggestion}</p>
 
         {citations && citations.length > 0 && (
            <div className="mb-3">
@@ -39,17 +41,17 @@ export const AgentSuggestionBox: React.FC<AgentSuggestionBoxProps> = ({
            </div>
         )}
 
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <Button variant="ghost" size="sm" className="h-7 text-muted-foreground hover:text-red-600 hover:bg-red-50" onClick={onReject}>
-            <X className="w-3.5 h-3.5 mr-1.5" /> Descartar
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={onReject}>
+            <X className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Descartar
           </Button>
           {onEdit && (
-            <Button variant="outline" size="sm" className="h-7" onClick={() => onEdit(suggestion)}>
-              <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Editar
+            <Button variant="outline" size="sm" className="h-8" onClick={() => onEdit(suggestion)}>
+              <Edit3 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Editar
             </Button>
           )}
-          <Button size="sm" className="h-7 bg-indigo-600 hover:bg-indigo-700" onClick={() => onAccept(suggestion)}>
-            <Check className="w-3.5 h-3.5 mr-1.5" /> Aplicar sugerencia
+          <Button size="sm" className="h-8 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onAccept(suggestion)}>
+            <Check className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Aplicar sugerencia
           </Button>
         </div>
       </motion.div>

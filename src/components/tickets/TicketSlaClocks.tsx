@@ -53,7 +53,7 @@ const statePresentation: Record<TicketSlaClockState, {
   healthy: {
     label: 'En plazo',
     compactLabel: 'SLA en plazo',
-    className: 'border-sky-400/45 bg-sky-500/10 text-sky-800 dark:text-sky-200',
+    className: 'border-primary/40 bg-primary/10 text-foreground',
     icon: Clock,
   },
   satisfied: {

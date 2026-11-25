@@ -23,3 +23,8 @@
 .institutional-acronyms dt { font-weight:700; }
 .institutional-acronyms abbr { text-decoration:none; }
 .institutional-acronyms dd { margin:0; }
+.institutional-response-audio__speed { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; margin-top:.5rem; font-size:.85em; color:hsl(var(--muted-foreground)); }
+.institutional-response-audio__speed > span { margin-inline-end:.25rem; font-weight:600; }
+.institutional-response-audio__speed button { min-height:44px; min-width:44px; padding:.35rem .6rem; border:1px solid hsl(var(--border)); border-radius:.6rem; background:hsl(var(--background)); color:hsl(var(--foreground)); font-variant-numeric:tabular-nums; }
+.institutional-response-audio__speed button[aria-pressed="true"] { border-color:hsl(var(--primary)); background:hsl(var(--primary)); color:hsl(var(--primary-foreground)); font-weight:700; }
+.institutional-response-audio__speed button:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:2px; }

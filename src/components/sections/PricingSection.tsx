@@ -1,16 +1,18 @@
 import React from "react";
-import { Building, Check, Sparkles, Users } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Building, Check, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
 const pricingOptions = [
   {
     name: "Plan Esencial",
+    tier: "Inicio rápido",
     headline: "Activación guiada para validar rápido",
     description:
       "Para validar un canal, cargar contenido base y medir las primeras conversaciones con un alcance controlado.",
     features: [
-      "Chat web listo para activar",
+      "Chat web marca blanca listo para activar",
       "Base inicial de respuestas y documentos",
       "Seguimiento de conversaciones clave",
       "Configuración acompañada por especialista",
@@ -24,14 +26,15 @@ const pricingOptions = [
   },
   {
     name: "Plan Operativo",
+    tier: "Más elegido",
     headline: "Omnicanalidad, tickets y automatización",
     description:
       "Para equipos que atienden demanda real y necesitan conectar conversaciones, pedidos, soporte y reportes.",
     features: [
       "Todo lo del Plan Esencial",
       "Chat web, WhatsApp y panel operativo",
-      "Tickets, leads y acciones contextuales",
-      "Métricas, tiempos y alertas principales",
+      "Tickets, reclamos, encuestas y acciones contextuales",
+      "Identidad completa: paleta, tipografía y mascota",
       "Acompañamiento estratégico continuo",
     ],
     cta: "Hablar con un asesor",
@@ -42,12 +45,13 @@ const pricingOptions = [
   },
   {
     name: "Plan Institucional",
+    tier: "Escala y gobierno",
     headline: "Procesos, integraciones y escala institucional",
     description:
       "Para gobiernos y organizaciones que requieren seguridad, gobierno de datos, permisos e integraciones a medida.",
     features: [
       "Consultoría de arquitectura y operación",
-      "Integración con sistemas existentes",
+      "Integración con sistemas existentes y portal público",
       "Tableros ejecutivos multi-organización",
       "Tiempos, permisos y trazabilidad avanzada",
       "Soporte dedicado para evolución continua",
@@ -62,17 +66,19 @@ const pricingOptions = [
 
 const PricingSection = () => {
   const navigate = useNavigate();
+  const reduceMotion = Boolean(useReducedMotion());
+  const canAnimateInView = !reduceMotion && typeof IntersectionObserver !== "undefined";
 
   return (
     <section
       id="precios"
       aria-labelledby="plans-title"
-      className="chatboc-muted-band py-16 text-foreground md:py-24"
+      className="chatboc-muted-band relative overflow-hidden py-20 text-foreground md:py-28"
     >
-      <div className="container mx-auto px-4">
+      <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="chatboc-section-kicker mb-4">Planes</div>
-          <h2 id="plans-title" className="chatboc-section-heading">
+          <h2 id="plans-title" className="chatboc-section-heading text-balance">
             Planes claros para implementar y escalar
           </h2>
           <p className="chatboc-section-copy mt-4">
@@ -81,35 +87,63 @@ const PricingSection = () => {
           </p>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          {pricingOptions.map((option) => {
+        <div className="mx-auto grid max-w-6xl items-stretch gap-5 lg:grid-cols-3">
+          {pricingOptions.map((option, index) => {
             const Icon = option.icon;
             return (
-              <article
+              <motion.article
                 key={option.name}
-                className={`chatboc-landing-panel chatboc-hover-lift relative flex h-full flex-col overflow-hidden p-5 md:p-6 ${
-                  option.highlight ? "border-primary/50 ring-1 ring-primary/30" : ""
+                initial={canAnimateInView ? { opacity: 0.96, y: 18 } : false}
+                whileInView={canAnimateInView ? { opacity: 1, y: 0 } : undefined}
+                viewport={canAnimateInView ? { once: true, amount: 0.2 } : undefined}
+                transition={{ duration: canAnimateInView ? 0.4 : 0, delay: canAnimateInView ? index * 0.08 : 0, ease: "easeOut" }}
+                className={`group relative flex h-full flex-col overflow-hidden rounded-[20px] border p-6 transition-all duration-300 hover:-translate-y-1 md:p-7 ${
+                  option.highlight
+                    ? "border-primary/55 bg-card shadow-[0_28px_70px_rgba(13,53,195,0.16)] ring-1 ring-primary/30 dark:shadow-[0_28px_70px_rgba(37,99,235,0.22)]"
+                    : "border-border/80 bg-card/95 shadow-sm hover:border-primary/35 hover:shadow-xl"
                 }`}
               >
-                {option.highlight ? (
-                  <div className="absolute right-4 top-4 rounded-[8px] bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                    Recomendado
-                  </div>
-                ) : null}
+                <div
+                  aria-hidden="true"
+                  className={`absolute inset-x-0 top-0 h-1.5 ${
+                    option.highlight
+                      ? "bg-gradient-to-r from-primary via-sky-400 to-emerald-400"
+                      : "bg-primary/25 transition-colors group-hover:bg-primary/60"
+                  }`}
+                />
 
-                <div className="absolute inset-x-0 top-0 h-1 bg-primary/80" />
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                  <Icon className="h-6 w-6" aria-hidden="true" />
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-[12px] ${
+                      option.highlight ? "bg-primary text-primary-foreground shadow-md" : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    <Icon className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                  {option.highlight ? (
+                    <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-xs">
+                      Recomendado
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+                      {option.tier}
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-2xl font-bold text-foreground">{option.name}</h3>
+
+                <h3 className="text-2xl font-bold tracking-tight text-foreground">{option.name}</h3>
                 <p className="mt-2 text-sm font-semibold text-primary">{option.headline}</p>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground">{option.description}</p>
 
-                <ul className="mt-6 flex-1 space-y-3 text-sm text-muted-foreground">
+                <div className="my-6 h-px bg-border/70" aria-hidden="true" />
+
+                <ul className="flex-1 space-y-3 text-sm text-foreground/85">
                   {option.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2.5">
-                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
-                      <span>{feature}</span>
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <span className="leading-5">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -117,7 +151,9 @@ const PricingSection = () => {
                 <Button
                   size="lg"
                   variant={option.highlight ? "default" : "outline"}
-                  className="mt-7 w-full rounded-[8px] font-semibold"
+                  className={`mt-8 h-12 w-full rounded-[10px] font-semibold ${
+                    option.highlight ? "chatboc-cta-primary shadow-md" : "hover:border-primary/45 hover:bg-primary/5"
+                  }`}
                   onClick={() => {
                     if (option.ctaLink.startsWith("http")) {
                       window.open(option.ctaLink, "_blank", "noopener,noreferrer");
@@ -126,9 +162,10 @@ const PricingSection = () => {
                     }
                   }}
                 >
-                  {option.cta}
+                  <span>{option.cta}</span>
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </Button>
-              </article>
+              </motion.article>
             );
           })}
         </div>

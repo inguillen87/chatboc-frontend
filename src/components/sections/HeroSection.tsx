@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -15,6 +16,7 @@ import {
   PackageCheck,
   Paperclip,
   ShoppingCart,
+  Sparkles,
   Store,
   TicketCheck,
   UsersRound,
@@ -22,6 +24,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import type { LandingExperience, LandingRecord } from "@/api/landingExperience";
+import BrandBotAvatar, { type BrandBotState } from "@/components/chat/BrandBotAvatar";
 import { cleanLandingCopy } from "@/utils/landingCopy";
 
 type AnyRecord = Record<string, any>;
@@ -150,21 +153,20 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
   return defaultValue;
 };
 
-const DEFAULT_HEADLINE = "Convertí conversaciones en operaciones reales";
+const DEFAULT_HEADLINE = "Agentes IA con tu marca que atienden y resuelven";
 const LEGACY_DESCRIPTION =
   "Chatboc atiende por web o WhatsApp, pide los datos justos y deja casos, pedidos o leads listos para operar.";
 const DEFAULT_DESCRIPTION =
-  "Una plataforma omnicanal para gobiernos y empresas: atiende, resuelve y mide cada conversación desde WhatsApp, web y un CRM operativo.";
-const DEFAULT_EYEBROW = "Atención y gestión en una sola plataforma";
-const DEFAULT_PROOF_ITEMS = ["WhatsApp y web", "CRM operativo", "Seguimiento trazable"];
+  "Widget web, WhatsApp, reclamos, encuestas y CRM en una sola plataforma para municipios, gobiernos y empresas. Con tus colores, tu tipografía y tu mascota animada.";
+const DEFAULT_EYEBROW = "Plataforma IA marca blanca";
+const DEFAULT_PROOF_ITEMS = ["100% marca blanca", "7 módulos conectados", "Web, WhatsApp y voz"];
 const DEFAULT_CONVERSATION_TITLE = "Conversación y gestión conectadas";
 const LEGACY_CONVERSATION_TITLE = "WhatsApp operativo";
 const DEFAULT_CONVERSATION_SUBTITLE = "Cada mensaje conserva contexto, estado y trazabilidad en el CRM.";
 const LEGACY_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
-const DEFAULT_PRIMARY_CTA = { label: "Solicitar demostración", target: "/contacto" };
-const DEFAULT_SECONDARY_CTA = { label: "Ver recorrido", target: "/demo" };
+const DEFAULT_PRIMARY_CTA = { label: "Probar la demo", target: "/demo" };
+const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/contacto" };
 const LEGACY_PRIMARY_CTA_LABEL = "Probar una conversacion real";
-const LEGACY_SECONDARY_CTA_LABEL = "Hablar con ventas";
 
 const normalizeHeroMediaUrl = (raw: string) => {
   const value = raw.trim();
@@ -790,8 +792,50 @@ const HeroInputCard = ({ input, family }: { input: ConversationInput; family: st
   );
 };
 
+const HERO_BOT_PALETTES: Record<string, string[]> = {
+  gobierno: ["#2563EB", "#0EA5E9", "#10B981", "#1E3A8A"],
+  pyme: ["#EA580C", "#F59E0B", "#EC4899", "#9A3412"],
+  educacion: ["#7C3AED", "#6366F1", "#38BDF8", "#312E81"],
+  platform: ["#2563EB", "#06B6D4", "#6366F1", "#1E3A8A"],
+};
+
+const HERO_QUICK_OPTIONS: Record<string, string[]> = {
+  gobierno: ["Seguir reclamo", "Ver en mapa", "Hablar con un agente"],
+  pyme: ["Ver carrito", "Calcular envío", "Medios de pago"],
+  educacion: ["Emitir constancia", "Ver agenda", "Secretaría"],
+  platform: ["Ver recorrido", "Activar canal", "Hablar con ventas"],
+};
+
+const DEFAULT_HERO_MOCKUP_FLOW: ConversationFlow = {
+  id: "plataforma-vivo",
+  label: "Atención en vivo",
+  sector: "plataforma",
+  message: "Hola, quiero registrar una solicitud y adjuntar una foto desde el celular.",
+  response: "Listo, recibí los datos y creé el seguimiento automático para el equipo con toda la trazabilidad.",
+  inputs: [
+    { kind: "image", label: "Foto", detail: "", previewUrl: "", address: "", lat: "", lng: "" },
+    { kind: "location", label: "Ubicación", detail: "", previewUrl: "", address: "", lat: "", lng: "" },
+  ],
+  action: {
+    label: "Caso registrado",
+    detail: "Derivado automáticamente con estado público y historial en el CRM.",
+    status: "En curso",
+    ctaLabel: "",
+    ctaTarget: "",
+    fields: [
+      { label: "Canal", value: "Widget y WhatsApp" },
+      { label: "Seguimiento", value: "Código público" },
+    ],
+  },
+  resultTraceable: true,
+  highlights: ["Marca blanca", "CRM conectado"],
+  workflowSteps: [],
+  tone: "bg-primary",
+};
+
 const HeroSection = ({ experience }: HeroSectionProps) => {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const conversationDemoId = `hero-conversation-${React.useId().replace(/:/g, "")}`;
   const conversationPanelId = `${conversationDemoId}-panel`;
 
@@ -822,12 +866,9 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   });
   const primaryCta =
     publishedPrimaryCta.label === LEGACY_PRIMARY_CTA_LABEL
-      ? { label: DEFAULT_PRIMARY_CTA.label, target: publishedSecondaryCta.target || DEFAULT_PRIMARY_CTA.target }
+      ? { label: DEFAULT_PRIMARY_CTA.label, target: publishedPrimaryCta.target || DEFAULT_PRIMARY_CTA.target }
       : publishedPrimaryCta;
-  const secondaryCta =
-    publishedSecondaryCta.label === LEGACY_SECONDARY_CTA_LABEL
-      ? { label: DEFAULT_SECONDARY_CTA.label, target: publishedPrimaryCta.target || DEFAULT_SECONDARY_CTA.target }
-      : publishedSecondaryCta;
+  const secondaryCta = publishedSecondaryCta;
   const publishedPreviewTitle = readText(hero, ["conversation_title", "demo_title", "preview_title", "dashboard_title"]);
   const previewTitle =
     !publishedPreviewTitle || publishedPreviewTitle === LEGACY_CONVERSATION_TITLE
@@ -838,19 +879,24 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     !publishedPreviewCopy || publishedPreviewCopy === LEGACY_CONVERSATION_SUBTITLE
       ? DEFAULT_CONVERSATION_SUBTITLE
       : publishedPreviewCopy;
-  const conversationFlows = useMemo(
-    () => {
-      const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
-      const heroMedia = isRecord(first(hero, ["media"])) ? (first(hero, ["media"]) as AnyRecord) : undefined;
-      return mergeConversationFlows(
-        first(hero, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "sample_conversations"]) ??
-          first(heroMedia, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "chat_preview", "sample_conversations"]) ??
-          first(experienceRecord, ["conversation_demo", "demo_conversation", "live_demo", "sample_conversations"]) ??
-          first(first(experienceRecord, ["chat_seed", "demo_seed"]), ["sample_conversations", "conversation_demo"]),
-      );
-    },
-    [experience, hero],
-  );
+  const rawConversationDemoSource = useMemo(() => {
+    const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
+    const heroMedia = isRecord(first(hero, ["media"])) ? (first(hero, ["media"]) as AnyRecord) : undefined;
+    return (
+      first(hero, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "sample_conversations"]) ??
+      first(heroMedia, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "chat_preview", "sample_conversations"]) ??
+      first(experienceRecord, ["conversation_demo", "demo_conversation", "live_demo", "sample_conversations"]) ??
+      first(first(experienceRecord, ["chat_seed", "demo_seed"]), ["sample_conversations", "conversation_demo"])
+    );
+  }, [experience, hero]);
+  const backendPublishedDemoSource = Boolean(rawConversationDemoSource);
+  const conversationFlows = useMemo(() => {
+    const merged = mergeConversationFlows(rawConversationDemoSource);
+    if (merged.length > 0) return merged;
+    // Keep explicit untraceable backend demos suppressed, while always showing
+    // the product-in-action mockup when no backend override was provided yet.
+    return backendPublishedDemoSource ? [] : [DEFAULT_HERO_MOCKUP_FLOW];
+  }, [rawConversationDemoSource, backendPublishedDemoSource]);
   const [activeFlowId, setActiveFlowId] = React.useState(conversationFlows[0]?.id ?? "");
 
   React.useEffect(() => {
@@ -869,6 +915,37 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
   const activeFlowFamily = activeFlow ? inferFlowFamily(activeFlow) : "platform";
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
+
+  // Self-typing choreography inside the active conversation (never switches tabs on the user).
+  const [demoPhase, setDemoPhase] = useState<"typing" | "reply" | "settled">(
+    reduceMotion ? "settled" : "reply",
+  );
+  const [pickedOption, setPickedOption] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPickedOption(null);
+    if (reduceMotion) {
+      setDemoPhase("settled");
+      return undefined;
+    }
+    setDemoPhase("typing");
+    const toReply = window.setTimeout(() => setDemoPhase("reply"), 1150);
+    const toSettled = window.setTimeout(() => setDemoPhase("settled"), 2600);
+    return () => {
+      window.clearTimeout(toReply);
+      window.clearTimeout(toSettled);
+    };
+  }, [activeFlow?.id, reduceMotion]);
+
+  const mascotState: BrandBotState = reduceMotion
+    ? "idle"
+    : demoPhase === "typing"
+      ? "thinking"
+      : demoPhase === "reply"
+        ? "speaking"
+        : "idle";
+  const mascotPalette = HERO_BOT_PALETTES[activeFlowFamily] ?? HERO_BOT_PALETTES.platform;
+  const quickOptions = HERO_QUICK_OPTIONS[activeFlowFamily] ?? HERO_QUICK_OPTIONS.platform;
 
   const selectConversationFlow = (index: number, focusTab = false) => {
     const nextFlow = conversationFlows[index];
@@ -922,24 +999,71 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   return (
     <section
       id="inicio"
-      className="chatboc-hero-grid relative overflow-visible pb-9 pt-10 text-foreground md:pb-12 md:pt-12"
+      className="chatboc-hero-grid relative overflow-hidden pb-12 pt-10 text-foreground md:pb-16 md:pt-14"
       style={accentStyle}
       data-chatboc-hero
     >
-      <div className="container mx-auto px-4 2xl:max-w-[1480px]">
-        <div className={`chatboc-hero-layout grid items-center gap-8 lg:!grid-cols-[minmax(0,0.92fr)_minmax(32rem,1.08fr)] lg:!gap-12 xl:!gap-16 ${showHeroPreview ? "" : "lg:!grid-cols-1"}`}>
-          <div className="min-w-0 max-w-2xl">
+      {/* Subtle atmospheric gradient mesh + floating ambient particles (disabled under reduced motion) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <div
+          className="absolute -left-24 -top-24 h-[28rem] w-[28rem] rounded-full opacity-35 blur-3xl dark:opacity-25"
+          style={{
+            background: "radial-gradient(circle, hsl(var(--primary) / 0.45) 0%, transparent 70%)",
+          }}
+        />
+        <div
+          className="absolute -right-24 top-12 h-[30rem] w-[30rem] rounded-full opacity-30 blur-3xl dark:opacity-25"
+          style={{
+            background: "radial-gradient(circle, rgba(14,165,233,0.42) 0%, rgba(16,185,129,0.2) 45%, transparent 72%)",
+          }}
+        />
+        {!reduceMotion ? (
+          <>
+            <motion.span
+              className="absolute left-[14%] top-[22%] h-2 w-2 rounded-full bg-primary/35"
+              animate={{ y: [-6, 8, -6], opacity: [0.3, 0.75, 0.3] }}
+              transition={{ duration: 6.4, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.span
+              className="absolute right-[18%] top-[18%] h-2.5 w-2.5 rounded-full bg-sky-400/40"
+              animate={{ y: [6, -9, 6], opacity: [0.25, 0.7, 0.25] }}
+              transition={{ duration: 7.2, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.span
+              className="absolute left-[46%] bottom-[18%] h-2 w-2 rounded-full bg-emerald-400/35"
+              animate={{ y: [-5, 7, -5], opacity: [0.2, 0.65, 0.2] }}
+              transition={{ duration: 5.8, repeat: Infinity, ease: "easeInOut" }}
+            />
+          </>
+        ) : null}
+      </div>
+
+      <div className="container relative mx-auto px-4 2xl:max-w-[1440px]">
+        <div className={`chatboc-hero-layout grid items-center gap-8 lg:!grid-cols-[minmax(0,0.9fr)_minmax(32rem,1.1fr)] lg:!gap-12 xl:!gap-16 ${showHeroPreview ? "" : "lg:!grid-cols-1"}`}>
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="min-w-0 max-w-2xl"
+          >
             {eyebrow && (
-              <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/15 bg-primary/[0.06] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-                <span>{eyebrow}</span>
+              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.07] px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-primary shadow-sm">
+                <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{eyebrow}</span>
               </div>
             )}
 
             {headline && (
-              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.04] tracking-[-0.035em] text-foreground sm:text-5xl md:text-6xl lg:!max-w-[13ch] lg:!text-[clamp(3.35rem,3.8vw,4.6rem)]">
+              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.03] tracking-[-0.038em] text-foreground sm:text-5xl md:text-6xl lg:!max-w-[13ch] lg:!text-[clamp(3.35rem,3.9vw,4.65rem)]">
                 <span>{headlineLead}</span>{" "}
-                {headlineAccent && <span className="text-primary">{headlineAccent}</span>}
+                {headlineAccent && (
+                  <span className="bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent dark:from-blue-400 dark:via-sky-300 dark:to-blue-400">
+                    {headlineAccent}
+                  </span>
+                )}
               </h1>
             )}
 
@@ -950,14 +1074,14 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {(heroPrimaryCta.label || secondaryCta.label) && (
-              <div className="chatboc-hero-actions mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className="chatboc-hero-actions mt-7 flex flex-col gap-3 sm:flex-row">
                 {heroPrimaryCta.label && (
                   <Button
                     size="lg"
-                    className="chatboc-cta-primary h-11 w-full rounded-[8px] px-5 text-sm font-semibold shadow-[0_10px_24px_hsl(var(--primary)/0.18)] sm:w-auto"
+                    className="chatboc-cta-primary h-12 w-full rounded-xl px-6 text-sm font-semibold shadow-[0_14px_30px_-8px_hsl(var(--primary)/0.4)] transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 sm:w-auto"
                     onClick={() => navigateTo(heroPrimaryCta.target)}
                   >
-                    <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
+                    <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
                     {heroPrimaryCta.label}
                   </Button>
                 )}
@@ -965,18 +1089,18 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="h-11 w-full rounded-[8px] border-border/80 bg-background/80 px-5 text-sm font-semibold shadow-sm hover:border-primary/35 hover:bg-primary/[0.04] sm:w-auto"
+                    className="h-12 w-full rounded-xl border-border/80 bg-card/85 px-6 text-sm font-semibold shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.05] motion-reduce:hover:translate-y-0 sm:w-auto"
                     onClick={() => navigateTo(secondaryCta.target)}
                   >
                     {secondaryCta.label}
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
                   </Button>
                 )}
               </div>
             )}
 
             {proofItems.length > 0 && (
-              <div className="chatboc-hero-proof mt-6 flex flex-wrap gap-x-5 gap-y-2" aria-label="Capacidades de la plataforma">
+              <div className="chatboc-hero-proof mt-7 flex flex-wrap gap-x-5 gap-y-2.5" aria-label="Capacidades de la plataforma">
                 {proofItems.slice(0, 3).map((item) => (
                   <div
                     key={item}
@@ -988,20 +1112,31 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
 
           {showHeroPreview && (
-          <div className="relative min-w-0">
-            <div className="chatboc-hero-aura !opacity-50 motion-reduce:hidden" aria-hidden="true" />
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.55, delay: reduceMotion ? 0 : 0.08, ease: [0.22, 1, 0.36, 1] }}
+            className="relative min-w-0"
+          >
+            <div className="chatboc-hero-aura !opacity-60 motion-reduce:hidden" aria-hidden="true" />
             <div className="chatboc-hero-stage !min-h-0 !w-full !min-w-0 !grid-cols-[minmax(0,1fr)] !p-0">
-              <div className="chatboc-hero-preview before:!hidden after:!hidden !m-0 !w-full !min-w-0 !max-w-full !transform-none !rounded-[24px] !p-px lg:!max-w-[43rem]">
+              <div className="chatboc-hero-preview before:!hidden after:!hidden !m-0 !w-full !min-w-0 !max-w-full !transform-none !rounded-[26px] !p-px lg:!max-w-[44rem]">
               {activeFlow && (
-                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)} !h-[31rem] !min-h-0 !rounded-[23px] sm:!h-[30rem]`}>
+                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)} !h-auto !min-h-[30.5rem] !rounded-[25px] sm:!min-h-[30rem]`}>
 
-                  <div className="chatboc-phone-demo__bar !min-h-[66px] !px-4 !py-3">
+                  <div className="chatboc-phone-demo__bar !min-h-[68px] !px-4 !py-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-primary/15 bg-primary/[0.08] text-primary">
-                        <ActiveFlowIcon className="h-4 w-4" aria-hidden="true" />
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/[0.08] p-1">
+                        <BrandBotAvatar
+                          palette={mascotPalette}
+                          state={mascotState}
+                          size={34}
+                          title="Mascota animada de Chatboc"
+                          reducedMotion={Boolean(reduceMotion)}
+                        />
                       </div>
                       <div className="min-w-0">
                         {previewTitle && (
@@ -1016,11 +1151,10 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         )}
                       </div>
                     </div>
-                    {readText(hero, ["status_label", "preview_status"]) && (
-                      <div className="chatboc-live-chip shrink-0 rounded-[8px] border border-primary/15 bg-primary/[0.07] px-2.5 py-1 text-[11px] font-semibold text-primary">
-                        {readText(hero, ["status_label", "preview_status"])}
-                      </div>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" aria-hidden="true" />
+                      <span>{readText(hero, ["status_label", "preview_status"]) || (demoPhase === "typing" ? "Escribiendo…" : "En acción")}</span>
+                    </div>
                   </div>
 
                   {conversationFlows.length > 1 && (
@@ -1045,7 +1179,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             onClick={() => selectConversationFlow(index)}
                             onKeyDown={(event) => handleConversationTabKeyDown(event, index)}
                           >
-                            <FlowIcon className="h-4 w-4" />
+                            <FlowIcon className="h-4 w-4" aria-hidden="true" />
                             <span>{getFlowTabLabel(flow)}</span>
                           </button>
                         );
@@ -1056,7 +1190,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   <div
                     key={activeFlow.id}
                     id={conversationFlows.length > 1 ? conversationPanelId : undefined}
-                    className="chatboc-phone-demo__screen !grid !grid-cols-1 !gap-3 !overflow-auto !p-3 sm:!grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                    className="chatboc-phone-demo__screen !grid !grid-cols-1 !gap-3 !overflow-auto !p-3 sm:!grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                     role={conversationFlows.length > 1 ? "tabpanel" : "region"}
                     aria-labelledby={
                       conversationFlows.length > 1
@@ -1075,16 +1209,22 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                           Conversación
                         </p>
-                        <span className="truncate text-[11px] font-medium text-primary">
+                        <span className="inline-flex items-center gap-1 truncate text-[11px] font-medium text-primary">
+                          <ActiveFlowIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                           {getFlowTabLabel(activeFlow)}
                         </span>
                       </div>
-                      <div className="chatboc-phone-demo__thread !gap-3 !rounded-[16px] !p-3">
-                        <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--1 flex justify-end">
+                      <div className="chatboc-phone-demo__thread !gap-2.5 !rounded-[16px] !p-3">
+                        <motion.div
+                          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: reduceMotion ? 0 : 0.25 }}
+                          className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--1 flex justify-end"
+                        >
                           <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user !max-w-[92%] !px-3 !py-2 !text-[13px]">
                             {activeFlow.message}
                           </div>
-                        </div>
+                        </motion.div>
 
                         {activeFlow.inputs.length > 0 && (
                           <div
@@ -1106,19 +1246,90 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                           </div>
                         )}
 
-                        <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--4 flex items-start gap-2">
-                          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-primary/15 bg-primary/[0.08] text-primary">
-                            <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+                        <AnimatePresence initial={false}>
+                          {!reduceMotion && demoPhase === "typing" ? (
+                            <motion.div
+                              key="typing-indicator"
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.18 }}
+                              className="flex items-center gap-2 text-xs text-muted-foreground"
+                              aria-live="polite"
+                            >
+                              <BrandBotAvatar
+                                palette={mascotPalette}
+                                state="thinking"
+                                size={26}
+                                reducedMotion={false}
+                              />
+                              <span className="inline-flex items-center gap-1.5 rounded-xl border border-border/70 bg-card px-3 py-1.5 text-[11px] font-medium">
+                                Escribiendo…
+                                <span className="inline-flex gap-0.5" aria-hidden="true">
+                                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
+                                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:120ms]" />
+                                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:240ms]" />
+                                </span>
+                              </span>
+                            </motion.div>
+                          ) : null}
+                        </AnimatePresence>
+
+                        <motion.div
+                          initial={false}
+                          animate={{
+                            opacity: !reduceMotion && demoPhase === "typing" ? 0.35 : 1,
+                            y: !reduceMotion && demoPhase === "typing" ? 4 : 0,
+                          }}
+                          transition={{ duration: reduceMotion ? 0 : 0.28 }}
+                          className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--4 flex items-start gap-2"
+                        >
+                          <div className="mt-0.5 shrink-0">
+                            <BrandBotAvatar
+                              palette={mascotPalette}
+                              state="idle"
+                              size={26}
+                              still
+                            />
                           </div>
                           <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--agent !max-w-[calc(100%-2.25rem)] !px-3 !py-2 !text-[13px]">
                             {activeFlow.response}
                           </div>
+                        </motion.div>
+
+                        {/* Interactive quick-reply preview buttons */}
+                        <div className="flex flex-wrap gap-1.5 pl-8 pt-0.5" aria-label="Acciones rápidas sugeridas">
+                          {quickOptions.map((option) => {
+                            const selected = pickedOption === option;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => setPickedOption(selected ? null : option)}
+                                aria-pressed={selected}
+                                className={`min-h-7 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                                  selected
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-border/75 bg-background/85 text-foreground hover:border-primary/40 hover:bg-primary/[0.06]"
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
 
                     {activeAction && (
-                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--5 chatboc-phone-demo__result !rounded-[16px] !p-3.5">
+                      <motion.div
+                        initial={false}
+                        animate={{
+                          opacity: !reduceMotion && demoPhase === "typing" ? 0.6 : 1,
+                        }}
+                        transition={{ duration: reduceMotion ? 0 : 0.3 }}
+                        className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--5 chatboc-phone-demo__result !rounded-[16px] !p-3.5"
+                      >
                         <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                           Resultado en CRM
                         </p>
@@ -1181,23 +1392,23 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             Registro trazable para el equipo
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     )}
                   </div>
                 </div>
               )}
               </div>
             </div>
-          </div>
+          </motion.div>
           )}
         </div>
         <div
-          className="mx-auto mt-5 flex w-full max-w-5xl items-center gap-3 md:mt-7"
+          className="mx-auto mt-7 flex w-full max-w-5xl items-center gap-3 md:mt-9"
           role="group"
           aria-label="Integraciones disponibles por configuración"
         >
           <span className="hidden h-px min-w-4 flex-1 bg-border sm:block" aria-hidden="true" />
-          <div className="flex w-full max-w-3xl shrink-0 flex-col items-center justify-center gap-1.5 rounded-[12px] border border-border/70 bg-card/80 px-4 py-2.5 text-center sm:w-auto sm:flex-row sm:gap-3 sm:rounded-full">
+          <div className="flex w-full max-w-3xl shrink-0 flex-col items-center justify-center gap-1.5 rounded-[14px] border border-border/70 bg-card/85 px-4 py-2.5 text-center shadow-sm backdrop-blur sm:w-auto sm:flex-row sm:gap-3 sm:rounded-full">
             <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               Integraciones por configuración

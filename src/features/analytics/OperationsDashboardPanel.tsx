@@ -1473,26 +1473,26 @@ function OperationsCommandCockpit({
                   ? 'text-muted-foreground bg-muted/50 border-border'
                   : 'text-primary bg-primary/10 border-primary/20';
           return (
-            <div key={card.key} className="border-t border-border/60 p-4 md:[&:nth-child(2n)]:border-l xl:border-l xl:first:border-l-0 xl:border-t-0">
+            <div key={card.key} className="border-t border-border/60 p-4 transition-colors hover:bg-muted/20 md:[&:nth-child(2n)]:border-l xl:border-l xl:first:border-l-0 xl:border-t-0">
               <div className="flex items-start justify-between gap-3">
-                <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClass)}>
-                  <Icon className="h-5 w-5" />
+                <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm', toneClass)}>
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 {!card.href ? (
                   <span className="text-xs text-muted-foreground">Acceso no habilitado</span>
                 ) : card.href.startsWith('#') ? (
-                  <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
+                  <a href={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
                     {card.action}
                   </a>
                 ) : (
-                  <Link to={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
+                  <Link to={card.href} className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
                     {card.action}
                   </Link>
                 )}
               </div>
               <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{card.eyebrow}</p>
               <p className="mt-1 text-sm font-semibold text-foreground">{card.title}</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight">{card.value}</p>
+              <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-foreground">{card.value}</p>
               <p className="mt-1 min-h-[2.25rem] text-sm leading-5 text-muted-foreground">{card.detail}</p>
             </div>
           );
@@ -1612,7 +1612,11 @@ function OpenAISuiteReadinessPanel({
     <section
       aria-labelledby="openai-suite-readiness-title"
       data-testid="openai-suite-readiness"
-      className="rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] p-3"
+      className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3.5"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--brand-accent-3, #06b6d4) 28%, transparent)',
+        backgroundColor: 'color-mix(in srgb, var(--brand-accent-3, #06b6d4) 5%, transparent)',
+      }}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
@@ -1621,8 +1625,15 @@ function OpenAISuiteReadinessPanel({
             Configuración y evidencia se informan por separado. Una credencial presente no prueba que una modalidad funcione.
           </p>
           {configurationScope === 'platform_runtime' ? (
-            <p className="mt-1 text-xs font-medium text-cyan-800 dark:text-cyan-200">
-              Configuración compartida de la plataforma Chatboc; no es una credencial ni integración propia de este tenant. La vista sí respeta sus permisos tenant.
+            <p className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-foreground">
+              <span
+                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: 'var(--brand-accent-3, #06b6d4)' }}
+                aria-hidden="true"
+              />
+              <span>
+                Configuración compartida de la plataforma Chatboc; no es una credencial ni integración propia de este tenant. La vista sí respeta sus permisos tenant.
+              </span>
             </p>
           ) : null}
         </div>
@@ -1726,13 +1737,18 @@ function AIProviderStatusPanel({
     <Card
       id="operations-ai-provider-status"
       data-testid="operations-ai-provider-status"
-      className="overflow-hidden border-cyan-500/20 bg-gradient-to-br from-card via-card to-cyan-500/5"
+      className="overflow-hidden border-border/80 bg-card shadow-sm"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--brand-accent-3, #06b6d4) 26%, hsl(var(--border)))',
+        backgroundImage:
+          'linear-gradient(135deg, hsl(var(--card)) 0%, color-mix(in srgb, var(--brand-accent-3, #06b6d4) 7%, hsl(var(--card))) 100%)',
+      }}
     >
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Brain className="h-4 w-4 text-cyan-500" />
+              <Brain className="h-4 w-4" style={{ color: 'var(--brand-accent-3, #06b6d4)' }} aria-hidden="true" />
               IA operacional
             </CardTitle>
             <CardDescription>
@@ -2390,15 +2406,17 @@ function KpiGrid({
       {metrics.map((metric) => {
         const Icon = metric.icon;
         return (
-          <Card key={metric.key}>
+          <Card key={metric.key} className="border-border/75 bg-card/95 shadow-sm transition-colors hover:border-primary/35">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Icon className="h-4 w-4" />
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
                 {metric.label}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-semibold">{formatNumber(metric.value)}</p>
+              <p className="text-3xl font-bold tabular-nums tracking-tight text-foreground">{formatNumber(metric.value)}</p>
             </CardContent>
           </Card>
         );
@@ -3397,7 +3415,7 @@ function OperationsHeatmapPanel({
     };
     return (
       <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden border-amber-500/25">
-        <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(245,158,11,0.12),hsl(var(--background)),rgba(59,130,246,0.06))]">
+        <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(245,158,11,0.12),hsl(var(--background)),hsl(var(--primary)/0.07))]">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -3565,7 +3583,11 @@ function OperationsHeatmapPanel({
           <OperationsDisclosure label={uiLabels.ai_technical_details || 'Detalles de la lectura territorial IA'}>
           <div
             data-testid="territorial-ai-cockpit"
-            className="overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,rgba(37,99,235,0.09),hsl(var(--background)),rgba(20,184,166,0.08))] shadow-sm"
+            className="overflow-hidden rounded-xl border border-primary/20 shadow-sm"
+            style={{
+              backgroundImage:
+                'linear-gradient(135deg, color-mix(in srgb, var(--brand-accent-1, #2563eb) 9%, transparent), hsl(var(--background)), color-mix(in srgb, var(--brand-accent-4, #14b8a6) 8%, transparent))',
+            }}
           >
             <div className="flex flex-col gap-3 border-b bg-background/45 p-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">

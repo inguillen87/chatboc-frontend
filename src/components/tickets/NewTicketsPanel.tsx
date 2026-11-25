@@ -334,11 +334,29 @@ const TicketOpsStat = ({
   onClick?: () => void;
   compact?: boolean;
 }) => {
+  const toneStyle: Record<'blue' | 'amber' | 'emerald' | 'violet', React.CSSProperties | undefined> = {
+    blue: {
+      borderColor: 'color-mix(in srgb, var(--brand-accent-1, #3b82f6) 32%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--brand-accent-1, #3b82f6) 12%, transparent)',
+      color: 'var(--brand-accent-1, #3b82f6)',
+    },
+    amber: undefined,
+    emerald: {
+      borderColor: 'color-mix(in srgb, var(--brand-accent-4, #10b981) 32%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--brand-accent-4, #10b981) 12%, transparent)',
+      color: 'var(--brand-accent-4, #10b981)',
+    },
+    violet: {
+      borderColor: 'color-mix(in srgb, var(--brand-accent-2, #8b5cf6) 32%, transparent)',
+      backgroundColor: 'color-mix(in srgb, var(--brand-accent-2, #8b5cf6) 12%, transparent)',
+      color: 'var(--brand-accent-2, #8b5cf6)',
+    },
+  };
   const toneClass = {
-    blue: 'border-blue-500/20 bg-blue-500/10 text-blue-500',
-    amber: 'border-amber-500/20 bg-amber-500/10 text-amber-500',
-    emerald: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
-    violet: 'border-violet-500/20 bg-violet-500/10 text-violet-500',
+    blue: 'border-primary/25 bg-primary/10 text-primary',
+    amber: 'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    emerald: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    violet: 'border-primary/25 bg-primary/10 text-primary',
   }[tone];
 
   const Comp = onClick ? 'button' : 'div';
@@ -348,13 +366,16 @@ const TicketOpsStat = ({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'inline-flex min-w-0 shrink-0 items-center rounded-full border border-border/70 bg-background/75 text-left shadow-sm',
-        compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-2.5 py-1.5',
-        onClick && 'transition hover:border-primary/50 hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+        'inline-flex min-w-0 shrink-0 items-center rounded-full border border-border/75 bg-card/90 text-left shadow-sm',
+        compact ? 'gap-1.5 px-2.5 py-1' : 'gap-2.5 px-3 py-1.5',
+        onClick && 'transition hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card hover:shadow-sm motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
     >
-      <span className={cn('inline-flex shrink-0 items-center justify-center rounded-full border', compact ? 'h-6 w-6' : 'h-7 w-7', toneClass)}>
-        <Icon className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
+      <span
+        className={cn('inline-flex shrink-0 items-center justify-center rounded-full border', compact ? 'h-6 w-6' : 'h-7 w-7', toneClass)}
+        style={toneStyle[tone]}
+      >
+        <Icon className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} aria-hidden="true" />
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 items-baseline gap-1.5">

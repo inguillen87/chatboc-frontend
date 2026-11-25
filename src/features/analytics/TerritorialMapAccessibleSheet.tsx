@@ -200,7 +200,7 @@ const CoverageScopeSummary = ({ scope }: { scope: TerritorialCoverageScope }) =>
         ))}
       </dl>
       {scope.mode === 'combined' ? (
-        <p className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs leading-5 text-muted-foreground">
+        <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
           La combinación usa sólo los puntos mapeados que cumplen todos los filtros. El contrato no informa
           denominadores cruzados para total, pendientes ni revisión; esos valores se muestran como no disponibles.
         </p>
