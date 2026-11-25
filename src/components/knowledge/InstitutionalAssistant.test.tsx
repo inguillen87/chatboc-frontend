@@ -95,6 +95,7 @@ describe('institutional workspace inside the application',()=>{
   expect(mocks.fetch.mock.calls[2][1].method).toBe('GET');
  });
  it('offers larger type without changing the answer or making requests',async()=>{render(view());await screen.findByText(node().text);fireEvent.click(screen.getByRole('button',{name:'Texto ampliado'}));expect(screen.getByTestId('institutional-assistant')).toHaveClass('institutional-assistant--large');expect(mocks.fetch).toHaveBeenCalledOnce();});
+ it('remembers enlarged text for the next visit and shows its name next to the icon',async()=>{const first=render(view());await screen.findByText(node().text);const toggle=screen.getByRole('button',{name:'Texto ampliado'});expect(toggle).toHaveTextContent('Texto ampliado');fireEvent.click(toggle);first.unmount();render(view());await screen.findByText(node().text);expect(screen.getByRole('button',{name:'Texto ampliado'})).toHaveAttribute('aria-pressed','true');expect(screen.getByTestId('institutional-assistant')).toHaveClass('institutional-assistant--large');});
  it('does not create a workspace without a verified session',()=>{render(<InstitutionalAssistant tenantSlug="qa-knowledge"/>);expect(mocks.fetch).not.toHaveBeenCalled();});
  it('shows the first access denial without exposing a private response body and retries a fresh read',async()=>{
   mocks.fetch.mockRejectedValueOnce({status:403,body:{detail:'PRIVATE BODY'}});render(view());
