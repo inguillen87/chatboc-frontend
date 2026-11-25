@@ -58,11 +58,11 @@ const JourneyNode = ({ data }: { data: JourneyNodeData }) => (
   <div className="relative p-4 text-left">
     <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-background !bg-primary" />
     <div>
-      <div className={`text-[10px] font-bold uppercase tracking-[0.13em] ${data.emphasis ? 'text-white/75' : 'text-primary'}`}>
+      <div className={`text-[10px] font-bold uppercase tracking-[0.13em] ${data.emphasis ? 'text-white/75 dark:text-primary-foreground' : 'text-primary'}`}>
         {data.eyebrow}
       </div>
       <div className="mt-1.5 text-[15px] font-semibold leading-5">{data.label}</div>
-      <div className={`mt-2 text-[11px] leading-4 ${data.emphasis ? 'text-white/80' : 'text-muted-foreground'}`}>
+      <div className={`mt-2 text-[11px] leading-4 ${data.emphasis ? 'text-white/80 dark:text-primary-foreground' : 'text-muted-foreground'}`}>
         {data.detail}
       </div>
     </div>
