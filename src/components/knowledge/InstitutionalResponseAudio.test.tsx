@@ -45,6 +45,22 @@ describe('institutional voice controls',()=>{
     mounted.rerender(<InstitutionalResponseAudio scope={{...scope,tenant:{id:702,slug:'other'}}} copy={copy}/>);expect(pending.signal.aborted).toBe(true);
     await act(async()=>{resolve(new Blob(['late']));});expect(create).not.toHaveBeenCalled();expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:copy.listen})).toBeEnabled();
   });
+  it('offers a reading speed only when the backend names it, applies it and remembers it',async()=>{
+    const first=render(<InstitutionalResponseAudio scope={scope} copy={copy}/>);
+    expect(screen.queryByRole('group',{name:'Velocidad de lectura'})).toBeNull();first.unmount();
+    window.localStorage.removeItem('chatboc.institutional-reading-rate');
+    const mounted=render(<InstitutionalResponseAudio scope={scope} copy={{...copy,speed:'Velocidad de lectura'}}/>);
+    const group=screen.getByRole('group',{name:'Velocidad de lectura'});
+    expect(screen.getByRole('button',{name:'1×'})).toHaveAttribute('aria-pressed','true');
+    fireEvent.click(screen.getByRole('button',{name:'0,75×'}));
+    expect(screen.getByRole('button',{name:'0,75×'})).toHaveAttribute('aria-pressed','true');
+    expect(mounted.container.querySelector('audio')!.playbackRate).toBe(0.75);
+    expect(window.localStorage.getItem('chatboc.institutional-reading-rate')).toBe('0.75');
+    expect(group).toBeVisible();mounted.unmount();
+    render(<InstitutionalResponseAudio scope={scope} copy={{...copy,speed:'Velocidad de lectura'}}/>);
+    expect(screen.getByRole('button',{name:'0,75×'})).toHaveAttribute('aria-pressed','true');
+    window.localStorage.removeItem('chatboc.institutional-reading-rate');
+  });
   it('stops and releases playing audio on unmount',async()=>{
     const mounted=render(<InstitutionalResponseAudio scope={scope} copy={copy}/>);fireEvent.click(screen.getByRole('button',{name:copy.listen}));await screen.findByRole('button',{name:copy.pause});
     vi.mocked(HTMLMediaElement.prototype.pause).mockClear();mounted.unmount();expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce();expect(revoke).toHaveBeenCalledWith('blob:synthetic-audio');

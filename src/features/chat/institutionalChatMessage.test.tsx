@@ -201,6 +201,17 @@ describe('actual embedded chat normalization and renderer',()=>{
   expect(toggle).toHaveAttribute('aria-pressed','true');expect(screen.getByTestId('institutional-chat-message')).toHaveClass('institutional-chat-message--large');
   expect(screen.getByRole('button',{name:'1 Documentación'})).toBeVisible();expect(onButtonClick).not.toHaveBeenCalled();
  });
+ it('starts the next answer with the text size the person chose last',()=>{
+  const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!;
+  const first=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Texto más grande'}));first.unmount();
+  const next=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  expect(screen.getByRole('button',{name:'Texto más grande'})).toHaveAttribute('aria-pressed','true');
+  expect(screen.getByTestId('institutional-chat-message')).toHaveClass('institutional-chat-message--large');
+  fireEvent.click(screen.getByRole('button',{name:'Texto más grande'}));next.unmount();
+  render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
+  expect(screen.getByRole('button',{name:'Texto más grande'})).toHaveAttribute('aria-pressed','false');
+ });
  it('moves focus from an activated menu to the next heading while preserving focus for typing elsewhere',()=>{
   const answer=parseInstitutionalChatMessage(payload(),'qa-knowledge')!,mounted=render(<InstitutionalChatMessage answer={answer} onButtonClick={()=>{}}/>);
   const origin=screen.getByRole('button',{name:'1 Documentación'});origin.focus();fireEvent.click(origin);

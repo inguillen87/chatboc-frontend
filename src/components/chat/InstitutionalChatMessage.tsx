@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import type {SendPayload} from '@/types/chat';
 import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,isInstitutionalSourceNavigationMessage,type InstitutionalChatMessage as InstitutionalMessage,type InstitutionalCanonicalChatMessage as CanonicalMessage,type InstitutionalSourceNavigationMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
-import {InstitutionalAcronyms,InstitutionalTextBlocks} from '@/components/knowledge/InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalTextBlocks,readInstitutionalLargeText,rememberInstitutionalLargeText} from '@/components/knowledge/InstitutionalTextBlocks';
 import {InstitutionalChoices} from '@/components/knowledge/InstitutionalChoices';
 import {InstitutionalResponseAudio,stopInstitutionalReading} from '@/components/knowledge/InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from '@/components/knowledge/InstitutionalEasyRead';
@@ -13,7 +13,7 @@ import './institutionalChatMessage.css';
 /** The ordinary embedded chat uses this reader only for a validated institutional response. */
 const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:CanonicalMessage;onButtonClick:(value:SendPayload)=>void;interactive?:boolean}>(
  ({answer,onButtonClick,interactive=true},ref)=>{
-  const [large,setLarge]=useState(false),heading=useRef<HTMLHeadingElement>(null);
+  const [large,setLarge]=useState(readInstitutionalLargeText),heading=useRef<HTMLHeadingElement>(null);
   const scope=JSON.stringify([answer.tenant.id,answer.tenant.slug,answer.revision]);
   const requestFocus=useRef<{answer:InstitutionalMessage;scope:string;target:string;origin:HTMLButtonElement;owned:boolean;fromBody:boolean;retiring:boolean;moved:boolean;session:number}|null>(null);
   useEffect(()=>{
@@ -69,7 +69,7 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
     </button>;
    }}/>;
   return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}${initialMenu?' institutional-chat-message--initial-menu':''}`} data-testid="institutional-chat-message" data-institutional-presentation={presentation}>
-   <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>setLarge(value=>!value)}>{answer.ui?.large_text??'Texto más grande'}</button>
+   <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}>{answer.ui?.large_text??'Texto más grande'}</button>
    {answer.nodes.map((node,index)=><article key={node.id}>
     <h3 ref={index===0?heading:undefined} tabIndex={-1}>{node.title}</h3>
     {initialMenu&&index===0?choices:null}
@@ -90,9 +90,9 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
  });
 const SourceNavigationMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalSourceNavigationMessage}>(
  ({answer},ref)=>{
-  const [large,setLarge]=useState(false);
+  const [large,setLarge]=useState(readInstitutionalLargeText);
   return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}`} data-testid="institutional-chat-message" data-institutional-presentation="source-navigation">
-   <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>setLarge(value=>!value)}>{answer.ui.large_text}</button>
+   <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}>{answer.ui.large_text}</button>
    <h3>{answer.ui.sources}</h3>
    <div role="status"><InstitutionalTextBlocks text={answer.text}/></div>
    <details className="institutional-chat-message__sources"><summary>{answer.ui.source_details}</summary>
