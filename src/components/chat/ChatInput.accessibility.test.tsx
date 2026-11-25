@@ -134,7 +134,7 @@ describe('ChatInput accessible validation', () => {
     expect(screen.queryByText(emailError)).not.toBeInTheDocument();
     view.rerender(<ChatInput disabled disabledReason="Canal no disponible" isTyping={false} onSendMessage={send} validateBeforeSend={validateEmail} />);
     expect(input()).toBeDisabled();
-    for (const name of ['Adjuntar archivo', 'Ubicacion', 'Audio', 'Mostrar emojis', 'Enviar mensaje']) {
+    for (const name of ['Adjuntar archivo', 'Ubicación', 'Audio', 'Mostrar emojis', 'Enviar mensaje']) {
       expect(screen.getByRole('button', { name, exact: true })).toBeDisabled();
     }
     await userEvent.setup().keyboard('{Enter}');

@@ -14,7 +14,7 @@ vi.mock('@/components/ui/use-toast', () => ({ toast: vi.fn() }));
 
 const coords = { latitud: -54.8, longitud: -68.3 };
 const field = () => screen.getByRole('textbox', { name: 'Escribir mensaje', exact: true });
-const location = () => screen.getByRole('button', { name: 'Ubicacion', exact: true });
+const location = () => screen.getByRole('button', { name: 'Ubicación', exact: true });
 const deferred = () => {
   let resolve!: (value: PositionCoords | null) => void;
   let reject!: (reason: Error) => void;

@@ -299,7 +299,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="text-base">Mis datos</CardTitle>
-          <CardDescription>Actualiza tu perfil para reconocerte en reclamos, pedidos, encuestas y conversaciones.</CardDescription>
+          <CardDescription>Actualizá tu perfil para reconocerte en reclamos, pedidos, encuestas y conversaciones.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-3" autoComplete="off" spellCheck={false}>
@@ -363,8 +363,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
                   </Badge>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  No tomamos fotos de WhatsApp ni usamos scraping. La imagen real solo sale de upload propio,
-                  URL autorizada o login social cuando este disponible.
+                  No tomamos fotos de WhatsApp ni usamos scraping. La imagen real solo sale de un archivo subido,
+                  una URL autorizada o inicio de sesión social cuando esté disponible.
                 </p>
                 <div className="mt-2 flex items-center justify-between gap-3 rounded-md bg-background/70 px-3 py-2">
                   <p className="text-xs text-muted-foreground">
@@ -394,7 +394,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               <Mail className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="email"
-                placeholder="Correo electronico"
+                placeholder="Correo electrónico"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
@@ -405,7 +405,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               <Phone className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="tel"
-                placeholder="Telefono (opcional)"
+                placeholder="Teléfono (opcional)"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 disabled={saving}
@@ -446,7 +446,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               onChange={e => setStatusFilter(e.target.value)}
             />
             <Input
-              placeholder="Categoria"
+              placeholder="Categoría"
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
             />

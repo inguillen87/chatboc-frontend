@@ -42,7 +42,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
   isDemoSelector = false,
   maxVisible,
   collapseExtra = false,
-  moreLabel = "Mas",
+  moreLabel = "Más",
 }) => {
   const { currentSlug } = useTenant();
   const isMobile = useIsMobile();
@@ -195,7 +195,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             className={`${baseClass} no-underline inline-flex items-center justify-center`}
             style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
             title={formatButtonLabel(boton.texto)}
-            aria-label={`Abrir opcion: ${boton.texto}`}
+            aria-label={`Abrir opción: ${boton.texto}`}
           >
             {formatButtonLabel(boton.texto)}
           </a>
@@ -207,7 +207,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             className={baseClass}
             style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
             title={formatButtonLabel(boton.texto)}
-            aria-label={`Enviar opcion: ${boton.texto}`}
+            aria-label={`Enviar opción: ${boton.texto}`}
           >
             {formatButtonLabel(boton.texto)}
           </button>
@@ -220,7 +220,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
           className={baseClass}
           style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
           aria-expanded={showAll}
-          aria-label={showAll ? "Mostrar menos opciones" : `Mostrar ${hiddenCount} opciones mas`}
+          aria-label={showAll ? "Mostrar menos opciones" : `Mostrar ${hiddenCount} opciones más`}
           title={showAll ? "Mostrar menos" : `${moreLabel} (${hiddenCount})`}
         >
           {showAll ? "Mostrar menos" : `${moreLabel} +${hiddenCount}`}

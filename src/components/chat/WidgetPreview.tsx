@@ -153,7 +153,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
             className="h-7 px-2 text-xs"
             onClick={() => setDevice('desktop')}
           >
-            <Monitor className="h-3.5 w-3.5 mr-1.5" /> Desktop
+            <Monitor className="h-3.5 w-3.5 mr-1.5" /> Escritorio
           </Button>
           <Button
             variant={device === 'mobile' ? 'secondary' : 'ghost'}
@@ -161,7 +161,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
             className="h-7 px-2 text-xs"
             onClick={() => setDevice('mobile')}
           >
-            <Smartphone className="h-3.5 w-3.5 mr-1.5" /> Mobile
+            <Smartphone className="h-3.5 w-3.5 mr-1.5" /> Móvil
           </Button>
         </div>
 
@@ -172,7 +172,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
                     size="icon"
                     className={cn("h-7 w-7", siteMode === 'light' && "bg-background shadow-sm")}
                     onClick={() => setSiteMode('light')}
-                    title="Sitio Claro"
+                    title="Sitio claro"
                 >
                     <Sun className="h-3.5 w-3.5" />
                 </Button>
@@ -181,7 +181,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
                     size="icon"
                     className={cn("h-7 w-7", siteMode === 'dark' && "bg-background shadow-sm")}
                     onClick={() => setSiteMode('dark')}
-                    title="Sitio Oscuro"
+                    title="Sitio oscuro"
                 >
                     <Moon className="h-3.5 w-3.5" />
                 </Button>
