@@ -29,8 +29,8 @@ describe('HeroSection backend-driven conversation demo', () => {
     );
 
     expect(container.querySelector('.chatboc-phone-demo')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Probar la demo' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hablar con ventas' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Solicitar demostración' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver recorrido' })).toBeInTheDocument();
     expect(screen.getByText(/widget web, whatsapp, reclamos, encuestas y crm/i)).toBeInTheDocument();
   });
 
@@ -49,7 +49,7 @@ describe('HeroSection backend-driven conversation demo', () => {
 
       act(() => vi.advanceTimersByTime(1500));
       expect(screen.getByText(/recibí los datos y creé el seguimiento/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Ver recorrido' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Seguir el caso' })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -245,7 +245,7 @@ describe('HeroSection backend-driven conversation demo', () => {
 
     expect(screen.getByRole('img', { name: 'Mascota animada de Chatboc' })).toBeInTheDocument();
     expect(screen.getByText('Caso registrado')).toBeInTheDocument();
-    const quickOption = screen.getByRole('button', { name: 'Ver recorrido', exact: true });
+    const quickOption = screen.getByRole('button', { name: 'Seguir el caso', exact: true });
     expect(quickOption).toBeInTheDocument();
   });
 });

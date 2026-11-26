@@ -618,7 +618,7 @@ test.describe('Corte 16 · Floating elements safe-zone coordination (360, 390, 4
 
       // 3. Landing pública (/)
       await page.goto('/', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Agentes IA con tu marca que atienden y resuelven/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Convertí conversaciones en operaciones reales/i })).toBeVisible();
       await dispatchInstallPrompt(page);
       await expect(page.getByRole('complementary', { name: 'Instalar Chatboc' })).toBeVisible();
       if (viewport.width === 390) {

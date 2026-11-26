@@ -172,7 +172,7 @@ test('installs a compact shell, controls the client and reloads offline', async 
   expect(response?.status()).toBe(200);
   const shellHeading = page.getByRole('heading', {
     level: 1,
-    name: /^Agentes IA con tu marca que atienden y resuelven$/i,
+    name: /^Convertí conversaciones en operaciones reales$/i,
   });
   await expect(shellHeading).toBeVisible();
   expect(clerkConfigRequests).toBeGreaterThan(0);

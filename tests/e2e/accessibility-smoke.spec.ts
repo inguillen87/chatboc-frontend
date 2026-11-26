@@ -132,7 +132,7 @@ test.describe('public accessibility smoke', () => {
 
   test('landing has no critical or serious WCAG violations', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /Agentes IA con tu marca que atienden y resuelven/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Convertí conversaciones en operaciones reales/i })).toBeVisible();
 
     await expectNoHighImpactAccessibilityViolations(page);
   });
@@ -148,7 +148,7 @@ test.describe('public accessibility smoke', () => {
         window.localStorage.setItem('theme', 'dark');
       });
       await page.goto('/', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Agentes IA con tu marca que atienden y resuelven/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Convertí conversaciones en operaciones reales/i })).toBeVisible();
       await expect(page.locator('html')).toHaveClass(/\bdark\b/);
       await expect(page.locator('#demos').getByRole('button', { name: /Iniciar demo colegio/i })).toBeVisible();
 
