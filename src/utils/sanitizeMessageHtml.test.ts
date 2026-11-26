@@ -17,3 +17,24 @@ describe('sanitizeMessageHtml phone links', () => {
     expect(sanitizeMessageHtml('WhatsApp: +54 9 2901 441234')).toContain('href="https://wa.me/5492901441234"');
   });
 });
+
+describe('sanitizeMessageHtml emphasis shared with WhatsApp', () => {
+  it('turns *text* into bold instead of showing the asterisks', () => {
+    expect(sanitizeMessageHtml('*Encuestas y votaciones*')).toBe('<strong>Encuestas y votaciones</strong>');
+    expect(sanitizeMessageHtml('1. *Votación barrial*\nElegí una.')).toBe(
+      '1. <strong>Votación barrial</strong><br>Elegí una.',
+    );
+    expect(sanitizeMessageHtml('Tu código es *AB-12*.')).toContain('<strong>AB-12</strong>.');
+    expect(sanitizeMessageHtml('Esto es **importante**, leelo.')).toContain('<strong>importante</strong>,');
+  });
+
+  it('leaves arithmetic and bullet lists as written', () => {
+    expect(sanitizeMessageHtml('2 * 3 * 4')).toBe('2 * 3 * 4');
+    expect(sanitizeMessageHtml('* primero\n* segundo')).toBe('* primero<br>* segundo');
+    expect(sanitizeMessageHtml('Precio 5*3 y 2*2')).toBe('Precio 5*3 y 2*2');
+  });
+
+  it('does not let emphasis smuggle markup', () => {
+    expect(sanitizeMessageHtml('*<img src=x onerror=alert(1)>*')).not.toContain('<img');
+  });
+});

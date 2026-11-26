@@ -854,7 +854,10 @@ const normalizeRubroToolTray = (
           : "",
         isKind("hour", "horario") ? readHoursLine(hours) : "",
         isKind("faq", "frecuent") ? readDisplayLine(firstFaq.question, firstFaq.label, firstFaq.title) : "",
-      ].filter((line, index, all) => Boolean(line) && all.indexOf(line) === index);
+      ].filter(
+        (line, index, all) =>
+          Boolean(line) && !all.some((other, otherIndex) => otherIndex < index && other.includes(line)),
+      );
 
       return {
         id,
