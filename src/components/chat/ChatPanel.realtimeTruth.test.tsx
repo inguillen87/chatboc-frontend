@@ -258,6 +258,28 @@ describe("ChatPanel realtime transport truth", () => {
     expect(screen.queryByRole('button',{name:'Legacy municipal operation'})).not.toBeInTheDocument();
   });
 
+  it('keeps the menu in view before the conversation and one tap away after it starts',async()=>{
+    const menu=[{texto:'Consultar producto',action_id:'consultar_producto'}];
+    chatLogic.messages=[{id:'hola',text:'Hola, soy el asistente.',isBot:true,timestamp:new Date()}];
+    const view=render(<ChatPanel tipoChat="pyme" tenantSlug="qa-demo" defaultMenu={menu}/>);
+    expect(await screen.findByRole('button',{name:'Consultar producto'})).toBeVisible();
+    expect(screen.queryByRole('button',{name:'Ver opciones'})).not.toBeInTheDocument();
+    view.unmount();
+
+    // Once the person has written, the answer must be what they see: the menu
+    // steps aside instead of sitting under the reply.
+    chatLogic.messages=[
+      {id:'hola',text:'Hola, soy el asistente.',isBot:true,timestamp:new Date()},
+      {id:'yo',text:'¿tienen taladro?',isBot:false,timestamp:new Date()},
+      {id:'resp',text:'Sí, tenemos taladro percutor.',isBot:true,timestamp:new Date()},
+    ];
+    render(<ChatPanel tipoChat="pyme" tenantSlug="qa-demo" defaultMenu={menu}/>);
+    expect(await screen.findByText(/Sí, tenemos taladro percutor/)).toBeVisible();
+    expect(screen.queryByRole('button',{name:'Consultar producto'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Ver opciones'}));
+    expect(screen.getByRole('button',{name:'Consultar producto'})).toBeVisible();
+  });
+
   it('retains a typed draft while the institutional bootstrap changes from pending to a response',()=>{
     chatLogic.institutionalBootstrapPending=true;chatLogic.suppressLegacyInitialMenu=true;
     const panel=render(<ChatPanel tipoChat="municipio" tenantSlug="qa-knowledge"/>);

@@ -3815,6 +3815,14 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     demoWorkspace?.default_menu,
     quickMenu,
   ]);
+  // Once the person has written or chosen something, the answer is what they
+  // came for: the full menu steps aside and stays one tap away.
+  const conversationStarted = useMemo(() => visibleMessages.some((message) => !message.isBot), [visibleMessages]);
+  const [menuReopened, setMenuReopened] = useState(false);
+  useEffect(() => {
+    if (!conversationStarted) setMenuReopened(false);
+  }, [conversationStarted]);
+
   const visibleDefaultMenuButtons = useMemo(
     () => suppressLegacyInitialMenu?[]:defaultMenuButtons.slice(0, defaultMenuMaxVisible),
     [defaultMenuButtons, defaultMenuMaxVisible,suppressLegacyInitialMenu],
@@ -4798,7 +4806,19 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           />
               );
             })}
-            {visibleDefaultMenuButtons.length && !activeTrialLimitNotice ? (
+            {conversationStarted && (visibleDefaultMenuButtons.length || rubroToolItems.length) && !activeTrialLimitNotice ? (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setMenuReopened((current) => !current)}
+                  aria-expanded={menuReopened}
+                  className="mb-1 inline-flex min-h-11 items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold text-primary hover:bg-primary/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  {menuReopened ? "Ocultar opciones" : "Ver opciones"}
+                </button>
+              </div>
+            ) : null}
+            {visibleDefaultMenuButtons.length && !activeTrialLimitNotice && (!conversationStarted || menuReopened) ? (
               <div className="flex justify-center">
                 <div className="mb-1 grid w-full max-w-[340px] gap-1.5 px-1 py-1 sm:gap-2">
                   <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
@@ -4825,7 +4845,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
                 </div>
               </div>
             ) : null}
-            {rubroToolItems.length ? (
+            {rubroToolItems.length && (!conversationStarted || menuReopened) ? (
               <div className="flex justify-center">
                 <RubroToolTray tools={rubroToolItems} onToolAction={handleRubroToolAction} />
               </div>
