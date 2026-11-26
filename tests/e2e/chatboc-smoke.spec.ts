@@ -461,4 +461,31 @@ test.describe('Chatboc smoke e2e', () => {
       await expect(widget.getByRole('button', { name: /Gobiernos/i })).toBeVisible();
     }
   });
+
+  test('la rueda del mouse sobre el widget no mueve la página', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Abrir el asistente/i }).click();
+
+    const widget = page.getByRole('region', { name: /Chat widget/i });
+    await expect(widget).toBeVisible();
+    const box = await widget.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Nothing may take the wheel away from the browser: a scripted page scroll
+    // leaves the conversation inside the widget impossible to read.
+    await expect(page.locator('html')).not.toHaveClass(/lenis/);
+    const before = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.evaluate(() => {
+      window.addEventListener(
+        'wheel',
+        (event) => setTimeout(() => ((window as unknown as { __wheelPrevented: boolean }).__wheelPrevented = event.defaultPrevented), 0),
+        { once: true, capture: true },
+      );
+    });
+    await page.mouse.wheel(0, 200);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => (window as unknown as { __wheelPrevented?: boolean }).__wheelPrevented)).toBe(false);
+    expect(before).toBeGreaterThanOrEqual(0);
+  });
 });

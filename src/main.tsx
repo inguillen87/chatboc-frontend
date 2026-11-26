@@ -1,5 +1,4 @@
 import './index.css';
-import 'lenis/dist/lenis.css';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';

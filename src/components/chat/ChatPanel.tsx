@@ -101,6 +101,7 @@ import {
   Video,
   MoreHorizontal,
   ExternalLink,
+  ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence, MotionConfig, MotionConfigContext, useReducedMotionConfig } from "framer-motion";
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
@@ -671,6 +672,18 @@ const readHoursLine = (hours: unknown) => {
   return "";
 };
 
+
+const PLATFORM_OPTION_HINTS: Array<[RegExp, string]> = [
+  [/gob|muni/i, "Reclamos, trámites, turnos y consultas de vecinos."],
+  [/coleg|educ|instit/i, "Inscripciones, avisos a familias y consultas."],
+  [/empres|pyme|comerc/i, "Ventas, catálogo, pedidos y soporte."],
+];
+
+const platformOptionHint = (option: { id?: string; sector?: string; label?: string }): string => {
+  const key = `${option.sector || ""} ${option.id || ""} ${option.label || ""}`;
+  return PLATFORM_OPTION_HINTS.find(([pattern]) => pattern.test(key))?.[1] || "";
+};
+
 const isDownloadableRubroTool = (
   id: string,
   kind: string,
@@ -825,14 +838,23 @@ const normalizeRubroToolTray = (
         firstResource.action_label,
         firstResource.cta_label,
       );
+      // One fact per tool, and only the fact that belongs to it: a count ("Recursos: 4")
+      // or a guide's name under "Contacto" says nothing to the person reading.
+      const isKind = (...needles: string[]) => needles.some((needle) => kind.includes(needle) || id.toLowerCase().includes(needle));
       const lines = [
-        ...fieldLines,
-        readDisplayLine(firstLocation.address, firstLocation.direccion, firstLocation.label, firstLocation.name),
-        readDisplayLine(firstResource.label, firstResource.title, firstResource.name),
-        readDisplayLine(contact.phone, contact.telefono, contact.whatsapp, contact.email, contact.web, contact.website),
-        readHoursLine(hours),
-        readDisplayLine(firstFaq.question, firstFaq.label, firstFaq.title),
-      ].filter(Boolean);
+        ...fieldLines.filter((line) => !/:\s*\d+$/.test(line)),
+        isKind("location", "ubic", "map")
+          ? readDisplayLine(firstLocation.address, firstLocation.direccion, firstLocation.label, firstLocation.name)
+          : "",
+        isKind("catalog", "price", "precio", "stock")
+          ? readDisplayLine(firstResource.label, firstResource.title, firstResource.name)
+          : "",
+        isKind("contact", "phone", "telefono")
+          ? readDisplayLine(contact.phone, contact.telefono, contact.whatsapp, contact.email, contact.web, contact.website)
+          : "",
+        isKind("hour", "horario") ? readHoursLine(hours) : "",
+        isKind("faq", "frecuent") ? readDisplayLine(firstFaq.question, firstFaq.label, firstFaq.title) : "",
+      ].filter((line, index, all) => Boolean(line) && all.indexOf(line) === index);
 
       return {
         id,
@@ -864,80 +886,59 @@ const RubroToolTray = ({
 }) => {
   if (!tools.length) return null;
 
+  const rowClass =
+    "block w-full px-3 py-2.5 text-left transition-colors hover:bg-primary/[0.06] focus-visible:bg-primary/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50";
+
   return (
-    <div
-      className="mb-3 grid w-full max-w-[360px] gap-2 text-left sm:mb-4"
+    <ul
+      className="mb-3 w-full max-w-[360px] divide-y divide-border/70 overflow-hidden rounded-[10px] border border-border/70 text-left sm:mb-4 dark:divide-slate-700/80 dark:border-slate-700/80"
       aria-label="Herramientas disponibles del rubro"
     >
       {tools.map((tool) => {
         const content = (
-          <>
-            <span className="flex min-w-0 items-start justify-between gap-2">
-              <span className="min-w-0">
-                <span className="block truncate text-xs font-semibold text-foreground dark:text-slate-50">
-                  {tool.label}
-                </span>
-                {tool.description ? (
-                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground dark:text-slate-300">
-                    {tool.description}
-                  </span>
-                ) : null}
+          <span className="flex min-w-0 items-center justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-semibold text-foreground dark:text-slate-50">
+                {tool.label}
               </span>
-              {tool.url ? (
-                <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-              ) : tool.behavior === "chat" ? (
-                <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+              {tool.lines.length ? (
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground dark:text-slate-300">
+                  {tool.lines.join(" · ")}
+                </span>
+              ) : tool.description ? (
+                <span className="mt-0.5 block text-xs leading-snug text-muted-foreground dark:text-slate-300">
+                  {tool.description}
+                </span>
               ) : null}
             </span>
-            {tool.lines.length ? (
-              <span className="mt-1.5 flex flex-wrap gap-1">
-                {tool.lines.map((line) => (
-                  <span
-                    key={line}
-                    className="max-w-full truncate rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-slate-800 dark:text-slate-300"
-                  >
-                    {line}
-                  </span>
-                ))}
+            {tool.url ? (
+              <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+                {tool.urlLabel || "Abrir"}
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
+            ) : tool.behavior === "chat" && onToolAction ? (
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             ) : null}
-            {tool.url && tool.urlLabel ? (
-              <span className="mt-1.5 block text-[11px] font-semibold text-primary">
-                {tool.urlLabel}
-              </span>
-            ) : null}
-          </>
+          </span>
         );
 
-        return tool.url ? (
-          <a
-            key={tool.id}
-            href={tool.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700/80 dark:bg-slate-900/90"
-          >
-            {content}
-          </a>
-        ) : tool.behavior === "chat" && onToolAction ? (
-          <button
-            key={tool.id}
-            type="button"
-            onClick={() => onToolAction(tool)}
-            className="block w-full rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 text-left shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700/80 dark:bg-slate-900/90"
-          >
-            {content}
-          </button>
-        ) : (
-          <div
-            key={tool.id}
-            className="rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/90"
-          >
-            {content}
-          </div>
+        return (
+          <li key={tool.id}>
+            {tool.url ? (
+              <a href={tool.url} target="_blank" rel="noopener noreferrer" className={rowClass}>
+                {content}
+              </a>
+            ) : tool.behavior === "chat" && onToolAction ? (
+              <button type="button" onClick={() => onToolAction(tool)} className={rowClass}>
+                {content}
+              </button>
+            ) : (
+              <div className="px-3 py-2.5">{content}</div>
+            )}
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 };
 
@@ -3670,11 +3671,8 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     ? `${emptyStateTitle.replace(/[?.!¿]+$/g, "")}, ${visitorDisplayName}`
     : emptyStateTitle;
   const menuContextLabel = rubroDisplayName
-    ? `Menú corto para ${rubroDisplayName}. Elegí una opción o escribí con tus palabras.`
-    : "Menú corto. Elegí una opción o escribí con tus palabras.";
-  const visitorNameHint = visitorDisplayName
-    ? null
-    : "Para atenderte mejor, primero podés decirme tu nombre.";
+    ? `Opciones para ${rubroDisplayName}`
+    : "Opciones";
   const bootstrapPayload = chatBootstrap?.payload as Record<string, unknown> | undefined;
   const attachmentUploadContext = useMemo(() => {
     const bootstrapSession = chatBootstrap
@@ -4177,55 +4175,52 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           supportChannels={supportChannels}
           compactActions
         />
-        <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-          <div className="w-full max-w-[380px] rounded-[8px] border border-border/70 bg-background/92 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.16)] backdrop-blur">
-            <div className="mb-4 text-left">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                {onboarding?.title || "Chatboc"}
-              </p>
-              <h2 className="mt-2 text-xl font-bold leading-tight text-foreground">
-                {onboarding?.entry_question || onboarding?.title}
-              </h2>
-            </div>
-            <div className="grid gap-2.5" aria-label="Selector de plataforma">
-              {visibleOptions.map((option) => {
-                const optionId = option.id || option.sector || option.label || "option";
-                const isLoading = platformSelectionLoadingId === optionId;
-                return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-5 pt-6">
+          <h2 className="text-[1.15rem] font-semibold leading-snug text-foreground">
+            {onboarding?.entry_question || onboarding?.title}
+          </h2>
+          {onboarding?.subtitle ? (
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{onboarding.subtitle}</p>
+          ) : null}
+          <ul className="mt-5 divide-y divide-border/70 border-y border-border/70" aria-label="Selector de plataforma">
+            {visibleOptions.map((option) => {
+              const optionId = option.id || option.sector || option.label || "option";
+              const isLoading = platformSelectionLoadingId === optionId;
+              const hint = option.description || platformOptionHint(option);
+              return (
+                <li key={optionId}>
                   <button
-                    key={optionId}
                     type="button"
-                    className="group relative flex min-h-[76px] w-full items-center justify-between gap-3 overflow-hidden rounded-[8px] border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
+                    className="flex w-full items-center justify-between gap-3 px-1 py-3.5 text-left transition-colors hover:bg-primary/[0.06] focus-visible:bg-primary/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50 disabled:cursor-wait disabled:opacity-70"
                     disabled={Boolean(platformSelectionLoadingId)}
                     aria-busy={isLoading}
                     onClick={() => void onPlatformSelection?.(option)}
                   >
-                    <span className="absolute inset-y-0 left-0 w-1 bg-primary/75 opacity-70 transition group-hover:opacity-100" />
-                    <span className="min-w-0 pl-1">
-                      <span className="block truncate text-[0.95rem]">
-                        {isLoading ? "Iniciando demo..." : option.label}
+                    <span className="min-w-0">
+                      <span className="block truncate text-[0.95rem] font-semibold text-foreground">
+                        {isLoading ? "Abriendo la demo…" : option.label}
                       </span>
-                      {option.description ? (
-                        <span className="mt-1 line-clamp-2 block text-xs font-medium leading-snug text-muted-foreground">
-                          {option.description}
+                      {hint ? (
+                        <span className="mt-0.5 line-clamp-2 block text-[0.8rem] leading-snug text-muted-foreground">
+                          {hint}
                         </span>
                       ) : null}
                     </span>
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
                     ) : (
-                      <Sparkles className="h-4 w-4 shrink-0 text-primary/70 transition group-hover:text-primary" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     )}
                   </button>
-                );
-              })}
-            </div>
-            {platformSelectionError ? (
-              <p className="mt-3 rounded-[8px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                {platformSelectionError}
-              </p>
-            ) : null}
-          </div>
+                </li>
+              );
+            })}
+          </ul>
+          {platformSelectionError ? (
+            <p role="alert" className="mt-3 rounded-[8px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {platformSelectionError}
+            </p>
+          ) : null}
         </div>
       </div>
     );
@@ -4624,7 +4619,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           "chatboc-chat-scrollarea flex-1 p-2 sm:p-4 lg:px-6 min-h-0 flex flex-col gap-3 overflow-y-auto overscroll-contain",
         )}
       >
-        <div className="hidden sm:block sm:flex-1" />
+        {visibleMessages.length > 0 ? <div className="hidden sm:block sm:flex-1" /> : null}
 
         {institutionalBootstrapPending&&visibleMessages.length===0?(
           <div className="flex flex-1 items-center justify-center" role="status" aria-label="Cargando conversación">
@@ -4635,28 +4630,16 @@ const ChatPanelContent = (props: ChatPanelProps) => {
             )}
           </div>
         ):visibleMessages.length === 0 ? (
-             <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="flex flex-col items-center px-3 pb-3 pt-4 text-center sm:px-4">
                 {renderBrandAvatar ? (
-                  <div className="mb-3 sm:mb-4" data-testid="chat-empty-brand-avatar">{renderBrandAvatar("idle", 64)}</div>
-                ) : (
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
-                     <MessageSquare className="w-8 h-8" />
-                  </div>
-                )}
-                <h3 className="text-base font-semibold mb-2 text-foreground sm:text-lg dark:text-slate-50">{personalizedEmptyTitle}</h3>
-                <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
+                  <div className="mb-2.5" data-testid="chat-empty-brand-avatar">{renderBrandAvatar("idle", 48)}</div>
+                ) : null}
+                <h3 className="text-base font-semibold text-foreground sm:text-[1.05rem] dark:text-slate-50">{personalizedEmptyTitle}</h3>
+                <p className="mb-4 mt-1 max-w-[280px] text-sm text-muted-foreground dark:text-slate-300">
                    {emptyStateDescription}
                 </p>
-                {visitorNameHint ? (
-                  <p className="-mt-3 mb-4 max-w-[300px] rounded-[8px] border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-slate-300">
-                    {visitorNameHint}
-                  </p>
-                ) : null}
                 {visibleDefaultMenuButtons.length ? (
                   <div className="mb-3 grid w-full max-w-[340px] gap-1.5 sm:mb-4 sm:gap-2">
-                    <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
-                      {menuContextLabel}
-                    </p>
                     {visibleDefaultMenuButtons.map((item, index) => (
                       <Button
                         key={`${item.texto || item.action || item.action_id || "menu"}-${index}`}

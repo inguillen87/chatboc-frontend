@@ -423,6 +423,7 @@ export interface ChatWidgetOnboardingOption {
 }
 
 export interface ChatWidgetOnboarding {
+  subtitle?: string | null;
   contract_version?: string | null;
   mode?: string | null;
   status?: string | null;
