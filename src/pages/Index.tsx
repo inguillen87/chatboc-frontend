@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { useReducedMotion } from "framer-motion";
-import { ReactLenis } from "lenis/react";
 import { safeSessionStorage } from "@/utils/safeLocalStorage";
 import HeroSection from "@/components/sections/HeroSection";
 import WhiteLabelShowcaseSection from "@/components/sections/WhiteLabelShowcaseSection";
@@ -20,10 +19,6 @@ const LegacyLandingAnchor = ({ id }: { id: string }) => (
 const Index = () => {
   const { experience: landingExperience } = useLandingExperience();
   const reduceMotion = useReducedMotion();
-  const canUseSmoothScroll =
-    typeof window !== "undefined" &&
-    typeof window.requestAnimationFrame === "function" &&
-    typeof ResizeObserver !== "undefined";
   useEffect(() => {
     document.title = LANDING_TITLE;
 
@@ -58,13 +53,9 @@ const Index = () => {
       </div>
   );
 
-  return (
-    reduceMotion || !canUseSmoothScroll ? landing : (
-      <ReactLenis root options={{ anchors: true, autoRaf: true, lerp: 0.085, smoothWheel: true }}>
-        {landing}
-      </ReactLenis>
-    )
-  );
+  // Native scrolling on purpose: a scripted "smooth scroll" takes the wheel away
+  // from every nested scroll area (the chat widget, menus, dialogs).
+  return landing;
 };
 
 export default Index;
