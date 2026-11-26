@@ -1,10 +1,10 @@
 import React,{useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
-import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Search,Type} from 'lucide-react';
+import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Printer,Search,Share2,Type} from 'lucide-react';
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,readKnowledgeAcronyms,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
-import {InstitutionalAcronyms,InstitutionalTextBlocks,readInstitutionalLargeText,rememberInstitutionalLargeText} from './InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,formatInstitutionalPrintDate,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalShareLabels} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
@@ -41,8 +41,10 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const [sourceNavigation,setSourceNavigation]=useState<(KnowledgeSourceNavigationAnswer&{originNodeId:string})|null>(null);
   const [highlightedSourceId,setHighlightedSourceId]=useState<string|null>(null);
   const [pending,setPending]=useState<KnowledgeReview|null>(null);
+  const [printDate,setPrintDate]=useState<Date>(()=>new Date());
   const active=useRef(true),locked=useRef(false),heading=useRef<HTMLElement|null>(null),upload=useRef<HTMLInputElement>(null),serial=useRef(0);
   const questionId=useId();
+  const assistantRoot=useRef<HTMLElement>(null),printTimeRef=useRef<HTMLTimeElement>(null),printOpenedDetails=useRef<HTMLDetailsElement[]>([]);
   const pageHeading=useRef<HTMLHeadingElement>(null),reading=useRef<HTMLDivElement>(null);
   const sourcesTrigger=useRef<HTMLButtonElement>(null),reviewTrigger=useRef<HTMLElement|null>(null);
   const sourcesReturnFocus=useRef<HTMLElement|null>(null);
@@ -114,14 +116,91 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     if(open&&(locked.current||dialog.current))return;
     dialog.current=open?'sources':null;setShowSources(open);
   };
+  const cleanupPrintState=()=>{
+    const root=assistantRoot.current;
+    if(root){
+      delete root.dataset.printingNode;
+      for(const article of root.querySelectorAll<HTMLElement>('article[data-print-target]'))delete article.dataset.printTarget;
+    }
+    for(const item of printOpenedDetails.current.splice(0))item.open=false;
+  };
+  const syncPrintTimestamp=()=>{
+    const now=new Date();
+    if(printTimeRef.current){
+      printTimeRef.current.dateTime=now.toISOString();
+      printTimeRef.current.textContent=formatInstitutionalPrintDate(now);
+    }
+    setPrintDate(now);
+  };
+  const preparePrintState=(targetNodeId?:string)=>{
+    cleanupPrintState();
+    syncPrintTimestamp();
+    const root=assistantRoot.current;
+    if(!root)return;
+    const articles:HTMLElement[]=Array.from(root.querySelectorAll<HTMLElement>('article.institutional-assistant__answer'));
+    if(targetNodeId){
+      root.dataset.printingNode=targetNodeId;
+      for(const article of articles){
+        if(article.dataset.nodeId===targetNodeId)article.dataset.printTarget='true';
+      }
+    }
+    const targetArticles=targetNodeId?articles.filter(article=>article.dataset.nodeId===targetNodeId):articles;
+    for(const article of targetArticles){
+      const citations:HTMLDetailsElement[]=Array.from(article.querySelectorAll<HTMLDetailsElement>('details.institutional-assistant__citations'));
+      for(const details of citations){
+        if(!details.open){
+          details.open=true;
+          printOpenedDetails.current.push(details);
+        }
+      }
+    }
+  };
+  const printNode=(nodeId:string)=>{
+    preparePrintState(nodeId);
+    window.print();
+  };
+  useEffect(()=>{
+    const onBeforePrint=()=>{
+      syncPrintTimestamp();
+      if(!assistantRoot.current?.dataset.printingNode)preparePrintState();
+    };
+    const onAfterPrint=()=>{cleanupPrintState();};
+    window.addEventListener('beforeprint',onBeforePrint);
+    window.addEventListener('afterprint',onAfterPrint);
+    return()=>{
+      window.removeEventListener('beforeprint',onBeforePrint);
+      window.removeEventListener('afterprint',onAfterPrint);
+      cleanupPrintState();
+    };
+  },[]);
   const current=nodes.at(-1)?.id??topic.at(-1)?.id??sourceNavigation?.originNodeId??workspace?.knowledge?.start??'';
   const load=async(recovery=false,origin:HTMLElement|null=null)=>{
     if(recovery&&(!active.current||locked.current||dialog.current))return;
+    cleanupPrintState();
     recoveryFocus.current=null;setSourceNavigation(null);
     const seq=++serial.current;captureRequestFocus(seq,recovery?origin:null);locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setTopic([]);setPresentation('answer');setPending(null);review.current=null;dialog.current=null;setShowSources(false);
-    try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){if(recovery)recoveryFocus.current=seq;setWorkspace(data);setLastUi(data.ui);setNodes(data.knowledge?[data.knowledge.initial]:[]);
-      setPresentation(mode==='public'&&data.knowledge&&data.revision?institutionalPresentationMode({tenant:data.tenant,revision:data.revision,nodes:[data.knowledge.initial]},institutionalInitialMenuContext(data,tenantSlug)):'answer');
-      setAsked('');setUncovered(false);}}
+    try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){
+      let initialNodes=data.knowledge?[data.knowledge.initial]:[];
+      let initialPresentation:InstitutionalPresentationMode=mode==='public'&&data.knowledge&&data.revision
+        ?institutionalPresentationMode({tenant:data.tenant,revision:data.revision,nodes:[data.knowledge.initial]},institutionalInitialMenuContext(data,tenantSlug)):'answer';
+      const requestedNode=mode==='public'&&data.knowledge&&data.revision&&typeof window!=='undefined'
+        ?new URLSearchParams(window.location.search).get('tema')?.trim()??'':'';
+      if(requestedNode&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/.test(requestedNode)&&requestedNode!==data.knowledge!.start){
+        try{
+          const deepAnswer=await askWorkspace(data,'public',{node_id:requestedNode});
+          if(active.current&&serial.current===seq&&!isKnowledgeSourceNavigation(deepAnswer)&&deepAnswer.nodes.length>0){
+            initialNodes=deepAnswer.nodes;
+            initialPresentation='answer';
+          }
+        }catch{
+          // Invalid or retired node in shared URL falls back to the published start menu.
+        }
+      }
+      if(active.current&&serial.current===seq){
+        if(recovery)recoveryFocus.current=seq;
+        setWorkspace(data);setLastUi(data.ui);setNodes(initialNodes);setPresentation(initialPresentation);setAsked('');setUncovered(false);
+      }
+    }}
     catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;setErrorStatus(status===401||status===403?status:null);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
@@ -165,6 +244,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   },[]);
   const navigate=async(id:string,text?:string,origin:HTMLElement|null=null,requestedPresentation:InstitutionalPresentationMode='answer')=>{
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
+    cleanupPrintState();
     locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setShowSources(false);setSourceNavigation(null);const seq=++serial.current;captureRequestFocus(seq,origin);
     try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text}:{})});
       if(active.current&&serial.current===seq){
@@ -234,6 +314,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
     return <div role="status"><ViewState status="loading" title="Cargando conocimiento"/></div>;
   }
   const ui=workspace.ui,knowledge=workspace.knowledge;
+  const shareLabels=resolveInstitutionalShareLabels(ui);
   const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
     ?safeInstitutionLogo(publicIdentity.logoUrl):null;
   const context=nodes.length?nodes:uncovered?topic:[];
@@ -262,7 +343,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       </button>;
     }}/>:null;
   const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(item=><button type="button" key={item.id} disabled={busy||Boolean(pending)} aria-current={current===item.id?'page':undefined} onClick={event=>navigate(item.id,undefined,event.currentTarget)}><span>{item.label}</span><ChevronRight size={15} aria-hidden="true"/></button>)}</nav>;
-  return <section className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
+  return <section ref={assistantRoot} className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
@@ -292,24 +373,50 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
             <button type="button" className="institutional-assistant__primary" disabled={Boolean(pending)} aria-haspopup="dialog" aria-expanded={showSources}
               onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}}><BookOpen size={17} aria-hidden="true"/>{ui.sources}</button>
           </section>:null}
-          {(!error||failedAnswer)&&nodes.map((node,index)=><article key={node.id} className="institutional-assistant__answer">
+          {(!error||failedAnswer)&&nodes.map((node,index)=>{
+            const nodeAcronyms=readKnowledgeAcronyms(node.acronyms);
+            const isOpenedAnswer=Boolean(knowledge&&node.id!==knowledge.start);
+            const whatsappUrl=isOpenedAnswer?buildInstitutionalWhatsAppUrl({
+              title:node.title,
+              text:node.text,
+              acronyms:nodeAcronyms,
+              acronymsLabel:ui.acronyms,
+              links:node.links,
+              portalUrl:buildInstitutionalPortalUrl(workspace.tenant.slug,node.id),
+            }):'';
+            return <article key={node.id} data-node-id={node.id} className="institutional-assistant__answer">
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3>
             {initialMenu&&index===0?choices:null}
             <div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
-            <InstitutionalAcronyms items={readKnowledgeAcronyms(node.acronyms)} label={ui.acronyms}/>
+            <InstitutionalAcronyms items={nodeAcronyms} label={ui.acronyms}/>
             {mode==='public'&&workspace.easy_read&&workspace.revision&&knowledge&&node.id!==knowledge.start?
               <InstitutionalEasyRead scope={{tenant:workspace.tenant,revision:workspace.revision,nodeId:node.id}} copy={workspace.easy_read}
                 autoOpenToken={easyReadRequest?.nodeId===node.id?easyReadRequest.token:null}/>:null}
+            {isOpenedAnswer?
+              <div className="institutional-answer-actions" role="group" aria-label={ui.answer}>
+                <button type="button" className="institutional-answer-actions__button" data-action="share-whatsapp" data-whatsapp-url={whatsappUrl}
+                  onClick={()=>openInstitutionalWhatsAppShare(whatsappUrl)}>
+                  <Share2 size={17} aria-hidden="true"/><span>{shareLabels.whatsapp}</span>
+                </button>
+                <button type="button" className="institutional-answer-actions__button" data-action="print-answer"
+                  onClick={()=>printNode(node.id)}>
+                  <Printer size={17} aria-hidden="true"/><span>{shareLabels.print}</span>
+                </button>
+              </div>:null}
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15} aria-hidden="true"/></a>)}</div>:null}
             <details className="institutional-assistant__citations"><summary><FileText size={15} aria-hidden="true"/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
                <KnowledgeSourceMetadata source={source} compact mode={mode}/>
                <button type="button" disabled={busy||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(source.id);changeSources(true);}} aria-haspopup="dialog">Ver fuente<span className="sr-only">: {source.title}</span></button>
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
-          </article>)}
+          </article>;})}
           {mode==='public'&&!busy&&!error&&!showSources&&workspace.audio_reading&&workspace.revision&&nodes.length>0?
             <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading}/>:null}
           {!initialMenu?choices:null}
+          {nodes.length>0?<footer className="institutional-assistant__print-footer" aria-hidden="true">
+            <p className="institutional-assistant__print-date">Fecha de impresión: <time ref={printTimeRef} dateTime={printDate.toISOString()}>{formatInstitutionalPrintDate(printDate)}</time></p>
+            <p className="institutional-assistant__print-disclaimer">{shareLabels.disclaimer}</p>
+          </footer>:null}
         </div>
         {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{
           event.preventDefault();const submitter=(event.nativeEvent as SubmitEvent).submitter;

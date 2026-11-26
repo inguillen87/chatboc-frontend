@@ -1,8 +1,9 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {Share2} from 'lucide-react';
 import type {SendPayload} from '@/types/chat';
 import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,isInstitutionalSourceNavigationMessage,type InstitutionalChatMessage as InstitutionalMessage,type InstitutionalCanonicalChatMessage as CanonicalMessage,type InstitutionalSourceNavigationMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
-import {InstitutionalAcronyms,InstitutionalTextBlocks,readInstitutionalLargeText,rememberInstitutionalLargeText} from '@/components/knowledge/InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalShareLabels} from '@/components/knowledge/InstitutionalTextBlocks';
 import {InstitutionalChoices} from '@/components/knowledge/InstitutionalChoices';
 import {InstitutionalResponseAudio,stopInstitutionalReading} from '@/components/knowledge/InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from '@/components/knowledge/InstitutionalEasyRead';
@@ -47,6 +48,7 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
   },[answer,scope]);
   const actions=institutionalChatActions(answer.nodes);
   const presentation=institutionalPresentationMode(answer,answer.initialMenu),initialMenu=presentation==='initial-menu';
+  const shareLabels=resolveInstitutionalShareLabels(answer.ui);
   const choices=<InstitutionalChoices actions={actions} navigation={answer.ui??null} responseIdentity={answer} disabled={!interactive} className="institutional-chat-message__choices" renderChoice={action=>{
     const label=institutionalChoiceLabel(action.label),actionId=`knowledge:${answer.revision.slice(0,16)}:${action.target}`;
     let renderedButton:HTMLButtonElement|null=null;
@@ -70,20 +72,38 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
    }}/>;
   return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}${initialMenu?' institutional-chat-message--initial-menu':''}`} data-testid="institutional-chat-message" data-institutional-presentation={presentation}>
    <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}>{answer.ui?.large_text??'Texto más grande'}</button>
-   {answer.nodes.map((node,index)=><article key={node.id}>
+   {answer.nodes.map((node,index)=>{
+    const nodeAcronyms=readKnowledgeAcronyms(node.acronyms);
+    const isOpenedAnswer=!(initialMenu&&index===0)&&node.id!==answer.initialMenu?.startNodeId;
+    const whatsappUrl=isOpenedAnswer?buildInstitutionalWhatsAppUrl({
+     title:node.title,
+     text:node.text,
+     acronyms:nodeAcronyms,
+     acronymsLabel:answer.ui?.acronyms,
+     links:node.links,
+     portalUrl:buildInstitutionalPortalUrl(answer.tenant.slug,node.id),
+    }):'';
+    return <article key={node.id}>
     <h3 ref={index===0?heading:undefined} tabIndex={-1}>{node.title}</h3>
     {initialMenu&&index===0?choices:null}
     <div className="institutional-chat-message__prose"><InstitutionalTextBlocks text={node.text}/></div>
-    <InstitutionalAcronyms items={readKnowledgeAcronyms(node.acronyms)} label={answer.ui?.acronyms}/>
-    {answer.easyRead&&!(initialMenu&&index===0)&&node.id!==answer.initialMenu?.startNodeId?
+    <InstitutionalAcronyms items={nodeAcronyms} label={answer.ui?.acronyms}/>
+    {answer.easyRead&&isOpenedAnswer?
      <InstitutionalEasyRead scope={{tenant:answer.tenant,revision:answer.revision,nodeId:node.id}} copy={answer.easyRead}
       initialText={index===0?answer.easyReadText??null:null}/>:null}
+    {isOpenedAnswer?
+     <div className="institutional-answer-actions">
+      <button type="button" className="institutional-answer-actions__button" data-action="share-whatsapp" data-whatsapp-url={whatsappUrl}
+       onClick={()=>openInstitutionalWhatsAppShare(whatsappUrl)}>
+       <Share2 size={17} aria-hidden="true"/><span>{shareLabels.whatsapp}</span>
+      </button>
+     </div>:null}
     {node.links.length?<div className="institutional-chat-message__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>)}</div>:null}
     <details className="institutional-chat-message__sources"><summary>{answer.ui?.source_details??'Fuentes y revisión'}</summary>{node.sources.map(source=><section key={source.id}>
      <h4>{source.title}</h4><KnowledgeSourceMetadata source={source} mode="public"/>
      {knowledgeSourceExternalUrl(source,'public')?<a href={knowledgeSourceExternalUrl(source,'public')!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
     </section>)}</details>
-   </article>)}
+   </article>;})}
    {answer.audioReading?<InstitutionalResponseAudio scope={{tenant:answer.tenant,revision:answer.revision,nodeIds:answer.nodes.map(node=>node.id)}} copy={answer.audioReading}/>:null}
    {!initialMenu?choices:null}
   </div>;
