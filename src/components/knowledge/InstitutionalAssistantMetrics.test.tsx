@@ -51,6 +51,19 @@ describe('written-question metrics in the administration workspace',()=>{
     await user.click(toggle);expect(screen.getByRole('heading',{name:copy.title})).toBeInTheDocument();
     expect(transport.fetch).toHaveBeenCalledTimes(2);
   });
+  it('leads with the resolution rate when the server sends it, and omits it otherwise',async()=>{
+    const user=userEvent.setup();transport.fetch.mockResolvedValueOnce(admin());render(view());
+    transport.fetch.mockResolvedValueOnce(metrics({resolution_rate:0.2,interpreted:5,
+      ui:{...copy,resolution_rate:'Etiqueta resolución',resolution_detail:'{answered} sobre {interpreted} sintéticas'}}));
+    await user.click(await screen.findByRole('button',{name:LABEL}));
+    const meter=await screen.findByRole('meter',{name:'Etiqueta resolución'});
+    expect(meter).toHaveAttribute('aria-valuenow','20');expect(meter).toHaveAttribute('aria-valuetext','20 %');
+    expect(screen.getByText('1 sobre 5 sintéticas')).toBeInTheDocument();
+    cleanup();transport.fetch.mockReset();transport.fetch.mockResolvedValueOnce(admin());render(view());
+    transport.fetch.mockResolvedValueOnce(metrics());
+    await user.click(await screen.findByRole('button',{name:LABEL}));
+    await screen.findByRole('heading',{name:copy.title});expect(screen.queryByRole('meter')).not.toBeInTheDocument();
+  });
   it('says so when the period has no written questions or was cut short',async()=>{
     const user=userEvent.setup();transport.fetch.mockResolvedValueOnce(admin());render(view());
     transport.fetch.mockResolvedValueOnce(metrics({totals:{answered:0,uncovered:0,typed_navigation:0,sources:0,unavailable:0},

@@ -99,6 +99,12 @@
 .institutional-assistant__metrics-panel h3 { font-size:1.15em; font-weight:650; line-height:1.4; }
 .institutional-assistant__metrics-panel h4 { font-size:1em; font-weight:650; margin-bottom:6px; }
 .institutional-assistant__metrics-note { font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); }
+.institutional-assistant__metrics-resolution { display:grid; gap:6px; max-width:34rem; }
+.institutional-assistant__metrics-resolution-label { font-weight:650; }
+.institutional-assistant__metrics-resolution-value { font-size:2.6em; font-weight:700; line-height:1; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
+.institutional-assistant__metrics-resolution-bar { height:8px; border-radius:999px; background:hsl(var(--muted)); overflow:hidden; }
+.institutional-assistant__metrics-resolution-bar>span { display:block; height:100%; border-radius:inherit; background:hsl(var(--foreground)); }
+@media (forced-colors:active) { .institutional-assistant__metrics-resolution-bar { border:1px solid CanvasText; } .institutional-assistant__metrics-resolution-bar>span { background:Highlight; } }
 .institutional-assistant__metrics-totals { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:10px; margin:0; }
 .institutional-assistant__metrics-totals>div { border:1px solid hsl(var(--border)); border-radius:10px; padding:10px 12px; }
 .institutional-assistant__metrics-totals dt { font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); }
