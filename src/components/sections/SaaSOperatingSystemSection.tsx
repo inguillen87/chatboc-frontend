@@ -41,7 +41,7 @@ const JourneyFlowLoading = () => (
     <div className="grid gap-3 p-4 sm:grid-cols-4 sm:p-6">
       {["Canales", "Agente", "Operación", "Gestión"].map((label) => (
         <div key={label} className="rounded-[12px] border border-border bg-background p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.11em] text-primary">{label}</p>
+          <p className="text-xs font-bold text-primary">{label}</p>
           <div className="mt-3 h-3 w-4/5 animate-pulse rounded bg-muted motion-reduce:animate-none" />
         </div>
       ))}
@@ -83,7 +83,7 @@ const JourneyFlowStatic = ({ reason }: { reason: JourneyFlowStaticReason }) => {
       <ol className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4" aria-label="Etapas informativas del recorrido">
         {journeyStages.map((stage) => (
           <li key={stage.title} className="relative rounded-[12px] border border-border bg-background p-4">
-            <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-primary">{stage.eyebrow}</p>
+            <p className="text-[11px] font-bold text-primary">{stage.eyebrow}</p>
             <h3 className="mt-2 text-base font-semibold text-foreground">{stage.title}</h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{stage.description}</p>
           </li>

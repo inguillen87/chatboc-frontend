@@ -1050,7 +1050,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             className="min-w-0 max-w-2xl"
           >
             {eyebrow && (
-              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.07] px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-primary shadow-sm">
+              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.07] px-3.5 py-1.5 text-[11px] font-semibold text-primary shadow-sm">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span className="truncate">{eyebrow}</span>
               </div>
@@ -1060,7 +1060,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
               <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.03] tracking-[-0.038em] text-foreground sm:text-5xl md:text-6xl lg:!max-w-[13ch] lg:!text-[clamp(3.35rem,3.9vw,4.65rem)]">
                 <span>{headlineLead}</span>{" "}
                 {headlineAccent && (
-                  <span className="bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent dark:from-blue-400 dark:via-sky-300 dark:to-blue-400">
+                  <span>
                     {headlineAccent}
                   </span>
                 )}
@@ -1078,7 +1078,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                 {heroPrimaryCta.label && (
                   <Button
                     size="lg"
-                    className="chatboc-cta-primary h-12 w-full rounded-xl px-6 text-sm font-semibold shadow-[0_14px_30px_-8px_hsl(var(--primary)/0.4)] transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 sm:w-auto"
+                    className="chatboc-cta-primary h-12 w-full rounded-xl px-6 text-sm font-semibold shadow-[0_14px_30px_-8px_hsl(var(--primary)/0.4)] transition-transform motion-reduce:hover:translate-y-0 sm:w-auto"
                     onClick={() => navigateTo(heroPrimaryCta.target)}
                   >
                     <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -1089,7 +1089,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   <Button
                     variant="outline"
                     size="lg"
-                    className="h-12 w-full rounded-xl border-border/80 bg-card/85 px-6 text-sm font-semibold shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.05] motion-reduce:hover:translate-y-0 sm:w-auto"
+                    className="h-12 w-full rounded-xl border-border/80 bg-card/85 px-6 text-sm font-semibold shadow-sm backdrop-blur transition-all hover:border-primary/40 hover:bg-primary/[0.05] motion-reduce:hover:translate-y-0 sm:w-auto"
                     onClick={() => navigateTo(secondaryCta.target)}
                   >
                     {secondaryCta.label}
@@ -1206,7 +1206,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   >
                     <div className="min-w-0">
                       <div className="mb-2 flex items-center justify-between gap-3 px-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        <p className="text-[11px] font-semibold text-muted-foreground">
                           Conversación
                         </p>
                         <span className="inline-flex items-center gap-1 truncate text-[11px] font-medium text-primary">
@@ -1330,7 +1330,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         transition={{ duration: reduceMotion ? 0 : 0.3 }}
                         className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--5 chatboc-phone-demo__result !rounded-[16px] !p-3.5"
                       >
-                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        <p className="mb-3 text-[11px] font-semibold text-muted-foreground">
                           Resultado en CRM
                         </p>
                         <div className="flex items-start justify-between gap-3">
@@ -1340,7 +1340,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             </div>
                             <div className="min-w-0">
                               {actionSectionLabel && (
-                                <p className="truncate text-[10px] font-semibold uppercase tracking-normal text-muted-foreground">
+                                <p className="truncate text-[10px] font-semibold text-muted-foreground">
                                   {actionSectionLabel}
                                 </p>
                               )}
@@ -1365,7 +1365,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                                 key={`${activeFlow.id}-${field.label}-${field.value}`}
                                 className="min-w-0 rounded-[8px] border border-border/70 bg-muted/35 px-2.5 py-2"
                               >
-                                <p className="truncate text-[10px] font-semibold uppercase tracking-normal text-muted-foreground">
+                                <p className="truncate text-[10px] font-semibold text-muted-foreground">
                                   {field.label}
                                 </p>
                                 <p className="mt-1 line-clamp-2 text-xs font-semibold leading-4 text-foreground">{field.value}</p>

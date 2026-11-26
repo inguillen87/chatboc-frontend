@@ -439,7 +439,7 @@ const WhiteLabelShowcaseSection = () => {
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {/* Palette */}
                   <div className="rounded-[12px] border border-border/70 bg-background/80 p-3.5">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                       <Palette className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                       Paleta activa
                     </div>
@@ -459,7 +459,7 @@ const WhiteLabelShowcaseSection = () => {
 
                   {/* Typography */}
                   <div className="rounded-[12px] border border-border/70 bg-background/80 p-3.5">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                       <Type className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                       Tipografía y ritmo
                     </div>
@@ -484,7 +484,7 @@ const WhiteLabelShowcaseSection = () => {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {/* Bubble geometry */}
                   <div className="rounded-[12px] border border-border/70 bg-background/80 p-3.5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    <p className="text-xs font-semibold text-muted-foreground">
                       Forma de burbuja
                     </p>
                     <p className="mt-1.5 text-sm font-semibold text-foreground">{active.bubbleStyle.label}</p>
@@ -493,7 +493,7 @@ const WhiteLabelShowcaseSection = () => {
 
                   {/* Mascot live states */}
                   <div className="rounded-[12px] border border-border/70 bg-background/80 p-3.5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    <p className="text-xs font-semibold text-muted-foreground">
                       Estado de la mascota
                     </p>
                     <div

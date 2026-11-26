@@ -47,7 +47,8 @@ const solutions = [
 const SolutionSection = () => {
   const navigate = useNavigate();
   const reduceMotion = Boolean(useReducedMotion());
-  const canAnimateInView = !reduceMotion && typeof IntersectionObserver !== "undefined";
+  // One orchestrated moment lives in the hero; sections below stay still.
+  const canAnimateInView = false && !reduceMotion;
 
   return (
     <section
@@ -77,11 +78,11 @@ const SolutionSection = () => {
                   whileInView={canAnimateInView ? { opacity: 1, y: 0 } : undefined}
                   viewport={canAnimateInView ? { once: true, amount: 0.2 } : undefined}
                   transition={{ duration: canAnimateInView ? 0.4 : 0, delay: canAnimateInView ? index * 0.08 : 0, ease: "easeOut" }}
-                  className="group relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)] dark:hover:shadow-[0_22px_55px_rgba(0,0,0,0.42)]"
+                  className="group relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-card p-6 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)] dark:hover:shadow-[0_22px_55px_rgba(0,0,0,0.42)]"
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${solution.accent}`} aria-hidden="true" />
                   <div className="flex items-center gap-3 border-b border-border/70 pb-5">
-                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[11px] bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
+                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[11px] bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" aria-hidden="true" />
                     </span>
                     <h3 className="text-lg font-bold text-foreground">{solution.sector}</h3>

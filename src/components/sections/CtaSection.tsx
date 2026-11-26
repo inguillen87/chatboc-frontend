@@ -10,7 +10,8 @@ const CTA_BOT_PALETTE = ["#0D35C3", "#2563EB", "#06B6D4", "#10B981"];
 const CtaSection = () => {
   const navigate = useNavigate();
   const reduceMotion = Boolean(useReducedMotion());
-  const canAnimateInView = !reduceMotion && typeof IntersectionObserver !== "undefined";
+  // One orchestrated moment lives in the hero; sections below stay still.
+  const canAnimateInView = false && !reduceMotion;
 
   const openSalesWhatsApp = () => {
     window.open(
