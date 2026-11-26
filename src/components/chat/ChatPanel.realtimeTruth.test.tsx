@@ -319,7 +319,8 @@ describe("ChatPanel realtime transport truth", () => {
       />,
     );
 
-    // The call is in the toolbar, in view, not behind "Ver acciones".
+    // No audio transport here, so the call is offered from the tray only.
+    fireEvent.click(screen.getByRole("button", { name: "Ver acciones" }));
     fireEvent.click(screen.getByRole("button", { name: "Llamada IA" }));
 
     await waitFor(() => {
