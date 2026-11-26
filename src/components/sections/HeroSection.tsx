@@ -153,7 +153,9 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
   return defaultValue;
 };
 
-const DEFAULT_HEADLINE = "Agentes IA con tu marca que atienden y resuelven";
+// These defaults are the same words the platform publishes. A slow or failed
+// request must not show one landing and then swap it for another.
+const DEFAULT_HEADLINE = "Convertí conversaciones en operaciones reales";
 const LEGACY_DESCRIPTION =
   "Chatboc atiende por web o WhatsApp, pide los datos justos y deja casos, pedidos o leads listos para operar.";
 const DEFAULT_DESCRIPTION =
@@ -162,10 +164,10 @@ const DEFAULT_EYEBROW = "Plataforma IA marca blanca";
 const DEFAULT_PROOF_ITEMS = ["100% marca blanca", "7 módulos conectados", "Web, WhatsApp y voz"];
 const DEFAULT_CONVERSATION_TITLE = "Conversación y gestión conectadas";
 const LEGACY_CONVERSATION_TITLE = "WhatsApp operativo";
-const DEFAULT_CONVERSATION_SUBTITLE = "Cada mensaje conserva contexto, estado y trazabilidad en el CRM.";
+const DEFAULT_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una acción trazable.";
 const LEGACY_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
-const DEFAULT_PRIMARY_CTA = { label: "Probar la demo", target: "/demo" };
-const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/contacto" };
+const DEFAULT_PRIMARY_CTA = { label: "Solicitar demostración", target: "/contacto" };
+const DEFAULT_SECONDARY_CTA = { label: "Ver recorrido", target: "/demo" };
 const LEGACY_PRIMARY_CTA_LABEL = "Probar una conversacion real";
 
 const normalizeHeroMediaUrl = (raw: string) => {
@@ -803,7 +805,7 @@ const HERO_QUICK_OPTIONS: Record<string, string[]> = {
   gobierno: ["Seguir reclamo", "Ver en mapa", "Hablar con un agente"],
   pyme: ["Ver carrito", "Calcular envío", "Medios de pago"],
   educacion: ["Emitir constancia", "Ver agenda", "Secretaría"],
-  platform: ["Ver recorrido", "Activar canal", "Hablar con ventas"],
+  platform: ["Seguir el caso", "Activar canal", "Hablar con una persona"],
 };
 
 const DEFAULT_HERO_MOCKUP_FLOW: ConversationFlow = {
