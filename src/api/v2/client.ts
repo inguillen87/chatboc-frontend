@@ -11,6 +11,8 @@ export interface V2RequestOptions {
   tenantSlug?: string | null;
   skipAuth?: boolean;
   omitCredentials?: boolean;
+  /** Do not attach a token recovered from the browser; the caller names its own. */
+  omitEntityToken?: boolean;
   isWidgetRequest?: boolean;
   legacyFallbackPath?: string;
   baseUrlOverride?: string | null;
@@ -40,6 +42,7 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     tenantSlug,
     skipAuth,
     omitCredentials,
+    omitEntityToken,
     isWidgetRequest,
     legacyFallbackPath,
     baseUrlOverride,
@@ -52,6 +55,7 @@ const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promi
     body,
     skipAuth,
     omitCredentials,
+    ...(omitEntityToken ? { omitEntityToken: true } : {}),
     isWidgetRequest,
     tenantSlug,
     headers: withTenantHeader(headers, tenantSlug),
