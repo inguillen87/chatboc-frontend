@@ -76,14 +76,16 @@ describe('initial canonical institutional menu reading position',()=>{
     expect(area.scrollTop).toBe(250);
   });
 
-  it.each(['ordinary','wrong tenant','error','later conversation'] as const)('retains ordinary conversation scrolling for %s',async kind=>{
+  it.each(['ordinary','wrong tenant','error','later conversation'] as const)('reads a lone greeting from the top and a conversation from the bottom for %s',async kind=>{
     const initial=canonicalMessage(kind==='wrong tenant'?'qa-other':'qa-knowledge');
     if(kind==='ordinary')initial.institutional=undefined;
     if(kind==='error')initial.isError=true;
     chatLogic.messages=kind==='later conversation'?[{id:'visitor-input',isBot:false,text:'Consulta',timestamp:new Date()},initial]:[initial];
     const view=render(panel()),area=prepare(view.container);
     await act(async()=>{await vi.advanceTimersByTimeAsync(150);});
-    expect(area.scrollTop).toBe(900);
+    // A lone first message is the greeting: it is read from its start, with the
+    // menu under it. Once there is a conversation, the newest message wins.
+    expect(area.scrollTop).toBe(kind==='later conversation'?900:0);
   });
 
   it('anchors the new organization only after a scoped replacement',async()=>{
