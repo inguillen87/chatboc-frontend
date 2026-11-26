@@ -80,7 +80,7 @@ describe('buildExecutiveOverviewModel', () => {
     });
     expect(model.scorecards[1].evidence.basis).toBeNull();
     expect(model.ranking).toMatchObject({
-      title: 'Canales del escenario',
+      title: 'Canales',
       scale: 'share',
       sourceLabel: 'demo.channel_summary.v1',
       basis: { label: 'Interacciones', value: 426 },
@@ -93,7 +93,7 @@ describe('buildExecutiveOverviewModel', () => {
         id: 'intake',
         title: 'Ingreso del reclamo',
         channel: 'WhatsApp',
-        status: 'Dentro de SLA',
+        status: 'En plazo',
       }],
     });
     expect(model.callout).toEqual({

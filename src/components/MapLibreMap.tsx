@@ -121,7 +121,10 @@ export type MapLibreMapProps = {
   pointLabelMinZoom?: number;
   pointLabelMode?: "count" | "barrio" | "categoria" | "none";
   heatmapRadiusScale?: number;
+  heatmapIntensityScale?: number;
   heatmapPalette?: "default" | "faro";
+  /** Colour ramp of the default palette. "viridis" stays the default for operational panels. */
+  heatmapRamp?: "viridis" | "thermal";
   /** Fade density as the operator zooms in so concrete points become the primary evidence. */
   adaptiveZoomMode?: boolean;
 };
@@ -193,11 +196,25 @@ const heatmapRadiusExpression = (scale: number) => [
     scale,
     [
       "max",
-      18,
+      22,
       [
         "*",
         ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
-        6.4,
+        8.5,
+      ],
+    ],
+  ],
+  16,
+  [
+    "*",
+    scale,
+    [
+      "max",
+      32,
+      [
+        "*",
+        ["sqrt", ["coalesce", ["get", "clusterSize"], ["get", "point_count"], 1]],
+        12.5,
       ],
     ],
   ],
@@ -858,7 +875,9 @@ export default function MapLibreMap({
   pointLabelMinZoom = 9,
   pointLabelMode = "count",
   heatmapRadiusScale = 1,
+  heatmapIntensityScale = 1,
   heatmapPalette = "default",
+  heatmapRamp = "viridis",
   adaptiveZoomMode = false,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
@@ -901,6 +920,9 @@ export default function MapLibreMap({
     : 9;
   const resolvedHeatmapRadiusScale = Number.isFinite(heatmapRadiusScale)
     ? Math.max(0.5, Math.min(4, heatmapRadiusScale))
+    : 1;
+  const resolvedHeatmapIntensityScale = Number.isFinite(heatmapIntensityScale)
+    ? Math.max(0.5, Math.min(4, heatmapIntensityScale))
     : 1;
   const configuredGeoSource = useMemo(() => {
     if (!isFeatureCollection(geoLayerConfig?.source)) return null;
@@ -1300,7 +1322,7 @@ export default function MapLibreMap({
             id: configuredLayerIds.heat,
             type: "heatmap",
             source: MAP_HEAT_SOURCE_ID,
-            maxzoom: 15,
+            maxzoom: 18,
             paint: {
               "heatmap-weight": heatmapPalette === "faro"
                 ? [
@@ -1321,13 +1343,13 @@ export default function MapLibreMap({
                 : ["coalesce", ["get", "intensity"], ["get", "weight"], ["get", "point_count"], 1],
               "heatmap-intensity": heatmapPalette === "faro"
                 ? ["interpolate", ["linear"], ["zoom"], 0, 1.8, 15, 4.6]
-                : ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
+                : ["interpolate", ["linear"], ["zoom"], 0, 1.1, 15, 3.8],
               "heatmap-radius": heatmapRadiusExpression(heatmapRadiusScaleRef.current),
               "heatmap-opacity": adaptiveZoomMode
                 ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
                 : heatmapPalette === "faro"
                   ? 0.76
-                  : 0.65,
+                  : 0.78,
               "heatmap-color": heatmapPalette === "faro"
                 ? [
                     "interpolate",
@@ -1348,18 +1370,23 @@ export default function MapLibreMap({
                     "interpolate",
                     ["linear"],
                     ["heatmap-density"],
-                    0,
-                    "rgba(68, 1, 84, 0)",
-                    0.18,
-                    "rgba(68, 1, 84, 0.62)",
-                    0.38,
-                    "rgba(59, 82, 139, 0.72)",
-                    0.58,
-                    "rgba(33, 145, 140, 0.78)",
-                    0.78,
-                    "rgba(94, 201, 98, 0.86)",
-                    1,
-                    "rgba(253, 231, 37, 0.96)",
+                    ...(heatmapRamp === "thermal"
+                      ? [
+                          0, "rgba(37, 99, 235, 0)",
+                          0.05, "rgba(56, 189, 248, 0.44)",
+                          0.25, "rgba(14, 165, 233, 0.66)",
+                          0.5, "rgba(245, 158, 11, 0.82)",
+                          0.78, "rgba(234, 88, 12, 0.92)",
+                          1, "rgba(185, 28, 28, 0.96)",
+                        ]
+                      : [
+                          0, "rgba(68, 1, 84, 0)",
+                          0.18, "rgba(68, 1, 84, 0.62)",
+                          0.38, "rgba(59, 82, 139, 0.72)",
+                          0.58, "rgba(33, 145, 140, 0.78)",
+                          0.78, "rgba(94, 201, 98, 0.86)",
+                          1, "rgba(253, 231, 37, 0.96)",
+                        ]),
                   ],
             },
           });
@@ -2089,7 +2116,7 @@ export default function MapLibreMap({
         ? ["interpolate", ["linear"], ["zoom"], 4, 0.76, 9, 0.58, 12, 0.24, 14, 0]
         : heatmapPalette === "faro"
           ? 0.76
-          : 0.65,
+          : 0.78,
     );
   }, [adaptiveZoomMode, configuredLayerIds.heat, heatmapPalette, mapGeneration]);
 
@@ -2209,7 +2236,7 @@ export default function MapLibreMap({
 
     if (prefersReducedMotion) {
       if (map.getLayer(configuredLayerIds.heat)) {
-        map.setPaintProperty(configuredLayerIds.heat, "heatmap-intensity", 1);
+        map.setPaintProperty(configuredLayerIds.heat, "heatmap-intensity", resolvedHeatmapIntensityScale);
       }
       return;
     }
@@ -2222,7 +2249,7 @@ export default function MapLibreMap({
       if (mapRef.current !== map || !map.isStyleLoaded()) return;
       // Slower, deeper pulse for a "breathing" effect
       const t = (Date.now() % 4000) / 4000;
-      const intensity = 1 + 0.3 * Math.sin(t * Math.PI * 2);
+      const intensity = resolvedHeatmapIntensityScale * (1 + 0.25 * Math.sin(t * Math.PI * 2));
       if (map.getLayer(configuredLayerIds.heat)) {
         map.setPaintProperty(configuredLayerIds.heat, "heatmap-intensity", intensity);
       }
@@ -2231,7 +2258,7 @@ export default function MapLibreMap({
 
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [configuredLayerIds.heat, mapGeneration, prefersReducedMotion, showHeatmap, showPolygons]);
+  }, [configuredLayerIds.heat, mapGeneration, prefersReducedMotion, resolvedHeatmapIntensityScale, showHeatmap, showPolygons]);
 
   useEffect(() => {
     const map = mapRef.current;

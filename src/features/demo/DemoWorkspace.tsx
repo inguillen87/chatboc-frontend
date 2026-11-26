@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   BarChart3,
   BookOpen,
-  CheckCircle2,
   Clock3,
   ExternalLink,
   FileText,
@@ -12,7 +11,6 @@ import {
   PackageCheck,
   Phone,
   ShoppingCart,
-  Smartphone,
   Tags,
   Wrench,
 } from 'lucide-react';
@@ -287,33 +285,40 @@ export default function DemoWorkspace({
 
   return (
     <div className="space-y-4">
-      <section className={`mx-auto w-full rounded-2xl border border-border/80 bg-card/90 p-2 shadow-lg shadow-black/5 ${isExecutive ? 'max-w-3xl' : 'max-w-[440px]'} dark:bg-[#10151d]`}>
-        <div className="rounded-[1.6rem] border border-border/60 bg-background/95 p-3 shadow-inner dark:bg-[#0b1018]">
-          <div className="mb-3 flex items-center justify-between rounded-[1.2rem] border border-border/60 bg-card/80 px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Smartphone className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{chatTitle}</p>
-                <p className="truncate text-xs text-muted-foreground">{phoneSubtitle}</p>
-                <TrialUsageIndicator usage={trialUsage} />
-              </div>
+      <section
+        className={
+          isExecutive
+            ? 'w-full overflow-hidden rounded-[12px] border border-border bg-card'
+            : 'mx-auto w-full max-w-[440px] rounded-[12px] border border-border bg-card p-2'
+        }
+      >
+        <div
+          className={
+            isExecutive
+              ? 'p-4 sm:p-5'
+              : 'rounded-[12px] border border-border/60 bg-background p-3'
+          }
+        >
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">{chatTitle}</p>
+              <p className="truncate text-xs text-muted-foreground">{phoneSubtitle}</p>
+              <TrialUsageIndicator usage={trialUsage} />
             </div>
             {loading ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden="true" />
-                conectando
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" aria-hidden="true" />
+                Conectando
               </span>
             ) : runtimeAvailable ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">
-                <CheckCircle2 className="h-3 w-3" />
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-[8px] border border-border bg-muted/35 px-2.5 py-1 text-xs font-medium text-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
                 En línea
               </span>
             ) : null}
           </div>
 
-          <div className="max-h-[720px] min-h-[560px] overflow-y-auto rounded-[1.2rem] border border-border/50 bg-muted/15 p-3">
+          <div className="max-h-[720px] min-h-[540px] overflow-y-auto rounded-[8px] border border-border bg-background p-3">
             {loading ? (
               <div
                 className="flex min-h-[520px] flex-col rounded-[1rem] border border-border/60 bg-card/50 p-5"

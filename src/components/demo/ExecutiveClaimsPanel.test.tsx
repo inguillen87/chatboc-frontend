@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DEMO_DATA_NOTICE } from '@/features/demo/demoPresentationLabels';
 import ExecutiveClaimsPanel, { type ExecutiveClaimCase } from './ExecutiveClaimsPanel';
 
 const cases: ExecutiveClaimCase[] = [
@@ -14,7 +15,7 @@ const cases: ExecutiveClaimCase[] = [
     channel: 'whatsapp',
     zone: 'Centro',
     slaStatus: 'en_riesgo',
-    openedAtLabel: 'Hace 3 horas',
+    openedAtLabel: '08:40 del día simulado',
     hasLocation: true,
     dataMode: 'synthetic_demo_scenario',
   },
@@ -23,7 +24,7 @@ const cases: ExecutiveClaimCase[] = [
     caseCode: 'REC-1002',
     title: 'Bache en calzada',
     category: 'Vía pública',
-    status: 'abierto',
+    status: 'resolved',
     priority: 'media',
     channel: 'web',
     zone: 'Norte',
@@ -46,30 +47,31 @@ const cases: ExecutiveClaimCase[] = [
 ];
 
 describe('ExecutiveClaimsPanel', () => {
-  it('renders source-backed coverage and ranked distributions without inventing compliance', () => {
+  it('renders clear sections by status, category, zone and latest claims with unified synthetic notice', () => {
     render(
       <ExecutiveClaimsPanel
         cases={cases}
         sourceKind="synthetic"
-        sourceLabel="Casos simulados"
-        sample={{ isSample: true, displayedCases: 3, totalCases: 184, label: 'Muestra territorial.' }}
+        sample={{ isSample: true, displayedCases: 3, totalCases: 184 }}
       />,
     );
 
-    expect(screen.getByText('Casos simulados')).toBeVisible();
-    expect(screen.getByText(/no corresponden a personas reales/i)).toBeVisible();
-    expect(screen.getByText('3 de 184 casos informados por el contrato.')).toBeVisible();
-    expect(screen.getByText('3/3')).toBeVisible();
-    expect(screen.getByText('2/3')).toBeVisible();
-    expect(screen.getByText('sin inferir cumplimiento')).toBeVisible();
+    expect(screen.getByRole('note')).toHaveTextContent(DEMO_DATA_NOTICE);
+    expect(screen.getByRole('heading', { name: 'Cómo están hoy' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Por categoría' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Por zona' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Últimos reclamos' })).toBeVisible();
+    expect(screen.getByText('Mostrando 3 de 184 reclamos recientes')).toBeVisible();
+    expect(screen.getByText('Hoy, 08:40')).toBeVisible();
+    expect(screen.queryByText(/del día simulado/i)).not.toBeInTheDocument();
 
-    const statusChart = screen.getByRole('region', { name: 'Distribución por estado' });
-    expect(within(statusChart).getByRole('progressbar', { name: 'En gestion: 2 de 3 casos con dato, 66,7 %' })).toBeVisible();
-    expect(within(statusChart).getByText('Base del gráfico: 3 de 3 casos visibles con este campo informado.')).toBeVisible();
-    expect(screen.queryByText(/% de cumplimiento/i)).not.toBeInTheDocument();
+    const statusSection = screen.getByRole('region', { name: 'Cómo están hoy' });
+    expect(
+      within(statusSection).getByRole('progressbar', { name: 'En gestion: 2 de 3 casos, 66,7 %' }),
+    ).toBeVisible();
   });
 
-  it('keeps backend order and exposes optional actions accessibly', () => {
+  it('keeps order and exposes optional actions accessibly', () => {
     const onOpenCase = vi.fn();
     const onShowCaseOnMap = vi.fn();
     render(
@@ -81,8 +83,8 @@ describe('ExecutiveClaimsPanel', () => {
       />,
     );
 
-    const queue = screen.getByRole('region', { name: 'Cola operativa visible' });
-    const headings = within(queue).getAllByRole('heading', { level: 5 });
+    const queue = screen.getByRole('region', { name: 'Últimos reclamos' });
+    const headings = within(queue).getAllByRole('heading', { level: 4 });
     expect(headings.map((heading) => heading.textContent)).toEqual([
       'Luminaria apagada',
       'Bache en calzada',
@@ -103,9 +105,7 @@ describe('ExecutiveClaimsPanel', () => {
       <ExecutiveClaimsPanel cases={[]} sourceKind="unknown" />,
     );
 
-    expect(screen.getByText('Fuente no informada')).toBeVisible();
-    expect(screen.getByText('Sin casos en el contrato actual')).toBeVisible();
-    expect(screen.getByText(/no genera casos ni indicadores sustitutos/i)).toBeVisible();
+    expect(screen.getByText('Todavía no hay reclamos cargados')).toBeVisible();
 
     rerender(
       <ExecutiveClaimsPanel
@@ -114,7 +114,6 @@ describe('ExecutiveClaimsPanel', () => {
         sample={{ isSample: true, displayedCases: 5, totalCases: 2 }}
       />,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('declara 5 casos visibles y entregó 3');
-    expect(screen.getByRole('alert')).toHaveTextContent('sin completar ni descartar información');
+    expect(screen.getByRole('alert')).toHaveTextContent('se anunciaron 5 casos y llegaron 3');
   });
 });

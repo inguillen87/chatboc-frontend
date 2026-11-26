@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   aggregateTerritoryHeatmap,
+  buildDemoTerritoryHeatPoints,
   DEVELOPMENT_TERRITORY_ZONES,
+  filterDemoTerritoryPointsByCategory,
   getDemoTerritoryHeatmapPoints,
   isTerritoryDemoFallbackEnabled,
   PREMIUM_HEATMAP_MIN_SAMPLE_SIZE,
@@ -10,6 +12,7 @@ import {
   resolveTerritoryDataProvenance,
   resolveTerritoryLayerDescriptors,
   resolveTerritoryMapReadiness,
+  summarizeDemoTerritoryCategories,
 } from './premiumTerritoryHeatmap';
 import type { OperationsHeatmapPoint, OperationsHeatmapV1 } from './analyticsTypes';
 
@@ -567,5 +570,27 @@ describe('premium territory heatmap aggregation', () => {
       source: 'backend',
     });
     expect(commerce?.description).toContain('sin datos personales');
+  });
+
+  it('summarizes, filters and scales demo territory points proportionally to volume', () => {
+    const samplePoints = [
+      { id: '1', label: 'Luminaria', lat: -33.1422, lng: -68.4824, category: 'Alumbrado', zone: 'Centro', weight: 18 },
+      { id: '2', label: 'Calzada', lat: -33.1379, lng: -68.4921, category: 'Bacheo', zone: 'Noroeste', weight: 12 },
+      { id: '3', label: 'Tránsito', lat: -33.1472, lng: -68.4992, category: 'Tránsito', zone: 'Oeste', weight: 6 },
+    ];
+
+    const categories = summarizeDemoTerritoryCategories(samplePoints);
+    expect(categories.map((cat) => cat.label)).toEqual(['Alumbrado', 'Bacheo', 'Tránsito']);
+    expect(categories[0]).toMatchObject({ volume: 18, share: 50 });
+
+    const filtered = filterDemoTerritoryPointsByCategory(samplePoints, 'transito');
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].zone).toBe('Oeste');
+
+    const scaled = buildDemoTerritoryHeatPoints(samplePoints);
+    expect(scaled[0].intensity).toBeGreaterThan(scaled[1].intensity);
+    expect(scaled[1].intensity).toBeGreaterThan(scaled[2].intensity);
+    expect(scaled[0].clusterSize).toBe(18);
+    expect(scaled[2].clusterSize).toBe(6);
   });
 });
