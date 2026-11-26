@@ -3423,7 +3423,19 @@ const ChatPanelContent = (props: ChatPanelProps) => {
           return;
         }
 
-        if (wasPinnedToBottom || isInitialGreeting || scrollHeight - scrollTop - clientHeight < 140) {
+        if (isInitialGreeting) {
+          // The first thing to read is the greeting, with the menu under it:
+          // start at the top instead of jumping past it to the last option.
+          lastAutoScrolledMessageIdRef.current = latestVisible.id;
+          container.scrollTop = 0;
+          lastScrollTopRef.current = 0;
+          const remaining = container.scrollHeight - container.clientHeight;
+          isPinnedToBottomRef.current = remaining < 64;
+          setShowScrollDown(remaining >= 100);
+          return;
+        }
+
+        if (wasPinnedToBottom || scrollHeight - scrollTop - clientHeight < 140) {
           lastAutoScrolledMessageIdRef.current = latestVisible.id;
           const latestEl = latestMessageElementRef.current;
           const containerRect = container.getBoundingClientRect();
