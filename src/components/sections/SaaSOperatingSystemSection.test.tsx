@@ -35,7 +35,14 @@ describe("ServiceJourneyFlow", () => {
 
     const compactJourney = screen.getByRole("list", { name: "Recorrido operativo para gobierno" });
     expect(compactJourney).not.toHaveClass("md:hidden");
-    expect(within(compactJourney).getAllByRole("listitem")).toHaveLength(4);
+    // Five steps of one case; the step list does not depend on any browser API.
+    const steps = within(compactJourney).getAllByRole("button");
+    expect(steps).toHaveLength(5);
+    expect(steps[0]).toHaveAttribute("aria-current", "step");
+
+    fireEvent.click(steps[3]);
+    expect(steps[3]).toHaveAttribute("aria-current", "step");
+    expect(screen.getAllByText("Alumbrado: luminaria reemplazada.").length).toBeGreaterThan(0);
   });
 });
 
