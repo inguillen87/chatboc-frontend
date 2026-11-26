@@ -199,6 +199,8 @@
   .chatboc-section-kicker {
     @apply inline-flex items-center gap-2 text-sm font-medium text-muted-foreground;
   }
+  .chatboc-display { font-family:'Bricolage Grotesque','Inter',sans-serif; letter-spacing:-0.015em; }
+
   .chatboc-section-heading {
     @apply text-3xl font-bold text-foreground md:text-[2.6rem];
     font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
