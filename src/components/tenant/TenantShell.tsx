@@ -312,7 +312,7 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
     }
 
     return (
-      <div className={cn('flex flex-col md:flex-row md:items-center md:justify-between', compactHeader ? 'gap-4' : 'gap-6')}>
+      <div className={cn('flex flex-col md:flex-row md:items-center md:justify-between', compactHeader ? 'gap-3 sm:gap-4' : 'gap-6')}>
         <div className="flex flex-1 items-start gap-4">
           {brandMark || resolvedTenant.logo_url ? (
             <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-2xl border bg-card p-1.5 shadow-sm sm:block">
@@ -326,14 +326,14 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               {resolvedTenant.tipo ? (
-                <Badge variant="secondary" className="uppercase tracking-wide">
+                <Badge variant="secondary" className="font-medium">
                   {organizationTypeLabel(resolvedTenant.tipo)}
                 </Badge>
               ) : null}
               {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
-              <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('font-semibold leading-tight', HEADING_FOCUS_CLASS, compactHeader ? 'text-2xl' : 'text-3xl')}>{resolvedTenant.nombre}</h1>
+              <h1 ref={headingRef} tabIndex={-1} id={TENANT_SHELL_TITLE_ID} className={cn('font-semibold leading-tight', HEADING_FOCUS_CLASS, compactHeader ? 'text-xl sm:text-2xl' : 'text-3xl')}>{resolvedTenant.nombre}</h1>
               {resolvedTenant.descripcion ? (
                 <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{resolvedTenant.descripcion}</p>
               ) : null}
@@ -341,10 +341,13 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
           </div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {/* Secondary on purpose: people come here for help, not to follow. On a
+              phone it keeps its own width instead of taking a full row. */}
           <Button
             onClick={handleToggleFollow}
-            variant={isCurrentTenantFollowed ? 'outline' : 'default'}
+            variant="outline"
             disabled={updatingFollow}
+            className="min-h-11 self-start sm:self-auto"
           >
             {isCurrentTenantFollowed ? 'Dejar de seguir' : 'Seguir espacio'}
           </Button>
@@ -358,7 +361,14 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
     if (recoveryMessage || !basePath || !navigationItems.length) return null;
 
     return (
-      <nav className={cn('flex flex-wrap items-center gap-2', compactHeader ? 'mt-4' : 'mt-8')}>
+      <nav
+        aria-label="Secciones del espacio"
+        className={cn(
+          // One swipeable row on a phone, so the help below starts on the first screen.
+          '-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden [&>*]:shrink-0',
+          compactHeader ? 'mt-3 sm:mt-4' : 'mt-8',
+        )}
+      >
         {navigationItems.map((item) => {
           const key = item.id || item.route || item.label;
           const to = tenantHostNavigationTarget(hostBinding, resolveTenantPublicNavigationTarget(item, basePath));
@@ -401,7 +411,7 @@ export const TenantShell = ({ children, compactHeader = false, titleSection }: T
 
   return (
     <div
-      className={cn('mx-auto w-full max-w-5xl', compactHeader ? 'space-y-5 py-6' : 'space-y-8 py-10')}
+      className={cn('mx-auto w-full max-w-5xl', compactHeader ? 'space-y-4 py-3 sm:space-y-5 sm:py-6' : 'space-y-8 py-10')}
       style={brandTypographyStyle}
       data-brand-identity={brandIdentity ? 'published' : undefined}
     >

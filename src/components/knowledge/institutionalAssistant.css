@@ -21,7 +21,7 @@
 .institutional-assistant__topic-index nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:4px; }
 .institutional-assistant__topic-index nav button { justify-content:space-between; text-align:left; border:1px solid var(--institutional-control-border); }
 .institutional-assistant__sidebar { padding:24px 16px; border-right:1px solid hsl(var(--border)); background:hsl(var(--muted)/.22); min-width:0; }
-.institutional-assistant__eyebrow { margin:0 12px 14px; font-size:var(--institutional-detail-size); letter-spacing:.08em; text-transform:uppercase; color:hsl(var(--muted-foreground)); font-weight:600; }
+.institutional-assistant__eyebrow { margin:0 12px 14px; font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); font-weight:600; }
 .institutional-assistant__sidebar nav { display:grid; gap:4px; }
 .institutional-assistant__sidebar nav button { text-align:left; justify-content:space-between; width:100%; font-size:var(--institutional-control-size); }
 .institutional-assistant__sidebar nav button span { min-width:0; overflow-wrap:anywhere; }
