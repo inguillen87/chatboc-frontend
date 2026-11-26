@@ -10,8 +10,8 @@ const surveyVoting: ExecutiveSurveyVoting = {
   realPeople: false,
   items: [{
     id: 'survey-1',
-    title: 'Votación de prioridades barriales',
-    description: 'Prioridades para los próximos 90 días.',
+    title: 'Votación de prioridades barriales (DEMO NO OFICIAL)',
+    description: 'DEMO NO OFICIAL — Votación no vinculante creada exclusivamente para validar Chatboc.',
     question: '¿Qué tema debería resolverse primero?',
     status: 'demo_publicada',
     totalResponses: 100,
@@ -87,83 +87,62 @@ const multiSurveyVoting: ExecutiveSurveyVoting = {
 };
 
 describe('ExecutiveSurveyPanel', () => {
-  it('turns the API distribution into a truthful executive readout', () => {
+  it('shows the question, ranked animated bars and clear vote CTA without boilerplate disclaimers', () => {
     render(
       <ExecutiveSurveyPanel
         surveyVoting={surveyVoting}
-        inventoryLabel="1 visible de 6 encuestas demo"
+        inventoryLabel="1 de 6 encuestas"
         fallbackTitle="Encuestas"
       />,
     );
 
-    expect(screen.getByText('1 visible de 6 encuestas demo')).toBeVisible();
-    expect(screen.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
-    expect(screen.getByText('Sin denominador')).toBeVisible();
-    expect(screen.getByText('20 p.p.')).toBeVisible();
-    expect(screen.getByText(/Luminarias encabeza la distribución con 45%/)).toBeVisible();
+    expect(screen.getByRole('heading', { name: '¿Qué tema debería resolverse primero?' })).toBeVisible();
+    expect(screen.getByText('Votación de prioridades barriales')).toBeVisible();
+    expect(screen.queryByText(/DEMO NO OFICIAL/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Base sintética determinística/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sin denominador/i)).not.toBeInTheDocument();
 
     const distribution = screen.getByRole('region', {
-      name: 'Distribución de respuestas de Votación de prioridades barriales',
+      name: 'Resultados de Votación de prioridades barriales',
     });
     const progressbars = within(distribution).getAllByRole('progressbar');
     expect(progressbars[0]).toHaveAccessibleName('Luminarias: 45 %');
     expect(progressbars[1]).toHaveAccessibleName('Limpieza: 25 %');
-    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute(
+    expect(progressbars[0].firstElementChild).toHaveClass('transition-[width]', 'motion-reduce:transition-none');
+    expect(screen.getByRole('link', { name: 'Votar en esta encuesta' })).toHaveAttribute(
       'href',
       '/e/demo-prioridades-barriales',
     );
   });
 
-  it('shows only segmentation dimensions delivered by the contract', () => {
-    const partitionedVoting: ExecutiveSurveyVoting = {
-      ...surveyVoting,
-      items: [{
-        ...surveyVoting.items[0],
-        totalResponses: 102,
-        interactiveDemoResponses: 2,
-        options: [
-          { id: 'luminarias', label: 'Luminarias', count: 47, percentage: 46.08 },
-          { id: 'bacheo', label: 'Bacheo', count: 18, percentage: 17.65 },
-          { id: 'limpieza', label: 'Limpieza', count: 25, percentage: 24.51 },
-          { id: 'verdes', label: 'Espacios verdes', count: 12, percentage: 11.76 },
-        ],
-      }],
-    };
+  it('shows segmentation dimensions cleanly without repeated disclaimers', () => {
     render(
       <ExecutiveSurveyPanel
-        surveyVoting={partitionedVoting}
-        inventoryLabel="1 visible de 6 encuestas demo"
+        surveyVoting={surveyVoting}
+        inventoryLabel="1 de 6 encuestas"
         fallbackTitle="Encuestas"
       />,
     );
 
-    expect(screen.getByText('Norte')).not.toBeVisible();
-    fireEvent.click(screen.getByText('Cortes descriptivos'));
+    expect(screen.getByRole('heading', { name: 'Quiénes respondieron' })).toBeVisible();
     expect(screen.getByText('Norte')).toBeVisible();
-    expect(screen.getByText('60 · 60%')).toBeVisible();
-    expect(screen.queryByText('60 · 58,8%')).not.toBeInTheDocument();
     expect(screen.queryByText('WhatsApp')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Canal' }));
     expect(screen.getByText('WhatsApp')).toBeVisible();
     expect(screen.getByText('Web')).toBeVisible();
     expect(screen.queryByText('Chat web')).not.toBeInTheDocument();
-    expect(screen.getByText('Segmentación calculada exclusivamente sobre la base sintética del escenario.')).toBeVisible();
   });
 
-  it('renders one accessible detail view and keeps the remaining surveys compact', () => {
+  it('updates the top result bars and CTA when selecting another survey from the list', () => {
     render(
       <ExecutiveSurveyPanel
         surveyVoting={multiSurveyVoting}
-        inventoryLabel="3 visibles de 6 encuestas demo"
+        inventoryLabel="3 de 6 encuestas"
         fallbackTitle="Encuestas"
       />,
     );
 
-    expect(screen.getByText('3 visibles de 6 encuestas demo')).toBeVisible();
-    expect(screen.getByText('2 de 3 en detalle')).toBeVisible();
-    expect(screen.getByLabelText('Síntesis global de encuestas')).toHaveTextContent(
-      /Destino del presupuesto participativo.*mayor volumen visible/i,
-    );
+    expect(screen.getByRole('heading', { name: 'Otras encuestas' })).toBeVisible();
 
     const leaderTrigger = screen.getByRole('button', { name: /Destino del presupuesto participativo/i });
     const firstTrigger = screen.getByRole('button', { name: /Votación de prioridades barriales/i });
@@ -174,15 +153,12 @@ describe('ExecutiveSurveyPanel', () => {
     expect(thirdTrigger).toHaveAttribute('aria-expanded', 'false');
     const detailRegionId = leaderTrigger.getAttribute('aria-controls');
     const detailRegion = detailRegionId ? document.getElementById(detailRegionId) : null;
-    expect(detailRegionId).toBeTruthy();
-    expect(detailRegion).not.toBeNull();
     expect(detailRegion).toBeVisible();
-    expect(screen.getAllByRole('link', { name: 'Abrir encuesta demo' })).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: 'Votar en esta encuesta' })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Votar en esta encuesta' })).toHaveAttribute(
       'href',
       '/e/demo-presupuesto-participativo',
     );
-    expect(screen.queryByRole('region', { name: 'Distribución de respuestas de Votación de prioridades barriales' })).not.toBeInTheDocument();
 
     firstTrigger.focus();
     expect(firstTrigger).toHaveFocus();
@@ -190,14 +166,12 @@ describe('ExecutiveSurveyPanel', () => {
 
     expect(firstTrigger).toHaveAttribute('aria-expanded', 'true');
     expect(leaderTrigger).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByText('1 de 3 en detalle')).toBeVisible();
-    expect(detailRegion).toHaveAccessibleName('Votación de prioridades barriales: análisis visible');
-    expect(screen.getByRole('region', { name: 'Distribución de respuestas de Votación de prioridades barriales' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute(
+    expect(detailRegion).toHaveAccessibleName('Votación de prioridades barriales: resultados visibles');
+    expect(screen.getByRole('region', { name: 'Resultados de Votación de prioridades barriales' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Votar en esta encuesta' })).toHaveAttribute(
       'href',
       '/e/demo-prioridades-barriales',
     );
-    expect(screen.queryByRole('region', { name: 'Distribución de respuestas de Destino del presupuesto participativo' })).not.toBeInTheDocument();
   });
 
   it('keeps an explicit empty state instead of fabricating metrics', () => {
@@ -210,7 +184,6 @@ describe('ExecutiveSurveyPanel', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Encuestas y votaciones' })).toBeVisible();
-    expect(screen.getByText('Sin encuestas publicadas en este contrato')).toBeVisible();
-    expect(screen.getByText(/no genera métricas sustitutas/i)).toBeVisible();
+    expect(screen.getByText('Todavía no hay encuestas publicadas en esta vista.')).toBeVisible();
   });
 });

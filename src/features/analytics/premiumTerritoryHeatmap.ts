@@ -952,3 +952,101 @@ export const territoryZoneToPath = (zone: TerritoryZone) =>
     .join(' ');
 
 export const territoryCentroid = centroid;
+
+export interface DemoTerritoryPointInput {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  address?: string | null;
+  category?: string | null;
+  zone?: string | null;
+  status?: string | null;
+  weight?: number | null;
+}
+
+export interface DemoTerritoryCategorySummary {
+  key: string;
+  label: string;
+  volume: number;
+  points: number;
+  share: number;
+}
+
+const normalizeCategoryKey = (value?: string | null) =>
+  (value ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+export const summarizeDemoTerritoryCategories = (
+  points: readonly DemoTerritoryPointInput[],
+): DemoTerritoryCategorySummary[] => {
+  const counts = new Map<string, { label: string; volume: number; points: number }>();
+
+  for (const point of points) {
+    const rawLabel = point.category?.trim();
+    if (!rawLabel) continue;
+    const key = normalizeCategoryKey(rawLabel);
+    const volume = Math.max(0, Number(point.weight ?? 1) || 0);
+    const current = counts.get(key);
+    counts.set(key, {
+      label: current?.label ?? rawLabel,
+      volume: (current?.volume ?? 0) + volume,
+      points: (current?.points ?? 0) + 1,
+    });
+  }
+
+  const totalVolume = Array.from(counts.values()).reduce((sum, item) => sum + item.volume, 0);
+  return Array.from(counts.entries())
+    .map(([key, item]) => ({
+      key,
+      label: item.label,
+      volume: item.volume,
+      points: item.points,
+      share: totalVolume > 0 ? (item.volume / totalVolume) * 100 : 0,
+    }))
+    .sort((left, right) => right.volume - left.volume || left.label.localeCompare(right.label, 'es-AR'));
+};
+
+export const filterDemoTerritoryPointsByCategory = <T extends DemoTerritoryPointInput>(
+  points: readonly T[],
+  selectedCategoryKey: string | null,
+): T[] => {
+  if (!selectedCategoryKey) return [...points];
+  const target = normalizeCategoryKey(selectedCategoryKey);
+  if (!target) return [...points];
+  return points.filter((point) => normalizeCategoryKey(point.category) === target);
+};
+
+export const buildDemoTerritoryHeatPoints = (
+  points: readonly DemoTerritoryPointInput[],
+) => {
+  const volumes = points.map((point) => Math.max(1, Number(point.weight ?? 1) || 1));
+  const maxVolume = Math.max(1, ...volumes);
+
+  return points.map((point, index) => {
+    const volume = Math.max(1, Number(point.weight ?? 1) || 1);
+    const ratio = volume / maxVolume;
+    // Scale weight and intensity proportionally to volume while keeping lower-volume
+    // zones legible on city-level zooms.
+    const heatIntensity = Number((0.45 + ratio * 0.95).toFixed(3));
+    return {
+      id: index + 1,
+      ticket: point.label,
+      lat: point.lat,
+      lng: point.lng,
+      weight: heatIntensity,
+      intensity: heatIntensity,
+      averageWeight: volume,
+      totalWeight: volume,
+      clusterSize: Math.max(1, Math.round(volume)),
+      clusterId: `demo-preview-zone-${point.id}`,
+      barrio: point.zone ?? point.label,
+      categoria: point.category ?? undefined,
+      direccion: point.address ?? undefined,
+      estado: point.status ?? undefined,
+    };
+  });
+};

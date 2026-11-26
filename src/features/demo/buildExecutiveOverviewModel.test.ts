@@ -80,7 +80,7 @@ describe('buildExecutiveOverviewModel', () => {
     });
     expect(model.scorecards[1].evidence.basis).toBeNull();
     expect(model.ranking).toMatchObject({
-      title: 'Canales del escenario',
+      title: 'Canales',
       scale: 'share',
       sourceLabel: 'demo.channel_summary.v1',
       basis: { label: 'Interacciones', value: 426 },

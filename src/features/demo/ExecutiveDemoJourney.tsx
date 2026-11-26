@@ -1,15 +1,8 @@
-import type { LucideIcon } from 'lucide-react';
 import {
-  ClipboardList,
-  LayoutDashboard,
-  MapPinned,
-  MessageSquareText,
-  ShoppingBag,
-  Vote,
-} from 'lucide-react';
+  DEMO_DATA_NOTICE,
+} from './demoPresentationLabels';
 import {
   EXECUTIVE_DEMO_SCENARIOS,
-  resolveExecutiveDemoScenarioKey,
   type ExecutiveDemoScenario,
 } from './executiveDemoScenarios';
 
@@ -24,59 +17,56 @@ type ExecutiveDemoJourneyProps = {
   scenarios?: readonly ExecutiveDemoScenario[];
   /** Sector de la demo: define cómo se nombra el espacio y sus vistas. */
   sector?: string | null;
+  /** Aviso único sobre el origen de los datos en pantalla. */
+  dataNotice?: string | null;
 };
 
 type JourneyStep = {
   target: ExecutiveDemoJourneyTarget;
   label: string;
-  icon: LucideIcon;
 };
 
 type JourneyFraming = {
-  eyebrow: string;
   title: string;
   description: string;
   steps: JourneyStep[];
 };
 
 const GOVERNMENT_FRAMING: JourneyFraming = {
-  eyebrow: 'Chatboc · Gestión ciudadana',
   title: 'Centro de gestión ciudadana',
   description: 'Atención, reclamos, participación y territorio en una sola vista.',
   steps: [
-    { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
-    { target: 'conversation', label: 'Atención', icon: MessageSquareText },
-    { target: 'claims', label: 'Reclamos', icon: ClipboardList },
-    { target: 'surveys', label: 'Participación', icon: Vote },
-    { target: 'analytics', label: 'Territorio', icon: MapPinned },
+    { target: 'overview', label: 'Resumen' },
+    { target: 'conversation', label: 'Atención' },
+    { target: 'claims', label: 'Reclamos' },
+    { target: 'surveys', label: 'Participación' },
+    { target: 'analytics', label: 'Territorio' },
   ],
 };
 
 // Una empresa o un colegio no gestionan «reclamos ciudadanos»: el mismo
 // espacio se presenta con el vocabulario del sector que la persona eligió.
 const BUSINESS_FRAMING: JourneyFraming = {
-  eyebrow: 'Chatboc · Ventas y atención',
   title: 'Centro de ventas y atención',
   description: 'Atención, pedidos, opinión de clientes y cobertura en una sola vista.',
   steps: [
-    { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
-    { target: 'conversation', label: 'Atención', icon: MessageSquareText },
-    { target: 'claims', label: 'Pedidos y casos', icon: ShoppingBag },
-    { target: 'surveys', label: 'Encuestas', icon: Vote },
-    { target: 'analytics', label: 'Cobertura', icon: MapPinned },
+    { target: 'overview', label: 'Resumen' },
+    { target: 'conversation', label: 'Atención' },
+    { target: 'claims', label: 'Pedidos y casos' },
+    { target: 'surveys', label: 'Encuestas' },
+    { target: 'analytics', label: 'Cobertura' },
   ],
 };
 
 const EDUCATION_FRAMING: JourneyFraming = {
-  eyebrow: 'Chatboc · Comunidad educativa',
   title: 'Centro de atención a familias',
   description: 'Consultas, solicitudes, encuestas y alcance en una sola vista.',
   steps: [
-    { target: 'overview', label: 'Resumen', icon: LayoutDashboard },
-    { target: 'conversation', label: 'Atención', icon: MessageSquareText },
-    { target: 'claims', label: 'Solicitudes', icon: ClipboardList },
-    { target: 'surveys', label: 'Encuestas', icon: Vote },
-    { target: 'analytics', label: 'Alcance', icon: MapPinned },
+    { target: 'overview', label: 'Resumen' },
+    { target: 'conversation', label: 'Atención' },
+    { target: 'claims', label: 'Solicitudes' },
+    { target: 'surveys', label: 'Encuestas' },
+    { target: 'analytics', label: 'Alcance' },
   ],
 };
 
@@ -92,50 +82,57 @@ const ExecutiveDemoJourney = ({
   activeTarget,
   onSelect,
   onChangeContext,
-  scenarioContext,
   scenarioScope,
-  scenarios = EXECUTIVE_DEMO_SCENARIOS,
   sector,
+  dataNotice,
 }: ExecutiveDemoJourneyProps) => {
   const framing = resolveJourneyFraming(sector);
   const normalizedScope = scenarioScope?.trim();
-  const activeScenarioKey = resolveExecutiveDemoScenarioKey(scenarioContext, scenarios);
-  const activeScenario = scenarios.find((scenario) => scenario.key === activeScenarioKey);
+  const notice = dataNotice?.trim() || DEMO_DATA_NOTICE;
 
   return (
-    <section
+    <header
       aria-labelledby="demo-executive-journey-title"
-      className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
+      className="overflow-hidden rounded-[12px] border border-border bg-card"
       data-demo-executive-journey
     >
-      <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">{framing.eyebrow}</p>
-          <h1 id="demo-executive-journey-title" className="mt-1 text-xl font-black tracking-tight text-foreground sm:text-2xl">
-            {framing.title}
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1
+              id="demo-executive-journey-title"
+              className="chatboc-display text-xl font-bold tracking-tight text-foreground sm:text-2xl"
+            >
+              {framing.title}
+            </h1>
+            <span className="text-sm text-muted-foreground">
+              {normalizedScope ? `Ámbito: ${normalizedScope}` : 'Ámbito: por configurar'}
+            </span>
+          </div>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
             {framing.description}
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 text-[11px] font-semibold">
-          <span className="rounded-full border border-border/80 bg-muted/25 px-2.5 py-1 text-foreground">
-            {normalizedScope ? `Ámbito: ${normalizedScope}` : 'Ámbito: por configurar'}
-          </span>
-          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-amber-900 dark:text-amber-100">
-            Demo no oficial · datos simulados
-          </span>
-        </div>
+        {onChangeContext ? (
+          <div className="flex shrink-0 items-center">
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center rounded-[8px] border border-border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              onClick={onChangeContext}
+            >
+              Cambiar demo
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <nav
-        className="border-t border-border/70 bg-muted/15 px-2 py-2 sm:px-3"
+        className="border-t border-border px-2 sm:px-4"
         aria-label="Vistas de la demo ejecutiva"
       >
         <div className="flex max-w-full gap-1 overflow-x-auto">
           {framing.steps.map((step) => {
-            const Icon = step.icon;
             const isActive = step.target === activeTarget;
 
             return (
@@ -143,14 +140,13 @@ const ExecutiveDemoJourney = ({
                 key={step.target}
                 type="button"
                 aria-current={isActive ? 'page' : undefined}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                className={`relative inline-flex min-h-11 shrink-0 items-center border-b-2 px-3.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
                   isActive
-                    ? 'bg-foreground text-background shadow-sm'
-                    : 'text-muted-foreground hover:bg-background hover:text-foreground'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
                 onClick={() => onSelect(step.target)}
               >
-                <Icon className="h-4 w-4" aria-hidden="true" />
                 {step.label}
               </button>
             );
@@ -158,25 +154,14 @@ const ExecutiveDemoJourney = ({
         </div>
       </nav>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-2 text-[11px] text-muted-foreground sm:px-5">
-        <p>
-          {activeScenario
-            ? `Escenario activo: ${activeScenario.compactLabel}.`
-            : framing === GOVERNMENT_FRAMING
-              ? `${scenarios.length} escenarios demostrativos disponibles en el mismo workspace.`
-              : 'Datos de ejemplo para recorrer la operación completa.'}
-        </p>
-        {onChangeContext ? (
-          <button
-            type="button"
-            className="font-semibold text-foreground underline decoration-border underline-offset-4 hover:text-primary"
-            onClick={onChangeContext}
-          >
-            Cambiar demo
-          </button>
-        ) : null}
+      <div
+        className="border-t border-border bg-muted/25 px-4 py-2 text-xs leading-5 text-muted-foreground sm:px-6"
+        role="note"
+        data-demo-unified-notice
+      >
+        {notice}
       </div>
-    </section>
+    </header>
   );
 };
 

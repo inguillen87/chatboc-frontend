@@ -1,30 +1,32 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { DEMO_DATA_NOTICE } from '@/features/demo/demoPresentationLabels';
 import ExecutiveOverviewPanel from './ExecutiveOverviewPanel';
 import type { ExecutiveOverviewViewModel } from './ExecutiveOverviewPanel';
 
 const buildModel = (): ExecutiveOverviewViewModel => ({
-  title: 'Tablero de decisión municipal',
-  description: 'Lectura ejecutiva del escenario visible.',
+  title: 'Resumen general',
+  description: 'Panorama de atención, reclamos y encuestas.',
   source: {
-    label: 'Escenario Junín · corte demostrativo',
+    label: 'demo.admin_preview.v1',
     mode: 'synthetic_demo_scenario',
     synthetic: true,
     suitableForDecisions: false,
-    note: 'Partición aislada de cualquier padrón ciudadano.',
+    scopeLabel: 'Junín, Mendoza',
   },
   scorecards: [
     {
       id: 'cases',
-      label: 'Casos observados',
+      label: 'Reclamos ingresados',
       value: 184,
-      detail: 'Volumen total del escenario.',
+      unit: 'casos',
+      detail: '38 siguen abiertos.',
       icon: 'claims',
       evidence: {
-        sourceLabel: 'API demo.admin_preview.v1',
+        sourceLabel: 'demo.admin_preview.v1',
         basis: { label: 'Casos', value: 184 },
-        period: 'Corte actual',
+        period: 'Últimos 30 días',
         dataMode: 'synthetic_demo_scenario',
       },
     },
@@ -33,21 +35,22 @@ const buildModel = (): ExecutiveOverviewViewModel => ({
       label: 'Cumplimiento de SLA',
       value: 87.5,
       unit: '%',
+      detail: 'Objetivo: 85% en término.',
       icon: 'sla',
       evidence: {
-        sourceLabel: 'API demo.admin_preview.v1',
+        sourceLabel: 'demo.admin_preview.v1',
         basis: { label: 'Casos con SLA', value: 168 },
-        period: 'Corte actual',
+        period: 'Últimos 30 días',
         dataMode: 'synthetic_demo_scenario',
       },
     },
   ],
   ranking: {
-    title: 'Distribución por canal',
-    description: 'Participación sobre las interacciones observadas.',
+    title: 'Por dónde entran las consultas',
+    description: 'Participación por canal.',
     measureLabel: 'Interacciones',
     scale: 'share',
-    sourceLabel: 'Resumen de canales del backend',
+    sourceLabel: 'demo.channel_summary.v1',
     basis: { label: 'Interacciones', value: 200 },
     items: [
       { id: 'web', label: 'Web', value: 50, sharePercent: 25 },
@@ -56,38 +59,38 @@ const buildModel = (): ExecutiveOverviewViewModel => ({
     ],
   },
   journey: {
-    title: 'Circuito de atención',
-    description: 'Secuencia publicada por el backend.',
-    badge: '4 hitos',
+    title: 'Cómo avanza un caso',
+    badge: '1 hito',
     steps: [
       {
         id: 'intake',
         title: 'Ingreso por WhatsApp',
         description: 'El vecino comparte la solicitud.',
         channel: 'WhatsApp',
-        status: 'Recibido',
+        status: 'Resuelto',
       },
     ],
   },
 });
 
 describe('ExecutiveOverviewPanel', () => {
-  it('renders auditable scorecards, a sorted comparison and synthetic disclosure', () => {
+  it('renders clean scorecards with a single footer source line and unified synthetic disclosure', () => {
     const { container } = render(<ExecutiveOverviewPanel model={buildModel()} />);
 
-    expect(screen.getByRole('heading', { name: 'Tablero de decisión municipal' })).toBeInTheDocument();
-    expect(screen.getByText(/escenario demostrativo · datos simulados/i)).toBeInTheDocument();
-    expect(screen.getByText(/no representa mediciones oficiales/i)).toBeInTheDocument();
-    expect(screen.getAllByText('API demo.admin_preview.v1')).toHaveLength(2);
-    expect(screen.getByText('Casos: 184')).toBeInTheDocument();
-    expect(screen.getByText('Casos con SLA: 168')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Resumen general' })).toBeInTheDocument();
+    expect(screen.getByRole('note', { name: 'Aviso sobre datos de ejemplo' })).toHaveTextContent(DEMO_DATA_NOTICE);
+    expect(screen.getByText('184 casos')).toBeInTheDocument();
+    expect(screen.getByText('87,5%')).toBeInTheDocument();
+    // Single source line at the footer, not repeated per card.
+    const footer = container.querySelector('[data-executive-overview-source-footer]');
+    expect(footer).toHaveTextContent('Fuente: Datos de ejemplo de la demo (Junín, Mendoza).');
+    expect(screen.queryByText('Base no informada')).not.toBeInTheDocument();
 
-    const ranking = screen.getByRole('region', { name: 'Distribución por canal' });
+    const ranking = screen.getByRole('region', { name: 'Por dónde entran las consultas' });
     const rows = within(ranking).getAllByRole('listitem');
     expect(within(rows[0]).getByText('WhatsApp')).toBeInTheDocument();
     expect(within(rows[1]).getByText('Web')).toBeInTheDocument();
     expect(within(rows[2]).getByText('Teléfono')).toBeInTheDocument();
-    expect(within(ranking).getByText('Interacciones: 200')).toBeInTheDocument();
     expect(container.querySelector('.recharts-surface')).not.toBeInTheDocument();
   });
 
@@ -109,9 +112,8 @@ describe('ExecutiveOverviewPanel', () => {
     render(<ExecutiveOverviewPanel model={model} />);
 
     expect(screen.getByText('Cobertura parcial')).toBeInTheDocument();
-    const ranking = screen.getByRole('region', { name: 'Distribución por canal' });
-    expect(within(ranking).getByText('Comparación todavía insuficiente')).toBeInTheDocument();
-    expect(within(ranking).getByText(/se necesitan al menos dos categorías/i)).toBeInTheDocument();
+    const ranking = screen.getByRole('region', { name: 'Por dónde entran las consultas' });
+    expect(within(ranking).getByText('Todavía hay pocos canales para comparar')).toBeInTheDocument();
     expect(within(ranking).queryByRole('list')).not.toBeInTheDocument();
   });
 
@@ -120,17 +122,19 @@ describe('ExecutiveOverviewPanel', () => {
       <ExecutiveOverviewPanel
         model={{
           source: {
-            label: 'Backend sin indicadores',
+            label: 'Sin indicadores',
             synthetic: false,
             partial: true,
           },
           scorecards: [],
-          emptyMessage: 'No se recibieron métricas, comparaciones ni hitos.',
+          emptyMessage: 'Todavía no hay indicadores ni actividad registrada para mostrar.',
         }}
       />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent('Sin evidencia ejecutiva disponible');
-    expect(screen.getByRole('status')).toHaveTextContent('No se recibieron métricas, comparaciones ni hitos.');
+    expect(screen.getByRole('status')).toHaveTextContent('Todavía no hay indicadores para mostrar');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Todavía no hay indicadores ni actividad registrada para mostrar.',
+    );
   });
 });

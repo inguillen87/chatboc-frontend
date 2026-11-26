@@ -196,13 +196,15 @@ describe('Demo direct-route layout stability', () => {
     });
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
+      await screen.findByRole('heading', { level: 3, name: 'Indicadores del mes' }),
     ).toBeVisible();
     await waitFor(() => {
       expect(screen.getByTestId('demo-route-shell')).toHaveAttribute('data-demo-route-state', 'ready');
       expect(screen.getByTestId('demo-workspace')).toHaveAttribute('data-loading', 'false');
     });
-    expect(screen.getByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Indicadores del mes' })).toBeVisible();
+    // Single header only: no repeated "Panel demo para gestión ciudadana" heading before tab content.
+    expect(screen.queryByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' })).not.toBeInTheDocument();
   });
 
   it('restores the persisted tenant before warming a queryless demo preview', async () => {
@@ -273,7 +275,7 @@ describe('Demo direct-route layout stability', () => {
     });
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'Panel demo para gestión ciudadana' }),
+      await screen.findByRole('heading', { level: 3, name: 'Indicadores del mes' }),
     ).toBeVisible();
 
     await waitFor(() => {

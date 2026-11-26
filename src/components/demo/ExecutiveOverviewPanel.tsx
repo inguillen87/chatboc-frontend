@@ -1,14 +1,11 @@
 import { useId } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import {
-  Activity,
-  BarChart3,
-  Gauge,
-  Inbox,
-  MapPinned,
-  MessageSquareText,
-  ShieldAlert,
-} from 'lucide-react';
+  DEMO_DATA_NOTICE,
+  cleanDemoText,
+  cleanDemoUnit,
+  isResolvedDemoStatus,
+} from '@/features/demo/demoPresentationLabels';
 
 export type ExecutiveOverviewDataMode =
   | 'synthetic_demo_scenario'
@@ -89,6 +86,7 @@ export interface ExecutiveOverviewSource {
   partial?: boolean;
   suitableForDecisions?: boolean | null;
   note?: string | null;
+  scopeLabel?: string | null;
 }
 
 export interface ExecutiveOverviewViewModel {
@@ -110,19 +108,11 @@ export interface ExecutiveOverviewPanelProps {
   model: ExecutiveOverviewViewModel;
   className?: string;
   showSourceDisclosure?: boolean;
+  showHeader?: boolean;
 }
 
 const NUMBER_FORMATTER = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 const PERCENT_FORMATTER = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
-
-const OVERVIEW_ICONS: Record<ExecutiveOverviewIconName, LucideIcon> = {
-  activity: Activity,
-  claims: Inbox,
-  coverage: MapPinned,
-  sla: Gauge,
-  surveys: BarChart3,
-  whatsapp: MessageSquareText,
-};
 
 const readFiniteNumber = (value: string | number | null | undefined) => {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
@@ -141,11 +131,11 @@ const formatValue = (value: string | number | null | undefined, unit?: string | 
       : typeof value === 'string' && value.trim()
         ? value.trim()
         : '—';
-  return unit?.trim() && normalized !== '—' ? `${normalized} ${unit.trim()}` : normalized;
+  const cleanedUnit = cleanDemoUnit(unit);
+  if (!cleanedUnit || normalized === '—') return normalized;
+  if (cleanedUnit === '%') return `${normalized}%`;
+  return `${normalized} ${cleanedUnit}`;
 };
-
-const formatBasis = (basis: ExecutiveOverviewBasis | null) =>
-  basis ? `${basis.label}: ${formatValue(basis.value)}` : 'Base no informada';
 
 const readShare = (value: string | number | null | undefined) => {
   const parsed = readFiniteNumber(value);
@@ -181,139 +171,108 @@ const normalizeRanking = (ranking: ExecutiveOverviewRanking) => {
 };
 
 // El backend identifica cada fuente con el nombre de su contrato
-// (`demo.admin_preview.v1`). Ese identificador sirve para auditar, no para
-// leer: quien mira la demo ve de dónde salen los datos en palabras.
+// (`demo.admin_preview.v1`). Quien mira la demo ve de dónde salen los datos en palabras.
 const CONTRACT_SOURCE_LABEL = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+\.v\d+$/i;
 
 export const readableSourceLabel = (label?: string | null) => {
   const source = label?.trim();
   if (!source) return '';
   if (!CONTRACT_SOURCE_LABEL.test(source)) return source;
-  return source.toLowerCase().startsWith('demo.') ? 'Escenario de demostración' : 'Datos del sistema';
+  return source.toLowerCase().startsWith('demo.') ? 'Datos de ejemplo de la demo' : 'Datos del sistema';
 };
 
-const readDataModeLabel = (mode: ExecutiveOverviewDataMode | null | undefined) => {
-  if (mode === 'synthetic_demo_scenario') return 'Datos simulados';
+const readMixedModeLabel = (mode: ExecutiveOverviewDataMode | null | undefined) => {
+  if (mode === 'synthetic_demo_scenario') return 'Datos de ejemplo';
   if (mode === 'session_generated_events') return 'Sesión actual';
-  if (mode === 'mixed_partitioned') return 'Fuentes separadas';
-  if (mode === 'verified_operational') return 'Fuente verificada';
   return null;
 };
 
 const SourceDisclosure = ({ source }: { source: ExecutiveOverviewSource }) => {
-  const decisionWarning = source.suitableForDecisions === false;
-
   if (source.synthetic) {
     return (
       <div
-        className="rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-amber-950 dark:text-amber-100"
+        className="rounded-[12px] border border-border bg-muted/30 px-4 py-3 text-sm leading-6 text-foreground"
         role="note"
-        aria-label="Advertencia sobre datos simulados"
+        aria-label="Aviso sobre datos de ejemplo"
         data-executive-overview-disclosure="synthetic"
       >
-        <div className="flex items-start gap-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.12em]">Escenario demostrativo · datos simulados</p>
-            <p className="mt-1 text-xs leading-5">
-              {decisionWarning
-                ? 'No representa mediciones oficiales ni debe utilizarse para decisiones públicas.'
-                : 'No representa mediciones oficiales.'}
-            </p>
-            {source.note ? <p className="mt-1 text-[11px] leading-5 opacity-85">{source.note}</p> : null}
-          </div>
-        </div>
+        {DEMO_DATA_NOTICE}
       </div>
     );
   }
 
-  if (source.partial || decisionWarning) {
+  if (source.partial || source.suitableForDecisions === false) {
     return (
       <div
-        className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-foreground"
+        className="rounded-[12px] border border-border bg-muted/25 px-4 py-3 text-sm leading-6 text-muted-foreground"
         role="note"
         aria-label="Cobertura parcial de los datos"
         data-executive-overview-disclosure="partial"
       >
-        <div className="flex items-start gap-3">
-          <Activity className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.12em]">Cobertura parcial</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {source.note ?? 'La vista contiene información incompleta; interpretá cada indicador con su base declarada.'}
-            </p>
-          </div>
-        </div>
+        <p className="font-semibold text-foreground">Cobertura parcial</p>
+        <p className="mt-0.5 text-xs leading-5">
+          {source.note ?? 'Esta vista todavía reúne pocos datos. Interpretá cada número con cautela.'}
+        </p>
       </div>
     );
   }
 
   return source.note ? (
-    <p className="rounded-xl border border-dashed border-border/70 bg-muted/10 px-3 py-2 text-xs leading-5 text-muted-foreground">
+    <p className="rounded-[12px] border border-dashed border-border bg-muted/15 px-4 py-3 text-xs leading-5 text-muted-foreground">
       {source.note}
     </p>
   ) : null;
 };
 
-const ScorecardGrid = ({ items, titleId }: { items: ExecutiveOverviewScorecard[]; titleId: string }) => {
+const ScorecardGrid = ({
+  items,
+  titleId,
+  isMixedMode,
+}: {
+  items: ExecutiveOverviewScorecard[];
+  titleId: string;
+  isMixedMode: boolean;
+}) => {
   if (!items.length) return null;
 
   return (
     <section aria-labelledby={titleId} data-executive-overview-scorecards>
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h3 id={titleId} className="text-sm font-bold text-foreground">Indicadores ejecutivos</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Valor, período, fuente y base visibles para evitar lecturas fuera de contexto.
-          </p>
-        </div>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id={titleId} className="chatboc-display text-lg font-semibold text-foreground">
+          Indicadores del mes
+        </h3>
+        <span className="text-xs text-muted-foreground">Últimos 30 días</span>
       </div>
-      <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 2xl:grid-cols-4">
+      <ul
+        className="m-0 grid list-none gap-px overflow-hidden rounded-[12px] border border-border bg-border p-0 sm:grid-cols-2 lg:grid-cols-4"
+        aria-labelledby={titleId}
+      >
         {items.map((item) => {
-          const Icon = OVERVIEW_ICONS[item.icon ?? 'activity'];
-          const modeLabel = readDataModeLabel(item.evidence.dataMode);
+          const mixedLabel = isMixedMode ? readMixedModeLabel(item.evidence.dataMode) : null;
+          const cleanDetail = cleanDemoText(item.detail);
+          const cleanLabel = cleanDemoText(item.label) || item.label;
           return (
             <li
               key={item.id}
-              className="min-w-0 rounded-2xl border border-border/70 bg-background/85 p-4 shadow-sm"
+              className="flex min-w-0 flex-col justify-between bg-card p-5"
               data-scorecard-id={item.id}
             >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div className="flex min-w-0 flex-col items-end gap-1">
-                  {item.evidence.period ? (
-                    <span className="text-right text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {item.evidence.period}
-                    </span>
-                  ) : null}
-                  {modeLabel ? (
-                    <span className="rounded-full border border-border/70 bg-muted/20 px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
-                      {modeLabel}
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium leading-5 text-muted-foreground">{cleanLabel}</p>
+                  {mixedLabel ? (
+                    <span className="shrink-0 rounded-[8px] border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                      {mixedLabel}
                     </span>
                   ) : null}
                 </div>
-              </div>
-              <dl className="mt-4">
-                <dt className="text-xs font-semibold leading-4 text-muted-foreground">{item.label}</dt>
-                <dd className="mt-1 break-words text-2xl font-black tracking-tight text-foreground tabular-nums">
+                <p className="chatboc-display mt-3 break-words text-3xl font-bold tracking-tight tabular-nums text-foreground">
                   {formatValue(item.value, item.unit)}
-                </dd>
-              </dl>
-              {item.detail ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{item.detail}</p> : null}
-              <dl className="mt-4 space-y-1 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground">
-                <div className="flex items-start justify-between gap-2">
-                  <dt className="font-semibold">Fuente</dt>
-                  <dd className="text-right" title={item.evidence.sourceLabel}>
-                    {readableSourceLabel(item.evidence.sourceLabel)}
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-2">
-                  <dt className="font-semibold">Base</dt>
-                  <dd className="text-right">{formatBasis(item.evidence.basis)}</dd>
-                </div>
-              </dl>
+                </p>
+              </div>
+              {cleanDetail ? (
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">{cleanDetail}</p>
+              ) : null}
             </li>
           );
         })}
@@ -325,38 +284,39 @@ const ScorecardGrid = ({ items, titleId }: { items: ExecutiveOverviewScorecard[]
 const RankingPanel = ({ ranking, titleId }: { ranking: ExecutiveOverviewRanking; titleId: string }) => {
   const normalized = normalizeRanking(ranking);
   const canCompare = normalized.totalComparable >= 2;
+  const heading = cleanDemoText(ranking.title) || 'Por dónde entran las consultas';
 
   return (
     <section
-      className="rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm"
+      className="rounded-[12px] border border-border bg-card p-5 sm:p-6"
       aria-labelledby={titleId}
       data-executive-overview-ranking
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Comparación y ranking</p>
-          <h3 id={titleId} className="mt-1 text-base font-bold text-foreground">{ranking.title}</h3>
+          <h3 id={titleId} className="chatboc-display text-lg font-semibold text-foreground">
+            {heading}
+          </h3>
           {ranking.description ? (
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{ranking.description}</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{cleanDemoText(ranking.description)}</p>
           ) : null}
         </div>
-        <span className="rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
-          {ranking.measureLabel}
-        </span>
+        {ranking.basis ? (
+          <span className="text-sm font-medium tabular-nums text-muted-foreground">
+            {formatValue(ranking.basis.value)} {ranking.basis.label.toLocaleLowerCase('es-AR')}
+          </span>
+        ) : null}
       </div>
 
       {canCompare ? (
-        <ol className="mt-5 space-y-4" aria-label={ranking.title}>
-          {normalized.items.map(({ item, numericValue, share, barPercent }, index) => (
+        <ol className="mt-5 space-y-4" aria-label={heading}>
+          {normalized.items.map(({ item, numericValue, share, barPercent }) => (
             <li key={item.id}>
-              <div className="mb-1.5 flex items-start justify-between gap-3 text-xs">
-                <span className="min-w-0 font-semibold text-foreground">
-                  <span className="mr-2 font-mono text-[10px] text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
-                  {item.label}
-                </span>
-                <span className="shrink-0 text-right font-semibold tabular-nums text-foreground">
-                  {formatValue(item.value)}
-                  {share !== null ? <span className="ml-1 text-muted-foreground">· {PERCENT_FORMATTER.format(share)} %</span> : null}
+              <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 font-medium text-foreground">{item.label}</span>
+                <span className="shrink-0 text-right tabular-nums text-muted-foreground">
+                  <strong className="font-semibold text-foreground">{formatValue(item.value)}</strong>
+                  {share !== null ? <span className="ml-2">{PERCENT_FORMATTER.format(share)}%</span> : null}
                 </span>
               </div>
               <div
@@ -377,7 +337,7 @@ const RankingPanel = ({ ranking, titleId }: { ranking: ExecutiveOverviewRanking;
                   style={{ width: `${Math.min(100, Math.max(0, barPercent))}%` }}
                 />
               </div>
-              {item.detail ? <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{item.detail}</p> : null}
+              {item.detail ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p> : null}
               {numericValue === null && share === null ? (
                 <span className="sr-only">Valor no comparable</span>
               ) : null}
@@ -385,106 +345,112 @@ const RankingPanel = ({ ranking, titleId }: { ranking: ExecutiveOverviewRanking;
           ))}
         </ol>
       ) : (
-        <div className="mt-4 rounded-xl border border-dashed border-border/70 bg-muted/10 p-4" role="note">
-          <p className="text-sm font-semibold text-foreground">Comparación todavía insuficiente</p>
+        <div className="mt-4 rounded-[8px] border border-dashed border-border bg-muted/15 p-4" role="note">
+          <p className="text-sm font-semibold text-foreground">Todavía hay pocos canales para comparar</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Se necesitan al menos dos categorías con valores comparables. No se dibuja un ranking con evidencia escasa.
+            Se necesitan al menos dos canales con actividad para mostrar el desglose.
           </p>
           {normalized.items[0] ? (
             <p className="mt-2 text-xs font-medium text-foreground">
-              Dato disponible: {normalized.items[0].item.label} · {formatValue(normalized.items[0].item.value)}
+              Dato disponible: {normalized.items[0].item.label} ({formatValue(normalized.items[0].item.value)})
             </p>
           ) : null}
         </div>
       )}
 
-      <dl className="mt-5 grid gap-2 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground sm:grid-cols-2">
-        <div>
-          <dt className="font-semibold">Fuente</dt>
-          <dd title={ranking.sourceLabel}>{readableSourceLabel(ranking.sourceLabel)}</dd>
-        </div>
-        <div className="sm:text-right">
-          <dt className="font-semibold">Base</dt>
-          <dd>{formatBasis(ranking.basis)}</dd>
-        </div>
-      </dl>
-      {ranking.scale === 'relative' && canCompare ? (
-        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-          Longitud relativa al valor máximo del conjunto; los valores exactos figuran en cada fila.
-        </p>
-      ) : null}
       {normalized.hiddenCount > 0 ? (
-        <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-          Se muestran {normalized.items.length} de {normalized.totalComparable} categorías comparables.
+        <p className="mt-4 text-xs text-muted-foreground">
+          Se muestran {normalized.items.length} de {normalized.totalComparable} canales.
         </p>
       ) : null}
     </section>
   );
 };
 
-const JourneyPanel = ({ journey, titleId }: { journey: ExecutiveOverviewJourney; titleId: string }) => (
-  <section
-    className="rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm"
-    aria-labelledby={titleId}
-    data-executive-overview-journey
-  >
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">Circuito operativo</p>
-        <h3 id={titleId} className="mt-1 text-base font-bold text-foreground">{journey.title}</h3>
-        {journey.description ? (
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{journey.description}</p>
+const JourneyPanel = ({ journey, titleId }: { journey: ExecutiveOverviewJourney; titleId: string }) => {
+  const heading = cleanDemoText(journey.title) || 'Cómo avanza un caso';
+
+  return (
+    <section
+      className="rounded-[12px] border border-border bg-card p-5 sm:p-6"
+      aria-labelledby={titleId}
+      data-executive-overview-journey
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-4">
+        <div>
+          <h3 id={titleId} className="chatboc-display text-lg font-semibold text-foreground">
+            {heading}
+          </h3>
+          {journey.description ? (
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{cleanDemoText(journey.description)}</p>
+          ) : null}
+        </div>
+        {journey.badge ? (
+          <span className="text-xs font-medium text-muted-foreground">{journey.badge}</span>
         ) : null}
       </div>
-      {journey.badge ? (
-        <span className="rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
-          {journey.badge}
-        </span>
-      ) : null}
-    </div>
-    {journey.steps.length ? (
-      <ol className="mt-5 space-y-4">
-        {journey.steps.map((step, index) => (
-          <li key={step.id} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/25 bg-primary/10 font-mono text-[10px] font-black text-primary">
-              {index + 1}
-            </span>
-            <div className="min-w-0 border-b border-border/50 pb-4 last:border-b-0 last:pb-0">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                {step.timeLabel ? <span className="text-[10px] font-semibold text-muted-foreground">{step.timeLabel}</span> : null}
-              </div>
-              {step.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p> : null}
-              {step.channel || step.status ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {step.channel ? (
-                    <span className="rounded-full border border-border/70 bg-muted/15 px-2 py-0.5 text-[10px] text-muted-foreground">
-                      {step.channel}
-                    </span>
+
+      {journey.steps.length ? (
+        <ol className="divide-y divide-border">
+          {journey.steps.map((step, index) => {
+            const resolved = isResolvedDemoStatus(step.status);
+            const cleanTitle = cleanDemoText(step.title) || step.title;
+            const cleanDesc = cleanDemoText(step.description);
+
+            return (
+              <li key={step.id} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 py-4 first:pt-4 last:pb-0">
+                <span className="mt-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{cleanTitle}</p>
+                    {step.timeLabel ? (
+                      <span className="text-xs tabular-nums text-muted-foreground">{step.timeLabel}</span>
+                    ) : null}
+                  </div>
+                  {cleanDesc ? (
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">{cleanDesc}</p>
                   ) : null}
-                  {step.status ? (
-                    <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                      {step.status}
-                    </span>
+                  {step.channel || step.status ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      {step.channel ? (
+                        <span className="rounded-[8px] border border-border bg-muted/30 px-2 py-0.5 text-muted-foreground">
+                          {step.channel}
+                        </span>
+                      ) : null}
+                      {step.status ? (
+                        <span
+                          className={`rounded-[8px] border px-2 py-0.5 font-medium ${
+                            resolved
+                              ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                              : 'border-border bg-background text-foreground'
+                          }`}
+                        >
+                          {step.status}
+                        </span>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ol>
-    ) : (
-      <p className="mt-4 rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-xs leading-5 text-muted-foreground">
-        El backend todavía no publicó hitos operativos para este período.
-      </p>
-    )}
-  </section>
-);
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="mt-4 rounded-[8px] border border-dashed border-border bg-muted/15 p-4 text-sm text-muted-foreground">
+          Todavía no hay movimientos registrados en este período.
+        </p>
+      )}
+    </section>
+  );
+};
 
 export const ExecutiveOverviewPanel = ({
   model,
   className,
   showSourceDisclosure = true,
+  showHeader = true,
 }: ExecutiveOverviewPanelProps) => {
   const titleId = useId();
   const scorecardTitleId = useId();
@@ -493,60 +459,69 @@ export const ExecutiveOverviewPanel = ({
   const hasContent = Boolean(
     model.scorecards.length || model.ranking || model.journey || model.callout?.title || model.callout?.description,
   );
+  const isMixedMode = model.source.mode === 'mixed_partitioned';
+  const sourceText = readableSourceLabel(model.source.label);
 
   return (
     <section
       className={className}
-      aria-labelledby={titleId}
+      aria-labelledby={showHeader ? titleId : scorecardTitleId}
       data-executive-overview
       data-source-mode={model.source.mode ?? 'unspecified'}
     >
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
-            {model.eyebrow ?? 'Inteligencia de gestión'}
-          </p>
-          <h3 id={titleId} className="mt-1 text-xl font-black tracking-tight text-foreground sm:text-2xl">
-            {model.title ?? 'Resumen ejecutivo'}
+      {showHeader ? (
+        <div className="mb-5">
+          <h3 id={titleId} className="chatboc-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+            {model.title ?? 'Resumen general'}
           </h3>
           {model.description ? (
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{model.description}</p>
+            <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">{model.description}</p>
           ) : null}
         </div>
-        <span
-          className="w-fit rounded-full border border-border/70 bg-muted/20 px-3 py-1.5 text-[10px] font-bold text-muted-foreground"
-          title={model.source.label}
-        >
-          Fuente · {readableSourceLabel(model.source.label)}
-        </span>
-      </div>
+      ) : null}
 
       {showSourceDisclosure ? <SourceDisclosure source={model.source} /> : null}
 
       {hasContent ? (
-        <div className="mt-4 space-y-4">
-          <ScorecardGrid items={model.scorecards} titleId={scorecardTitleId} />
+        <div className={showSourceDisclosure ? 'mt-6 space-y-8' : 'space-y-8'}>
+          <ScorecardGrid items={model.scorecards} titleId={scorecardTitleId} isMixedMode={isMixedMode} />
+
           {model.ranking || model.journey ? (
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-6 xl:grid-cols-2">
               {model.ranking ? <RankingPanel ranking={model.ranking} titleId={rankingTitleId} /> : null}
               {model.journey ? <JourneyPanel journey={model.journey} titleId={journeyTitleId} /> : null}
             </div>
           ) : null}
+
           {model.callout?.title || model.callout?.description ? (
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4" role="note">
-              {model.callout.title ? <p className="text-sm font-bold text-foreground">{model.callout.title}</p> : null}
+            <div className="rounded-[12px] border border-border bg-muted/25 p-5" role="note">
+              {model.callout.title ? <p className="text-sm font-semibold text-foreground">{model.callout.title}</p> : null}
               {model.callout.description ? (
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">{model.callout.description}</p>
               ) : null}
             </div>
           ) : null}
+
+          {sourceText ? (
+            <footer
+              className="border-t border-border pt-3 text-xs leading-5 text-muted-foreground"
+              data-executive-overview-source-footer
+            >
+              Fuente:{' '}
+              <span title={model.source.label}>
+                {sourceText}
+                {model.source.scopeLabel ? ` (${model.source.scopeLabel})` : ''}
+              </span>
+              .
+            </footer>
+          ) : null}
         </div>
       ) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-muted/10 p-6 text-center" role="status">
+        <div className="mt-4 rounded-[12px] border border-dashed border-border bg-muted/15 p-8 text-center" role="status">
           <BarChart3 className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
-          <p className="mt-3 text-sm font-semibold text-foreground">Sin evidencia ejecutiva disponible</p>
-          <p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-muted-foreground">
-            {model.emptyMessage ?? 'El panel se completa cuando el backend publica indicadores con fuente y base declaradas.'}
+          <p className="mt-3 text-sm font-semibold text-foreground">Todavía no hay indicadores para mostrar</p>
+          <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-muted-foreground">
+            {model.emptyMessage ?? 'Cuando se registren consultas o reclamos vas a ver el resumen acá.'}
           </p>
         </div>
       )}

@@ -2,10 +2,11 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DEMO_DATA_NOTICE } from './demoPresentationLabels';
 import ExecutiveDemoJourney from './ExecutiveDemoJourney';
 
 describe('ExecutiveDemoJourney', () => {
-  it('explains the unified demo without presenting scenario data as official', () => {
+  it('explains the unified demo with one clear non-official notice', () => {
     render(
       <ExecutiveDemoJourney
         activeTarget="conversation"
@@ -18,13 +19,12 @@ describe('ExecutiveDemoJourney', () => {
     expect(screen.getByText('Centro de gestión ciudadana')).toBeInTheDocument();
     expect(screen.getByText('Atención, reclamos, participación y territorio en una sola vista.')).toBeInTheDocument();
     expect(screen.getByText('Ámbito: Junín, Mendoza')).toBeInTheDocument();
-    expect(screen.getByText('Demo no oficial · datos simulados')).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent(DEMO_DATA_NOTICE);
     expect(screen.getAllByRole('button')).toHaveLength(5);
     expect(screen.getByRole('button', { name: 'Atención' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByText('Escenario activo: Prioridades barriales.')).toBeInTheDocument();
   });
 
-  it('keeps the Junín scenario catalog in the same workspace and exposes every destination', () => {
+  it('exposes every destination and triggers navigation cleanly', () => {
     const onSelect = vi.fn();
     render(
       <ExecutiveDemoJourney
@@ -37,7 +37,6 @@ describe('ExecutiveDemoJourney', () => {
 
     expect(screen.getByText('Ámbito: Junín, Mendoza')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Participación' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByText('Escenario activo: Obras y servicios.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Reclamos' }));
     fireEvent.click(screen.getByRole('button', { name: 'Territorio' }));
@@ -52,8 +51,9 @@ describe('ExecutiveDemoJourney', () => {
     );
 
     expect(screen.getByText('Ámbito: por configurar')).toBeInTheDocument();
-    expect(screen.getByText('3 escenarios demostrativos disponibles en el mismo workspace.')).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent(DEMO_DATA_NOTICE);
   });
+
   it('presents a business demo with commercial wording instead of citizen management', () => {
     const onSelect = vi.fn();
     render(
@@ -71,9 +71,7 @@ describe('ExecutiveDemoJourney', () => {
     expect(screen.queryByRole('button', { name: 'Reclamos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Territorio' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pedidos y casos' })).toHaveAttribute('aria-current', 'page');
-    // The municipal scenario catalog is not advertised to a business.
-    expect(screen.queryByText(/escenarios demostrativos/)).not.toBeInTheDocument();
-    expect(screen.getByText('Datos de ejemplo para recorrer la operación completa.')).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent(DEMO_DATA_NOTICE);
 
     fireEvent.click(screen.getByRole('button', { name: 'Encuestas' }));
     expect(onSelect).toHaveBeenCalledWith('surveys');

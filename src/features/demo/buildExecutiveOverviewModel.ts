@@ -6,7 +6,11 @@ import type {
   ExecutiveOverviewScorecard,
   ExecutiveOverviewViewModel,
 } from '@/components/demo/ExecutiveOverviewPanel';
-import { formatDemoPresentationLabel } from '@/features/demo/demoPresentationLabels';
+import {
+  cleanDemoText,
+  cleanDemoUnit,
+  formatDemoPresentationLabel,
+} from '@/features/demo/demoPresentationLabels';
 import type {
   DemoAdminPreviewCard,
   DemoAdminPreviewChannelSummary,
@@ -23,6 +27,13 @@ const readText = (...values: unknown[]) => {
     if (trimmed) return trimmed;
   }
   return null;
+};
+
+const readCleanText = (...values: unknown[]) => {
+  const raw = readText(...values);
+  if (!raw) return null;
+  const cleaned = cleanDemoText(raw);
+  return cleaned || null;
 };
 
 const readDisplayValue = (value: unknown): string | number | null => {
@@ -76,7 +87,7 @@ const buildMetricScorecards = (
   fallbackDataMode: ExecutiveOverviewDataMode | null,
 ): ExecutiveOverviewScorecard[] =>
   metrics.flatMap((metric, index) => {
-    const label = readText(metric.label, metric.title, metric.id, metric.key);
+    const label = readCleanText(metric.label, metric.title, metric.id, metric.key);
     const value = readDisplayValue(metric.value);
     if (!label || value === null) return [];
 
@@ -84,13 +95,13 @@ const buildMetricScorecards = (
       id: String(metric.id ?? metric.key ?? `metric-${index}`),
       label,
       value,
-      unit: readText(metric.unit),
-      detail: readText(metric.detail, metric.description),
+      unit: cleanDemoUnit(readText(metric.unit)),
+      detail: readCleanText(metric.detail, metric.description),
       icon: resolveIcon(metric),
       evidence: {
         sourceLabel,
         basis: readStructuredBasis(metric),
-        period: readText(metric.period),
+        period: readCleanText(metric.period),
         dataMode: (readText(metric.data_mode) as ExecutiveOverviewDataMode | null) ?? fallbackDataMode,
       },
     }];
@@ -102,7 +113,7 @@ const buildCardScorecards = (
   fallbackDataMode: ExecutiveOverviewDataMode | null,
 ): ExecutiveOverviewScorecard[] =>
   cards.flatMap((card, index) => {
-    const label = readText(card.label, card.title, card.id, card.key);
+    const label = readCleanText(card.label, card.title, card.id, card.key);
     const value = readDisplayValue(card.value ?? card.status);
     if (!label || value === null) return [];
 
@@ -110,12 +121,12 @@ const buildCardScorecards = (
       id: String(card.id ?? card.key ?? `card-${index}`),
       label,
       value,
-      detail: readText(card.detail, card.description),
+      detail: readCleanText(card.detail, card.description),
       icon: resolveIcon(card),
       evidence: {
         sourceLabel,
         basis: readStructuredBasis(card),
-        period: readText(card.period),
+        period: readCleanText(card.period),
         dataMode: (readText(card.data_mode) as ExecutiveOverviewDataMode | null) ?? fallbackDataMode,
       },
     }];
@@ -160,8 +171,8 @@ const buildRanking = (
   const basis = readChannelBasis(summary);
 
   return {
-    title: readText(summary.label) ?? 'Distribución por canal',
-    description: readText(summary.note),
+    title: readCleanText(summary.label) ?? 'Por dónde entran las consultas',
+    description: readCleanText(summary.note),
     measureLabel: scale === 'share' ? 'Participación del total' : (basis?.label ?? 'Volumen por canal'),
     scale,
     sourceLabel: readText(summary.contract_version) ?? fallbackSourceLabel,
@@ -172,11 +183,11 @@ const buildRanking = (
 
 const buildJourney = (preview: DemoAdminPreviewResponse): ExecutiveOverviewViewModel['journey'] => {
   const timeline = Array.isArray(preview.timeline) ? preview.timeline : [];
-  const fallbackDetail = readText(preview.labels?.timeline_detail);
+  const fallbackDetail = readCleanText(preview.labels?.timeline_detail);
   const steps = timeline.flatMap((item, index) => {
-    const title = readText(item.title, item.label, item.description);
+    const title = readCleanText(item.title, item.label, item.description);
     if (!title) return [];
-    const description = readText(item.detail, item.description, fallbackDetail);
+    const description = readCleanText(item.detail, item.description, fallbackDetail);
 
     return [{
       id: readText(item.id) ?? `timeline-${index}`,
@@ -191,7 +202,7 @@ const buildJourney = (preview: DemoAdminPreviewResponse): ExecutiveOverviewViewM
   if (!steps.length) return null;
 
   return {
-    title: readText(preview.labels?.timeline_title, preview.labels?.timeline) ?? 'Circuito operativo visible',
+    title: readCleanText(preview.labels?.timeline_title, preview.labels?.timeline) ?? 'Cómo avanza un caso',
     description: fallbackDetail,
     badge: readText(preview.labels?.timeline_badge),
     steps,
@@ -202,7 +213,7 @@ export const buildExecutiveOverviewModel = (
   preview: DemoAdminPreviewResponse,
 ): ExecutiveOverviewViewModel => {
   const provenance = preview.data_provenance;
-  const contractVersion = readText(preview.contract_version) ?? 'Contrato no informado';
+  const contractVersion = readText(preview.contract_version) ?? 'Panel de ejemplo';
   const dataMode = readText(provenance?.mode) as ExecutiveOverviewDataMode | null;
   const synthetic = Boolean(
     provenance?.synthetic === true ||
@@ -215,13 +226,14 @@ export const buildExecutiveOverviewModel = (
   const scorecards = rawMetrics.length
     ? buildMetricScorecards(rawMetrics, contractVersion, dataMode)
     : buildCardScorecards(rawCards, contractVersion, dataMode);
-  const summaryTitle = readText(preview.labels?.summary_title);
-  const summaryDescription = readText(preview.labels?.summary_description);
+  const summaryTitle = readCleanText(preview.labels?.summary_title);
+  const summaryDescription = readCleanText(preview.labels?.summary_description);
+
+  const scopeLabel = readText(provenance?.scenario_scope);
 
   return {
-    eyebrow: 'Inteligencia de gestión',
-    title: readText(preview.title) ?? 'Resumen ejecutivo',
-    description: readText(preview.description, preview.outcome),
+    title: readCleanText(preview.title) ?? 'Resumen general',
+    description: readCleanText(preview.description, preview.outcome),
     source: {
       label: contractVersion,
       mode: dataMode,
@@ -232,6 +244,7 @@ export const buildExecutiveOverviewModel = (
           ? provenance.suitable_for_government_decisions
           : null,
       note: readText(provenance?.label),
+      ...(scopeLabel ? { scopeLabel } : {}),
     },
     scorecards,
     ranking: buildRanking(preview.channel_summary, contractVersion),
@@ -240,7 +253,7 @@ export const buildExecutiveOverviewModel = (
       summaryTitle || summaryDescription
         ? { title: summaryTitle, description: summaryDescription }
         : null,
-    emptyMessage: 'El backend no publicó indicadores, comparaciones ni hitos con evidencia suficiente.',
+    emptyMessage: 'Todavía no hay indicadores ni actividad registrada para mostrar.',
   };
 };
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DEMO_DATA_NOTICE } from '@/features/demo/demoPresentationLabels';
 import type { DemoAdminPreviewResponse } from '@/features/demo/demoTypes';
 import { DemoAdminPreview } from './Demo';
 
@@ -12,19 +13,28 @@ vi.mock('@/components/MapLibreMap', () => ({
     evidence,
     showHeatmap,
     showPoints,
+    showEvidenceBadge,
+    heatmapRadiusScale,
+    heatmapIntensityScale,
   }: {
     heatmapData: unknown[];
     ariaLabel?: string;
     evidence?: { label?: string; synthetic?: boolean };
     showHeatmap?: boolean;
     showPoints?: boolean;
+    showEvidenceBadge?: boolean;
+    heatmapRadiusScale?: number;
+    heatmapIntensityScale?: number;
   }) => (
     <div
       data-testid="maplibre-preview"
       data-evidence-label={evidence?.label}
       data-evidence-synthetic={String(evidence?.synthetic)}
+      data-show-evidence-badge={String(showEvidenceBadge)}
       data-show-heatmap={String(Boolean(showHeatmap))}
       data-show-points={String(Boolean(showPoints))}
+      data-radius-scale={String(heatmapRadiusScale ?? '')}
+      data-intensity-scale={String(heatmapIntensityScale ?? '')}
       role="region"
       aria-label={ariaLabel}
     >
@@ -37,14 +47,14 @@ const executivePreview: DemoAdminPreviewResponse = {
   contract_version: 'demo.admin_preview.v1',
   presentation_mode: 'executive',
   sector: 'gobierno',
-  title: 'Centro de comando ciudadano',
+  title: 'Centro de gestión ciudadana',
   subtitle: 'Gobierno local',
-  description: 'Monitoreo ejecutivo de atención, territorio y participación.',
+  description: 'Atención, reclamos, participación y territorio.',
   modules: [
     { id: 'summary', label: 'Resumen' },
     { id: 'claims', label: 'Reclamos' },
-    { id: 'heatmap', label: 'Mapa operativo' },
-    { id: 'surveys', label: 'Encuestas' },
+    { id: 'heatmap', label: 'Territorio' },
+    { id: 'surveys', label: 'Participación' },
   ],
   data_provenance: {
     contract_version: 'demo.executive_provenance.v1',
@@ -54,25 +64,25 @@ const executivePreview: DemoAdminPreviewResponse = {
     municipal_truth: false,
     suitable_for_product_demonstration: true,
     suitable_for_government_decisions: false,
-    label: 'Snapshot ilustrativo para demostrar el producto.',
+    label: 'Escenario demostrativo sintético de Junín.',
     scope: 'executive_snapshot',
     scenario_scope: 'Junín, Mendoza',
   },
   cards: [{ id: 'legacy', label: 'Tarjeta anterior', value: 99, detail: 'No debe duplicar la grilla.' }],
   metrics: [
-    { id: 'claims', label: 'Reclamos ingresados', value: 184, unit: 'casos', period: 'Últimos 30 días' },
-    { id: 'sla', label: 'Cumplimiento de SLA', value: 87, unit: '%' },
-    { id: 'whatsapp', label: 'Primera respuesta por WhatsApp', value: 3.4, unit: 'min' },
-    { id: 'survey', label: 'Participación en encuesta', value: 100, unit: 'votos' },
+    { id: 'claims', label: 'Reclamos ingresados', value: 184, unit: 'casos', period: 'últimos 30 días simulados', detail: '38 permanecen abiertos en el escenario' },
+    { id: 'sla', label: 'Cumplimiento de SLA', value: 87, unit: '%', detail: 'Objetivo demostrativo: 85%' },
+    { id: 'whatsapp', label: 'Primera respuesta por WhatsApp', value: 3.4, unit: 'min', detail: 'Mediana del escenario demostrativo' },
+    { id: 'survey', label: 'Participación en encuesta', value: 100, unit: 'respuestas sintéticas', detail: 'Base sintética de Junín Participa (DEMO NO OFICIAL). Luminarias lidera con 45%' },
   ],
   timeline: [
     {
       id: 'timeline-1',
       time: '08:42',
       label: 'Ingreso por WhatsApp',
-      detail: 'La IA clasificó el reclamo.',
+      detail: 'El asistente clasificó el reclamo.',
       channel: 'WhatsApp',
-      status: 'Clasificado',
+      status: 'done',
       data_mode: 'synthetic_demo_scenario',
     },
   ],
@@ -80,7 +90,7 @@ const executivePreview: DemoAdminPreviewResponse = {
     contract_version: 'demo.channel_summary.v1',
     data_mode: 'synthetic_demo_scenario',
     total_interactions: 426,
-    label: 'Canales y SLA del escenario',
+    label: 'Distribución de canales del escenario demostrativo',
     channels: [
       { id: 'whatsapp', label: 'WhatsApp', value: 298, share_pct: 70 },
       { id: 'web', label: 'Web', value: 128, share_pct: 30 },
@@ -102,7 +112,7 @@ const executivePreview: DemoAdminPreviewResponse = {
       channel: 'WhatsApp',
       zone: 'Barrio Norte',
       sla_status: 'Dentro de plazo',
-      opened_at_label: 'Ingresó hace 18 min',
+      opened_at_label: '08:40 del día simulado',
       data_mode: 'synthetic_demo_scenario',
     },
   ],
@@ -112,28 +122,39 @@ const executivePreview: DemoAdminPreviewResponse = {
     total_cases: 184,
     displayed_cases: 1,
     represented_cases_on_map: 18,
-    label: 'Muestra del escenario; no representa el universo municipal.',
+    label: 'Muestra del escenario.',
   },
   map: {
     enabled: true,
     sample: true,
-    displayed_points: 1,
-    represented_cases: 18,
+    displayed_points: 2,
+    represented_cases: 30,
     total_cases: 184,
-    coverage_note: 'Una zona de muestra representa 18 de 184 reclamos del escenario.',
-    title: 'Mapa operativo del escenario',
+    title: 'Mapa de demanda',
     label: 'Puntos simulados',
     data_mode: 'synthetic_demo_scenario',
     center: { lat: -33.144539, lng: -68.485729 },
     points: [
       {
         id: 'point-1',
-        label: 'REC-2026-0184',
-        lat: -33.144539,
-        lng: -68.485729,
-        zone: 'Barrio Norte',
+        label: 'Luminaria fuera de servicio',
+        lat: -33.1422,
+        lng: -68.4824,
+        zone: 'Centro',
         category: 'Alumbrado',
-        status: 'En tratamiento',
+        status: 'assigned',
+        weight: 18,
+        data_mode: 'synthetic_demo_scenario',
+      },
+      {
+        id: 'point-2',
+        label: 'Mantenimiento de calzada',
+        lat: -33.1379,
+        lng: -68.4921,
+        zone: 'Noroeste',
+        category: 'Bacheo',
+        status: 'in_progress',
+        weight: 12,
         data_mode: 'synthetic_demo_scenario',
       },
     ],
@@ -149,8 +170,8 @@ const executivePreview: DemoAdminPreviewResponse = {
     items: [
       {
         id: 'survey-1',
-        title: 'Votación de prioridades barriales',
-        description: 'Prioridades para los próximos 90 días.',
+        title: 'Votación de prioridades barriales (DEMO NO OFICIAL)',
+        description: 'DEMO NO OFICIAL — Votación no vinculante.',
         question: '¿Qué tema debería resolverse primero?',
         status: 'demo_publicada',
         demo_mode: true,
@@ -182,7 +203,7 @@ const executivePreview: DemoAdminPreviewResponse = {
 };
 
 describe('DemoAdminPreview executive snapshot', () => {
-  it('renders an explicit synthetic provenance notice and one responsive KPI grid', () => {
+  it('renders a single unified notice, four clean KPIs and one footer source line', () => {
     render(
       <DemoAdminPreview
         sector="gobierno"
@@ -192,39 +213,27 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByRole('note', { name: /advertencia sobre los datos/i })).toHaveTextContent(
-      'Escenario demostrativo · datos simulados',
-    );
-    expect(screen.getByRole('note')).toHaveTextContent('No representa datos oficiales ni relevamiento municipal.');
-    expect(screen.getByRole('note')).toHaveTextContent('Ámbito del escenario: Junín, Mendoza');
-    expect(screen.queryByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Centro de comando ciudadano' })).toBeVisible();
-    expect(screen.getByRole('navigation', { name: 'Secciones del panel ejecutivo' })).toBeVisible();
+    expect(screen.getAllByRole('note')).toHaveLength(1);
+    expect(screen.getByRole('note')).toHaveTextContent(DEMO_DATA_NOTICE);
+    expect(screen.getByRole('heading', { level: 2, name: 'Centro de gestión ciudadana' })).toBeVisible();
+    expect(screen.getByRole('navigation', { name: 'Secciones del panel' })).toBeVisible();
 
-    expect(screen.getByRole('heading', { level: 3, name: 'Situación operativa y participación' })).toBeVisible();
     const grid = document.querySelector('[data-executive-overview-scorecards] ul');
     expect(grid?.tagName).toBe('UL');
-    expect(grid).toHaveClass('sm:grid-cols-2', '2xl:grid-cols-4');
     const kpiItems = within(grid as HTMLElement).getAllByRole('listitem');
     expect(kpiItems).toHaveLength(4);
-    expect(kpiItems.every((item) => item.tagName === 'LI' && !item.hasAttribute('role'))).toBe(true);
     expect(screen.getByText('184 casos')).toBeVisible();
-    expect(screen.getByText('87 %')).toBeVisible();
+    expect(screen.getByText('87%')).toBeVisible();
     expect(screen.getByText('3,4 min')).toBeVisible();
-    expect(screen.getByText('100 votos')).toBeVisible();
-    // The contract identifier stays available for auditing, as a tooltip;
-    // what the visitor reads is where the data comes from, in words.
+    expect(screen.getByText('100 respuestas')).toBeVisible();
+    expect(screen.queryByText(/respuestas sintéticas/i)).not.toBeInTheDocument();
     expect(screen.queryByText('demo.admin_preview.v1')).not.toBeInTheDocument();
-    const kpiSources = kpiItems.map((item) => within(item).getByTitle('demo.admin_preview.v1'));
-    expect(kpiSources).toHaveLength(4);
-    expect(kpiSources.every((source) => source.textContent === 'Escenario de demostración')).toBe(true);
-    expect(screen.getAllByText('Base no informada')).toHaveLength(4);
     expect(screen.queryByText('Tarjeta anterior')).not.toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { level: 3, name: 'Canales y SLA del escenario' })).toBeVisible();
-    expect(screen.getByText('298', { exact: true })).toBeVisible();
+    const sourceFooter = document.querySelector('[data-executive-overview-source-footer]');
+    expect(sourceFooter).toHaveTextContent('Fuente: Datos de ejemplo de la demo (Junín, Mendoza).');
+    expect(screen.getByRole('heading', { level: 3, name: 'Por dónde entran las consultas' })).toBeVisible();
     expect(screen.getByRole('meter', { name: 'WhatsApp: 298, 70 %' })).toHaveAttribute('aria-valuenow', '70');
-    expect(screen.getByRole('heading', { level: 3, name: 'Circuito operativo visible' })).toBeVisible();
   });
 
   it('blocks legacy metrics and maps when the requested executive contract is unavailable', () => {
@@ -247,8 +256,7 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Contrato ejecutivo no disponible' })).toBeVisible();
-    expect(screen.getByText(/No podemos mostrar métricas ni territorio/i)).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Panel momentáneamente no disponible' })).toBeVisible();
     expect(screen.queryByText('Métrica legacy')).not.toBeInTheDocument();
     expect(screen.queryByText('Punto legacy')).not.toBeInTheDocument();
     expect(screen.queryByTestId('maplibre-preview')).not.toBeInTheDocument();
@@ -274,7 +282,7 @@ describe('DemoAdminPreview executive snapshot', () => {
     expect(screen.getByText('12')).toBeVisible();
   });
 
-  it('shows synthetic cases as a fallback and never labels them as real session events', () => {
+  it('shows segmented claims sections and never labels synthetic cases as session events', () => {
     render(
       <DemoAdminPreview
         sector="gobierno"
@@ -283,17 +291,17 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { level: 3, name: 'Reclamos y casos operativos' })).toBeVisible();
-    expect(screen.getByText('Casos simulados')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Cómo están hoy' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Por categoría' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Por zona' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Últimos reclamos' })).toBeVisible();
     expect(screen.getByText('REC-2026-0184')).toBeVisible();
     expect(screen.getByText('Luminaria sin servicio')).toBeVisible();
-    expect(screen.getByText('1 de 184 casos informados por el contrato.')).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Distribución por estado' })).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Demanda por categoría' })).toBeVisible();
-    expect(screen.queryByText('Eventos reales de esta sesión', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText('Hoy, 08:40')).toBeVisible();
+    expect(screen.queryByText('Sesión actual')).not.toBeInTheDocument();
   });
 
-  it('renders the existing territorial map with an explicit synthetic source label', async () => {
+  it('renders Territory with map, category filter, ranked zones, density scaling and no raw coordinates', async () => {
     render(
       <DemoAdminPreview
         sector="gobierno"
@@ -302,25 +310,33 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { level: 3, name: 'Mapa operativo del escenario' })).toBeVisible();
-    expect(screen.getByText('Puntos simulados')).toBeVisible();
-    expect(await screen.findByTestId('maplibre-preview')).toHaveTextContent('1 puntos en mapa');
-    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-evidence-label', 'Puntos simulados');
-    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-evidence-synthetic', 'true');
-    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-heatmap', 'true');
-    expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-points', 'true');
-    expect(screen.getByRole('region', { name: /1 zonas muestran 18 de 184 casos/i })).toBeVisible();
-    expect(screen.getByText('Una zona de muestra representa 18 de 184 reclamos del escenario.')).toBeVisible();
-    expect(screen.getByTestId('demo-map-volume-legend')).toHaveTextContent(
-      'Los números sobre el mapa son casos representados por cada zona de muestra.',
-    );
-    const densityButton = screen.getByRole('button', { name: 'Densidad' });
-    const pointsButton = screen.getByRole('button', { name: 'Puntos' });
-    expect(screen.getByRole('button', { name: 'Calor + puntos' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(densityButton);
+    expect(screen.getByRole('heading', { level: 3, name: 'Mapa' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Zonas con más casos' })).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: 'Por categoría' })).toBeVisible();
+
+    const map = await screen.findByTestId('maplibre-preview');
+    expect(map).toHaveTextContent('2 puntos en mapa');
+    expect(map).toHaveAttribute('data-show-evidence-badge', 'false');
+    expect(map).toHaveAttribute('data-show-heatmap', 'true');
+    expect(map).toHaveAttribute('data-show-points', 'true');
+    expect(screen.queryByText(/-33\.14220/)).not.toBeInTheDocument();
+
+    // Filter by category updates both map and zones list
+    const filterGroup = screen.getByRole('group', { name: 'Filtrar por categoría' });
+    fireEvent.click(within(filterGroup).getByRole('button', { name: 'Alumbrado' }));
+    expect(screen.getByTestId('maplibre-preview')).toHaveTextContent('1 puntos en mapa');
+    const zonesList = screen.getByRole('list', { name: 'Zonas con más casos' });
+    expect(within(zonesList).getByText('Centro')).toBeVisible();
+    expect(within(zonesList).queryByText('Noroeste')).not.toBeInTheDocument();
+
+    // Density layer increases radius & intensity scale and hides points
+    fireEvent.click(screen.getByRole('button', { name: 'Densidad' }));
     expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-heatmap', 'true');
     expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-points', 'false');
-    fireEvent.click(pointsButton);
+    expect(Number(screen.getByTestId('maplibre-preview').getAttribute('data-radius-scale'))).toBeGreaterThan(2);
+    expect(Number(screen.getByTestId('maplibre-preview').getAttribute('data-intensity-scale'))).toBeGreaterThan(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Puntos' }));
     expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-heatmap', 'false');
     expect(screen.getByTestId('maplibre-preview')).toHaveAttribute('data-show-points', 'true');
   });
@@ -335,23 +351,19 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { level: 3, name: 'Encuestas y votaciones' })).toBeVisible();
-    expect(screen.getByText('Base sintética determinística: las respuestas no pertenecen a personas reales ni representan opinión pública municipal.')).toBeVisible();
-    expect(screen.getByText('1 visible de 6 encuestas demo')).toBeVisible();
-    expect(
-      screen.getByRole('heading', { level: 4, name: 'Votación de prioridades barriales' }),
-    ).toBeVisible();
-    expect(screen.getByText('100 respuestas sintéticas')).toBeVisible();
+    expect(screen.getByRole('heading', { level: 3, name: '¿Qué tema debería resolverse primero?' })).toBeVisible();
+    expect(screen.getByText('Votación de prioridades barriales')).toBeVisible();
     expect(screen.getByRole('progressbar', { name: 'Luminarias: 45 %' })).toHaveAttribute('aria-valuenow', '45');
-    fireEvent.click(screen.getByText('Cortes descriptivos'));
     expect(screen.getByRole('button', { name: 'Zona' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Oeste')).toBeVisible();
-    expect(screen.getByText('Segmentación calculada exclusivamente sobre la base sintética del escenario.')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Abrir encuesta demo' })).toHaveAttribute('href', '/e/demo-prioridades-barriales');
+    expect(screen.getByRole('link', { name: 'Votar en esta encuesta' })).toHaveAttribute(
+      'href',
+      '/e/demo-prioridades-barriales',
+    );
     expect(screen.queryByText('55', { exact: true })).not.toBeInTheDocument();
   });
 
-  it('keeps reloaded session cases and their counts labeled as observed session data', () => {
+  it('keeps reloaded session cases labeled as current session activity', () => {
     render(
       <DemoAdminPreview
         sector="gobierno"
@@ -376,16 +388,15 @@ describe('DemoAdminPreview executive snapshot', () => {
             total_interactions: null,
             total_cases: 1,
             observed_cases: 1,
-            label: 'Solo actividad observada en esta sesión.',
+            label: 'Actividad de esta sesión.',
           },
         }}
         activeTarget="claims"
       />,
     );
 
-    expect(screen.getByText('Eventos reales de esta sesión')).toBeVisible();
+    expect(screen.getByText('Sesión actual')).toBeVisible();
     expect(screen.getByText('REAL-DEMO-7101')).toBeVisible();
-    expect(screen.queryByText('Casos simulados')).not.toBeInTheDocument();
   });
 
   it('renders only real session cases when runtime activity exists', () => {
@@ -419,15 +430,10 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByText('Eventos reales de esta sesión')).toBeVisible();
-    expect(screen.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toHaveTextContent(
-      'Actividad de esta sesión + encuesta demo separada',
-    );
-    expect(screen.getByRole('note')).toHaveTextContent('partición sintética separada');
+    expect(screen.getByText('Sesión actual')).toBeVisible();
+    expect(screen.getByRole('note')).toHaveTextContent('Actividad de tu sesión de prueba');
     expect(screen.getByText('JN-PUBLIC-991')).toBeVisible();
-    expect(screen.queryByText('991', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('REC-2026-0184')).not.toBeInTheDocument();
-    expect(screen.queryByText('Casos simulados')).not.toBeInTheDocument();
   });
 
   it('labels KPI sources independently for a mixed partitioned response', () => {
@@ -463,10 +469,9 @@ describe('DemoAdminPreview executive snapshot', () => {
       />,
     );
 
-    expect(screen.getByRole('note', { name: 'Fuentes separadas del panel demostrativo' })).toBeVisible();
+    expect(screen.getByRole('note')).toHaveTextContent('Actividad de tu sesión de prueba');
     expect(screen.getByText('Sesión actual')).toBeVisible();
-    expect(screen.getByText('Datos simulados')).toBeVisible();
+    expect(screen.getByText('Datos de ejemplo')).toBeVisible();
     expect(screen.getByText('100 votos')).toBeVisible();
-    expect(screen.queryByText(/únicamente actividad generada/i)).not.toBeInTheDocument();
   });
 });
