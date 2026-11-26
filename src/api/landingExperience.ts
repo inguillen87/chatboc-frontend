@@ -43,6 +43,9 @@ export async function getLandingExperience(
       tenantSlug: query.tenantSlug || query.tenant || query.slug || null,
       isWidgetRequest: true,
       omitCredentials: true,
+      // The landing names its organization in the URL or not at all. A token left
+      // in the browser by an earlier demo must not choose the page for the visitor.
+      omitEntityToken: true,
     });
   } catch (error) {
     if (error instanceof ApiError && [404, 405, 501].includes(error.status)) {
