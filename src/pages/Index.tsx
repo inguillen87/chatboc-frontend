@@ -5,6 +5,7 @@ import HeroSection from "@/components/sections/HeroSection";
 import WhiteLabelShowcaseSection from "@/components/sections/WhiteLabelShowcaseSection";
 import ModulesBentoSection from "@/components/sections/ModulesBentoSection";
 import SaaSOperatingSystemSection from "@/components/sections/SaaSOperatingSystemSection";
+import SurveyKindsSection from "@/components/sections/SurveyKindsSection";
 import SolutionSection from "@/components/sections/SolutionSection";
 import PricingSection from "@/components/sections/PricingSection";
 import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
@@ -44,6 +45,7 @@ const Index = () => {
         <LegacyLandingAnchor id="problemas" />
         <LegacyLandingAnchor id="como-funciona" />
         <SaaSOperatingSystemSection />
+        <SurveyKindsSection />
         <SolutionSection />
         <LegacyLandingAnchor id="publico-objetivo" />
         <LegacyLandingAnchor id="senales-valor" />

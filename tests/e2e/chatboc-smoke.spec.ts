@@ -269,7 +269,7 @@ test.describe('Chatboc smoke e2e', () => {
     const mobileSection = page.getByRole('region', { name: /Recibir, resolver y medir en un mismo flujo/i });
     const mobileJourney = mobileSection.getByRole('list', { name: /Recorrido operativo para gobierno/i });
     await expect(mobileJourney).toBeVisible();
-    await expect(mobileJourney.getByRole('listitem')).toHaveCount(4);
+    await expect(mobileJourney.getByRole('button')).toHaveCount(5);
     await expectNoHorizontalOverflow(page);
   });
 
