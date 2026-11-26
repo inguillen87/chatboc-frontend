@@ -3199,10 +3199,20 @@ const ChatPanelContent = (props: ChatPanelProps) => {
       tone: action.active ? "primary" : "default",
     }));
 
-  // The voice call is not listed here: it has its own button in the toolbar,
-  // always in view. "Collapsed" only means "kept out of the toolbar": the video
-  // call stays in the tray instead of disappearing.
-  if (!activeTicketId && realtimeVideoEnabled && videoCallLabel) {
+  // With a real audio transport the voice call has its own toolbar button,
+  // always in view. Without one it stays where it was: in the tray, and only
+  // when the configuration does not ask to keep it out.
+  if (!activeTicketId && realtimeVoiceEnabled && !connectRealtimeVoiceTransport && !isToolbarActionCollapsed("voice_call")) {
+    compactFooterActions.push({
+      id: "voice_call",
+      label: voiceCallLabel,
+      icon: PhoneCall,
+      onClick: () => void beginRealtimeSession("voice"),
+      tone: "primary",
+    });
+  }
+
+  if (!activeTicketId && realtimeVideoEnabled && videoCallLabel && !isToolbarActionCollapsed("video_call")) {
     compactFooterActions.push({
       id: "video_call",
       label: videoCallLabel,
@@ -4064,7 +4074,10 @@ const ChatPanelContent = (props: ChatPanelProps) => {
   // Talking is the only way in for people who cannot read or type comfortably:
   // the call sits in the toolbar with a visible icon, not only inside the tray.
   const voiceCallShortcut =
-    !activeTicketId && realtimeVoiceEnabled && channelMode === "chat" ? (
+    // Shown only when this widget can really carry the audio. Without a
+    // transport the session is provisioned and ends at once: a button that
+    // does nothing is worse than no button.
+    !activeTicketId && realtimeVoiceEnabled && channelMode === "chat" && connectRealtimeVoiceTransport ? (
       <button
         type="button"
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
