@@ -1,6 +1,4 @@
 import React from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Building, Check, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
@@ -8,143 +6,111 @@ const pricingOptions = [
   {
     name: "Plan Esencial",
     tier: "Inicio rápido",
-    headline: "Activación guiada para validar rápido",
-    description:
-      "Para activar un canal, cargar tus respuestas base y medir las primeras consultas.",
+    headline: "Un canal activo para empezar ordenado",
+    description: "Para publicar el chat web con tu marca, cargar las respuestas base y seguir las primeras consultas.",
     features: [
-      "Chat web marca blanca listo para activar",
+      "Chat web marca blanca listo para publicar",
       "Base inicial de respuestas y documentos",
       "Seguimiento de conversaciones clave",
-      "Configuración acompañada por especialista",
+      "Puesta en marcha acompañada por nuestro equipo",
       "Panel básico con métricas esenciales",
     ],
     cta: "Agendar activación",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Quiero%20activar%20el%20Plan%20Esencial%20de%20Chatboc%20junto%20a%20un%20especialista",
     highlight: false,
-    icon: Sparkles,
   },
   {
     name: "Plan Operativo",
-    tier: "Más elegido",
-    headline: "Web, WhatsApp, tickets y seguimiento",
+    tier: "Recomendado",
+    headline: "Web, WhatsApp, reclamos y seguimiento",
     description:
-      "Para equipos con consultas diarias que necesitan conectar conversaciones, pedidos, soporte y reportes.",
+      "Para equipos con consultas diarias que conectan atención, pedidos, reclamos y reportes en un mismo panel.",
     features: [
       "Todo lo del Plan Esencial",
       "Chat web, WhatsApp y panel operativo",
-      "Tickets, reclamos, encuestas y acciones contextuales",
+      "Tickets, reclamos, encuestas y acciones guiadas",
       "Identidad completa: paleta, tipografía y mascota",
-      "Seguimiento y ajustes con nuestro equipo",
+      "Ajustes periódicos con nuestro equipo",
     ],
     cta: "Hablar con un asesor",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Quiero%20una%20demostraci%C3%B3n%20del%20Plan%20Operativo%20de%20Chatboc",
     highlight: true,
-    icon: Users,
   },
   {
     name: "Plan Institucional",
     tier: "Escala y gobierno",
-    headline: "Procesos, integraciones y escala institucional",
+    headline: "Procesos, integraciones y portal público",
     description:
-      "Para gobiernos y organizaciones que requieren seguridad, gobierno de datos, permisos e integraciones a medida.",
+      "Para gobiernos y organizaciones que necesitan permisos por área, trazabilidad e integraciones con sistemas propios.",
     features: [
       "Diseño de circuitos y puesta en marcha con tu equipo",
       "Integración con sistemas existentes y portal público",
-      "Tableros ejecutivos multi-organización",
-      "Tiempos, permisos y trazabilidad avanzada",
-      "Soporte dedicado para sumar nuevos procesos",
+      "Tableros operativos multi-organización",
+      "Permisos, plazos y auditoría por área",
+      "Soporte dedicado para sumar nuevos trámites",
     ],
     cta: "Coordinar reunión",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Necesito%20una%20propuesta%20institucional%20de%20Chatboc",
     highlight: false,
-    icon: Building,
   },
 ];
 
 const PricingSection = () => {
   const navigate = useNavigate();
-  const reduceMotion = Boolean(useReducedMotion());
-  // One orchestrated moment lives in the hero; sections below stay still.
-  const canAnimateInView = false && !reduceMotion;
 
   return (
     <section
       id="precios"
       aria-labelledby="plans-title"
-      className="chatboc-muted-band relative overflow-hidden py-20 text-foreground md:py-28"
+      className="border-t border-border bg-muted/20 py-20 text-foreground dark:bg-muted/10 md:py-28"
     >
-      <div className="container relative mx-auto px-4">
-        <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="chatboc-section-kicker mb-4">Planes</div>
-          <h2 id="plans-title" className="chatboc-section-heading text-balance">
-            Planes claros para implementar y escalar
-          </h2>
-          <p className="chatboc-section-copy mt-4">
-            Elegí según lo que necesitás hoy: activar un primer canal, ordenar la atención diaria o integrar sistemas
-            propios con nuestro equipo.
-          </p>
-        </div>
+      <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <div className="chatboc-section-kicker mb-4">Planes</div>
+            <h2 id="plans-title" className="chatboc-section-heading text-balance">
+              Planes claros para implementar y escalar
+            </h2>
+            <p className="chatboc-section-copy mt-4 max-w-2xl">
+              Elegí según lo que necesitás hoy: publicar un primer canal, ordenar la atención diaria o integrar
+              sistemas propios con nuestro equipo.
+            </p>
+          </div>
 
-        <div className="mx-auto grid max-w-6xl items-stretch gap-5 lg:grid-cols-3">
-          {pricingOptions.map((option, index) => {
-            const Icon = option.icon;
-            return (
-              <motion.article
+          <div className="mt-12 grid divide-y divide-border overflow-hidden rounded-[12px] border border-border bg-card lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            {pricingOptions.map((option) => (
+              <article
                 key={option.name}
-                initial={canAnimateInView ? { opacity: 0.96, y: 18 } : false}
-                whileInView={canAnimateInView ? { opacity: 1, y: 0 } : undefined}
-                viewport={canAnimateInView ? { once: true, amount: 0.2 } : undefined}
-                transition={{ duration: canAnimateInView ? 0.4 : 0, delay: canAnimateInView ? index * 0.08 : 0, ease: "easeOut" }}
-                className={`group relative flex h-full flex-col overflow-hidden rounded-[20px] border p-6 transition-all duration-300 md:p-7 ${
-                  option.highlight
-                    ? "border-primary/55 bg-card shadow-[0_28px_70px_rgba(13,53,195,0.16)] ring-1 ring-primary/30 dark:shadow-[0_28px_70px_rgba(37,99,235,0.22)]"
-                    : "border-border/80 bg-card/95 shadow-sm hover:border-primary/35 hover:shadow-xl"
+                className={`flex h-full flex-col p-6 md:p-8 ${
+                  option.highlight ? "bg-muted/30 dark:bg-muted/20" : "bg-card"
                 }`}
               >
-                <div
-                  aria-hidden="true"
-                  className={`absolute inset-x-0 top-0 h-1.5 ${
-                    option.highlight
-                      ? "bg-gradient-to-r from-primary via-sky-400 to-emerald-400"
-                      : "bg-primary/25 transition-colors group-hover:bg-primary/60"
+                <p
+                  className={`text-sm font-medium ${
+                    option.highlight ? "text-primary" : "text-slate-600 dark:text-muted-foreground"
                   }`}
-                />
+                >
+                  {option.tier}
+                </p>
 
-                <div className="mb-5 flex items-center justify-between gap-3">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-[12px] ${
-                      option.highlight ? "bg-primary text-primary-foreground shadow-md" : "bg-primary/10 text-primary"
-                    }`}
-                  >
-                    <Icon className="h-6 w-6" aria-hidden="true" />
-                  </div>
-                  {option.highlight ? (
-                    <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-xs">
-                      Recomendado
-                    </span>
-                  ) : (
-                    <span className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
-                      {option.tier}
-                    </span>
-                  )}
-                </div>
+                <h3 className="chatboc-display mt-2 text-2xl font-semibold text-foreground">{option.name}</h3>
+                <p className="mt-2 text-sm font-semibold text-foreground">{option.headline}</p>
+                <p className="mt-2.5 text-sm leading-6 text-slate-600 dark:text-muted-foreground">
+                  {option.description}
+                </p>
 
-                <h3 className="text-2xl font-bold tracking-tight text-foreground">{option.name}</h3>
-                <p className="mt-2 text-sm font-semibold text-primary">{option.headline}</p>
-                <p className="mt-4 text-sm leading-6 text-muted-foreground">{option.description}</p>
+                <div className="my-6 border-t border-border" aria-hidden="true" />
 
-                <div className="my-6 h-px bg-border/70" aria-hidden="true" />
-
-                <ul className="flex-1 space-y-3 text-sm text-foreground/85">
+                <ul className="flex-1 space-y-3 text-sm leading-6 text-foreground/90">
                   {option.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2.5">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span aria-hidden="true" className="select-none text-slate-400 dark:text-muted-foreground">
+                        —
                       </span>
-                      <span className="leading-5">{feature}</span>
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -152,8 +118,10 @@ const PricingSection = () => {
                 <Button
                   size="lg"
                   variant={option.highlight ? "default" : "outline"}
-                  className={`mt-8 h-12 w-full rounded-[10px] font-semibold ${
-                    option.highlight ? "chatboc-cta-primary shadow-md" : "hover:border-primary/45 hover:bg-primary/5"
+                  className={`mt-8 h-11 w-full rounded-[8px] font-semibold shadow-none ${
+                    option.highlight
+                      ? "chatboc-cta-primary shadow-none"
+                      : "border-border bg-background hover:bg-muted/50"
                   }`}
                   onClick={() => {
                     if (option.ctaLink.startsWith("http")) {
@@ -163,12 +131,11 @@ const PricingSection = () => {
                     }
                   }}
                 >
-                  <span>{option.cta}</span>
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  {option.cta}
                 </Button>
-              </motion.article>
-            );
-          })}
+              </article>
+            ))}
+          </div>
         </div>
       </div>
     </section>
