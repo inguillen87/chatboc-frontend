@@ -1,7 +1,7 @@
 import {useLayoutEffect, useRef, useState, type RefObject} from 'react';
 import type {Message, SendPayload} from '@/types/chat';
 import {isKnowledgeNode} from '@/components/knowledge/institutionalAssistantContract';
-import {institutionalChatActions} from '@/features/chat/institutionalChatMessage';
+import {institutionalChatActions, isInstitutionalUnknownQuestionMessage} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision, isChatbocSessionRevisionCurrent, subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 
 /** A later error, ordinary reply or pending user turn cannot revive an old menu. */
@@ -9,7 +9,8 @@ export function currentInstitutionalMenu(messages: Message[], slug: string | nul
   const latest=messages.at(-1), answer=latest?.institutional;
   return latest?.isBot && !latest.isError && answer && slug && answer.tenant.slug===slug &&
     Number.isSafeInteger(answer.tenant.id) && answer.tenant.id>0 && /^[a-f0-9]{64}$/.test(answer.revision) &&
-    answer.nodes.length>0 && answer.nodes.length<=3 && answer.nodes.every(isKnowledgeNode) ? latest : null;
+    ((answer.nodes.length>0 && answer.nodes.length<=3 && answer.nodes.every(isKnowledgeNode)) ||
+      isInstitutionalUnknownQuestionMessage(answer)) ? latest : null;
 }
 
 type Navigation = {
@@ -76,14 +77,23 @@ export function useInstitutionalMenuNavigation({messages,tenantSlug,scope,busy,s
     const state=live.current, answer=message.institutional;
     if(!answer){if(!pending.current)scrollBarrier.current=null;void state.send(payload);return;}
     if(state.busy||pending.current||state.latest!==message)return;
-    const action=institutionalChatActions(answer.nodes).find(item=>
-      payload.action_id===`knowledge:${answer.revision.slice(0,16)}:${item.target}`&&payload.text===item.label);
-    if(!action)return;
+    const prefix=`knowledge:${answer.revision.slice(0,16)}:`;
+    let target:string|null=null;
+    if(isInstitutionalUnknownQuestionMessage(answer)){
+      const initialAction=answer.initialActions.find(item=>payload.action_id===`${prefix}${item.target}`&&payload.text===item.label);
+      const topicAction=!initialAction?answer.topicButtons?.find(item=>payload.action_id===item.actionId&&payload.text===item.label):undefined;
+      target=initialAction?initialAction.target:topicAction&&topicAction.actionId.startsWith(prefix)?topicAction.actionId.slice(prefix.length):null;
+    }else{
+      const action=institutionalChatActions(answer.nodes).find(item=>
+        payload.action_id===`${prefix}${item.target}`&&payload.text===item.label);
+      target=action?.target??null;
+    }
+    if(!target)return;
     const origin=document.activeElement;
     anchoredResponse.current=null;
     const owned=origin instanceof HTMLButtonElement&&origin.hasAttribute('data-institutional-choice')&&
       Boolean(anchor.current?.contains(origin)&&container.current?.contains(origin));
-    const request:Navigation={scope:state.scope,source:message,target:action.target,
+    const request:Navigation={scope:state.scope,source:message,target,
       session:captureChatbocSessionRevision(),priorIds:new Set(state.messages.map(item=>item.id)),
       origin:owned?origin:null,ownsFocus:owned,settled:false,replyId:null,cleanup:()=>{}};
     pending.current=request;

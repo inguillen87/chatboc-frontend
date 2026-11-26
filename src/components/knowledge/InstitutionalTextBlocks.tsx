@@ -1,5 +1,6 @@
-import React from 'react';
-import type {KnowledgeAcronym} from './institutionalAssistantContract';
+import React,{useId} from 'react';
+import {ChevronRight,PenLine,Phone} from 'lucide-react';
+import type {KnowledgeAcronym,KnowledgeNode} from './institutionalAssistantContract';
 
 type TextBlock =
   | {kind:'paragraph'; text:string}
@@ -212,4 +213,113 @@ export function formatInstitutionalPrintDate(date=new Date()):string {
   }catch{
     return date.toLocaleString('es-AR');
   }
+}
+
+export const DEFAULT_OTHER_WAYS_LABEL='Otras formas de seguir';
+export const DEFAULT_REWRITE_QUESTION_LABEL='Escribir la consulta de otra forma';
+
+export function resolveInstitutionalNoAnswerLabels(ui?:Record<string,string|undefined>|null) {
+  return {
+    otherWays:nonEmptyUi(ui,['other_ways','other_ways_to_continue','no_answer_other_ways','fallback_heading'])??DEFAULT_OTHER_WAYS_LABEL,
+    rewriteQuestion:nonEmptyUi(ui,['rewrite_question','rephrase_question','write_another_way','no_answer_rewrite'])??DEFAULT_REWRITE_QUESTION_LABEL,
+  };
+}
+
+export type InstitutionalActionItem=KnowledgeNode['actions'][number];
+export interface InstitutionalFallbackAction {
+  action:InstitutionalActionItem;
+  isContact:boolean;
+}
+
+const normalizeActionText=(value:string):string=>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+
+const CONTACT_TARGET_RE=/(?:^|[^a-z0-9])(contactos?|contacts?|atencion[_-]?humana|humano|humana|hablar|operadora?|asesora?|atencion[_-]?personal(?:izada)?|canales?[_-]?de[_-]?atencion)(?:$|[^a-z0-9])/;
+const CONTACT_LABEL_RE=/(?:\bcontactos?\b|\bcontactar(?:se|nos)?\b|\bhablar\s+con\b|\bcomunicarse\s+con\b|\bcomunicate\b|\batencion\s+(?:humana|personal|personalizada|al\s+publico|ciudadana|telefonica|presencial)\b|\bcanales?\s+de\s+(?:atencion|contacto)\b|\b(?:con\s+)?una\s+persona\b|\b(?:un|una)\s+(?:operadora?|asesora?|representante)\b)/;
+
+/** Detect a published human-contact or attention option without hardcoding org IDs. */
+export function isInstitutionalContactAction(action:InstitutionalActionItem):boolean {
+  if(CONTACT_TARGET_RE.test(normalizeActionText(action.target)))return true;
+  return CONTACT_LABEL_RE.test(normalizeActionText(action.label));
+}
+
+/** Deduplicate published start-menu actions and place contact/human access first. */
+export function orderInstitutionalFallbackActions(actions:readonly InstitutionalActionItem[]):InstitutionalFallbackAction[] {
+  const deduped=actions.filter((action,index,list)=>
+    list.findIndex(other=>other.target===action.target&&other.label===action.label)===index,
+  );
+  const contacts:InstitutionalFallbackAction[]=[];
+  const others:InstitutionalFallbackAction[]=[];
+  for(const action of deduped){
+    if(isInstitutionalContactAction(action))contacts.push({action,isContact:true});
+    else others.push({action,isContact:false});
+  }
+  return [...contacts,...others];
+}
+
+export interface InstitutionalNoAnswerFallbackProps {
+  actions:readonly InstitutionalActionItem[];
+  labels:{otherWays:string;rewriteQuestion:string};
+  formatChoiceLabel:(label:string)=>{emoji:string|null;words:string};
+  onSelectAction:(action:InstitutionalActionItem,origin:HTMLButtonElement)=>void;
+  onRewriteQuestion:()=>void;
+  disabled?:boolean;
+  announcePolite?:boolean;
+  showChevron?:boolean;
+}
+
+export function InstitutionalNoAnswerFallback({
+  actions,
+  labels,
+  formatChoiceLabel,
+  onSelectAction,
+  onRewriteQuestion,
+  disabled=false,
+  announcePolite=true,
+  showChevron=false,
+}:InstitutionalNoAnswerFallbackProps) {
+  const headingId=useId();
+  const ordered=orderInstitutionalFallbackActions(actions);
+  return <section
+    className="institutional-no-answer"
+    aria-labelledby={headingId}
+    aria-live={announcePolite?'polite':undefined}
+    aria-atomic={announcePolite?'true':undefined}
+    data-testid="institutional-no-answer"
+  >
+    <h3 id={headingId} className="institutional-no-answer__heading">{labels.otherWays}</h3>
+    {ordered.length>0?<div className="institutional-no-answer__actions" data-no-answer-actions>
+      {ordered.map(({action,isContact})=>{
+        const label=formatChoiceLabel(action.label);
+        return <button
+          key={`${action.target}:${action.label}`}
+          type="button"
+          disabled={disabled}
+          data-institutional-choice=""
+          data-contact-action={isContact?'true':undefined}
+          className={isContact?'institutional-no-answer__button institutional-no-answer__button--contact':'institutional-no-answer__button'}
+          onClick={event=>onSelectAction(action,event.currentTarget)}
+        >
+          <span className="institutional-no-answer__button-content">
+            {isContact?<Phone size={17} aria-hidden="true" className="institutional-no-answer__button-icon"/>:null}
+            <span className="institutional-no-answer__button-code">{action.code}</span>
+            {' '}{label.emoji?<><span aria-hidden="true" className="shrink-0">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
+          </span>
+          {showChevron?<ChevronRight size={16} aria-hidden="true"/>:null}
+        </button>;
+      })}
+    </div>:null}
+    <div className="institutional-no-answer__rewrite">
+      <button
+        type="button"
+        disabled={disabled}
+        data-action="rewrite-question"
+        className="institutional-no-answer__rewrite-button"
+        onClick={onRewriteQuestion}
+      >
+        <PenLine size={17} aria-hidden="true"/>
+        <span>{labels.rewriteQuestion}</span>
+      </button>
+    </div>
+  </section>;
 }

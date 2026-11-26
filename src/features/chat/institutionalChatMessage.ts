@@ -8,22 +8,48 @@ import type {Message} from '@/types/chat';
 export interface InstitutionalCanonicalChatMessage {
   kind?:undefined;
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
-  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string;acronyms?:string;share_whatsapp?:string};
+  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string;acronyms?:string;share_whatsapp?:string;other_ways?:string;rewrite_question?:string};
   audioReading?:InstitutionalAudioReading;
   easyRead?:InstitutionalEasyReadCopy;
   /** Verified easy-read text of the first node, when the person asked for it by writing. */
   easyReadText?:string;
   /** Local presentation authority from a validated public workspace, never a remote hint. */
   initialMenu?:InstitutionalInitialMenuContext;
+  /** Optional text and start-menu actions when an empty-nodes response is passed directly. */
+  text?:string;
+  fallbackActions?:KnowledgeNode['actions'];
 }
 export interface InstitutionalSourceNavigationMessage {
   kind:'source_navigation'; tenant:{id:number;slug:string}; revision:string; nodes:[]; sources:KnowledgeSource[]; text:string;
   ui:{sources:string;source_details:string;large_text:string}; audioReading?:undefined; easyRead?:undefined; easyReadText?:undefined; initialMenu?:undefined;
 }
-export type InstitutionalChatMessage=InstitutionalCanonicalChatMessage|InstitutionalSourceNavigationMessage;
+export interface InstitutionalUnknownQuestionMessage {
+  kind:'unknown_question';
+  tenant:{id:number;slug:string};
+  revision:string;
+  nodes:[];
+  sources:[];
+  text:string;
+  initialActions:KnowledgeNode['actions'];
+  topicButtons?:Array<{label:string;actionId:string}>;
+  ui?:{large_text?:string;other_ways?:string;rewrite_question?:string};
+  audioReading?:undefined;
+  easyRead?:undefined;
+  easyReadText?:undefined;
+  initialMenu?:undefined;
+}
+export type InstitutionalChatMessage=InstitutionalCanonicalChatMessage|InstitutionalSourceNavigationMessage|InstitutionalUnknownQuestionMessage;
 export const isInstitutionalSourceNavigationMessage=(answer:InstitutionalChatMessage):answer is InstitutionalSourceNavigationMessage=>answer.kind==='source_navigation';
+export const isInstitutionalUnknownQuestionMessage=(answer:InstitutionalChatMessage):answer is InstitutionalUnknownQuestionMessage=>answer.kind==='unknown_question';
 export type InstitutionalPresentationMode='initial-menu'|'answer';
 export interface InstitutionalInitialMenuContext {tenantId:number;tenantSlug:string;revision:string;startNodeId:string}
+export interface InstitutionalInitialFallbackContext {
+  tenantId:number;
+  tenantSlug:string;
+  revision:string;
+  actions:KnowledgeNode['actions'];
+  ui?:{large_text?:string;other_ways?:string;rewrite_question?:string};
+}
 
 /** Presentation uses the same canonical start node as the public bootstrap. */
 export function institutionalInitialMenuContext(value:unknown,tenantSlug:string):InstitutionalInitialMenuContext|null {
@@ -58,6 +84,60 @@ export function isScopedInstitutionalNotice(value:unknown,tenantSlug:string|null
   return Array.isArray(buttons)&&buttons.length<=30&&buttons.every(button=>record(button)&&
     typeof button.texto==='string'&&Boolean(button.texto.trim())&&button.texto.length<=160&&
     typeof button.action_id==='string'&&button.action_id.startsWith(prefix)&&NODE_ID.test(button.action_id.slice(prefix.length)));
+}
+
+const optionalShortUi=(source:Record<string,unknown>|null|undefined,keys:readonly string[]):string|undefined=>{
+  if(!source)return undefined;
+  for(const key of keys){
+    const value=source[key];
+    if(typeof value==='string'&&value.trim().length>0&&value.length<=200)return value.trim();
+  }
+  return undefined;
+};
+
+export function extractInstitutionalNoAnswerUi(ui:Record<string,unknown>|null|undefined):{large_text?:string;other_ways?:string;rewrite_question?:string}|undefined {
+  if(!record(ui))return undefined;
+  const largeText=optionalShortUi(ui,['large_text']);
+  const otherWays=optionalShortUi(ui,['other_ways','other_ways_to_continue','no_answer_other_ways','fallback_heading']);
+  const rewriteQuestion=optionalShortUi(ui,['rewrite_question','rephrase_question','write_another_way','no_answer_rewrite']);
+  const merged={
+    ...(largeText?{large_text:largeText}:{}),
+    ...(otherWays?{other_ways:otherWays}:{}),
+    ...(rewriteQuestion?{rewrite_question:rewriteQuestion}:{}),
+  };
+  return Object.keys(merged).length?merged:undefined;
+}
+
+/** Combine a scoped no-answer notice with the locally loaded published start menu. */
+export function parseInstitutionalUnknownQuestionMessage(
+  value:unknown,
+  tenantSlug:string|null|undefined,
+  fallbackContext:InstitutionalInitialFallbackContext|null|undefined,
+):InstitutionalUnknownQuestionMessage|null {
+  if(!fallbackContext||!isScopedInstitutionalNotice(value,tenantSlug)||!record(value))return null;
+  const tenant=value.knowledge_tenant as {id:number;slug:string};
+  const revision=value.context_revision as string;
+  if(Number(tenant.id)!==fallbackContext.tenantId||tenant.slug!==fallbackContext.tenantSlug||revision!==fallbackContext.revision)return null;
+  const prefix=`knowledge:${revision.slice(0,16)}:`;
+  const initialTargets=new Set(fallbackContext.actions.map(action=>action.target));
+  const rawButtons=Array.isArray(value.botones)?value.botones:[];
+  const topicButtons=rawButtons
+    .filter((button):button is {texto:string;action_id:string}=>record(button)&&typeof button.texto==='string'&&typeof button.action_id==='string')
+    .filter(button=>!initialTargets.has(button.action_id.slice(prefix.length)))
+    .map(button=>({label:button.texto,actionId:button.action_id}));
+  const remoteUi=record(value.knowledge_ui)?extractInstitutionalNoAnswerUi(value.knowledge_ui):undefined;
+  const ui={...(fallbackContext.ui??{}),...(remoteUi??{})};
+  return {
+    kind:'unknown_question',
+    tenant:{id:Number(tenant.id),slug:tenant.slug},
+    revision,
+    nodes:[],
+    sources:[],
+    text:String(value.message_body).trim(),
+    initialActions:fallbackContext.actions,
+    ...(topicButtons.length?{topicButtons}:{}),
+    ...(Object.keys(ui).length?{ui}:{}),
+  };
 }
 
 export const institutionalChatActions=(nodes:KnowledgeNode[])=>nodes.flatMap(node=>node.actions)
@@ -100,7 +180,9 @@ export function institutionalChatBootstrapPayload(value:unknown,tenantSlug:strin
     ...(workspace.easy_read?{knowledge_easy_read:workspace.easy_read}:{}),
     ...(readInstitutionalChoiceNavigation(workspace.ui)?{knowledge_ui:{...readInstitutionalChoiceNavigation(workspace.ui),large_text:workspace.ui.large_text,source_details:workspace.ui.source_details,
       ...(typeof workspace.ui.acronyms==='string'&&workspace.ui.acronyms.trim()&&workspace.ui.acronyms.length<=200?{acronyms:workspace.ui.acronyms}:{}),
-      ...(typeof workspace.ui.share_whatsapp==='string'&&workspace.ui.share_whatsapp.trim()&&workspace.ui.share_whatsapp.length<=200?{share_whatsapp:workspace.ui.share_whatsapp}:{})}}:{}),
+      ...(typeof workspace.ui.share_whatsapp==='string'&&workspace.ui.share_whatsapp.trim()&&workspace.ui.share_whatsapp.length<=200?{share_whatsapp:workspace.ui.share_whatsapp}:{}),
+      ...(optionalShortUi(workspace.ui,['other_ways','other_ways_to_continue','no_answer_other_ways','fallback_heading'])?{other_ways:optionalShortUi(workspace.ui,['other_ways','other_ways_to_continue','no_answer_other_ways','fallback_heading'])}:{}),
+      ...(optionalShortUi(workspace.ui,['rewrite_question','rephrase_question','write_another_way','no_answer_rewrite'])?{rewrite_question:optionalShortUi(workspace.ui,['rewrite_question','rephrase_question','write_another_way','no_answer_rewrite'])}:{})}}:{}),
     botones:institutionalChatActions(answer.nodes).map(action=>({texto:action.label,
       action_id:`knowledge:${answer.revision.slice(0,16)}:${action.target}`}))};
   if(!parseInstitutionalChatMessage(payload,tenantSlug))throw new Error('knowledge_initial_response_invalid');
@@ -164,7 +246,9 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string,
       // Optional label: an older backend omits it and the acronyms block stays hidden.
       ...(typeof suppliedUi!.acronyms==='string'&&suppliedUi!.acronyms.trim()&&suppliedUi!.acronyms.length<=200?{acronyms:suppliedUi!.acronyms}:{}),
-      ...(typeof suppliedUi!.share_whatsapp==='string'&&suppliedUi!.share_whatsapp.trim()&&suppliedUi!.share_whatsapp.length<=200?{share_whatsapp:suppliedUi!.share_whatsapp}:{})}}:{})};
+      ...(typeof suppliedUi!.share_whatsapp==='string'&&suppliedUi!.share_whatsapp.trim()&&suppliedUi!.share_whatsapp.length<=200?{share_whatsapp:suppliedUi!.share_whatsapp}:{}),
+      ...(optionalShortUi(suppliedUi,['other_ways','other_ways_to_continue','no_answer_other_ways','fallback_heading'])?{other_ways:optionalShortUi(suppliedUi,['other_ways','other_ways_to_continue','no_answer_other_ways','fallback_heading'])}:{}),
+      ...(optionalShortUi(suppliedUi,['rewrite_question','rephrase_question','write_another_way','no_answer_rewrite'])?{rewrite_question:optionalShortUi(suppliedUi,['rewrite_question','rephrase_question','write_another_way','no_answer_rewrite'])}:{})}}:{})};
 }
 
 // A leading token made only of pictographic or other symbol characters (for

@@ -57,7 +57,7 @@ import {
 import { sendChatBootstrapMessage, createChatBootstrapAudioAttempt, getBootstrapSessionValues } from "@/features/chat/chatApi";
 import { audioRecoveryMessage, captureAudioRecoveryOwner, createRecoverableAudioAttempt, canReconcileMunicipalAudioError, type RecoverableAudioAttempt } from '@/features/chat/audioRecovery';
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
-import {isInstitutionalChatPayload,isScopedInstitutionalNotice,parseInstitutionalChatMessage,isInstitutionalSourceNavigationMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
+import {extractInstitutionalNoAnswerUi,institutionalChatActions,isInstitutionalChatPayload,isScopedInstitutionalNotice,parseInstitutionalChatMessage,parseInstitutionalUnknownQuestionMessage,isInstitutionalSourceNavigationMessage,isInstitutionalUnknownQuestionMessage,institutionalChatBootstrapPayload,isInstitutionalWorkspaceUnavailable,institutionalNumericChatAction,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalInitialFallbackContext,type InstitutionalInitialMenuContext} from '@/features/chat/institutionalChatMessage';
 import {loadWorkspace} from '@/components/knowledge/institutionalAssistantContract';
 import {TENANT_PLACEHOLDER_SLUGS} from '@/constants/tenant';
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
@@ -327,6 +327,7 @@ export function useChatLogic({
   const initSentRef = useRef(false);
   const initPendingResponseRef = useRef(false);
   const [institutionalBootstrapStatus,setInstitutionalBootstrapStatus]=useState<'idle'|'loading'|'available'|'legacy'|'unavailable'>('idle');
+  const institutionalInitialFallbackRef=useRef<(InstitutionalInitialFallbackContext&{scope:string})|null>(null);
   const initializationGenerationRef=useRef(0);
   const initializationAbortRef=useRef<AbortController|null>(null);
   const initializationMountedRef=useRef(true);
@@ -380,6 +381,7 @@ export function useChatLogic({
     setIsTyping(false);seenMessageFingerprintsRef.current.clear();
     setActiveTicketId(null);setLiveChatTicketId(null);setLiveChatSocketRoom(null);
     setLiveChatAccessToken(null);setLiveChatStatus(null);setUxContext(null);
+    institutionalInitialFallbackRef.current=null;
     setInstitutionalBootstrapStatus('idle');
   },[initializationScope]);
 
@@ -610,6 +612,16 @@ export function useChatLogic({
           try{
             const workspace=await loadWorkspace(tenantSlugForPayload,'public',{signal:abort.signal,isCurrent});
             if(!isCurrent())return;
+            if(workspace.knowledge&&workspace.revision){
+              institutionalInitialFallbackRef.current={
+                scope:initializationScope,
+                tenantId:workspace.tenant.id,
+                tenantSlug:workspace.tenant.slug,
+                revision:workspace.revision,
+                actions:institutionalChatActions([workspace.knowledge.initial]),
+                ui:extractInstitutionalNoAnswerUi(workspace.ui),
+              };
+            }
             const initial=institutionalChatBootstrapPayload(workspace,tenantSlugForPayload);
             processBotPayload(initial,{fallbackOnEmpty:true,fromInit:true,preserveConversationState:true,
               institutionalInitialMenuContext:institutionalInitialMenuContext(workspace,tenantSlugForPayload)});
@@ -1577,8 +1589,9 @@ export function useChatLogic({
     }
 
     asArray.forEach((candidate: any) => {
-      const parsedInstitutional=parseInstitutionalChatMessage(candidate,tenantSlug);
-      const institutional=parsedInstitutional&&!isInstitutionalSourceNavigationMessage(parsedInstitutional)&&initialMenuContext&&
+      const scopedFallback=institutionalInitialFallbackRef.current?.scope===initializationScope?institutionalInitialFallbackRef.current:null;
+      const parsedInstitutional=parseInstitutionalChatMessage(candidate,tenantSlug)??parseInstitutionalUnknownQuestionMessage(candidate,tenantSlug,scopedFallback);
+      const institutional=parsedInstitutional&&!isInstitutionalSourceNavigationMessage(parsedInstitutional)&&!isInstitutionalUnknownQuestionMessage(parsedInstitutional)&&initialMenuContext&&
         institutionalPresentationMode(parsedInstitutional,initialMenuContext)==='initial-menu'
         ?{...parsedInstitutional,initialMenu:initialMenuContext}:parsedInstitutional;
       const data=scopeInstitutionalPayload(candidate);

@@ -4746,6 +4746,12 @@ const ChatPanelContent = (props: ChatPanelProps) => {
               institutionalNavigation.activate(msg,payload);
             }}
             institutionalInteractive={institutionalNavigation.activeMessage===msg&&!isTyping}
+            onFocusInput={() => {
+              const input = chatInputTextRef.current;
+              if (!input?.isConnected) return;
+              input.focus();
+              input.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
+            }}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}

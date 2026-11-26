@@ -1,9 +1,9 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Share2} from 'lucide-react';
 import type {SendPayload} from '@/types/chat';
-import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,isInstitutionalSourceNavigationMessage,type InstitutionalChatMessage as InstitutionalMessage,type InstitutionalCanonicalChatMessage as CanonicalMessage,type InstitutionalSourceNavigationMessage} from '@/features/chat/institutionalChatMessage';
+import {institutionalChoiceLabel,institutionalChatActions,institutionalPresentationMode,isInstitutionalSourceNavigationMessage,isInstitutionalUnknownQuestionMessage,type InstitutionalChatMessage as InstitutionalMessage,type InstitutionalCanonicalChatMessage as CanonicalMessage,type InstitutionalSourceNavigationMessage,type InstitutionalUnknownQuestionMessage} from '@/features/chat/institutionalChatMessage';
 import {KnowledgeSourceMetadata} from '@/components/knowledge/InstitutionalAssistantSourceMetadata';
-import {InstitutionalAcronyms,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalShareLabels} from '@/components/knowledge/InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalNoAnswerFallback,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalNoAnswerLabels,resolveInstitutionalShareLabels} from '@/components/knowledge/InstitutionalTextBlocks';
 import {InstitutionalChoices} from '@/components/knowledge/InstitutionalChoices';
 import {InstitutionalResponseAudio,stopInstitutionalReading} from '@/components/knowledge/InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from '@/components/knowledge/InstitutionalEasyRead';
@@ -11,10 +11,18 @@ import {knowledgeSourceExternalUrl,readKnowledgeAcronyms} from '@/components/kno
 import {captureChatbocSessionRevision,isChatbocSessionRevisionCurrent,subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import './institutionalChatMessage.css';
 
+const focusNearbyChatInput=(root:HTMLElement|null)=>{
+  const container=root?.closest('.chatboc-container, [data-testid="chat-panel"]')??document;
+  const input=container.querySelector<HTMLInputElement|HTMLTextAreaElement>('textarea:not([disabled]), input[type="text"]:not([disabled]), input:not([type]):not([disabled])');
+  if(!input?.isConnected)return;
+  input.focus();
+  input.scrollIntoView?.({block:'nearest',behavior:'auto'});
+};
+
 /** The ordinary embedded chat uses this reader only for a validated institutional response. */
-const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:CanonicalMessage;onButtonClick:(value:SendPayload)=>void;interactive?:boolean}>(
- ({answer,onButtonClick,interactive=true},ref)=>{
-  const [large,setLarge]=useState(readInstitutionalLargeText),heading=useRef<HTMLHeadingElement>(null);
+const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:CanonicalMessage;onButtonClick:(value:SendPayload)=>void;onFocusInput?:()=>void;interactive?:boolean}>(
+ ({answer,onButtonClick,onFocusInput,interactive=true},ref)=>{
+  const [large,setLarge]=useState(readInstitutionalLargeText),heading=useRef<HTMLHeadingElement>(null),uncoveredTextRef=useRef<HTMLParagraphElement>(null);
   const scope=JSON.stringify([answer.tenant.id,answer.tenant.slug,answer.revision]);
   const requestFocus=useRef<{answer:InstitutionalMessage;scope:string;target:string;origin:HTMLButtonElement;owned:boolean;fromBody:boolean;retiring:boolean;moved:boolean;session:number}|null>(null);
   useEffect(()=>{
@@ -35,6 +43,14 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
    stopInstitutionalReading();
   },[answer.revision,answer.nodes.map(node=>node.id).join(':')]);
   useEffect(()=>{
+   if(answer.nodes.length!==0||!interactive)return;
+   const target=uncoveredTextRef.current;
+   if(!target?.isConnected)return;
+   const active=document.activeElement;
+   const inOwnPanel=Boolean(active&&active instanceof HTMLElement&&target.closest('.chatboc-container, [data-testid="chat-panel"]')?.contains(active));
+   if(active===document.body||active===null||inOwnPanel)target.focus({preventScroll:true});
+  },[answer,interactive]);
+  useEffect(()=>{
    const request=requestFocus.current;
    if(!request)return;
    if(request.answer===answer&&request.scope===scope)return;
@@ -49,6 +65,8 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
   const actions=institutionalChatActions(answer.nodes);
   const presentation=institutionalPresentationMode(answer,answer.initialMenu),initialMenu=presentation==='initial-menu';
   const shareLabels=resolveInstitutionalShareLabels(answer.ui);
+  const noAnswerLabels=resolveInstitutionalNoAnswerLabels(answer.ui);
+  const isEmptyNodes=answer.nodes.length===0;
   const choices=<InstitutionalChoices actions={actions} navigation={answer.ui??null} responseIdentity={answer} disabled={!interactive} className="institutional-chat-message__choices" renderChoice={action=>{
     const label=institutionalChoiceLabel(action.label),actionId=`knowledge:${answer.revision.slice(0,16)}:${action.target}`;
     let renderedButton:HTMLButtonElement|null=null;
@@ -70,8 +88,28 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
      {' '}{label.emoji?<><span aria-hidden="true">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
     </button>;
    }}/>;
-  return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}${initialMenu?' institutional-chat-message--initial-menu':''}`} data-testid="institutional-chat-message" data-institutional-presentation={presentation}>
+  return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}${initialMenu?' institutional-chat-message--initial-menu':''}`} data-testid="institutional-chat-message" data-institutional-presentation={isEmptyNodes?'unknown-question':presentation}>
    <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}>{answer.ui?.large_text??'Texto más grande'}</button>
+   {isEmptyNodes?<>
+    {answer.text?<p ref={uncoveredTextRef} tabIndex={-1} data-institutional-uncovered-text className="institutional-chat-message__uncovered">{answer.text}</p>:null}
+    <InstitutionalNoAnswerFallback
+     actions={answer.fallbackActions??[]}
+     labels={noAnswerLabels}
+     formatChoiceLabel={institutionalChoiceLabel}
+     disabled={!interactive}
+     announcePolite={interactive}
+     onSelectAction={action=>{
+      if(!interactive)return;
+      const actionId=`knowledge:${answer.revision.slice(0,16)}:${action.target}`;
+      stopInstitutionalReading();
+      onButtonClick({text:action.label,action:actionId,action_id:actionId,source:'button'});
+     }}
+     onRewriteQuestion={()=>{
+      if(onFocusInput)onFocusInput();
+      else focusNearbyChatInput(uncoveredTextRef.current);
+     }}
+    />
+   </>:null}
    {answer.nodes.map((node,index)=>{
     const nodeAcronyms=readKnowledgeAcronyms(node.acronyms);
     const isOpenedAnswer=!(initialMenu&&index===0)&&node.id!==answer.initialMenu?.startNodeId;
@@ -104,8 +142,59 @@ const CanonicalInstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:
      {knowledgeSourceExternalUrl(source,'public')?<a href={knowledgeSourceExternalUrl(source,'public')!} target="_blank" rel="noopener noreferrer">Referencia externa: {source.title}</a>:null}
     </section>)}</details>
    </article>;})}
-   {answer.audioReading?<InstitutionalResponseAudio scope={{tenant:answer.tenant,revision:answer.revision,nodeIds:answer.nodes.map(node=>node.id)}} copy={answer.audioReading}/>:null}
-   {!initialMenu?choices:null}
+   {answer.audioReading&&!isEmptyNodes?<InstitutionalResponseAudio scope={{tenant:answer.tenant,revision:answer.revision,nodeIds:answer.nodes.map(node=>node.id)}} copy={answer.audioReading}/>:null}
+   {!initialMenu&&!isEmptyNodes?choices:null}
+  </div>;
+ });
+const UnknownQuestionChatMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalUnknownQuestionMessage;onButtonClick:(value:SendPayload)=>void;onFocusInput?:()=>void;interactive?:boolean}>(
+ ({answer,onButtonClick,onFocusInput,interactive=true},ref)=>{
+  const [large,setLarge]=useState(readInstitutionalLargeText);
+  const resultRef=useRef<HTMLParagraphElement>(null);
+  const noAnswerLabels=resolveInstitutionalNoAnswerLabels(answer.ui);
+  useEffect(()=>{
+   stopInstitutionalReading();
+  },[answer.revision,answer.text]);
+  useEffect(()=>{
+   if(!interactive)return;
+   const target=resultRef.current;
+   if(!target?.isConnected)return;
+   const active=document.activeElement;
+   const inOwnPanel=Boolean(active&&active instanceof HTMLElement&&target.closest('.chatboc-container, [data-testid="chat-panel"]')?.contains(active));
+   if(active===document.body||active===null||inOwnPanel)target.focus({preventScroll:true});
+  },[answer,interactive]);
+  return <div ref={ref} className={`institutional-chat-message${large?' institutional-chat-message--large':''}`} data-testid="institutional-chat-message" data-institutional-presentation="unknown-question">
+   <button type="button" className="institutional-chat-message__text-size" aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}>{answer.ui?.large_text??'Texto más grande'}</button>
+   <p ref={resultRef} tabIndex={-1} data-institutional-uncovered-text className="institutional-chat-message__uncovered">{answer.text}</p>
+   <InstitutionalNoAnswerFallback
+    actions={answer.initialActions}
+    labels={noAnswerLabels}
+    formatChoiceLabel={institutionalChoiceLabel}
+    disabled={!interactive}
+    announcePolite={interactive}
+    onSelectAction={action=>{
+     if(!interactive)return;
+     const actionId=`knowledge:${answer.revision.slice(0,16)}:${action.target}`;
+     stopInstitutionalReading();
+     onButtonClick({text:action.label,action:actionId,action_id:actionId,source:'button'});
+    }}
+    onRewriteQuestion={()=>{
+     if(onFocusInput)onFocusInput();
+     else focusNearbyChatInput(resultRef.current);
+    }}
+   />
+   {answer.topicButtons?.length?<div className="institutional-chat-message__choices">
+    {answer.topicButtons.map(button=>{
+     const label=institutionalChoiceLabel(button.label);
+     return <button key={`${button.actionId}:${button.label}`} type="button" disabled={!interactive} data-institutional-choice=""
+      onClick={()=>{
+       if(!interactive)return;
+       stopInstitutionalReading();
+       onButtonClick({text:button.label,action:button.actionId,action_id:button.actionId,source:'button'});
+      }}>
+      {label.emoji?<><span aria-hidden="true">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
+     </button>;
+    })}
+   </div>:null}
   </div>;
  });
 const SourceNavigationMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalSourceNavigationMessage}>(
@@ -123,10 +212,12 @@ const SourceNavigationMessage=React.forwardRef<HTMLDivElement,{answer:Institutio
    </details>
   </div>;
  });
-const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalMessage;onButtonClick:(value:SendPayload)=>void;interactive?:boolean}>(
+const InstitutionalChatMessage=React.forwardRef<HTMLDivElement,{answer:InstitutionalMessage;onButtonClick:(value:SendPayload)=>void;onFocusInput?:()=>void;interactive?:boolean}>(
  (props,ref)=>isInstitutionalSourceNavigationMessage(props.answer)
   ?<SourceNavigationMessage answer={props.answer} ref={ref}/>
-  :<CanonicalInstitutionalChatMessage {...props} answer={props.answer} ref={ref}/>,
+  :isInstitutionalUnknownQuestionMessage(props.answer)
+   ?<UnknownQuestionChatMessage {...props} answer={props.answer} ref={ref}/>
+   :<CanonicalInstitutionalChatMessage {...props} answer={props.answer} ref={ref}/>,
 );
 InstitutionalChatMessage.displayName='InstitutionalChatMessage';
 export default InstitutionalChatMessage;
