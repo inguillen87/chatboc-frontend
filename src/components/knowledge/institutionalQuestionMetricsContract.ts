@@ -9,8 +9,10 @@ export interface QuestionNodeCount {node_id:string;count:number;title:string|nul
 export interface KnowledgeQuestionMetrics {
   tenant:{id:number;slug:string};days:number;truncated:boolean;
   totals:Record<QuestionOutcome,number>;uncovered_rate:number|null;
+  /** Share of interpreted questions answered from the sources. Absent on servers that predate it. */
+  resolution_rate?:number|null;interpreted?:number;
   uncovered_by_node:QuestionNodeCount[];answered_by_node:QuestionNodeCount[];
-  ui:Record<(typeof UI_KEYS)[number],string>;
+  ui:Record<(typeof UI_KEYS)[number],string>&{resolution_rate?:string;resolution_detail?:string};
 }
 const record=(value:unknown):value is Record<string,unknown>=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 const count=(value:unknown):value is number=>Number.isSafeInteger(value)&&(value as number)>=0;
@@ -25,8 +27,11 @@ export function parseQuestionMetrics(value:unknown,workspace:KnowledgeWorkspace)
     !count(value.days)||value.days<1||value.days>90||typeof value.truncated!=='boolean'||
     !record(value.totals)||!QUESTION_OUTCOMES.every(outcome=>count((value.totals as Record<string,unknown>)[outcome]))||
     !(value.uncovered_rate===null||(typeof value.uncovered_rate==='number'&&value.uncovered_rate>=0&&value.uncovered_rate<=1))||
+    !(value.resolution_rate===undefined||value.resolution_rate===null||(typeof value.resolution_rate==='number'&&value.resolution_rate>=0&&value.resolution_rate<=1))||
+    !(value.interpreted===undefined||count(value.interpreted))||
     !ranking(value.uncovered_by_node)||!ranking(value.answered_by_node)||
-    !record(value.ui)||!UI_KEYS.every(key=>text((value.ui as Record<string,unknown>)[key],200)))throw new Error('knowledge_metrics_invalid');
+    !record(value.ui)||!UI_KEYS.every(key=>text((value.ui as Record<string,unknown>)[key],200))||
+    !(['resolution_rate','resolution_detail'] as const).every(key=>{const label=(value.ui as Record<string,unknown>)[key];return label===undefined||text(label,200);}))throw new Error('knowledge_metrics_invalid');
   return value as unknown as KnowledgeQuestionMetrics;
 }
 

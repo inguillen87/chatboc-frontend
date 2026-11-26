@@ -22,6 +22,9 @@ export function KnowledgeQuestionMetricsPanel({workspace,label}:{workspace:Knowl
   };
   const data=state.status==='ready'?state.data:null;
   const total=data?QUESTION_OUTCOMES.reduce((sum,outcome)=>sum+data.totals[outcome],0):0;
+  const resolution=data&&typeof data.resolution_rate==='number'?Math.round(data.resolution_rate*100):null;
+  const detail=data&&data.ui.resolution_detail&&typeof data.interpreted==='number'
+    ?data.ui.resolution_detail.replace('{answered}',()=>String(data.totals.answered)).replace('{interpreted}',()=>String(data.interpreted)):null;
   const table=(title:string,rows:QuestionNodeCount[],copy:KnowledgeQuestionMetrics['ui'])=>rows.length?<section aria-label={title}>
     <h4>{title}</h4>
     <table><thead><tr><th scope="col">{copy.node}</th><th scope="col">{copy.count}</th></tr></thead>
@@ -36,6 +39,13 @@ export function KnowledgeQuestionMetricsPanel({workspace,label}:{workspace:Knowl
         <div><h3>{data.ui.title}</h3><p>{data.ui.description}</p>
           <p className="institutional-assistant__metrics-note">{data.ui.period.replace('{days}',()=>String(data.days))}</p></div>
         {total===0?<p>{data.ui.empty}</p>:<>
+          {resolution!==null&&data.ui.resolution_rate?<div className="institutional-assistant__metrics-resolution">
+            <p className="institutional-assistant__metrics-resolution-label" id={`${panelId}-resolution`}>{data.ui.resolution_rate}</p>
+            <p className="institutional-assistant__metrics-resolution-value">{resolution} %</p>
+            <div role="meter" aria-labelledby={`${panelId}-resolution`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={resolution}
+              aria-valuetext={`${resolution} %`} className="institutional-assistant__metrics-resolution-bar"><span style={{width:`${resolution}%`}}/></div>
+            {detail?<p className="institutional-assistant__metrics-note">{detail}</p>:null}
+          </div>:null}
           <dl className="institutional-assistant__metrics-totals">
             {QUESTION_OUTCOMES.map(outcome=><div key={outcome}><dt>{data.ui[outcome]}</dt><dd>{data.totals[outcome]}</dd></div>)}
             {data.uncovered_rate!==null?<div><dt>{data.ui.uncovered_rate}</dt><dd>{Math.round(data.uncovered_rate*100)} %</dd></div>:null}
