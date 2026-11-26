@@ -17,7 +17,7 @@
 .institutional-easy-read__disclosure { margin-top:.65rem; font-size:.85em; color:hsl(var(--muted-foreground)); }
 .institutional-acronyms { margin-top:.75rem; padding:.6rem .85rem; border-radius:.75rem; background:hsl(var(--muted)/.35); border-inline-start:3px solid hsl(var(--primary)/.55); font-size:.95em; }
 [data-brand-identity="published"] .institutional-acronyms { border-inline-start-color:var(--brand-accent-3,hsl(var(--primary)/.55)); }
-.institutional-acronyms__label { margin:0 0 .3rem; font-size:.78em; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:hsl(var(--muted-foreground)); }
+.institutional-acronyms__label { margin:0 0 .3rem; font-size:.85em; font-weight:700; color:hsl(var(--muted-foreground)); }
 .institutional-acronyms dl { display:grid; gap:.25rem; margin:0; }
 .institutional-acronyms dl > div { display:flex; flex-wrap:wrap; gap:.15rem .5rem; }
 .institutional-acronyms dt { font-weight:700; }
