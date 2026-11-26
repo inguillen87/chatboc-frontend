@@ -376,7 +376,7 @@ const WhiteLabelShowcaseSection = () => {
             <div>
               <div className="pb-6">
                 <h3 className="chatboc-display text-2xl font-semibold text-foreground">{active.name}</h3>
-                <p className="mt-1 font-mono text-xs text-slate-600 dark:text-muted-foreground">{active.domain}</p>
+                <p className="mt-1 text-sm text-slate-600 dark:text-muted-foreground">{active.domain}</p>
                 <p className="mt-3 max-w-lg text-base leading-7 text-slate-600 dark:text-muted-foreground">
                   {active.tagline}
                 </p>

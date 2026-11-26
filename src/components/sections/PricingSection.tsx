@@ -22,7 +22,7 @@ const pricingOptions = [
   },
   {
     name: "Plan Operativo",
-    tier: "Más elegido",
+    tier: "Recomendado",
     headline: "Web, WhatsApp, reclamos y seguimiento",
     description:
       "Para equipos con consultas diarias que conectan atención, pedidos, reclamos y reportes en un mismo panel.",
