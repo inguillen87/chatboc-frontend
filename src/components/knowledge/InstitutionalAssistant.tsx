@@ -4,6 +4,7 @@ import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,is
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
+import {KnowledgeTestBatteryPanel} from './InstitutionalAssistantBattery';
 import {InstitutionalAcronyms,InstitutionalNoAnswerFallback,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,formatInstitutionalPrintDate,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalNoAnswerLabels,resolveInstitutionalShareLabels} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
@@ -22,6 +23,9 @@ function InstitutionalIdentityMark({logo,name}:{logo:string|null;name:string}) {
     {logo&&!failed?<img src={logo} alt="" onError={()=>setFailed(true)}/>:name.slice(0,1)}
   </div>;
 }
+const BATTERY_UI_KEYS=['test_battery','test_battery_description','test_battery_input','test_battery_limit','test_battery_run','test_battery_stop',
+  'test_battery_summary','test_battery_question','test_battery_result','test_battery_topic','test_battery_answered','test_battery_uncovered',
+  'test_battery_sources','test_battery_failed','test_battery_pending'] as const;
 export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
   return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
@@ -460,6 +464,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/></button></div></form>:null}
       </div>
     </div>
+    {mode==='admin'&&BATTERY_UI_KEYS.every(key=>typeof ui[key]==='string'&&ui[key].trim())?<KnowledgeTestBatteryPanel workspace={workspace}/>:null}
     {mode==='admin'&&typeof ui.question_metrics==='string'&&ui.question_metrics.trim()?<KnowledgeQuestionMetricsPanel workspace={workspace} label={ui.question_metrics}/>:null}
     <KnowledgeSourceDialog key={`${workspace.tenant.id}:${workspace.revision}`} workspace={workspace} open={showSources} onOpenChange={changeSources} mode={mode} highlightedSourceId={highlightedSourceId} largeText={large}
       restoreFocus={()=>{const target=sourcesReturnFocus.current?.isConnected?sourcesReturnFocus.current:sourcesTrigger.current;if(active.current&&target?.isConnected)target.focus({preventScroll:true});}}/>
