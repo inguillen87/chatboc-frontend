@@ -673,14 +673,25 @@ const readHoursLine = (hours: unknown) => {
 };
 
 
+// The most specific match wins: "Bodega" is a business, but saying so three
+// times in a row tells the visitor nothing about what each demo shows.
 const PLATFORM_OPTION_HINTS: Array<[RegExp, string]> = [
+  [/bodega|vino/i, "Vinos, cajas, envíos y visitas."],
+  [/ferret|corral|obra/i, "Materiales, precios y entregas en obra."],
+  [/almac|kiosc|super/i, "Pedidos, combos y reparto."],
+  [/cl[ií]nic|m[eé]dic|salud/i, "Turnos, estudios y consultas."],
+  [/inmobili/i, "Propiedades, visitas y consultas."],
+  [/segur/i, "Pólizas, siniestros y asistencia."],
+  [/log[ií]st|transport/i, "Envíos, seguimiento y entregas."],
+  [/comercio|tienda|local|moda|ropa/i, "Productos, talles, cambios y envíos."],
   [/gob|muni/i, "Reclamos, trámites, turnos y consultas de vecinos."],
   [/coleg|educ|instit/i, "Inscripciones, avisos a familias y consultas."],
-  [/empres|pyme|comerc/i, "Ventas, catálogo, pedidos y soporte."],
+  [/empres|pyme/i, "Ventas, catálogo, pedidos y soporte."],
 ];
 
 const platformOptionHint = (option: { id?: string; sector?: string; label?: string }): string => {
-  const key = `${option.sector || ""} ${option.id || ""} ${option.label || ""}`;
+  // The label names the demo; the sector is only the family it belongs to.
+  const key = `${option.label || ""} ${option.id || ""} ${option.sector || ""}`;
   return PLATFORM_OPTION_HINTS.find(([pattern]) => pattern.test(key))?.[1] || "";
 };
 
