@@ -8,7 +8,7 @@ import type {Message} from '@/types/chat';
 export interface InstitutionalCanonicalChatMessage {
   kind?:undefined;
   tenant:{id:number;slug:string}; revision:string; nodes:KnowledgeNode[]; sources:KnowledgeSource[];
-  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string;acronyms?:string};
+  ui?:InstitutionalChoiceNavigation&{large_text:string;source_details:string;acronyms?:string;share_whatsapp?:string};
   audioReading?:InstitutionalAudioReading;
   easyRead?:InstitutionalEasyReadCopy;
   /** Verified easy-read text of the first node, when the person asked for it by writing. */
@@ -98,7 +98,9 @@ export function institutionalChatBootstrapPayload(value:unknown,tenantSlug:strin
     knowledge_sources:answer.nodes.flatMap(node=>node.sources),message_body:answer.text,
     ...(workspace.audio_reading?{knowledge_audio_reading:workspace.audio_reading}:{}),
     ...(workspace.easy_read?{knowledge_easy_read:workspace.easy_read}:{}),
-    ...(readInstitutionalChoiceNavigation(workspace.ui)?{knowledge_ui:{...readInstitutionalChoiceNavigation(workspace.ui),large_text:workspace.ui.large_text,source_details:workspace.ui.source_details}}:{}),
+    ...(readInstitutionalChoiceNavigation(workspace.ui)?{knowledge_ui:{...readInstitutionalChoiceNavigation(workspace.ui),large_text:workspace.ui.large_text,source_details:workspace.ui.source_details,
+      ...(typeof workspace.ui.acronyms==='string'&&workspace.ui.acronyms.trim()&&workspace.ui.acronyms.length<=200?{acronyms:workspace.ui.acronyms}:{}),
+      ...(typeof workspace.ui.share_whatsapp==='string'&&workspace.ui.share_whatsapp.trim()&&workspace.ui.share_whatsapp.length<=200?{share_whatsapp:workspace.ui.share_whatsapp}:{})}}:{}),
     botones:institutionalChatActions(answer.nodes).map(action=>({texto:action.label,
       action_id:`knowledge:${answer.revision.slice(0,16)}:${action.target}`}))};
   if(!parseInstitutionalChatMessage(payload,tenantSlug))throw new Error('knowledge_initial_response_invalid');
@@ -161,7 +163,8 @@ export function parseInstitutionalChatMessage(value:unknown,tenantSlug:string|nu
     ...(easyRead&&typeof value.knowledge_easy_read_text==='string'?{easyReadText:value.knowledge_easy_read_text}:{}),
     ...(navigation?{ui:{...navigation,large_text:suppliedUi!.large_text as string,source_details:suppliedUi!.source_details as string,
       // Optional label: an older backend omits it and the acronyms block stays hidden.
-      ...(typeof suppliedUi!.acronyms==='string'&&suppliedUi!.acronyms.trim()&&suppliedUi!.acronyms.length<=200?{acronyms:suppliedUi!.acronyms}:{})}}:{})};
+      ...(typeof suppliedUi!.acronyms==='string'&&suppliedUi!.acronyms.trim()&&suppliedUi!.acronyms.length<=200?{acronyms:suppliedUi!.acronyms}:{}),
+      ...(typeof suppliedUi!.share_whatsapp==='string'&&suppliedUi!.share_whatsapp.trim()&&suppliedUi!.share_whatsapp.length<=200?{share_whatsapp:suppliedUi!.share_whatsapp}:{})}}:{})};
 }
 
 // A leading token made only of pictographic or other symbol characters (for
