@@ -319,7 +319,7 @@ describe("ChatPanel realtime transport truth", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver acciones" }));
+    // The call is in the toolbar, in view, not behind "Ver acciones".
     fireEvent.click(screen.getByRole("button", { name: "Llamada IA" }));
 
     await waitFor(() => {
@@ -365,7 +365,7 @@ describe("ChatPanel realtime transport truth", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver acciones" }));
+    // The call is in the toolbar, in view, not behind "Ver acciones".
     fireEvent.click(screen.getByRole("button", { name: "Llamada IA" }));
 
     await waitFor(() => {

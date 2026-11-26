@@ -474,6 +474,7 @@ export interface ChatMessageBaseProps {
   maxVisibleQuickReplies?: number;
   collapseExtraQuickReplies?: boolean;
   institutionalInteractive?: boolean;
+  onFocusInput?: () => void;
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
@@ -492,6 +493,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     maxVisibleQuickReplies,
     collapseExtraQuickReplies,
     institutionalInteractive = true,
+    onFocusInput,
     // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
@@ -749,7 +751,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const botBadgeClass = logoBadgeStyle === 'rounded-square' ? 'rounded-2xl' : 'rounded-full';
 
-  if(isBot&&message.institutional)return <InstitutionalChatMessage ref={ref} answer={message.institutional} onButtonClick={onButtonClick} interactive={institutionalInteractive}/>;
+  if(isBot&&message.institutional)return <InstitutionalChatMessage ref={ref} answer={message.institutional} onButtonClick={onButtonClick} onFocusInput={onFocusInput} interactive={institutionalInteractive}/>;
 
   return (
     <motion.div

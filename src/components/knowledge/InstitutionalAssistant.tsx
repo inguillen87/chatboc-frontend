@@ -4,7 +4,7 @@ import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,is
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
-import {InstitutionalAcronyms,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,formatInstitutionalPrintDate,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalShareLabels} from './InstitutionalTextBlocks';
+import {InstitutionalAcronyms,InstitutionalNoAnswerFallback,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,formatInstitutionalPrintDate,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalNoAnswerLabels,resolveInstitutionalShareLabels} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
@@ -45,6 +45,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const active=useRef(true),locked=useRef(false),heading=useRef<HTMLElement|null>(null),upload=useRef<HTMLInputElement>(null),serial=useRef(0);
   const questionId=useId();
   const assistantRoot=useRef<HTMLElement>(null),printTimeRef=useRef<HTMLTimeElement>(null),printOpenedDetails=useRef<HTMLDetailsElement[]>([]);
+  const composerInput=useRef<HTMLTextAreaElement>(null);
   const pageHeading=useRef<HTMLHeadingElement>(null),reading=useRef<HTMLDivElement>(null);
   const sourcesTrigger=useRef<HTMLButtonElement>(null),reviewTrigger=useRef<HTMLElement|null>(null);
   const sourcesReturnFocus=useRef<HTMLElement|null>(null);
@@ -315,6 +316,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   }
   const ui=workspace.ui,knowledge=workspace.knowledge;
   const shareLabels=resolveInstitutionalShareLabels(ui);
+  const noAnswerLabels=resolveInstitutionalNoAnswerLabels(ui);
   const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
     ?safeInstitutionLogo(publicIdentity.logoUrl):null;
   const context=nodes.length?nodes:uncovered?topic:[];
@@ -323,7 +325,19 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const topicNotice=topicNode?ui[topicNode.actions.length?'unknown_in_topic':'unknown_in_topic_no_options']:undefined;
   const uncoveredText=topicNode&&typeof topicNotice==='string'&&topicNotice.includes('{title}')
     ?topicNotice.replace('{title}',()=>topicNode.title):ui.unknown;
-  const actions=context.flatMap(n=>n.actions).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
+  const showNoAnswerFallback=Boolean(uncovered&&!busy&&!error&&knowledge&&workspace.visibility==='public');
+  const initialMenuActions=knowledge?.initial.actions??[];
+  const initialActionKeys=new Set(initialMenuActions.map(action=>`${action.target}\0${action.label}`));
+  const actions=(showNoAnswerFallback
+    ?(topicNode?topicNode.actions.filter(action=>!initialActionKeys.has(`${action.target}\0${action.label}`)):[])
+    :context.flatMap(n=>n.actions)
+  ).filter((a,i,list)=>list.findIndex(b=>b.target===a.target&&b.label===a.label)===i);
+  const focusComposer=()=>{
+    const input=composerInput.current;
+    if(!input?.isConnected)return;
+    input.focus();
+    input.scrollIntoView?.({block:'nearest',behavior:'auto'});
+  };
   const initialMenu=presentation==='initial-menu';
   const choices=!busy&&!error?<InstitutionalChoices actions={actions} navigation={readInstitutionalChoiceNavigation(ui)} responseIdentity={context}
     disabled={Boolean(pending)||showSources} className="institutional-assistant__choices"
@@ -367,6 +381,16 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
           {error?<div ref={element=>{heading.current=element;}} tabIndex={-1} role="alert" className="institutional-assistant__notice"><p>{ui.error}</p><button type="button" disabled={busy} onClick={retryAnswer}>{ui.retry}</button></div>:null}
           {!busy&&!error&&!pending&&!knowledge?<div className="institutional-assistant__empty"><BookOpen size={32} aria-hidden="true"/><h3>{ui.empty}</h3><p>{ui.import_help}</p></div>:null}
           {uncovered&&!busy&&!error?<p ref={element=>{heading.current=element;}} tabIndex={-1} role="status" className="institutional-assistant__uncovered">{uncoveredText}</p>:null}
+          {showNoAnswerFallback?<InstitutionalNoAnswerFallback
+            actions={initialMenuActions}
+            labels={noAnswerLabels}
+            formatChoiceLabel={institutionalChoiceLabel}
+            onSelectAction={(action,origin)=>{void navigate(action.target,undefined,origin);}}
+            onRewriteQuestion={focusComposer}
+            disabled={Boolean(pending)||showSources}
+            announcePolite
+            showChevron
+          />:null}
           {sourceNavigation&&!busy&&!error?<section aria-label={ui.sources} className="institutional-assistant__answer">
             <h3 ref={element=>{heading.current=element;}} tabIndex={-1}>{ui.sources}</h3>
             <p role="status">{sourceNavigation.text}</p>
@@ -420,11 +444,12 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
         </div>
         {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{
           event.preventDefault();const submitter=(event.nativeEvent as SubmitEvent).submitter;
-          const input=event.currentTarget.querySelector('textarea');
-          const origin=submitter instanceof HTMLElement?submitter:document.activeElement===input?input:null;
+          const input=composerInput.current??event.currentTarget.querySelector('textarea');
+          const origin=(submitter instanceof HTMLElement&&document.activeElement===submitter)?submitter
+            :document.activeElement===input?input:submitter instanceof HTMLElement?submitter:null;
           if(question.trim())void navigate(current,question.trim(),origin);
         }}>
-          <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19} aria-hidden="true"/><textarea id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
+          <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19} aria-hidden="true"/><textarea ref={composerInput} id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
             onChange={event=>{setQuestion(event.target.value);if(failedAnswer){setFailedAnswer(null);setError(false);}}} placeholder={ui.placeholder} disabled={busy||Boolean(pending)}
             onKeyDown={event=>{
               if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){

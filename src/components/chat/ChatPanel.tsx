@@ -3199,17 +3199,10 @@ const ChatPanelContent = (props: ChatPanelProps) => {
       tone: action.active ? "primary" : "default",
     }));
 
-  if (!activeTicketId && realtimeVoiceEnabled && !isToolbarActionCollapsed("voice_call")) {
-    compactFooterActions.push({
-      id: "voice_call",
-      label: voiceCallLabel,
-      icon: PhoneCall,
-      onClick: () => void beginRealtimeSession("voice"),
-      tone: "primary",
-    });
-  }
-
-  if (!activeTicketId && realtimeVideoEnabled && videoCallLabel && !isToolbarActionCollapsed("video_call")) {
+  // The voice call is not listed here: it has its own button in the toolbar,
+  // always in view. "Collapsed" only means "kept out of the toolbar": the video
+  // call stays in the tray instead of disappearing.
+  if (!activeTicketId && realtimeVideoEnabled && videoCallLabel) {
     compactFooterActions.push({
       id: "video_call",
       label: videoCallLabel,
@@ -4068,6 +4061,22 @@ const ChatPanelContent = (props: ChatPanelProps) => {
     </button>
   ) : null;
 
+  // Talking is the only way in for people who cannot read or type comfortably:
+  // the call sits in the toolbar with a visible icon, not only inside the tray.
+  const voiceCallShortcut =
+    !activeTicketId && realtimeVoiceEnabled && channelMode === "chat" ? (
+      <button
+        type="button"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        onClick={() => void beginRealtimeSession("voice")}
+        aria-label={voiceCallLabel}
+        title={voiceCallLabel}
+        data-testid="chat-voice-call-shortcut"
+      >
+        <PhoneCall className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+      </button>
+    ) : null;
+
   const validateLeadCaptureInput = useCallback(
     (payload: { text: string; action?: string; action_id?: string }) => {
       if (!leadRequestedField || payload.action || payload.action_id)
@@ -4746,6 +4755,12 @@ const ChatPanelContent = (props: ChatPanelProps) => {
               institutionalNavigation.activate(msg,payload);
             }}
             institutionalInteractive={institutionalNavigation.activeMessage===msg&&!isTyping}
+            onFocusInput={() => {
+              const input = chatInputTextRef.current;
+              if (!input?.isConnected) return;
+              input.focus();
+              input.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
+            }}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
@@ -5182,7 +5197,7 @@ const ChatPanelContent = (props: ChatPanelProps) => {
         ) : (
           <ChatInput
             ref={chatInputHandleRef}
-            toolbarStart={actionTrayToggle}
+            toolbarStart={<>{actionTrayToggle}{voiceCallShortcut}</>}
             onSendMessage={handleSend}
             isTyping={isTyping}
             disabled={Boolean(chatTrialLimitNotice)}
