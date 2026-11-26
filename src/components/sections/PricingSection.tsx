@@ -67,7 +67,8 @@ const pricingOptions = [
 const PricingSection = () => {
   const navigate = useNavigate();
   const reduceMotion = Boolean(useReducedMotion());
-  const canAnimateInView = !reduceMotion && typeof IntersectionObserver !== "undefined";
+  // One orchestrated moment lives in the hero; sections below stay still.
+  const canAnimateInView = false && !reduceMotion;
 
   return (
     <section
@@ -97,7 +98,7 @@ const PricingSection = () => {
                 whileInView={canAnimateInView ? { opacity: 1, y: 0 } : undefined}
                 viewport={canAnimateInView ? { once: true, amount: 0.2 } : undefined}
                 transition={{ duration: canAnimateInView ? 0.4 : 0, delay: canAnimateInView ? index * 0.08 : 0, ease: "easeOut" }}
-                className={`group relative flex h-full flex-col overflow-hidden rounded-[20px] border p-6 transition-all duration-300 hover:-translate-y-1 md:p-7 ${
+                className={`group relative flex h-full flex-col overflow-hidden rounded-[20px] border p-6 transition-all duration-300 md:p-7 ${
                   option.highlight
                     ? "border-primary/55 bg-card shadow-[0_28px_70px_rgba(13,53,195,0.16)] ring-1 ring-primary/30 dark:shadow-[0_28px_70px_rgba(37,99,235,0.22)]"
                     : "border-border/80 bg-card/95 shadow-sm hover:border-primary/35 hover:shadow-xl"

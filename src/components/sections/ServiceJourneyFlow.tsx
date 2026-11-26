@@ -58,7 +58,7 @@ const JourneyNode = ({ data }: { data: JourneyNodeData }) => (
   <div className="relative p-4 text-left">
     <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-background !bg-primary" />
     <div>
-      <div className={`text-[10px] font-bold uppercase tracking-[0.13em] ${data.emphasis ? 'text-white/75 dark:text-primary-foreground' : 'text-primary'}`}>
+      <div className={`text-[10px] font-bold ${data.emphasis ? 'text-white/75 dark:text-primary-foreground' : 'text-primary'}`}>
         {data.eyebrow}
       </div>
       <div className="mt-1.5 text-[15px] font-semibold leading-5">{data.label}</div>
@@ -245,7 +245,7 @@ const ServiceJourneyFlow = () => {
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold uppercase tracking-[0.11em] text-primary">{String(index + 1).padStart(2, '0')} · {step.label}</p>
+                    <p className="text-xs font-bold text-primary">{String(index + 1).padStart(2, '0')} · {step.label}</p>
                     <p className="mt-1 text-sm leading-5 text-foreground">{step.detail}</p>
                   </div>
                 </li>

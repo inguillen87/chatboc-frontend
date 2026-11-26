@@ -174,7 +174,7 @@ const MetricsPanel = ({ metrics }: { metrics: ReturnType<typeof normalizeMetrics
       <div className="relative grid gap-4 md:grid-cols-3">
         {metrics.slice(0, 6).map((metric, index) => (
           <div key={metric.id} className="rounded-[8px] border border-border/70 bg-background/80 p-4">
-            <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">{metric.label}</p>
+            <p className="text-xs font-semibold text-muted-foreground">{metric.label}</p>
             <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{metric.value}</p>
             {metric.detail ? <p className="mt-1 text-sm text-muted-foreground">{metric.detail}</p> : null}
             {metric.percent !== null ? (

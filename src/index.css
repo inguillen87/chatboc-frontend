@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -197,10 +197,13 @@
     @apply border-[#2A69FF]/50 text-[#C7DBFF] hover:bg-[#2A69FF]/20;
   }
   .chatboc-section-kicker {
-    @apply inline-flex items-center gap-2 rounded-[8px] border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-primary;
+    @apply inline-flex items-center gap-2 text-sm font-medium text-muted-foreground;
   }
   .chatboc-section-heading {
-    @apply text-3xl font-bold leading-tight tracking-normal text-foreground md:text-4xl;
+    @apply text-3xl font-bold text-foreground md:text-[2.6rem];
+    font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
+    letter-spacing: -0.025em;
+    line-height: 1.08;
   }
   .chatboc-section-copy {
     @apply text-base leading-7 text-muted-foreground md:text-lg;
@@ -265,6 +268,7 @@
     box-shadow: 0 18px 36px hsl(var(--primary) / 0.22);
   }
   .chatboc-hero-headline {
+    font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
     max-width: 12.9ch;
     position: relative;
     z-index: 5;
