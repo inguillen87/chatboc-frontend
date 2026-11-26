@@ -11,7 +11,7 @@ import {
 describe('demo presentation labels', () => {
   it.each([
     ['assigned', 'Asignado'],
-    ['in_target', 'Dentro de SLA'],
+    ['in_target', 'En plazo'],
     ['at-risk', 'En riesgo'],
     ['demo_publicada', 'Demo publicada'],
     ['field_team', 'Equipo de campo'],

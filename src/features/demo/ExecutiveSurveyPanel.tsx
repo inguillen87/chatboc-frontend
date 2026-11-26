@@ -180,7 +180,7 @@ const ExecutiveSurveyResultView = ({
                   {NUMBER_FORMATTER.format(leader.percentage)}%
                 </strong>
                 {margin !== null && runnerUp
-                  ? ` (+${NUMBER_FORMATTER.format(margin)} p.p. sobre ${runnerUp.label})`
+                  ? ` (+${NUMBER_FORMATTER.format(margin)} puntos sobre ${runnerUp.label})`
                   : ''}
               </>
             ) : null}

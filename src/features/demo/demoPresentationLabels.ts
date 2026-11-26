@@ -13,7 +13,7 @@ const DEMO_PRESENTATION_LABELS: Record<string, string> = {
   gobierno: 'Gobierno',
   image: 'Imagen',
   in_progress: 'En curso',
-  in_target: 'Dentro de SLA',
+  in_target: 'En plazo',
   location: 'Ubicación',
   met: 'Cumplido',
   new: 'Nuevo',
@@ -112,6 +112,10 @@ export const cleanDemoText = (value?: string | null): string => {
     .replace(/\ben\s+el\s+escenario\b/gi, '')
     .replace(/\bobjetivo\s+operativo\s+simulado\b/gi, 'plazo objetivo')
     .replace(/\bCorte\s+ejecutivo\s+de\s+/gi, 'Resultados de ')
+    .replace(/\bCumplimiento\s+de\s+SLA\b/gi, 'Resueltos en plazo')
+    .replace(/\bDentro\s+de\s+SLA\b/gi, 'En plazo')
+    .replace(/\bcon\s+SLA\s+de\b/gi, 'con plazo de')
+    .replace(/\bSLA\b/g, 'plazo')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+\./g, '.')
     .trim();

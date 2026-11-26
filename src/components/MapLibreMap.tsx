@@ -123,6 +123,8 @@ export type MapLibreMapProps = {
   heatmapRadiusScale?: number;
   heatmapIntensityScale?: number;
   heatmapPalette?: "default" | "faro";
+  /** Colour ramp of the default palette. "viridis" stays the default for operational panels. */
+  heatmapRamp?: "viridis" | "thermal";
   /** Fade density as the operator zooms in so concrete points become the primary evidence. */
   adaptiveZoomMode?: boolean;
 };
@@ -875,6 +877,7 @@ export default function MapLibreMap({
   heatmapRadiusScale = 1,
   heatmapIntensityScale = 1,
   heatmapPalette = "default",
+  heatmapRamp = "viridis",
   adaptiveZoomMode = false,
 }: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
@@ -1367,18 +1370,23 @@ export default function MapLibreMap({
                     "interpolate",
                     ["linear"],
                     ["heatmap-density"],
-                    0,
-                    "rgba(37, 99, 235, 0)",
-                    0.05,
-                    "rgba(56, 189, 248, 0.44)",
-                    0.25,
-                    "rgba(14, 165, 233, 0.66)",
-                    0.5,
-                    "rgba(245, 158, 11, 0.82)",
-                    0.78,
-                    "rgba(234, 88, 12, 0.92)",
-                    1,
-                    "rgba(185, 28, 28, 0.96)",
+                    ...(heatmapRamp === "thermal"
+                      ? [
+                          0, "rgba(37, 99, 235, 0)",
+                          0.05, "rgba(56, 189, 248, 0.44)",
+                          0.25, "rgba(14, 165, 233, 0.66)",
+                          0.5, "rgba(245, 158, 11, 0.82)",
+                          0.78, "rgba(234, 88, 12, 0.92)",
+                          1, "rgba(185, 28, 28, 0.96)",
+                        ]
+                      : [
+                          0, "rgba(68, 1, 84, 0)",
+                          0.18, "rgba(68, 1, 84, 0.62)",
+                          0.38, "rgba(59, 82, 139, 0.72)",
+                          0.58, "rgba(33, 145, 140, 0.78)",
+                          0.78, "rgba(94, 201, 98, 0.86)",
+                          1, "rgba(253, 231, 37, 0.96)",
+                        ]),
                   ],
             },
           });

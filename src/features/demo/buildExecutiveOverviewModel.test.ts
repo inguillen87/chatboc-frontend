@@ -93,7 +93,7 @@ describe('buildExecutiveOverviewModel', () => {
         id: 'intake',
         title: 'Ingreso del reclamo',
         channel: 'WhatsApp',
-        status: 'Dentro de SLA',
+        status: 'En plazo',
       }],
     });
     expect(model.callout).toEqual({

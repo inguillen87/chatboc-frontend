@@ -975,6 +975,7 @@ const DemoPreviewMap = ({
             showEvidenceBadge={false}
             heatmapRadiusScale={mapMode === 'density' ? 2.6 : 2.1}
             heatmapIntensityScale={mapMode === 'density' ? 2.8 : 2.1}
+            heatmapRamp="thermal"
             center={center}
             fitToBounds={bounds.length ? bounds : undefined}
             fitBoundsRequestKey={selectedCategory ?? 'all'}
