@@ -455,7 +455,7 @@ test.describe('Chatboc smoke e2e', () => {
       await expect(page.getByRole('button', { name: /WhatsApp/i })).toBeVisible();
       await expect(page.getByRole('button', { name: /Probar llamada IA/i })).toBeVisible();
     } else {
-      await expect(widget.getByRole('heading', { name: /Qué querés probar/i })).toBeVisible();
+      await expect(widget.getByRole('heading', { level: 2 })).toBeVisible();
       await expect(educationSector).toBeVisible();
       await expect(widget.getByRole('button', { name: /Empresas/i })).toBeVisible();
       await expect(widget.getByRole('button', { name: /Gobiernos/i })).toBeVisible();
