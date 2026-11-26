@@ -1,49 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ArrowRight,
-  Briefcase,
-  Building2,
-  Factory,
-  GraduationCap,
-  Heart,
-  Loader2,
-  ShoppingBag,
-  Store,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createDemoSession, getDemoCatalog } from "@/features/demo/demoApi";
 import type { DemoCatalogResponse, DemoSector, DemoSectorGroup } from "@/features/demo/demoTypes";
 import type { Rubro } from "@/types/rubro";
 
-const categoryIcons: Record<string, React.ReactNode> = {
-  municipios_root: <Building2 className="h-5 w-5" />,
-  comerciales_root: <Store className="h-5 w-5" />,
-  educacion_root: <GraduationCap className="h-5 w-5" />,
-  gobierno: <Building2 className="h-5 w-5" />,
-  empresas: <Store className="h-5 w-5" />,
-  educacion: <GraduationCap className="h-5 w-5" />,
-  "Colegios e instituciones educativas": <GraduationCap className="h-5 w-5" />,
-  "Alimentacion y Bebidas": <ShoppingBag className="h-4 w-4" />,
-  "Salud y Bienestar": <Heart className="h-4 w-4" />,
-  "Servicios Profesionales": <Briefcase className="h-4 w-4" />,
-  "Produccion e Industria": <Factory className="h-4 w-4" />,
-  "Retail y Comercios": <Store className="h-4 w-4" />,
-};
-
 const LANDING_DEMO_ORDER: DemoSector[] = ["educacion", "gobierno", "empresas"];
-
-const getIconForCategory = (cat: Pick<Rubro, "clave" | "nombre"> | DemoSectorGroup | null | undefined) => {
-  const key = String((cat as any)?.key ?? (cat as any)?.clave ?? "");
-  if (key && categoryIcons[key]) return categoryIcons[key];
-  const name = String((cat as any)?.label ?? (cat as any)?.nombre ?? (cat as any)?.title ?? "");
-  const found = Object.keys(categoryIcons).find((candidate) => name.includes(candidate));
-  return found ? categoryIcons[found] : <Store className="h-4 w-4" />;
-};
 
 const normalize = (value?: string | null) =>
   (value || "")
@@ -63,8 +27,23 @@ const rootMatchesSector = (root: Rubro, sector: DemoSector) => {
   const name = normalize([root.nombre, (root as any).label, (root as any).title].filter(Boolean).join(" "));
   if (declaredSector && declaredSector.includes(normalize(sector))) return true;
   if (sector === "educacion") return key.includes("educacion") || name.includes("coleg");
-  if (sector === "gobierno") return declaredSector.includes("gobierno") || key.includes("municip") || name.includes("gobierno") || name.includes("public");
-  if (sector === "empresas") return declaredSector.includes("empresa") || declaredSector.includes("pyme") || key.includes("comercial") || name.includes("empresa") || name.includes("comerc");
+  if (sector === "gobierno") {
+    return (
+      declaredSector.includes("gobierno") ||
+      key.includes("municip") ||
+      name.includes("gobierno") ||
+      name.includes("public")
+    );
+  }
+  if (sector === "empresas") {
+    return (
+      declaredSector.includes("empresa") ||
+      declaredSector.includes("pyme") ||
+      key.includes("comercial") ||
+      name.includes("empresa") ||
+      name.includes("comerc")
+    );
+  }
   return key.includes(normalize(sector)) || name.includes(normalize(sector));
 };
 
@@ -79,18 +58,26 @@ const flattenDemoCards = (root: Rubro): Rubro[] => {
 };
 
 const readRubroLabel = (item: Rubro) =>
-  String(item.demo?.nombre || item.nombre || (item as any).label || (item as any).title || (item as any).key || (item as any).slug || '').trim();
+  String(
+    item.demo?.nombre || item.nombre || (item as any).label || (item as any).title || (item as any).key || (item as any).slug || "",
+  ).trim();
 
 const readRubroDescription = (item: Rubro, group?: DemoSectorGroup) =>
-  String(item.demo?.descripcion || (item as any).descripcion || (item as any).description || group?.description || readRubroLabel(item)).trim();
+  String(
+    item.demo?.descripcion || (item as any).descripcion || (item as any).description || group?.description || readRubroLabel(item),
+  ).trim();
 
 const readRubroSlug = (item: Rubro) =>
-  String(item.demo?.slug || item.clave || (item as any).rubro_slug || (item as any).key || (item as any).slug || item.nombre || (item as any).label || '').trim();
+  String(
+    item.demo?.slug || item.clave || (item as any).rubro_slug || (item as any).key || (item as any).slug || item.nombre || (item as any).label || "",
+  ).trim();
 
 const readRubroTenantSlug = (item: Rubro, group?: DemoSectorGroup) =>
-  String((item as any).tenant_slug || (item as any).demo_tenant_slug || item.demo?.slug || (item as any).slug || group?.tenant_slug || '').trim() || null;
+  String(
+    (item as any).tenant_slug || (item as any).demo_tenant_slug || item.demo?.slug || (item as any).slug || group?.tenant_slug || "",
+  ).trim() || null;
 
-const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; group?: DemoSectorGroup }) => {
+const DemoRow = ({ item, sector, group }: { item: Rubro; sector: DemoSector; group?: DemoSectorGroup }) => {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +107,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
           rubroSlug: readRubroSlug(item),
         },
       });
-    } catch (err) {
+    } catch {
       setError("No pudimos abrir la demo real. Probá de nuevo en unos minutos.");
     } finally {
       setStarting(false);
@@ -128,46 +115,39 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
   };
 
   return (
-    <Card className="group chatboc-hover-lift flex h-full flex-col overflow-hidden rounded-[8px] border-border/70 bg-card/95 shadow-sm transition-all hover:border-primary/40 hover:shadow-xl">
-      <CardHeader className="pb-3">
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-          {getIconForCategory(item)}
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <CardTitle className="text-base font-semibold leading-snug transition-colors group-hover:text-primary">
-            {rubroLabel}
-          </CardTitle>
-          <Badge variant="secondary" className="h-5 rounded-[8px] px-2 text-[10px]">
-            Demo
-          </Badge>
-        </div>
-        <CardDescription className="line-clamp-2 text-sm">
+    <li className="flex flex-col gap-4 border-b border-border py-6 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+      <div className="min-w-0">
+        <h4 className="text-lg font-semibold leading-snug text-foreground">{rubroLabel}</h4>
+        <p className="mt-1 max-w-[54ch] text-sm leading-6 text-slate-600 dark:text-muted-foreground">
           {rubroDescription}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-1">
-        {error ? <p className="rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
-      </CardContent>
-      <CardFooter className="pt-0">
+        </p>
+        {error ? (
+          <p className="mt-2 rounded-[8px] bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{error}</p>
+        ) : null}
+      </div>
+
+      <div className="shrink-0">
         <Button
           size="sm"
-          className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold"
+          className="chatboc-cta-primary h-10 w-full rounded-[8px] px-4 text-sm font-semibold shadow-none sm:w-auto"
           onClick={startDemo}
           disabled={starting}
         >
-          {starting ? "Iniciando…" : group?.cta_label?.trim() || "Probar demo"}
           {starting ? (
-            <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              Iniciando…
+            </>
           ) : (
-            <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            group?.cta_label?.trim() || "Probar demo"
           )}
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </li>
   );
 };
 
-const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSectorGroup }) => {
+const PillarDemoRow = ({ sector, group }: { sector: DemoSector; group: DemoSectorGroup }) => {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +180,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
           rubroSlug: defaultRubro,
         },
       });
-    } catch (err) {
+    } catch {
       setError("No pudimos abrir la demo real. Probá de nuevo en unos minutos.");
     } finally {
       setStarting(false);
@@ -208,28 +188,37 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
   };
 
   return (
-    <Card className="group chatboc-hover-lift flex h-full flex-col rounded-[8px] border-border/70 bg-card/95 shadow-sm transition-all hover:border-primary/40 hover:shadow-xl">
-      <CardHeader>
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-          {getIconForCategory(group)}
-        </div>
-        <CardTitle className="text-base font-semibold">{group.label || String(group.key)}</CardTitle>
-        {group.description ? <CardDescription>{group.description}</CardDescription> : null}
-      </CardHeader>
-      <CardContent className="flex-1">
-        {error ? <p className="rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
-      </CardContent>
-      <CardFooter>
-        <Button size="sm" className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold" onClick={startDemo} disabled={starting}>
-          {starting ? "Iniciando…" : group.cta_label?.trim() || "Probar demo"}
+    <li className="flex flex-col gap-4 border-b border-border py-6 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+      <div className="min-w-0">
+        <h4 className="text-lg font-semibold leading-snug text-foreground">{group.label || String(group.key)}</h4>
+        {group.description ? (
+          <p className="mt-1 max-w-[54ch] text-sm leading-6 text-slate-600 dark:text-muted-foreground">
+            {group.description}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="mt-2 rounded-[8px] bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{error}</p>
+        ) : null}
+      </div>
+
+      <div className="shrink-0">
+        <Button
+          size="sm"
+          className="chatboc-cta-primary h-10 w-full rounded-[8px] px-4 text-sm font-semibold shadow-none sm:w-auto"
+          onClick={startDemo}
+          disabled={starting}
+        >
           {starting ? (
-            <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              Iniciando…
+            </>
           ) : (
-            <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            group.cta_label?.trim() || "Probar demo"
           )}
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </li>
   );
 };
 
@@ -265,101 +254,107 @@ const DemoShowcaseSection = () => {
   const groups = useMemo(() => {
     const catalogGroups = Array.isArray(catalog?.sector_groups) ? catalog.sector_groups : [];
     const byKey = new Map(catalogGroups.map((group) => [String(group.key), group]));
-    return LANDING_DEMO_ORDER.map(
-      (sector) => byKey.get(String(sector)),
-    ).filter((group): group is DemoSectorGroup => Boolean(group));
+    return LANDING_DEMO_ORDER.map((sector) => byKey.get(String(sector))).filter((group): group is DemoSectorGroup =>
+      Boolean(group),
+    );
   }, [catalog?.sector_groups]);
   const defaultValue = groups[0]?.key ? String(groups[0].key) : undefined;
 
   return (
-    <section id="demos" className="relative overflow-hidden bg-background py-20 text-foreground md:py-28">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-primary/10 to-transparent" aria-hidden="true" />
-      <div className="container relative mx-auto px-4">
-        <div className="mx-auto mb-10 max-w-4xl text-center">
-          <div className="chatboc-section-kicker mb-4">Demos</div>
-          <h2 className="chatboc-section-heading">Probá una conversación real por sector</h2>
-          <p className="chatboc-section-copy mt-4">
-            Elegí un rubro y abrí un recorrido publicado: el chat pide datos, recibe adjuntos y muestra cómo
-            queda la operación para el equipo.
-          </p>
-        </div>
-
-        {loading ? (
-          <Alert className="mx-auto mb-6 max-w-5xl border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-            <AlertTitle>Cargando demos</AlertTitle>
-            <AlertDescription>
-              Estamos cargando las demos disponibles para que puedas probarlas.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {!loading && (loadError || groups.length === 0) ? (
-          <div className="mx-auto max-w-2xl rounded-[8px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
-            {loadError || "Todavía no hay demos publicadas para mostrar."}
+    <section
+      id="demos"
+      aria-labelledby="demos-title"
+      className="border-t border-border bg-background py-20 text-foreground md:py-28"
+    >
+      <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <div className="chatboc-section-kicker mb-4">Demos</div>
+            <h2 id="demos-title" className="chatboc-section-heading text-balance">
+              Probá una conversación real por sector
+            </h2>
+            <p className="chatboc-section-copy mt-4 max-w-2xl">
+              Elegí un rubro y abrí un recorrido publicado: el chat pide datos, recibe adjuntos y muestra cómo queda la
+              operación para el equipo.
+            </p>
           </div>
-        ) : null}
 
-        {!loading && !loadError && groups.length > 0 ? (
-          <Tabs defaultValue={defaultValue} className="mx-auto w-full max-w-6xl">
-            <div className="mb-8 overflow-x-auto pb-2">
-              <TabsList className="mx-auto grid h-auto w-full max-w-3xl grid-cols-3 gap-1 rounded-[8px] border border-border/70 bg-card/80 p-1 shadow-sm backdrop-blur">
-                {groups.map((group) => (
-                  <TabsTrigger
-                    key={String(group.key)}
-                    value={String(group.key)}
-                    className="rounded-[8px] px-3 py-3 text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      {getIconForCategory(group)}
-                      {group.label || String(group.key)}
-                    </span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+          {loading ? (
+            <div
+              role="status"
+              className="mt-10 rounded-[12px] border border-border bg-card px-5 py-4 text-sm text-slate-600 dark:text-muted-foreground"
+            >
+              Cargando las demos disponibles…
             </div>
+          ) : null}
 
-            {groups.map((group) => {
-              const sector = String(group.key) as DemoSector;
-              const matchingRoots = roots.filter((root) => rootMatchesSector(root, sector));
-              const cards = matchingRoots.flatMap(flattenDemoCards);
-              return (
-                <TabsContent key={String(group.key)} value={String(group.key)} className="focus-visible:ring-0">
-                  <div className="chatboc-command-shell grid gap-6 p-5 md:grid-cols-[0.8fr_1.2fr] md:p-6">
-                    <div className="rounded-[8px] border border-border/70 bg-background/70 p-5 shadow-sm">
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                        {getIconForCategory(group)}
+          {!loading && (loadError || groups.length === 0) ? (
+            <div className="mt-10 rounded-[12px] border border-border bg-card px-6 py-8 text-sm text-slate-600 dark:text-muted-foreground">
+              {loadError || "Todavía no hay demos publicadas para mostrar."}
+            </div>
+          ) : null}
+
+          {!loading && !loadError && groups.length > 0 ? (
+            <Tabs defaultValue={defaultValue} className="mt-10 w-full">
+              <div className="overflow-x-auto border-b border-border">
+                <TabsList className="inline-flex h-auto w-auto justify-start gap-2 rounded-none bg-transparent p-0">
+                  {groups.map((group) => (
+                    <TabsTrigger
+                      key={String(group.key)}
+                      value={String(group.key)}
+                      className="relative -mb-px rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 text-sm font-semibold text-slate-600 shadow-none transition-colors motion-reduce:transition-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:text-muted-foreground"
+                    >
+                      {group.label || String(group.key)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+
+              {groups.map((group) => {
+                const sector = String(group.key) as DemoSector;
+                const matchingRoots = roots.filter((root) => rootMatchesSector(root, sector));
+                const cards = matchingRoots.flatMap(flattenDemoCards);
+                return (
+                  <TabsContent key={String(group.key)} value={String(group.key)} className="mt-8 focus-visible:ring-0">
+                    <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:gap-16">
+                      <div>
+                        <h3 className="chatboc-display text-2xl font-semibold text-foreground">
+                          {group.label || String(group.key)}
+                        </h3>
+                        {group.description ? (
+                          <p className="mt-3 text-base leading-7 text-slate-600 dark:text-muted-foreground">
+                            {group.description}
+                          </p>
+                        ) : null}
+                        {cards.length ? (
+                          <p className="mt-4 text-sm text-slate-600 dark:text-muted-foreground">
+                            {cards.length} {cards.length === 1 ? "demo lista" : "demos listas"} para probar en este
+                            sector.
+                          </p>
+                        ) : null}
                       </div>
-                      <h3 className="text-2xl font-bold">{group.label || String(group.key)}</h3>
-                      {group.description ? <p className="mt-3 text-sm text-muted-foreground">{group.description}</p> : null}
-                      {cards.length ? (
-                        <p className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
-                          {cards.length} demos listas para probar en este sector.
-                        </p>
-                      ) : null}
+
+                      <ul className="border-t border-border">
+                        {cards.length ? (
+                          cards.map((item, index) => (
+                            <DemoRow
+                              key={String(item.id ?? item.key ?? item.slug ?? item.rubro_slug ?? `${sector}-${index}`)}
+                              item={item as Rubro}
+                              sector={sector}
+                              group={group}
+                            />
+                          ))
+                        ) : (
+                          <PillarDemoRow sector={sector} group={group} />
+                        )}
+                      </ul>
                     </div>
-
-                    {cards.length ? (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {cards.map((item, index) => (
-                          <DemoCard
-                            key={String(item.id ?? item.key ?? item.slug ?? item.rubro_slug ?? `${sector}-${index}`)}
-                            item={item as Rubro}
-                            sector={sector}
-                            group={group}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <PillarDemoCard sector={sector} group={group} />
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        ) : null}
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          ) : null}
+        </div>
       </div>
     </section>
   );
