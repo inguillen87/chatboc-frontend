@@ -6,6 +6,8 @@ export interface PrivateWorkspaceIdentity { tenantSlug: string; name: string; lo
 export interface PrivateWorkspacePresentation { active: boolean; identity: PrivateWorkspaceIdentity | null }
 interface Input { pathname: string; search: string; user: unknown; hasVerifiedSession: boolean; profileVerified: boolean; loading: boolean; currentSlug?: string | null }
 const record=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
+// Organization tools that live under /admin: an organization's own team works there with its identity.
+const PRIVATE_ADMIN_SECTIONS=new Set(['encuestas','knowledge','catalog']);
 const PRIVATE_ROOTS=new Set(['perfil','dashboard','enterprise','implementacion','pedidos','usuarios','tickets','estadisticas','analytics','integracion','surveys','logs','crm','municipal']);
 const control=/[\p{Cc}\p{Cf}\\]/u;
 /** A verified profile's coherent aliases; never ambient public tenant state. */
@@ -29,7 +31,7 @@ export function privateWorkspacePresentation(input:Input):PrivateWorkspacePresen
     pathTenant=exactInstitutionSlug(segments[1]);if(!pathTenant)return none;segments=segments.slice(2);
   }
   const root=segments[0]?.toLowerCase();
-  if(!PRIVATE_ROOTS.has(root)&&!(root==='admin'&&segments[1]?.toLowerCase()==='encuestas'))return none;
+  if(!PRIVATE_ROOTS.has(root)&&!(root==='admin'&&PRIVATE_ADMIN_SECTIONS.has(segments[1]?.toLowerCase()??'')))return none;
   const pending:PrivateWorkspacePresentation={active:true,identity:null};
   if(input.loading||!input.profileVerified)return pending;
   const profile=record(user.organization_profile),slug=readAuthenticatedPrivateTenantSlug(user);
