@@ -105,6 +105,15 @@
 .institutional-assistant__metrics-resolution-bar { height:8px; border-radius:999px; background:hsl(var(--muted)); overflow:hidden; }
 .institutional-assistant__metrics-resolution-bar>span { display:block; height:100%; border-radius:inherit; background:hsl(var(--foreground)); }
 @media (forced-colors:active) { .institutional-assistant__metrics-resolution-bar { border:1px solid CanvasText; } .institutional-assistant__metrics-resolution-bar>span { background:Highlight; } }
+.institutional-assistant__battery-field { display:grid; gap:6px; }
+.institutional-assistant__battery-field label { font-weight:650; }
+.institutional-assistant__battery-field textarea { width:100%; min-height:9rem; padding:10px 12px; border:1px solid var(--institutional-control-border); border-radius:10px; background:hsl(var(--background)); color:inherit; font:inherit; line-height:1.5; resize:vertical; }
+.institutional-assistant__battery-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.institutional-assistant__battery-actions button { min-height:44px; padding:0 18px; border:1px solid var(--institutional-control-border); border-radius:10px; font-weight:650; }
+.institutional-assistant__battery-actions button:disabled { opacity:.55; cursor:not-allowed; }
+.institutional-assistant__battery-summary { font-weight:650; font-variant-numeric:tabular-nums; }
+.institutional-assistant__battery table :is(th,td):last-child { width:auto; text-align:left; white-space:normal; }
+.institutional-assistant__battery tr[data-outcome="uncovered"] td:nth-child(2), .institutional-assistant__battery tr[data-outcome="failed"] td:nth-child(2) { font-weight:650; text-decoration:underline; text-underline-offset:3px; }
 .institutional-assistant__metrics-totals { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:10px; margin:0; }
 .institutional-assistant__metrics-totals>div { border:1px solid hsl(var(--border)); border-radius:10px; padding:10px 12px; }
 .institutional-assistant__metrics-totals dt { font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); }
