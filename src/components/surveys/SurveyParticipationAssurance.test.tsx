@@ -10,8 +10,18 @@ const contract = () => ({ contract_version: 'surveys.participation_assurance.v1'
   warnings: ['account_is_not_unique_person'], ui: { title: 'Control de participación', label: 'Una cuenta por encuesta', description: 'Se comprueba una sesión.', limitation: 'Una cuenta no certifica una persona única.' } });
 const survey = (value?: unknown) => ({ slug: 'synthetic-survey', participation_assurance: value }) as SurveyPublic;
 describe('backend participation assurance presentation', () => {
-  it('renders the backend copy and its limitation without converting a account into a unique person', () => {
-    render(<SurveyParticipationAssurance survey={survey(contract())} />); expect(screen.getByText(contract().ui.limitation)).toBeVisible(); expect(screen.getByText(contract().ui.description)).toBeVisible();
+  it('renders the full backend description and limitation by default without converting an account into a unique person', () => {
+    const assurance = contract();
+    render(<SurveyParticipationAssurance survey={survey(assurance)} />);
+    expect(screen.getByText(assurance.ui.description)).toBeVisible();
+    expect(screen.getByText(assurance.ui.limitation)).toBeVisible();
+  });
+  it('renders only the participation-control label in compact card mode', () => {
+    const assurance = contract();
+    render(<SurveyParticipationAssurance survey={survey(assurance)} compact />);
+    expect(screen.getByLabelText(assurance.ui.title)).toHaveTextContent(`Control de participación: ${assurance.ui.label}`);
+    expect(screen.queryByText(assurance.ui.description)).not.toBeInTheDocument();
+    expect(screen.queryByText(assurance.ui.limitation)).not.toBeInTheDocument();
   });
   it('makes no strong claim when the legacy contract is absent', () => { const view = render(<SurveyParticipationAssurance survey={survey()} />); expect(view.container).toBeEmptyDOMElement(); });
   it.each(['phone_ownership_verified', 'cookie_is_person_identity', 'ip_is_person_identity', 'unique_person_certified', 'result_certified', 'historical_rows_reassessed'])('rejects an unsupported %s claim', flag => {

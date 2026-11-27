@@ -42,10 +42,14 @@ const reconciledAssessment = (): SurveyResultEvidenceAssessment => ({
 });
 
 describe('SurveyResultEvidencePanel', () => {
-  it('shows the reconciled local closure, full evidence hashes and privacy-safe provenance', () => {
+  it('shows the matching closure, all integrity references and privacy-safe response groups', () => {
     render(<SurveyResultEvidencePanel assessment={reconciledAssessment()} />);
 
-    expect(screen.getByTestId('survey-result-evidence-status')).toHaveTextContent('Cierre conciliado por conteo');
+    const panel = screen.getByRole('region', { name: 'Control del cierre' });
+    expect(screen.getByTestId('survey-result-evidence-status')).toHaveTextContent('Los totales coinciden');
+    expect(screen.getByTestId('survey-result-evidence-status')).toHaveTextContent(
+      'El total guardado al cerrar coincide con el total de respuestas clasificadas.',
+    );
     expect(screen.getByText('v3')).toBeInTheDocument();
     expect(screen.getByText('eligibility-2026.1')).toBeInTheDocument();
     expect(screen.getByText('consent-2026.1')).toBeInTheDocument();
@@ -63,14 +67,18 @@ describe('SurveyResultEvidencePanel', () => {
         expect(items.every((item) => item.tagName === 'DT' || item.tagName === 'DD')).toBe(true);
       }
     }
-    expect(screen.getByText('Respuestas reales').parentElement).toHaveTextContent('8');
-    expect(screen.getByText('Sintéticas separadas').parentElement).toHaveTextContent('<5');
-    expect(screen.getByText('No verificadas separadas').parentElement).toHaveTextContent('<5');
-    expect(screen.getByText(/no se calculan participación, abstención, quorum ni ganador/i)).toBeInTheDocument();
-    expect(screen.getByText('Resultado no certificado')).toBeInTheDocument();
-    expect(screen.getByText('Sin anclaje externo')).toBeInTheDocument();
-    expect(screen.getByText(/hashes son referencias declaradas por el backend/i)).toBeInTheDocument();
-    expect(screen.getByText(/no valida la distribución ni el contenido de las respuestas/i)).toBeInTheDocument();
+    expect(screen.getByText('Respuestas recibidas').parentElement).toHaveTextContent('8');
+    expect(screen.getByText('Respuestas de prueba').parentElement).toHaveTextContent('<5');
+    expect(screen.getByText('Respuestas sin verificar').parentElement).toHaveTextContent('<5');
+    expect(screen.getByText(/no calcula participación, abstención, cuórum ni ganador/i)).toBeInTheDocument();
+    expect(screen.getByText('No certifica resultados')).toBeInTheDocument();
+    expect(screen.getByText('Sin verificación externa')).toBeInTheDocument();
+    expect(screen.getByText(/huellas digitales fueron informadas por el sistema/i)).toBeInTheDocument();
+    expect(screen.getByText(/no revisa qué respondió cada persona ni cómo se distribuyeron/i)).toBeInTheDocument();
+    expect(panel).not.toHaveTextContent(/backend|analytics|instrumento|evidencia/i);
+    expect(panel).not.toHaveClass('bg-gradient-to-br');
+    expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i }))
+      .toHaveClass('h-11', 'rounded-sm');
     expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeEnabled();
   });
 
@@ -130,8 +138,11 @@ describe('SurveyResultEvidencePanel', () => {
 
     render(<SurveyResultEvidencePanel assessment={assessment} />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Resultado no conciliado');
-    expect(screen.queryByText('Cierre conciliado por conteo')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Todavía no se puede comprobar el cierre');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'El total guardado al cerrar no coincide con el total de respuestas clasificadas.',
+    );
+    expect(screen.queryByText('Los totales coinciden')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeDisabled();
   });
 
@@ -147,14 +158,14 @@ describe('SurveyResultEvidencePanel', () => {
     render(<SurveyResultEvidencePanel assessment={assessment} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(/Quitá los filtros/i);
-    expect(screen.queryByText('Respuestas reales')).not.toBeInTheDocument();
-    expect(screen.queryByText('Sintéticas separadas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Respuestas recibidas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Respuestas de prueba')).not.toBeInTheDocument();
   });
 
   it('uses a progress status while contracts are still loading', () => {
     render(<SurveyResultEvidencePanel loading />);
 
-    expect(screen.getByRole('status')).toHaveTextContent(/Conciliando manifiesto/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/Comparando el cierre con las respuestas/i);
     expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeDisabled();
   });
 
@@ -163,19 +174,19 @@ describe('SurveyResultEvidencePanel', () => {
       <SurveyResultEvidencePanel assessment={reconciledAssessment()} refreshing />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent(/Conciliando manifiesto/i);
-    expect(screen.queryByText('Cierre conciliado por conteo')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/Comparando el cierre con las respuestas/i);
+    expect(screen.queryByText('Los totales coinciden')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeDisabled();
 
     rerender(
       <SurveyResultEvidencePanel
         assessment={reconciledAssessment()}
-        error="No se pudo consultar el manifiesto de cierre."
+        error="No se pudo consultar la información del cierre."
       />,
     );
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Resultado no conciliado');
-    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo consultar el manifiesto de cierre.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Todavía no se puede comprobar el cierre');
+    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo consultar la información del cierre.');
     expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeDisabled();
   });
 });

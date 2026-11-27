@@ -585,7 +585,7 @@ test.describe('Corte 16 · Floating elements safe-zone coordination (360, 390, 4
 
       // 5. /admin/encuestas
       await page.goto('/admin/encuestas', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Centro de participación ciudadana/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Encuestas y votaciones/i })).toBeVisible();
       await dispatchInstallPrompt(page);
       await checkFloatingGeometry(page, `encuestas-${viewport.name}`, viewport);
     });
