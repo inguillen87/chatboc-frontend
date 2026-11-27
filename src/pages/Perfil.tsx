@@ -6,6 +6,8 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import {usePrivateWorkspaceBrandTheme} from '@/components/brand/usePrivateWorkspaceBrandTheme';
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -666,8 +668,13 @@ export default function Perfil() {
   const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
     ? (user as any).platform_workspace : null;
   const [workspaceLogoFailed, setWorkspaceLogoFailed] = useState(false);
-  const workspaceLogoUrl = !isPlatformWorkspace && typeof perfil.logo_url === 'string' && /^https:\/\//.test(perfil.logo_url.trim())
-    ? perfil.logo_url.trim() : '';
+  // Same published mark the private header shows, never the editable profile
+  // field (which may still hold a platform placeholder).
+  const workspacePresentation = usePrivateWorkspacePresentation();
+  const workspaceBrand = usePrivateWorkspaceBrandTheme(workspacePresentation.identity, workspacePresentation.active);
+  const workspaceLogoCandidate = workspaceBrand?.logo?.mark || workspacePresentation.identity?.logoUrl || '';
+  const workspaceLogoUrl = !isPlatformWorkspace && workspacePresentation.active && typeof workspaceLogoCandidate === 'string'
+    ? workspaceLogoCandidate : '';
   const institutionDisplayName = isPlatformWorkspace ? platformWorkspace?.heading || 'Administración de plataforma' : usesScopedOrganizationProfile
     ? matchingOrganizationProfile?.values.nombre_empresa || (isPlatformAdministrator
       ? requestedTenantSlug || 'Organización seleccionada'
