@@ -268,3 +268,15 @@
 /* On the services home the portal header already shows the organization. Its
    mark and name stay in the reader only for the printed answer. */
 @media screen{.institutional-assistant--services .institutional-assistant__identity>.institutional-assistant__mark,.institutional-assistant--services .institutional-assistant__identity>div>p{display:none;}}
+
+.institutional-assistant__dictate { min-height:44px; display:inline-flex; align-items:center; gap:6px; padding:0 12px; border:1px solid var(--institutional-control-border); border-radius:10px; background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:.875rem; font-weight:600; }
+.institutional-assistant__dictate[aria-pressed="true"] { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.12); }
+.institutional-assistant__dictate:focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:2px; }
+.institutional-assistant__dictate-note { position:absolute; inset-inline-start:0; top:calc(100% + 6px); font-size:var(--institutional-detail-size); color:hsl(var(--muted-foreground)); }
+.institutional-assistant__dictate-note:empty { display:none; }
+.institutional-assistant__composer>div { position:relative; }
+.institutional-assistant__composer:has(.institutional-assistant__dictate-note:not(:empty)) { padding-bottom:2.6rem; }
+@media(max-width:420px){.institutional-assistant__dictate span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}.institutional-assistant__dictate{padding:0 11px;}}
+@media print{.institutional-assistant__dictate,.institutional-assistant__dictate-note{display:none!important;}}
+/* On a phone the field keeps its width: the send button shows its icon and keeps its accessible name. */
+@media(max-width:420px){.institutional-assistant--services .institutional-assistant__composer .institutional-assistant__primary span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}.institutional-assistant--services .institutional-assistant__composer .institutional-assistant__primary{padding-inline:.8rem;}}
