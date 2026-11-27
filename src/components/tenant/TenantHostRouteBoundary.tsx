@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { matchRoutes, useLocation } from 'react-router-dom';
+import { matchRoutes, Navigate, useLocation } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { TenantHostPrivateScope } from './TenantHostPrivateScope';
 import { exactInstitutionSlug } from '@/utils/publishedTenantIdentity';
@@ -27,6 +27,18 @@ export function TenantHostRouteBoundary({ routes, children }: {
   if ((route?.tenantHost !== 'public' && route?.tenantHost !== 'private') ||
       !tenantHostRouteMatches(hostBinding, location.pathname, location.search) ||
       (route.tenantHostParam && exactInstitutionSlug(requestedTenant) !== hostBinding.tenant.slug)) {
+    // On the organization's own address the short form of a public page
+    // (/reclamos/nuevo) opens the same page as its full form.
+    if (!location.pathname.startsWith('/t/') && location.pathname !== '/') {
+      const fullPath = `/t/${hostBinding.tenant.slug}${location.pathname}`;
+      const fullMatch = matchRoutes(routes.map(item => ({ path: item.path, handle: item })), fullPath)?.at(-1);
+      const fullRoute = fullMatch?.route.handle as TenantHostRouteDefinition | undefined;
+      if (fullRoute?.tenantHost === 'public' && fullRoute.tenantHostParam &&
+          exactInstitutionSlug(fullMatch?.params[fullRoute.tenantHostParam]) === hostBinding.tenant.slug &&
+          tenantHostRouteMatches(hostBinding, fullPath, location.search)) {
+        return <Navigate replace to={`${fullPath}${location.search}${location.hash}`} />;
+      }
+    }
     return <NotFound />;
   }
   return route.tenantHost === 'private'
