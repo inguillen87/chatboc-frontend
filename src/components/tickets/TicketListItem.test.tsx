@@ -89,7 +89,7 @@ describe('TicketListItem', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
-    const contactMetadata = screen.getByLabelText('Ticket M-378430, contacto Marcelo');
+    const contactMetadata = screen.getByLabelText('Caso M-378430, contacto Marcelo');
     expect(contactMetadata).toHaveAttribute('title', 'M-378430 - Marcelo');
     expect(contactMetadata).toHaveTextContent(/M-378430.*Marcelo/i);
   });
@@ -177,7 +177,7 @@ describe('TicketListItem', () => {
       />,
     );
 
-    const sla = screen.getByRole('group', { name: /SLA: Resolución vencida/i });
+    const sla = screen.getByRole('group', { name: /Plazo: Resolución vencida/i });
     expect(sla).toHaveTextContent('Resolución vencida · 1 h 5 min al corte');
     expect(sla).toHaveAttribute('data-sla-state', 'overdue');
   });
@@ -192,7 +192,7 @@ describe('TicketListItem', () => {
       />,
     );
 
-    expect(screen.getByRole('group', { name: 'SLA: SLA sin evidencia' })).toHaveAttribute('data-sla-state', 'unknown');
+    expect(screen.getByRole('group', { name: 'Plazo: Sin plazo definido' })).toHaveAttribute('data-sla-state', 'unknown');
     expect(screen.queryByText(/vencida|en plazo|al corte/i)).not.toBeInTheDocument();
   });
 
@@ -200,13 +200,13 @@ describe('TicketListItem', () => {
     const { rerender } = render(
       <TicketListItem ticket={{ ...baseTicket, datos_extra: { sla: overdueSla } }} isSelected={false} onClick={vi.fn()} compact />,
     );
-    expect(screen.getByRole('group', { name: /SLA: Resolución vencida/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Plazo: Resolución vencida/i })).toBeInTheDocument();
 
     rerender(
       <TicketListItem ticket={{ ...baseTicket, id: 2, nro_ticket: 'M-2', priority: 'urgente' }} isSelected={false} onClick={vi.fn()} compact />,
     );
 
-    expect(screen.getByRole('button', { name: 'Abrir ticket M-2' })).not.toHaveAttribute('aria-describedby');
+    expect(screen.getByRole('button', { name: 'Abrir caso M-2' })).not.toHaveAttribute('aria-describedby');
     expect(screen.queryByTestId('ticket-sla-clocks-compact')).not.toBeInTheDocument();
   });
 
@@ -230,7 +230,7 @@ describe('TicketListItem', () => {
       </>,
     );
 
-    const row = screen.getByRole('button', { name: 'Abrir ticket M-378430' });
+    const row = screen.getByRole('button', { name: 'Abrir caso M-378430' });
     expect(screen.getAllByRole('button')).toHaveLength(1);
     expect(row).toHaveAccessibleDescription(/Usá las flechas.*Resolución vencida · 1 h 5 min al corte/);
     expect(row).toHaveAttribute('aria-pressed', 'true');

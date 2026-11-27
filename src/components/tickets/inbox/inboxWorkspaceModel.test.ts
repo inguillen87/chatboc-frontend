@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OmnichannelInboxItem } from '@/api/v2/saas';
-import { assertInboxTenantEnvelope, buildInboxCounters, filterInboxItems, inboxActivityTime, inboxAssignment, INITIAL_INBOX_FILTERS, validInboxTenant, verifiedInboxItems } from './inboxWorkspaceModel';
+import { assertInboxTenantEnvelope, buildInboxCounters, filterInboxItems, inboxActivityTime, inboxAssignment, inboxChannelLabel, INITIAL_INBOX_FILTERS, validInboxTenant, verifiedInboxItems } from './inboxWorkspaceModel';
 const item = (id = 'municipio:12', extra: Partial<OmnichannelInboxItem> = {}): OmnichannelInboxItem => ({
   id, title: 'José luminaria', status: 'nuevo', channel: 'whatsapp', lastMessageAt: '2026-09-23T12:00:00Z', unreadCount: 2,
   attachments: [], presence: [], timeline: [], actions: [], allowed_actions: [], next_steps: [], agent_copilot_suggestions: [], ...extra,
@@ -10,6 +10,10 @@ describe('operational inbox model', () => {
   it('accepts a configured organization slug', () => expect(validInboxTenant('tierra-del-fuego')).toBe(true));
   it.each(['', 'invalid', '2026-09-23T12:00:00', null])('does not invent activity for %s', value => expect(inboxActivityTime(value)).toBeNull());
   it('reads zoned timestamps', () => expect(inboxActivityTime('2026-09-23T09:00:00-03:00')).toBe(Date.parse('2026-09-23T12:00:00Z')));
+  it('translates known channel codes and hides unknown ones', () => {
+    expect(inboxChannelLabel('queue_offline_message')).toBe('Mensaje pendiente para el equipo');
+    expect(inboxChannelLabel('private_internal_channel')).toBe('Canal no informado');
+  });
   it('separates unknown assignment from unassignment', () => {
     expect(inboxAssignment(item())).toBe('unknown');
     expect(inboxAssignment(item('a', { raw: { id: 'a', assignee: null } }))).toBe('unassigned');

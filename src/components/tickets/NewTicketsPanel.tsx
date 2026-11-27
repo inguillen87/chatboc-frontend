@@ -32,7 +32,13 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Ticket } from '@/types/tickets';
-import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
+import {
+  formatTicketDisplayLabel,
+  formatTicketOptionalLabel,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+  replaceTicketVocabulary,
+} from '@/utils/ticketStatus';
 import { getNextOperationalTicket, isUnassignedQueueTicket } from '@/utils/ticketOperationalQueue';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
@@ -160,7 +166,7 @@ const normalizeTicketQueryId = (value: string | null): string | null => {
 };
 
 const formatDeskDeepLinkFocus = (value: string | null) =>
-  value ? value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() : null;
+  value ? formatTicketDisplayLabel(value, 'Vista solicitada') : null;
 
 const readTicketDeskQuery = (searchParams: URLSearchParams) => {
   const focus = normalizeQueryValue(searchParams.get('focus') ?? searchParams.get('ui_hint') ?? searchParams.get('source'));
@@ -244,12 +250,9 @@ const isHighPriorityTicket = (ticket: Ticket) => {
 };
 
 const resolveTicketQueueLabel = (ticket: Ticket) =>
-  ticket.asunto ||
-  ticket.categoria_principal ||
-  ticket.categoria ||
-  ticket.title ||
-  ticket.description ||
-  'Sin asunto';
+  [ticket.asunto, ticket.categoria_principal, ticket.categoria, ticket.title, ticket.description]
+    .map((value) => formatTicketOptionalLabel(value))
+    .find((value): value is string => Boolean(value)) || 'Sin asunto';
 
 const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
   if (!ticket) return null;
@@ -258,8 +261,8 @@ const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
     return {
       state: explicit.state || 'ready',
       score: Number(explicit.score || 0),
-      label: explicit.label || 'Atender caso',
-      reason: explicit.reason || 'El CRM recomienda revisar este caso.',
+      label: formatTicketDisplayLabel(explicit.label, 'Atender caso'),
+      reason: replaceTicketVocabulary(explicit.reason || 'El sistema recomienda revisar este caso.'),
       next_team_action: explicit.next_team_action || 'open_ticket',
       badges: Array.isArray(explicit.badges) ? explicit.badges : [],
     };
@@ -284,21 +287,21 @@ const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
     label: unread
       ? 'Responder ahora'
       : risk
-        ? 'Revisar SLA vencido'
+        ? 'Revisar plazo vencido'
         : highPriority
           ? 'Atender prioridad alta'
           : unassigned
             ? 'Asignar responsable'
-            : 'Mesa al dia',
+            : 'Mesa al día',
     reason: unread
       ? 'Hay actividad ciudadana o de cliente sin lectura completa del equipo.'
       : risk
-        ? 'Al menos un compromiso de atención está vencido según el contrato SLA.'
+        ? 'Al menos un compromiso de atención está vencido.'
         : highPriority
-          ? 'El caso tiene prioridad alta, sin asumir por eso un incumplimiento SLA.'
+          ? 'El caso tiene prioridad alta. Eso no implica que el plazo esté vencido.'
           : unassigned
-            ? 'El caso esta abierto y necesita un operador responsable.'
-            : 'No hay senales criticas activas para este caso.',
+            ? 'El caso está abierto y necesita una persona responsable.'
+            : 'No hay señales críticas activas para este caso.',
     next_team_action: unread
       ? 'reply_from_crm'
       : risk
@@ -310,7 +313,7 @@ const resolveTicketCrmQueue = (ticket: Ticket | null | undefined) => {
             : 'monitor_ticket',
     badges: [
       unread ? { id: 'unread', label: 'Sin leer', tone: 'live' } : null,
-      risk ? { id: 'sla_risk', label: 'SLA vencido', tone: 'warning' } : null,
+      risk ? { id: 'sla_risk', label: 'Plazo vencido', tone: 'warning' } : null,
       highPriority ? { id: 'priority_high', label: 'Prioridad alta', tone: 'warning' } : null,
       unassigned ? { id: 'unassigned', label: 'Sin responsable', tone: 'warning' } : null,
     ].filter(Boolean) as Array<{ id?: string; label?: string; tone?: string }>,
@@ -379,7 +382,7 @@ const TicketOpsStat = ({
           <span className={cn('font-bold tabular-nums tracking-tight text-foreground', compact ? 'text-[13px]' : 'text-sm')}>
             {value.toLocaleString('es-AR')}
           </span>
-          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <span className="truncate text-[11px] font-semibold text-muted-foreground">
             {label}
           </span>
         </span>
@@ -442,19 +445,14 @@ const TicketPanelState = ({
 
 const TicketWorkspaceColumnHeader = ({
   id,
-  step,
   title,
   description,
 }: {
   id: string;
-  step: number;
   title: string;
   description: string;
 }) => (
   <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/35 px-3">
-    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
-      {step}
-    </span>
     <div className="min-w-0">
       <h3 id={id} className="truncate text-xs font-semibold text-foreground">
         {title}
@@ -505,24 +503,21 @@ const TicketInspectorDock = ({
   <aside
     className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70 bg-muted/20"
     data-testid="tickets-detail-dock"
-    aria-label="Resolución guiada contraída"
+    aria-label="Cómo resolverlo contraído"
   >
     <button
       ref={buttonRef}
       type="button"
       className="group flex h-full min-h-0 w-full flex-col items-center gap-3 px-1.5 py-3 text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/70"
       onClick={onOpen}
-      aria-label="Abrir resolución guiada"
+      aria-label="Abrir cómo resolverlo"
       aria-expanded="false"
       aria-controls="tickets-resolution-panel"
-      title="Abrir resolución guiada"
+      title="Abrir cómo resolverlo"
     >
-      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-        3
-      </span>
       <Info className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-      <span className="min-h-0 flex-1 overflow-hidden text-[11px] font-semibold tracking-wide [writing-mode:vertical-rl] [text-orientation:mixed]">
-        Resolución guiada
+      <span className="min-h-0 flex-1 overflow-hidden text-[11px] font-semibold [writing-mode:vertical-rl] [text-orientation:mixed]">
+        Cómo resolverlo
       </span>
       <span className="sr-only">
         Abrir siguiente paso, responsable y herramientas para resolver el caso.
@@ -784,7 +779,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
 
     const focusFrame = window.requestAnimationFrame(() => {
       const closeButton = detailsDrawerRef.current?.querySelector<HTMLElement>(
-        '[aria-label="Cerrar detalles del ticket"]',
+        '[aria-label="Cerrar detalles del caso"]',
       );
       closeButton?.focus();
     });
@@ -1098,11 +1093,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       <TicketPanelState
         testId="tickets-loading-timeout-state"
         title="La bandeja tarda más de lo esperado"
-        description="Todavía no recibimos la cola completa. Podes reintentar sin salir del centro de reclamos."
+        description="Todavía no recibimos todos los casos. Podés reintentar sin salir del centro de reclamos."
         icon={AlertTriangle}
         tone="warning"
       >
-        <Button type="button" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+        <Button type="button" size="sm" className="min-h-11 gap-2" onClick={() => void refreshTickets()}>
           <RefreshCw className="h-4 w-4" />
           Reintentar carga
         </Button>
@@ -1115,10 +1110,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       <TicketPanelState
         testId="tickets-loading-state"
         title="Preparando el centro de reclamos"
-        description="Ordenando la cola y recuperando las conversaciones disponibles."
+        description="Ordenando los casos y recuperando las conversaciones disponibles."
         icon={RefreshCw}
       >
-        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+        <Button type="button" variant="outline" size="sm" className="min-h-11 gap-2" onClick={() => void refreshTickets()}>
           <RefreshCw className="h-4 w-4 animate-spin" />
           Reintentar
         </Button>
@@ -1133,11 +1128,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       Boolean(errorDetails?.reasonCode?.startsWith('missing_'));
     const currentScope = errorDetails?.currentScope ?? {};
     const scopeSummary = [
-      ['tenant', currentScope.tenant_slug || currentScope.tenant_id],
-      ['tipo', currentScope.tenant_tipo || currentScope.tipo_chat],
-      ['municipio', currentScope.tenant_municipio_id || currentScope.municipio_id || currentScope.empresa_id],
-      ['empresa', currentScope.tenant_pyme_id || currentScope.pyme_id || currentScope.rubro_id],
-      ['rol', currentScope.canonical_role || currentScope.role],
+      ['Organización', currentScope.tenant_slug || currentScope.tenant_id],
+      ['Tipo de cuenta', currentScope.tenant_tipo || currentScope.tipo_chat],
+      ['Municipio', currentScope.tenant_municipio_id || currentScope.municipio_id || currentScope.empresa_id],
+      ['Empresa', currentScope.tenant_pyme_id || currentScope.pyme_id || currentScope.rubro_id],
+      ['Perfil', currentScope.canonical_role || currentScope.role],
     ].filter(([, value]) => value !== undefined && value !== null && String(value).trim().length > 0);
     const copyRequestId = async () => {
       if (!errorDetails?.requestId) return;
@@ -1161,12 +1156,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <div className="flex flex-wrap gap-2 sm:justify-end">
             {isSessionError ? (
-              <Button type="button" size="sm" className="gap-2" onClick={goToLogin}>
+              <Button type="button" size="sm" className="min-h-11 gap-2" onClick={goToLogin}>
                 <LogIn className="h-4 w-4" />
                 Iniciar sesión
               </Button>
             ) : null}
-            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void refreshTickets()}>
+            <Button type="button" variant="outline" size="sm" className="min-h-11 gap-2" onClick={() => void refreshTickets()}>
               <RefreshCw className="h-4 w-4" />
               Reintentar
             </Button>
@@ -1176,7 +1171,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               data-testid="tickets-access-contract"
               className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 text-left"
             >
-              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-amber-800 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:text-amber-200">
+              <summary className="flex min-h-11 cursor-pointer items-center px-3 py-2 text-xs font-semibold text-amber-800 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:text-amber-200">
                 Revisar datos de acceso
               </summary>
               <div className="border-t border-amber-500/20 p-3">
@@ -1184,42 +1179,31 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   <Badge variant="outline" className="border-amber-500/40 bg-background/70 text-amber-700 dark:text-amber-200">
                     Reparar acceso
                   </Badge>
-                  {errorDetails?.reasonCode ? (
-                    <Badge variant="secondary" className="font-mono text-[11px]">
-                      {errorDetails.reasonCode}
-                    </Badge>
-                  ) : null}
                   {errorDetails?.requestId ? (
                     <button
                       type="button"
                       onClick={() => void copyRequestId()}
-                      className="inline-flex min-h-7 items-center rounded-full border border-border bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      className="inline-flex min-h-11 items-center rounded-full border border-border bg-background/80 px-3 py-2 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
-                      request_id: {errorDetails.requestId}
+                      Copiar identificador de soporte
                     </button>
                   ) : null}
                 </div>
                 <p className="mt-3 text-xs leading-5 text-foreground">
-                  El usuario debe estar vinculado al tenant correcto y a un municipio o empresa antes de operar reclamos.
+                  La cuenta debe estar vinculada a la organización correcta y a un municipio o empresa antes de operar reclamos.
                 </p>
                 {scopeSummary.length ? (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {scopeSummary.map(([label, value]) => (
                       <div key={label} className="rounded-lg border border-border/70 bg-background/75 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+                        <p className="text-[10px] font-semibold text-muted-foreground">{label}</p>
                         <p className="mt-1 truncate text-xs font-medium text-foreground">{String(value)}</p>
                       </div>
                     ))}
                   </div>
                 ) : null}
                 {errorDetails?.requiredCapabilities?.length ? (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {errorDetails.requiredCapabilities.slice(0, 4).map((capability) => (
-                      <Badge key={capability} variant="secondary" className="font-mono text-[10px]">
-                        {capability}
-                      </Badge>
-                    ))}
-                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">Este perfil necesita acceso a la mesa de reclamos.</p>
                 ) : null}
               </div>
             </details>
@@ -1252,19 +1236,19 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       );
     const isForbidden = targetResolutionMatches && ticketTargetResolution.status === 'forbidden';
     const title = hasInvalidRequestedSource
-      ? 'El enlace del caso no es valido'
+      ? 'El enlace del caso no es válido'
       : isResolving
         ? `Abriendo reclamo #${requestedTicketId}`
         : isForbidden
-          ? 'No tenes acceso a este reclamo'
+          ? 'No tenés acceso a este reclamo'
           : ticketTargetResolution.status === 'not_found'
             ? 'No encontramos el reclamo solicitado'
             : 'No pudimos abrir el reclamo solicitado';
     const message = hasInvalidRequestedSource
-      ? 'El origen indicado no pertenece al contrato de tickets. Volve a abrir el caso desde la bandeja operativa.'
+      ? 'El origen indicado no corresponde a esta mesa. Volvé a abrir el caso desde la bandeja.'
       : isResolving
         ? 'Estamos verificando el reclamo exacto y tu alcance operativo antes de habilitar la conversación.'
-        : ticketTargetResolution.message || 'Reintenta en unos segundos.';
+        : ticketTargetResolution.message || 'Reintentá en unos segundos.';
 
     return (
       <TicketPanelState
@@ -1280,7 +1264,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             type="button"
             variant="outline"
             size="sm"
-            className="gap-2"
+            className="min-h-11 gap-2"
             onClick={() => void resolveDeskTicketTarget(requestedTicketId, requestedSourceModel)}
           >
             <RefreshCw className="h-4 w-4" />
@@ -1316,13 +1300,13 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
   const slaFilter = filters.sla ?? 'all';
   const priorityFilter = filters.priority ?? 'all';
   const operationalFilterBadges = [
-    channelFilter !== 'all' ? `Canal: ${channelFilter}` : null,
-    unreadFilter !== 'all' ? `Lectura: ${unreadFilter}` : null,
+    channelFilter !== 'all' ? `Canal: ${formatTicketDisplayLabel(channelFilter, 'Otro canal')}` : null,
+    unreadFilter !== 'all' ? `Lectura: ${formatTicketDisplayLabel(unreadFilter, 'Vista seleccionada')}` : null,
     statusFilter !== 'all' ? `Estado: ${formatTicketStatusLabel(statusFilter)}` : null,
-    areaFilter !== 'all' ? `Area: ${areaFilter}` : null,
-    agentFilter !== 'all' ? `Agente: ${agentFilter}` : null,
-    slaFilter !== 'all' ? `SLA: ${slaFilter}` : null,
-    priorityFilter !== 'all' ? `Prioridad: ${priorityFilter}` : null,
+    areaFilter !== 'all' ? `Área: ${formatTicketDisplayLabel(areaFilter, 'Área seleccionada')}` : null,
+    agentFilter !== 'all' ? `Responsable: ${formatTicketDisplayLabel(agentFilter, 'Selección activa')}` : null,
+    slaFilter !== 'all' ? `Plazo: ${formatTicketDisplayLabel(slaFilter, 'Vista seleccionada')}` : null,
+    priorityFilter !== 'all' ? `Prioridad: ${formatTicketDisplayLabel(priorityFilter, 'Prioridad seleccionada')}` : null,
   ].filter(Boolean) as string[];
   const compactFilterSummaryLabel =
     operationalFilterBadges.length === 0
@@ -1371,7 +1355,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
       ? 'Atender prioridad'
       : selectedTicket
         ? 'Responder'
-        : 'Actualizar cola';
+        : 'Actualizar casos';
   const handlePrimaryOperationalAction = () => {
     if (nextPriorityTicket && !isNextPrioritySelected) {
       selectTicket(nextPriorityTicket.id);
@@ -1515,12 +1499,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               >
                 {conversationFocusMode
                   ? `Conversación ampliada${selectedTicket?.nro_ticket ? ` · ${selectedTicket.nro_ticket}` : ''}`
-                  : tenant?.tipo === 'municipio' ? 'Centro de reclamos' : 'Centro de tickets'}
+                  : tenant?.tipo === 'municipio' ? 'Centro de reclamos' : 'Centro de casos'}
               </h2>
               <p className="hidden truncate text-xs text-muted-foreground sm:block">
                 {conversationFocusMode
                   ? 'Historial, respuesta y panel del caso en un espacio de trabajo dedicado.'
-                  : 'Priorizá la cola, conversá y resolvé sin perder contexto.'}
+                  : 'Revisá los casos, conversá y resolvé sin perder contexto.'}
               </p>
             </div>
           </div>
@@ -1532,7 +1516,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 type="button"
                 variant={conversationFocusMode ? 'secondary' : 'outline'}
                 size="sm"
-                className="h-8 gap-1.5 px-2.5 text-xs"
+                className="min-h-11 gap-1.5 px-3 text-xs"
                 onClick={toggleConversationFocusMode}
                 aria-pressed={conversationFocusMode}
                 aria-controls="tickets-conversation-region"
@@ -1548,7 +1532,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="h-8 px-2 text-xs"
+                className="min-h-11 px-3 text-xs"
                 onClick={() => {
                   clearRealtimeActivity();
                   void refreshTickets();
@@ -1562,7 +1546,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               data-testid="tickets-primary-operational-action"
               type="button"
               size="sm"
-              className="h-8 gap-1.5 px-2.5 text-xs"
+              className="min-h-11 gap-1.5 px-3 text-xs"
               onClick={handlePrimaryOperationalAction}
               aria-label={
                 nextPriorityTicket && !isNextPrioritySelected
@@ -1584,10 +1568,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-11 w-11"
               onClick={() => void refreshTickets()}
-              aria-label="Recargar datos de la cola"
-              title="Recargar datos de la cola"
+              aria-label="Actualizar casos"
+              title="Actualizar casos"
             >
               <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
             </Button>
@@ -1598,7 +1582,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-xs"
+                  className="min-h-11 gap-1.5 px-3 text-xs"
                   aria-label={
                     operationalFilterBadges.length
                       ? `Más opciones, ${operationalFilterBadges.length} filtros activos`
@@ -1631,7 +1615,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 <section className="space-y-2 border-b border-border/70 p-3" aria-labelledby="ticket-queue-indicators-title">
                   <div className="flex items-center justify-between gap-2">
                     <p id="ticket-queue-indicators-title" className="text-xs font-semibold text-foreground">
-                      Indicadores de cola
+                      Indicadores de casos
                     </p>
                     {typeof summary?.unassigned === 'number' ? (
                       <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1 text-[10px]">
@@ -1653,7 +1637,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                     <TicketOpsStat
                       label="Riesgo"
                       value={riskTickets}
-                      helper="SLA vencido"
+                      helper="Plazo vencido"
                       tone="amber"
                       icon={AlertTriangle}
                       onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
@@ -1684,7 +1668,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p id="ticket-queue-filters-title" className="text-xs font-semibold text-foreground">
-                        Vista de la cola
+                        Vista de los casos
                       </p>
                       <p
                         data-testid={embedded ? 'tickets-embedded-active-filters' : 'tickets-desk-active-filters'}
@@ -1707,10 +1691,10 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                         onReset={resetOperationalFilters}
                         triggerTestId={embedded ? 'tickets-header-filter-button' : 'tickets-desk-filter-button'}
                         panelTestId={embedded ? 'tickets-header-filter-panel' : 'tickets-desk-filter-panel'}
-                        className="h-8"
+                        className="min-h-11"
                       />
                       {operationalFilterBadges.length ? (
-                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={resetOperationalFilters}>
+                        <Button type="button" variant="ghost" size="sm" className="min-h-11 px-3 text-xs" onClick={resetOperationalFilters}>
                           <Filter className="mr-1 h-3.5 w-3.5" />
                           Limpiar
                         </Button>
@@ -1725,11 +1709,11 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                           type="button"
                           variant="secondary"
                           size="sm"
-                          className="h-7 max-w-full px-2 text-[11px]"
+                          className="min-h-11 max-w-full px-3 text-[11px]"
                           title={view.description || view.label}
                           onClick={() => applyRecommendedView(view.query)}
                         >
-                          <span className="truncate">{view.label}</span>
+                          <span className="truncate">{formatTicketDisplayLabel(view.label, 'Vista recomendada')}</span>
                         </Button>
                       ))}
                     </div>
@@ -1748,7 +1732,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                   <div className="flex flex-wrap gap-2">
                     <CuadrillaFieldModal
                       triggerButton={(
-                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                        <Button type="button" variant="outline" size="sm" className="min-h-11 gap-1.5 text-xs">
                           <UserRound className="h-3.5 w-3.5" />
                           Operación de cuadrillas
                         </Button>
@@ -1758,7 +1742,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 gap-1.5 text-xs"
+                      className="min-h-11 gap-1.5 text-xs"
                       onClick={() => {
                         clearRealtimeActivity();
                         void refreshTickets();
@@ -1775,12 +1759,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
         </div>
       </div>
       {isMobile ? (
-        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden" data-testid="tickets-mobile-layout">
+        <div className="flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden" data-testid="tickets-mobile-layout">
           <div className="shrink-0 border-b border-border/70 bg-card/80 px-2 py-1.5 shadow-sm">
             <div
               className="grid grid-cols-3 gap-1.5"
               role="tablist"
-              aria-label="Vistas de tickets"
+              aria-label="Vistas del centro de casos"
               aria-orientation="horizontal"
             >
               <button
@@ -1796,7 +1780,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 tabIndex={mobileView === 'tickets' ? 0 : -1}
               >
                 <PanelLeft className="h-4 w-4" />
-                <span>Tickets</span>
+                <span>Casos</span>
               </button>
               <button
                 ref={(node) => { mobileTabRefs.current.chat = node; }}
@@ -1812,7 +1796,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 disabled={!selectedTicket}
               >
                 <MessageSquare className="h-4 w-4" />
-                <span>Chat</span>
+                <span>Conversación</span>
               </button>
               <button
                 ref={(node) => { mobileTabRefs.current.details = node; }}
@@ -1828,7 +1812,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 disabled={!selectedTicket}
               >
                 <Info className="h-4 w-4" />
-                <span>Info</span>
+                <span>Resolver</span>
               </button>
             </div>
           </div>
@@ -1911,7 +1895,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
           {selectedTicket && (mobileView === 'chat' || mobileView === 'details') ? (
             <nav
               data-testid="mobile-ticket-action-bar"
-              aria-label="Acciones rápidas del reclamo"
+              aria-label="Acciones rápidas del caso"
               className="shrink-0 border-t border-border bg-card/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_hsl(var(--foreground)/0.06)] backdrop-blur"
             >
               <div className="grid grid-cols-3 gap-1.5">
@@ -1934,7 +1918,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                     }
                     window.requestAnimationFrame(() => {
                       const composer = workspaceRef.current?.querySelector<HTMLElement>(
-                        'textarea[aria-label="Responder ticket"], textarea, input[placeholder*="Responder"]',
+                        'textarea[aria-label="Responder el caso"], textarea, input[placeholder*="Responder"]',
                       );
                       composer?.focus();
                     });
@@ -1969,12 +1953,12 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             <section
               className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border/70"
               data-testid="tickets-list-region"
+              role="region"
               aria-labelledby="tickets-queue-column-title"
             >
               <TicketWorkspaceColumnHeader
                 id="tickets-queue-column-title"
-                step={1}
-                title="Cola priorizada"
+                title="Casos por atender"
                 description="Casos ordenados por urgencia y actividad pendiente."
               />
               <Sidebar
@@ -1991,15 +1975,15 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
             className="flex min-h-0 min-w-0 flex-col overflow-hidden"
             data-testid="tickets-conversation-region"
             id="tickets-conversation-region"
+            role="region"
             aria-labelledby={conversationFocusMode ? undefined : 'tickets-conversation-column-title'}
             aria-label={conversationFocusMode ? 'Conversación ampliada' : undefined}
           >
             {!conversationFocusMode ? (
               <TicketWorkspaceColumnHeader
                 id="tickets-conversation-column-title"
-                step={2}
                 title="Caso y conversación"
-                description="Intercambio con el vecino y acciones principales del caso."
+                description="Intercambio con la persona y acciones principales del caso."
               />
             ) : null}
             <div className="min-h-0 flex-1 overflow-hidden">
@@ -2029,6 +2013,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border/70"
               data-testid="tickets-detail-region"
               data-inspector-width={renderedDetailsWidth}
+              role="region"
               aria-labelledby="tickets-resolution-column-title"
               style={{ width: renderedDetailsWidth, minWidth: DETAIL_MIN_WIDTH, maxWidth: DETAIL_MAX_WIDTH }}
             >
@@ -2040,8 +2025,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
               />
               <TicketWorkspaceColumnHeader
                 id="tickets-resolution-column-title"
-                step={3}
-                title="Resolución guiada"
+                title="Cómo resolverlo"
                 description="Siguiente paso, responsable y herramientas para resolver."
               />
               <div className="min-h-0 flex-1 overflow-hidden">
@@ -2080,8 +2064,7 @@ const NewTicketsPanel: React.FC<NewTicketsPanelProps> = ({ embedded = false }) =
                 />
                 <TicketWorkspaceColumnHeader
                   id="tickets-resolution-drawer-title"
-                  step={3}
-                  title="Resolución guiada"
+                  title="Cómo resolverlo"
                   description="Inspector adaptable con siguiente paso, responsable y herramientas para resolver."
                 />
                 <div className="min-h-0 flex-1 overflow-hidden">

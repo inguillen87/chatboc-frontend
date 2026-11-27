@@ -34,6 +34,10 @@ import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import type { Ticket, User } from '@/types/tickets';
 import { ApiError } from '@/utils/api';
+import {
+  formatTicketDisplayLabel,
+  formatTicketOptionalLabel,
+} from '@/utils/ticketStatus';
 import { ticketAssignmentActions } from './ticketAssignmentActions';
 import { resolveTicketPresentationCategory } from './ticketPresentationCategory';
 import {
@@ -77,6 +81,19 @@ const employeeAsTicketUser = (employee: EmployeeRoutingEmployee): User => ({
   nombre_usuario: employee.name,
   email: employeeEmail(employee),
 });
+
+const formatRoutingReasonLabel = (reason: string): string => {
+  const described = describeRoutingReason(reason);
+  const mechanicalFallback = reason
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, (value) => value.toUpperCase());
+
+  if (described === mechanicalFallback && !formatTicketOptionalLabel(reason)) {
+    return 'Criterio operativo';
+  }
+
+  return formatTicketDisplayLabel(described, 'Criterio operativo');
+};
 
 const authorityFailureMessage = (
   loading: boolean,
@@ -216,6 +233,14 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
   const currentAssigneeLabel = currentAssignee?.name ||
     (localAssigneeMatchesAuthority ? selectedTicket?.assignedAgent?.nombre_usuario : null) ||
     (authority?.currentAssigneeId ? `Responsable #${authority.currentAssigneeId}` : 'Sin asignar');
+  const categoryLabel = formatTicketOptionalLabel(authority?.category);
+  const zoneLabel = formatTicketOptionalLabel(authority?.zone);
+  const channelLabel = formatTicketOptionalLabel(authority?.channel);
+  const claimActionLabel = formatTicketDisplayLabel(published.claim?.label, 'Tomar caso');
+  const assignmentActionLabel = formatTicketDisplayLabel(
+    published.assign?.label,
+    authority?.currentAssigneeId ? 'Reasignar' : 'Asignar',
+  );
 
   if (!selectedTicket) return null;
   if (assignmentActions !== undefined && !published.assign && !published.claim) return null;
@@ -258,7 +283,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
   const handleAssignment = async (employee: EmployeeRoutingEmployee | null) => {
     if (!canAssign || !categoryVerified || !authority || !employee || assigning) return;
     if (!candidates.some((candidate) => String(candidate.id) === String(employee.id))) {
-      toast.error('La persona ya no figura como compatible en la matriz operativa.');
+      toast.error('La persona ya no figura entre quienes pueden atender este caso.');
       return;
     }
     setAssigning(true);
@@ -304,7 +329,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
       toast.success('Caso asignado a tu usuario');
       await refreshConfirmedAssignment();
     } catch (claimError) {
-      console.error('No se pudo tomar el ticket:', claimError);
+      console.error('No se pudo tomar el caso:', claimError);
       toast.error(
         claimError instanceof ApiError && claimError.status === 409
           ? 'Otro operador tomó este caso. Actualizá la ficha.'
@@ -354,13 +379,19 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
         role="status"
         data-testid="ticket-assignment-category-pending"
       >
-        <p className="text-sm font-semibold">Categoría pendiente de verificación</p>
+        <p className="text-sm font-semibold">Categoría por confirmar</p>
         <p className="text-xs">
           {categoryRecovery || 'No pudimos confirmar la categoría y la cobertura de asignación de este caso. Actualizá la bandeja; si continúa, avisá a supervisión.'}
         </p>
-        <Button type="button" size="sm" variant="outline" onClick={() => void routingState.refresh()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="min-h-[44px]"
+          onClick={() => void routingState.refresh()}
+        >
           <RefreshCcw className="mr-2 h-3.5 w-3.5" />
-          Actualizar matriz
+          Actualizar datos
         </Button>
       </div>
     );
@@ -381,7 +412,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           <div>
             <p className="text-sm font-semibold">Responsable del caso</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Categoría verificada{authority.category ? ` · ${authority.category}` : ''}.
+              Categoría verificada{categoryLabel ? ` · ${categoryLabel}` : ''}.
             </p>
           </div>
           <Badge variant={authority.currentAssigneeId ? 'secondary' : 'outline'}>
@@ -389,7 +420,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           </Badge>
         </div>
         {assignedToMe ? (
-          <Button type="button" size="sm" variant="secondary" disabled className="w-full sm:w-auto">
+          <Button type="button" size="sm" variant="secondary" disabled className="min-h-[44px] w-full sm:w-auto">
             <CheckCircle2 className="mr-2 h-4 w-4" />
             Asignado a mí
           </Button>
@@ -399,17 +430,17 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
             size="sm"
             onClick={() => void handleClaim()}
             disabled={assigning}
-            className="w-full sm:w-auto"
+            className="min-h-[44px] w-full sm:w-auto"
           >
             {assigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
-            {assigning ? 'Tomando caso…' : published.claim?.label ?? 'Tomar ticket'}
+            {assigning ? 'Tomando caso…' : claimActionLabel}
           </Button>
         ) : (
           <p className="rounded-lg border border-dashed p-2 text-xs text-muted-foreground">
             {authority.currentAssigneeId
               ? 'El caso ya tiene una persona responsable.'
               : candidateContractPublished && user?.id && !currentUserEligible
-                ? 'El servidor no habilitó tu usuario entre las personas que pueden tomar este caso.'
+                ? 'El sistema no habilitó tu usuario entre las personas que pueden tomar este caso.'
                 : !canClaim
                   ? 'La acción de tomar este caso no está habilitada para tu usuario.'
                   : 'No pudimos confirmar la cobertura de asignación para tu usuario. Actualizá la bandeja; si continúa, avisá a supervisión.'}
@@ -434,15 +465,15 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
       >
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+            <p className="text-[11px] font-semibold text-primary">
               Responsable
             </p>
             <p className="mt-0.5 truncate text-sm font-semibold" title={currentAssigneeLabel}>
               {currentAssigneeLabel}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {authority.category
-                ? `Categoría verificada · ${authority.category}.`
+              {categoryLabel
+                ? `Categoría verificada · ${categoryLabel}.`
                 : 'Categoría verificada para este caso.'}
             </p>
           </div>
@@ -464,7 +495,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
             >
               <SelectTrigger
                 id="ticket-assignment-agent-compact"
-                className="min-w-0 flex-1"
+                className="min-h-[44px] min-w-0 flex-1"
                 aria-label="Responsable compatible"
               >
                 <SelectValue placeholder="Elegí una persona" />
@@ -486,14 +517,14 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
                 assigning ||
                 String(selectedEmployee.id) === String(authority.currentAssigneeId ?? '')
               }
-              className="shrink-0"
+              className="min-h-[44px] w-full max-w-full shrink-0 whitespace-normal sm:w-auto"
             >
               {assigning ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Users className="mr-2 h-4 w-4" />
               )}
-              {published.assign?.label ?? (authority.currentAssigneeId ? 'Reasignar' : 'Asignar')}
+              {assignmentActionLabel}
             </Button>
           </div>
         ) : (
@@ -521,10 +552,10 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
               variant="outline"
               onClick={() => void handleClaim()}
               disabled={assigning}
-              className="h-8 shrink-0"
+              className="min-h-[44px] max-w-full shrink-0 whitespace-normal"
             >
               <UserCheck className="mr-1.5 h-3.5 w-3.5" />
-              {published.claim?.label ?? 'Tomar ticket'}
+              {claimActionLabel}
             </Button>
           ) : null}
           <Button
@@ -533,8 +564,8 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
             variant="ghost"
             onClick={() => void routingState.refresh()}
             disabled={routingState.loading || assigning}
-            className="h-8 shrink-0 px-2"
-            aria-label="Actualizar matriz de asignación"
+            className="min-h-[44px] min-w-[44px] shrink-0 px-2"
+            aria-label="Actualizar datos de asignación"
           >
             <RefreshCcw className="h-3.5 w-3.5" />
           </Button>
@@ -550,8 +581,8 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Asignación supervisada</p>
-          <p className="mt-1 text-sm font-semibold">Cobertura, carga y recomendación del backend</p>
+          <p className="text-xs font-semibold text-primary">Asignación supervisada</p>
+          <p className="mt-1 text-sm font-semibold">Cobertura, carga y recomendación del sistema</p>
         </div>
         <Badge variant={authority.currentAssigneeId ? 'secondary' : 'outline'}>
           {authority.currentAssigneeId ? 'Con responsable' : 'Sin asignar'}
@@ -559,9 +590,9 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
       </div>
 
       <div className="flex flex-wrap gap-1.5 text-xs">
-        {authority.category ? <Badge variant="outline">Categoría · {authority.category}</Badge> : null}
-        {authority.zone ? <Badge variant="outline">Zona · {authority.zone}</Badge> : null}
-        {authority.channel ? <Badge variant="outline">Canal · {authority.channel}</Badge> : null}
+        {categoryLabel ? <Badge variant="outline">Categoría · {categoryLabel}</Badge> : null}
+        {zoneLabel ? <Badge variant="outline">Zona · {zoneLabel}</Badge> : null}
+        {channelLabel ? <Badge variant="outline">Canal · {channelLabel}</Badge> : null}
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)]">
@@ -578,7 +609,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
             })}
             disabled={assigning || !candidates.length}
           >
-            <SelectTrigger id="ticket-assignment-agent" className="w-full">
+            <SelectTrigger id="ticket-assignment-agent" className="min-h-[44px] w-full">
               <SelectValue placeholder={candidates.length ? 'Elegí una persona' : 'Sin personal compatible'} />
             </SelectTrigger>
             <SelectContent>
@@ -597,7 +628,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sugerencia operativa</p>
+              <p className="text-xs font-semibold text-muted-foreground">Sugerencia operativa</p>
               <p className="mt-1 text-sm font-semibold">
                 {suggested?.name ?? 'Sin recomendación compatible'}
               </p>
@@ -616,7 +647,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
             <div className="mt-2 flex flex-wrap gap-1">
               {reasons.map((reason) => (
                 <Badge key={reason} variant="secondary" className="font-normal">
-                  {describeRoutingReason(reason)}
+                  {formatRoutingReasonLabel(reason)}
                 </Badge>
               ))}
             </div>
@@ -636,9 +667,10 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           size="sm"
           onClick={() => void handleAssignment(selectedEmployee)}
           disabled={!selectedEmployee || assigning || String(selectedEmployee.id) === authority.currentAssigneeId}
+          className="min-h-[44px] max-w-full whitespace-normal"
         >
           {assigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
-          {published.assign?.label ?? (authority.currentAssigneeId ? 'Reasignar' : 'Asignar')}
+          {assignmentActionLabel}
         </Button>
         <Button
           type="button"
@@ -646,6 +678,7 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           variant="outline"
           onClick={() => void handleAssignment(suggested)}
           disabled={!suggested || assigning || String(suggested.id) === authority.currentAssigneeId}
+          className="min-h-[44px]"
         >
           <ShieldCheck className="mr-2 h-4 w-4" />
           Aplicar sugerencia
@@ -656,10 +689,10 @@ const TicketAssignmentContent: React.FC<TicketAssignmentContentProps> = ({
           variant="ghost"
           onClick={() => void routingState.refresh()}
           disabled={routingState.loading || assigning}
-          className="ml-auto"
+          className="ml-auto min-h-[44px]"
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Actualizar matriz
+          Actualizar datos
         </Button>
       </div>
     </div>

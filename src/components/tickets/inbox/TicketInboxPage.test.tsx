@@ -78,7 +78,7 @@ describe('TicketInboxPage', () => {
         {
           id: 'municipio:378430',
           title: 'Arreglo de calle',
-          status: 'nuevo',
+          status: 'waiting_agent',
           category: 'Arreglo De Calle',
           sensitivity: 'alta',
           channel: 'whatsapp',
@@ -105,6 +105,8 @@ describe('TicketInboxPage', () => {
 
     expect(screen.getByTestId('inbox-conversation')).toHaveAttribute('data-ticket-id', 'municipio:378430');
     expect(screen.getByTestId('inbox-conversation')).toHaveTextContent('Conversacion Arreglo de calle');
+    expect(screen.getByRole('option', { name: 'Esperando atención' })).toHaveValue('waiting_agent');
+    expect(screen.queryByText('waiting_agent')).not.toBeInTheDocument();
     expect(getOmnichannelInboxV2Mock).toHaveBeenCalledWith('junin');
   });
 });

@@ -11,6 +11,7 @@ import {
 } from '@/services/knowledgeBaseService';
 import { getTicketChannel } from '@/utils/ticket';
 import { useTenant } from '@/context/TenantContext';
+import { formatTicketDisplayLabel, replaceTicketVocabulary } from '@/utils/ticketStatus';
 
 interface Props {
   ticket: Ticket;
@@ -42,7 +43,10 @@ export default function KnowledgeBaseSuggestions({ ticket, messages, language }:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const query = useMemo(() => buildQuery(ticket, messages), [ticket, messages]);
-  const channelLabel = useMemo(() => getTicketChannel(ticket), [ticket]);
+  const channelLabel = useMemo(
+    () => formatTicketDisplayLabel(getTicketChannel(ticket), 'canal informado'),
+    [ticket],
+  );
 
   const loadSuggestions = async () => {
     if (!query) return;
@@ -90,6 +94,7 @@ export default function KnowledgeBaseSuggestions({ ticket, messages, language }:
           onClick={loadSuggestions}
           disabled={loading}
           aria-label="Actualizar sugerencias"
+          className="h-11 w-11"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
         </Button>
@@ -118,17 +123,17 @@ export default function KnowledgeBaseSuggestions({ ticket, messages, language }:
                 <div className="space-y-1">
                   {suggestion.title && (
                     <p className="text-sm font-semibold leading-tight text-foreground break-words">
-                      {suggestion.title}
+                      {replaceTicketVocabulary(suggestion.title)}
                     </p>
                   )}
                   <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line break-words">
-                    {suggestion.answer}
+                    {replaceTicketVocabulary(suggestion.answer)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   {suggestion.source && (
                     <Badge variant="secondary" className="text-xs">
-                      {suggestion.source}
+                      {formatTicketDisplayLabel(suggestion.source, 'Fuente disponible')}
                     </Badge>
                   )}
                   {formatConfidence(suggestion.confidence) && (

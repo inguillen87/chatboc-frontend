@@ -1,4 +1,5 @@
-import { render, waitFor } from '@testing-library/react';
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PresenceAvatars } from './PresenceAvatars';
@@ -55,6 +56,9 @@ describe('PresenceAvatars', () => {
     await waitFor(() => {
       expect(container.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/profile/marcelo.webp');
     });
+    expect(screen.getByRole('status', { name: 'Marcelo Guillen. En línea' })).toBeVisible();
+    expect(screen.getByText('1 en línea')).toBeVisible();
+    expect(container.querySelector('.bg-green-500')).not.toBeInTheDocument();
   });
 
   it('falls back to generated initials when a presence avatar has no consent metadata', () => {

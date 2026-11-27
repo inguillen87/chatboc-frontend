@@ -106,13 +106,13 @@ describe('AiAssistPanel', () => {
     );
 
     expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
-    expect(screen.getByText('guardado en CRM')).toBeInTheDocument();
+    expect(screen.getByText('Guardado en el caso')).toBeInTheDocument();
     expect(screen.getByText('Reclamo con evidencia operativa suficiente para mesa de entrada.')).toBeInTheDocument();
 
     await waitFor(() => expect(mockedGetTicketAiEnrichment).toHaveBeenCalled());
     expect(
       await screen.findByText(
-        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+        'La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
@@ -177,15 +177,15 @@ describe('AiAssistPanel', () => {
     render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
     expect(await screen.findAllByText('IA local deterministica')).not.toHaveLength(0);
-    expect(screen.getByText('fallback seguro')).toBeInTheDocument();
-    expect(screen.getByText('advisory-only')).toBeInTheDocument();
+    expect(screen.getByText('Modo alternativo seguro')).toBeInTheDocument();
+    expect(screen.getByText('No modifica el caso')).toBeInTheDocument();
     expect(screen.getByText('Riesgo alto')).toBeInTheDocument();
     expect(screen.getByText('validar ubicación')).toBeInTheDocument();
     expect(screen.getByText('revisar evidencia')).toBeInTheDocument();
-    expect(screen.getByText('Guia para responder')).toBeInTheDocument();
+    expect(screen.getByText('Guía para responder')).toBeInTheDocument();
     expect(screen.getByText('Caso de luminaria con prioridad urgente.')).toBeInTheDocument();
-    expect(screen.getByText('Ruta: servicios publicos luminaria')).toBeInTheDocument();
-    expect(screen.getByText('Borrador sugerido')).toBeInTheDocument();
+    expect(screen.getByText('Ruta: Dato disponible')).toBeInTheDocument();
+    expect(screen.getByText('Respuesta sugerida')).toBeInTheDocument();
     expect(screen.getByText('Responder acuse claro al vecino')).toBeInTheDocument();
     expect(screen.getByText('Validar direccion exacta')).toBeInTheDocument();
     expect(screen.getByText('Revisar reclamo con operador')).toBeInTheDocument();
@@ -222,7 +222,7 @@ describe('AiAssistPanel', () => {
     try {
       render(<AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} />);
 
-      fireEvent.click(await screen.findByRole('button', { name: /usar borrador/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /usar respuesta/i }));
 
       expect(received).toEqual([
         {
@@ -231,7 +231,7 @@ describe('AiAssistPanel', () => {
           source: 'operator_brief',
         },
       ]);
-      expect(await screen.findByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Respuesta cargada' })).toBeInTheDocument();
     } finally {
       window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
     }
@@ -245,7 +245,7 @@ describe('AiAssistPanel', () => {
     let usedDuringCommit = false;
     render(
       <Profiler id="reply-commit" onRender={() => {
-        const useDraft = screen.queryByRole('button', { name: 'Usar borrador' });
+        const useDraft = screen.queryByRole('button', { name: 'Usar respuesta' });
         if (useDraft && !usedDuringCommit) {
           usedDuringCommit = true;
           useDraft.click();
@@ -255,7 +255,7 @@ describe('AiAssistPanel', () => {
       </Profiler>,
     );
 
-    expect(await screen.findByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Respuesta cargada' })).toBeInTheDocument();
     expect(usedDuringCommit).toBe(true);
   });
 
@@ -268,29 +268,29 @@ describe('AiAssistPanel', () => {
     installClipboard(vi.fn().mockResolvedValue(undefined));
     const originalTicket = ticketWithReply();
     const { rerender } = render(<AiAssistPanel ticket={originalTicket} autoRefreshDelayMs={-1} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Usar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar respuesta' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
     expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Respuesta cargada' })).toBeInTheDocument();
 
     rerender(<AiAssistPanel ticket={ticketWithReply(overrides, reply)} autoRefreshDelayMs={-1} />);
-    expect(screen.getByRole('button', { name: 'Usar borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usar respuesta' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
 
     rerender(<AiAssistPanel ticket={originalTicket} autoRefreshDelayMs={-1} />);
-    expect(screen.getByRole('button', { name: 'Usar borrador' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usar respuesta' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument();
   });
 
   it('keeps acknowledgements when only unrelated ticket fields change', async () => {
     installClipboard(vi.fn().mockResolvedValue(undefined));
     const { rerender } = render(<AiAssistPanel ticket={ticketWithReply()} autoRefreshDelayMs={-1} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Usar borrador' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usar respuesta' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
     expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
 
     rerender(<AiAssistPanel ticket={ticketWithReply({ asunto: 'Otra descripción del mismo caso' })} autoRefreshDelayMs={-1} />);
-    expect(screen.getByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Respuesta cargada' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copiado' })).toBeInTheDocument();
   });
 
@@ -394,7 +394,7 @@ describe('AiAssistPanel', () => {
 
     rerender(<AiAssistPanel ticket={{ ...ticketFixture(), tenant_slug: 'municipio-junin', ...overrides } as Ticket} autoRefreshDelayMs={-1} />);
     expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Usar borrador' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Usar respuesta' })).not.toBeInTheDocument();
     expect(mockedGetTicketAiEnrichment).not.toHaveBeenCalled();
   });
 
@@ -428,12 +428,12 @@ describe('AiAssistPanel', () => {
       });
       expect(mockedGetTicketAiEnrichment).toHaveBeenCalledTimes(1);
       expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Usar borrador' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Usar respuesta' })).not.toBeInTheDocument();
       expect(received).toEqual([]);
 
       fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
       expect(await screen.findByText(currentReply)).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Usar borrador' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Usar respuesta' }));
       expect(received).toEqual([{ ticketId: String(current.id), draft: currentReply, source: 'operator_brief' }]);
     } finally {
       window.removeEventListener(TICKET_AI_DRAFT_EVENT_NAME, handler);
@@ -461,7 +461,7 @@ describe('AiAssistPanel', () => {
     });
     expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
     expect(screen.queryByText('Analizando IA')).not.toBeInTheDocument();
-    expect(screen.queryByText('Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.')).not.toBeInTheDocument();
+    expect(screen.queryByText('La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.')).not.toBeInTheDocument();
   });
 
   it('does not retain a previous tenant error in a new case', async () => {
@@ -469,10 +469,10 @@ describe('AiAssistPanel', () => {
     const original = { ...ticketFixture(), tenant_slug: 'municipio-junin' } as Ticket;
     const { rerender } = render(<AiAssistPanel ticket={original} autoRefreshDelayMs={-1} />);
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar asistencia IA' }));
-    expect(await screen.findByText('Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.')).toBeInTheDocument();
+    expect(await screen.findByText('La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.')).toBeInTheDocument();
 
     rerender(<AiAssistPanel ticket={{ ...original, tenant_slug: 'tierra-del-fuego' } as Ticket} autoRefreshDelayMs={-1} />);
-    expect(screen.queryByText('Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.')).not.toBeInTheDocument();
+    expect(screen.queryByText('La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.')).not.toBeInTheDocument();
   });
 
   it('retires a pending enrichment when the panel unmounts', async () => {
@@ -490,7 +490,7 @@ describe('AiAssistPanel', () => {
       await oldRequest;
     });
     expect(screen.queryByText(suggestedReply)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Usar borrador' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Usar respuesta' })).not.toBeInTheDocument();
     expect(mockedGetTicketAiEnrichment).toHaveBeenCalledTimes(1);
   });
 
@@ -499,10 +499,10 @@ describe('AiAssistPanel', () => {
     mockedGetTicketAiEnrichment.mockResolvedValue({ operator_brief: { recommended_first_reply: suggestedReply } });
     render(<StrictMode><AiAssistPanel ticket={ticketFixture()} autoRefreshDelayMs={0} /></StrictMode>);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Usar borrador' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Usar respuesta' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copiar' }));
     expect(await screen.findByRole('button', { name: 'Copiado' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Borrador cargado' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Respuesta cargada' })).toBeInTheDocument();
     expect(mockedGetTicketAiEnrichment).toHaveBeenCalledTimes(1);
   });
 
@@ -516,14 +516,14 @@ describe('AiAssistPanel', () => {
 
     expect(
       await screen.findByText(
-        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+        'La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Asistencia IA del caso')).toBeInTheDocument();
-    expect(screen.getByText('IA temporalmente offline')).toBeInTheDocument();
-    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
-    expect(screen.queryByText('IA operativa')).not.toBeInTheDocument();
-    expect(screen.queryByText('requiere revision')).not.toBeInTheDocument();
+    expect(screen.getByText('Sugerencia no disponible')).toBeInTheDocument();
+    expect(screen.getByText('Gestión disponible')).toBeInTheDocument();
+    expect(screen.queryByText('Sugerencia disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText('Requiere revisión')).not.toBeInTheDocument();
     expect(consoleWarn).not.toHaveBeenCalled();
 
     consoleWarn.mockRestore();
@@ -539,13 +539,13 @@ describe('AiAssistPanel', () => {
 
     expect(
       await screen.findByText(
-        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+        'La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('IA temporalmente offline')).toBeInTheDocument();
-    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
-    expect(screen.queryByText('IA operativa')).not.toBeInTheDocument();
-    expect(screen.queryByText('requiere revision')).not.toBeInTheDocument();
+    expect(screen.getByText('Sugerencia no disponible')).toBeInTheDocument();
+    expect(screen.getByText('Gestión disponible')).toBeInTheDocument();
+    expect(screen.queryByText('Sugerencia disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText('Requiere revisión')).not.toBeInTheDocument();
     expect(consoleWarn).not.toHaveBeenCalled();
 
     consoleWarn.mockRestore();
@@ -559,7 +559,7 @@ describe('AiAssistPanel', () => {
 
     expect(
       await screen.findByText(
-        'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.',
+        'La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.',
       ),
     ).toBeInTheDocument();
     expect(consoleWarn).not.toHaveBeenCalled();

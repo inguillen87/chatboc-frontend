@@ -276,7 +276,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
     const links: AdminNavLink[] = [
       {
         to: ticketDeskHref,
-        label: isMunicipal ? "Reclamos" : "Tickets",
+        label: isMunicipal ? "Reclamos" : "Casos",
         icon: TicketIcon,
         roles: ["tenant_admin", "employee", "superadmin"],
         requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
@@ -450,7 +450,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   const navButtonClass =
     "rounded-[8px] px-3 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-primary/5 hover:text-primary";
   const mobileItemClass =
-    "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
+    "flex min-h-11 w-full items-center rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
 
   return (
     <header ref={headerRef} data-private-workspace={privateShell.active ? "active" : undefined} onBlurCapture={(event)=>{if(event.relatedTarget instanceof Node&&!event.currentTarget.contains(event.relatedTarget))setMenuOpen(false);}} className={`${hostBinding || isPublicTenantPage ? 'bg-background/[.94] px-4 py-2' : 'chatboc-brand-navbar'} ${inFlow ? 'relative shrink-0' : 'fixed left-0 right-0 top-0'} z-50 border-b border-border/70 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all`}>
@@ -521,7 +521,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                       <Building2 className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      <span className="block text-xs font-semibold text-muted-foreground">
                         {isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}
                       </span>
                       <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">{organizationName}</span>
@@ -533,7 +533,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                 {!isPlatformAdmin && <>
                 {!isSelectedPlatformTenant && <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs font-semibold text-muted-foreground">
                   Plan y facturación
                 </DropdownMenuLabel>
                 <DropdownMenuItem asChild className="rounded-lg">
@@ -547,7 +547,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                 </DropdownMenuItem>
                 </>}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs font-semibold text-muted-foreground">
                   Configuración
                 </DropdownMenuLabel>
                 <DropdownMenuItem asChild>
@@ -585,7 +585,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs font-semibold text-muted-foreground">
                   Sesión
                 </DropdownMenuLabel>
                 <DropdownMenuItem className="flex items-center gap-2 rounded-lg text-destructive focus:text-destructive" onSelect={handleLogout}>
@@ -662,7 +662,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
             {showAccountMenu ? (
               <>
                 <div className="mt-1 rounded-lg border border-border/70 bg-muted/25 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}</p>
+                  <p className="text-xs font-semibold text-muted-foreground">{isPlatformAdmin ? 'Administración de plataforma' : 'Organización'}</p>
                   <p className="mt-1 truncate text-sm font-semibold text-foreground">{organizationName}</p>
                   <p className="text-xs text-muted-foreground">{organizationType}</p>
                   {isPlatformAdmin && effectiveUser?.email ? <p className="mt-1 break-all text-xs text-muted-foreground">{effectiveUser.email}</p> : null}
@@ -670,7 +670,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                 {!isPlatformAdmin && <>
                 {!isSelectedPlatformTenant &&
                 <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
-                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Plan y facturación</p>
+                  <p className="px-3 text-xs font-semibold text-muted-foreground">Plan y facturación</p>
                   <RouterLink
                     to="/perfil?tab=perfil&section=plan"
                     onClick={() => setMenuOpen(false)}
@@ -684,7 +684,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                   </RouterLink>
                 </div>}
                 <div className="mt-2 space-y-1 border-t border-border/60 pt-3">
-                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Configuración</p>
+                  <p className="px-3 text-xs font-semibold text-muted-foreground">Configuración</p>
                   <RouterLink to={organizationProfileHref} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
                     <Settings className="h-4 w-4" />
                     Perfil y organización
@@ -697,14 +697,14 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                 </>}
                 {adminLinks.length > 0 || FEATURE_ENCUESTAS ? (
                   <div className="mt-2 space-y-2 border-t border-border/60 pt-3">
-                    <p className="px-3 text-xs font-semibold uppercase tracking-normal text-muted-foreground/80">{isPlatformAdmin ? 'Gestión de ChatBoc' : 'Panel admin'}</p>
+                    <p className="px-3 text-xs font-semibold text-muted-foreground/80">{isPlatformAdmin ? 'Gestión de ChatBoc' : 'Panel admin'}</p>
                     <div className="flex flex-col gap-1">
                       {adminLinks.map(({ to, label, icon: Icon }) => (
                         <RouterLink
                           key={to}
                           to={to}
                           onClick={() => setMenuOpen(false)}
-                          className="flex items-center gap-2 rounded-[8px] border border-border/70 px-3 py-2 text-sm transition-colors hover:border-primary/50 hover:text-primary"
+                          className="flex min-h-11 items-center gap-2 rounded-[8px] border border-border/70 px-3 py-2 text-sm transition-colors hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         >
                           <Icon className="h-4 w-4" />
                           {label}
@@ -724,7 +724,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
                   </div>
                 ) : null}
                 <div className="mt-2 border-t border-border/60 pt-3">
-                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sesión</p>
+                  <p className="px-3 pb-1 text-xs font-semibold text-muted-foreground">Sesión</p>
                   <button onClick={handleLogout} className={`${mobileItemClass} flex items-center gap-2 text-destructive hover:text-destructive`}>
                     <LogOut className="h-4 w-4" />
                     Cerrar sesión

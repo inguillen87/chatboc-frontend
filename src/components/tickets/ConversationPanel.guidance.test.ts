@@ -12,6 +12,7 @@ import {
   getReplyDeliveryView,
   getWhatsAppServiceWindowView,
   hasPublicRecipientPresence,
+  INTERNAL_ONLY_REPLY_COPY,
   isReplyDeliveryInvalidation,
   preserveReplyDeliveryProgress,
   renderApprovedWhatsAppTemplate,
@@ -249,11 +250,11 @@ describe('reply delivery evidence', () => {
 
     expect(formatReplyDeliveryChannel('whatsapp')).toBe('WhatsApp');
     expect(view.tone).toBe('warning');
-    expect(view.title).toBe('Estado de entrega por confirmar');
+    expect(view.title).toBe('Entrega por confirmar');
     expect(view.title).not.toMatch(/enviado/i);
   });
 
-  it('uses reply_contract.v1 to explain CRM-only delivery without blocking a reply', () => {
+  it('explains an internal-only response in plain language without blocking it', () => {
     const view = getComposerChannelView({
       channel: 'whatsapp',
       recipientPresenceConfirmed: false,
@@ -274,9 +275,21 @@ describe('reply delivery evidence', () => {
 
     expect(view).toMatchObject({
       tone: 'warning',
-      label: 'Sólo registro en CRM',
+      label: 'Guardado en el caso',
     });
-    expect(view.detail).toMatch(/teléfono verificable/i);
+    expect(view.detail).toBe(INTERNAL_ONLY_REPLY_COPY);
+    expect(`${view.label} ${view.detail}`).not.toMatch(/CRM|ticket|SLA|contact_phone_missing/i);
+  });
+
+  it('maps known internal values and hides unknown ones from operator copy', () => {
+    expect(formatReplyDeliveryChannel('live_socket')).toBe('Chat en vivo');
+    expect(formatReplyDeliveryChannel('queue_offline_message')).toBe('Mensaje pendiente para el equipo');
+    expect(formatReplyDeliveryChannel('unknown_channel')).toBe('Otro canal');
+
+    const view = getReplyDeliveryView(deliveryStatus({
+      operator_message: 'queue_offline_message',
+    }));
+    expect(`${view.title} ${view.detail}`).not.toMatch(/queue_offline_message|waiting_agent|unknown_channel/i);
   });
 
   it('fails closed on unknown reply contract versions and source mismatches', () => {
@@ -293,7 +306,9 @@ describe('reply delivery evidence', () => {
       contract_version: 'inbox.reply_contract.v2',
       source_model: 'MunicipioTicket',
       enabled: true,
-    }, 'MunicipioTicket')).toMatch(/versión de contrato/i);
+    }, 'MunicipioTicket')).toBe(
+      'El sistema publicó una configuración de respuesta que esta consola todavía no reconoce.',
+    );
 
     expect(getPublishedReplyBlockReason({
       contract_version: 'inbox.reply_contract.v1',
@@ -344,8 +359,8 @@ describe('reply delivery evidence', () => {
       },
     });
 
-    expect(replyView.title).toBe('En cola para entregar');
-    expect(replyView.detail).toContain('cola durable');
+    expect(replyView.title).toBe('En espera de entrega');
+    expect(replyView.detail).toContain('cola segura');
     expect(actionView).toMatchObject({
       tone: 'queued',
       title: 'En cola para WhatsApp',
@@ -382,12 +397,12 @@ describe('reply delivery evidence', () => {
       },
     });
 
-    expect(accepted).toMatchObject({ tone: 'pending', title: 'Aceptado por el proveedor' });
-    expect(accepted.detail).toMatch(/no prueba la entrega/i);
+    expect(accepted).toMatchObject({ tone: 'pending', title: 'Recibido por el canal' });
+    expect(accepted.detail).toMatch(/todavía no confirmó la entrega/i);
     expect(failed).toMatchObject({ tone: 'warning', title: 'Entrega no realizada' });
   });
 
-  it('labels CRM-only artifacts truthfully and recognizes idempotent replay', () => {
+  it('labels internal-only artifacts truthfully and recognizes idempotent replay', () => {
     const saved = getComposerActionDeliveryView({
       mode: 'crm_only', status: 'saved_to_crm', saved_in_crm: true,
       external_dispatch: false, dispatch_attempted: false, provider_accepted: false,
@@ -398,17 +413,17 @@ describe('reply delivery evidence', () => {
       external_dispatch: false, dispatch_attempted: false, provider_accepted: false,
       delivered: false, failed: false, receipt_persisted: true, idempotent_replay: true,
     });
-    expect(saved).toMatchObject({ tone: 'internal', title: 'Guardado sólo en CRM' });
-    expect(saved.detail).toBe('Guardado en CRM, no enviado externamente.');
+    expect(saved).toMatchObject({ tone: 'internal', title: 'Guardado en el caso' });
+    expect(saved.detail).toBe(INTERNAL_ONLY_REPLY_COPY);
     expect(replay).toMatchObject({ tone: 'replay', title: 'Reintento reconocido' });
   });
 
-  it('fails closed when CRM-only evidence claims an external dispatch', () => {
+  it('fails closed when internal-only evidence claims an external dispatch', () => {
     expect(getComposerActionDeliveryView({
       mode: 'crm_only', saved_in_crm: true, receipt_persisted: true,
       external_dispatch: false, dispatch_attempted: true, provider_accepted: false,
       delivered: false, failed: false,
-    })).toMatchObject({ tone: 'warning', title: 'Evidencia CRM-only inconsistente' });
+    })).toMatchObject({ tone: 'warning', title: 'Datos de entrega inconsistentes' });
   });
 
   it('distinguishes socket emission, recipient presence and recipient read', () => {
@@ -454,13 +469,13 @@ describe('reply delivery evidence', () => {
       operator_message: 'Guardado en CRM sin canal externo confirmado.',
     }));
 
-    expect(emittedView.title).toBe('Guardado en CRM');
+    expect(emittedView.title).toBe('Guardado en el caso');
     expect(emittedView.tone).toBe('muted');
     expect(deliveredView.title).toBe('Entregado en chat en vivo');
     expect(deliveredView.tone).toBe('success');
     expect(readView.title).toBe('Leído');
     expect(readView.tone).toBe('success');
-    expect(crmView.title).toBe('Guardado en CRM');
+    expect(crmView.title).toBe('Guardado en el caso');
     expect(crmView.tone).toBe('muted');
   });
 
@@ -526,7 +541,7 @@ describe('reply delivery evidence', () => {
     }));
 
     expect(view.tone).toBe('warning');
-    expect(view.title).toBe('Estado de entrega por confirmar');
+    expect(view.title).toBe('Entrega por confirmar');
     expect(view.detail).toContain('fallo la entrega externa');
   });
 

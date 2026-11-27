@@ -520,8 +520,8 @@ const AdminSurveysIndex = () => {
                 </p>
               </div>
 
-              <div className="flex min-w-0 flex-1 flex-col gap-2 xl:max-w-4xl xl:flex-row xl:items-center xl:justify-end">
-                <label className="relative block min-w-0 flex-1 xl:max-w-xs">
+              <div className="flex min-w-0 flex-1 flex-col gap-2 xl:max-w-4xl">
+                <label className="relative block w-full min-w-0 sm:max-w-md">
                   <span className="sr-only">Buscar encuestas y votaciones</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input

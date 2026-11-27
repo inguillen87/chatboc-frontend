@@ -62,8 +62,8 @@ describe('deriveTicketOperationalGuidance', () => {
       }),
     );
 
-    expect(guidance.label).toMatch(/Revisar el compromiso SLA vencido/i);
-    expect(guidance.tags).toEqual(expect.arrayContaining(['riesgo', 'SLA']));
+    expect(guidance.label).toMatch(/Revisá el plazo vencido/i);
+    expect(guidance.tags).toEqual(expect.arrayContaining(['riesgo', 'plazo']));
   });
 
   it('keeps high priority separate from SLA evidence', () => {
@@ -78,7 +78,7 @@ describe('deriveTicketOperationalGuidance', () => {
 
     expect(guidance.label).toMatch(/criticidad/i);
     expect(guidance.tags).toEqual(['prioridad alta']);
-    expect(guidance.tags).not.toContain('SLA');
+    expect(guidance.tags).not.toContain('plazo');
   });
 
   it('asks the operator to assign an owner before regular follow-up', () => {

@@ -10,6 +10,7 @@ interface ReadStateBadgeProps {
 
 export const ReadStateBadge: React.FC<ReadStateBadgeProps> = ({ status, readBy, readAt }) => {
   const Icon = status === 'read' || status === 'delivered' ? CheckCheck : Check;
+  const statusLabel = status === 'read' ? 'Leído' : status === 'delivered' ? 'Entregado' : 'Enviado';
 
   const iconClass = `w-3.5 h-3.5 ${status === 'read' ? 'text-primary' : 'text-muted-foreground'}`;
 
@@ -23,8 +24,9 @@ export const ReadStateBadge: React.FC<ReadStateBadgeProps> = ({ status, readBy, 
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-           <span className="inline-flex items-center justify-center shrink-0">
-              <Icon className={iconClass} />
+           <span role="status" aria-label={tooltipText} className="inline-flex shrink-0 items-center justify-center gap-1">
+              <Icon aria-hidden="true" className={iconClass} />
+              <span className="text-[10px] text-muted-foreground">{statusLabel}</span>
            </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-[10px]">

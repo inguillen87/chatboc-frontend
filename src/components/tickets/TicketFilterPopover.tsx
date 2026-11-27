@@ -9,12 +9,12 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useTickets } from '@/context/TicketContext';
-import { formatTicketStatusLabel } from '@/utils/ticketStatus';
+import { formatTicketDisplayLabel, formatTicketStatusLabel } from '@/utils/ticketStatus';
 
 const FILTER_SELECT_CLASS_NAME =
-  'h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs';
+  'h-11 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 const QUICK_FILTER_BUTTON_CLASS_NAME =
-  'h-7 min-w-0 rounded-md px-1.5 text-[11px] font-semibold';
+  'min-h-11 min-w-0 rounded-md px-1.5 text-[11px] font-semibold';
 
 const defaultFilters = {
   search: '',
@@ -67,15 +67,27 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
   const secondaryFilterLabels = React.useMemo(
     () =>
       [
-        resolvedFilters.channel !== 'all' ? `Canal: ${resolvedFilters.channel}` : null,
+        resolvedFilters.channel !== 'all'
+          ? `Canal: ${formatTicketDisplayLabel(resolvedFilters.channel)}`
+          : null,
         resolvedFilters.status !== 'all'
           ? `Estado: ${formatTicketStatusLabel(resolvedFilters.status)}`
           : null,
-        resolvedFilters.area !== 'all' ? `Area: ${resolvedFilters.area}` : null,
-        resolvedFilters.agent !== 'all' ? `Agente: ${resolvedFilters.agent}` : null,
-        resolvedFilters.priority !== 'all' ? `Prioridad: ${resolvedFilters.priority}` : null,
-        resolvedFilters.sla !== 'all' ? `SLA: ${resolvedFilters.sla}` : null,
-        resolvedFilters.unread !== 'all' ? `Lectura: ${resolvedFilters.unread}` : null,
+        resolvedFilters.area !== 'all'
+          ? `Área: ${formatTicketDisplayLabel(resolvedFilters.area)}`
+          : null,
+        resolvedFilters.agent !== 'all'
+          ? `Responsable: ${formatTicketDisplayLabel(resolvedFilters.agent)}`
+          : null,
+        resolvedFilters.priority !== 'all'
+          ? `Prioridad: ${formatTicketDisplayLabel(resolvedFilters.priority)}`
+          : null,
+        resolvedFilters.sla !== 'all'
+          ? `Plazo: ${formatTicketDisplayLabel(resolvedFilters.sla)}`
+          : null,
+        resolvedFilters.unread !== 'all'
+          ? `Lectura: ${formatTicketDisplayLabel(resolvedFilters.unread)}`
+          : null,
       ].filter(Boolean) as string[],
     [resolvedFilters],
   );
@@ -116,7 +128,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
     <div
       className="mb-2 grid grid-cols-4 gap-1 rounded-md border border-border/70 bg-muted/50 p-1"
       role="group"
-      aria-label="Filtros rapidos de reclamos"
+      aria-label="Filtros rápidos de reclamos"
       data-testid={compact ? 'sidebar-compact-primary-filters' : 'sidebar-filter-shortcuts'}
     >
       <Button
@@ -137,7 +149,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
         aria-pressed={resolvedFilters.unread === 'unread'}
         onClick={() => patchFilter({ unread: 'unread' })}
       >
-        No leidos
+        No leídos
       </Button>
       <Button
         type="button"
@@ -165,7 +177,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
           })
         }
       >
-        Sin resp.
+        Sin responsable
       </Button>
     </div>
   );
@@ -180,7 +192,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
         <Button
           type="button"
           variant={advancedFiltersOpen || hasSecondaryFilters ? 'secondary' : 'outline'}
-          className={cn('h-7 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold', className)}
+          className={cn('min-h-11 shrink-0 rounded-[8px] px-2.5 text-xs font-semibold', className)}
           aria-label={secondaryFilterButtonLabel}
           aria-expanded={advancedFiltersOpen}
           aria-controls={filterPanelId}
@@ -222,7 +234,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 shrink-0 px-2 text-xs"
+              className="min-h-11 shrink-0 px-2 text-xs"
               onClick={resetFilters}
             >
               Limpiar
@@ -266,7 +278,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               <option value="all">Canal: todos</option>
               {optionList<string>(filterOptions?.channels).map((channel) => (
                 <option key={channel} value={channel}>
-                  {channel}
+                  {formatTicketDisplayLabel(channel)}
                 </option>
               ))}
             </select>
@@ -284,14 +296,14 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               <option value="all">Estado: todos</option>
               {optionList<SelectOption>(filterOptions?.statuses).map((status) => (
                 <option key={status.value} value={status.value}>
-                  {status.label}
+                  {formatTicketStatusLabel(status.value || status.label)}
                 </option>
               ))}
             </select>
           </div>
           <div className="min-w-0">
             <label className="sr-only" htmlFor={`${filterPanelId}-area`}>
-              Filtrar por area
+              Filtrar por área
             </label>
             <select
               id={`${filterPanelId}-area`}
@@ -299,10 +311,10 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               value={resolvedFilters.area}
               onChange={(event) => selectValue('area', event.target.value)}
             >
-              <option value="all">Area: todas</option>
+              <option value="all">Área: todas</option>
               {optionList<string>(filterOptions?.areas).map((area) => (
                 <option key={area} value={area}>
-                  {area}
+                  {formatTicketDisplayLabel(area)}
                 </option>
               ))}
             </select>
@@ -317,10 +329,10 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               value={resolvedFilters.agent}
               onChange={(event) => selectValue('agent', event.target.value)}
             >
-              <option value="all">Agente: todos</option>
+              <option value="all">Responsable: cualquiera</option>
               {optionList<AgentOption>(filterOptions?.agents).map((agent) => (
                 <option key={agent.id} value={agent.id}>
-                  {agent.label}
+                  {formatTicketDisplayLabel(agent.label)}
                 </option>
               ))}
             </select>
@@ -338,14 +350,14 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               <option value="all">Prioridad: todas</option>
               {optionList<string>(filterOptions?.priorities).map((priority) => (
                 <option key={priority} value={priority}>
-                  {priority}
+                  {formatTicketDisplayLabel(priority)}
                 </option>
               ))}
             </select>
           </div>
           <div className="min-w-0">
             <label className="sr-only" htmlFor={`${filterPanelId}-sla`}>
-              Filtrar por SLA
+              Filtrar por plazo
             </label>
             <select
               id={`${filterPanelId}-sla`}
@@ -353,13 +365,13 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
               value={resolvedFilters.sla}
               onChange={(event) => selectValue('sla', event.target.value)}
             >
-              <option value="all">SLA: todos</option>
-              <option value="risk">SLA: riesgo</option>
+              <option value="all">Plazo: todos</option>
+              <option value="risk">Plazo: en riesgo</option>
               {optionList<string>(filterOptions?.slaStatuses)
                 .filter((slaStatus) => slaStatus !== 'risk')
                 .map((slaStatus) => (
                   <option key={slaStatus} value={slaStatus}>
-                    {slaStatus}
+                    {formatTicketDisplayLabel(slaStatus)}
                   </option>
                 ))}
             </select>
@@ -376,7 +388,7 @@ export const TicketFilterPopover: React.FC<TicketFilterPopoverProps> = ({
             >
               {optionList<SelectOption>(filterOptions?.unreadModes).map((mode) => (
                 <option key={mode.value} value={mode.value}>
-                  {mode.label}
+                  {formatTicketDisplayLabel(mode.label)}
                 </option>
               ))}
             </select>

@@ -30,7 +30,7 @@ import {
   getAttachmentSecurityLabel,
   type AttachmentLike,
 } from '@/utils/attachment';
-import { formatTicketStatusLabel } from '@/utils/ticketStatus';
+import { formatTicketDisplayLabel, formatTicketOptionalLabel, formatTicketStatusLabel } from '@/utils/ticketStatus';
 
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
 import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
@@ -83,8 +83,7 @@ const readInboxAttachmentLabel = (attachment: Record<string, unknown>, index: nu
   asText(attachment.nombre) ||
   asText(attachment.filename) ||
   asText(attachment.file_name) ||
-  asText(attachment.type) ||
-  (attachment.archivo_adjunto_id ? `Archivo ${String(attachment.archivo_adjunto_id)}` : `Archivo ${index + 1}`);
+  `Archivo ${index + 1}`;
 
 const isImageAttachment = (attachment: Record<string, unknown>) => {
   const type = asText(attachment.type)?.toLowerCase() || asText(attachment.mime_type)?.toLowerCase() || '';
@@ -92,8 +91,7 @@ const isImageAttachment = (attachment: Record<string, unknown>) => {
   return type.startsWith('image') || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url);
 };
 
-const normalizeChannelLabel = (value?: string | null) =>
-  value?.trim().toLowerCase() === 'whatsapp' ? 'WhatsApp' : value?.trim() || null;
+const normalizeChannelLabel = (value?: string | null) => formatTicketOptionalLabel(value);
 
 const liveChatLabel = (liveChat?: OmnichannelLiveChatStatus) => {
   const state = liveChat?.channel_state;
@@ -105,7 +103,7 @@ const liveChatLabel = (liveChat?: OmnichannelLiveChatStatus) => {
 
 const liveChatClassName = (state?: string) => {
   if (state === 'queued') return 'border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-200';
-  if (state === 'online') return 'border-emerald-400/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200';
+  if (state === 'online') return 'border-sky-400/50 bg-sky-500/10 text-sky-700 dark:text-sky-200';
   return 'border-slate-400/50 bg-slate-500/10 text-slate-700 dark:text-slate-200';
 };
 
@@ -132,55 +130,56 @@ const deliveryView = (delivery?: OmnichannelActionDelivery | null): DeliveryView
     return { title: 'Entrega no realizada', badge: 'Fallo confirmado', tone: 'warning' };
   }
   if (mode === 'idempotent_replay' || delivery?.idempotency?.replayed) {
-    return { title: 'Reintento reconocido', badge: 'Replay sin duplicado', tone: 'replay' };
+    return { title: 'Reintento reconocido', badge: 'Sin duplicar', tone: 'replay' };
   }
   if (mode === 'durable_queue' || evidenceStage === 'durably_staged' || status === 'durably_staged') {
-    return { title: 'Respuesta encolada', badge: 'Encolado', tone: 'pending' };
+    return { title: 'Respuesta en espera', badge: 'En espera', tone: 'pending' };
   }
   if (evidenceStage === 'provider_accepted' || status === 'provider_accepted') {
-    return { title: 'Aceptado por el proveedor', badge: 'Pendiente de callback', tone: 'pending' };
+    return { title: 'Respuesta recibida por el canal', badge: 'Esperando confirmación', tone: 'pending' };
   }
   if (mode === 'timeline_only' || evidenceStage === 'crm_only') {
-    return { title: 'Guardado solo en CRM', badge: 'CRM-only', tone: 'crm' };
+    return { title: 'Respuesta guardada en el caso', badge: 'No enviada', tone: 'crm' };
   }
-  return { title: 'Acción aplicada', badge: delivery?.status || 'Registrado', tone: 'internal' };
+  return { title: 'Acción aplicada', badge: formatTicketDisplayLabel(delivery?.status, 'Registrado'), tone: 'internal' };
 };
 
 const deliveryTitle = (delivery?: OmnichannelActionDelivery | null) => deliveryView(delivery).title;
 
 const deliveryDescription = (delivery?: OmnichannelActionDelivery | null, fallback?: string | null) => {
   const view = deliveryView(delivery);
-  if (view.tone === 'success') return 'El callback del proveedor confirmó la entrega final.';
-  if (view.tone === 'warning') return 'El callback del proveedor confirmó que la entrega no se completó.';
-  return delivery?.operator_message ||
-    fallback ||
-    (view.tone === 'crm'
-      ? 'La respuesta quedó registrada en el timeline operativo sin despacho externo.'
-      : 'El inbox fue actualizado; la entrega final depende de la evidencia del proveedor.');
+  if (view.tone === 'success') return 'El canal confirmó la entrega.';
+  if (view.tone === 'warning') return 'El canal confirmó que la entrega no se completó.';
+  if (view.tone === 'crm') return 'Esta respuesta queda guardada en el caso. No se envía a la persona porque este canal no tiene envío habilitado.';
+  if (view.tone === 'pending') return 'La respuesta quedó guardada y espera la confirmación del canal.';
+  if (view.tone === 'replay') return 'El reintento se reconoció sin duplicar la respuesta.';
+  return formatTicketOptionalLabel(delivery?.operator_message) ||
+    formatTicketOptionalLabel(fallback) ||
+    'El caso se actualizó. La confirmación final depende del canal.';
 };
 
 const finalDeliveryEvidenceLabel = (status: string) => {
   const normalized = status.trim().toLowerCase();
   const labels: Record<string, string> = {
-    pending_provider_callback: 'pendiente de callback del proveedor',
-    preserved_from_original_attempt: 'evidencia del intento original preservada',
-    not_dispatched: 'sin despacho externo',
+    pending_provider_callback: 'esperando confirmación del canal',
+    preserved_from_original_attempt: 'se conservó la confirmación del intento original',
+    not_dispatched: 'no enviada',
     delivered: 'entregada',
     read: 'leída',
     failed: 'fallida',
     undelivered: 'no entregada',
   };
-  return labels[normalized] || normalized.replace(/_/g, ' ');
+  return labels[normalized] || formatTicketDisplayLabel(status, 'Estado no disponible');
 };
 
 const finalDeliverySourceLabel = (source: string) => {
   const normalized = source.trim().toLowerCase();
   const labels: Record<string, string> = {
-    provider_status_callback: 'callback de estado del proveedor',
-    original_attempt_evidence: 'evidencia del intento original',
+    provider_status_callback: 'confirmación del canal',
+    original_attempt_evidence: 'confirmación del intento original',
     not_applicable: 'no aplica',
   };
-  return labels[normalized] || normalized.replace(/_/g, ' ');
+  return labels[normalized] || formatTicketDisplayLabel(source, 'Fuente no disponible');
 };
 
 const deliveryEvidence = (delivery?: OmnichannelActionDelivery | null) => {
@@ -198,14 +197,14 @@ const deliveryEvidence = (delivery?: OmnichannelActionDelivery | null) => {
     evidence.push(`Fuente: ${finalDeliverySourceLabel(finalSource)}`);
   }
   if (delivery.idempotency) {
-    evidence.push(`Idempotencia: ${delivery.idempotency.replayed ? 'replay sin duplicado' : 'primera aplicación'}`);
+    evidence.push(`Reintento: ${delivery.idempotency.replayed ? 'sin duplicar' : 'aplicación inicial'}`);
   }
   if (delivery.outbox) {
     const effectCount = delivery.outbox.effect_count;
     evidence.push(
       typeof effectCount === 'number'
-        ? `Outbox: ${effectCount} efecto${effectCount === 1 ? '' : 's'}`
-        : `Outbox: ${delivery.outbox.durably_staged ? 'encolado' : 'sin evidencia durable'}`,
+        ? `Registro de envío: ${effectCount} operaci${effectCount === 1 ? 'ón' : 'ones'}`
+        : `Registro de envío: ${delivery.outbox.durably_staged ? 'en espera' : 'sin confirmación'}`,
     );
   }
   return evidence;
@@ -388,7 +387,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
           }
         : {
             title: 'Respuesta no confirmada',
-            description: 'El servidor devolvió otro ticket. No aplicamos el cambio en esta conversación.',
+            description: 'El servidor devolvió otro caso. No aplicamos el cambio en esta conversación.',
             variant: 'destructive',
           });
       onActionComplete?.();
@@ -454,7 +453,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
 
   const contactLabel = useMemo(() => {
     const contact = detailTicket?.contact ?? {};
-    return String(contact.name ?? contact.nombre ?? contact.display_name ?? contact.email ?? detailTicket?.title ?? '');
+    return formatTicketOptionalLabel(contact.name ?? contact.nombre ?? contact.display_name ?? contact.email ?? detailTicket?.title);
   }, [detailTicket]);
 
   const handleAction = (action: SaasAction) => {
@@ -577,7 +576,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
     ? (Array.isArray(detailTicket.allowed_actions) ? detailTicket.allowed_actions : [])
     : (Array.isArray(detailTicket.actions) ? detailTicket.actions : []);
   const assignmentContract = ticketAssignmentActions(publishedActions);
-  const assignmentLabel = assignmentContract.assign?.label ?? assignmentContract.claim?.label;
+  const assignmentLabel = formatTicketOptionalLabel(assignmentContract.assign?.label ?? assignmentContract.claim?.label);
   const replyAllowed = Array.isArray(detailTicket.allowed_actions) && detailTicket.allowed_actions.some(action=>action.id==='reply'&&!action.disabled);
   const handoffActions = publishedActions.filter(isAiHandoffAction);
   const visibleActions = publishedActions.filter((action) => action.id !== 'reply' && !isAiHandoffAction(action) && !isTicketAssignmentAction(action)).filter((action) => {
@@ -594,6 +593,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   const canRenderMap = detailTicket.map?.can_render === false ? false : Boolean(locationPoint);
   const attachments = detailTicket.attachments ?? [];
   const channelLabel = normalizeChannelLabel(detailTicket.canal_ingreso ?? detailTicket.channel);
+  const priorityLabel = formatTicketOptionalLabel(detailTicket.priority);
   const assigneeLabel = asText(assignee.name) || asText(assignee.email);
   const attachmentCount = detailTicket.archivos_count ?? attachments.length;
   const directPhotoUrl =
@@ -603,11 +603,10 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
       .find(Boolean) ||
     null;
   const locationAddress = asText(detailTicket.location?.address) || asText(detailTicket.location?.direccion);
+  const sourceOriginLabel = formatTicketOptionalLabel(sourceMetadata.origin);
   const originRows = [
     channelLabel ? ['Canal', channelLabel] as [string, string] : null,
-    asText(sourceMetadata.origin) ? ['Origen', String(sourceMetadata.origin)] as [string, string] : null,
-    asText(sourceMetadata.demo_session_id) ? ['Demo', String(sourceMetadata.demo_session_id)] as [string, string] : null,
-    asText(sourceMetadata.widget_id) ? ['Widget', String(sourceMetadata.widget_id)] as [string, string] : null,
+    sourceOriginLabel ? ['Origen', sourceOriginLabel] as [string, string] : null,
   ].filter((row): row is [string, string] => Boolean(row));
   const locationRows = [
     locationAddress ? ['Dirección', locationAddress] as [string, string] : null,
@@ -622,13 +621,13 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   const liveChat = detailTicket.live_chat;
   const liveChatStateLabel = liveChatLabel(liveChat);
   const liveChatSchedule =
-    asText(liveChat?.schedule_label) ||
-    asText(liveChat?.availability?.schedule_label) ||
-    asText(liveChat?.description);
+    formatTicketOptionalLabel(liveChat?.schedule_label) ||
+    formatTicketOptionalLabel(liveChat?.availability?.schedule_label) ||
+    formatTicketOptionalLabel(liveChat?.description);
   const liveChatOfflineMessage =
-    asText(liveChat?.offline_fallback_message) ||
-    asText(liveChat?.availability?.offline_fallback_message) ||
-    asText(liveChat?.offline_message?.message);
+    formatTicketOptionalLabel(liveChat?.offline_fallback_message) ||
+    formatTicketOptionalLabel(liveChat?.availability?.offline_fallback_message) ||
+    formatTicketOptionalLabel(liveChat?.offline_message?.message);
   const liveChatPendingMessages = asFiniteNumber(liveChat?.queue?.pending_customer_messages) ?? 0;
   const liveChatAction = (liveChat?.actions || []).find((action) => action.href || action.endpoint);
   const replyFailure = replyFailureState?.scopeKey === activeScopeKey ? replyFailureState.failure : null;
@@ -637,9 +636,9 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
   const lastDeliveryEvidence = deliveryEvidence(lastDelivery);
   const statusTiles = [
     channelLabel ? { icon: ShieldCheck, label: 'Canal', value: channelLabel } : null,
-    liveChatStateLabel ? { icon: MessageCircle, label: 'Live chat', value: liveChatStateLabel } : null,
+    liveChatStateLabel ? { icon: MessageCircle, label: 'Chat en vivo', value: liveChatStateLabel } : null,
     assigneeLabel ? { icon: UserRound, label: 'Responsable', value: assigneeLabel } : null,
-    locationPoint ? { icon: MapPin, label: 'Ubicacion', value: 'Con coordenadas' } : null,
+    locationPoint ? { icon: MapPin, label: 'Ubicación', value: 'Con coordenadas' } : null,
     attachmentCount ? { icon: Paperclip, label: 'Adjuntos', value: String(attachmentCount) } : null,
   ].filter((tile): tile is { icon: React.ElementType; label: string; value: string } => Boolean(tile));
 
@@ -649,7 +648,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate text-sm font-medium">#{detailTicket.nro_ticket || detailTicket.ticket_id || detailTicket.id}</h3>
-            <Badge variant="outline">{detailTicket.status}</Badge>
+            <Badge variant="outline">{formatTicketStatusLabel(detailTicket.status)}</Badge>
             {channelLabel ? <Badge variant="secondary">{channelLabel}</Badge> : null}
             {liveChatStateLabel ? (
               <Badge
@@ -660,7 +659,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
                 {liveChatStateLabel}
               </Badge>
             ) : null}
-            {detailTicket.priority ? <Badge variant="outline">{detailTicket.priority}</Badge> : null}
+            {priorityLabel ? <Badge variant="outline">{priorityLabel}</Badge> : null}
           </div>
           {contactLabel ? <p className="mt-1 truncate text-xs text-muted-foreground">{contactLabel}</p> : null}
         </div>
@@ -718,12 +717,12 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 border-current text-current hover:bg-background/60"
+                className="min-h-11 border-current text-current hover:bg-background/60"
                 onClick={() => handleAction(liveChatAction)}
                 disabled={actionMutation.isPending}
               >
                 <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
-                {liveChatAction.label || 'Abrir hilo'}
+                {formatTicketDisplayLabel(liveChatAction.label, 'Abrir conversación')}
               </Button>
             ) : null}
           </div>
@@ -753,7 +752,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
 
       <AgentSummaryPanel
         isLoading={false}
-        summary={detailTicket.summary ?? detailTicket.description ?? null}
+        summary={formatTicketOptionalLabel(detailTicket.summary ?? detailTicket.description)}
         nextSteps={detailTicket.next_steps}
       />
 
@@ -770,7 +769,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
               disabled={action.disabled || actionMutation.isPending || detailQuery.isFetching}
               onClick={() => handleAction(action)}
             >
-              {action.label}
+              {formatTicketDisplayLabel(action.label, 'Acción disponible')}
             </Button>
           ))}
         </div>
@@ -815,8 +814,8 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
         ) : (
           <ViewState
             status="partial"
-            title="Timeline pendiente"
-            description="Este ítem todavía no tiene timeline para esta conversación."
+            title="Historial pendiente"
+            description="Este caso todavía no tiene historial para esta conversación."
             className="min-h-[180px]"
           />
         )}
@@ -848,7 +847,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
                   disabled={actionMutation.isPending}
                   onClick={() => setDraft(text)}
                 >
-                  {label}
+                  {formatTicketDisplayLabel(label, 'Sugerencia disponible')}
                 </Button>
               );
             })}
@@ -866,6 +865,8 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
         {lastDelivery ? (
           <div
             data-testid="omnichannel-delivery-status"
+            role="status"
+            aria-live="polite"
             className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border bg-muted/20 px-3 py-2 text-xs"
           >
             <div className="min-w-0">
@@ -880,8 +881,8 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
                 </div>
               ) : null}
             </div>
-            <Badge variant={lastDeliveryView.tone === 'success' ? 'default' : 'secondary'}>
-              {lastDelivery.channel || 'crm'} · {lastDeliveryView.badge}
+            <Badge variant="secondary">
+              {formatTicketDisplayLabel(lastDelivery.channel, 'Registro interno')} · {lastDeliveryView.badge}
             </Badge>
           </div>
         ) : null}
@@ -901,7 +902,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="h-8"
+              className="min-h-11"
               type="button"
               disabled={!draft.trim()}
               onClick={handleSaveDraft}
@@ -910,7 +911,7 @@ const TicketConversationSession: React.FC<TicketConversationPaneProps> = ({
             </Button>
             <Button
               size="sm"
-              className="h-8 gap-1.5"
+              className="min-h-11 gap-1.5"
               type="button"
               disabled={!draft.trim() || actionMutation.isPending || detailQuery.isFetching || !replyAllowed}
               onClick={handleReply}
@@ -970,7 +971,7 @@ const EvidencePanel = ({
       <ImageIcon className="h-3.5 w-3.5 text-primary" />
       Evidencia del caso
     </div>
-    {photoUrl ? <SafeInboxImage src={photoUrl} alt="Evidencia adjunta al reclamo" /> : null}
+    {photoUrl ? <SafeInboxImage src={photoUrl} alt="Evidencia adjunta al caso" /> : null}
     {attachments.length ? (
       <div className="flex flex-wrap gap-2">
         {attachments.map((attachment, index) => {
@@ -985,7 +986,7 @@ const EvidencePanel = ({
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+              className="inline-flex min-h-11 max-w-full items-center gap-1 rounded-full border bg-background px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
             >
               {previewUrl && isImageAttachment(attachment) ? (
                 <ImageIcon className="h-3 w-3" />
@@ -993,7 +994,7 @@ const EvidencePanel = ({
                 <Paperclip className="h-3 w-3" />
               )}
               <span className="truncate">{label}</span>
-              {securityLabel ? <span className="shrink-0 text-[10px] font-semibold uppercase">{securityLabel}</span> : null}
+              {securityLabel ? <span className="shrink-0 text-[10px] font-semibold">{securityLabel}</span> : null}
               <ExternalLink className="h-3 w-3" />
             </a>
           ) : (
@@ -1017,20 +1018,21 @@ const readCaseValue = (schoolCase: EducationCaseAlias, keys: Array<keyof Educati
 };
 
 const SchoolCaseAliasPanel = ({ schoolCase }: { schoolCase: EducationCaseAlias }) => {
+  const caseLabel = formatTicketOptionalLabel(readCaseValue(schoolCase, ['taxonomy_label', 'case_type']));
+  const sensitivityLabel = formatTicketOptionalLabel(schoolCase.sensitivity_level);
   const fields = [
-    { id: 'school', label: 'Colegio', value: readCaseValue(schoolCase, ['school_name', 'school_id']) },
+    { id: 'school', label: 'Colegio', value: readCaseValue(schoolCase, ['school_name']) },
     { id: 'student', label: 'Alumno/familia', value: readCaseValue(schoolCase, ['student_name', 'guardian_name']) },
-    { id: 'case', label: 'Caso', value: readCaseValue(schoolCase, ['taxonomy_label', 'case_type', 'case_id']) },
+    { id: 'case', label: 'Caso', value: caseLabel },
   ].filter((field) => field.value);
 
   return (
     <div className="border-b bg-muted/20 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-foreground">Caso escolar</span>
-        {schoolCase.contract_version ? <Badge variant="outline">{schoolCase.contract_version}</Badge> : null}
-        {schoolCase.status ? <Badge variant="secondary">{schoolCase.status}</Badge> : null}
-        {schoolCase.sensitivity_level ? <Badge variant="outline">{schoolCase.sensitivity_level}</Badge> : null}
-        {schoolCase.requires_handoff ? <Badge variant="destructive">handoff</Badge> : null}
+        {schoolCase.status ? <Badge variant="secondary">{formatTicketStatusLabel(schoolCase.status)}</Badge> : null}
+        {sensitivityLabel ? <Badge variant="outline">{sensitivityLabel}</Badge> : null}
+        {schoolCase.requires_handoff ? <Badge variant="destructive">Necesita derivación</Badge> : null}
       </div>
       {fields.length ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-3">

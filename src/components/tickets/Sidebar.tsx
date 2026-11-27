@@ -33,8 +33,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { formatTicketStatusLabel } from '@/utils/ticketStatus';
-import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import {
+  formatTicketDisplayLabel,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+} from '@/utils/ticketStatus';
 import { resolveTenantSlug } from '@/utils/api';
 import {
   getQueueScore,
@@ -346,13 +349,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   const secondaryFilterLabels = React.useMemo(
     () =>
       [
-        filters.channel !== 'all' ? `Canal: ${filters.channel}` : null,
+        filters.channel !== 'all' ? `Canal: ${formatTicketDisplayLabel(filters.channel, 'Otro canal')}` : null,
         filters.status !== 'all' ? `Estado: ${formatTicketStatusLabel(filters.status)}` : null,
-        filters.area !== 'all' ? `Area: ${filters.area}` : null,
-        filters.agent !== 'all' ? `Agente: ${filters.agent}` : null,
-        filters.priority !== 'all' ? `Prioridad: ${filters.priority}` : null,
-        filters.sla !== 'all' ? `SLA: ${filters.sla}` : null,
-        filters.unread !== 'all' ? `Lectura: ${filters.unread}` : null,
+        filters.area !== 'all' ? `Área: ${formatTicketDisplayLabel(filters.area, 'Área seleccionada')}` : null,
+        filters.agent !== 'all' ? `Responsable: ${formatTicketDisplayLabel(filters.agent, 'Selección activa')}` : null,
+        filters.priority !== 'all' ? `Prioridad: ${formatTicketDisplayLabel(filters.priority, 'Prioridad seleccionada')}` : null,
+        filters.sla !== 'all' ? `Plazo: ${formatTicketDisplayLabel(filters.sla, 'Vista seleccionada')}` : null,
+        filters.unread !== 'all' ? `Lectura: ${formatTicketDisplayLabel(filters.unread, 'Vista seleccionada')}` : null,
       ].filter(Boolean) as string[],
     [filters],
   );
@@ -444,15 +447,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       : `${filteredTickets.length.toLocaleString('es-AR')} visibles`;
   const listSummaryLabel =
     listMode === 'queue'
-      ? `Cola priorizada: ${queueCaseCountLabel}`
+      ? `Casos por atender: ${queueCaseCountLabel}`
       : `Rubros: ${visibleRubrosCountLabel}`;
   const filterSummaryLabel = hasSecondaryFilters
     ? secondaryFilterCountLabel
     : debouncedSearchTerm
-      ? 'Busqueda activa'
+      ? 'Búsqueda activa'
       : 'Sin filtros';
   const activeFilterSummary = [
-    debouncedSearchTerm ? `Busqueda: ${debouncedSearchTerm}` : null,
+    debouncedSearchTerm ? `Búsqueda: ${debouncedSearchTerm}` : null,
     ...secondaryFilterLabels,
   ].filter(Boolean) as string[];
   const showVisibleSummaryBar = showListSummaryBar && !compact;
@@ -473,19 +476,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         type="button"
         variant={listMode === 'queue' ? 'secondary' : 'ghost'}
         size="sm"
-        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', toolbarDensity && 'w-7 px-0')}
+        className={cn('min-h-11 gap-1.5 rounded-md px-3 text-xs', toolbarDensity && 'w-11 px-0')}
         aria-pressed={listMode === 'queue'}
-        title="Ver cola priorizada"
+        title="Ver casos por atender"
         onClick={() => setListMode('queue')}
       >
         <List className="h-3.5 w-3.5" />
-        <span className={toolbarDensity ? 'sr-only' : undefined}>Cola</span>
+        <span className={toolbarDensity ? 'sr-only' : undefined}>Casos</span>
       </Button>
       <Button
         type="button"
         variant={listMode === 'categories' ? 'secondary' : 'ghost'}
         size="sm"
-        className={cn('h-7 gap-1.5 rounded-md px-2 text-xs', toolbarDensity && 'w-7 px-0')}
+        className={cn('min-h-11 gap-1.5 rounded-md px-3 text-xs', toolbarDensity && 'w-11 px-0')}
         aria-pressed={listMode === 'categories'}
         title="Ver rubros"
         onClick={() => setListMode('categories')}
@@ -521,17 +524,17 @@ const Sidebar: React.FC<SidebarProps> = ({
             data-density={delegatedHeader ? 'delegated' : 'compact'}
           >
             <h1 className="sr-only">
-              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Casos'}
             </h1>
             <div className="relative min-w-0 flex-1" role="search">
               <label className="sr-only" htmlFor={searchInputId}>
-                Buscar reclamos por numero, asunto, nombre, DNI o telefono
+                Buscar reclamos por número, asunto, nombre, DNI o teléfono
               </label>
-              <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-3.5 h-4 w-4 text-muted-foreground" />
               <Input
                 id={searchInputId}
                 placeholder="Buscar reclamo..."
-                className="h-8 pl-8 text-xs"
+                className="h-11 pl-8 text-xs"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -558,7 +561,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 shrink-0 px-0"
+                  className="h-11 w-11 shrink-0 px-0"
                   aria-label="Limpiar filtros activos"
                   title="Limpiar filtros"
                   onClick={resetFilters}
@@ -572,7 +575,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 w-8 px-0"
+                      className="h-11 w-11 px-0"
                       title="Exportar"
                     >
                       <FileDown className="h-4 w-4" />
@@ -581,10 +584,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                      Exportar Todos (Excel)
+                      Exportar todos (Excel)
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                      Exportar Todos (PDF)
+                      Exportar todos (PDF)
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() =>
@@ -592,7 +595,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       }
                       disabled={!selectedTicket}
                     >
-                      Exportar Ticket Actual (PDF)
+                      Exportar caso actual (PDF)
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -607,7 +610,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         ) : delegatedHeader ? (
           <>
             <h1 className="sr-only">
-              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Casos'}
             </h1>
             <div
               className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5"
@@ -616,13 +619,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="relative min-w-0" role="search">
                 <label className="sr-only" htmlFor={searchInputId}>
-                  Buscar reclamos por numero, asunto, nombre, DNI o telefono
+                  Buscar reclamos por número, asunto, nombre, DNI o teléfono
                 </label>
-                <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id={searchInputId}
                   placeholder="Buscar por nro, asunto o vecino..."
-                  className="h-8 pl-8 text-sm"
+                  className="h-11 pl-8 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -633,7 +636,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 px-0"
+                    className="h-11 w-11 px-0"
                     title="Exportar"
                   >
                     <FileDown className="h-4 w-4" />
@@ -642,10 +645,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                    Exportar Todos (Excel)
+                    Exportar todos (Excel)
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                    Exportar Todos (PDF)
+                    Exportar todos (PDF)
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() =>
@@ -653,7 +656,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     }
                     disabled={!selectedTicket}
                   >
-                    Exportar Ticket Actual (PDF)
+                    Exportar caso actual (PDF)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -669,7 +672,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-bold tracking-tight">
-                  {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+                  {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Casos'}
                 </h1>
                 <p
                   data-testid="sidebar-ticket-summary"
@@ -685,7 +688,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 px-2"
+                    className="min-h-11 px-3"
                     title="Exportar"
                   >
                     <FileDown className="h-4 w-4 sm:mr-2" />
@@ -694,10 +697,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                    Exportar Todos (Excel)
+                    Exportar todos (Excel)
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                    Exportar Todos (PDF)
+                    Exportar todos (PDF)
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() =>
@@ -705,7 +708,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     }
                     disabled={!selectedTicket}
                   >
-                    Exportar Ticket Actual (PDF)
+                    Exportar caso actual (PDF)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -716,13 +719,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="relative min-w-0" role="search">
                 <label className="sr-only" htmlFor={searchInputId}>
-                  Buscar reclamos por numero, asunto, nombre, DNI o telefono
+                  Buscar reclamos por número, asunto, nombre, DNI o teléfono
                 </label>
-                <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id={searchInputId}
                   placeholder="Buscar por nro, asunto o vecino..."
-                  className="h-8 pl-8 text-sm"
+                  className="h-11 pl-8 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -772,7 +775,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 shrink-0 gap-1 rounded-md px-2 text-[11px] font-semibold"
+            className="min-h-11 shrink-0 gap-1 rounded-md px-3 text-[11px] font-semibold"
             aria-label="Limpiar filtros de la vista"
             title="Limpiar filtros"
             onClick={resetFilters}
@@ -789,14 +792,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               No hay casos para esta vista
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Ajusta busqueda o filtros para volver a ver conversaciones.
+              Ajustá la búsqueda o los filtros para volver a ver conversaciones.
             </p>
             {hasActiveFilters ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="mt-3"
+                className="mt-3 min-h-11"
                 onClick={resetFilters}
               >
                 Limpiar filtros
@@ -811,26 +814,26 @@ const Sidebar: React.FC<SidebarProps> = ({
             aria-describedby="sidebar-queue-keyboard-help"
           >
             <p data-testid="sidebar-queue-summary" className="sr-only">
-              Cola priorizada: {queueEntries.length.toLocaleString('es-AR')} en cola;
-              {queueUnreadCount.toLocaleString('es-AR')} no leidos;
+              Casos por atender: {queueEntries.length.toLocaleString('es-AR')} casos;
+              {queueUnreadCount.toLocaleString('es-AR')} no leídos;
               {queueRiskCount.toLocaleString('es-AR')} en riesgo;
               {queueUnassignedCount.toLocaleString('es-AR')} sin responsable.
             </p>
             <p id="sidebar-queue-keyboard-help" className="sr-only">
-              Usá flecha arriba y flecha abajo para recorrer reclamos. Inicio y Fin llevan al primer o último caso visible.
+              Usá flecha arriba y flecha abajo para recorrer casos. Inicio y Fin llevan al primer o último caso visible.
             </p>
             {showQueueMetrics ? (
               <div
                 data-testid="sidebar-queue-metrics"
                 className={cn(
-                  'mb-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 text-[10px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                  'mb-1.5 flex min-w-0 flex-wrap items-center gap-1 pb-0.5 text-[10px] font-semibold',
                   compact && 'mb-1',
                 )}
                 role="group"
-                aria-label={`Cola priorizada, ${queueCaseCountLabel}, ${queueUnreadCount} no leidos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
+                aria-label={`Casos por atender, ${queueCaseCountLabel}, ${queueUnreadCount} no leídos, ${queueRiskCount} en riesgo, ${queueUnassignedCount} sin responsable`}
               >
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-foreground">
-                Cola
+                Casos
                 <strong className="tabular-nums">{queueEntries.length.toLocaleString('es-AR')}</strong>
               </span>
               <span
@@ -849,7 +852,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     : undefined
                 }
               >
-                No leidos
+                No leídos
                 <strong className="tabular-nums">{queueUnreadCount.toLocaleString('es-AR')}</strong>
               </span>
               <span
@@ -879,7 +882,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     : undefined
                 }
               >
-                Sin resp.
+                Sin responsable
                 <strong className="tabular-nums">{queueUnassignedCount.toLocaleString('es-AR')}</strong>
               </span>
               </div>
@@ -908,12 +911,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-8 w-full rounded-[8px] text-xs font-semibold"
+                className="min-h-11 w-full rounded-[8px] text-xs font-semibold"
                   onClick={() =>
                     setQueueVisibleCount((current) => current + QUEUE_ITEMS_PER_PAGE)
                   }
                 >
-                  Ver mas en esta vista
+                  Ver más en esta vista
                 </Button>
               </div>
             ) : null}
@@ -922,7 +925,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {listMode === 'categories' ? (
           <>
             <p data-testid="sidebar-category-summary" className="sr-only">
-              Vista por rubro: {visibleCategoryEntries.length.toLocaleString('es-AR')} rubros visibles; vacios ocultos por defecto.
+              Vista por rubro: {visibleCategoryEntries.length.toLocaleString('es-AR')} rubros visibles; vacíos ocultos por defecto.
             </p>
             <Accordion
               type="multiple"
@@ -933,7 +936,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               {visibleCategoryEntries.map(([category, tickets]) => (
                 <AccordionItem value={category} key={category}>
                   <AccordionTrigger className={cn('px-3 font-semibold', compact ? 'py-2 text-sm' : 'py-2.5')}>
-                    {category} ({tickets.length})
+                    {formatTicketDisplayLabel(category, 'Rubro sin nombre')} ({tickets.length})
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className={cn(compact ? 'space-y-1.5 px-2 pb-1.5' : 'space-y-2 px-2 pb-2')}>
@@ -962,10 +965,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <div className="p-2">
                           <Button
                             variant="outline"
-                            className="w-full"
+                            className="min-h-11 w-full"
                             onClick={() => handleLoadMore(category)}
                           >
-                            Cargar mas
+                            Cargar más
                           </Button>
                         </div>
                       )}
@@ -979,11 +982,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowEmptyCategories((current) => !current)}
-                  className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 >
                   {showEmptyCategories
-                    ? 'Ocultar rubros vacios'
-                    : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacios`}
+                    ? 'Ocultar rubros vacíos'
+                    : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacíos`}
                 </button>
               </div>
             ) : null}
@@ -995,14 +998,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           <Button
             type="button"
             variant="outline"
-            className="h-8 w-full rounded-[8px] text-xs font-semibold"
+            className="min-h-11 w-full rounded-[8px] text-xs font-semibold"
             onClick={loadMoreTickets}
             disabled={loadingMoreTickets}
           >
-            {loadingMoreTickets ? 'Cargando mas reclamos...' : 'Cargar mas reclamos'}
+            {loadingMoreTickets ? 'Cargando más reclamos...' : 'Cargar más reclamos'}
           </Button>
           <p className="mt-1 text-center text-[11px] leading-4 text-muted-foreground">
-            {tickets.length.toLocaleString('es-AR')} de {totalBackendTickets.toLocaleString('es-AR')} cargados desde el backend.
+            {tickets.length.toLocaleString('es-AR')} de {totalBackendTickets.toLocaleString('es-AR')} cargados desde el servidor.
           </p>
         </div>
       ) : null}

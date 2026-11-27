@@ -1,6 +1,7 @@
 import React from 'react';
 import {AlertTriangle,CheckCircle2,ListChecks,UserRound} from 'lucide-react';
 import {TicketSlaClocks} from '../TicketSlaClocks';
+import {formatTicketOptionalLabel} from '@/utils/ticketStatus';
 
 interface Props {
   assigneeLabel?: string|null;
@@ -11,14 +12,14 @@ const clean=(value:unknown)=>typeof value==='string'&&value.trim()?value.trim():
 
 export function CaseOperationalBar({assigneeLabel,sla,nextSteps}:Props){
   const assignee=clean(assigneeLabel);
-  const nextStep=(nextSteps||[]).map(clean).find((value):value is string=>Boolean(value))||null;
+  const nextStep=(nextSteps||[]).map(formatTicketOptionalLabel).find((value):value is string=>Boolean(value))||null;
   return <section className="case-operational-bar" aria-label="Control operativo del caso" tabIndex={0}>
     <div className={`case-operational-item ${assignee?'':'needs-attention'}`}>
       <span className="case-operational-label"><UserRound size={15} aria-hidden="true"/>Responsable</span>
       <strong title={assignee||'Sin asignar'}>{assignee||'Sin asignar'}</strong>
     </div>
     <div className="case-operational-item">
-      <span className="case-operational-label"><CheckCircle2 size={15} aria-hidden="true"/>SLA</span>
+      <span className="case-operational-label"><CheckCircle2 size={15} aria-hidden="true"/>Plazo</span>
       <TicketSlaClocks sla={sla} compact className="case-operational-sla"/>
     </div>
     <div className={`case-operational-item ${nextStep?'':'needs-attention'}`}>

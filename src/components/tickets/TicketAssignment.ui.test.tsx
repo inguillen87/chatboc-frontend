@@ -193,13 +193,27 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.invalidateQueries.mockReset().mockResolvedValue(undefined);
   });
 
-  it('muestra Tomar ticket al empleado compatible sin exponer el selector', () => {
+  it('muestra Tomar caso al empleado compatible sin exponer el selector', () => {
     render(<TicketAssignment />);
 
     expect(screen.getByTestId('ticket-assignment-employee-view')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    const claim = screen.getByRole('button', { name: 'Tomar caso' });
+    expect(claim).toBeEnabled();
+    expect(claim).toHaveClass('min-h-[44px]', 'focus-visible:ring-2');
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText(/luminarias/i)).toBeInTheDocument();
+  });
+
+  it('reemplaza un código interno de acción por un rótulo seguro', () => {
+    render(
+      <TicketAssignment
+        ticket={mocks.ticket}
+        assignmentActions={[{ id: 'claim', label: 'claim_ticket_action' }]}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Tomar caso' })).toBeEnabled();
+    expect(screen.queryByText('claim_ticket_action')).not.toBeInTheDocument();
   });
 
   it('preserva la denegación explícita del detalle a través del normalizador y el adaptador Inbox ante routing legacy', () => {
@@ -213,13 +227,13 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.routingPayload = publishedRouting('reclamo ciudadano', [10]);
     render(<TicketAssignment ticket={ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
 
-    const claimAction = screen.queryByRole('button', { name: 'Tomar ticket' });
+    const claimAction = screen.queryByRole('button', { name: 'Tomar caso' });
     if (claimAction) fireEvent.click(claimAction);
     expect(mocks.postAction).not.toHaveBeenCalled();
     expect(screen.getByRole('status')).toHaveTextContent('Clasificación pendiente del servidor. Revisá el catálogo antes de derivar.');
     expect(ticket.authoritative_category).toBeNull();
     expect(ticket.category_authority).toEqual(descriptor);
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
   });
 
   it('muestra recuperación server-side para autoridad nula de la matriz sin confundirla con responsables contradictorios', () => {
@@ -231,11 +245,13 @@ describe('TicketAssignment enterprise authority UI', () => {
     delete mocks.ticket.category_authority;
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría por confirmar');
     expect(screen.getByRole('status')).toHaveTextContent('Revisá la clasificación oficial.');
     expect(screen.queryByText(/datos de responsable.*no coinciden/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar matriz' }));
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
+    const refresh = screen.getByRole('button', { name: 'Actualizar datos' });
+    expect(refresh).toHaveClass('min-h-[44px]', 'focus-visible:ring-2');
+    fireEvent.click(refresh);
     expect(mocks.refresh).toHaveBeenCalledOnce();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
@@ -248,11 +264,11 @@ describe('TicketAssignment enterprise authority UI', () => {
       category: 'luminarias', authoritative_category: 'luminarias', category_authority: descriptor })!;
     mocks.routingPayload = publishedRouting('luminarias', [10]);
     render(<TicketAssignment ticket={inboxAssignmentTicket(item)} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
-    const claimAction = screen.queryByRole('button', { name: 'Tomar ticket' });
+    const claimAction = screen.queryByRole('button', { name: 'Tomar caso' });
     if (claimAction) fireEvent.click(claimAction);
     expect(mocks.postAction).not.toHaveBeenCalled();
-    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría por confirmar');
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
   });
 
   it('acepta un descriptor verificado mínimo consistente sin exigir IDs ni textos opcionales', () => {
@@ -261,7 +277,7 @@ describe('TicketAssignment enterprise authority UI', () => {
       category_authority: { contract_version: 'ticket.category_authority.v1', verified: true, conflict: false, authoritative_category: 'Luminarias' } })!;
     mocks.routingPayload = publishedRouting('luminarias', [10]);
     render(<TicketAssignment ticket={inboxAssignmentTicket(item)} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
-    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Tomar caso' })).toBeEnabled();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
 
@@ -271,11 +287,11 @@ describe('TicketAssignment enterprise authority UI', () => {
       category_authority: { contract_version: 'ticket.category_authority.v1', verified: true, conflict: false, authoritative_category: 'agua' } })!;
     mocks.routingPayload = publishedRouting('luminarias', [10]);
     render(<TicketAssignment ticket={inboxAssignmentTicket(item)} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
-    const claimAction = screen.queryByRole('button', { name: 'Tomar ticket' });
+    const claimAction = screen.queryByRole('button', { name: 'Tomar caso' });
     if (claimAction) fireEvent.click(claimAction);
     expect(mocks.postAction).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('Los datos de responsable de este caso no coinciden');
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
   });
 
   it.each(['default', 'compact'] as const)('muestra UNKNOWN del detalle real como pendiente, sin denegación ni acción (%s)', (variant) => {
@@ -285,12 +301,12 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.routingPayload = publishedRouting('reclamo ciudadano', [10]);
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} variant={variant} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría por confirmar');
     expect(screen.getByRole('status')).toHaveTextContent('No pudimos confirmar la categoría y la cobertura');
-    expect(screen.queryByText(/Cobertura verificada|fuera de las categorías|El servidor no habilitó/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cobertura verificada|fuera de las categorías|El sistema no habilitó/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar matriz' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar datos' }));
     expect(mocks.refresh).toHaveBeenCalledOnce();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
@@ -301,7 +317,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.routingPayload = publishedRouting('reclamo ciudadano', [10]);
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'assign', label: 'Asignar' }]} variant="compact" />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría por confirmar');
     expect(screen.queryByRole('button', { name: 'Asignar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(mocks.postAction).not.toHaveBeenCalled();
@@ -313,9 +329,9 @@ describe('TicketAssignment enterprise authority UI', () => {
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
 
     expect(screen.getByText(/Categoría verificada · luminarias/)).toBeInTheDocument();
-    expect(screen.getByText('El servidor no habilitó tu usuario entre las personas que pueden tomar este caso.')).toBeInTheDocument();
+    expect(screen.getByText('El sistema no habilitó tu usuario entre las personas que pueden tomar este caso.')).toBeInTheDocument();
     expect(screen.queryByText(/pendiente de verificación|fuera de las categorías/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
 
@@ -326,8 +342,8 @@ describe('TicketAssignment enterprise authority UI', () => {
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
 
     expect(screen.getByText(/No pudimos confirmar la cobertura de asignación para tu usuario/)).toBeInTheDocument();
-    expect(screen.queryByText(/El servidor no habilitó|fuera de las categorías/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/El sistema no habilitó|fuera de las categorías/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
 
@@ -336,9 +352,9 @@ describe('TicketAssignment enterprise authority UI', () => {
     mocks.routingPayload = publishedRouting('reclamo ciudadano', [10]);
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Tomar ticket' }]} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Categoría pendiente de verificación');
-    expect(screen.queryByText(/Categoría verificada|El servidor no habilitó/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Categoría por confirmar');
+    expect(screen.queryByText(/Categoría verificada|El sistema no habilitó/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
 
@@ -348,7 +364,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{ id: 'claim', label: 'Atender este caso' }]} />);
 
     expect(screen.getByText(/Categoría verificada · luminarias/)).toBeInTheDocument();
-    expect(screen.queryByText(/pendiente de verificación|El servidor no habilitó/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/por confirmar|El sistema no habilitó/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Atender este caso' }));
     await waitFor(() => expect(mocks.postAction).toHaveBeenCalledWith('396', {
       action: 'claim', payload: { source_model: 'MunicipioTicket', ticket_id: 396 },
@@ -363,7 +379,7 @@ describe('TicketAssignment enterprise authority UI', () => {
 
     expect(screen.getByText('La acción de tomar este caso no está habilitada para tu usuario.')).toBeInTheDocument();
     expect(screen.queryByText(/entre las personas que pueden|fuera de las categorías/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Asignar|Tomar ticket/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Asignar|Tomar caso/ })).not.toBeInTheDocument();
     expect(mocks.postAction).not.toHaveBeenCalled();
   });
 
@@ -376,7 +392,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     );
     expect(mocks.postAction).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar caso' }));
 
     await waitFor(() => expect(mocks.postAction).toHaveBeenCalledWith(
       '403',
@@ -399,7 +415,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     const inboxTicket={...mocks.ticket,id:403,tenant_slug:'junin'} as Ticket;
     const confirmed=vi.fn();
     render(<TicketAssignment ticket={inboxTicket} assignmentActions={[{id: 'claim', label: 'Tomar ticket'}]} variant="compact" onAssignmentConfirmed={confirmed}/>);
-    fireEvent.click(screen.getByRole('button',{name:'Tomar ticket'}));
+    fireEvent.click(screen.getByRole('button',{name:'Tomar caso'}));
     await waitFor(()=>expect(mocks.postAction).toHaveBeenCalledTimes(1));
     expect(mocks.updateTicket).not.toHaveBeenCalled();
     await waitFor(()=>expect(confirmed).toHaveBeenCalledOnce());
@@ -439,7 +455,7 @@ describe('TicketAssignment enterprise authority UI', () => {
   it('does not grant claim when only assignment was published', async () => {
     mocks.user = {id:10, rol:'supervisor'};
     render(<TicketAssignment ticket={mocks.ticket} assignmentActions={[{id:'assign',label:'Elegir responsable oficial'}]} variant="compact" />);
-    expect(screen.queryByRole('button',{name:'Tomar ticket'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Tomar caso'})).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'Elegir responsable oficial'}));
     await waitFor(()=>expect(mocks.postAction).toHaveBeenCalledOnce());
     expect(mocks.postAction.mock.calls[0][1].action).toBe('assign');
@@ -450,13 +466,20 @@ describe('TicketAssignment enterprise authority UI', () => {
     render(<TicketAssignment />);
 
     expect(screen.getByTestId('ticket-assignment-supervisor-view')).toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    const selector = screen.getByRole('combobox');
+    expect(selector).toHaveClass('min-h-[44px]', 'focus:ring-2');
     expect(screen.getByText('Operadora Junín')).toBeInTheDocument();
     expect(screen.getByText('Categoría compatible')).toBeInTheDocument();
+    expect(screen.getByText('Canal · WhatsApp')).toBeInTheDocument();
+    expect(screen.queryByText('Canal · whatsapp')).not.toBeInTheDocument();
     expect(screen.getByText('Carga actual: 2 casos abiertos.')).toBeInTheDocument();
+    const heading = screen.getByText('Asignación supervisada');
+    expect(heading).not.toHaveClass('uppercase');
+    expect(heading.className).not.toContain('tracking-');
 
     const assign = screen.getByRole('button', { name: 'Asignar' });
     await waitFor(() => expect(assign).toBeEnabled());
+    expect(assign).toHaveClass('min-h-[44px]', 'focus-visible:ring-2');
     fireEvent.click(assign);
 
     await waitFor(() => expect(mocks.postAction).toHaveBeenCalledWith(
@@ -481,12 +504,16 @@ describe('TicketAssignment enterprise authority UI', () => {
 
     const ownership = screen.getByTestId('ticket-assignment-supervisor-view');
     expect(ownership).toHaveAttribute('data-variant', 'compact');
-    expect(within(ownership).getByRole('combobox', { name: 'Responsable compatible' })).toBeEnabled();
-    expect(within(ownership).getByRole('button', { name: 'Reasignar' })).toBeEnabled();
-    expect(within(ownership).queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    const selector = within(ownership).getByRole('combobox', { name: 'Responsable compatible' });
+    expect(selector).toBeEnabled();
+    expect(selector).toHaveClass('min-h-[44px]');
+    const reassign = within(ownership).getByRole('button', { name: 'Reasignar' });
+    expect(reassign).toBeEnabled();
+    expect(reassign).toHaveClass('min-h-[44px]', 'focus-visible:ring-2');
+    expect(within(ownership).queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(within(ownership).queryByRole('button', { name: 'Aplicar sugerencia' })).not.toBeInTheDocument();
 
-    fireEvent.click(within(ownership).getByRole('button', { name: 'Reasignar' }));
+    fireEvent.click(reassign);
 
     await waitFor(() => expect(mocks.postAction).toHaveBeenCalledWith(
       '403',
@@ -529,7 +556,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     render(<TicketAssignment variant="compact" />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Asignación protegida');
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
@@ -542,7 +569,7 @@ describe('TicketAssignment enterprise authority UI', () => {
 
       expect(screen.getByRole('alert')).toHaveTextContent('Actualizá la bandeja');
       expect(screen.getByRole('alert')).not.toHaveTextContent(/source_model|employee\.routing|backend|tenant|autoritativ/);
-      expect(screen.queryByRole('button', { name: /Asignar|Tomar ticket/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Asignar|Tomar caso/ })).not.toBeInTheDocument();
       expect(mocks.postAction).not.toHaveBeenCalled();
     },
   );
@@ -558,7 +585,7 @@ describe('TicketAssignment enterprise authority UI', () => {
     expect(screen.getByRole('alert')).not.toHaveTextContent(
       'employee.routing.v1',
     );
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 });

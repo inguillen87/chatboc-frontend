@@ -1,4 +1,5 @@
 import type { Ticket } from '@/types/tickets';
+import { formatTicketDisplayLabel } from '@/utils/ticketStatus';
 import {
   getTicketRoutingIdentity,
   inspectTicketCategoryAuthority,
@@ -29,16 +30,7 @@ const readCategory = (...values: unknown[]): string | null => {
 };
 
 const humanizeCategory = (value: string): string =>
-  (() => {
-    const cleaned = value
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-    if (/\p{Lu}/u.test(cleaned)) return cleaned;
-    return cleaned
-      ? `${cleaned.charAt(0).toLocaleUpperCase('es-AR')}${cleaned.slice(1)}`
-      : cleaned;
-  })();
+  formatTicketDisplayLabel(value, 'Categoría informada');
 
 const directAuthoritativeCategory = (ticket: Ticket): { value: string | null; conflict: boolean; unverified: boolean } => {
   const record = ticket as Ticket & {
@@ -120,7 +112,7 @@ export const resolveTicketPresentationCategory = ({
       state: routingLoading ? 'checking' : 'persisted',
       detail: routingLoading
         ? 'Categoría registrada; verificando autoridad del expediente.'
-        : 'Categoría registrada en el ticket, sin autoridad correlacionada disponible.',
+        : 'Categoría registrada en el caso, sin verificación adicional disponible.',
     };
   }
 

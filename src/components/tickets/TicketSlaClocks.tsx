@@ -40,43 +40,43 @@ const statePresentation: Record<TicketSlaClockState, {
 }> = {
   overdue: {
     label: 'Vencido',
-    compactLabel: 'SLA vencido',
+    compactLabel: 'Plazo vencido',
     className: 'border-destructive/45 bg-destructive/10 text-foreground',
     icon: AlertTriangle,
   },
   due: {
     label: 'Por vencer',
-    compactLabel: 'SLA por vencer',
+    compactLabel: 'Plazo por vencer',
     className: 'border-amber-500/45 bg-amber-500/10 text-foreground',
     icon: Clock,
   },
   healthy: {
     label: 'En plazo',
-    compactLabel: 'SLA en plazo',
+    compactLabel: 'Dentro del plazo',
     className: 'border-primary/40 bg-primary/10 text-foreground',
     icon: Clock,
   },
   satisfied: {
     label: 'Cumplido',
-    compactLabel: 'SLA cumplido',
-    className: 'border-emerald-500/45 bg-emerald-500/10 text-foreground',
+    compactLabel: 'Plazo cumplido',
+    className: 'border-primary/35 bg-primary/10 text-foreground',
     icon: CheckCircle2,
   },
   paused: {
     label: 'Pausado',
-    compactLabel: 'SLA pausado',
+    compactLabel: 'Plazo pausado',
     className: 'border-border bg-muted/40 text-foreground',
     icon: Clock,
   },
   inactive: {
     label: 'No activo',
-    compactLabel: 'SLA no activo',
+    compactLabel: 'Sin plazo activo',
     className: 'border-border bg-muted/40 text-foreground/85',
     icon: Info,
   },
   unknown: {
-    label: 'Sin evidencia',
-    compactLabel: 'SLA sin evidencia',
+    label: 'Sin plazo definido',
+    compactLabel: 'Sin plazo definido',
     className: 'border-border bg-muted/40 text-foreground/85',
     icon: Info,
   },
@@ -121,7 +121,7 @@ const clockEvidence = (clock: TicketSlaClock, hasEvaluationCut = false) => {
   }
   if (clock.state === 'paused') {
     const dueAt = formatTimestamp(clock.due_at);
-    return dueAt ? `Plazo pausado · ${dueAt}` : 'Pausa confirmada por la política SLA';
+    return dueAt ? `Plazo pausado · ${dueAt}` : 'Pausa confirmada por la política de plazos';
   }
   if (clock.state === 'inactive') return 'Objetivo sin obligación activa';
   if (clock.state === 'healthy') {
@@ -209,7 +209,7 @@ const compactClockSummary = (
   if (clock.state === 'satisfied') return `${label} cumplida`;
   if (clock.state === 'paused') return `${label} pausada`;
   if (clock.state === 'inactive') return `${label} no activa`;
-  return 'SLA sin evidencia';
+  return 'Sin plazo definido';
 };
 
 export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
@@ -222,8 +222,8 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
   const isPartial = contract.state === 'unknown' && knownClockCount > 0;
   const presentation = isPartial
     ? {
-        label: 'Evidencia parcial',
-        compactLabel: 'SLA parcial',
+        label: 'Definición parcial',
+        compactLabel: 'Plazo parcialmente definido',
         className: 'border-border bg-muted/40 text-foreground/85',
         icon: Info,
       }
@@ -240,7 +240,7 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
   const clockDescriptions = TICKET_SLA_CLOCK_KEYS
     .map((key) => `${clockLabels[key]}: ${statePresentation[contract.clocks[key].state].label}; ${clockEvidence(contract.clocks[key], hasEvaluationCut)}`)
     .join('. ');
-  const accessibleSummary = `Estado de nivel de servicio: ${presentation.label}. ${clockDescriptions}${
+  const accessibleSummary = `Estado del plazo de atención: ${presentation.label}. ${clockDescriptions}${
     evaluatedAt ? `. Corte de cálculo: ${evaluatedAt}` : ''
   }`;
 
@@ -248,7 +248,7 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
     return (
       <div
         role="group"
-        aria-label={`SLA: ${compactLabel}${evaluatedAt ? `. Corte ${evaluatedAt}` : ''}`}
+        aria-label={`Plazo: ${compactLabel}${evaluatedAt ? `. Corte ${evaluatedAt}` : ''}`}
         title={accessibleSummary}
         className={cn(
           'flex min-w-0 items-center gap-1 rounded-[8px] border px-2 py-1 text-[10px] font-medium',
@@ -266,7 +266,7 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
 
   return (
     <section
-      aria-label="Relojes de nivel de servicio"
+      aria-label="Plazos de atención"
       className={cn('rounded-lg border bg-muted/10 p-3', className)}
       data-testid="ticket-sla-clocks"
     >
@@ -284,7 +284,7 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
             Corte {evaluatedAt}
           </time>
         ) : (
-          <span className="text-[10px] text-muted-foreground">SLA operativo</span>
+          <span className="text-[10px] text-muted-foreground">{presentation.compactLabel}</span>
         )}
       </div>
       <dl className="grid gap-2 sm:grid-cols-3">
@@ -299,7 +299,7 @@ export const TicketSlaClocks: React.FC<TicketSlaClocksProps> = ({
               data-sla-state={clock.state}
               data-testid={`ticket-sla-clock-${key}`}
             >
-              <dt className="truncate text-[10px] font-semibold uppercase tracking-wide opacity-80">
+              <dt className="truncate text-[10px] font-semibold opacity-80">
                 {clockLabels[key]}
               </dt>
               <dd className="mt-1">

@@ -42,15 +42,15 @@ export const AgentSuggestionBox: React.FC<AgentSuggestionBoxProps> = ({
         )}
 
         <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={onReject}>
+          <Button variant="ghost" size="sm" className="min-h-11 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" onClick={onReject}>
             <X className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Descartar
           </Button>
           {onEdit && (
-            <Button variant="outline" size="sm" className="h-8" onClick={() => onEdit(suggestion)}>
+            <Button variant="outline" size="sm" className="min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" onClick={() => onEdit(suggestion)}>
               <Edit3 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Editar
             </Button>
           )}
-          <Button size="sm" className="h-8 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onAccept(suggestion)}>
+          <Button size="sm" className="min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" onClick={() => onAccept(suggestion)}>
             <Check className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Aplicar sugerencia
           </Button>
         </div>

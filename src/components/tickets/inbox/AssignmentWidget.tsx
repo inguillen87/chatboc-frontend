@@ -25,7 +25,7 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-2 px-2.5">
+        <Button variant="outline" size="sm" className="min-h-11 gap-2 px-2.5">
           {currentAssignee ? (
              <>
                <IdentityAvatar
@@ -47,12 +47,12 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-2 border-b">
-          <p className="text-xs font-medium text-muted-foreground px-1 mb-1">Asignar a un agente</p>
+          <p className="text-xs font-medium text-muted-foreground px-1 mb-1">Asignar responsable</p>
           {currentAssignee && (
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-8"
+              className="min-h-11 w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700"
               onClick={() => {
                 onAssign(null);
                 setOpen(false);
@@ -69,7 +69,7 @@ export const AssignmentWidget: React.FC<AssignmentWidgetProps> = ({ currentAssig
                key={agent.id}
                variant="ghost"
                size="sm"
-               className="w-full justify-start h-10 mb-1"
+               className="mb-1 min-h-11 w-full justify-start"
                onClick={() => {
                   onAssign(agent.id);
                   setOpen(false);

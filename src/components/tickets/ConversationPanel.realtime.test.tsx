@@ -177,7 +177,7 @@ vi.mock('@/services/ticketService', async () => {
 vi.mock('./CaseStrip', () => ({
   default: ({ isDetailsVisible }: { isDetailsVisible?: boolean }) => isDetailsVisible
     ? null
-    : <section aria-label="Resumen operativo del ticket" />,
+    : <section aria-label="Resumen operativo del caso" />,
 }));
 vi.mock('./TicketClaimButton', () => ({ default: () => null }));
 vi.mock('./ChatMessage', () => ({
@@ -341,17 +341,17 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation(false, false, { showDetailsToggle: true }));
 
     await waitFor(() => {
-      expect(screen.getByRole('region', { name: 'Resumen operativo del ticket' })).toBeVisible();
+      expect(screen.getByRole('region', { name: 'Resumen operativo del caso' })).toBeVisible();
     });
-    expect(screen.getByRole('button', { name: 'Ver detalles del ticket' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Ver detalles del caso' })).toBeEnabled();
   });
 
   it('leaves mobile message space free of the duplicated summary and keeps details accessible', async () => {
     const onToggleDetails = vi.fn();
     render(renderConversation(false, false, { isMobile: true, showDetailsToggle: true, onToggleDetails }));
 
-    const detailsButton = await screen.findByRole('button', { name: 'Ver detalles del ticket' });
-    expect(screen.queryByRole('region', { name: 'Resumen operativo del ticket' })).not.toBeInTheDocument();
+    const detailsButton = await screen.findByRole('button', { name: 'Ver detalles del caso' });
+    expect(screen.queryByRole('region', { name: 'Resumen operativo del caso' })).not.toBeInTheDocument();
     await waitFor(() => expect(detailsButton).toBeVisible());
     expect(detailsButton).toBeEnabled();
     fireEvent.click(detailsButton);
@@ -363,12 +363,12 @@ describe('ConversationPanel tenant invalidation', () => {
       .mockResolvedValueOnce({ item: tenantAuthoritativeItem, raw: {} })
       .mockRejectedValueOnce(new Error('synthetic startup timeout'));
     render(renderConversation(true));
-    const draft = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const draft = screen.getByRole('textbox', { name: 'Responder caso' });
     await waitFor(() => expect(draft).toBeEnabled());
     fireEvent.change(draft, { target: { value: 'Borrador sintético conservado.' } });
     await act(async () => { await queryClient.invalidateQueries({ queryKey: ['ticket-composer-action-contract'] }); });
     await screen.findByRole('button', { name: 'Reintentar verificación' });
-    expect(screen.getByTestId('ticket-reply-block-reason')).toHaveTextContent('No se pudo verificar el contrato backend');
+    expect(screen.getByTestId('ticket-reply-block-reason')).toHaveTextContent('No se pudieron verificar las acciones disponibles');
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar verificación' }));
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(screen.queryByTestId('ticket-reply-block-reason')).not.toBeInTheDocument());
@@ -509,12 +509,12 @@ describe('ConversationPanel tenant invalidation', () => {
       code: 'Enter',
     });
 
-    expect(await screen.findByRole('menuitem', { name: 'En vivo' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Atención en curso' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Resuelto' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Nuevo' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'En proceso' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('menuitem', { name: 'En vivo' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Atención en curso' }));
 
     await waitFor(() => expect(harness.updateTicketStatus).toHaveBeenCalledWith(
       77,
@@ -555,7 +555,7 @@ describe('ConversationPanel tenant invalidation', () => {
       key: 'Enter',
       code: 'Enter',
     });
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'En vivo' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Atención en curso' }));
 
     await waitFor(() => expect(harness.refreshTickets).toHaveBeenCalledTimes(1));
     expect(harness.updateTicket).not.toHaveBeenCalled();
@@ -603,16 +603,23 @@ describe('ConversationPanel tenant invalidation', () => {
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('ticket-reply-footer')).toHaveClass('sticky', 'bottom-0');
-    expect(screen.getByTestId('ticket-composer')).toHaveAccessibleName('Respuesta desde el ticket');
-    expect(screen.getByTestId('ticket-composer-channel-status')).toBeInTheDocument();
-    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('Socket conectado');
+    expect(screen.getByTestId('ticket-composer')).toHaveAccessibleName('Respuesta desde el caso');
+    expect(screen.getByTestId('ticket-composer-channel-status')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('ticket-composer-channel-status')).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByTestId('ticket-composer-channel-status')).not.toHaveClass(/emerald/);
+    expect(screen.getByTestId('ticket-composer-sync-status')).toHaveTextContent('Actualización en tiempo real');
     expect(screen.getByTestId('ticket-composer-sync-status')).not.toHaveTextContent('En vivo');
+    expect(screen.getByText('Respuesta sugerida')).not.toHaveClass('uppercase', 'tracking-wide');
+    expect(screen.queryByText('Borrador asistido')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usar sugerencia' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: 'Herramientas de respuesta' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toHaveClass('min-h-11', 'min-w-11');
     expect(screen.queryByRole('button', { name: 'Adjuntar archivo' })).not.toBeInTheDocument();
 
     const { trigger, menu } = await openComposerTools();
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato de carga CRM para archivos nuevos',
+      'todavía no habilitó la carga de archivos nuevos',
     );
     expect(within(menu).getByRole('menuitem', { name: /Cargar archivo.*No disponible/i })).toHaveAttribute(
       'aria-disabled',
@@ -621,13 +628,13 @@ describe('ConversationPanel tenant invalidation', () => {
     const locationItem = within(menu).getByRole('menuitem', { name: /Ubicación.*No disponible/i });
     expect(locationItem).toHaveAttribute('aria-disabled', 'true');
     expect(locationItem).toHaveAccessibleName(
-      'Ubicación. No disponible: El contrato backend no confirmó soporte para ubicaciones.',
+      'Ubicación. No disponible: El sistema no confirmó que esta acción admita ubicaciones.',
     );
     expect(within(menu).getByRole('menuitem', { name: /Formulario.*No disponible/i })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
-    expect(within(menu).getByRole('menuitem', { name: /Derivar a humano.*No disponible/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitem', { name: /Derivar a una persona.*No disponible/i })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -643,6 +650,41 @@ describe('ConversationPanel tenant invalidation', () => {
     await waitFor(() => expect(screen.queryByRole('menu', { name: 'Herramientas de respuesta' })).not.toBeInTheDocument());
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveFocus();
+  });
+
+  it('maps internal timeline codes and never renders unknown codes as labels', async () => {
+    harness.getTicketTimeline.mockResolvedValue({
+      messages: [],
+      realtime_state: null,
+      unified_conversation_stream: [
+        {
+          id: 'event-known-code',
+          timestamp: '2026-08-20T12:05:00Z',
+          source: 'queue_offline_message',
+          stream_type: 'waiting_agent',
+          actor_type: 'system',
+          preview_text: 'waiting_agent',
+        },
+        {
+          id: 'event-unknown-code',
+          timestamp: '2026-08-20T12:06:00Z',
+          source: 'new_unmapped_status',
+          stream_type: 'unknown_stream_type',
+          actor_type: 'system',
+          preview_text: 'unknown_preview_code',
+        },
+      ],
+    });
+
+    render(renderConversation(true));
+
+    const timeline = await screen.findByTestId('ticket-operational-timeline');
+    expect(timeline).toHaveTextContent('Mensaje pendiente para el equipo');
+    expect(timeline).toHaveTextContent('Esperando atención');
+    expect(timeline).toHaveTextContent('Actividad');
+    expect(timeline).not.toHaveTextContent(
+      /queue_offline_message|waiting_agent|new_unmapped_status|unknown_stream_type|unknown_preview_code/,
+    );
   });
 
   it('consumes reply_contract.v1 while keeping CRM save distinct from provider delivery', async () => {
@@ -703,26 +745,32 @@ describe('ConversationPanel tenant invalidation', () => {
     });
 
     render(renderConversation(true));
-    expect(await screen.findByTestId('ticket-composer-channel-status')).toHaveTextContent('Sólo registro en CRM');
-    expect(screen.getByTestId('ticket-composer-channel-status')).toHaveTextContent('teléfono verificable');
+    expect(await screen.findByTestId('ticket-composer-channel-status')).toHaveTextContent('Guardado en el caso');
+    expect(screen.getByTestId('ticket-composer-channel-status')).toHaveTextContent(
+      'Esta respuesta queda guardada en el caso. No se envía a la persona porque este canal no tiene envío habilitado.',
+    );
 
     const { menu } = await openComposerTools();
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato de carga CRM para archivos nuevos',
+      'todavía no habilitó la carga de archivos nuevos',
     );
     expect(within(menu).getByTestId('ticket-existing-attachment-block-reason')).toHaveTextContent(
-      'marcó el adjunto como no disponible',
+      'El adjunto no está disponible ahora.',
     );
     fireEvent.keyDown(menu, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('menu', { name: 'Herramientas de respuesta' })).not.toBeInTheDocument());
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Respuesta auditada.' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
 
-    expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent('Aceptado por el proveedor');
-    expect(screen.getByTestId('ticket-composer-action-result')).toHaveTextContent('no prueba la entrega');
+    const actionResult = await screen.findByTestId('ticket-composer-action-result');
+    expect(actionResult).toHaveTextContent('Recibido por el canal');
+    expect(actionResult).toHaveTextContent('todavía no confirmó la entrega');
+    expect(actionResult).toHaveAttribute('role', 'status');
+    expect(actionResult).toHaveAttribute('aria-live', 'polite');
+    expect(actionResult).not.toHaveClass(/emerald/);
     expect(screen.queryByText('Entrega confirmada')).not.toBeInTheDocument();
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
@@ -787,7 +835,7 @@ describe('ConversationPanel tenant invalidation', () => {
 
     await waitFor(() => expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledTimes(1));
     const { menu: actionBar } = await openComposerTools();
-    expect(within(actionBar).getByRole('menuitem', { name: 'Tomar ticket' })).toHaveAttribute('aria-disabled', 'false');
+    expect(within(actionBar).getByRole('menuitem', { name: 'Tomar caso' })).toHaveAttribute('aria-disabled', 'false');
     expect(harness.getOmnichannelInboxDetailV2).toHaveBeenCalledWith(
       '419',
       'junin',
@@ -795,10 +843,10 @@ describe('ConversationPanel tenant invalidation', () => {
       expect.objectContaining({ isCurrent: expect.any(Function) }),
     );
     expect(screen.getByTestId('ticket-handoff-internal-copy')).toHaveTextContent(
-      'Derivación interna del CRM · no envía un mensaje por WhatsApp.',
+      'Derivación interna del caso. No envía un mensaje por WhatsApp.',
     );
 
-    const handoffButton = within(actionBar).getByRole('menuitem', { name: 'Tomar ticket' });
+    const handoffButton = within(actionBar).getByRole('menuitem', { name: 'Tomar caso' });
     fireEvent.click(handoffButton);
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
@@ -817,7 +865,7 @@ describe('ConversationPanel tenant invalidation', () => {
     );
     expect(harness.sendMessage).not.toHaveBeenCalled();
     expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
-      'Ticket tomado por el equipo de Luminarias.',
+      'Caso tomado por el equipo de Luminarias.',
     );
   });
 
@@ -910,11 +958,11 @@ describe('ConversationPanel tenant invalidation', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
     fireEvent.change(within(dialog).getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en el caso' }));
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
     await within(dialog).findByText('network outcome unknown');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en el caso' }));
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(2));
     const firstIdentity = harness.postOmnichannelInboxActionV2.mock.calls[0][1].payload.client_message_id;
@@ -928,7 +976,7 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(secondIdentity).toBe(firstIdentity);
     expect(harness.sendMessage).not.toHaveBeenCalled();
     expect(await screen.findByTestId('ticket-composer-action-result')).toHaveTextContent(
-      'Ubicación ya registrada en el CRM.',
+      'Ubicación ya registrada en el registro interno.',
     );
   });
 
@@ -1095,7 +1143,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const formButton = within(menu).getByRole('menuitem', { name: /Compartir formulario/ });
 
     expect(formButton).toHaveAttribute('aria-disabled', 'true');
-    expect(formButton).toHaveAccessibleName(/no coincide con el tenant seleccionado/i);
+    expect(formButton).toHaveAccessibleName(/no coincide con la organización seleccionada/i);
     fireEvent.click(formButton);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByText('Formulario ajeno')).not.toBeInTheDocument();
@@ -1218,7 +1266,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const { menu } = await openComposerTools();
     expect(within(menu).getByRole('menuitem', { name: /Ubicación.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
     expect(within(menu).getByRole('menuitem', { name: /Formulario.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
-    expect(within(menu).getByRole('menuitem', { name: /Derivar a humano.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(within(menu).getByRole('menuitem', { name: /Derivar a una persona.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
     expect(harness.sendMessage).not.toHaveBeenCalled();
   });
@@ -1226,7 +1274,7 @@ describe('ConversationPanel tenant invalidation', () => {
   it('sends TenantTicket text through the published omnichannel reply endpoint', async () => {
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'La cuadrilla ya tomó el caso.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
@@ -1254,7 +1302,7 @@ describe('ConversationPanel tenant invalidation', () => {
       'En cola para WhatsApp',
     );
     expect(screen.getByTestId('ticket-composer-action-result')).toHaveTextContent(
-      'entrega final pendiente de callback',
+      'entrega final pendiente de confirmación del canal',
     );
   });
 
@@ -1275,7 +1323,7 @@ describe('ConversationPanel tenant invalidation', () => {
       });
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Seguimos trabajando en la luminaria.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
@@ -1324,7 +1372,7 @@ describe('ConversationPanel tenant invalidation', () => {
       });
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Seguimos con el caso.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
@@ -1361,14 +1409,14 @@ describe('ConversationPanel tenant invalidation', () => {
       });
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Respuesta pendiente de evidencia.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
     fireEvent.click(send);
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
-    expect(await screen.findByTestId('ticket-reply-delivery-status')).toHaveTextContent('Estado de entrega por confirmar');
+    expect(await screen.findByTestId('ticket-reply-delivery-status')).toHaveTextContent('Entrega por confirmar');
     expect(composer).toHaveValue('Respuesta pendiente de evidencia.');
     fireEvent.click(send);
 
@@ -1383,7 +1431,7 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.selectedTicket = { ...selectedTicket, source_model: 'tenant_ticket' };
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Respuesta con alias seguro.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
@@ -1416,7 +1464,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation());
 
     const select = await screen.findByRole('combobox', { name: 'Plantilla aprobada de WhatsApp' });
-    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Responder caso' })).toBeDisabled();
     fireEvent.change(select, { target: { value: '31' } });
     fireEvent.change(screen.getByLabelText('Variable 1 de la plantilla'), { target: { value: 'M-419' } });
     fireEvent.change(screen.getByLabelText('Variable 2 de la plantilla'), { target: { value: 'cuadrilla asignada' } });
@@ -1443,7 +1491,9 @@ describe('ConversationPanel tenant invalidation', () => {
     harness.getOmnichannelInboxDetailV2.mockResolvedValue({ item: invalidItem, raw: {} });
     render(renderConversation());
 
-    await waitFor(() => expect(screen.getByTestId('ticket-reply-block-reason')).toHaveTextContent('versión de contrato'));
+    await waitFor(() => expect(screen.getByTestId('ticket-reply-block-reason')).toHaveTextContent(
+      'El sistema publicó una configuración de respuesta que esta consola todavía no reconoce.',
+    ));
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
     expect(harness.sendMessage).not.toHaveBeenCalled();
@@ -1484,7 +1534,7 @@ describe('ConversationPanel tenant invalidation', () => {
     });
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'No cruzar este expediente.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
@@ -1517,7 +1567,7 @@ describe('ConversationPanel tenant invalidation', () => {
       });
     render(renderConversation());
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Primer texto.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     await waitFor(() => expect(send).toBeEnabled());
@@ -1573,7 +1623,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation());
 
     expect(await screen.findByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Respuesta al reclamo municipal.' },
     });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
@@ -1612,7 +1662,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const { menu } = await openComposerTools();
     expect(within(menu).getByRole('menuitem', { name: /Cargar archivo.*No disponible/i })).toHaveAttribute('aria-disabled', 'true');
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato de carga CRM para archivos nuevos',
+      'todavía no habilitó la carga de archivos nuevos',
     );
     expect(harness.postOmnichannelInboxActionV2).not.toHaveBeenCalled();
     expect(harness.sendMessage).not.toHaveBeenCalled();
@@ -1671,7 +1721,7 @@ describe('ConversationPanel tenant invalidation', () => {
     fireEvent.change(within(dialog).getByLabelText('Adjunto existente'), {
       target: { value: 'number:17' },
     });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Guardar en el caso' }));
 
     await waitFor(() => expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledTimes(1));
     expect(harness.postOmnichannelInboxActionV2).toHaveBeenCalledWith(
@@ -1763,9 +1813,9 @@ describe('ConversationPanel tenant invalidation', () => {
 
     const reason = await screen.findByTestId('ticket-reply-block-reason');
     await waitFor(() => expect(reason).toBeVisible());
-    expect(reason).toHaveTextContent('Tomá o asigná el ticket');
+    expect(reason).toHaveTextContent('Tomá o asigná el caso');
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Intento sin ownership.' } });
     const send = screen.getByRole('button', { name: 'Enviar mensaje' });
     expect(send).toBeDisabled();
@@ -1789,7 +1839,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation(true));
 
     const reason = await screen.findByTestId('ticket-reply-block-reason');
-    expect(reason).toHaveTextContent('no publicó una acción segura de respuesta');
+    expect(reason).toHaveTextContent('no habilitó una respuesta segura para este caso');
     expect(reason).toHaveTextContent('asignación, estado y canal');
     expect(reason).not.toHaveTextContent('Tomá o asigná');
     expect(screen.getByRole('button', { name: 'Enviar mensaje' })).toBeDisabled();
@@ -1830,7 +1880,7 @@ describe('ConversationPanel tenant invalidation', () => {
       'true',
     );
     expect(within(menu).getByTestId('tenant-attachment-block-reason')).toHaveTextContent(
-      'no publicó un contrato de carga CRM para archivos nuevos',
+      'todavía no habilitó la carga de archivos nuevos',
     );
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(screen.queryByAltText('Preview')).not.toBeInTheDocument();
@@ -2098,13 +2148,13 @@ describe('ConversationPanel tenant invalidation', () => {
     await waitFor(() => expect(harness.updateTicketReadState).toHaveBeenCalledTimes(1));
 
     const panelBefore = screen.getByTestId('ticket-conversation-panel');
-    const composerBefore = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composerBefore = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composerBefore, { target: { value: 'Borrador que no debe perderse' } });
 
     harness.selectedTicket = { ...harness.selectedTicket!, asunto: 'Payload refrescado sin cambiar identidad' };
     view.rerender(renderConversation());
     expect(screen.getByTestId('ticket-conversation-panel')).toBe(panelBefore);
-    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toBe(composerBefore);
+    expect(screen.getByRole('textbox', { name: 'Responder caso' })).toBe(composerBefore);
 
     await act(async () => {
       pollingCallback?.();
@@ -2116,7 +2166,7 @@ describe('ConversationPanel tenant invalidation', () => {
     expect(harness.updateTicketReadState).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Bache informado con ubicación')).toBeInTheDocument();
     expect(screen.queryByText('Sincronizando conversacion')).not.toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue('Borrador que no debe perderse');
+    expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue('Borrador que no debe perderse');
   });
 
   it('clears and reloads the conversation when another tenant has the same source, type and ticket id', async () => {
@@ -2295,7 +2345,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation());
     await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.keyDown(composer, { key: '/' });
 
     await waitFor(() => expect(harness.listResponseTemplates).toHaveBeenCalledWith('junin'));
@@ -2341,7 +2391,7 @@ describe('ConversationPanel tenant invalidation', () => {
     render(renderConversation());
     await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Inicio final' } });
     (composer as HTMLTextAreaElement).setSelectionRange(7, 12);
     fireEvent.click(screen.getByRole('button', { name: /Insertar respuesta guardada/i }));
@@ -2371,7 +2421,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const view = render(renderConversation());
     await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
 
-    const composer = screen.getByRole('textbox', { name: 'Responder ticket' });
+    const composer = screen.getByRole('textbox', { name: 'Responder caso' });
     fireEvent.change(composer, { target: { value: 'Borrador Junín del operador 10' } });
     const originKey = buildConversationDraftStorageKey({
       tenant: 'junin',
@@ -2385,8 +2435,8 @@ describe('ConversationPanel tenant invalidation', () => {
       harness.selectedTicket = otherSourceTicket;
       view.rerender(renderConversation());
     });
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue(''));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Borrador del otro source model' },
     });
 
@@ -2394,20 +2444,20 @@ describe('ConversationPanel tenant invalidation', () => {
       harness.selectedTicket = otherTenantTicket;
       view.rerender(renderConversation());
     });
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue(''));
 
     act(() => {
       harness.user = { id: 20, name: 'Otra operadora', rol: 'admin', tenant_slug: 'ushuaia' };
       view.rerender(renderConversation());
     });
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue(''));
 
     act(() => {
       harness.user = { id: 10, name: 'Admin', rol: 'admin', tenant_slug: 'junin' };
       harness.selectedTicket = originTicket;
       view.rerender(renderConversation());
     });
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder caso' }))
       .toHaveValue('Borrador Junín del operador 10'));
   });
 
@@ -2455,7 +2505,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const view = render(renderConversation());
     await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Respuesta exclusiva del expediente 77' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
@@ -2465,8 +2515,8 @@ describe('ConversationPanel tenant invalidation', () => {
       harness.selectedTicket = nextTicket;
       view.rerender(renderConversation());
     });
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue(''));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Borrador nuevo del expediente 78' },
     });
 
@@ -2482,7 +2532,7 @@ describe('ConversationPanel tenant invalidation', () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue('Borrador nuevo del expediente 78');
+    expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue('Borrador nuevo del expediente 78');
     expect(screen.queryByText('Resultado tardío del expediente 77')).not.toBeInTheDocument();
     expect(readConversationDraft(buildConversationDraftStorageKey({
       tenant: 'junin', sourceModel: 'CustomTicket', ticketId: 77, operator: 'id-10',
@@ -2503,7 +2553,7 @@ describe('ConversationPanel tenant invalidation', () => {
     const view = render(renderConversation());
     await waitFor(() => expect(harness.getTicketTimeline).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Borrador que debe volver al expediente 77' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar mensaje' }));
@@ -2513,8 +2563,8 @@ describe('ConversationPanel tenant invalidation', () => {
       harness.selectedTicket = nextTicket;
       view.rerender(renderConversation());
     });
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue(''));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Responder ticket' }), {
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue(''));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Responder caso' }), {
       target: { value: 'Trabajo actual del expediente 78' },
     });
 
@@ -2523,7 +2573,7 @@ describe('ConversationPanel tenant invalidation', () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByRole('textbox', { name: 'Responder ticket' })).toHaveValue('Trabajo actual del expediente 78');
+    expect(screen.getByRole('textbox', { name: 'Responder caso' })).toHaveValue('Trabajo actual del expediente 78');
     expect(readConversationDraft(buildConversationDraftStorageKey({
       tenant: 'junin', sourceModel: 'CustomTicket', ticketId: 77, operator: 'id-10',
     }))).toBe('Borrador que debe volver al expediente 77');

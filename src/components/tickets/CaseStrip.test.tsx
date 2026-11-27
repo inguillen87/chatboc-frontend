@@ -33,7 +33,7 @@ describe('CaseStrip', () => {
   it('renders compact operational context without exposing citizen DNI', () => {
     render(<CaseStrip ticket={baseTicket} onOpenDetails={vi.fn()} />);
 
-    expect(screen.getByTestId('ticket-case-strip')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Resumen operativo del caso' })).toBeInTheDocument();
     expect(screen.getByText('M-378430')).toBeInTheDocument();
     expect(screen.getByText('Arreglo De Calle')).toBeInTheDocument();
     expect(screen.getByText('Marcelo')).toBeInTheDocument();
@@ -42,6 +42,23 @@ describe('CaseStrip', () => {
     expect(screen.getByText('alta')).toBeInTheDocument();
     expect(screen.getByText(/Don Bosco 55/)).toBeInTheDocument();
     expect(screen.queryByText('32877851')).not.toBeInTheDocument();
+  });
+
+  it('oculta códigos internos desconocidos en categoría, canal y prioridad', () => {
+    render(
+      <CaseStrip
+        ticket={{
+          ...baseTicket,
+          categoria: 'internal_category_code',
+          channel: 'internal_channel_code',
+          priority: 'internal_priority_code',
+        } as Ticket}
+      />,
+    );
+
+    expect(screen.getByText('Categoría no informada')).toBeInTheDocument();
+    expect(screen.getByText('Canal no informado')).toBeInTheDocument();
+    expect(screen.queryByText(/internal_(category|channel|priority)_code/i)).not.toBeInTheDocument();
   });
 
   it('hides itself when the full details panel is already visible', () => {
