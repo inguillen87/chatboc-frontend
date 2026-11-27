@@ -280,3 +280,6 @@
 @media print{.institutional-assistant__dictate,.institutional-assistant__dictate-note{display:none!important;}}
 /* On a phone the field keeps its width: the send button shows its icon and keeps its accessible name. */
 @media(max-width:420px){.institutional-assistant--services .institutional-assistant__composer .institutional-assistant__primary span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}.institutional-assistant--services .institutional-assistant__composer .institutional-assistant__primary{padding-inline:.8rem;}}
+/* The pictogram is a reading aid, not decoration: large enough to recognise at a glance. */
+.institutional-assistant__pictogram { font-size:1.5em; line-height:1; inline-size:1.6em; text-align:center; }
+@media print{.institutional-assistant__pictogram{font-size:1.2em;}}

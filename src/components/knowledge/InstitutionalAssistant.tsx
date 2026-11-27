@@ -405,7 +405,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
       }} onClick={event=>navigate(action.target,undefined,event.currentTarget)}>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
-          {' '}{label.emoji?<><span aria-hidden="true" className="shrink-0">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
+          {' '}{label.emoji?<><span aria-hidden="true" className="institutional-assistant__pictogram shrink-0">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
         </span><ChevronRight size={16} aria-hidden="true"/>
       </button>;
     }}/>:null;
