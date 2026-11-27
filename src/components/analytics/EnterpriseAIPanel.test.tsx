@@ -20,7 +20,7 @@ vi.mock('sonner', () => ({
   },
 }));
 
-const manualReviewMessage = 'Necesitás revisar el documento: no se pudo crear un borrador editable.';
+const manualReviewMessage = 'Revision manual requerida: no hay borrador editable para descargar.';
 const mockedUploadOrderDraft = vi.mocked(enterpriseService.uploadOrderDraftFromDocument);
 const mockedToastSuccess = vi.mocked(toast.success);
 
@@ -35,7 +35,7 @@ const uploadDraftFile = async (response: any) => {
   const file = new File(['pedido'], 'pedido.pdf', { type: 'application/pdf' });
   fireEvent.change(fileInput, { target: { files: [file] } });
 
-  const uploadButton = screen.getByRole('button', { name: /Crear borrador/i });
+  const uploadButton = screen.getByRole('button', { name: /Generar borrador IA/i });
   await waitFor(() => expect(uploadButton).not.toBeDisabled());
   fireEvent.click(uploadButton);
 
@@ -61,7 +61,7 @@ describe('EnterpriseAIPanel', () => {
     await uploadDraftFile(response);
 
     expect(await screen.findByText(manualReviewMessage)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Descargar datos técnicos/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Descargar JSON editado/i })).not.toBeInTheDocument();
     expect(mockedToastSuccess).not.toHaveBeenCalled();
   });
 
@@ -72,10 +72,7 @@ describe('EnterpriseAIPanel', () => {
     });
 
     expect(await screen.findByDisplayValue('Chapa galvanizada')).toBeInTheDocument();
-    const supportDetails = screen.getByText('Datos para soporte').closest('details');
-    expect(supportDetails).not.toHaveAttribute('open');
-    fireEvent.click(screen.getByText('Datos para soporte'));
-    expect(screen.getByRole('button', { name: /Descargar datos técnicos/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Descargar JSON editado/i })).toBeInTheDocument();
     expect(screen.queryByText(manualReviewMessage)).not.toBeInTheDocument();
     expect(mockedToastSuccess).toHaveBeenCalledWith('Borrador generado correctamente.');
   });

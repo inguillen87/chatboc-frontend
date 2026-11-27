@@ -47,7 +47,7 @@ describe('geographic workspace interactions and isolation',()=>{
     await screen.findByTestId('map');
     fireEvent.change(screen.getByLabelText('Estado visible'),{target:{value:'abierto'}});
     fireEvent.change(screen.getByLabelText('Severidad visible'),{target:{value:'baja'}});
-    expect(screen.getByText('No hay ubicaciones con estos filtros')).toBeVisible();
+    expect(screen.getByText('Sin coincidencias geográficas')).toBeVisible();
     expect(screen.queryByTestId('map')).not.toBeInTheDocument();
     expect(mock.fetch).toHaveBeenCalledTimes(1);
   });
@@ -65,7 +65,7 @@ describe('geographic workspace interactions and isolation',()=>{
     expect(mock.fetch).toHaveBeenCalledTimes(1);
     mock.fetch.mockResolvedValue(data({points:[],segments_filters_applied:{categoria:'agua'}}));
     fireEvent.click(screen.getByRole('button',{name:'Aplicar filtros'}));
-    await screen.findByText('Todavía no hay ubicaciones para esta consulta');
+    await screen.findByText('Sin datos geográficos para esta consulta');
     expect(mock.fetch).toHaveBeenCalledTimes(2);
     expect(mock.fetch.mock.calls[1][0]).toMatchObject({categoria:'agua',tenantSlug:'org-a',tenant_profile_id:7});
   });
@@ -134,14 +134,14 @@ describe('geographic workspace interactions and isolation',()=>{
     expect(screen.queryByTestId('map')).not.toBeInTheDocument();
     expect(screen.queryByRole('button',{name:/Categoría: Agua potable/})).not.toBeInTheDocument();
     await act(async()=>{await vi.advanceTimersByTimeAsync(STARTUP_CONTINUITY_BUDGET_MS+15_000);});
-    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo cargar el mapa');
+    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo verificar el mapa');
     expect(signal.aborted).toBe(true);
     expect(mock.fetch).toHaveBeenCalledTimes(2);
     expect(screen.getByLabelText('Categoría')).toHaveValue('luz');
     expect(screen.getByLabelText('Filtros solicitados')).toHaveTextContent('Categoría: agua');
-    expect(screen.getByRole('button',{name:'Reintentar'})).toBeEnabled();
+    expect(screen.getByRole('button',{name:'Reintentar consulta'})).toBeEnabled();
     mock.fetch.mockResolvedValueOnce(data({points:[{lat:-33,lng:-68}],segments_filters_applied:filters,ui:{labels:{title:'Mapa recuperado'}}}));
-    fireEvent.click(screen.getByRole('button',{name:'Reintentar'}));
+    fireEvent.click(screen.getByRole('button',{name:'Reintentar consulta'}));
     await act(async()=>{});
     expect(screen.getByText('Mapa recuperado')).toBeVisible();
     expect(mock.fetch.mock.calls[2][0]).toEqual(mock.fetch.mock.calls[1][0]);
@@ -157,7 +157,7 @@ describe('geographic workspace interactions and isolation',()=>{
     await act(async()=>{await vi.advanceTimersByTimeAsync(HEATMAP_TOTAL_TIMEOUT_MS);});
     expect(screen.getByRole('alert')).toBeVisible();
     expect(mock.fetch).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button',{name:'Reintentar'}));
+    fireEvent.click(screen.getByRole('button',{name:'Reintentar consulta'}));
     await act(async()=>{});
     expect(screen.getByTestId('map')).toBeVisible();
     await act(async()=>startup.resolve());

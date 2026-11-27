@@ -58,15 +58,15 @@ describe("buildCrmOperationalSummary", () => {
 
     expect(summary).toEqual(expect.objectContaining({
       identityLabel: "Identidad vinculada",
-      casesLabel: "1 vinculado",
+      casesLabel: "1 exacto",
       latestEventAt: "2026-08-30T18:00:00Z",
       latestEventChannel: "whatsapp",
       latestEventVerified: true,
-      latestEventSourceLabel: "Actividad confirmada",
+      latestEventSourceLabel: "Historial exacto",
       ownerLabel: "Equipo de Alumbrado",
       slaLabel: "En Riesgo",
       slaDueAt: "2026-08-30T22:00:00Z",
-      consentLabel: "Sin comprobante",
+      consentLabel: "Sin evidencia publicada",
       consentDeclared: false,
     }));
   });
@@ -95,9 +95,9 @@ describe("buildCrmOperationalSummary", () => {
 
     expect(summary.identityLabel).toBe("Identidad pendiente");
     expect(summary.casesLabel).toBe("Sin identidad vinculada");
-    expect(summary.consentLabel).toBe("Sin comprobante");
+    expect(summary.consentLabel).toBe("Sin evidencia publicada");
     expect(summary.latestEventVerified).toBe(false);
-    expect(summary.latestEventSourceLabel).toBe("Registro de personas · Falta verificar");
+    expect(summary.latestEventSourceLabel).toBe("Directorio CRM · No verificado");
   });
 
   it("treats a marketing boolean as an untraceable declaration, not evidence", () => {
@@ -108,7 +108,7 @@ describe("buildCrmOperationalSummary", () => {
       error: null,
     });
 
-    expect(summary.consentLabel).toBe("Declarado, falta comprobante");
+    expect(summary.consentLabel).toBe("Declarado sin trazabilidad");
     expect(summary.consentDeclared).toBe(true);
   });
 });

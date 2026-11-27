@@ -17,16 +17,18 @@ export function KpiTile({ title, value, suffix, delta, loading, className, icon:
   return (
     <Card
       className={cn(
-        'border-border/60 bg-background shadow-sm',
+        'group relative overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5',
         className,
       )}
     >
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/70 via-sky-400/70 to-violet-400/70 opacity-80" />
+      <div className="absolute -right-8 top-6 h-24 w-24 rounded-full bg-primary/5 blur-2xl transition-transform duration-500 group-hover:scale-125" />
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
           {Icon ? (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 text-primary">
-              <Icon className="h-4 w-4" aria-hidden="true" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/10 bg-primary/5 text-primary shadow-sm">
+              <Icon className="h-4 w-4" />
             </div>
           ) : null}
         </div>

@@ -282,7 +282,7 @@ export const crmProfileTone = (score: number) => {
     };
   }
   return {
-    label: "Faltan datos en la ficha",
+    label: "Requiere revisión",
     className: "border-amber-500/40 bg-amber-500/10 text-amber-100",
     barClassName: "bg-amber-500",
   };
@@ -303,11 +303,11 @@ export const resolveCrmNextAction = (usuario: Pick<
   const hasPhone = Boolean(usuario.telefono);
   const realEmail = Boolean(normalizeEmail(usuario.email));
 
-  if (!usuario.contactId?.trim()) return "Vincular esta persona con su ficha";
+  if (!usuario.contactId?.trim()) return "Vincular identidad CRM";
   if (!hasPhone && !realEmail) return "Completar canal de contacto";
-  if (!usuario.resumen && !usuario.motivo && !usuario.lastIntent) return "Completar el motivo de contacto";
+  if (!usuario.resumen && !usuario.motivo && !usuario.lastIntent) return "Completar contexto operativo";
   if (Number(usuario.interactionCount || 0) === 0) return "Revisar primera interacción";
-  return "Revisar la ficha y su actividad";
+  return "Registro operativo disponible";
 };
 
 export const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
@@ -483,7 +483,7 @@ export const normalizeDirectoryPerson = (item: CrmPeopleDirectoryItem, index: nu
     piiMasked: true,
     possibleDuplicate: item.possible_duplicate,
     directorySource: item.source,
-    resumen: "Datos protegidos. El detalle requiere un permiso explícito y una identidad confirmada por el sistema.",
+    resumen: "Datos protegidos. El detalle requiere un permiso explícito y una identidad resoluble publicada por el backend.",
     interactionCount: null,
   };
 };
@@ -536,7 +536,7 @@ export const canDeepLinkCrmPerson = (
 ): boolean => Boolean(!usuario.piiMasked && usuario.contactId?.trim());
 
 export const getCrmTransportPresentation = (connected: boolean, signalCount: number) => ({
-  statusLabel: connected ? "Actualización en vivo" : "Actualización manual",
+  statusLabel: connected ? "Transporte conectado" : "Actualización manual",
   signalLabel: `${Math.max(0, signalCount)} señales recibidas`,
 });
 
@@ -1058,15 +1058,6 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
     (exactHref: string) => navigate(exactHref),
     [navigate],
   );
-  const hasDirectoryFilters = Boolean(peopleSearch.trim()) || peopleMarketingOnly || peopleChannel !== "all" || peopleQueueView !== "all";
-  const showAllPeople = React.useCallback(() => {
-    setPeopleSearch("");
-    setPeopleMarketingOnly(false);
-    setPeopleChannel("all");
-    setPeopleQueueView("all");
-    setActiveView("personas");
-    if (!hasDirectoryFilters) void directoryQuery.refetch();
-  }, [directoryQuery, hasDirectoryFilters, setActiveView, setPeopleChannel, setPeopleMarketingOnly, setPeopleQueueView, setPeopleSearch]);
 
   if (loading) {
     return (
@@ -1075,7 +1066,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
           "mx-auto flex w-full max-w-[1680px] flex-col gap-3",
           embedded ? "h-full min-h-0 max-w-none overflow-hidden p-0" : "p-3 md:p-4",
         )}
-        aria-label="Cargando fichas de personas"
+        aria-label="Cargando CRM de personas"
       >
         <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between gap-4">
@@ -1105,7 +1096,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
             <div className="rounded-2xl bg-destructive/10 p-3 text-destructive"><AlertTriangle className="h-6 w-6" /></div>
             <h1 className="mt-4 text-xl font-bold">No pudimos cargar Personas</h1>
             {error ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p> : null}
-            <Button className="mt-5 min-h-11 gap-2" onClick={() => void directoryQuery.refetch()}>
+            <Button className="mt-5 gap-2" onClick={() => void directoryQuery.refetch()}>
               <RefreshCw className="h-4 w-4" />
               Reintentar
             </Button>
@@ -1155,8 +1146,8 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
         metrics={[
           { label: "Personas", value: directoryTotal, helper: `${usuarios.length} cargadas` },
           { label: "Canal WhatsApp", value: whatsappCount, helper: `${loadedDirectoryScopeLabel} · solo evidencia explícita` },
-          { label: "Consentimiento declarado", value: marketingCount, helper: `${loadedDirectoryScopeLabel} · sin historial de cambios` },
-          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${loadedDirectoryScopeLabel} · ${evaluableUsuarios.length} con datos suficientes · ${crmCompleteProfiles} con calidad alta` },
+          { label: "Consentimiento declarado", value: marketingCount, helper: `${loadedDirectoryScopeLabel} · sin historial versionado` },
+          { label: "Calidad de datos", value: `${crmScoreAverage}%`, helper: `${loadedDirectoryScopeLabel} · ${evaluableUsuarios.length} evaluables · ${crmCompleteProfiles} con calidad alta` },
         ]}
         getPersonKey={getPersonKey}
         hasRealEmail={hasRealEmail}
@@ -1169,30 +1160,18 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
           <div className="space-y-4" data-testid="crm-segments-panel">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
-                <h2 className="text-xl font-bold">Grupos de personas</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Estos grupos se calculan {loadedDirectoryScopeLabel}. Para ver el total, terminá de cargar la lista.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Segmentos operativos</p>
+                <h2 className="mt-1 text-xl font-bold">Audiencias accionables</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Grupos calculados {loadedDirectoryScopeLabel}; no representan el total hasta completar la carga.</p>
               </div>
               <Badge variant="outline">{usuarios.length} personas cargadas</Badge>
             </div>
-            {usuarios.length === 0 ? (
-              <Card className="border-dashed border-border/70">
-                <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-                  <div>
-                    <h3 className="font-semibold">Todavía no hay personas para agrupar</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">Revisá la lista completa o actualizala para empezar.</p>
-                  </div>
-                  <Button type="button" variant="outline" className="min-h-11" onClick={showAllPeople}>
-                    {hasDirectoryFilters ? "Ver todas las personas" : "Actualizar personas"}
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 { label: "Con teléfono", value: phoneCount, helper: "Canal telefónico general", icon: Phone },
                 { label: "WhatsApp explícito", value: whatsappCount, helper: "No inferido por teléfono", icon: MessageSquare },
-                { label: "Con información útil", value: summaryCount, helper: "Motivo o resumen registrado", icon: Target },
-                { label: "Atención prioritaria", value: hotLeadCount, helper: "Prioridad indicada por el sistema", icon: Flame },
+                { label: "Con contexto", value: summaryCount, helper: "Motivo o resumen CRM", icon: Target },
+                { label: "Leads calientes", value: hotLeadCount, helper: "Prioridad comercial", icon: Flame },
               ].map(({ label, value, helper, icon: Icon }) => (
                 <Card key={label} className="border-border/70">
                   <CardContent className="p-4">
@@ -1213,7 +1192,7 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
                 </CardContent>
               </Card>
               <Card className="border-border/70">
-                <CardHeader className="pb-2"><CardTitle className="text-base">Próximas acciones</CardTitle><p className="text-xs text-muted-foreground">{loadedDirectoryScopeLabel}</p></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-base">Cola de próxima acción</CardTitle><p className="text-xs text-muted-foreground">{loadedDirectoryScopeLabel}</p></CardHeader>
                 <CardContent className="space-y-2">
                   {nextActionStats.length ? nextActionStats.map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2 text-sm"><span>{item.label}</span><Badge variant="outline">{item.total}</Badge></div>
@@ -1221,14 +1200,14 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
                 </CardContent>
               </Card>
             </div>
-            </>}
           </div>
         )}
         campaignsPanel={(
           <div className="space-y-4" data-testid="crm-campaigns-panel">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
-                <h2 className="text-xl font-bold">Preparar una campaña</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Campañas</p>
+                <h2 className="mt-1 text-xl font-bold">Preparación y consentimiento</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Seleccioná destinatarios desde Personas y validá el canal antes de preparar una campaña.</p>
               </div>
               <Badge variant="secondary">{selectedUsuarios.length} seleccionados</Badge>
@@ -1245,42 +1224,30 @@ export default function UsuariosPage({ tenantSlugOverride, embedded = false }: U
           <div className="space-y-4" data-testid="crm-activity-panel">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
-                <h2 className="text-xl font-bold">Envíos y resultados</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Un envío figura como entregado sólo cuando el canal lo confirma.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Actividad multicanal</p>
+                <h2 className="mt-1 text-xl font-bold">Eventos, campañas y entrega</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Un registro interno no se presenta como entrega si no existe recibo del proveedor.</p>
               </div>
               <div className="flex flex-wrap gap-2"><Badge variant={isConnected ? "default" : "outline"}>{transportPresentation.statusLabel}</Badge><Badge variant="secondary">{transportPresentation.signalLabel}</Badge></div>
             </div>
             {campaignActivityLoading ? (
-              <Card><CardContent className="p-5 text-sm text-muted-foreground">Cargando envíos recientes...</CardContent></Card>
-            ) : notificationCenter.length === 0 && campaignLedger.length === 0 && campaignHistory.length === 0 ? (
-              <Card className="border-dashed border-border/70">
-                <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-                  <div>
-                    <h3 className="font-semibold">Todavía no hay envíos ni resultados</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">Actualizá para comprobar si ya se registró alguna actividad.</p>
-                  </div>
-                  <Button type="button" variant="outline" className="min-h-11" onClick={() => void fetchCampaignActivity()}>
-                    Actualizar actividad
-                  </Button>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-5 text-sm text-muted-foreground">Cargando actividad operativa...</CardContent></Card>
             ) : (
               <div className="grid gap-3 xl:grid-cols-3">
                 <Card className="border-border/70 xl:col-span-2">
-                  <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Bell className="h-4 w-4 text-primary" aria-hidden="true" />Notificaciones recientes</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Bell className="h-4 w-4 text-primary" />Centro de notificaciones</CardTitle></CardHeader>
                   <CardContent className="grid gap-2 md:grid-cols-2">
                     {notificationCenter.length ? notificationCenter.map((item) => (
                       <div key={item.id} className={`rounded-xl border p-3 text-sm ${notificationTone(item)}`}>
                         <div className="flex items-center justify-between gap-2"><Badge variant="outline">{item.channel || "canal"}</Badge><span className="text-xs">{notificationStatusLabel(item.status)}</span></div>
                         <p className="mt-2 truncate font-medium">{item.recipient || item.subject || "Destino sin publicar"}</p>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{redactSensitiveCrmText(item.body_preview) || "Notificación registrada."}</p>
-                        {item.last_error ? <details className="mt-2 text-xs"><summary className="flex min-h-11 cursor-pointer items-center font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary><p className="text-muted-foreground">{redactSensitiveCrmText(item.last_error)}</p></details> : null}
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{redactSensitiveCrmText(item.last_error || item.body_preview) || "Evento registrado por backend."}</p>
                       </div>
                     )) : <p className="text-sm text-muted-foreground md:col-span-2">Sin notificaciones recientes.</p>}
                   </CardContent>
                 </Card>
                 <Card className="border-border/70">
-                  <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Clock3 className="h-4 w-4 text-primary" aria-hidden="true" />Registro de las últimas 24 horas</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Clock3 className="h-4 w-4 text-primary" />Ledger 24 h</CardTitle></CardHeader>
                   <CardContent className="space-y-2">
                     {campaignLedger.length ? campaignLedger.slice(0, 6).map((item) => (
                       <div key={item.id} className={`rounded-lg border p-3 text-sm ${ledgerTone(item)}`}><div className="flex items-center justify-between gap-2"><span className="font-semibold">{item.status === "blocked" ? "Bloqueado" : "Registrado"}</span><Badge variant="outline">{item.channel || "canal"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{item.contact?.name || item.contact?.phone || item.contact?.email || "Contacto sin nombre"}</p></div>

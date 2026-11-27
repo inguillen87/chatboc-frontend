@@ -117,20 +117,18 @@ describe('ChannelActivationChecklist', () => {
   it('renders the activation contract with progress, statuses and CTAs', async () => {
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
-    expect(await screen.findByRole('heading', { name: /preparación para empezar/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /implementación operativa/i })).toBeInTheDocument();
     expect(screen.getByText('14%')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: /progreso de la preparación/i })).toBeInTheDocument();
-    expect(screen.getByText(/1 de 7 pasos listos/i)).toBeInTheDocument();
-    expect(screen.getByText(/configuración guiada disponible/i)).toBeInTheDocument();
-    expect(screen.getByText('Personas y casos')).toBeInTheDocument();
-    expect(screen.getByText('Identidad y inicio de sesión')).toBeInTheDocument();
-    const identitySupport = screen.getByText(/Configurar CLERK_WEBHOOK_SECRET/i).closest('details');
-    expect(identitySupport).not.toBeNull();
-    expect(identitySupport).not.toHaveAttribute('open');
+    expect(screen.getByRole('progressbar', { name: /progreso de implementación/i })).toBeInTheDocument();
+    expect(screen.getByText(/1 de 7 frentes listos/i)).toBeInTheDocument();
+    expect(screen.getByText(/self-service activo/i)).toBeInTheDocument();
+    expect(screen.getByText('CRM operativo')).toBeInTheDocument();
+    expect(screen.getByText('Identidad y login social')).toBeInTheDocument();
+    expect(screen.getByText(/Configurar CLERK_WEBHOOK_SECRET/i)).toBeInTheDocument();
     expect(screen.getByText('WhatsApp Business')).toBeInTheDocument();
     expect(screen.getByText('Proteccion publica')).toBeInTheDocument();
     expect(screen.getByText(/Configurar Cloudflare Turnstile/i)).toBeInTheDocument();
-    expect(screen.getByText('Cobros y pago en línea')).toBeInTheDocument();
+    expect(screen.getByText('Cobros y checkout')).toBeInTheDocument();
     expect(screen.getByText('Equipo y responsables')).toBeInTheDocument();
     expect(screen.getAllByText(/requiere plan full/i)).toHaveLength(2);
     expect(screen.getAllByRole('link', { name: /conectar whatsapp/i })[0]).toHaveAttribute(
@@ -152,32 +150,14 @@ describe('ChannelActivationChecklist', () => {
     expect(fetchTenantChannelActivation).toHaveBeenLastCalledWith('junin', { isCurrent: expect.any(Function) });
   });
 
-  it('hides catalog and order preparation when those modules are not enabled', async () => {
-    render(
-      <ChannelActivationChecklist
-        tenantSlug="junin"
-        initialData={activationPayload}
-        catalogEnabled={false}
-        ordersEnabled={false}
-      />,
-    );
-
-    await screen.findByRole('heading', { name: /preparación para empezar/i });
-    expect(screen.queryByText('Catalogo y marketplace')).not.toBeInTheDocument();
-    expect(screen.queryByText('Cobros y pago en línea')).not.toBeInTheDocument();
-    expect(screen.queryByText('Proteccion publica')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /cargar catalogo|configurar cobros/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/1 de 4 pasos listos/i)).toBeInTheDocument();
-  });
-
   it('shows a product fallback when the activation endpoint is temporarily unavailable', async () => {
     vi.mocked(fetchTenantChannelActivation).mockRejectedValueOnce(new Error('Failed to fetch'));
 
     render(<ChannelActivationChecklist tenantSlug="junin" />);
 
-    expect(await screen.findByText(/no pudimos actualizar los pasos de preparación/i)).toBeInTheDocument();
-    expect(screen.getByText(/todavía no hay pasos para mostrar/i)).toBeInTheDocument();
-    expect(screen.getByText(/falta recibir la lista de pasos/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no pudimos sincronizar los canales ahora/i)).toBeInTheDocument();
+    expect(screen.getByText(/sincronización pendiente/i)).toBeInTheDocument();
+    expect(screen.getByText(/esperando sincronizacion del backend/i)).toBeInTheDocument();
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
   });
 
@@ -187,7 +167,7 @@ describe('ChannelActivationChecklist', () => {
       <ChannelActivationChecklist tenantSlug="junin" initialData={activationPayload} />,
     );
 
-    await screen.findByText(/no pudimos actualizar los pasos de preparación/i);
+    await screen.findByText(/no pudimos sincronizar los canales ahora/i);
     expect(screen.getByText(/^plan free$/i)).toBeInTheDocument();
 
     rerender(

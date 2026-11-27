@@ -6,6 +6,7 @@ import React from 'react';
 import {
   Accessibility,
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   CheckCircle2,
   CreditCard,
@@ -67,7 +68,7 @@ const channelIcons: Record<string, React.ComponentType<{ className?: string }>> 
 
 const statusLabels: Record<string, string> = {
   ready: 'Listo',
-  action_required: 'Requiere acción',
+  action_required: 'Requiere accion',
   pending: 'En proceso',
   locked: 'Bloqueado',
   blocked: 'Bloqueado',
@@ -95,47 +96,8 @@ const normalizeProgress = (value: unknown) => {
   return Math.max(0, Math.min(100, Math.round(parsed)));
 };
 
-const clearPanelLanguage = (value?: string | null) => (value ?? '')
-  .replace(/\breclamos\s*(?:\/|y)\s*tickets\b/gi, 'casos')
-  .replace(/\bCRM operativo\b/gi, 'Personas y casos')
-  .replace(/\blogin social\b/gi, 'inicio de sesión')
-  .replace(/\bcobros y checkout\b/gi, 'Cobros y pago en línea')
-  .replace(/\bself-service\b/gi, 'configuración guiada')
-  .replace(/\bmatriz técnica de ruteo\b/gi, 'quién atiende cada tema')
-  .replace(/\btemas? de ruteo\b/gi, 'temas sin responsable definido')
-  .replace(/\bruteo\b/gi, 'asignación de responsables')
-  .replace(/\btickets\b/gi, 'casos')
-  .replace(/\bticket\b/gi, 'caso')
-  .replace(/\bSLA\b/g, 'plazo')
-  .replace(/\bsentimiento neutral\b/gi, 'el mensaje no muestra una emoción marcada');
-
-const CATALOG_CHANNEL_PATTERN = /\b(catalog|catalogo|catálogo|marketplace|inventory|inventario)\b/i;
-const ORDER_CHANNEL_PATTERN = /\b(orders?|pedidos?|payments?|pagos?|cobros?|checkout|cart|carrito)\b/i;
-
-const searchableChannelText = (channel: ChannelActivationChannel) => [
-  channel.id,
-  channel.label,
-  channel.description,
-  channel.reason_code,
-  channel.progress_hint,
-  ...(channel.evidence || []),
-  ...(channel.actions || []).flatMap((action) => [action.id, action.label, action.href]),
-]
-  .filter((value): value is string => typeof value === 'string')
-  .join(' ')
-  .replace(/[_.:/?=&-]+/g, ' ');
-
-const searchableActionText = (action: { id?: string; label?: string; href?: string }) => [
-  action.id,
-  action.label,
-  action.href,
-]
-  .filter((value): value is string => typeof value === 'string')
-  .join(' ')
-  .replace(/[_.:/?=&-]+/g, ' ');
-
 const syncErrorMessage =
-  'No pudimos actualizar los pasos de preparación. El panel sigue disponible y podés volver a intentarlo.';
+  'No pudimos sincronizar los canales ahora. El panel queda disponible y podes reintentar en unos segundos.';
 
 // Only compare authority locally; credentials never become link parameters.
 const readPanelAuthority = () => {
@@ -172,9 +134,10 @@ const ChannelTechnicalGrid: React.FC<{
               <AlertTriangle className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-foreground">Todavía no hay pasos para mostrar</h3>
+              <h3 className="text-sm font-bold text-foreground">Sincronización pendiente</h3>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Falta que el sistema informe qué canales y configuraciones hay que preparar. Usá «Actualizar» para volver a consultar.
+                Cuando el backend tenga el contrato disponible, acá vas a ver identidad, accesibilidad, territorio,
+                canales, operación y analítica con sus acciones concretas.
               </p>
             </div>
           </div>
@@ -201,7 +164,7 @@ const ChannelTechnicalGrid: React.FC<{
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h3 className="min-w-0 text-sm font-bold text-foreground">{clearPanelLanguage(channel.label)}</h3>
+                  <h3 className="min-w-0 text-sm font-bold text-foreground">{channel.label}</h3>
                   <span
                     className={cn(
                       'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
@@ -212,9 +175,19 @@ const ChannelTechnicalGrid: React.FC<{
                     {statusLabels[status] || status}
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">{clearPanelLanguage(channel.description)}</p>
+                <p className="mt-2 text-sm leading-5 text-muted-foreground">{channel.description}</p>
               </div>
             </div>
+
+            {channel.evidence?.length ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {channel.evidence.slice(0, 3).map((item) => (
+                  <Badge key={item} variant="secondary" className="max-w-full truncate">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
 
             {channel.required_plan ? (
               <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-700 dark:text-amber-200">
@@ -222,22 +195,19 @@ const ChannelTechnicalGrid: React.FC<{
               </p>
             ) : null}
 
-            {primaryHref ? (
-              <Button asChild variant="outline" size="sm" className="mt-4 min-h-11 w-full justify-center">
-                <a href={primaryHref} onClick={onNavigate}>
-                  {clearPanelLanguage(primary.label || 'Abrir')}
-                </a>
-              </Button>
+            {channel.progress_hint ? (
+              <p className="mt-3 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs leading-5 text-blue-800 dark:text-blue-100">
+                {channel.progress_hint}
+              </p>
             ) : null}
 
-            {channel.evidence?.length || channel.progress_hint ? (
-              <details className="mt-3 text-xs text-muted-foreground">
-                <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground">Datos para soporte</summary>
-                <ul className="space-y-1 border-t border-border/60 pt-3">
-                  {channel.progress_hint ? <li className="break-words">{channel.progress_hint}</li> : null}
-                  {(channel.evidence || []).slice(0, 3).map((item) => <li key={item} className="break-words">{item}</li>)}
-                </ul>
-              </details>
+            {primaryHref ? (
+              <Button asChild variant="outline" size="sm" className="mt-4 w-full justify-between">
+                <a href={primaryHref} onClick={onNavigate}>
+                  {primary.label || 'Abrir'}
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </Button>
             ) : null}
           </article>
         );
@@ -250,8 +220,6 @@ export interface ChannelActivationChecklistProps {
   tenantSlug?: string | null;
   initialData?: ChannelActivationContract | null;
   highlighted?: boolean;
-  catalogEnabled?: boolean;
-  ordersEnabled?: boolean;
   presentation?: 'overview' | 'launch-journey';
   privateGuideSessionKey?: string;
   returnTo?: string;
@@ -261,8 +229,6 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
   tenantSlug,
   initialData,
   highlighted = false,
-  catalogEnabled = true,
-  ordersEnabled = true,
   presentation = 'overview',
   returnTo,
   privateGuideSessionKey,
@@ -363,37 +329,12 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
     if (!navigationIsCurrent()) event.preventDefault();
   };
 
-  const publishedChannels = Array.isArray(data?.channels) ? data.channels : [];
-  const channels = publishedChannels.filter((channel) => {
-    const searchableText = searchableChannelText(channel);
-    if (!catalogEnabled && CATALOG_CHANNEL_PATTERN.test(searchableText)) return false;
-    if (!ordersEnabled && ORDER_CHANNEL_PATTERN.test(searchableText)) return false;
-    return true;
-  });
-  const commerceChannelsWereHidden = channels.length !== publishedChannels.length;
-  const ready = commerceChannelsWereHidden
-    ? channels.filter((item) => item.ready || item.status === 'ready').length
-    : data?.summary?.ready ?? channels.filter((item) => item.ready).length;
-  const total = commerceChannelsWereHidden ? channels.length : data?.summary?.total ?? channels.length;
-  const progress = commerceChannelsWereHidden
-    ? normalizeProgress(total ? (ready / total) * 100 : 0)
-    : normalizeProgress(data?.summary?.progress);
-  const hiddenActionKeys = new Set(
-    publishedChannels
-      .filter((channel) => !channels.includes(channel))
-      .flatMap((channel) => (channel.actions || []).flatMap((action) => [action.id, action.href].filter(Boolean))),
-  );
-  const publishedPrimaryAction = data?.summary?.primary_next_action;
-  const primaryAction = publishedPrimaryAction
-    && !hiddenActionKeys.has(publishedPrimaryAction.id)
-    && !hiddenActionKeys.has(publishedPrimaryAction.href)
-    && (catalogEnabled || !CATALOG_CHANNEL_PATTERN.test(searchableActionText(publishedPrimaryAction)))
-    && (ordersEnabled || !ORDER_CHANNEL_PATTERN.test(searchableActionText(publishedPrimaryAction)))
-    ? publishedPrimaryAction
-    : undefined;
-  const locked = commerceChannelsWereHidden
-    ? channels.filter((item) => item.locked || item.status === 'locked' || item.status === 'blocked').length
-    : data?.summary?.locked ?? channels.filter((item) => item.locked).length;
+  const channels = Array.isArray(data?.channels) ? data.channels : [];
+  const progress = normalizeProgress(data?.summary?.progress);
+  const ready = data?.summary?.ready ?? channels.filter((item) => item.ready).length;
+  const total = data?.summary?.total ?? channels.length;
+  const primaryAction = data?.summary?.primary_next_action;
+  const locked = data?.summary?.locked ?? channels.filter((item) => item.locked).length;
   const hasChannels = channels.length > 0;
   const integrationStatus = String(data?.integration_access?.status || '').toLowerCase();
   const selfServiceActive = integrationStatus === 'partial';
@@ -434,60 +375,65 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
     <section
       data-testid="channel-activation-checklist"
       className={cn(
-        'overflow-hidden rounded-2xl border border-border/70 bg-card',
-        highlighted && 'border-primary/70',
+        'overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-sm backdrop-blur',
+        highlighted && 'border-primary/70 shadow-lg shadow-primary/10',
       )}
     >
-      <div className="grid gap-5 border-b border-border/60 bg-muted/20 p-5 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
+      <div className="grid gap-5 border-b border-border/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 text-white md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            <Badge className="border-blue-400/40 bg-blue-500/15 text-blue-100" variant="outline">
+              Setup operativo
+            </Badge>
             {loading ? (
-              <Badge variant="secondary">Actualizando información</Badge>
+              <Badge variant="secondary">Sincronizando estado</Badge>
             ) : data?.integration_access?.current_plan ? (
               <Badge variant="secondary" className="capitalize">
                 Plan {data.integration_access.current_plan}
               </Badge>
             ) : null}
             {selfServiceActive ? (
-              <Badge variant="outline">
-                Configuración guiada disponible
+              <Badge className="border-emerald-400/40 bg-emerald-500/15 text-emerald-100" variant="outline">
+                Self-service activo
               </Badge>
             ) : null}
             {locked ? (
-              <Badge variant="outline">
-                {locked} {locked === 1 ? 'paso bloqueado' : 'pasos bloqueados'}
+              <Badge className="border-amber-400/40 bg-amber-500/15 text-amber-100" variant="outline">
+                {locked} bloqueos
               </Badge>
             ) : null}
           </div>
-          <h2 className="mt-3 text-xl font-bold sm:text-2xl">Preparación para empezar</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Revisá qué ya está listo y qué paso falta para habilitar la atención, los canales y los indicadores de la organización.
+          <h2 className="mt-3 text-xl font-bold tracking-tight sm:text-2xl">Implementación operativa</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+            Estado real de identidad institucional, accesibilidad, territorio, WhatsApp, widget, plantillas, CRM,
+            atención humana y analítica para saber qué falta antes de salir a producción.
           </p>
           {error ? (
-            <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
               {error}
             </p>
           ) : null}
         </div>
 
-        <div className="rounded-xl border border-border/70 bg-background p-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.08] p-4">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold">{clearPanelLanguage(data?.summary?.health_label || 'Preparación en curso')}</span>
-            <span className="text-2xl font-bold">{progress}%</span>
+            <span className="text-sm font-semibold text-slate-200">{data?.summary?.health_label || 'Activacion en progreso'}</span>
+            <span className="text-2xl font-black text-white">{progress}%</span>
           </div>
           <Progress
             value={progress}
-            className="mt-3 h-2"
-            aria-label="Progreso de la preparación"
+            className="mt-3 h-2 bg-slate-800"
+            aria-label="Progreso de implementación"
           />
-          <p className="mt-3 text-sm text-muted-foreground">
-            {hasChannels ? `${ready} de ${total || channels.length} pasos listos.` : 'Falta recibir la lista de pasos.'}
+          <p className="mt-3 text-sm text-slate-300">
+            {hasChannels ? `${ready} de ${total || channels.length} frentes listos.` : 'Esperando sincronizacion del backend.'}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {primaryHref ? (
-              <Button asChild size="sm" className="min-h-11">
+              <Button asChild size="sm" className="h-9">
                 <a href={primaryHref} onClick={onNavigate}>
-                  {clearPanelLanguage(primaryAction.label || 'Continuar')}
+                  {primaryAction.label || 'Continuar'}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
             ) : null}
@@ -495,7 +441,7 @@ const ChannelActivationChecklist: React.FC<ChannelActivationChecklistProps> = ({
               type="button"
               variant="outline"
               size="sm"
-              className="min-h-11"
+              className="h-9 border-white/20 bg-white/5 text-white hover:bg-white/10"
               onClick={() => void load()}
               disabled={loading || !profileReady}
             >

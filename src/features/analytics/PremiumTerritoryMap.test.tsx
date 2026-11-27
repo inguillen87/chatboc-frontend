@@ -333,9 +333,7 @@ describe('PremiumTerritoryHeatmap', () => {
 
     const summary = screen.getByTestId('territory-empty-summary');
     expect(summary).not.toHaveTextContent(/\d+ (ubicaci|direcci)/);
-    const emptyDetails = screen.getByTestId('territory-empty-details');
-    expect(emptyDetails.querySelector('summary')).toHaveTextContent('Datos para soporte');
-    fireEvent.click(emptyDetails.querySelector('summary')!);
+    fireEvent.click(screen.getByText('Ver calidad y auditoría territorial'));
     expect(screen.getByTestId('territory-empty-details')).toHaveAttribute('open');
     openTerritoryFilters();
     fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros territoriales' }));
@@ -387,14 +385,14 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('territory-inspector-summary')).toHaveTextContent('cobertura');
     expect(screen.getByTestId('territory-inspector-summary')).toHaveTextContent('pendientes');
     expect(intelligenceDetails).not.toHaveAttribute('open');
-    expect(screen.getByText('Análisis y acciones por zona')).toBeInTheDocument();
+    expect(screen.getByText('Análisis y acciones territoriales')).toBeInTheDocument();
     expect(layout.className).not.toContain('2xl:grid-cols');
     expect(filterDisclosure).not.toHaveClass('sticky');
     expect(screen.getByTestId('territory-primary-summary')).toHaveTextContent('Puntos mapeados 6');
     expect(screen.queryByText('Globo territorial interactivo')).toBeNull();
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getAllByRole('radio').map((control) => control.textContent)).toEqual([
-      'Mapa y actividad',
+      'Mapa operativo',
       'Clústeres',
       'Solo calor',
     ]);
@@ -490,7 +488,7 @@ describe('PremiumTerritoryHeatmap', () => {
     rerender(<PremiumTerritoryHeatmap points={points} heatmap={heatmap} />);
 
     const map = screen.getByTestId('mock-live-map');
-    expect(screen.getByRole('radio', { name: 'Mapa y actividad' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toHaveAttribute('aria-checked', 'true');
     expect(map).toHaveAttribute('data-show-heatmap', 'true');
     expect(map).toHaveAttribute('data-show-points', 'true');
 
@@ -563,8 +561,8 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(map.getAttribute('data-disable-client-clustering')).toBe('true');
     expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByRole('button', { name: /^Capas por categoría/ }));
-    expect(screen.getByRole('radio', { name: 'Mapa y actividad' })).not.toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Mapa y actividad' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toHaveAttribute('aria-checked', 'true');
     expect(map.getAttribute('data-show-points')).toBe('true');
     expect(map.getAttribute('data-show-point-labels')).toBe('true');
     expect(map.getAttribute('data-disable-client-clustering')).toBe('false');
@@ -625,7 +623,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Estado · Nuevo');
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Canal · WhatsApp');
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Zona · Centro');
-    expect(screen.getByRole('link', { name: 'Abrir caso' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Abrir reclamo' })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets&source_model=MunicipioTicket&ticket_id=419',
     );
@@ -727,8 +725,8 @@ describe('PremiumTerritoryHeatmap', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Seleccionar punto de muestra' }));
 
     expect(screen.getByTestId('territory-selected-point')).toHaveTextContent('Luminarias');
-    expect(screen.queryByRole('link', { name: 'Abrir caso' })).toBeNull();
-    expect(screen.getByText('Este caso no tiene un enlace disponible')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Abrir reclamo' })).toBeNull();
+    expect(screen.getByText('Sin vínculo CRM verificable')).toBeInTheDocument();
   });
 
   it('scopes executive metrics to Luminarias and avoids invented metrics for combined filters', () => {
@@ -867,7 +865,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getByTestId('territory-radar-pending')).toHaveTextContent('—');
     expect(screen.queryByTestId('territory-outside-jurisdiction')).toBeNull();
     expect(screen.queryByTestId('territory-radar-sweep')).toBeNull();
-    expect(screen.getByTestId('territory-scoped-insights-note')).toHaveTextContent('falta un total comparable');
+    expect(screen.getByTestId('territory-scoped-insights-note')).toHaveTextContent('no informa el denominador de esta intersección');
   });
 
   it('filters by backend address cells while keeping household numbers out of the executive map', () => {
@@ -1231,14 +1229,15 @@ describe('PremiumTerritoryHeatmap', () => {
     );
     expect(screen.getByTestId('territory-filter-empty')).toHaveTextContent('Pendientes de geocodificar · 4');
     expect(screen.getByTestId('territory-filter-empty')).toHaveTextContent('Fuera de jurisdicción / revisar · 1');
-    const emptyState = screen.getByTestId('territory-filter-empty');
-    expect(emptyState.querySelector('a')).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Abrir cola pendiente' })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets&focus=open_geocoding_queue&facet=luminarias',
     );
-    expect(emptyState.querySelector('a')).toHaveTextContent('Revisar casos sin ubicación');
-    expect(emptyState).not.toHaveTextContent('Quitar último filtro');
-    expect(emptyState).not.toHaveTextContent('Restablecer mapa');
+    expect(screen.getByRole('button', { name: 'Quitar último filtro' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Restablecer mapa' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Restablecer mapa' }));
+    expect(map).toHaveAttribute('data-points', '1');
+    expect(screen.queryByTestId('territory-filter-empty')).toBeNull();
   });
 
   it('blocks raw coordinate density for samples from one through nine under aggregated privacy', () => {
@@ -1265,7 +1264,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByTestId('mock-live-map')).toBeNull();
     expect(screen.queryByTestId('live-territory-map')).toBeNull();
     expect(screen.getByRole('radio', { name: 'Solo calor' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('radio', { name: 'Mapa y actividad' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Mapa operativo' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Clústeres' })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Capas por categoría/ })).toBeDisabled();
     expect(screen.queryByRole('option', { name: /^Baches ·/ })).toBeNull();
@@ -1631,7 +1630,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(liveMap.getAttribute('data-maptiler-key')).toBe('maptiler-test');
     expect(liveMap.getAttribute('data-google-key')).toBe('google-test');
     expect(liveMap.getAttribute('data-aria-label')).toBe(
-      'Mapa territorial interactivo de casos, encuestas y actividad agregada',
+      'Mapa territorial interactivo de reclamos, encuestas y actividad agregada',
     );
     expect(liveMap.getAttribute('data-geo-contract')).toBe('operations.heatmap.geo_layers.v1');
     expect(liveMap.getAttribute('data-geo-features')).toBe('12');
@@ -1657,32 +1656,33 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('Riesgo IA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ubicaciones pendientes').length).toBeGreaterThan(0);
     const executiveStrip = screen.getByTestId('territory-executive-strip');
-    expect(executiveStrip.textContent).toContain('Resumen de la actividad territorial');
+    expect(executiveStrip.textContent).toContain('Lectura ejecutiva');
     expect(executiveStrip.textContent).toContain('Puntos visibles');
     expect(executiveStrip.textContent).toContain('12');
     expect(executiveStrip.textContent).toContain('Pendientes');
     expect(executiveStrip.textContent).toContain('7');
     expect(executiveStrip.textContent).toContain('Foco territorial');
-    expect(executiveStrip.textContent).toContain('casos');
+    expect(executiveStrip.textContent).toContain('reclamos');
     expect(executiveStrip.textContent).toContain('Próxima acción');
-    expect(executiveStrip.textContent).toContain('Abrir casos pendientes');
+    expect(executiveStrip.textContent).toContain('Abrir cola operativa');
     const commandLoop = screen.getByTestId('territory-command-loop');
-    expect(commandLoop.textContent).toContain('Qué necesita atención en el territorio');
+    expect(commandLoop.textContent).toContain('Pulso operativo territorial');
+    expect(commandLoop.textContent).toContain('Ciclo de decisión asistido');
     expect(commandLoop.textContent).toContain('1 zona crítica');
     expect(commandLoop.textContent).not.toContain('1 zonas críticas');
-    expect(commandLoop.textContent).toContain('casos');
-    expect(commandLoop.textContent).toContain('Abrir casos pendientes');
+    expect(commandLoop.textContent).toContain('reclamos');
+    expect(commandLoop.textContent).toContain('Abrir cola operativa');
     expect(commandLoop.textContent).toContain('42%');
     expect(commandLoop.textContent).toContain('Actualización pendiente');
     expect(commandLoop.textContent).not.toContain('En línea');
     expect(screen.getAllByTestId('territory-command-card').length).toBe(4);
-    const commandLoopCta = screen.getByRole('link', { name: /revisar casos pendientes/i });
+    const commandLoopCta = screen.getByRole('link', { name: /abrir cola crm/i });
     expect(commandLoopCta.getAttribute('href')).toContain('/perfil?tab=tickets');
     expect(commandLoopCta.getAttribute('href')).toContain('focus=open_geocoding_queue');
     const decisionRadar = screen.getByTestId('territory-decision-radar');
     expect(decisionRadar).toBeTruthy();
-    expect(screen.getByText('Qué hacer ahora')).toBeTruthy();
-    expect(decisionRadar.textContent).toContain('Abrir casos pendientes');
+    expect(screen.getByText('Radar de decisión')).toBeTruthy();
+    expect(decisionRadar.textContent).toContain('Abrir cola operativa');
     expect(screen.getByText('Motivo prioritario')).toBeTruthy();
     expect(screen.getByText('Capas activas')).toBeTruthy();
     expect(screen.getByText('Datos pendientes')).toBeTruthy();
@@ -1691,47 +1691,48 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.getAllByText('Mapa de calor acelerado').length).toBeGreaterThan(0);
     expect(screen.getByText('radar activo')).toBeTruthy();
     expect(screen.getByText('Zonas críticas')).toBeTruthy();
-    expect(screen.getByText('22 casos agrupados en este tema.')).toBeTruthy();
+    expect(screen.getByText('22 casos agrupados en el foco operativo.')).toBeTruthy();
     const liveLegend = screen.getByTestId('territory-live-legend');
     expect(liveLegend).toBeTruthy();
     expect(liveLegend).not.toHaveClass('absolute');
-    expect(liveLegend.textContent).toContain('Actividad en el mapa');
+    expect(liveLegend.textContent).toContain('Lectura territorial');
     expect(liveLegend.textContent).toContain('12 puntos visibles');
-    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('Categoría del caso');
-    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('casos');
+    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('Categoría de reclamo');
+    expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('reclamos');
     expect(screen.getByTestId('territory-filter-toolbar').textContent).toContain('Zona o barrio');
     expect(liveLegend.textContent).toContain('círculos por categoría');
     expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
     expect(document.body.textContent).not.toContain('Zona centro requiere seguimiento');
     expect(document.body.textContent).not.toMatch(/[ap]\. m\.\./i);
     expect(screen.getByTestId('operational-hotspots-panel')).toBeTruthy();
-    expect(screen.getByText('Zonas para atender primero')).toBeTruthy();
-    expect(screen.getByText('Fuera de plazo')).toBeTruthy();
-    expect(screen.getByText('fuera de plazo: 2')).toBeTruthy();
+    expect(screen.getByText('Prioridades territoriales')).toBeTruthy();
+    expect(screen.getByText('Focos para actuar primero')).toBeTruthy();
+    expect(screen.getByText('SLA vencido')).toBeTruthy();
+    expect(screen.getByText('SLA: 2')).toBeTruthy();
     expect(screen.getByText('sin responsable: 1')).toBeTruthy();
     expect(screen.getByText('24h: 4')).toBeTruthy();
     expect(screen.getAllByTestId('operational-hotspot-item').length).toBe(1);
     expect(screen.getByRole('radiogroup', { name: 'Visualización del mapa' })).toBeTruthy();
-    expect(screen.getByText('Resumen automático')).toBeTruthy();
+    expect(screen.getByText('Resumen operativo asistido')).toBeTruthy();
     expect(document.body.textContent).toContain('Mapa territorial pendiente de validación');
     expect(document.body.textContent).toContain('La fuente no informó una clasificación verificable');
-    expect(screen.getByText(/Análisis local seguro/)).toBeTruthy();
-    expect(screen.getAllByText(/Detección municipal de riesgos/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Análisis local seguro')).toBeTruthy();
+    expect(screen.getAllByText('Detección municipal de riesgos').length).toBeGreaterThan(0);
     expect(screen.getByText('Centro operativo')).toBeTruthy();
     expect(screen.getByText('Encuadre automático - zoom 13 - 2,5 km')).toBeTruthy();
     expect(screen.getByTestId('heatmap-action-loop')).toBeTruthy();
     expect(screen.getAllByTestId('heatmap-action-item').length).toBeGreaterThanOrEqual(4);
     expect(screen.getByText('Asignar inspector')).toBeTruthy();
     expect(screen.getByText('Actualizar ubicación')).toBeTruthy();
-    expect(screen.getByText('Abrir caso prioritario')).toBeTruthy();
-    expect(screen.getAllByText('Solo prepara la tarea').length).toBeGreaterThan(0);
+    expect(screen.getByText('Abrir ticket caliente')).toBeTruthy();
+    expect(screen.getAllByText('preparación segura').length).toBeGreaterThan(0);
     expect(screen.getByTestId('heatmap-action-loop').textContent).not.toContain('/api/');
-    const crmLinks = screen.getAllByRole('link', { name: /abrir tarea/i });
+    const crmLinks = screen.getAllByRole('link', { name: /abrir en crm/i });
     expect(crmLinks.length).toBeGreaterThan(0);
     expect(crmLinks.some((link) => link.getAttribute('href')?.includes('/perfil?tab=tickets'))).toBe(true);
     expect(crmLinks.some((link) => link.getAttribute('href')?.includes('ticket_id=11'))).toBe(true);
     expect(crmLinks.some((link) => link.getAttribute('href')?.includes('focus=open_geocoding_queue'))).toBe(true);
-    expect(screen.getByText('Acciones protegidas - solo prepara la tarea')).toBeTruthy();
+    expect(screen.getByText('Acciones protegidas - solo preparación operativa')).toBeTruthy();
   });
 
   it('shows an honest boundary state instead of a synthetic atlas when coordinates and boundaries are absent', () => {
@@ -1793,7 +1794,7 @@ describe('PremiumTerritoryHeatmap', () => {
     expect(screen.queryByTestId('territory-radar-sweep')).toBeNull();
     expect(screen.queryByTestId('territory-selected-crosshair')).toBeNull();
     expect(mapShell.querySelectorAll('svg[role="img"], animate, animateTransform, animateMotion')).toHaveLength(0);
-    expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('Ubicaciones pendientes');
+    expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('Cola de ubicaciones pendientes');
     expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('Sin coordenadas');
     expect(screen.getByTestId('territory-geocoding-queue')).toHaveTextContent('no se dibujan en el mapa');
     expect(document.body.textContent).not.toContain('Belgrano 1234');
@@ -2021,7 +2022,7 @@ describe('PremiumTerritoryHeatmap', () => {
       'Alcance territorial no validado',
     );
     expect(screen.getByTestId('territory-scope-unverified-state')).toHaveTextContent(
-      'Permanecen ocultas hasta validar el alcance.',
+      'no se dibujan puntos, calor, celdas ni focos',
     );
     expect(screen.getByTestId('territory-unverified-scope')).toHaveTextContent(
       'Alcance sin validar · 3 ocultas',

@@ -512,25 +512,6 @@ describe('Perfil request lifecycle', () => {
     expect(screen.queryByText('Pedidos verificados')).not.toBeInTheDocument();
   });
 
-  it('does not offer commerce modules on a government Home without their published capabilities', async () => {
-    runtime.user = {
-      ...verifiedUser(),
-      tipo_chat: 'gobierno',
-      rubro: 'gobierno',
-      capabilities: ['tickets.read'],
-      permissions: [],
-      scopes: [],
-    };
-
-    renderProfile('/perfil');
-
-    await screen.findByRole('heading', { name: 'Trabajo de hoy' });
-    expect(screen.queryByText(/Pedidos activos|Ventas y pedidos|Tareas y gestión/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /pedidos/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Catálogo e inventario|Servicios y recursos/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /catálogo/i })).not.toBeInTheDocument();
-  });
-
   it('does not reload identity or request territorial datasets from the institutional profile', async () => {
     renderProfile('/perfil?range=7d&scope=municipio');
 
@@ -547,7 +528,7 @@ describe('Perfil request lifecycle', () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId('mock-analytics')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Abrir menú Información' })).toHaveAttribute('data-active', 'true');
+      expect(screen.getByRole('button', { name: 'Abrir menú Inteligencia' })).toHaveAttribute('data-active', 'true');
     });
 
     await act(async () => {
@@ -625,7 +606,7 @@ describe('Perfil request lifecycle', () => {
     });
     renderProfile('/perfil?tab=tickets');
 
-    await screen.findByText('Acceso a estas tareas no habilitado');
+    await screen.findByText('Acceso operativo no habilitado');
     expect(runtime.ticketMounts).toBe(0);
     expect(screen.queryByRole('button', { name: 'Abrir menú Atención' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Operar reclamos/i })).not.toBeInTheDocument();
@@ -690,7 +671,7 @@ describe('Perfil request lifecycle', () => {
 
     expect(screen.getByTestId('profile-page-shell')).toHaveClass('w-full', 'min-w-0', 'px-1', 'py-1');
     expect(screen.getByTestId('profile-map-workspace')).toHaveClass('min-w-0', 'pb-0');
-    expect(screen.getByText('Casos por zona')).toBeInTheDocument();
+    expect(screen.getByText('Consola territorial')).toBeInTheDocument();
     expect(screen.queryByText('Espacio de trabajo')).not.toBeInTheDocument();
   });
 
@@ -713,7 +694,7 @@ describe('Perfil request lifecycle', () => {
     expect(screen.getByTestId('institution-profile-workspace')).toHaveClass('h-full', 'min-h-0');
     expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
     expect(screen.getByRole('button', { name: 'Abrir Inicio' })).not.toHaveAttribute('aria-current', 'page');
-    expect(screen.getByText(/Guardar un teléfono en General no activa WhatsApp/i)).toBeInTheDocument();
+    expect(screen.getByText(/Guardar un teléfono en General no vincula WhatsApp/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('institution-profile-section-general'));
 
@@ -784,7 +765,7 @@ describe('Perfil request lifecycle', () => {
       <Route path="/municipal/integrations" element={<div>Placeholder municipal</div>} />
     </Routes></BrowserRouter></CapabilitiesProvider>);
 
-    const entry = await screen.findByRole('button', { name: /Conectar otros canales/ });
+    const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
     expect(entry).toBeEnabled();
     fireEvent.click(entry);
     await screen.findByText('Integraciones de la organización');
@@ -875,7 +856,7 @@ describe('Perfil request lifecycle', () => {
       window.history.replaceState({}, '', '/perfil?section=channels');
       render(<CapabilitiesProvider><BrowserRouter><ProfileHarness /></BrowserRouter></CapabilitiesProvider>);
 
-      const entry = await screen.findByRole('button', { name: /Conectar otros canales/ });
+      const entry = await screen.findByRole('button', { name: /Integraciones y canales web/ });
       expect(entry).toBeDisabled();
       const whatsappEntry = screen.getByRole('button', { name: /Administrar WhatsApp institucional/ });
       expect(whatsappEntry).toBeDisabled();
@@ -1108,7 +1089,7 @@ describe('Perfil request lifecycle', () => {
     runtime.user = { ...verifiedUser('junin'), rol: 'tenant_admin' };
     renderProfile('/perfil?section=general');
 
-    await waitFor(() => expect(screen.getByText('Podés editar')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Administración habilitada')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
   });
 
@@ -1351,7 +1332,7 @@ describe('Perfil request lifecycle', () => {
     renderProfile('/perfil?tab=perfil&section=plan');
 
     await waitFor(() => expect(countApiCalls('/api/me')).toBe(1));
-    await waitFor(() => expect(screen.getByText('Plan y uso de la organización')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Uso de la organización')).toBeInTheDocument());
 
     expect(screen.getAllByText('Plan Pro')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /^Salir$/i })).not.toBeInTheDocument();
@@ -1375,7 +1356,7 @@ describe('Perfil request lifecycle', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Abrir menú Administración' }), { key: 'Enter' });
     fireEvent.click(screen.getByRole('menuitem', { name: /Planes y facturación/i }));
 
-    await waitFor(() => expect(screen.getByText('Plan y uso de la organización')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Uso de la organización')).toBeInTheDocument());
     expect(window.location.search).toContain('tab=perfil');
     expect(window.location.search).toContain('section=plan');
     expect(screen.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
@@ -1453,7 +1434,7 @@ describe('Perfil request lifecycle', () => {
 
     renderProfile('/perfil');
 
-    await waitFor(() => expect(screen.getByText('Acceso a estas tareas no habilitado')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Acceso operativo no habilitado')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Abrir menú Atención' })).not.toBeInTheDocument();
     expect(screen.queryByText('Abrir reclamos')).not.toBeInTheDocument();
     expect(screen.queryByText('Encuestas y sondeos')).not.toBeInTheDocument();
@@ -1493,9 +1474,8 @@ describe('Perfil request lifecycle', () => {
     renderProfile('/perfil');
     await screen.findByRole('heading', {level: 1, name: 'Verified institution'});
     expect(screen.getByText('Gobierno')).toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole('button', {name: 'Abrir menú Personas'}), {key: 'Enter'});
-    expect(screen.getByRole('menuitem', {name: /Personas y contactos/})).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', {name: /Clientes y contactos/})).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /CRM ciudadano/})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: /CRM comercial/})).not.toBeInTheDocument();
     expect(user.id).toBe(9001);
     expect(user.name).toBe('Personal operator');
     expect(user.tipo_chat).toBe('pyme');

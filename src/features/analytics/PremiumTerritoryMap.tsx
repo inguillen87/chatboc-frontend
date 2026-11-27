@@ -335,11 +335,6 @@ const safeLocationFacetForPoint = (point: OperationsHeatmapPoint): SafeLocationF
 
 const presentExecutiveText = (value: string | undefined) =>
   value
-    ?.replace(/\bAbrir cola operativa\b/gi, 'Abrir casos pendientes')
-    .replace(/\bCentro operativo\b/gi, 'Zona prioritaria')
-    .replace(/\bAbrir ticket caliente\b/gi, 'Abrir caso prioritario')
-    .replace(/\bCola de ubicaciones pendientes\b/gi, 'Ubicaciones pendientes')
-    .replace(/\bResumen operativo asistido\b/gi, 'Resumen automático')
     ?.replace(/\bGeoJSON\b/gi, 'archivo oficial de límites territoriales')
     .replace(/\bbackend\b/gi, 'sistema')
     .replace(/\bAPI\b/g, 'sistema')
@@ -347,8 +342,6 @@ const presentExecutiveText = (value: string | undefined) =>
     .replace(/\bhotspot\b/gi, 'zona prioritaria')
     .replace(/\brealtime\b/gi, 'actualización continua')
     .replace(/\bAI\b/g, 'IA')
-    .replace(/\bSLA\b/gi, 'plazo')
-    .replace(/\b(?:tickets?|reclamos?)\b/gi, (match) => (/^[A-ZÁÉÍÓÚ]/.test(match) ? 'Casos' : 'casos'))
     .replace(/\bmedium\b/gi, 'medio')
     .replace(/\b1 zonas\b/gi, '1 zona')
     .replace(/\b1 zona activas\b/gi, '1 zona activa')
@@ -778,10 +771,10 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   open_geocoding_queue: 'Abrir ubicaciones pendientes',
   open_ai_risk_layers: 'Revisar riesgos sugeridos',
   open_template_or_live_chat: 'Abrir respuesta o conversación',
-  focus_map_cell_and_filter_tickets: 'Priorizar zona y filtrar casos',
-  open_ticket: 'Abrir caso',
+  focus_map_cell_and_filter_tickets: 'Priorizar zona y filtrar reclamos',
+  open_ticket: 'Abrir reclamo',
   operations_heatmap_updated: 'Mapa territorial actualizado',
-  ticket_updated: 'Caso actualizado',
+  ticket_updated: 'Reclamo actualizado',
   base_heatmap: 'Mapa de calor',
   hotspot_cells: 'Zonas de mayor intensidad',
   category_layers: 'Capas por categoría',
@@ -802,13 +795,13 @@ const CONTRACT_VALUE_LABELS: Record<string, string> = {
   high: 'Alta',
   medium: 'Media',
   low: 'Baja',
-  open_queue: 'Abrir casos pendientes',
-  open_panel: 'Abrir panel',
+  open_queue: 'Abrir cola operativa',
+  open_panel: 'Abrir panel operativo',
   open_heatmap_cell: 'Abrir zona prioritaria',
   inspect_hotspot: 'Revisar zona prioritaria',
   inspeccionar_hotspot: 'Revisar zona prioritaria',
   ai_risk_pulses: 'Alertas de riesgo',
-  tickets: 'Casos',
+  tickets: 'Reclamos',
   surveys: 'Encuestas',
   analytics_events: 'Eventos operativos',
   whatsapp: 'WhatsApp',
@@ -895,14 +888,14 @@ const privacyModeLabel = (value: string | undefined) => {
 
 const operationalRankLabel = (reason: string | undefined) => {
   const labels: Record<string, string> = {
-    sla_breached: 'Plazo vencido',
+    sla_breached: 'SLA vencido',
     overdue_cases: 'Casos vencidos',
     unassigned_cases: 'Sin responsable',
     recent_activity: 'Actividad reciente',
-    ticket_density: 'Cantidad de casos',
+    ticket_density: 'Densidad de tickets',
     activity_density: 'Densidad operativa',
   };
-  return labels[reason ?? ''] ?? humanizeContractValue(reason, 'Prioridad');
+  return labels[reason ?? ''] ?? humanizeContractValue(reason, 'Prioridad operativa');
 };
 
 const layerToneClass: Record<TerritoryLayerDescriptor['tone'], string> = {
@@ -1039,8 +1032,8 @@ const summarizeBackendAction = (action: unknown): BackendActionSummary | undefin
     : undefined;
   const href = buildTicketDeskHref(record);
   const detail = contextLabel
-    ? humanizeCategoryValue(contextLabel, 'Detalle de la acción')
-    : humanDetail ?? (targetLabel ? humanizeContractValue(targetLabel, 'Detalle de la acción') : undefined);
+    ? humanizeCategoryValue(contextLabel, 'Contexto operativo')
+    : humanDetail ?? (targetLabel ? humanizeContractValue(targetLabel, 'Contexto operativo') : undefined);
   if (!label && !detail) return undefined;
   return {
     label: label ?? 'Acción disponible',
@@ -1470,12 +1463,6 @@ function TerritoryMapEmptyState({
         <p className="mt-0.5 text-xs text-muted-foreground">
           {scopeBlocked ? 'Validá el alcance municipal para habilitar el mapa.' : pendingSummary || 'No hay actividad territorial mapeada para esta vista.'}
         </p>
-        <a
-          href="/perfil?tab=tickets&focus=open_geocoding_queue"
-          className="mt-3 inline-flex min-h-11 items-center rounded-md border px-3 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Revisar casos sin ubicación
-        </a>
       </div>
       {canShowBoundary ? (
         <div data-testid="territory-official-empty-map" className="overflow-hidden rounded-xl border border-border bg-card">
@@ -1501,7 +1488,7 @@ function TerritoryMapEmptyState({
         </div>
       ) : null}
       <details data-testid="territory-empty-details" className="rounded-xl border border-border bg-card">
-        <summary className="flex min-h-11 cursor-pointer items-center px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Ver calidad y auditoría territorial</summary>
         <div className="border-t border-border p-3">{children}</div>
       </details>
     </section>
@@ -2154,11 +2141,11 @@ export function PremiumTerritoryHeatmap({
     .slice(0, 4);
   const animatedZones = topZones.slice(0, 3);
 
-  const title = labelFor(labels, 'premium_heatmap_title', 'Actividad por zona');
+  const title = labelFor(labels, 'premium_heatmap_title', 'Inteligencia territorial');
   const description = labelFor(
     labels,
     'premium_heatmap_description',
-    'Compará la actividad entre zonas y revisá qué ubicaciones faltan completar.',
+    'Volumen, demanda y riesgo por zona con privacidad por muestra minima.',
   );
   const hasWarning = Boolean(mapConfig?.style_url_warning);
   const preferredVisualizationValue = readString(heatmap?.map_experience?.preferred_visualization);
@@ -3011,7 +2998,7 @@ export function PremiumTerritoryHeatmap({
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-11 gap-1 px-2 text-xs"
+              className="h-7 gap-1 px-2 text-xs"
               onClick={filter.onClear}
             >
               <span>{filter.label}</span>
@@ -3028,13 +3015,16 @@ export function PremiumTerritoryHeatmap({
         <div className="flex flex-col gap-2 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h4 className="text-base font-semibold">Resumen de la actividad territorial</h4>
+              <Badge variant="secondary" className="gap-1">
+                <Radar className="h-3.5 w-3.5" />
+                Lectura ejecutiva
+              </Badge>
               <Badge variant="outline" className="capitalize">
                 {executiveReadinessLabel}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Compará la actividad, la cobertura y la próxima tarea sin salir del mapa.
+              Resumen operativo para leer demanda, calidad de datos y acción siguiente sin abrir paneles internos.
             </p>
           </div>
           <Badge variant="outline" className="w-fit gap-1">
@@ -3047,7 +3037,7 @@ export function PremiumTerritoryHeatmap({
             const Icon = card.icon;
             return (
               <div key={card.label} data-testid={card.testId} className="min-w-0 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{card.label}</span>
                 </div>
@@ -3061,18 +3051,22 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-command-loop"
-        className="order-7 overflow-hidden rounded-xl border border-border bg-background shadow-sm"
+        className="order-7 overflow-hidden rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.08))] shadow-sm"
       >
         <div className="flex flex-col gap-4 border-b border-border/70 p-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="gap-1">
+                <Radar className="h-3.5 w-3.5" />
+                Ciclo de decisión asistido
+              </Badge>
               <Badge variant={readiness.state === 'ready' ? 'outline' : 'secondary'} className="capitalize">
                 {executiveReadinessLabel}
               </Badge>
             </div>
-            <h4 className="mt-2 text-lg font-semibold leading-tight">Qué necesita atención en el territorio</h4>
+            <h4 className="mt-2 text-lg font-semibold leading-tight">Pulso operativo territorial</h4>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Reúne casos, encuestas y WhatsApp para ordenar el trabajo del equipo.
+              Priorización territorial para convertir reclamos, encuestas y WhatsApp en una cola de trabajo clara para el equipo.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -3083,9 +3077,9 @@ export function PremiumTerritoryHeatmap({
             {commandLoopHref ? (
               <a
                 href={commandLoopHref}
-                className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="inline-flex min-h-9 items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               >
-                Revisar casos pendientes
+                Abrir cola CRM
               </a>
             ) : null}
           </div>
@@ -3100,7 +3094,7 @@ export function PremiumTerritoryHeatmap({
                 data-metric={card.testId}
                 className="min-w-0 p-4"
               >
-                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{card.label}</span>
                 </div>
@@ -3114,7 +3108,7 @@ export function PremiumTerritoryHeatmap({
 
       <div
         data-testid="territory-decision-radar"
-        className="order-8 overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm"
+        className="order-8 overflow-hidden rounded-xl border border-border/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.04),hsl(var(--background)),rgba(20,184,166,0.06))] shadow-sm"
       >
         <div className="grid gap-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
           <div className="border-b border-border/70 p-4 lg:border-b-0 lg:border-r">
@@ -3124,7 +3118,7 @@ export function PremiumTerritoryHeatmap({
                 <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-teal-400 shadow-[0_0_0_4px_rgba(45,212,191,0.18)]" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-primary">Qué hacer ahora</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Radar de decisión</p>
                 <h4 className="mt-1 text-base font-semibold leading-snug">{decisionActionLabel}</h4>
                 <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{decisionActionDetail}</p>
               </div>
@@ -3135,7 +3129,7 @@ export function PremiumTerritoryHeatmap({
               const Icon = signal.icon;
               return (
                 <div key={signal.label} data-testid={signal.testId} className="min-w-0 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="truncate">{signal.label}</span>
                   </div>
@@ -3159,7 +3153,6 @@ export function PremiumTerritoryHeatmap({
                 type="button"
                 size="sm"
                 variant={active ? 'default' : 'outline'}
-                className="min-h-11"
                 onClick={() => setFocusMode(mode.id)}
                 aria-pressed={active}
               >
@@ -3178,7 +3171,7 @@ export function PremiumTerritoryHeatmap({
               aria-label="Visualización del mapa"
             >
               {([
-                { id: 'hybrid', label: 'Mapa y actividad' },
+                { id: 'hybrid', label: 'Mapa operativo' },
                 { id: 'clusters', label: 'Clústeres' },
                 { id: 'heat', label: 'Solo calor' },
               ] as Array<{ id: MapDisplayMode; label: string }>).map((mode) => (
@@ -3188,7 +3181,7 @@ export function PremiumTerritoryHeatmap({
                   role="radio"
                   size="sm"
                   variant={mapDisplayMode === mode.id ? 'default' : 'ghost'}
-                  className="min-h-11 px-3"
+                  className="h-8 px-3"
                   onClick={() => {
                     displayModeManuallySelectedRef.current = true;
                     temporarilyHiddenPointModeRef.current = null;
@@ -3257,7 +3250,7 @@ export function PremiumTerritoryHeatmap({
         data-testid="territory-filter-toolbar"
         className="group order-3 rounded-xl border border-border/70 bg-background/95 shadow-sm"
       >
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
           <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-foreground">
             <Filter className="h-4 w-4 shrink-0 text-primary" />
             Filtros territoriales
@@ -3297,7 +3290,7 @@ export function PremiumTerritoryHeatmap({
             type="button"
             size="sm"
             variant="outline"
-            className="min-h-11 w-fit shrink-0 gap-2"
+            className="w-fit shrink-0 gap-2"
             onClick={resetTerritoryFilters}
             disabled={!hasActiveTerritorialFacet}
             aria-label="Limpiar filtros territoriales"
@@ -3309,12 +3302,12 @@ export function PremiumTerritoryHeatmap({
 
         <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-2">
           <label htmlFor={`${svgId}-category-filter`} className="min-w-0 rounded-lg border bg-muted/15 p-2">
-            <span className="text-xs font-semibold text-foreground">Categoría del caso</span>
+            <span className="text-xs font-semibold text-foreground">Categoría de reclamo</span>
             <select
               id={`${svgId}-category-filter`}
               aria-label="Filtrar mapa por categoría"
               aria-describedby={`${svgId}-category-filter-counts`}
-              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapCategoryFilter ?? ''}
               onChange={(event) => {
                 setSelectedMapPoint(null);
@@ -3346,7 +3339,7 @@ export function PremiumTerritoryHeatmap({
               id={`${svgId}-zone-filter`}
               aria-label="Filtrar mapa por zona o barrio"
               aria-describedby={`${svgId}-zone-filter-counts`}
-              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapZoneFilter ?? ''}
               onChange={(event) => {
                 setSelectedMapPoint(null);
@@ -3383,7 +3376,7 @@ export function PremiumTerritoryHeatmap({
               id={`${svgId}-location-filter`}
               aria-label="Filtrar mapa por corredor o celda"
               aria-describedby={`${svgId}-location-filter-counts`}
-              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               value={mapAddressCellFilter ?? ''}
               onChange={(event) => {
                 setSelectedMapPoint(null);
@@ -3414,29 +3407,29 @@ export function PremiumTerritoryHeatmap({
 
         {hasActiveTerritorialFacet ? (
           <div data-testid="territory-active-filter-chips" className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-            <span className="text-sm font-semibold text-muted-foreground">Filtros aplicados</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Aplicados</span>
             {selectedCategoryFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="min-h-11 gap-1 px-2 text-xs" aria-label={`Quitar filtro de categoría ${selectedCategoryFacet.label}`} onClick={() => {
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de categoría ${selectedCategoryFacet.label}`} onClick={() => {
                 setSelectedMapPoint(null);
                 setMapCategoryFilter(null);
               }}>
-                Categoría: {selectedCategoryFacet.label}
+                Categoría · {selectedCategoryFacet.label} ×
               </Button>
             ) : null}
             {selectedZoneFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="min-h-11 gap-1 px-2 text-xs" aria-label={`Quitar filtro de zona ${selectedZoneFacet.label}`} onClick={() => {
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de zona ${selectedZoneFacet.label}`} onClick={() => {
                 setSelectedMapPoint(null);
                 setMapZoneFilter(null);
               }}>
-                Zona: {selectedZoneFacet.label}
+                Zona · {selectedZoneFacet.label} ×
               </Button>
             ) : null}
             {selectedAddressCellFacet ? (
-              <Button type="button" size="sm" variant="secondary" className="min-h-11 gap-1 px-2 text-xs" aria-label={`Quitar filtro de corredor ${selectedAddressCellFacet.label}`} onClick={() => {
+              <Button type="button" size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" aria-label={`Quitar filtro de corredor ${selectedAddressCellFacet.label}`} onClick={() => {
                 setSelectedMapPoint(null);
                 setMapAddressCellFilter(null);
               }}>
-                Corredor: {selectedAddressCellFacet.label}
+                Corredor · {selectedAddressCellFacet.label} ×
               </Button>
             ) : null}
           </div>
@@ -3452,12 +3445,12 @@ export function PremiumTerritoryHeatmap({
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
             <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
               <DatabaseZap className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
-              Ubicaciones pendientes
+              Cola de ubicaciones pendientes
               <Badge variant="outline" className="shrink-0 border-amber-400/70">
                 {geocodingQueueItems.length}
               </Badge>
             </span>
-            <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">Ver casos</span>
+            <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">Ver cola</span>
             <span className="hidden shrink-0 text-xs font-semibold text-primary group-open:inline">Ocultar</span>
           </summary>
           <div className="border-t border-amber-300/60 p-3 dark:border-amber-900/60">
@@ -3477,9 +3470,9 @@ export function PremiumTerritoryHeatmap({
             </ul>
             <a
               href="/perfil?tab=tickets&focus=open_geocoding_queue"
-              className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-3 inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Revisar casos sin ubicación
+              Abrir cola en CRM
             </a>
           </div>
         </details>
@@ -3491,9 +3484,12 @@ export function PremiumTerritoryHeatmap({
       >
         <div
           data-testid="territory-map-shell"
-          className="relative self-start overflow-hidden rounded-xl border border-border bg-muted/20 shadow-sm"
+          className="relative self-start overflow-hidden rounded-xl border border-border bg-[radial-gradient(circle_at_20%_16%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_76%_24%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.055))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
           style={{ perspective: '1200px' }}
         >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
+          <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
+          <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
           <p id={mapInstructionsId} className="sr-only">
             El mapa es una visualización. Para consultar cobertura y puntos con teclado o lector de pantalla,
             usá el botón Ver datos accesibles.
@@ -3502,7 +3498,7 @@ export function PremiumTerritoryHeatmap({
             <div data-testid="live-territory-map" className="relative z-10 h-[520px] w-full overflow-hidden sm:h-[620px] 2xl:h-[680px]">
               <LazyMapLibreMap
                 className="h-full min-h-0 w-full rounded-none border-0"
-                ariaLabel="Mapa territorial interactivo de casos, encuestas y actividad agregada"
+                ariaLabel="Mapa territorial interactivo de reclamos, encuestas y actividad agregada"
                 ariaDescribedBy={mapInstructionsId}
                 tenantSlug={tenantSlug}
                 heatmapData={privacySafeLiveMapPoints}
@@ -3880,18 +3876,13 @@ export function PremiumTerritoryHeatmap({
                 </h4>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {territorialScopeBlocked
-                    ? `No pudimos confirmar que ${formatCountLabel(unverifiedScopePointsRejectedByFrontend, 'ubicación', 'ubicaciones')} pertenezcan al territorio. Permanecen ocultas hasta validar el alcance.`
+                    ? `El contrato municipal no acredita pertenencia mediante un polígono o método de contención autoritativo. Se ocultaron ${formatCountLabel(unverifiedScopePointsRejectedByFrontend, 'coordenada', 'coordenadas')}; no se dibujan puntos, calor, celdas ni focos hasta validar el alcance.`
                     : hasTerritoryBoundaries
                     ? privacyDensitySuppressed
                       ? `La selección no alcanza el mínimo de privacidad de ${effectiveMinSampleSize} registros. No se dibujan puntos, densidad ni focos territoriales.`
                       : 'Los límites oficiales están disponibles, pero no hay coordenadas verificadas para esta selección. No se dibujan actividad, focos ni recorridos estimados.'
                     : 'No se dibujan barrios, distritos ni poblaciones estimadas. Cargá un archivo oficial de límites territoriales para habilitar agregaciones, rankings y tasas por zona.'}
                 </p>
-                {hasActiveTerritorialFacet ? (
-                  <Button type="button" variant="outline" className="mt-4 min-h-11" onClick={resetTerritoryFilters}>Quitar filtros</Button>
-                ) : (
-                  <a href="/perfil?tab=tickets&focus=open_geocoding_queue" className="mt-4 inline-flex min-h-11 items-center rounded-md border px-3 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Revisar casos sin ubicación</a>
-                )}
               </div>
             </div>
           )}
@@ -3904,7 +3895,7 @@ export function PremiumTerritoryHeatmap({
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-primary">Actividad en el mapa</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Lectura territorial</p>
                     <Badge variant="outline" className="gap-1">
                       <MapPin className="h-3.5 w-3.5" />
                       {visiblePointCountProtected
@@ -3924,7 +3915,7 @@ export function PremiumTerritoryHeatmap({
                   <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                     <span>Baja</span>
                     <span
-                      className="h-2 w-28 rounded-full bg-primary"
+                      className="h-2 w-28 rounded-full bg-gradient-to-r from-blue-400 via-teal-500 via-55% to-amber-500"
                       aria-hidden="true"
                     />
                     <span>Alta intensidad</span>
@@ -3954,7 +3945,7 @@ export function PremiumTerritoryHeatmap({
                               type="button"
                               size="sm"
                               variant={active ? 'default' : 'outline'}
-                              className="min-h-11 gap-2 rounded-full px-3 text-xs"
+                              className="h-8 gap-2 rounded-full px-3 text-xs"
                               aria-pressed={active}
                               onClick={() => {
                                 setSelectedMapPoint(null);
@@ -3980,7 +3971,7 @@ export function PremiumTerritoryHeatmap({
                   type="button"
                   size="sm"
                   variant={comparisonEnabled ? 'default' : 'outline'}
-                  className="min-h-11 shrink-0 gap-2 rounded-lg"
+                  className="shrink-0 gap-2 rounded-lg"
                   onClick={() => setComparisonEnabled((value) => !value)}
                   disabled={!hasTerritoryBoundaries}
                   title={!hasTerritoryBoundaries ? 'Requiere delimitaciones territoriales oficiales' : undefined}
@@ -4004,8 +3995,8 @@ export function PremiumTerritoryHeatmap({
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                       {activeZeroMappedFacet
-                        ? 'La categoría sigue disponible porque hay casos sin ubicación. El mapa sólo muestra coordenadas confirmadas.'
-                        : 'Quitá un filtro para ampliar la lectura. Los casos sin coordenadas siguen disponibles para revisar.'}
+                        ? 'La categoría sigue disponible porque existen reclamos en la cola territorial; el mapa no inventa coordenadas.'
+                        : 'Quitá un filtro para ampliar la lectura. Los reclamos sin coordenadas permanecen en su cola operativa.'}
                     </p>
                     {activeZeroMappedFacet ? (
                       <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
@@ -4021,6 +4012,12 @@ export function PremiumTerritoryHeatmap({
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={clearMostSpecificTerritoryFilter}>
+                      Quitar último filtro
+                    </Button>
+                    <Button type="button" size="sm" variant="default" onClick={resetTerritoryFilters}>
+                      Restablecer mapa
+                    </Button>
                     {Math.max(
                       scopedTerritoryView.pendingGeocodeCount ?? 0,
                       activeZeroMappedFacet?.pendingGeocodeCount ?? 0,
@@ -4029,15 +4026,11 @@ export function PremiumTerritoryHeatmap({
                         href={`/perfil?tab=tickets&focus=open_geocoding_queue${
                           activeZeroMappedFacet ? `&facet=${encodeURIComponent(activeZeroMappedFacet.key)}` : ''
                         }`}
-                        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        Revisar casos sin ubicación
+                        Abrir cola pendiente
                       </a>
-                    ) : (
-                      <Button type="button" size="sm" variant="outline" className="min-h-11" onClick={clearMostSpecificTerritoryFilter}>
-                        Quitar último filtro
-                      </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -4056,7 +4049,7 @@ export function PremiumTerritoryHeatmap({
                         aria-hidden="true"
                       />
                       <p className="font-semibold text-foreground">
-                        {humanizeCategoryValue(selectedMapPoint.categoria ?? 'Caso territorial')}
+                        {humanizeCategoryValue(selectedMapPoint.categoria ?? 'Reclamo territorial')}
                       </p>
                       {selectedMapPoint.estado ? (
                         <Badge variant="secondary">
@@ -4084,15 +4077,15 @@ export function PremiumTerritoryHeatmap({
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {selectedTicketHref ? (
-                      <Button asChild type="button" size="sm" variant="default" className="min-h-11">
+                      <Button asChild type="button" size="sm" variant="default">
                         <a href={selectedTicketHref}>
-                          Abrir caso
+                          Abrir reclamo
                         </a>
                       </Button>
                     ) : (
-                      <Badge variant="outline">Este caso no tiene un enlace disponible</Badge>
+                      <Badge variant="outline">Sin vínculo CRM verificable</Badge>
                     )}
-                    <Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => setSelectedMapPoint(null)}>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setSelectedMapPoint(null)}>
                       Cerrar detalle
                     </Button>
                   </div>
@@ -4105,9 +4098,9 @@ export function PremiumTerritoryHeatmap({
 
         <aside data-testid="territory-executive-rail" className="w-full self-start">
           <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-[36px] cursor-pointer list-none items-center justify-between gap-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 text-sm font-semibold">
-                Datos para soporte
+                Inspector territorial
                 <span data-testid="territory-inspector-summary" className="ml-2 hidden font-normal text-muted-foreground sm:inline">
                   {scopedVisiblePointLabel} puntos · {scopedCoverageLabel} cobertura · {scopedPendingLabel} pendientes
                 </span>
@@ -4123,7 +4116,7 @@ export function PremiumTerritoryHeatmap({
             <div className="mt-4 border-t border-border/60 pt-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-primary">Estado del mapa</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Estado del mapa</p>
                 <h4 className="mt-1 text-lg font-semibold">{executiveReadinessLabel}</h4>
               </div>
             </div>
@@ -4209,7 +4202,7 @@ export function PremiumTerritoryHeatmap({
               <Layers className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold">Análisis y acciones por zona</span>
+              <span className="block text-sm font-semibold">Análisis y acciones territoriales</span>
               <span className="block truncate text-xs text-muted-foreground">
                 Capas, prioridades y evidencia secundaria
               </span>
@@ -4226,12 +4219,13 @@ export function PremiumTerritoryHeatmap({
         >
         <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/15 p-4 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h4 id={`${svgId}-territory-intelligence-title`} className="text-lg font-semibold">
-              Prioridades y acciones en un solo lugar
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Inteligencia territorial</p>
+            <h4 id={`${svgId}-territory-intelligence-title`} className="mt-1 text-lg font-semibold">
+              Prioridades, capas y acciones en un solo espacio
             </h4>
           </div>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground lg:text-right">
-            Compará las zonas y abrí la tarea que corresponda sin perder de vista el mapa.
+            El mapa conserva el foco visual; la evidencia secundaria se organiza debajo para comparar y actuar sin una columna interminable.
           </p>
         </div>
 
@@ -4246,17 +4240,17 @@ export function PremiumTerritoryHeatmap({
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   {scopedTerritoryView.mode === 'single'
                     ? 'Totales, cobertura y pendientes provienen de la faceta territorial canónica. Los rankings globales quedan ocultos mientras este segmento está activo.'
-                    : 'Se muestran sólo los puntos que cumplen todos los filtros. La cobertura y los pendientes no están disponibles porque falta un total comparable para esta combinación.'}
+                    : 'Se muestran sólo los puntos que cumplen todos los filtros. Cobertura y pendientes no están disponibles porque el contrato no informa el denominador de esta intersección.'}
                 </p>
               </div>
             </div>
           ) : null}
 
           {hasBackendMapContract && scopedTerritoryView.globalInsightsCompatible ? (
-            <div data-testid="backend-map-contract-card" className="rounded-xl border border-border bg-background p-4 shadow-sm">
+            <div data-testid="backend-map-contract-card" className="rounded-xl border border-cyan-500/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.08),hsl(var(--background)),rgba(124,58,237,0.07))] p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-primary">Datos para soporte</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Mapa operativo</p>
                   <h4 className="mt-1 truncate text-lg font-semibold">{backendRenderer}</h4>
                 </div>
                 <Badge variant="outline" className="shrink-0 gap-1">
@@ -4278,7 +4272,7 @@ export function PremiumTerritoryHeatmap({
                 <div className="mt-3 rounded-lg border bg-background/65 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-muted-foreground">Tema principal</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Foco principal</p>
                       <p className="mt-1 truncate text-sm font-medium">{humanizeCategoryValue(backendTopCategory)}</p>
                     </div>
                     <Badge variant="secondary" className="shrink-0 capitalize">
@@ -4287,7 +4281,7 @@ export function PremiumTerritoryHeatmap({
                   </div>
                   {backendFocusCount !== undefined ? (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {formatCountLabel(backendFocusCount, 'caso agrupado', 'casos agrupados')} en este tema.
+                      {formatCountLabel(backendFocusCount, 'caso agrupado', 'casos agrupados')} en el foco operativo.
                     </p>
                   ) : null}
                 </div>
@@ -4298,11 +4292,14 @@ export function PremiumTerritoryHeatmap({
           {operationalHotspots.length && scopedTerritoryView.globalInsightsCompatible ? (
             <div
               data-testid="operational-hotspots-panel"
-              className="rounded-xl border border-amber-500/25 bg-background p-4 shadow-sm lg:col-span-2"
+              className="rounded-xl border border-amber-500/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.10),hsl(var(--background)),rgba(59,130,246,0.07))] p-4 shadow-sm lg:col-span-2"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h4 className="text-lg font-semibold leading-tight">Zonas para atender primero</h4>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
+                    Prioridades territoriales
+                  </p>
+                  <h4 className="mt-1 text-lg font-semibold leading-tight">Focos para actuar primero</h4>
                 </div>
                 <Badge variant="outline" className="shrink-0 gap-1">
                   <Radar className="h-3.5 w-3.5" />
@@ -4311,15 +4308,15 @@ export function PremiumTerritoryHeatmap({
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <div className="rounded-lg border bg-background/70 p-2">
-                  <p className="text-sm text-muted-foreground">Fuera de plazo</p>
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">SLA</p>
                   <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.breached_sla), '0')}</p>
                 </div>
                 <div className="rounded-lg border bg-background/70 p-2">
-                  <p className="text-sm text-muted-foreground">Sin responsable</p>
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Sin resp.</p>
                   <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.unassigned), '0')}</p>
                 </div>
                 <div className="rounded-lg border bg-background/70 p-2">
-                  <p className="text-sm text-muted-foreground">En 24 horas</p>
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">24h</p>
                   <p className="mt-1 text-base font-semibold">{formatNumber(readNumber(topOperationalSignals?.recent_24h), '0')}</p>
                 </div>
               </div>
@@ -4329,10 +4326,10 @@ export function PremiumTerritoryHeatmap({
                   const category = humanizeCategoryValue(readString(hotspot.top_category, hotspot.key, hotspot.label));
                   const channel = humanizeContractValue(readString(hotspot.top_channel), 'sin canal');
                   const signalChips = [
-                    { label: 'fuera de plazo', value: readNumber(signals?.breached_sla) },
+                    { label: 'SLA', value: readNumber(signals?.breached_sla) },
                     { label: 'sin responsable', value: readNumber(signals?.unassigned) },
                     { label: '24h', value: readNumber(signals?.recent_24h) },
-                    { label: 'casos', value: readNumber(signals?.tickets) },
+                    { label: 'tickets', value: readNumber(signals?.tickets) },
                   ].filter((chip) => (chip.value ?? 0) > 0);
                   return (
                     <div
@@ -4375,10 +4372,10 @@ export function PremiumTerritoryHeatmap({
           ) : null}
 
           <details className="group rounded-xl border border-border bg-background p-4 shadow-sm">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-[36px] cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 [&::-webkit-details-marker]:hidden">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Brain className="h-4 w-4 text-primary" />
-              Qué información mostrar
+              Capas de análisis
             </div>
               <Badge variant="outline" className="shrink-0">
                 {displayLayers.slice(0, 5).length} configuradas
@@ -4416,12 +4413,12 @@ export function PremiumTerritoryHeatmap({
           </details>
 
           {hasOperationalBrief && scopedTerritoryView.globalInsightsCompatible ? (
-            <div className="rounded-xl border border-border bg-background p-4 shadow-sm lg:col-span-2">
+            <div className="rounded-xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--background)),rgba(59,130,246,0.08),rgba(20,184,166,0.06))] p-4 shadow-sm lg:col-span-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    Resumen automático
+                    Resumen operativo asistido
                   </div>
                   <h4 className="mt-2 text-base font-semibold leading-snug">
                     {operationalNarrativeTitle}
@@ -4430,19 +4427,18 @@ export function PremiumTerritoryHeatmap({
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">{operationalNarrativeBody}</p>
                   ) : null}
                 </div>
-                <Badge variant={aiStatus?.requires_human_attention ? 'secondary' : 'outline'} className="shrink-0">
-                  {aiStatus?.requires_human_attention ? 'Revisá este resumen' : 'Sin alertas urgentes'}
+                <Badge variant={aiStatus?.requires_human_attention ? 'secondary' : 'outline'} className="shrink-0 capitalize">
+                  {aiStatusLabel}
                 </Badge>
               </div>
 
               <div className="mt-4 grid gap-2">
-                <details className="rounded-lg border bg-background/65 px-3 py-1">
-                  <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <div className="rounded-lg border bg-background/65 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     <Brain className="h-3.5 w-3.5" />
-                    Datos para soporte
-                  </summary>
-                  <div className="border-t pb-2 pt-2">
-                  <p className="text-sm font-medium capitalize">{aiStatusLabel} · {aiModeLabel}</p>
+                    Motor cognitivo
+                  </div>
+                  <p className="mt-1 text-sm font-medium capitalize">{aiModeLabel}</p>
                   {aiHintLabels.length ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {aiHintLabels.map((hint) => (
@@ -4452,13 +4448,12 @@ export function PremiumTerritoryHeatmap({
                       ))}
                     </div>
                   ) : null}
-                  </div>
-                </details>
+                </div>
 
                 {defaultViewport ? (
                   <div className="rounded-lg border bg-background/65 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      <div className="flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                         <Compass className="h-3.5 w-3.5" />
                         Vista sugerida
                       </div>
@@ -4475,7 +4470,7 @@ export function PremiumTerritoryHeatmap({
 
                 {operationalActionSummaries.length ? (
                   <div data-testid="heatmap-action-loop" className="rounded-lg border bg-background/65 p-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       <ListChecks className="h-3.5 w-3.5" />
                        Próximas acciones
                     </div>
@@ -4492,7 +4487,7 @@ export function PremiumTerritoryHeatmap({
                               <p className="min-w-0 text-sm font-medium">{action.label}</p>
                               {action.priority || action.actionType ? (
                                 <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
-                                  {humanizeContractValue(action.priority ?? action.actionType, 'Prioridad')}
+                                  {humanizeContractValue(action.priority ?? action.actionType, 'Prioridad operativa')}
                                 </Badge>
                               ) : null}
                             </div>
@@ -4500,15 +4495,20 @@ export function PremiumTerritoryHeatmap({
                               <p className="mt-0.5 truncate text-xs text-muted-foreground">{action.detail}</p>
                             ) : null}
                             <div className="mt-2 flex flex-wrap gap-1.5">
+                              {action.uiHint ? (
+                                <Badge variant="secondary" className="text-[10px] capitalize">
+                                  {humanizeContractValue(action.uiHint, 'Acción operativa')}
+                                </Badge>
+                              ) : null}
                               <Badge variant={action.writesEnabled ? 'outline' : 'secondary'} className="text-[10px]">
-                                {action.writesEnabled ? 'Te va a pedir confirmación' : 'Solo prepara la tarea'}
+                                {action.writesEnabled ? 'requiere confirmación' : 'preparación segura'}
                               </Badge>
                               {action.href ? (
                                 <a
                                   href={action.href}
-                                  className="inline-flex min-h-11 items-center rounded-md border border-primary/30 px-3 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                  className="inline-flex rounded-full border border-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                                 >
-                                  Abrir tarea
+                                  Abrir en CRM
                                 </a>
                               ) : null}
                             </div>
@@ -4516,10 +4516,10 @@ export function PremiumTerritoryHeatmap({
                         ))}
                     </div>
                     {heatmap?.hotspot_actions ? (
-                      <details className="mt-2 rounded-md border px-2 py-1 text-xs text-muted-foreground">
-                        <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-                        <p className="border-t pt-2">{heatmap.hotspot_actions.safe_by_default ? 'Acciones protegidas' : 'Revisar permisos'} - {heatmap.hotspot_actions.writes_enabled ? 'requiere confirmación' : 'solo prepara la tarea'}</p>
-                      </details>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {heatmap.hotspot_actions.safe_by_default ? 'Acciones protegidas' : 'Revisar permisos'} -{' '}
+                        {heatmap.hotspot_actions.writes_enabled ? 'requiere confirmación' : 'solo preparación operativa'}
+                      </p>
                     ) : null}
                   </div>
                 ) : null}
@@ -4532,7 +4532,7 @@ export function PremiumTerritoryHeatmap({
           <div className="rounded-xl border border-border bg-background p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Zona seleccionada</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Zona seleccionada</p>
                 <h4 className="mt-1 text-xl font-semibold">{selectedZone.zone.label}</h4>
               </div>
               <Badge variant={selectedZone.suppressed ? 'secondary' : 'outline'}>
@@ -4559,7 +4559,7 @@ export function PremiumTerritoryHeatmap({
             <div className="mt-4 rounded-lg bg-muted/35 p-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Eye className="h-4 w-4 text-primary" />
-                Qué conviene hacer
+                Recomendacion operativa
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{selectedZone.recommendation}</p>
             </div>
@@ -4587,7 +4587,7 @@ export function PremiumTerritoryHeatmap({
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
-                        className="h-full rounded-full bg-primary"
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 via-teal-400 to-amber-400"
                         style={{ width: `${Math.max(8, metric.intensity * 100)}%` }}
                       />
                     </div>

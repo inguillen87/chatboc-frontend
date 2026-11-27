@@ -35,7 +35,7 @@ interface RibbonValueProps {
 
 const RibbonValue = ({ label, value, helper, icon: Icon, className }: RibbonValueProps) => (
   <div className={cn("min-w-[136px] border-r border-border/70 px-3 py-2", className)}>
-    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
       <Icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
       {label}
     </div>
@@ -58,7 +58,7 @@ export default function CrmPersonRecordRibbon({
   return (
     <section
       className="shrink-0 border-b border-border/70 bg-card"
-      aria-label="Resumen de la persona"
+      aria-label="Estado operacional de la persona"
       data-testid="crm-person-record-ribbon"
     >
       <div className="overflow-x-auto">
@@ -70,12 +70,12 @@ export default function CrmPersonRecordRibbon({
             icon={UserCheck}
           />
           <RibbonValue
-            label="Casos vinculados"
+            label="Casos exactos"
             value={summary.casesLabel}
             icon={FileText}
           />
           <RibbonValue
-            label="Última actividad"
+            label="Último evento"
             value={formatDate(summary.latestEventAt)}
             helper={summary.latestEventVerified
               ? `${formatChannel(summary.latestEventChannel)} · ${summary.latestEventSourceLabel}`
@@ -89,7 +89,7 @@ export default function CrmPersonRecordRibbon({
             icon={UserCheck}
           />
           <RibbonValue
-            label="Plazo"
+            label="SLA"
             value={summary.slaLabel}
             helper={summary.slaDueAt ? formatDate(summary.slaDueAt) : undefined}
             icon={Clock3}
@@ -104,7 +104,7 @@ export default function CrmPersonRecordRibbon({
             <Button
               type="button"
               size="sm"
-              className="min-h-11 gap-1.5"
+              className="h-8 gap-1.5"
               disabled={caseActionDisabled}
               onClick={onCaseAction}
             >
@@ -115,11 +115,11 @@ export default function CrmPersonRecordRibbon({
               type="button"
               size="sm"
               variant="outline"
-              className="min-h-11 gap-1.5"
+              className="h-8 gap-1.5"
               onClick={onOpenDetails}
             >
               <PanelRightOpen className="h-3.5 w-3.5" aria-hidden="true" />
-              Ver detalle
+              Detalle 360
             </Button>
           </div>
         </div>

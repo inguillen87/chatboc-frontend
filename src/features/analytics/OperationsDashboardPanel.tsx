@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   DatabaseZap,
+  ExternalLink,
   Gauge,
   Layers,
   MapPin,
@@ -121,35 +122,6 @@ const asString = (value: unknown): string | undefined => {
   return trimmed || undefined;
 };
 
-const clearPanelText = (value: string): string => {
-  const exact: Record<string, string> = {
-    'cabina de mando': 'Resumen de la organización',
-    'vista ejecutiva para operar ahora': 'Qué necesita atención ahora',
-    'centro territorial': 'Actividad por zona',
-    'mesa territorial inteligente': 'Prioridades por zona',
-    'mapa operativo confiable': 'Datos del mapa disponibles',
-    'cola de geocodificación': 'Ubicaciones pendientes',
-    'cola ia operativa': 'Qué conviene revisar primero',
-    'pulsos de riesgo ia': 'Alertas sugeridas',
-    'geocodificar direcciones pendientes': 'Completar ubicaciones pendientes',
-    'revisar cola': 'Revisar ubicaciones',
-  };
-  const normalized = value.trim().toLocaleLowerCase('es-AR');
-  const mapped = exact[normalized];
-  if (mapped) return mapped;
-  return value
-    // Keep the number of the original word: "Ticket requiere…" reads "Caso necesita…".
-    .replace(/\b(?:tickets?|reclamos?)\b/gi, (match) => {
-      const word = /s$/i.test(match) ? 'casos' : 'caso';
-      return /^[A-ZÁÉÍÓÚ]/.test(match) ? word[0].toUpperCase() + word.slice(1) : word;
-    })
-    .replace(/\bSLA\b/gi, 'plazo')
-    .replace(/\bbacklog\b/gi, 'casos abiertos')
-    .replace(/requiere revisi[oó]n humana/gi, 'necesita revisión del equipo')
-    .replace(/\bmonitoreo\b/gi, 'seguimiento')
-    .replace(/\bcasos(?:\s*(?:,|y)\s*casos)+\b/gi, 'casos');
-};
-
 const formatNumber = (value: unknown, suffix = '') => {
   const parsed = asNumber(value);
   if (parsed === undefined) return '--';
@@ -179,7 +151,7 @@ const itemValue = (item: OperationsBucketItem) =>
   readNumber(item.value, item.count, item.total, item.current);
 
 const itemLabel = (item: OperationsBucketItem) =>
-  clearPanelText(asString(item.label) ?? asString(item.title) ?? asString(item.key) ?? asString(item.id) ?? '--');
+  asString(item.label) ?? asString(item.title) ?? asString(item.key) ?? asString(item.id) ?? '--';
 
 const bucketItemKey = (item: OperationsBucketItem, index: number) =>
   [
@@ -227,7 +199,7 @@ const statusVariant = (status?: string): 'default' | 'secondary' | 'destructive'
 const statusLabel = (status?: string) => {
   const normalized = (status || '').toLowerCase();
   if (normalized === 'fresh' || normalized === 'ready') return 'al día';
-  if (normalized === 'degraded' || normalized === 'stale') return 'hay fuentes para revisar';
+  if (normalized === 'degraded' || normalized === 'stale') return 'requiere revisión';
   if (normalized === 'empty') return 'sin actividad';
   if (normalized === 'error') return 'con error';
   return status || 'sin estado';
@@ -239,7 +211,7 @@ const operationsDashboardErrorMessage = (error: unknown): string => {
     return 'El resumen ejecutivo tardo mas de lo esperado';
   }
   if (/html|json|proxy|aplicacion web|frontend/i.test(message)) {
-    return 'No recibimos todos los datos en este intento';
+    return 'El backend operativo no entrego datos completos en este intento';
   }
   return message;
 };
@@ -256,7 +228,7 @@ const priorityLabel = (priority?: string) => {
 const resolveLabel = (data: OperationsDashboardV1 | undefined, key: string, fallback: string) => {
   const labels = data?.frontend_contract?.labels;
   const backendLabel = labels && typeof labels[key] === 'string' ? labels[key].trim() : '';
-  return clearPanelText(backendLabel || fallback);
+  return backendLabel || fallback;
 };
 
 const getRefreshSeconds = (...values: Array<number | undefined>) => {
@@ -460,17 +432,17 @@ const heatmapDisplayLabel = (value: unknown, fallback?: unknown): string => {
   if (['unknown', 'sin_dato', 'sin_datos', 'no_informado', 'no_informada', 'null', 'undefined'].includes(normalized)) {
     return 'Sin dato';
   }
-  return clearPanelText(parsed || 'Sin dato');
+  return parsed || 'Sin dato';
 };
 
 const humanizeHeatmapToken = (value: unknown, fallback = 'Capa') => {
   const parsed = asString(value);
   if (!parsed) return fallback;
-  return clearPanelText(parsed
+  return parsed
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .replace(/^./, (char) => char.toUpperCase()));
+    .replace(/^./, (char) => char.toUpperCase());
 };
 
 const describeHeatmapLayer = (layer: string) => {
@@ -488,9 +460,9 @@ const describeHeatmapLayer = (layer: string) => {
     return 'base territorial';
   }
   if (normalized.includes('ticket') || normalized.includes('reclamo')) {
-    return 'actividad de casos';
+    return 'reclamos y casos';
   }
-  return 'capa del mapa';
+  return 'capa operativa';
 };
 
 const formatEndpoint = (action?: OperationsActionItem) =>
@@ -691,7 +663,7 @@ interface OperationsDashboardPanelProps {
 function OperationsDisclosure({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
   return (
     <details id={id} className="operations-secondary-details rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-sm text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold text-foreground">
         <span>{label}</span>
         <ChevronDown className="operations-secondary-chevron h-4 w-4 shrink-0" aria-hidden="true" />
       </summary>
@@ -722,16 +694,6 @@ const hasCommerceActivity = (data: OperationsDashboardV1) => {
       .some((items) => items?.some((item) => (itemValue(item) ?? 0) > 0 || (asNumber(item.amount) ?? 0) > 0));
 };
 
-const COMMERCE_OPERATION_PATTERN = /(?:^|[\s._/?:=&-])(orders?|pedidos?|checkout|cart|carrito|catalog|catalogo|catálogo|marketplace|inventory|inventario|payments?)(?:$|[\s._/?:=&-])/i;
-
-const isCommerceOperationItem = (item: Record<string, unknown>) => [
-  'id', 'source', 'action_type', 'reason_code', 'endpoint', 'href', 'frontend_path', 'route',
-  'label', 'title', 'description', 'message', 'ui_hint',
-].some((key) => {
-  const value = item[key];
-  return typeof value === 'string' && COMMERCE_OPERATION_PATTERN.test(value);
-});
-
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { scope, pending, sessionRevision, key } = usePrivateAnalyticsScope();
   if (pending) return <ViewState status="loading" title="Validando acceso" className={className} />;
@@ -740,8 +702,6 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
 }
 function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeKey, sessionRevision, className }: OperationsDashboardPanelProps & { tenantSlug: string; organizationKind: PrivateAnalyticsScope['kind']; sessionScopeKey: string; sessionRevision: number }) {
   const { socket, isConnected: socketConnected } = useSocket();
-  const { hasCapability } = useCapabilities();
-  const showCommerce = organizationKind === 'pyme' || hasCapability('market.orders.read');
   const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
   const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
   const activeOperationsPeriod = useMemo(
@@ -901,21 +861,13 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
   const aiProviderStatus = aiProviderStatusQuery.data;
   const freshness = freshnessQuery.data;
   const alerts = useMemo(
-    () => mergeByIdentity([...(data?.alerts ?? []), ...(actionCenter?.alerts ?? [])])
-      .filter((item) => showCommerce || !isCommerceOperationItem(item)),
-    [actionCenter?.alerts, data?.alerts, showCommerce],
+    () => mergeByIdentity([...(data?.alerts ?? []), ...(actionCenter?.alerts ?? [])]),
+    [actionCenter?.alerts, data?.alerts],
   );
   const actions = useMemo(
-    () => mergeByIdentity([...(data?.next_best_actions ?? []), ...(actionCenter?.items ?? [])])
-      .filter((item) => showCommerce || !isCommerceOperationItem(item)),
-    [actionCenter?.items, data?.next_best_actions, showCommerce],
+    () => mergeByIdentity([...(data?.next_best_actions ?? []), ...(actionCenter?.items ?? [])]),
+    [actionCenter?.items, data?.next_best_actions],
   );
-  const actionSummary = useMemo(() => {
-    if (!actionCenter?.summary || showCommerce) return actionCenter?.summary;
-    return Object.fromEntries(
-      Object.entries(actionCenter.summary).filter(([key]) => !COMMERCE_OPERATION_PATTERN.test(key)),
-    );
-  }, [actionCenter?.summary, showCommerce]);
   const heatmapContractCanRender = heatmapQuery.data?.render_contract?.can_render_heatmap;
   const heatmapQualityCanRender = heatmapQuery.data?.quality?.can_render_heatmap;
   const canRenderHeatmap =
@@ -924,14 +876,14 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
       : heatmapContractCanRender ?? heatmapQualityCanRender ?? freshness?.summary?.can_render_heatmap;
   const canRenderDashboard = freshness?.summary?.can_render_dashboard;
   const readSources = [
-    { id: 'dashboard', label: 'Casos y resumen', ...dashboardQuery },
-    { id: 'heatmap', label: 'Mapa', ...heatmapQuery },
-    { id: 'mapConfig', label: 'Datos del mapa', ...mapConfigQuery },
-    { id: 'actions', label: 'Tareas sugeridas', ...actionCenterQuery },
-    { id: 'brief', label: 'Resumen automático', ...aiBriefQuery },
-    { id: 'queue', label: 'Prioridades sugeridas', ...aiOpsQueueQuery },
-    { id: 'providers', label: 'Servicios de análisis', ...aiProviderStatusQuery },
-    { id: 'freshness', label: 'Actualización de datos', ...freshnessQuery },
+    { id: 'dashboard', label: 'Resumen y reclamos', ...dashboardQuery },
+    { id: 'heatmap', label: 'Mapa de calor', ...heatmapQuery },
+    { id: 'mapConfig', label: 'Configuración del mapa', ...mapConfigQuery },
+    { id: 'actions', label: 'Centro de acciones', ...actionCenterQuery },
+    { id: 'brief', label: 'Resumen IA', ...aiBriefQuery },
+    { id: 'queue', label: 'Cola IA', ...aiOpsQueueQuery },
+    { id: 'providers', label: 'Integraciones IA', ...aiProviderStatusQuery },
+    { id: 'freshness', label: 'Actualidad de fuentes', ...freshnessQuery },
   ];
   const mapFilterCount = Object.keys(activeHeatmapFilters).filter((key) => !HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey)).length;
   const anyFetching = readSources.some((source) => source.isFetching);
@@ -940,8 +892,8 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
       id: 'health',
       title: dashboardFallbackActive ? 'continuidad activa' : freshness?.status ? statusLabel(freshness.status) : 'datos cargados',
       description: dashboardFallbackActive
-        ? 'Podés seguir usando el mapa, las tareas y los casos mientras se actualiza el resumen.'
-        : 'Indica si la información de esta pantalla está actualizada.',
+        ? 'El tablero mantiene mapa, IA, acciones y reclamos disponibles mientras se refresca el resumen.'
+        : 'Estado general de las fuentes que alimentan el tablero.',
       icon: Gauge,
       tone: dashboardFallbackActive ? 'warning' : freshness?.status === 'fresh' || freshness?.status === 'ready' ? 'success' : 'default',
     },
@@ -955,14 +907,14 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
     {
       id: 'territory',
       title: heatmapQuery.isError ? 'mapa no verificado' : canRenderHeatmap === false ? 'mapa sin datos' : heatmapQuery.data ? 'mapa disponible' : 'mapa pendiente',
-      description: 'Muestra ubicaciones y zonas cuando hay datos territoriales disponibles.',
+      description: 'Zonas calientes y segmentos territoriales cuando backend publica puntos.',
       icon: MapPin,
       tone: canRenderHeatmap === false ? 'warning' : 'default',
     },
   ];
 
   if (dashboardQuery.isLoading && !dashboardData) {
-    return <ViewState status="loading" description="Cargando actividad y resultados." className={className} />;
+    return <ViewState status="loading" description="Cargando actividad operativa." className={className} />;
   }
 
   if (dashboardQuery.isError && !data) {
@@ -970,9 +922,9 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
       <ViewState
         status="partial"
         title="Estadísticas no disponibles"
-        description={getErrorMessage(dashboardQuery.error, 'No se pudo cargar la actividad y los resultados.')}
+        description={getErrorMessage(dashboardQuery.error, 'No se pudo cargar la actividad operativa.')}
         action={
-          <Button type="button" variant="outline" className="min-h-11" onClick={() => void dashboardQuery.refetch()}>
+          <Button type="button" variant="outline" onClick={() => void dashboardQuery.refetch()}>
             <RefreshCw className="h-4 w-4" />
             Reintentar
           </Button>
@@ -983,20 +935,7 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
   }
 
   if (!data) {
-    return (
-      <ViewState
-        status="empty"
-        title="Todavía no hay actividad para mostrar"
-        description="Actualizá la información para comprobar si ya hay casos, encuestas o ubicaciones disponibles."
-        action={(
-          <Button type="button" variant="outline" className="min-h-11" onClick={() => void dashboardQuery.refetch()}>
-            <RefreshCw className="h-4 w-4" />
-            Actualizar datos
-          </Button>
-        )}
-        className={className}
-      />
-    );
+    return <ViewState status="empty" description="Todavía no hay datos operativos para mostrar." className={className} />;
   }
 
   return (
@@ -1006,14 +945,17 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
     }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold tracking-tight">Qué está pasando y qué atender primero</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tablero operativo</p>
+          </div>
+          <h2 className="text-xl font-semibold tracking-tight">Actividad y decisiones</h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Casos, encuestas, canales, equipo y ubicaciones reunidos para que sepas dónde actuar.
+            Reclamos, encuestas, canales, equipo, mapa y acciones recomendadas para resolver primero.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {refreshSeconds ? <Badge variant="outline">Actualización cada {refreshSeconds}s</Badge> : null}
-          {dashboardFallbackActive ? <Badge variant="secondary">Usando el último resumen disponible</Badge> : null}
+          {dashboardFallbackActive ? <Badge variant="secondary">Continuidad operativa</Badge> : null}
           {dashboardQuery.isFetching || heatmapQuery.isFetching || actionCenterQuery.isFetching || aiBriefQuery.isFetching || aiOpsQueueQuery.isFetching || aiProviderStatusQuery.isFetching || freshnessQuery.isFetching ? (
             <Badge variant="secondary">Actualizando</Badge>
           ) : null}
@@ -1022,7 +964,7 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
             type="button"
             variant="outline"
             size="sm"
-            className="min-h-11 operations-global-refresh"
+            className="operations-global-refresh"
             disabled={anyFetching || liveRefresh.busy}
             onClick={liveRefresh.refreshNow}
           >
@@ -1042,13 +984,13 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
           <div className="flex min-w-0 items-start gap-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="min-w-0">
-              <p className="font-semibold">El resumen se está actualizando</p>
+              <p className="font-semibold">Tablero en continuidad operativa</p>
               <p className="mt-1 text-amber-900/80 dark:text-amber-100/80">
-                {dashboardErrorMessage}. Mientras tanto, podés seguir usando el mapa, las tareas sugeridas y los casos.
+                {dashboardErrorMessage}. Mantenemos accesibles mapa de calor, cola IA, acciones y reclamos para no cortar la operacion.
               </p>
             </div>
           </div>
-          <Button type="button" size="sm" variant="outline" className="min-h-11 shrink-0" onClick={() => void dashboardQuery.refetch()}>
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void dashboardQuery.refetch()}>
             <RefreshCw className="h-4 w-4" />
             Refrescar resumen
           </Button>
@@ -1074,14 +1016,8 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
       {canRenderDashboard === false ? (
         <ViewState
           status="partial"
-          title="No hay datos para completar esta vista"
+          title="Datos operativos no disponibles"
           description="No hay datos suficientes para dibujar esta vista en el periodo seleccionado."
-          action={(
-            <Button type="button" variant="outline" className="min-h-11" onClick={liveRefresh.refreshNow}>
-              <RefreshCw className="h-4 w-4" />
-              Actualizar datos
-            </Button>
-          )}
           className="min-h-[140px]"
         />
       ) : null}
@@ -1107,7 +1043,7 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
           <div id="operations-actions">
           <ActionCenterPanel
             items={actions}
-            summary={actionSummary}
+            summary={actionCenter?.summary}
             loading={actionCenterQuery.isLoading}
             error={actionCenterQuery.error}
             refetch={() => void refetchActionCenter()}
@@ -1115,7 +1051,6 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
           </div>
           <AIOpsQueuePanel
             queue={aiOpsQueue}
-            showCommerce={showCommerce}
             loading={aiOpsQueueQuery.isLoading}
             error={aiOpsQueueQuery.error}
             refetch={() => void refetchAIOpsQueue()}
@@ -1126,13 +1061,13 @@ function ScopedOperationsDashboard({ tenantSlug, organizationKind, sessionScopeK
       </div>
 
       <EngagementPanel data={data} tenantSlug={tenantSlug} />
-      <KpiGrid data={data} heatmap={heatmapQuery.data} alertsCount={alerts.length} showCommerce={showCommerce} />
+      <KpiGrid data={data} heatmap={heatmapQuery.data} alertsCount={alerts.length} />
       <OperationsDisclosure label={resolveLabel(data, 'activity_details', 'Desgloses y equipo')}>
         <TrendsPanel data={data} />
         <div id="operations-tickets"><TicketBreakdowns data={data} /></div>
         <div id="operations-team"><EmployeePanel data={data} /></div>
       </OperationsDisclosure>
-      <OperationsDisclosure label="Datos para soporte">
+      <OperationsDisclosure label={resolveLabel(data, 'ai_provider_details', 'Configuración e integraciones IA')}>
           <AIProviderStatusPanel
             status={aiProviderStatus}
             loading={aiProviderStatusQuery.isLoading}
@@ -1212,23 +1147,23 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
     {
       key: 'open',
       linkKey: 'open',
-      label: 'Casos abiertos',
+      label: 'Backlog abierto',
       value: openTotal,
-      detail: 'Casos que siguen esperando una resolución.',
+      detail: 'Casos abiertos elegibles al corte; fechas futuras quedan en cuarentena.',
       href: links.open,
     },
     {
       key: 'breached',
       linkKey: 'sla_breached',
-      label: 'Plazo vencido',
+      label: 'SLA vencido',
       value: breached,
-      detail: `${breached}/${known} casos con plazo informado`,
+      detail: `${breached}/${known} casos con SLA conocido`,
       href: links.sla_breached,
     },
     {
       key: 'risk',
       linkKey: 'sla_at_risk',
-      label: 'Plazo por vencer',
+      label: 'SLA en riesgo',
       value: atRisk,
       detail: atRiskWindowHours === undefined
         ? 'Ventana preventiva no informada'
@@ -1251,31 +1186,33 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle className="text-lg">Casos que necesitan seguimiento</CardTitle>
+              <CardTitle className="text-lg">Cola operativa actual</CardTitle>
+              <Badge variant="outline">corte operativo</Badge>
               <Badge variant="secondary">{asOfLabel}</Badge>
             </div>
             <CardDescription className="mt-1">
-              Mirá qué casos siguen abiertos, cuáles están fuera de plazo y quiénes necesitan responsable.
+              Stock vigente separado del flujo creado durante el período seleccionado.
             </CardDescription>
           </div>
           <Badge variant={unknown > 0 ? 'secondary' : 'outline'}>
-            Plazo informado {known}/{eligible}
+            SLA conocido {known}/{eligible}
           </Badge>
         </div>
         {unknown > 0 ? (
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
-              {formatNumber(unknown)} casos no informan un plazo verificable. Revisalos antes de asumir que están al día.
+              {formatNumber(unknown)} casos no tienen evidencia SLA verificable. Se muestran como desconocidos y no como saludables.
             </p>
           </div>
         ) : null}
-        {futureCreatedAtExcluded > 0 || nullCreatedAtIncluded > 0 || linkNotice ? (
-          <details className="rounded-lg border bg-background/70 px-3 py-1 text-sm">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Datos para soporte
-            </summary>
-            <div className="space-y-2 border-t py-3 text-muted-foreground">
+        {futureCreatedAtExcluded > 0 || nullCreatedAtIncluded > 0 ? (
+          <div
+            role="note"
+            className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1">
               {futureCreatedAtExcluded > 0 ? (
                 <p>
                   {formatNumber(futureCreatedAtExcluded)} {futureCreatedAtExcluded === 1 ? 'caso' : 'casos'} con fecha futura
@@ -1289,44 +1226,40 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
                   {nullCreatedAtIncluded === 1 ? ' sigue visible' : ' siguen visibles'} con antiguedad desconocida.
                 </p>
               ) : null}
-              {linkNotice ? <p>{linkNotice}</p> : null}
             </div>
-          </details>
+          </div>
+        ) : null}
+        {linkNotice ? (
+          <div
+            role="note"
+            className="flex items-start gap-2 rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-sm text-muted-foreground"
+          >
+            <Route className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{linkNotice}</p>
+          </div>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-4 pt-5">
-        {openTotal || breached || atRisk || unassigned ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {cards.map((card) => {
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => {
             const exactHref = card.href && isExactQueueLink(card.linkKey) ? card.href : undefined;
             const body = (
               <div className={cn(
                 'rounded-lg border bg-background p-3',
                 exactHref && 'transition-colors hover:border-primary/30',
               )}>
-                <p className="text-sm font-semibold text-muted-foreground">{card.label}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{card.label}</p>
                 <p className="mt-1 text-2xl font-semibold">{formatNumber(card.value)}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.detail}</p>
               </div>
             );
             return exactHref ? <Link key={card.key} to={exactHref}>{body}</Link> : <div key={card.key}>{body}</div>;
-            })}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed p-4 text-sm">
-            <p className="font-medium">No hay casos abiertos que necesiten seguimiento.</p>
-            <p className="mt-1 text-muted-foreground">Podés consultar el historial completo cuando lo necesites.</p>
-            {links.open && isExactQueueLink('open') ? (
-              <Link to={links.open} className="mt-3 inline-flex min-h-11 items-center rounded-md border px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                Ver todos los casos
-              </Link>
-            ) : null}
-          </div>
-        )}
+          })}
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.35fr)]">
           <div>
-            <p className="text-sm font-semibold">Hace cuánto están abiertos</p>
+            <p className="text-sm font-semibold">Antigüedad del backlog</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {ageBuckets.map((bucket, index) => {
                 const href = asString(bucket.href);
@@ -1351,7 +1284,7 @@ function QueueTruthPanel({ data }: { data: OperationsDashboardV1 }) {
             <p className="mt-1 text-muted-foreground">
               {formatNumber(periodFlow.created_total)} creados · {formatNumber(periodFlow.currently_open)} siguen abiertos.
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">Este dato no cambia la cantidad de casos abiertos actuales.</p>
+            <p className="mt-1 text-xs text-muted-foreground">No se mezcla con el backlog actual.</p>
           </div>
         </div>
       </CardContent>
@@ -1432,33 +1365,33 @@ function OperationsCommandCockpit({
   const aiSummary = aiOpsQueue?.summary ?? {};
   const aiTotal = readNumber(aiSummary.total) ?? aiOpsQueue?.items?.length ?? 0;
   const aiHigh = readNumber(aiSummary.high) ?? 0;
-  const dataStatus = freshness?.status ? statusLabel(freshness.status) : 'datos recibidos';
+  const dataStatus = freshness?.status ? statusLabel(freshness.status) : 'datos operativos';
   const canMapRender = canRenderHeatmap !== false;
   const ticketDetail = queueSnapshot
     ? slaUnknown
-      ? `${formatNumber(overdueTickets ?? 0)} fuera de plazo · ${formatNumber(slaUnknown)} sin plazo verificable`
+      ? `${formatNumber(overdueTickets ?? 0)} vencidos confirmados · ${formatNumber(slaUnknown)} sin SLA verificable`
       : slaKnown !== undefined
-        ? `${formatNumber(overdueTickets ?? 0)}/${formatNumber(slaKnown)} fuera de plazo entre los casos con plazo informado`
-        : 'No se informó cuántos casos tienen plazo'
+        ? `${formatNumber(overdueTickets ?? 0)}/${formatNumber(slaKnown)} vencidos con SLA conocido`
+        : 'Cobertura SLA no informada'
     : overdueTickets
       ? `${formatNumber(overdueTickets)} vencidos o en riesgo`
-      : 'Todavía no se informó el estado de los plazos';
+      : 'Cobertura SLA de backlog no publicada';
 
   const cards = [
     {
       key: 'tickets',
-      eyebrow: 'Resolución de casos',
-      title: resolveLabel(data, 'open_tickets', 'Casos abiertos'),
+      eyebrow: 'Resolucion',
+      title: resolveLabel(data, 'open_tickets', 'Reclamos abiertos'),
       value: formatNumber(openTickets),
       detail: ticketDetail,
       icon: Ticket,
       tone: !queueSnapshot || overdueTickets || slaUnknown ? 'warning' : 'success',
       href: ticketsHref,
-      action: 'Abrir casos',
+      action: 'Abrir bandeja de reclamos',
     },
     {
       key: 'commerce',
-      eyebrow: 'Pedidos',
+      eyebrow: 'Marketplace',
       title: resolveLabel(data, 'assisted_orders', 'Pedidos asistidos'),
       value: formatNumber(assistedOrders),
       detail: ordersNeedingReview
@@ -1475,8 +1408,8 @@ function OperationsCommandCockpit({
       title: 'Mapa de calor',
       value: coveragePercent !== undefined ? `${formatNumber(coveragePercent, '%')}` : formatNumber(mapPoints),
       detail: canMapRender
-        ? `${formatNumber(mapPoints)} puntos visibles · ${formatNumber(pendingGeocode)} sin ubicar en el mapa`
-        : 'No hay ubicaciones suficientes para mostrar el mapa',
+        ? `${formatNumber(mapPoints)} puntos visibles · ${formatNumber(pendingGeocode)} por geocodificar`
+        : 'Backend marcó el mapa como no renderizable',
       icon: MapPin,
       tone: canMapRender ? 'default' : 'warning',
       href: '#operations-heatmap',
@@ -1484,18 +1417,18 @@ function OperationsCommandCockpit({
     },
     {
       key: 'ai',
-      eyebrow: 'Sugerencias automáticas',
-      title: aiOpsQueue?.agent_display_name || 'Casos sugeridos para revisar',
+      eyebrow: 'IA operativa',
+      title: aiOpsQueue?.agent_display_name || 'Cola IA',
       value: formatNumber(aiTotal),
-      detail: aiHigh ? `${formatNumber(aiHigh)} con prioridad alta` : 'No hay sugerencias urgentes',
+      detail: aiHigh ? `${formatNumber(aiHigh)} prioridad alta · solo lectura` : 'Priorizacion sin mutar estados',
       icon: Sparkles,
       tone: aiHigh ? 'warning' : 'success',
       href: '#operations-ai-queue',
-      action: 'Revisar sugerencias',
+      action: 'Revisar cola IA',
     },
     {
       key: 'surveys',
-      eyebrow: 'Participación',
+      eyebrow: 'Participacion',
       title: 'Encuestas y votos',
       value: formatNumber(surveyResponses),
       detail: acceptingSurveys === undefined
@@ -1512,14 +1445,14 @@ function OperationsCommandCockpit({
   return (
     <div
       data-testid="operations-command-cockpit"
-      className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+      className="overflow-hidden rounded-2xl border border-primary/15 bg-[linear-gradient(135deg,hsl(var(--card)),hsl(var(--card)),hsl(var(--primary)/0.08))] shadow-sm"
     >
       <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">{resolveLabel(data, 'cockpit_title', 'Resumen de la organización')}</p>
-          <h3 className="mt-1 text-xl font-semibold tracking-tight">{resolveLabel(data, 'cockpit_headline', 'Qué necesita atención ahora')}</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{resolveLabel(data, 'cockpit_title', 'Cabina de mando')}</p>
+          <h3 className="mt-1 text-xl font-semibold tracking-tight">{resolveLabel(data, 'cockpit_headline', 'Vista ejecutiva para operar ahora')}</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Cada bloque explica qué está pasando y abre la pantalla donde podés resolverlo.
+            Reclamos, mapa, IA y participación unidos en una sola lectura. Cada bloque abre el módulo donde se resuelve.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1548,16 +1481,16 @@ function OperationsCommandCockpit({
                 {!card.href ? (
                   <span className="text-xs text-muted-foreground">Acceso no habilitado</span>
                 ) : card.href.startsWith('#') ? (
-                  <a href={card.href} className="inline-flex min-h-11 items-center rounded-sm py-1 text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <a href={card.href} className="inline-flex min-h-[32px] items-center rounded-sm py-1 text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     {card.action}
                   </a>
                 ) : (
-                  <Link to={card.href} className="inline-flex min-h-11 items-center rounded-sm py-1 text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <Link to={card.href} className="inline-flex min-h-[32px] items-center rounded-sm py-1 text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     {card.action}
                   </Link>
                 )}
               </div>
-              <p className="mt-4 text-sm font-medium text-muted-foreground">{card.eyebrow}</p>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{card.eyebrow}</p>
               <p className="mt-1 text-sm font-semibold text-foreground">{card.title}</p>
               <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-foreground">{card.value}</p>
               <p className="mt-1 min-h-[2.25rem] text-sm leading-5 text-muted-foreground">{card.detail}</p>
@@ -1565,11 +1498,11 @@ function OperationsCommandCockpit({
           );
         })}
       </div>
-      {organizationKind !== 'pyme' && Boolean(ordersHref) && hasCommerceActivity(data) ? (
+      {organizationKind !== 'pyme' && hasCommerceActivity(data) ? (
         <div className="border-t border-border/60 p-3">
           <OperationsDisclosure label={resolveLabel(data, 'commerce_secondary_title', 'Actividad adicional')}>
             {ordersHref ? (
-              <Button asChild variant="outline" size="sm" className="min-h-11">
+              <Button asChild variant="outline" size="sm">
                 <Link to={ordersHref}>{resolveLabel(data, 'open_assisted_orders', 'Abrir pedidos asistidos')}</Link>
               </Button>
             ) : null}
@@ -1583,7 +1516,7 @@ function OperationsCommandCockpit({
 
 const aiOpsSourceLabel = (source?: string) => {
   const normalized = (source || '').toLowerCase();
-  if (normalized === 'ticket') return 'Caso';
+  if (normalized === 'ticket') return 'Reclamo';
   if (normalized === 'order') return 'Pedido';
   if (normalized === 'survey') return 'Encuesta';
   return source || 'Operación';
@@ -1592,7 +1525,7 @@ const aiOpsSourceLabel = (source?: string) => {
 const aiOpsReasonLabel = (reason: string) =>
   reason
     .replace(/_/g, ' ')
-    .replace(/\bsla\b/i, 'plazo')
+    .replace(/\bsla\b/i, 'SLA')
     .replace(/\bia\b/i, 'IA');
 
 const providerLabel = (provider?: string) => {
@@ -1618,7 +1551,7 @@ const providerRuntimeLabel = (provider: OperationsAIProviderStatusItem) => {
 
 const providerReadinessLabel = (status: string) => {
   if (status === 'ready') return 'configuración disponible';
-  if (status === 'warning') return 'revisar la configuración';
+  if (status === 'warning') return 'revisión operativa';
   if (status === 'blocked') return 'bloqueado';
   if (status === 'loading') return 'leyendo configuración';
   return 'estado no verificado';
@@ -1717,14 +1650,14 @@ function OpenAISuiteReadinessPanel({
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg border border-border/70 bg-background/75 p-3">
-          <p className="text-sm font-semibold text-muted-foreground">Credencial</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Credencial</p>
           <p className="mt-1 text-sm font-semibold text-foreground">
             {suite.key_configured ? 'Configurada' : 'No configurada'}
           </p>
           <code className="mt-1 block text-[11px] text-muted-foreground">OPENAI_API_KEY</code>
         </div>
         <div className="rounded-lg border border-border/70 bg-background/75 p-3">
-          <p className="text-sm font-semibold text-muted-foreground">Evidencia del proveedor</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Evidencia del proveedor</p>
           <p className="mt-1 text-sm font-semibold text-foreground">
             {providerVerified ? 'Conectividad verificada' : 'Sin verificación fechada'}
           </p>
@@ -1807,6 +1740,8 @@ function AIProviderStatusPanel({
       className="overflow-hidden border-border/80 bg-card shadow-sm"
       style={{
         borderColor: 'color-mix(in srgb, var(--brand-accent-3, #06b6d4) 26%, hsl(var(--border)))',
+        backgroundImage:
+          'linear-gradient(135deg, hsl(var(--card)) 0%, color-mix(in srgb, var(--brand-accent-3, #06b6d4) 7%, hsl(var(--card))) 100%)',
       }}
     >
       <CardHeader className="space-y-3">
@@ -1817,10 +1752,10 @@ function AIProviderStatusPanel({
               IA operacional
             </CardTitle>
             <CardDescription>
-              Información para soporte sobre los servicios automáticos del panel.
+              Estado seguro de proveedores para analytics, mapas, reclamos y automatizacion.
             </CardDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} aria-label={status?.frontend_contract?.labels?.refresh_ai_providers || 'Actualizar integraciones IA'} className="min-h-11 min-w-11 shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={refetch} disabled={loading} aria-label={status?.frontend_contract?.labels?.refresh_ai_providers || 'Actualizar integraciones IA'} className="h-8 shrink-0">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
@@ -1848,7 +1783,7 @@ function AIProviderStatusPanel({
       <CardContent className="space-y-3">
         {error ? (
           <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
-            No pudimos leer el estado de los servicios automáticos. El panel sigue disponible con la información recibida.
+            No pudimos leer el estado de proveedores. El tablero sigue operando con datos y fallback seguro.
           </div>
         ) : null}
 
@@ -1867,21 +1802,21 @@ function AIProviderStatusPanel({
               />
             ) : (
               <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100">
-                El servicio todavía no informa una verificación por modalidad. Estado no verificado.
+                El backend todavía no publica readiness por modalidad para OpenAI. Estado no verificado.
               </div>
             )}
 
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                <p className="text-sm font-semibold text-muted-foreground">Proveedor</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Proveedor</p>
                 <p className="mt-1 text-sm font-semibold text-foreground">{providerLabel(primaryProvider || selectedProvider || status.llm_provider_order[0])}</p>
               </div>
               <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                <p className="text-sm font-semibold text-muted-foreground">Modo</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modo</p>
                 <p className="mt-1 text-sm font-semibold text-foreground">{providerLabel(selectedProvider) || statusText}</p>
               </div>
               <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                <p className="text-sm font-semibold text-muted-foreground">Configurados</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Configurados</p>
                 <p className="mt-1 text-sm font-semibold text-foreground">{configuredProviders} proveedores</p>
               </div>
             </div>
@@ -1969,7 +1904,7 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
     sourceModels.length > 0;
 
   return (
-    <Card id="operations-commerce" data-testid="operations-commerce" className="overflow-hidden border-border">
+    <Card id="operations-commerce" data-testid="operations-commerce" className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-emerald-500/5">
       <CardHeader className="space-y-3">
         <div className="flex flex-col gap-3">
           <div className="min-w-0">
@@ -1988,29 +1923,29 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
               </Badge>
             ) : null}
             <Badge variant={reviewCount ? 'secondary' : 'outline'}>
-              {reviewCount ? `${formatNumber(reviewCount)} a revisar` : 'sin pedidos urgentes'}
+              {reviewCount ? `${formatNumber(reviewCount)} a revisar` : 'sin cola critica'}
             </Badge>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
-            <p className="text-sm font-semibold text-muted-foreground">Pedidos</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Pedidos</p>
             <p className="mt-1 text-lg font-semibold">{formatNumber(totalOrders)}</p>
             <p className="text-[11px] text-muted-foreground">{formatNumber(sourceRecords)} registros fuente</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
-            <p className="text-sm font-semibold text-muted-foreground">Ventas</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ventas</p>
             <p className="mt-1 text-lg font-semibold">
               {currencyCount > 1 ? `${formatNumber(currencyCount)} monedas` : formatCurrency(totalMonetary, currency)}
             </p>
             <p className="text-[11px] text-muted-foreground">importe del periodo</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
-            <p className="text-sm font-semibold text-muted-foreground">Asistidos</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Asistidos</p>
             <p className="mt-1 text-lg font-semibold">{formatNumber(assistedOrders)}</p>
           </div>
           <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-2">
-            <p className="text-sm font-semibold text-muted-foreground">A revisar</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">A revisar</p>
             <p className="mt-1 text-lg font-semibold">{formatNumber(reviewCount)}</p>
             <p className="text-[11px] text-muted-foreground">{formatNumber(unmatchedItems)} items sin resolver</p>
           </div>
@@ -2023,7 +1958,6 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
               Los pedidos de WhatsApp, widget, marketplace e integraciones aparecen aca con estado, origen y trazabilidad.
             </p>
-            <Button asChild variant="outline" className="mt-3 min-h-11"><Link to="/pedidos">Ir a pedidos</Link></Button>
           </div>
         ) : null}
 
@@ -2031,7 +1965,7 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
           <div className="space-y-2">
             {reviewItems.slice(0, 4).map((item, index) => {
               const href = asString(item.frontend_path) ?? asString(item.href) ?? asString(item.route);
-              const title = clearPanelText(asString(item.title) ?? asString(item.label) ?? `Pedido asistido ${index + 1}`);
+              const title = asString(item.title) ?? asString(item.label) ?? `Pedido asistido ${index + 1}`;
               return (
                 <div key={item.id || title} className="rounded-lg border border-border/70 bg-background/70 p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -2046,13 +1980,15 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
                       </p>
                     </div>
                     {href ? (
-                      <Button asChild size="sm" variant="secondary" className="min-h-11 shrink-0 px-3">
+                      <Button asChild size="sm" variant="secondary" className="h-8 shrink-0 px-3">
                         {isExternalHref(href) ? (
                           <a href={href} target="_blank" rel="noreferrer">
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                             Revisar
                           </a>
                         ) : (
                           <Link to={href}>
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                             Revisar
                           </Link>
                         )}
@@ -2068,7 +2004,7 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
         {origins.length || requestKinds.length || sourceModels.length ? (
           <div className="grid gap-2 text-xs">
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <p className="font-semibold text-muted-foreground">Origen</p>
+              <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Origen</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {origins.slice(0, 4).map((item, index) => (
                   <Badge key={bucketItemKey(item, index)} variant="outline">
@@ -2078,7 +2014,7 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
               </div>
             </div>
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <p className="font-semibold text-muted-foreground">Tipo</p>
+              <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Tipo</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {requestKinds.slice(0, 4).map((item, index) => (
                   <Badge key={bucketItemKey(item, index)} variant="outline">
@@ -2088,7 +2024,7 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
               </div>
             </div>
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <p className="font-semibold text-muted-foreground">Fuentes</p>
+              <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Fuentes</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {sourceModels.slice(0, 4).map((item, index) => (
                   <Badge key={bucketItemKey(item, index)} variant="outline">
@@ -2102,7 +2038,7 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
 
         {currencyTotals.length > 1 ? (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-background/70 p-3 text-xs">
-            <span className="font-semibold text-muted-foreground">Ventas por moneda</span>
+            <span className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ventas por moneda</span>
             {currencyTotals.slice(0, 4).map((item, index) => {
               const itemCurrency = asString(item.currency) ?? asString(item.key) ?? 'ARS';
               return (
@@ -2120,41 +2056,35 @@ function CommerceOpsPanel({ data }: { data: OperationsDashboardV1 }) {
 
 function AIOpsQueuePanel({
   queue,
-  showCommerce,
   loading,
   error,
   refetch,
 }: {
   queue?: OperationsAIOpsQueueV1;
-  showCommerce: boolean;
   loading?: boolean;
   error?: unknown;
   refetch: () => void;
 }) {
-  const items = (queue?.items ?? []).filter((item) => showCommerce || !isCommerceOperationItem(item));
+  const items = queue?.items ?? [];
   const summary = queue?.summary ?? {};
   const policy = queue?.advisory_policy ?? {};
   const enabled = queue?.enabled !== false;
-  const total = showCommerce ? (readNumber(summary.total) ?? items.length) : items.length;
-  const high = showCommerce
-    ? (readNumber(summary.high) ?? 0)
-    : items.filter((item) => ['high', 'critical'].includes((item.priority || '').toLowerCase())).length;
-  const agentName = queue?.agent_display_name || 'Servicio de priorización';
+  const total = readNumber(summary.total) ?? items.length;
+  const high = readNumber(summary.high) ?? 0;
+  const agentName = queue?.agent_display_name || 'Valeria IA-Analytics';
   const advisoryOnly = policy.advisory_only !== false && policy.mutates_operational_state !== true;
 
   return (
-    <Card id="operations-ai-queue" data-testid="operations-ai-queue" className="overflow-hidden border-border">
+    <Card id="operations-ai-queue" data-testid="operations-ai-queue" className="overflow-hidden border-primary/15 bg-gradient-to-br from-card via-card to-primary/5">
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-primary" />
-              Qué conviene revisar primero
+              Cola IA operativa
             </CardTitle>
             <CardDescription>
-              {showCommerce
-                ? 'Sugerencias de casos, pedidos o encuestas que pueden necesitar atención.'
-                : 'Sugerencias de casos o encuestas que pueden necesitar atención.'}
+              Priorizacion de reclamos, pedidos y encuestas para operar primero.
             </CardDescription>
           </div>
           <Button
@@ -2163,60 +2093,50 @@ function AIOpsQueuePanel({
             size="sm"
             onClick={refetch}
             disabled={loading}
-            aria-label="Actualizar sugerencias"
-            title="Actualizar sugerencias"
-            className="h-11 min-w-11 shrink-0"
+            aria-label="Actualizar cola IA operativa"
+            title="Actualizar cola IA operativa"
+            className="h-9 min-w-[36px] shrink-0"
           >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden="true" />
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant={enabled ? 'default' : 'outline'}>
-            {enabled ? `${formatNumber(total)} sugerencias` : 'Sugerencias no disponibles'}
+            {enabled ? `${formatNumber(total)} items` : 'feature apagado'}
           </Badge>
           {high ? <Badge variant="destructive">{formatNumber(high)} alta</Badge> : null}
-          {advisoryOnly ? <Badge variant="secondary">No cambia estados</Badge> : null}
+          {advisoryOnly ? <Badge variant="secondary">solo lectura</Badge> : null}
+          <Badge variant="outline">{agentName}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
           <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
-            No se pudieron cargar las sugerencias. El resto de la pantalla sigue disponible.
+            No se pudo cargar la cola IA. El tablero principal sigue disponible.
           </div>
         ) : null}
 
         {!enabled ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
-            <p className="text-sm font-semibold text-foreground">Las sugerencias automáticas no están disponibles</p>
+            <p className="text-sm font-semibold text-foreground">Listo para activar por flag</p>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              Actualizá para comprobar si el servicio ya está habilitado para esta organización.
+              El backend ya publica el contrato; cuando se habilite, esta bandeja muestra prioridades reales sin cambiar estados automáticamente.
             </p>
-            <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={refetch}>Actualizar sugerencias</Button>
           </div>
         ) : null}
 
         {enabled && !items.length && !error ? (
           <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-            <p className="text-sm font-semibold text-foreground">No hay tareas urgentes sugeridas</p>
+            <p className="text-sm font-semibold text-foreground">Sin trabajo crítico sugerido</p>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              {showCommerce
-                ? 'No hay casos, pedidos ni encuestas marcados para atención prioritaria en este periodo.'
-                : 'No hay casos ni encuestas marcados para atención prioritaria en este periodo.'}
+              No hay pedidos, reclamos o encuestas que requieran intervencion prioritaria en este periodo.
             </p>
-            <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={refetch}>Actualizar sugerencias</Button>
           </div>
         ) : null}
 
         {items.slice(0, 5).map((item) => (
           <AIOpsQueueItemCard key={item.id || `${item.source}-${item.record_id}`} item={item} />
         ))}
-        <details className="rounded-lg border px-3 py-1 text-sm">
-          <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-          <div className="border-t py-3 text-muted-foreground">
-            <p>Servicio: {agentName}</p>
-            <p>Modo: {advisoryOnly ? 'solo lectura' : 'puede proponer cambios'}</p>
-          </div>
-        </details>
       </CardContent>
     </Card>
   );
@@ -2224,7 +2144,7 @@ function AIOpsQueuePanel({
 
 function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
   const action = item.recommended_action;
-  const actionLabel = clearPanelText(action?.label || action?.title || '');
+  const actionLabel = action?.label || action?.title;
   const uiHref = aiOpsActionHref(item);
   const signals = item.signals ?? {};
   const reasonCodes = item.reason_codes ?? [];
@@ -2241,17 +2161,19 @@ function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
             <Badge variant={priorityVariant(item.priority)}>{priorityLabel(item.priority)}</Badge>
           </div>
           <p className="mt-2 text-sm font-semibold leading-5 text-foreground">
-            {clearPanelText(item.title || 'Este elemento necesita revisión')}
+            {item.title || 'Operación requiere revisión'}
           </p>
         </div>
         {actionLabel && uiHref ? (
-          <Button asChild size="sm" variant="secondary" className="min-h-11 shrink-0 px-3">
+          <Button asChild size="sm" variant="secondary" className="h-8 shrink-0 px-3">
             {isExternalHref(uiHref) ? (
               <a href={uiHref} target="_blank" rel="noreferrer">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                 {actionLabel}
               </a>
             ) : (
               <Link to={uiHref}>
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                 {actionLabel}
               </Link>
             )}
@@ -2262,12 +2184,24 @@ function AIOpsQueueItemCard({ item }: { item: OperationsAIOpsQueueItem }) {
           </Badge>
         ) : null}
       </div>
-      {reasonCodes.length || signalPairs.length ? (
-        <details className="mt-3 rounded-md border px-2 py-1 text-xs text-muted-foreground">
-          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-          {reasonCodes.length ? <p className="border-t pt-2">Motivos: {reasonCodes.slice(0, 4).map(aiOpsReasonLabel).join(', ')}</p> : null}
-          {signalPairs.length ? <dl className="mt-2 grid gap-1 sm:grid-cols-3">{signalPairs.map(([key, value]) => <div key={key}><dt>{aiOpsReasonLabel(key)}</dt><dd className="font-semibold text-foreground">{String(value)}</dd></div>)}</dl> : null}
-        </details>
+      {reasonCodes.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {reasonCodes.slice(0, 4).map((reason) => (
+            <span key={reason} className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {aiOpsReasonLabel(reason)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {signalPairs.length ? (
+        <dl className="mt-3 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground sm:grid-cols-3">
+          {signalPairs.map(([key, value]) => (
+            <div key={key} className="min-w-0 rounded-md bg-muted/40 px-2 py-1">
+              <dt className="truncate uppercase tracking-[0.12em]">{aiOpsReasonLabel(key)}</dt>
+              <dd className="truncate font-semibold text-foreground">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
     </div>
   );
@@ -2279,55 +2213,55 @@ function AIBriefBanner({ brief }: { brief: OperationsAIBriefV1 }) {
   const focusItems = brief.focus_items ?? [];
   const modelPolicy = brief.model_policy ?? {};
   const providerOrder = Array.isArray(modelPolicy.provider_order)
-    ? modelPolicy.provider_order.map((item) => String(item || '').trim()).filter(Boolean).join(', ')
+    ? modelPolicy.provider_order.map((item) => String(item || '').trim()).filter(Boolean).join(' -> ')
     : '';
   const primaryProvider = asString(modelPolicy.primary_provider);
   const hfMode = asString(brief.signals?.hf_mode);
   const hfConfigured = brief.signals?.hf_configured === true;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white shadow-sm">
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
         <div className="space-y-4 p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20 text-primary-foreground">
               <Brain className="h-5 w-5" />
             </span>
             <Badge variant={priorityVariant(severity)}>{priorityLabel(severity)}</Badge>
-            {brief.dominant_intent_label ? <Badge variant="outline">{brief.dominant_intent_label}</Badge> : null}
+            {brief.dominant_intent_label ? <Badge variant="outline" className="border-white/20 text-white">{brief.dominant_intent_label}</Badge> : null}
+            {brief.sentiment ? <Badge variant="outline" className="border-white/20 text-white">sentimiento {brief.sentiment}</Badge> : null}
           </div>
           <div>
-            <h3 className="text-xl font-semibold tracking-tight">{brief.headline || 'Resumen automático'}</h3>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              {brief.narrative || 'El sistema reunió casos, encuestas, WhatsApp, equipo y mapa para sugerir qué atender primero.'}
+            <h3 className="text-xl font-semibold tracking-tight">{brief.headline || 'Brief operativo IA'}</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-200">
+              {brief.narrative || 'El sistema consolido tickets, encuestas, WhatsApp, equipo y mapa para sugerir la proxima accion.'}
             </p>
           </div>
           {topAction ? (
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-sm font-semibold text-muted-foreground">Qué podés hacer</p>
-              <p className="mt-1 text-sm font-semibold">{topAction.title || topAction.id || 'Revisar acción recomendada'}</p>
-              {topAction.description ? <p className="mt-1 text-sm text-muted-foreground">{topAction.description}</p> : null}
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">Siguiente acción</p>
+              <p className="mt-1 text-sm font-semibold">{topAction.title || topAction.id || 'Revisar accion recomendada'}</p>
+              {topAction.description ? <p className="mt-1 text-sm text-slate-300">{topAction.description}</p> : null}
             </div>
           ) : null}
         </div>
-        <div className="border-t bg-muted/20 p-5 lg:border-l lg:border-t-0">
-          <p className="text-sm font-semibold">Temas para atender</p>
+        <div className="border-t border-white/10 bg-white/5 p-5 lg:border-l lg:border-t-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">Foco del momento</p>
           <div className="mt-3 grid gap-2">
             {focusItems.slice(0, 5).map((item, index) => (
-              <div key={item.id || item.key || item.label || index} className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
-                <span className="min-w-0 truncate text-sm">{item.label || item.title || item.key || 'Tema sugerido'}</span>
+              <div key={item.id || item.key || item.label || index} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
+                <span className="min-w-0 truncate text-sm">{item.label || item.title || item.key || 'Foco operativo'}</span>
                 <span className="shrink-0 text-sm font-semibold">{formatNumber(item.value ?? item.count ?? item.total)}</span>
               </div>
             ))}
           </div>
-          {primaryProvider || providerOrder || hfMode || hfConfigured || brief.sentiment ? <details className="operations-secondary-details mt-4 rounded-lg border bg-background px-3 py-1 text-xs text-muted-foreground">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
+          {primaryProvider || providerOrder || hfMode || hfConfigured ? <details className="operations-secondary-details mt-4 text-xs text-slate-300">
+            <summary className="cursor-pointer font-semibold">{brief.frontend_contract?.labels?.ai_technical_details || 'Detalles de la lectura IA'}</summary>
           <div className="mt-2 flex flex-wrap gap-2">
-            {brief.sentiment ? <span className="rounded-full border px-2 py-1">Lectura automática: {brief.sentiment}</span> : null}
-            {primaryProvider ? <span className="rounded-full border px-2 py-1">IA {primaryProvider}</span> : null}
-            {providerOrder ? <span className="rounded-full border px-2 py-1">{providerOrder}</span> : null}
-            {hfMode ? <span className="rounded-full border px-2 py-1">HF {hfMode}</span> : null}
-            {hfConfigured ? <span className="rounded-full border px-2 py-1">HF activo</span> : null}
+            {primaryProvider ? <span className="rounded-full border border-white/10 px-2 py-1">IA {primaryProvider}</span> : null}
+            {providerOrder ? <span className="rounded-full border border-white/10 px-2 py-1">{providerOrder}</span> : null}
+            {hfMode ? <span className="rounded-full border border-white/10 px-2 py-1">HF {hfMode}</span> : null}
+            {hfConfigured ? <span className="rounded-full border border-emerald-400/30 px-2 py-1 text-emerald-200">HF activo</span> : null}
           </div>
           </details> : null}
         </div>
@@ -2394,12 +2328,10 @@ function KpiGrid({
   data,
   heatmap,
   alertsCount,
-  showCommerce,
 }: {
   data: OperationsDashboardV1;
   heatmap?: OperationsHeatmapV1;
   alertsCount: number;
-  showCommerce: boolean;
 }) {
   const ticketsSummary = data.tickets?.summary ?? {};
   const surveysSummary = data.surveys?.summary ?? {};
@@ -2411,13 +2343,13 @@ function KpiGrid({
   const metrics = [
     {
       key: 'open_tickets',
-      label: resolveLabel(data, 'open_tickets', 'Casos abiertos'),
+      label: resolveLabel(data, 'open_tickets', 'Reclamos abiertos'),
       value: readNumber(data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos),
       icon: Ticket,
     },
     {
       key: 'overdue_tickets',
-      label: resolveLabel(data, 'overdue_tickets', 'Casos fuera de plazo'),
+      label: resolveLabel(data, 'overdue_tickets', 'Reclamos vencidos'),
       value: readNumber(data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos),
       icon: AlertTriangle,
     },
@@ -2469,11 +2401,11 @@ function KpiGrid({
       value: readNumber(data.summary.alerts, alertsCount),
       icon: AlertTriangle,
     },
-  ].filter((metric) => showCommerce || !['assisted_orders', 'orders_needing_review'].includes(metric.key));
+  ];
 
   return (
     <details className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-      <summary className="flex min-h-11 cursor-pointer items-center py-1 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
+      <summary className="flex min-h-[36px] cursor-pointer items-center py-1 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
         Ver indicadores detallados
       </summary>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -2485,7 +2417,7 @@ function KpiGrid({
         return (
           <Card key={metric.key} className="border-border/75 bg-card/95 shadow-sm transition-colors hover:border-primary/35">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
@@ -2567,10 +2499,10 @@ function TrendsPanel({ data }: { data: OperationsDashboardV1 }) {
 
 function TicketBreakdowns({ data }: { data: OperationsDashboardV1 }) {
   const groups = [
-    { key: 'by_status', title: resolveLabel(data, 'tickets_by_status', 'Casos por estado'), items: data.tickets?.by_status },
-    { key: 'by_channel', title: resolveLabel(data, 'tickets_by_channel', 'Casos por canal'), items: data.tickets?.by_channel },
-    { key: 'by_category', title: resolveLabel(data, 'tickets_by_category', 'Casos por categoría'), items: data.tickets?.by_category },
-    { key: 'by_priority', title: resolveLabel(data, 'tickets_by_priority', 'Casos por prioridad'), items: data.tickets?.by_priority },
+    { key: 'by_status', title: resolveLabel(data, 'tickets_by_status', 'Reclamos por estado'), items: data.tickets?.by_status },
+    { key: 'by_channel', title: resolveLabel(data, 'tickets_by_channel', 'Reclamos por canal'), items: data.tickets?.by_channel },
+    { key: 'by_category', title: resolveLabel(data, 'tickets_by_category', 'Reclamos por categoría'), items: data.tickets?.by_category },
+    { key: 'by_priority', title: resolveLabel(data, 'tickets_by_priority', 'Reclamos por prioridad'), items: data.tickets?.by_priority },
   ].filter((group) => hasItems(group.items));
 
   if (!groups.length) return null;
@@ -2716,18 +2648,18 @@ function SurveyLiveControlRoom({ data, tenantSlug }: { data: OperationsDashboard
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {publicUrl ? (
-                      <Button asChild size="sm" variant="outline" className="min-h-11">
-                        <a href={publicUrl}>Abrir encuesta pública</a>
+                      <Button asChild size="sm" variant="outline">
+                        <a href={publicUrl}>Abrir pública</a>
                       </Button>
                     ) : null}
                     {liveResults ? (
-                      <Button asChild size="sm" variant="outline" className="min-h-11">
-                        <a href={liveResults}>Ver resultados</a>
+                      <Button asChild size="sm" variant="outline">
+                        <a href={liveResults}>Resultados API</a>
                       </Button>
                     ) : null}
                     {adminUrl ? (
-                      <Button asChild size="sm" className="min-h-11">
-                        <a href={adminUrl}>Ver análisis</a>
+                      <Button asChild size="sm">
+                        <a href={adminUrl}>Analítica</a>
                       </Button>
                     ) : null}
                   </div>
@@ -2736,17 +2668,7 @@ function SurveyLiveControlRoom({ data, tenantSlug }: { data: OperationsDashboard
             })}
           </div>
         ) : (
-          <ViewState
-            status="empty"
-            title="Todavía no hay encuestas configuradas"
-            description="Prepará una encuesta para empezar a recibir respuestas en este período."
-            action={(
-              <Button asChild variant="outline" className="min-h-11">
-                <a href="/admin/encuestas">Preparar una encuesta</a>
-              </Button>
-            )}
-            className="min-h-[140px]"
-          />
+          <ViewState status="empty" description="No hay votaciones configuradas para este periodo." className="min-h-[140px]" />
         )}
 
         {channels.length || actions.length ? (
@@ -2754,7 +2676,7 @@ function SurveyLiveControlRoom({ data, tenantSlug }: { data: OperationsDashboard
             {channels.length ? <MiniList title="Canales de participación" items={channels} /> : null}
             {actions.length ? (
               <div className="rounded-lg border bg-background p-3">
-                <p className="text-sm font-medium">Qué podés hacer</p>
+                <p className="text-sm font-medium">Acciones operativas</p>
                 <div className="mt-3 space-y-2">
                   {actions.slice(0, 4).map((action, index) => (
                     <div key={action.id || action.title || index} className="flex items-start justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
@@ -2814,17 +2736,7 @@ function EngagementPanel({ data, tenantSlug }: { data: OperationsDashboardV1; te
                   <BreakdownRow key={item.id || item.key || index} item={item} />
                 ))
               ) : (
-                <ViewState
-                  status="empty"
-                  title="Todavía no hay actividad en los canales"
-                  description="Revisá las encuestas para confirmar qué canales están habilitados."
-                  action={(
-                    <Button asChild variant="outline" className="min-h-11">
-                      <a href="/admin/encuestas">Revisar encuestas</a>
-                    </Button>
-                  )}
-                  className="min-h-[120px]"
-                />
+                <ViewState status="empty" description="Sin actividad de canales para este periodo." className="min-h-[120px]" />
               )}
             </CardContent>
           </Card>
@@ -3210,14 +3122,7 @@ function OperationsHeatmapPanel({
     aiSummary.dominant_intent_label ?? aiSummary.dominant_intent,
     'consulta general',
   );
-  const rawAiSentiment = asString(aiSummary.sentiment)?.toLocaleLowerCase('es-AR');
-  const aiSentimentLabel = ['neutral', 'neutro', 'neutra', 'unknown', 'sin_dato'].includes(rawAiSentiment ?? '')
-    ? 'Sin una señal clara'
-    : ['positive', 'positivo', 'positiva'].includes(rawAiSentiment ?? '')
-      ? 'Comentario favorable'
-      : ['negative', 'negativo', 'negativa'].includes(rawAiSentiment ?? '')
-        ? 'Comentario que necesita atención'
-        : humanizeHeatmapToken(aiSummary.sentiment, 'Sin una señal clara');
+  const aiSentimentLabel = humanizeHeatmapToken(aiSummary.sentiment, 'neutral');
   const aiItemsAnalyzed = readNumber(aiCollection.items_analyzed, aiCollection.text_items_analyzed);
   const hasAiCockpit = Boolean(aiInsights || aiLayers || aiStatus || aiLayerHints.length || aiRecommendedActions.length);
   const aiMetricCards: Array<{
@@ -3245,9 +3150,7 @@ function OperationsHeatmapPanel({
       key: 'risk',
       label: 'Riesgo detectado',
       value: aiRiskLabel,
-      detail: aiSummary.requires_human_attention
-        ? 'El equipo tiene que revisar los casos señalados.'
-        : 'No hay alertas importantes señaladas.',
+      detail: aiSummary.requires_human_attention ? 'requiere revisión humana' : 'sin alerta crítica',
       icon: AlertTriangle,
     },
     {
@@ -3267,10 +3170,10 @@ function OperationsHeatmapPanel({
   const normalizedCoverageRate =
     rawCoverageRate !== undefined ? (rawCoverageRate <= 1 ? rawCoverageRate * 100 : rawCoverageRate) : undefined;
   const qualityState = asString(quality?.state) ?? asString(heatmap?.summary?.quality_state);
-  const qualityLabel = clearPanelText(
+  const qualityLabel =
     asString(quality?.label) ??
     (qualityState ? uiLabels[`quality_${qualityState}`] : undefined) ??
-    'Calidad pendiente');
+    'Calidad pendiente';
   const qualityReason = (quality?.reason_code ? uiLabels[`reason_${quality.reason_code}`] : undefined)
     ?? uiLabels.quality_reason_unavailable;
   const coveragePercent =
@@ -3303,13 +3206,13 @@ function OperationsHeatmapPanel({
   const geocodeDetail =
     recordsWithoutCoordinates !== undefined
       ? `${formatNumber(recordsWithoutCoordinates)} registros sin coordenadas`
-      : 'sin información disponible';
+      : 'sin cola publicada';
   const periodicReadsConfigured = Boolean(realtime?.poll_seconds && realtime.poll_seconds > 0);
   const realtimeDetail = uiLabels.realtime_poll_description ?? '';
   const mapEngines = mapExperience?.map_engines ?? [];
   const layerGroups = mapExperience?.layer_groups ?? [];
   const preferredVisualizationRaw = asString(mapExperience?.preferred_visualization);
-  const preferredVisualization = humanizeHeatmapToken(preferredVisualizationRaw, 'Mapa interactivo');
+  const preferredVisualization = humanizeHeatmapToken(preferredVisualizationRaw, 'Mapa operativo interactivo');
   const enabledLayerCount = layers.length ? enabledLayers.length : layerGroups.length;
   const mapStateCards: Array<{
     key: string;
@@ -3322,7 +3225,7 @@ function OperationsHeatmapPanel({
   }> = [
     {
       key: 'quality',
-      label: clearPanelText(uiLabels.map_quality || 'Calidad del mapa'),
+      label: uiLabels.map_quality || 'Calidad del mapa',
       value: qualityLabel,
       detail: qualityReason ?? '',
       icon: Gauge,
@@ -3331,21 +3234,21 @@ function OperationsHeatmapPanel({
     },
     {
       key: 'coverage',
-      label: clearPanelText(uiLabels.coverage || 'Cobertura GPS'),
+      label: uiLabels.coverage || 'Cobertura GPS',
       value: coveragePercent !== undefined ? `${formatNumber(coveragePercent, '%')}` : '--',
       detail: coverageDetail,
       icon: MapPin,
     },
     {
       key: 'geocode_queue',
-      label: clearPanelText(uiLabels.pending_geocode || 'Ubicaciones pendientes'),
+      label: uiLabels.pending_geocode || 'Pendientes de geocodificar',
       value: formatNumber(pendingGeocode),
       detail: geocodeDetail,
       icon: Route,
     },
     {
       key: 'realtime',
-      label: clearPanelText(uiLabels.realtime ?? ''),
+      label: uiLabels.realtime ?? '',
       value: realtime?.poll_seconds ? `${formatNumber(realtime.poll_seconds)}s` : '--',
       detail: realtimeDetail,
       icon: Radio,
@@ -3364,19 +3267,19 @@ function OperationsHeatmapPanel({
     categoryLayerItems[0]?.label ??
     aiIntentLabel;
   const mainAction = aiRecommendedActions[0];
-  const mainActionTitle = clearPanelText(
+  const mainActionTitle =
     asString(mainAction?.title) ??
     asString(mainAction?.label) ??
     asString(geocoding?.recommended_action?.title) ??
     asString(geocoding?.recommended_action?.label) ??
-    (pendingGeocode ? 'Validar ubicaciones pendientes' : 'Revisar la actividad'));
+    (pendingGeocode ? 'Validar ubicaciones pendientes' : 'Monitorear operaciones');
   const mainActionDetail =
     asString(mainAction?.description) ??
     (pendingGeocode
       ? `${formatNumber(pendingGeocode)} direcciones para mejorar el mapa`
       : aiSummary.requires_human_attention
-        ? 'El análisis sugiere que el equipo revise este tema.'
-        : 'No se informaron bloqueos importantes.');
+        ? 'requiere revision humana'
+        : 'sin bloqueo critico publicado');
   const territorialDecisionCards = [
     {
       key: 'territory_priority',
@@ -3384,20 +3287,20 @@ function OperationsHeatmapPanel({
       value: mainHotspotLabel,
       detail:
         mainHotspotValue !== undefined
-          ? `${formatNumber(mainHotspotValue)} registros asociados`
+          ? `${formatNumber(mainHotspotValue)} eventos o peso operativo`
           : `${formatNumber(filteredPoints.length)} puntos visibles`,
       icon: MapPin,
     },
     {
       key: 'territory_ai',
-      label: 'Análisis automático',
+      label: 'Lectura IA',
       value: aiRiskLabel,
       detail: `${aiIntentLabel} - ${aiSentimentLabel}`,
       icon: Brain,
     },
     {
       key: 'territory_action',
-      label: 'Qué hacer ahora',
+      label: 'Que hacer ahora',
       value: mainActionTitle,
       detail: mainActionDetail,
       icon: CheckCircle2,
@@ -3412,11 +3315,11 @@ function OperationsHeatmapPanel({
   const geocodingActionMethod = asString(geocodingAction?.method) ?? (geocodingActionEndpoint ? 'PATCH' : undefined);
   const openGeocodingAction = geocoding?.guidance?.recommended_actions?.find((action) => action.id === 'open_geocoding_queue');
   const openGeocodingHref = geocodingQueueHref(openGeocodingAction, tenantSlug, filters);
-  const openGeocodingLabel = asString(openGeocodingAction?.title) ?? asString(openGeocodingAction?.label) ?? 'Revisar casos sin ubicación';
+  const openGeocodingLabel = asString(openGeocodingAction?.title) ?? asString(openGeocodingAction?.label);
   const candidateCountLabel =
     geocodingCandidateCount === 1 ? '1 pendiente' : `${formatNumber(geocodingCandidateCount)} pendientes`;
   const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
-  const backendFiltersLabel = uiLabels.backend_filters || 'Filtros recibidos del servicio';
+  const backendFiltersLabel = uiLabels.backend_filters || 'Filtros aplicados por backend';
   const hasLayerSignals = Boolean(
     layers.length ||
       layerGroups.length ||
@@ -3436,9 +3339,9 @@ function OperationsHeatmapPanel({
   const usesDemoFallback = allowDemoFallback && !filteredPoints.length;
   const isEmpty = isFreshnessBlocked || renderState === 'empty' || (!filteredPoints.length && !allowDemoFallback);
   const emptyDescription = isFreshnessBlocked
-    ? 'No hay información suficiente para dibujar el mapa en este periodo.'
+    ? 'El backend marcó el heatmap como no renderizable para este periodo.'
     : pendingGeocode
-      ? `${formatNumber(pendingGeocode)} direcciones necesitan una ubicación antes de aparecer en el mapa.`
+      ? `${formatNumber(pendingGeocode)} direcciones pendientes de geocodificación antes de mejorar la cobertura.`
       : 'Todavía no hay coordenadas para las capas y filtros activos.';
   const tenantVertical = asString(heatmap?.tenant?.vertical ?? heatmap?.tenant?.tipo ?? heatmap?.tenant?.sector);
   const demoProfile =
@@ -3453,13 +3356,13 @@ function OperationsHeatmapPanel({
   if (loading && !heatmap) {
     return (
       <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden">
-        <ViewState status="loading" description="Cargando el mapa de la actividad." />
+        <ViewState status="loading" description="Cargando mapa operativo." />
       </Card>
     );
   }
 
   if (error && !heatmap) {
-    const errorMessage = getErrorMessage(error, 'No se pudo cargar el mapa de la actividad.');
+    const errorMessage = getErrorMessage(error, 'No se pudo cargar el mapa operativo.');
     const recoveryHeatmap: OperationsHeatmapV1 = {
       contract_version: 'operations.heatmap.recovery.v1',
       render_contract: {
@@ -3521,23 +3424,23 @@ function OperationsHeatmapPanel({
     };
     return (
       <Card id="operations-heatmap" data-testid="operations-heatmap" className="overflow-hidden border-amber-500/25">
-        <CardHeader className="border-b bg-muted/20">
+        <CardHeader className="border-b bg-[linear-gradient(135deg,rgba(245,158,11,0.12),hsl(var(--background)),hsl(var(--primary)/0.07))]">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <MapPin className="h-5 w-5" />
-                  Mapa de la actividad
+                  Centro territorial
                 </CardTitle>
                 <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200">
-                  Mapa no disponible
+                  mapa en recuperacion
                 </Badge>
               </div>
               <CardDescription className="mt-1">
-                El mapa no respondió. Podés reintentar sin perder el resto de la información.
+                No ocultamos el problema: el mapa no respondió, pero el operador conserva el diagnóstico y puede reintentar sin perder el panel.
               </CardDescription>
             </div>
-            <Button type="button" size="sm" variant="outline" className="min-h-11" onClick={refetch}>
+            <Button type="button" size="sm" variant="outline" onClick={refetch}>
               <RefreshCw className="h-4 w-4" />
               Reintentar mapa
             </Button>
@@ -3556,35 +3459,32 @@ function OperationsHeatmapPanel({
             </div>
           </div>
 
-          <details className="rounded-xl border bg-background px-3 py-1">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-          <div className="grid gap-3 border-t py-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border bg-background p-3 shadow-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 <DatabaseZap className="h-3.5 w-3.5 text-primary" />
-                Datos del mapa
+                Contrato
               </div>
-              <p className="mt-2 text-sm font-medium">Esperando información territorial</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">El resumen y las tareas siguen visibles mientras se recupera el mapa.</p>
+              <p className="mt-2 text-sm font-medium">Esperando heatmap operativo</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Dashboard, KPIs y acciones siguen visibles mientras se recupera la capa geo.</p>
             </div>
             <div className="rounded-xl border bg-background p-3 shadow-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 <Route className="h-3.5 w-3.5 text-primary" />
-                Ubicaciones
+                Geocoding
               </div>
               <p className="mt-2 text-sm font-medium">Sin cambios automáticos</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">No se muestran puntos hasta recibir coordenadas confiables.</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">No se inventan puntos ni zonas hasta que backend publique coordenadas confiables.</p>
             </div>
             <div className="rounded-xl border bg-background p-3 shadow-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 <Radio className="h-3.5 w-3.5 text-primary" />
-                Recuperación
+                Operación
               </div>
               <p className="mt-2 text-sm font-medium">Reintento manual disponible</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Podés actualizar sin abandonar los casos, las encuestas ni las tareas sugeridas.</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">El equipo puede refrescar sin abandonar reclamos, encuestas ni acciones recomendadas.</p>
             </div>
           </div>
-          </details>
           <PremiumTerritoryHeatmap
             points={[]}
             heatmap={recoveryHeatmap}
@@ -3610,13 +3510,13 @@ function OperationsHeatmapPanel({
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="h-5 w-5" />
-                Mapa de la actividad
+                Centro territorial
               </CardTitle>
               {renderState ? <Badge variant={statusVariant(renderState)}>{statusLabel(renderState)}</Badge> : null}
               {usesDemoFallback ? <Badge variant="outline">demo local</Badge> : null}
             </div>
             <CardDescription className="mt-1">
-              Mirá dónde se concentra la actividad y qué ubicaciones todavía faltan completar.
+              Mapa operativo con calor territorial, capas IA, cobertura GPS y calidad de geocodificación.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -3627,7 +3527,7 @@ function OperationsHeatmapPanel({
             <Badge variant="outline">
               {formatNumber(visiblePoints)} publicados / {formatNumber(filteredPoints.length)} visibles
             </Badge>
-            <Button type="button" size="sm" variant="outline" className="min-h-11" onClick={refetch}>
+            <Button type="button" size="sm" variant="outline" onClick={refetch}>
               <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
               Actualizar mapa
             </Button>
@@ -3646,7 +3546,7 @@ function OperationsHeatmapPanel({
                   </span>
                   {metric.badge ? <Badge variant={metric.badgeVariant ?? 'outline'}>{metric.badge}</Badge> : null}
                 </div>
-                <p className="mt-3 text-sm font-medium text-muted-foreground">{metric.label}</p>
+                <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
                 <p className="mt-1 text-lg font-semibold leading-tight">{metric.value}</p>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{metric.detail}</p>
               </div>
@@ -3656,13 +3556,14 @@ function OperationsHeatmapPanel({
 
         <div
           data-testid="territorial-decision-brief"
-          className="overflow-hidden rounded-xl border border-border bg-background shadow-sm"
+          className="overflow-hidden rounded-xl border border-primary/20 bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--primary)/0.08),hsl(var(--background)))] shadow-sm"
         >
           <div className="flex flex-col gap-2 border-b bg-background/55 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <h3 className="text-lg font-semibold tracking-tight">Dónde actuar, por qué y con qué prioridad</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Mesa territorial inteligente</p>
+              <h3 className="mt-1 text-lg font-semibold tracking-tight">Donde actuar, por que y con que prioridad</h3>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Resume las zonas con más actividad, las ubicaciones pendientes y los filtros elegidos.
+                Resume calor territorial, senales IA, geocodificacion y filtros para que el equipo no tenga que interpretar el mapa desde cero.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -3675,7 +3576,7 @@ function OperationsHeatmapPanel({
               const Icon = card.icon;
               return (
                 <div key={card.key} className="min-w-0 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
                     <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="truncate">{card.label}</span>
                   </div>
@@ -3688,12 +3589,13 @@ function OperationsHeatmapPanel({
         </div>
 
         {hasAiCockpit ? (
-          <OperationsDisclosure label="Datos para soporte">
+          <OperationsDisclosure label={uiLabels.ai_technical_details || 'Detalles de la lectura territorial IA'}>
           <div
             data-testid="territorial-ai-cockpit"
             className="overflow-hidden rounded-xl border border-primary/20 shadow-sm"
             style={{
-              backgroundImage: 'none',
+              backgroundImage:
+                'linear-gradient(135deg, color-mix(in srgb, var(--brand-accent-1, #2563eb) 9%, transparent), hsl(var(--background)), color-mix(in srgb, var(--brand-accent-4, #14b8a6) 8%, transparent))',
             }}
           >
             <div className="flex flex-col gap-3 border-b bg-background/45 p-4 lg:flex-row lg:items-start lg:justify-between">
@@ -3707,11 +3609,11 @@ function OperationsHeatmapPanel({
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-primary">Análisis territorial automático</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-primary">IA territorial</p>
                     <Badge variant={aiUsedHf ? 'default' : 'secondary'}>{aiUsedHf ? 'Hugging Face activo' : 'fallback local'}</Badge>
                     {aiAdvisoryOnly ? <Badge variant="outline">solo recomendaciones</Badge> : null}
                   </div>
-                  <h3 className="mt-1 text-lg font-semibold leading-tight">Lectura automática de casos, encuestas y WhatsApp</h3>
+                  <h3 className="mt-1 text-lg font-semibold leading-tight">Lectura automática de reclamos, encuestas y WhatsApp</h3>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
                     El CRM cruza intención, riesgo, participación y actividad conversacional para priorizar sin exponer claves ni cambiar estados automáticamente.
                   </p>
@@ -3729,7 +3631,7 @@ function OperationsHeatmapPanel({
                 const Icon = metric.icon;
                 return (
                   <div key={metric.key} className="min-w-0 p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
                       <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
                       <span className="truncate">{metric.label}</span>
                     </div>
@@ -3743,7 +3645,7 @@ function OperationsHeatmapPanel({
               <div className="grid gap-3 border-t bg-background/35 p-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
                 {aiLayerHints.length ? (
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-muted-foreground">Capas sugeridas</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Capas IA sugeridas</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {aiLayerHints.map((hint) => (
                         <Badge key={hint} variant="secondary" className="max-w-full truncate">
@@ -3755,7 +3657,7 @@ function OperationsHeatmapPanel({
                 ) : null}
                 {aiRecommendedActions.length ? (
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-muted-foreground">Siguiente acción sugerida</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Siguiente acción IA</p>
                     <div className="mt-2 grid gap-2 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                       {aiRecommendedActions.map((action, index) => (
                         <ActionItemRow key={action.id || action.reason_code || action.title || index} item={action} />
@@ -3773,13 +3675,13 @@ function OperationsHeatmapPanel({
           <div className="order-2 space-y-4 2xl:order-1">
             <div className="flex flex-col gap-2 rounded-xl border bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-semibold">Mapa y zonas con más actividad</p>
+                <p className="text-sm font-semibold">Mapa y hotspots</p>
                 <p className="text-xs text-muted-foreground">
                   {isEmpty
-                    ? 'No hay ubicaciones que coincidan con esta selección.'
+                    ? 'Sin puntos renderizables para las capas activas.'
                     : usesDemoFallback
-                      ? 'Vista local de desarrollo. La organización todavía no publicó ubicaciones.'
-                      : `${formatNumber(filteredPoints.length)} ubicaciones con los filtros elegidos.`}
+                      ? 'Vista demo local: el tenant real todavía no publicó puntos geográficos renderizables.'
+                      : `${formatNumber(filteredPoints.length)} puntos tras filtros y capas activas.`}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -3795,14 +3697,13 @@ function OperationsHeatmapPanel({
             {isEmpty ? (
               <ViewState
                 status="empty"
-                title="Todavía no hay ubicaciones para mostrar"
+                title="Mapa sin puntos operativos"
                 description={emptyDescription}
                 action={
-                  openGeocodingHref ? (
-                    <Button asChild variant="outline"><Link to={openGeocodingHref}>Completar ubicaciones de casos</Link></Button>
-                  ) : (
-                    <Button type="button" variant="outline" onClick={refetch}><RefreshCw className="h-4 w-4" />Actualizar mapa</Button>
-                  )
+                  <Button type="button" variant="outline" onClick={refetch}>
+                    <RefreshCw className="h-4 w-4" />
+                    Reintentar mapa
+                  </Button>
                 }
                 className="min-h-[360px] rounded-xl border bg-background"
               />
@@ -3860,10 +3761,10 @@ function OperationsHeatmapPanel({
                     <Layers className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{uiLabels.map_stack || 'Qué mostrar en el mapa'}</p>
+                    <p className="text-sm font-semibold">{uiLabels.map_stack || 'Capas y motor'}</p>
                     <p className="text-xs text-muted-foreground">
                       {uiLabels.map_stack_description ||
-                        'Elegí qué información querés comparar.'}
+                        'Activa calor territorial, riesgo IA, WhatsApp, encuestas y geocodificación.'}
                     </p>
                   </div>
                 </div>
@@ -3874,9 +3775,7 @@ function OperationsHeatmapPanel({
                 <>
                   <div className="mt-3 rounded-lg border bg-muted/20 p-3">
                     <p className="text-sm font-medium">{preferredVisualization}</p>
-                    <details className="mt-2 rounded-md border px-2 py-1 text-xs text-muted-foreground">
-                      <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-                    <div className="flex flex-wrap gap-1 border-t pt-2">
+                    <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
                       {mapEngines.length ? (
                         <span>Motor: {mapEngines.map((engine) => humanizeHeatmapToken(engine, 'motor')).join(', ')}</span>
                       ) : (
@@ -3884,12 +3783,11 @@ function OperationsHeatmapPanel({
                       )}
                       {mapExperience?.supports_reduced_motion ? <Badge variant="outline">motion seguro</Badge> : null}
                     </div>
-                    </details>
                   </div>
 
                   {layers.length ? (
                     <div className="mt-3 space-y-2">
-                      <p className="text-sm font-medium text-muted-foreground">Información visible</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capas renderizadas</p>
                       <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
                         {layers.map((layer) => {
                           const active = enabledLayers.includes(layer);
@@ -3900,7 +3798,7 @@ function OperationsHeatmapPanel({
                               size="sm"
                               variant={active ? 'default' : 'outline'}
                               aria-pressed={active}
-                              className="h-auto min-h-11 justify-start gap-2 px-3 py-2 text-left"
+                              className="h-auto justify-start gap-2 px-3 py-2 text-left"
                               onClick={() => {
                                 setEnabledLayers((current) =>
                                   current.includes(layer)
@@ -3923,7 +3821,7 @@ function OperationsHeatmapPanel({
 
                   {layerGroups.length ? (
                     <div className="mt-3 space-y-2">
-                      <p className="text-sm font-medium text-muted-foreground">Otra información disponible</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capas disponibles</p>
                       <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
                         {layerGroups.slice(0, 6).map((layer) => (
                           <div key={layer} className="rounded-lg border bg-muted/20 px-3 py-2">
@@ -3948,7 +3846,6 @@ function OperationsHeatmapPanel({
                               type="button"
                               size="sm"
                               variant={active ? 'default' : 'outline'}
-                              className="min-h-11"
                               onClick={() =>
                                 onFiltersChange((current) => {
                                   const next = { ...current };
@@ -3972,9 +3869,8 @@ function OperationsHeatmapPanel({
               ) : (
                 <ViewState
                   status="empty"
-                  title="No hay información adicional para mostrar"
-                  description="Actualizá el mapa para comprobar si hay nuevos datos disponibles."
-                  action={<Button type="button" variant="outline" onClick={refetch}>Actualizar mapa</Button>}
+                  title="Sin capas publicadas"
+                  description="El backend aún no publicó contrato de capas para este mapa."
                   className="mt-3 min-h-[130px]"
                 />
               )}
@@ -3987,7 +3883,7 @@ function OperationsHeatmapPanel({
                     <SlidersHorizontal className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{uiLabels.segment_filters || 'Filtrar el mapa'}</p>
+                    <p className="text-sm font-semibold">{uiLabels.segment_filters || 'Filtros operativos'}</p>
                     <p className="text-xs text-muted-foreground">
                       {uiLabels.segment_filters_description ||
                         'Cruza categoria, canal, estado y territorio sin perder el periodo activo.'}
@@ -3999,7 +3895,7 @@ function OperationsHeatmapPanel({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="min-h-11 shrink-0"
+                    className="shrink-0"
                     onClick={() => onFiltersChange((current) => keepHeatmapPeriodFilters(current))}
                   >
                     <X className="h-4 w-4" />
@@ -4029,7 +3925,7 @@ function OperationsHeatmapPanel({
                       return next;
                     });
                   }}
-                  className="h-11 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="historical">{uiLabels.period_historical || 'Histórico completo'}</option>
                   <option value="365">{uiLabels.period_365 || 'Últimos 365 días'}</option>
@@ -4066,7 +3962,7 @@ function OperationsHeatmapPanel({
                             return next;
                           });
                         }}
-                        className="h-11 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                       >
                         <option value="">{allLabel}</option>
                         {config.options.map((option) => (
@@ -4087,8 +3983,7 @@ function OperationsHeatmapPanel({
                 </div>
               ) : (
                 <div className="mt-3 rounded-lg border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground">
-                  <p>Los filtros aparecen cuando hay categorías o zonas disponibles.</p>
-                  <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={refetch}>Actualizar mapa</Button>
+                  Los filtros aparecen cuando el backend publica facets, segmentos o puntos con metadatos.
                 </div>
               )}
 
@@ -4102,7 +3997,7 @@ function OperationsHeatmapPanel({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="min-h-11 gap-1 px-2 text-xs"
+                    className="h-7 gap-1 px-2 text-xs"
                     aria-label={`Quitar filtro ${filter.label} ${filter.optionLabel}`}
                     onClick={() =>
                       onFiltersChange((current) => {
@@ -4119,12 +4014,9 @@ function OperationsHeatmapPanel({
                 ))}
               </div>
               {backendAppliedFilters.length ? (
-                <div className="mt-2 break-words text-[11px] text-muted-foreground">
-                  <details className="rounded-md border px-2 py-1">
-                    <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-                    <span className="block border-t pt-2">{backendFiltersLabel}: {backendAppliedFilters.map((filter) => `${filter.key}=${filter.value}`).join(', ')}</span>
-                  </details>
-                </div>
+                <p className="mt-2 break-words text-[11px] text-muted-foreground">
+                  {backendFiltersLabel}: {backendAppliedFilters.map((filter) => `${filter.key}=${filter.value}`).join(', ')}
+                </p>
               ) : null}
             </div>
 
@@ -4135,7 +4027,7 @@ function OperationsHeatmapPanel({
                     <DatabaseZap className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{clearPanelText(uiLabels.geocoding_queue || 'Ubicaciones pendientes')}</p>
+                    <p className="text-sm font-semibold">{uiLabels.geocoding_queue || 'Cola de geocodificación'}</p>
                     <p className="text-lg font-semibold">{candidateCountLabel}</p>
                   </div>
                 </div>
@@ -4143,10 +4035,10 @@ function OperationsHeatmapPanel({
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {geocodingCandidates.length
-                  ? uiLabels.geocoding_queue_description || 'Estos casos necesitan una ubicación antes de aparecer en el mapa.'
+                  ? uiLabels.geocoding_queue_description
                   : geocoding
-                    ? uiLabels.geocoding_queue_empty || 'No hay casos con ubicaciones pendientes.'
-                    : uiLabels.geocoding_queue_unavailable || 'Todavía no hay información sobre ubicaciones pendientes.'}
+                    ? uiLabels.geocoding_queue_empty
+                    : uiLabels.geocoding_queue_unavailable}
               </p>
 
               {geocodingCandidates.length ? (
@@ -4176,11 +4068,11 @@ function OperationsHeatmapPanel({
                     <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">
-                        {geocodingActionTitle ? clearPanelText(geocodingActionTitle) : 'Hay ubicaciones para completar'}
+                        {geocodingActionTitle || 'Acción de geocodificación disponible'}
                       </p>
-                      {geocodingActionEndpoint ? (
+                      {geocodingActionEndpoint && uiLabels.geocoding_technical_details ? (
                         <details className="mt-1 text-xs text-muted-foreground">
-                          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
+                          <summary className="cursor-pointer">{uiLabels.geocoding_technical_details}</summary>
                           <p className="mt-1 break-all font-mono text-[11px]">
                             {geocodingActionMethod ?? 'PATCH'} {geocodingActionEndpoint}
                           </p>
@@ -4192,7 +4084,7 @@ function OperationsHeatmapPanel({
               ) : null}
 
               {openGeocodingHref && openGeocodingLabel ? (
-                <Button asChild size="sm" variant="outline" className="mt-3 min-h-11 w-full justify-start">
+                <Button asChild size="sm" variant="outline" className="mt-3 w-full justify-start">
                   <Link to={openGeocodingHref}>
                     <Route className="h-4 w-4" />
                     {openGeocodingLabel}
@@ -4211,7 +4103,7 @@ function OperationsHeatmapPanel({
                     <p className="text-sm font-semibold">{uiLabels.demographics_title || 'Cobertura demografica'}</p>
                     <p className="text-xs text-muted-foreground">
                       {uiLabels.demographics_description ||
-                        'Solo se muestran los rangos informados; lo que falta aparece como sin dato.'}
+                        'Solo se muestran rangos publicados por backend; los valores unknown se tratan como sin dato.'}
                     </p>
                   </div>
                 </div>
@@ -4265,40 +4157,26 @@ function ActionCenterPanel({
             </CardTitle>
             <CardDescription>Prioridades para resolver ahora y equilibrar el trabajo.</CardDescription>
           </div>
-          <Button type="button" size="icon" variant="ghost" className="min-h-11 min-w-11" onClick={refetch} aria-label="Actualizar acciones">
+          <Button type="button" size="icon" variant="ghost" onClick={refetch} aria-label="Actualizar acciones">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {summary && Object.keys(summary).length ? (
-          <details className="rounded-lg border px-3 py-1 text-sm">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-            <div className="grid grid-cols-2 gap-2 border-t py-3 text-xs">
-              {Object.entries(summary).slice(0, 4).map(([key, value]) => (
-                <MetricMini key={key} label={key} value={formatNumber(value)} />
-              ))}
-            </div>
-          </details>
+        {summary ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {Object.entries(summary).slice(0, 4).map(([key, value]) => (
+              <MetricMini key={key} label={key} value={formatNumber(value)} />
+            ))}
+          </div>
         ) : null}
 
         {error && !items.length ? (
-          <ViewState
-            status="partial"
-            description={getErrorMessage(error, 'No se pudieron cargar las recomendaciones.')}
-            action={<Button type="button" variant="outline" className="min-h-11" onClick={refetch}>Reintentar</Button>}
-            className="min-h-[180px]"
-          />
+          <ViewState status="partial" description={getErrorMessage(error, 'No se pudieron cargar las recomendaciones.')} className="min-h-[180px]" />
         ) : null}
 
         {!loading && !items.length && !error ? (
-          <ViewState
-            status="empty"
-            title="Sin acciones pendientes"
-            description="No hay recomendaciones para este período. Actualizá para comprobar si aparecieron nuevas tareas."
-            action={<Button type="button" variant="outline" className="min-h-11" onClick={refetch}>Actualizar acciones</Button>}
-            className="min-h-[180px]"
-          />
+          <ViewState status="empty" title="Sin acciones pendientes" description="No hay recomendaciones para este periodo." className="min-h-[180px]" />
         ) : null}
 
         {items.slice(0, 8).map((item, index) => (

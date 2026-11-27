@@ -76,7 +76,7 @@ describe("InstitutionProfileWorkspace", () => {
       </InstitutionProfileWorkspace>,
     );
 
-    expect(screen.getByText("Solo podés consultar")).toBeInTheDocument();
+    expect(screen.getByText("Solo lectura operativa")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Nombre institucional" })).toBeDisabled();
     const sectionSelector = screen.getByRole("combobox", { name: "Sección del perfil institucional" });

@@ -36,7 +36,7 @@ function Application({ initial = '/admin/encuestas?tenant_slug=selected-workspac
 }
 const openMobile = () => fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 async function expectScopedReads(slug: string) {
-  await screen.findByText('Equipo y permisos');
+  await screen.findByText('Empleados, roles y permisos');
   await waitFor(() => expect(state.read).toHaveBeenCalledTimes(3));
   expect(state.read.mock.calls.every(([, options]) => options.tenantSlug === slug && (!options.method || options.method === 'GET') && options.persistTenantSlug === false && options.omitEntityToken === true && options.omitChatSessionId === true && typeof options.isCurrent === 'function')).toBe(true);
   expect(screen.queryByText('Organización del equipo no verificada')).not.toBeInTheDocument();

@@ -43,7 +43,7 @@ export function TicketBreakdownCard({ title, rows }: { title: string; rows: Tick
               {maximum > 0 && count !== undefined ? (
                 <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full rounded-full bg-primary motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary/60 motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
                     style={{ width: `${(count / maximum) * 100}%` }}
                   />
                 </div>
