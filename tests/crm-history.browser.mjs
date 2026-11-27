@@ -74,8 +74,8 @@ try{
    const bounds=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
    assert.ok(bounds.scroll<=bounds.width+1,'History workspace horizontal overflow');
    await page.getByRole('tab',{name:/Casos/}).click();
-   await expect(page.getByRole('region',{name:'Casos exactos del contacto'})).toBeVisible();
-   const axe=await new AxeBuilder({page}).include('[aria-label="Casos exactos del contacto"]').withTags(['wcag2a','wcag2aa']).analyze();
+   await expect(page.getByRole('region',{name:'Casos vinculados con la persona'})).toBeVisible();
+   const axe=await new AxeBuilder({page}).include('[aria-label="Casos vinculados con la persona"]').withTags(['wcag2a','wcag2aa']).analyze();
    await writeFile(`${folder}/cases-${width}-axe.json`,JSON.stringify(axe.violations,null,2));
    const serious=axe.violations.filter(issue=>['critical','serious'].includes(issue.impact));
    assert.deepEqual(serious.map(issue=>({id:issue.id,nodes:issue.nodes.map(node=>node.target)})),[]);

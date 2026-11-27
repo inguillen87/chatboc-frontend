@@ -50,39 +50,41 @@ const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantS
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Card className="bg-primary/5 border-primary/20">
+      {loading || insights.length ? <Card>
           <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-primary">
-                  <Zap className="h-5 w-5" /> Hallazgos Automáticos
+              <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" aria-hidden="true" /> Hallazgos para revisar
               </CardTitle>
-              <CardDescription>Hallazgos del servicio para la organización seleccionada.</CardDescription>
+              <CardDescription>Señales detectadas en la actividad de la organización seleccionada.</CardDescription>
           </CardHeader>
           <CardContent>
-              <ul className="space-y-4">
-                  {loading ? (
-                      <li className="text-sm text-muted-foreground">Analizando datos...</li>
-                  ) : insights.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No hay hallazgos disponibles para este alcance.</p>
-                  ) : (
-                      insights.map((insight, i) => (
+              {loading ? (
+                  <p className="text-sm text-muted-foreground" role="status">Revisando la actividad...</p>
+              ) : (
+                  <ul className="space-y-4">
+                      {insights.map((insight, i) => (
                           <li key={i} className="flex gap-3 items-start p-3 bg-card rounded-lg shadow-sm border">
-                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-bold text-xs ${insight.severity === 'high' ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'}`}>
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary" aria-hidden="true">
                                   {i + 1}
                               </span>
                               <div>
                                   <p className="text-sm font-medium">{insight.text}</p>
-                                  {insight.category && <span className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded mt-1 inline-block">{insight.category}</span>}
+                                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                    {insight.severity === 'high' ? <span className="font-medium text-destructive">Prioridad alta</span> : null}
+                                    {insight.category ? <span>{insight.category}</span> : null}
+                                  </div>
                               </div>
                           </li>
-                      ))
-                  )}
-              </ul>
+                      ))}
+                  </ul>
+              )}
           </CardContent>
-      </Card>
+      </Card> : null}
 
-      <Card>
+      <Card className={!loading && insights.length === 0 ? 'md:col-span-2' : undefined}>
           <CardHeader>
-              <CardTitle>Recomendaciones en tiempo real</CardTitle>
+              <CardTitle>Qué conviene revisar ahora</CardTitle>
+              <CardDescription>Acciones sugeridas a partir de los datos disponibles.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
               {recommendationsLoading ? (
@@ -94,9 +96,9 @@ const InsightsDashboard: React.FC<Props> = ({ tenantId, tenantProfileId, tenantS
                       ))}
                   </ul>
               ) : (
-                  <p className="text-sm text-muted-foreground">No hay recomendaciones disponibles para este alcance. Actualizá los datos para volver a consultar.</p>
+                  <p className="text-sm text-muted-foreground">Todavía no hay recomendaciones. Actualizá para volver a consultar la actividad disponible.</p>
               )}
-              {onRefreshRecommendations ? <Button variant="outline" size="sm" onClick={onRefreshRecommendations} disabled={recommendationsLoading}>Actualizar recomendaciones</Button> : null}
+              {onRefreshRecommendations ? <Button variant="outline" size="sm" className="min-h-11" onClick={onRefreshRecommendations} disabled={recommendationsLoading}>Actualizar recomendaciones</Button> : null}
           </CardContent>
       </Card>
     </div>

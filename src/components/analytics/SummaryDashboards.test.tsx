@@ -12,8 +12,8 @@ const data = (kpis: Partial<AnalyticsSummary['kpis']> = {}): AnalyticsSummary =>
 
 const card = (title: string) => screen.getByRole('heading', { name: title }).parentElement?.parentElement as HTMLElement;
 const views = [
-  { title: 'Reclamos Abiertos', Component: MunicipioDashboard, field: 'backlog_open', suffix: '' },
-  { title: 'SLA Vencido', Component: MunicipioDashboard, field: 'sla_breaches', suffix: '' },
+  { title: 'Reclamos abiertos', Component: MunicipioDashboard, field: 'backlog_open', suffix: '' },
+  { title: 'Plazo vencido', Component: MunicipioDashboard, field: 'sla_breaches', suffix: '' },
   { title: 'Conversión', Component: PymeDashboard, field: 'conversion_rate', suffix: '%' },
 ] as const;
 

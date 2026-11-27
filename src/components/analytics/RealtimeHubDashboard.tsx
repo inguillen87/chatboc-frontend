@@ -34,6 +34,23 @@ const toDisplayNumber = (value: unknown): string => {
   return new Intl.NumberFormat('es-AR').format(number);
 };
 
+const sentimentLabel = (value: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (['positive', 'positivo', 'positiva'].includes(normalized)) return 'Comentario favorable';
+  if (['negative', 'negativo', 'negativa'].includes(normalized)) return 'Comentario que necesita atención';
+  if (['neutral', 'neutro', 'neutra'].includes(normalized)) return 'Sin una señal clara';
+  return 'Otra lectura automática';
+};
+
+const segmentLabel = (value: string): string => ({
+  categoria: 'Categoría',
+  rango_edad: 'Edad',
+  sexo: 'Género',
+  barrio: 'Barrio',
+  distrito: 'Distrito',
+  canal: 'Canal',
+}[value] ?? value);
+
 const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
   const [selectedChannel, setSelectedChannel] = React.useState<string>('all');
   const [selectedSentiment, setSelectedSentiment] = React.useState<string>('all');
@@ -141,65 +158,81 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
 
   const surveyActions = Array.isArray(surveyOps?.recommended_actions) ? surveyOps.recommended_actions : [];
   const surveyIsLive = Boolean(surveyOps?.live_signal || surveyOps?.status === 'live');
+  const summaryMetrics = [
+    { label: labels.cards_events || 'Actividad registrada', value: totals.events },
+    { label: labels.cards_survey_responses || 'Respuestas de encuestas', value: totals.survey_responses },
+    { label: labels.cards_survey_comments || 'Comentarios en encuestas', value: totals.survey_comments },
+    { label: labels.cards_live_chat_comments || 'Comentarios en conversaciones', value: totals.live_chat_comments },
+  ];
+  const hasSummaryActivity = summaryMetrics.some((item) => (toFiniteNumber(item.value) ?? 0) > 0);
+  const hasCommentFilters = selectedChannel !== 'all' || selectedSentiment !== 'all' || Boolean(search.trim());
 
   return (
     <div className="space-y-4">
-      <Card className="overflow-hidden border-blue-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white shadow-lg shadow-blue-950/20">
+      <Card className="overflow-hidden">
         <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="min-w-0 space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-200 ring-1 ring-blue-300/30">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl border bg-muted text-primary">
                 <Radio className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-200/80">Centro operativo</p>
                 <h2 className="truncate text-xl font-semibold">{labels.survey_ops_title || 'Encuestas y votaciones en vivo'}</h2>
+                <p className="text-sm text-muted-foreground">Seguí la participación y abrí la tarea que necesita atención.</p>
               </div>
-              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${surveyIsLive ? 'bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/25' : 'bg-slate-700/60 text-slate-200 ring-1 ring-white/10'}`}>
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${surveyIsLive ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200' : 'text-muted-foreground'}`}>
                 <span className={`h-2 w-2 rounded-full ${surveyIsLive ? 'animate-pulse bg-emerald-300' : 'bg-slate-400'}`} />
-                {surveyIsLive ? 'Actividad en vivo' : 'Sin pulso activo'}
+                {surveyIsLive ? 'Hay actividad en vivo' : 'No hay actividad en vivo'}
               </span>
             </div>
-            <p className="max-w-3xl text-sm leading-6 text-slate-200">
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
               {surveyOps?.headline || labels.survey_ops_quiet || 'Sin actividad de encuestas en este periodo'}
             </p>
-            <div className="grid gap-2 sm:grid-cols-4">
+            {surveyIsLive || surveyActions.length ? <div className="grid gap-2 sm:grid-cols-4">
               {[
                 { label: 'Participaciones', value: surveyOps?.responses ?? totals.survey_responses, icon: Vote },
                 { label: 'Comentarios', value: surveyOps?.comments ?? totals.survey_comments, icon: MessageCircle },
-                { label: 'Eventos voto', value: surveyOps?.vote_events, icon: Activity },
-                { label: 'Engagement', value: surveyOps?.engagement, icon: BarChart3 },
+                { label: 'Votos registrados', value: surveyOps?.vote_events, icon: Activity },
+                { label: 'Interacciones', value: surveyOps?.engagement, icon: BarChart3 },
               ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-white/10 bg-white/10 p-3">
-                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-slate-300">
+                <div key={item.label} className="rounded-xl border p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>{item.label}</span>
-                    <item.icon className="h-4 w-4 text-blue-200" aria-hidden="true" />
+                    <item.icon className="h-4 w-4 text-primary" aria-hidden="true" />
                   </div>
                   <div className="text-2xl font-semibold">{toDisplayNumber(item.value)}</div>
                 </div>
               ))}
-            </div>
+            </div> : (
+              <div className="rounded-xl border border-dashed p-4 text-sm">
+                <p className="font-medium">Todavía no hay participación para mostrar.</p>
+                <p className="mt-1 text-muted-foreground">Publicá o revisá una encuesta para empezar a recibir respuestas.</p>
+                <a href="/admin/encuestas" className="mt-3 inline-flex min-h-11 items-center rounded-md border px-4 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  Ir a encuestas
+                </a>
+              </div>
+            )}
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+          <div className="rounded-xl border bg-muted/20 p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-slate-100">Acciones recomendadas</span>
-              <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-slate-300">
-                {surveyOps?.window_minutes || 30} min
-              </span>
+              <span className="text-sm font-semibold">Qué podés hacer ahora</span>
+              <span className="text-xs text-muted-foreground">Actividad de los últimos {surveyOps?.window_minutes || 30} min</span>
             </div>
             <div className="space-y-2">
               {surveyActions.length ? surveyActions.slice(0, 3).map((action) => (
                 <a
                   key={action.id || action.label}
                   href={action.href || action.route || '/admin/encuestas'}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:border-blue-300/40 hover:bg-blue-400/15"
+                  className="flex min-h-11 items-center rounded-lg border bg-background px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/40 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span>{action.label || 'Abrir encuestas'}</span>
-                  <span className="text-blue-200">Abrir</span>
                 </a>
               )) : (
-                <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-3 text-sm text-slate-300">
-                  {labels.survey_ops_quiet || 'Sin actividad de encuestas en este periodo'}
+                <div className="rounded-lg border border-dashed bg-background px-3 py-3 text-sm">
+                  <p>{labels.survey_ops_quiet || 'No hay una acción pendiente en este periodo.'}</p>
+                  <a href="/admin/encuestas" className="mt-3 inline-flex min-h-11 items-center rounded-md border px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    Revisar encuestas
+                  </a>
                 </div>
               )}
             </div>
@@ -208,101 +241,84 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
       </Card>
       <div className="grid gap-2 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-4">
         <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-          <SelectTrigger><SelectValue placeholder={labels.filters_channel || ''} /></SelectTrigger>
+          <SelectTrigger className="h-11"><SelectValue placeholder={labels.filters_channel || 'Canal'} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{labels.option_all || '—'}</SelectItem>
+            <SelectItem value="all">{labels.option_all || 'Todos los canales'}</SelectItem>
             {channels.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={selectedSentiment} onValueChange={setSelectedSentiment}>
-          <SelectTrigger><SelectValue placeholder={labels.filters_sentiment || ''} /></SelectTrigger>
+          <SelectTrigger className="h-11"><SelectValue placeholder={labels.filters_sentiment || 'Lectura de comentarios'} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{labels.option_all || '—'}</SelectItem>
-            {sentiments.map((sentimentValue) => <SelectItem key={sentimentValue} value={sentimentValue}>{sentimentValue}</SelectItem>)}
+            <SelectItem value="all">{labels.option_all || 'Todas las lecturas'}</SelectItem>
+            {sentiments.map((sentimentValue) => <SelectItem key={sentimentValue} value={sentimentValue}>{sentimentLabel(sentimentValue)}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={labels.filters_search || ''} className="md:col-span-2" />
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={labels.filters_search || 'Buscar en comentarios'} className="h-11 md:col-span-2" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_events || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.events || 0}</CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_survey_responses || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_responses || 0}</CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_survey_comments || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_comments || 0}</CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_live_chat_comments || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.live_chat_comments || 0}</CardContent></Card>
-      </div>
+      <Card>
+        <CardHeader><CardTitle>Actividad del periodo</CardTitle></CardHeader>
+        <CardContent>
+          {hasSummaryActivity ? (
+            <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {summaryMetrics.map((item) => (
+                <div key={item.label} className="border-l-2 border-primary/30 pl-3">
+                  <dt className="text-sm text-muted-foreground">{item.label}</dt>
+                  <dd className="mt-1 text-2xl font-semibold">{toDisplayNumber(item.value)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <div className="rounded-lg border border-dashed p-4 text-sm">
+              <p className="font-medium">Todavía no se registró actividad en este periodo.</p>
+              <a href="/admin/encuestas" className="mt-3 inline-flex min-h-11 items-center rounded-md border px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Revisar encuestas
+              </a>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>{labels.sections_top_channels || '—'}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_top_channels || 'Canales con actividad'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm min-w-0">
             {topChannels.length ? topChannels.map((item, idx) => (
               <div key={`ch_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.channel || '—'}</span>
                 <span className="font-medium">{item.count || 0}</span>
               </div>
-            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
+            )) : <div className="rounded-lg border border-dashed p-3"><p className="text-muted-foreground">Todavía no hay canales con actividad.</p><a href="/admin/encuestas" className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">Revisar encuestas</a></div>}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>{labels.sections_top_events || '—'}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_hotspots_recommendations || 'Dónde conviene actuar'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm min-w-0">
-            {topEvents.length ? topEvents.map((item, idx) => (
-              <div key={`ev_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
-                <span>{item.event || '—'}</span>
+            {hotspots.length ? hotspots.map((item, idx) => (
+              <div key={`hs_${idx}`} className="flex items-center justify-between rounded border px-2 py-2">
+                <span>{item.label || 'Zona sin nombre'}</span>
                 <span className="font-medium">{item.count || 0}</span>
               </div>
-            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>{labels.sections_sentiment || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm min-w-0">
-            {Object.keys(sentiment).length ? Object.entries(sentiment).map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
-                <span>{key}</span>
-                <span className="font-medium">
-                  {typeof value === 'number' || typeof value === 'string' ? value : JSON.stringify(value)}
-                </span>
-              </div>
-            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
+            )) : <div className="rounded-lg border border-dashed p-3"><p className="text-muted-foreground">Todavía no hay zonas para priorizar.</p><a href="/perfil?tab=mapas" className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">Revisar ubicaciones</a></div>}
+            {recommendations.length ? <div className="pt-2">{recommendations.map((text, idx) => <div key={`rc_${idx}`} className="mb-1 rounded border bg-muted/30 px-2 py-2">{text}</div>)}</div> : null}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4">
         <Card>
-          <CardHeader><CardTitle>{labels.sections_live_comments || '—'}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_live_comments || 'Comentarios recibidos'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm min-w-0">
             {filteredComments.length ? filteredComments.slice(0, 12).map((item, idx) => (
               <div key={`cm_${idx}`} className="rounded border px-2 py-1">
                 <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                   <span>{item.channel || '—'}</span>
-                  <span>{item.sentiment || '—'}</span>
                 </div>
-                <p className="break-words">{item.text || '—'}</p>
+                <p className="break-words">{item.text || 'Comentario sin texto'}</p>
               </div>
-            )) : <p className="text-muted-foreground">{labels.empty_filtered || labels.empty || '—'}</p>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>{labels.sections_hotspots_recommendations || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm min-w-0">
-            {hotspots.length ? hotspots.map((item, idx) => (
-              <div key={`hs_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
-                <span>{item.label || '—'}</span>
-                <span className="font-medium">{item.count || 0}</span>
-              </div>
-            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
-            {recommendations.length ? (
-              <div className="pt-2">
-                {recommendations.map((text, idx) => (
-                  <div key={`rc_${idx}`} className="mb-1 rounded border bg-muted/30 px-2 py-1">{text}</div>
-                ))}
-              </div>
-            ) : null}
+            )) : <div className="rounded-lg border border-dashed p-3"><p className="text-muted-foreground">{hasCommentFilters ? 'No hay comentarios con estos filtros.' : 'Todavía no hay comentarios para mostrar.'}</p>{hasCommentFilters ? <button type="button" className="mt-2 min-h-11 rounded-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { setSelectedChannel('all'); setSelectedSentiment('all'); setSearch(''); }}>Quitar filtros</button> : <a href="/admin/encuestas" className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">Revisar encuestas</a>}</div>}
           </CardContent>
         </Card>
       </div>
@@ -343,7 +359,12 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
                 />
               ) : (
                 <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-                  {labels.empty_map || labels.empty || '—'}
+                  <div>
+                    <p>{labels.empty_map || 'Todavía no hay ubicaciones para mostrar en el mapa.'}</p>
+                    <a href="/perfil?tab=tickets&focus=open_geocoding_queue" className="mt-3 inline-flex min-h-11 items-center rounded-md border px-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      Completar ubicaciones de casos
+                    </a>
+                  </div>
                 </div>
               )}
             </MeasuredContainer>
@@ -355,7 +376,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
           <CardContent className="space-y-3 text-sm min-w-0">
             {segmentGroups.length ? segmentGroups.map((group) => (
               <div key={group.key} className="rounded border px-2 py-2">
-                <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{group.key}</div>
+                <div className="mb-1 text-sm font-medium text-muted-foreground">{segmentLabel(group.key)}</div>
                 <div className="space-y-1">
                   {group.items.slice(0, 5).map((item, idx) => (
                     <div key={`${group.key}_${idx}`} className="flex items-center justify-between gap-2">
@@ -365,16 +386,23 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
                   ))}
                 </div>
               </div>
-            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
-            {appliedFilters.length ? (
-              <div className="rounded border bg-muted/30 px-2 py-2 text-xs">
-                <div className="mb-1 font-medium text-muted-foreground">{labels.applied_filters || 'Filtros aplicados'}</div>
-                <div>{appliedFilters.join(' · ')}</div>
-              </div>
-            ) : null}
+            )) : <div className="rounded-lg border border-dashed p-3"><p className="text-muted-foreground">Todavía no hay grupos para comparar.</p><a href="/admin/encuestas" className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">Revisar encuestas</a></div>}
           </CardContent>
         </Card>
       </div>
+
+      {(topEvents.length || Object.keys(sentiment).length || appliedFilters.length) ? (
+        <details className="rounded-lg border bg-card px-4 py-2 text-sm">
+          <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Datos para soporte
+          </summary>
+          <div className="space-y-4 border-t pt-3 text-muted-foreground">
+            {topEvents.length ? <div><p className="font-medium text-foreground">Eventos recibidos</p>{topEvents.map((item, idx) => <p key={`ev_${idx}`}>{item.event || 'Sin identificador'}: {item.count || 0}</p>)}</div> : null}
+            {Object.keys(sentiment).length ? <div><p className="font-medium text-foreground">Lectura automática de comentarios</p>{Object.entries(sentiment).map(([key, value]) => <p key={key}>{sentimentLabel(key)} ({key}): {typeof value === 'number' || typeof value === 'string' ? value : JSON.stringify(value)}</p>)}</div> : null}
+            {appliedFilters.length ? <div><p className="font-medium text-foreground">Filtros informados por el servicio</p><p>{appliedFilters.join(' · ')}</p></div> : null}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 };

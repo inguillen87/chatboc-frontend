@@ -75,9 +75,9 @@ export const buildCrmOperationalSummary = ({
     casesLabel = "Verificando";
   } else if (!error && casesVerified) {
     if (history.casesTotalIsExact && history.casesRejected === 0 && !history.casesTruncated) {
-      casesLabel = `${history.casesTotal} ${history.casesTotal === 1 ? "exacto" : "exactos"}`;
+      casesLabel = `${history.casesTotal} ${history.casesTotal === 1 ? "vinculado" : "vinculados"}`;
     } else {
-      casesLabel = `${history.cases.length} ${history.cases.length === 1 ? "verificable" : "verificables"}`;
+      casesLabel = `${history.cases.length} ${history.cases.length === 1 ? "confirmado" : "confirmados"}`;
     }
   }
 
@@ -92,9 +92,9 @@ export const buildCrmOperationalSummary = ({
     latestEventChannel: interaction?.channel || person.canal || null,
     latestEventVerified: Boolean(interaction?.timestamp),
     latestEventSourceLabel: interaction?.timestamp
-      ? "Historial exacto"
+      ? "Actividad confirmada"
       : person.lastSeen
-        ? "Directorio CRM · No verificado"
+        ? "Registro de personas · Falta verificar"
         : "Sin actividad publicada",
     ownerLabel: authoritativeCase?.assigneeName || (
       casesVerified && history.cases.length > 0 ? "No informado" : noCaseLabel
@@ -107,7 +107,7 @@ export const buildCrmOperationalSummary = ({
           : noCaseLabel
     ),
     slaDueAt: authoritativeCase?.slaDueAt || null,
-    consentLabel: person.marketing ? "Declarado sin trazabilidad" : "Sin evidencia publicada",
+    consentLabel: person.marketing ? "Declarado, falta comprobante" : "Sin comprobante",
     consentDeclared: person.marketing === true,
   };
 };

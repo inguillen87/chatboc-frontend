@@ -706,16 +706,16 @@ export default function OrganizationPaletteCard({
         </div>
       </div>
 
-      {/* 3. Presets como chips */}
+      {/* 3. Paletas sugeridas */}
       {snapshot.presets.length > 0 ? (
         <div className="space-y-2.5" role="group" aria-labelledby={presetsLabelId}>
           <div className="flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
             <p
               id={presetsLabelId}
-              className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+              className="text-sm font-semibold text-foreground"
             >
-              Presets
+              Paletas sugeridas
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -731,7 +731,7 @@ export default function OrganizationPaletteCard({
                   aria-pressed={selected}
                   onClick={() => handleApplyPreset(preset)}
                   className={cn(
-                    'inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                    'inline-flex min-h-11 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
                     selected
                       ? 'border-primary bg-primary/10 text-foreground shadow-sm'
                       : 'border-border bg-background text-foreground hover:border-primary/50 hover:bg-muted/40',
@@ -762,7 +762,7 @@ export default function OrganizationPaletteCard({
           variant="outline"
           onClick={handleDiscard}
           disabled={!canDiscard}
-          className="min-h-10"
+          className="min-h-11"
         >
           <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
           Descartar
@@ -771,7 +771,7 @@ export default function OrganizationPaletteCard({
           type="button"
           onClick={() => void handlePublish()}
           disabled={!canPublish}
-          className="min-h-10"
+          className="min-h-11"
         >
           <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
           {submitting && restoringVersion === null ? 'Publicando…' : 'Publicar'}
@@ -839,7 +839,7 @@ export default function OrganizationPaletteCard({
                     size="sm"
                     disabled={isReadOnly || submitting}
                     onClick={() => void handleRestore(entry.version)}
-                    className="min-h-9 w-fit shrink-0"
+                    className="min-h-11 w-fit shrink-0"
                   >
                     {isRestoringThis ? 'Restaurando…' : 'Restaurar'}
                     <span className="sr-only"> versión {entry.version}</span>

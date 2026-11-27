@@ -20,7 +20,7 @@ interface DraftItem {
   quantity: number;
 }
 
-const ORDER_DRAFT_MANUAL_REVIEW_MESSAGE = 'Revision manual requerida: no hay borrador editable para descargar.';
+const ORDER_DRAFT_MANUAL_REVIEW_MESSAGE = 'Necesitás revisar el documento: no se pudo crear un borrador editable.';
 const ORDER_DRAFT_MANUAL_REVIEW_STATES = new Set(['manual_review', 'legacy', 'failed', 'ai_unavailable']);
 
 const normalizeDraftSignal = (value: unknown) => String(value ?? '').trim().toLowerCase();
@@ -188,17 +188,17 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Productos recomendados</CardTitle>
+          <CardTitle>Recomendaciones de productos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button onClick={handleLoadRecommendations} disabled={loadingRecommendations || !tenantId}>
-            {loadingRecommendations ? 'Cargando...' : 'Cargar recomendaciones IA'}
+          <Button className="min-h-11" onClick={handleLoadRecommendations} disabled={loadingRecommendations || !tenantId}>
+            {loadingRecommendations ? 'Buscando...' : 'Buscar recomendaciones'}
           </Button>
           {recommendationsError ? (
             <div className="space-y-2">
               <p className="text-sm text-destructive">{recommendationsError}</p>
-              <Button variant="outline" size="sm" onClick={handleLoadRecommendations}>
-                Reintentar recomendaciones
+              <Button variant="outline" size="sm" className="min-h-11" onClick={handleLoadRecommendations}>
+                Volver a buscar
               </Button>
             </div>
           ) : null}
@@ -219,22 +219,24 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Borrador de pedido desde documento</CardTitle>
+          <CardTitle>Crear un borrador de pedido</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Input
             type="file"
+            aria-label="Documento del pedido"
+            className="min-h-11"
             accept={ORDER_DRAFT_ALLOWED_EXTENSIONS.join(',')}
             onChange={(event) => handleFileSelection(event.target.files?.[0] ?? null)}
           />
-          <Button onClick={handleUpload} disabled={!file || uploading || !tenantId}>
-            {uploading ? 'Procesando...' : 'Generar borrador IA'}
+          <Button className="min-h-11" onClick={handleUpload} disabled={!file || uploading || !tenantId}>
+            {uploading ? 'Procesando...' : 'Crear borrador'}
           </Button>
           {draftError ? (
             <div className="space-y-2">
               <p className="text-sm text-destructive">{draftError}</p>
-              <Button variant="outline" size="sm" onClick={handleUpload} disabled={!file || uploading || !tenantId}>
-                Reintentar borrador
+              <Button variant="outline" size="sm" className="min-h-11" onClick={handleUpload} disabled={!file || uploading || !tenantId}>
+                Volver a intentar
               </Button>
             </div>
           ) : null}
@@ -245,7 +247,7 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
                 <p className="text-sm text-muted-foreground">{ORDER_DRAFT_MANUAL_REVIEW_MESSAGE}</p>
               ) : null}
               <p>
-                Matched: {resolvedMatchedCount} · Unmatched: {resolvedUnmatchedCount}
+                Con coincidencia: {resolvedMatchedCount} · Para revisar: {resolvedUnmatchedCount}
               </p>
 
               {draftItems.length > 0 ? (
@@ -256,7 +258,6 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
                         <tr>
                           <th className="p-2">Ítem</th>
                           <th className="p-2">Cantidad</th>
-                          <th className="p-2">Estado</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -264,25 +265,20 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
                           <tr key={idx} className="border-t align-top">
                             <td className="p-2">
                               <Input
+                                aria-label={`Nombre del ítem ${idx + 1}`}
                                 value={row.name}
                                 onChange={(event) => handleDraftItemChange(idx, 'name', event.target.value)}
-                                className="h-8 text-xs"
+                                className="min-h-11 text-xs"
                               />
                             </td>
                             <td className="p-2">
                               <Input
+                                aria-label={`Cantidad de ${row.name || `ítem ${idx + 1}`}`}
                                 type="number"
                                 min={0}
                                 value={row.quantity}
                                 onChange={(event) => handleDraftItemChange(idx, 'quantity', event.target.value)}
-                                className="h-8 text-xs"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                value={row.match_status}
-                                onChange={(event) => handleDraftItemChange(idx, 'match_status', event.target.value)}
-                                className="h-8 text-xs"
+                                className="min-h-11 text-xs"
                               />
                             </td>
                           </tr>
@@ -291,9 +287,26 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
                     </table>
                   </div>
 
-                  <Button variant="outline" onClick={downloadDraftJson}>
-                    Descargar JSON editado
-                  </Button>
+                  <details className="rounded-lg border border-border/70">
+                    <summary className="flex min-h-11 cursor-pointer items-center rounded-lg px-3 py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      Datos para soporte
+                    </summary>
+                    <div className="space-y-3 border-t border-border/60 p-3">
+                      {draftItems.map((row, idx) => (
+                        <label key={idx} className="grid gap-1 text-xs text-muted-foreground">
+                          Estado de {row.name}
+                          <Input
+                            value={row.match_status}
+                            onChange={(event) => handleDraftItemChange(idx, 'match_status', event.target.value)}
+                            className="min-h-11 text-xs"
+                          />
+                        </label>
+                      ))}
+                      <Button variant="outline" className="min-h-11" onClick={downloadDraftJson}>
+                        Descargar datos técnicos
+                      </Button>
+                    </div>
+                  </details>
                 </div>
               ) : null}
             </div>

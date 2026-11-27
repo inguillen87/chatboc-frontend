@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
   List,
   MapPinned,
   ShieldCheck,
@@ -17,6 +14,7 @@ import {
   SheetContent,
   SheetDescription,
   SheetHeader,
+  SheetClose,
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
@@ -151,7 +149,7 @@ const PrivacySummary = ({ summaries }: { summaries: TerritorialMapAccessibleSumm
               key={summary.id ?? `${summary.label}:${index}`}
               className="rounded-xl border bg-card p-4 shadow-sm"
             >
-              <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <dt className="text-sm font-medium text-muted-foreground">
                 {summary.label}
               </dt>
               <dd className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{summary.value}</dd>
@@ -161,9 +159,10 @@ const PrivacySummary = ({ summaries }: { summaries: TerritorialMapAccessibleSumm
         </dl>
       </section>
     ) : (
-      <p className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground">
-        No hay un resumen agregado disponible para esta combinación de filtros.
-      </p>
+      <div className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground">
+        <p>No hay un resumen disponible para esta combinación de filtros.</p>
+        <SheetClose asChild><Button type="button" variant="outline" className="mt-3 min-h-11">Volver al mapa</Button></SheetClose>
+      </div>
     )}
   </div>
 );
@@ -201,8 +200,8 @@ const CoverageScopeSummary = ({ scope }: { scope: TerritorialCoverageScope }) =>
       </dl>
       {scope.mode === 'combined' ? (
         <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground">
-          La combinación usa sólo los puntos mapeados que cumplen todos los filtros. El contrato no informa
-          denominadores cruzados para total, pendientes ni revisión; esos valores se muestran como no disponibles.
+          La combinación usa sólo los puntos mapeados que cumplen todos los filtros. No hay totales comparables
+          para pendientes ni revisión, por eso esos valores aparecen como no disponibles.
         </p>
       ) : null}
     </section>
@@ -265,7 +264,9 @@ const CoverageMatrix = ({
               </p>
             </div>
             {provenance || freshness ? (
-              <div className="flex flex-wrap gap-2" aria-label="Procedencia y frescura de los datos">
+              <details className="rounded-lg border bg-background px-3 py-1 text-sm">
+                <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
+              <div className="flex flex-wrap gap-2 border-t py-2" aria-label="Procedencia y frescura de los datos">
                 {provenance ? (
                   <Badge
                     variant="outline"
@@ -287,6 +288,7 @@ const CoverageMatrix = ({
                   </Badge>
                 ) : null}
               </div>
+              </details>
             ) : null}
           </div>
         </div>
@@ -301,7 +303,7 @@ const CoverageMatrix = ({
               Desglose territorial
             </h3>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Totales del contrato actual. Los filtros del mapa también limitan esta lectura.
+              Los filtros del mapa también limitan los totales de esta lectura.
             </p>
           </div>
 
@@ -314,7 +316,7 @@ const CoverageMatrix = ({
                 <TabsTrigger
                   key={dimension.id}
                   value={dimension.id}
-                  className="min-h-10 whitespace-normal px-2 text-xs leading-4"
+                  className="min-h-11 whitespace-normal px-2 text-xs leading-4"
                 >
                   {dimension.label}
                 </TabsTrigger>
@@ -325,11 +327,11 @@ const CoverageMatrix = ({
               <TabsContent key={dimension.id} value={dimension.id} className="mt-3">
                 {dimension.protected ? (
                   <p className="rounded-lg border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
-                    Esta segmentación está protegida por la política de privacidad del contrato.
+                    Esta segmentación está protegida para evitar que se identifique a personas o ubicaciones particulares.
                   </p>
                 ) : scope?.mode === 'combined' ? (
                   <p className="rounded-lg border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
-                    El contrato no publica el cruce completo entre estos filtros. Se conserva sólo el total de puntos
+                    No hay un total comparable para el cruce entre estos filtros. Se conserva sólo el total de puntos
                     mapeados del alcance actual para evitar presentar cifras globales como si fueran combinadas.
                   </p>
                 ) : isScopedByAnotherDimension ? (
@@ -383,6 +385,7 @@ const CoverageMatrix = ({
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="min-h-11"
                           onClick={() =>
                             setVisibleRowCount((current) =>
                               hasHiddenRows ? Math.min(rowsForCurrentScope.length, current + FACET_PAGE_SIZE) : FACET_PAGE_SIZE,
@@ -395,18 +398,20 @@ const CoverageMatrix = ({
                     ) : null}
                   </>
                 ) : (
-                  <p className="rounded-lg border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
-                    No hay agregaciones verificadas para esta dimensión y los filtros actuales.
-                  </p>
+                  <div className="rounded-lg border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
+                    <p>No hay datos verificados para esta sección y los filtros actuales.</p>
+                    <SheetClose asChild><Button type="button" variant="outline" className="mt-3 min-h-11">Volver al mapa</Button></SheetClose>
+                  </div>
                 )}
               </TabsContent>
             ))}
           </Tabs>
         </section>
       ) : (
-        <p className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
-          El contrato no informó categorías, zonas ni agrupaciones territoriales seguras.
-        </p>
+        <div className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
+          <p>Todavía no hay categorías ni zonas seguras para comparar.</p>
+          <SheetClose asChild><Button type="button" variant="outline" className="mt-3 min-h-11">Volver al mapa</Button></SheetClose>
+        </div>
       )}
     </div>
   );
@@ -455,7 +460,7 @@ export const TerritorialMapAccessibleSheet = ({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-2">
+        <Button type="button" variant="outline" size="sm" className="min-h-11 gap-2">
           <List aria-hidden="true" className="h-4 w-4" />
           {hasStructuredCoverage
             ? canShowExactPointMarkers
@@ -474,9 +479,9 @@ export const TerritorialMapAccessibleSheet = ({
               <MapPinned aria-hidden="true" className="h-5 w-5" />
             </div>
             <div className="min-w-0 space-y-1">
-              <SheetTitle>Lectura territorial accesible</SheetTitle>
+              <SheetTitle>Datos del mapa en formato accesible</SheetTitle>
               <SheetDescription>
-                Matriz y lista equivalentes al mapa, sin coordenadas ni domicilios particulares.
+                Resumen y lista equivalentes al mapa, sin coordenadas ni domicilios particulares.
               </SheetDescription>
             </div>
           </div>
@@ -490,8 +495,8 @@ export const TerritorialMapAccessibleSheet = ({
           {hasCoverageView && canShowExactPointMarkers ? (
             <div className="border-b px-5 py-3">
               <TabsList className="grid h-auto w-full grid-cols-2" aria-label="Vista territorial accesible">
-                <TabsTrigger value="coverage" className="min-h-10">Cobertura</TabsTrigger>
-                <TabsTrigger value="points" className="min-h-10">Puntos ({safePoints.length})</TabsTrigger>
+                <TabsTrigger value="coverage" className="min-h-11">Cobertura</TabsTrigger>
+                <TabsTrigger value="points" className="min-h-11">Puntos ({safePoints.length})</TabsTrigger>
               </TabsList>
             </div>
           ) : null}
@@ -519,9 +524,10 @@ export const TerritorialMapAccessibleSheet = ({
               <ScrollArea className="min-h-0 flex-1">
                 {safePoints.length === 0 ? (
                   <div className="p-5">
-                    <p className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
-                      No hay puntos disponibles para esta combinación de filtros.
-                    </p>
+                    <div className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground" role="status">
+                      <p>No hay puntos disponibles para esta combinación de filtros.</p>
+                      <SheetClose asChild><Button type="button" variant="outline" className="mt-3 min-h-11">Volver al mapa</Button></SheetClose>
+                    </div>
                   </div>
                 ) : (
                   <ol className="space-y-3 p-5" start={firstVisiblePosition} aria-label="Puntos territoriales filtrados">
@@ -536,10 +542,9 @@ export const TerritorialMapAccessibleSheet = ({
                             <p className="text-sm leading-5 text-muted-foreground">{point.area}</p>
                           </div>
                           {point.ticketHref ? (
-                            <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
+                            <Button asChild variant="outline" size="sm" className="min-h-11 shrink-0 gap-1.5">
                               <a href={point.ticketHref}>
                                 Abrir caso
-                                <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                               </a>
                             </Button>
                           ) : null}
@@ -567,10 +572,10 @@ export const TerritorialMapAccessibleSheet = ({
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="min-h-11"
                       onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
                       disabled={page === 1}
                     >
-                      <ChevronLeft aria-hidden="true" className="mr-1 h-4 w-4" />
                       Anterior
                     </Button>
                     <span className="min-w-16 text-center text-xs font-medium tabular-nums text-muted-foreground">
@@ -580,11 +585,11 @@ export const TerritorialMapAccessibleSheet = ({
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="min-h-11"
                       onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
                       disabled={page === totalPages}
                     >
                       Siguiente
-                      <ChevronRight aria-hidden="true" className="ml-1 h-4 w-4" />
                     </Button>
                   </div>
                 </div>

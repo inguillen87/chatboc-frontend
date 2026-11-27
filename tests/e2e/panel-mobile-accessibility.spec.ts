@@ -1232,7 +1232,7 @@ test.describe('Panel mobile responsiveness and WCAG 2.1 AA', () => {
         await mockPanelApis(page);
 
         await page.goto('/estadisticas', { waitUntil: 'domcontentloaded' });
-        await expect(page.getByRole('heading', { name: /Métricas, mapas y prioridades/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Actividad y prioridades/i })).toBeVisible();
         await expectThemeApplied(page, theme);
 
         if (viewport.isMobile) {

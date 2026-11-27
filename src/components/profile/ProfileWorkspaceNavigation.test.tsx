@@ -10,20 +10,20 @@ describe("ProfileWorkspaceNavigation", () => {
   it("finds only authorized modules using their existing callbacks and keeps the current label readable", () => {
     const onTabChange = vi.fn();
     render(<ProfileWorkspaceNavigation contextKey="verified-workspace-a" activeTab="usuarios" isMunicipal
-      capabilities={{ operation: true, participation: false, territory: true, contacts: true, reports: true, analytics: false, catalog: false, team: false, billing: false, implementation: false }}
+      capabilities={{ operation: true, orders: false, participation: false, territory: true, contacts: true, reports: true, analytics: false, catalog: false, team: false, billing: false, implementation: false }}
       onOpenPlan={vi.fn()} onOpenSurveys={vi.fn()} onTabChange={onTabChange} />);
     expect(screen.getByText('Personas y contactos', { selector: 'p' })).toHaveClass('text-sm');
     fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
     const dialog = screen.getByRole('dialog', { name: 'Buscar módulo' });
-    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'analitica avanzada' } });
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'analisis detallado' } });
     expect(within(dialog).getByRole('status')).toHaveTextContent('No encontramos');
-    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'territorial' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Inteligencia territorial/ }));
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'mapa' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Mapa y zonas/ }));
     expect(onTabChange).toHaveBeenCalledExactlyOnceWith('mapas');
   });
 
   it("retires open module results when the verified workspace or allowed inventory changes", () => {
-    const capabilities = { operation: true, participation: false, territory: true, contacts: false, reports: false, analytics: false, catalog: false, team: false, billing: false, implementation: false };
+    const capabilities = { operation: true, orders: false, participation: false, territory: true, contacts: false, reports: false, analytics: false, catalog: false, team: false, billing: false, implementation: false };
     const props = { activeTab: 'tickets' as const, isMunicipal: true, capabilities, onOpenPlan: vi.fn(), onOpenSurveys: vi.fn(), onTabChange: vi.fn() };
     const view = render(<ProfileWorkspaceNavigation {...props} contextKey="verified-a" />);
     fireEvent.click(screen.getByRole('button', { name: 'Buscar módulo' }));
@@ -69,6 +69,7 @@ describe("ProfileWorkspaceNavigation", () => {
       }),
     ).toEqual({
       operation: false,
+      orders: false,
       participation: false,
       territory: false,
       contacts: false,
@@ -109,6 +110,7 @@ describe("ProfileWorkspaceNavigation", () => {
         activeTab="tickets"
         capabilities={{
           operation: true,
+          orders: true,
           participation: true,
           territory: true,
           contacts: true,
@@ -127,16 +129,16 @@ describe("ProfileWorkspaceNavigation", () => {
       />,
     );
 
-    expect(screen.getByRole("navigation", { name: "Módulos del centro de control" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Secciones del panel" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Atención" })).toHaveAttribute("data-active", "true");
-    expect(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir menú Personas" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Participación" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abrir menú Inteligencia" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir menú Información" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir menú Administración" })).toBeInTheDocument();
     expect(screen.queryByText(/Plan Full|Plan Pro/)).not.toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Atención" }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Tareas y gestión/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Pedidos y tareas/i }));
     expect(onTabChange).toHaveBeenCalledWith("pedidos");
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Participación" }), { key: "Enter" });
@@ -144,7 +146,7 @@ describe("ProfileWorkspaceNavigation", () => {
     expect(onOpenSurveys).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Centro de implementación/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Puesta en marcha/i }));
     expect(onOpenImplementation).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
@@ -158,6 +160,7 @@ describe("ProfileWorkspaceNavigation", () => {
         activeTab="usuarios"
         capabilities={{
           operation: true,
+          orders: false,
           participation: false,
           territory: false,
           contacts: true,
@@ -175,18 +178,18 @@ describe("ProfileWorkspaceNavigation", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Abrir menú CRM ciudadano" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Abrir menú Personas" })).toHaveAttribute("data-active", "true");
 
     expect(screen.queryByRole("button", { name: "Abrir menú Participación" })).not.toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Administración" }), { key: "Enter" });
-    expect(screen.queryByRole("menuitem", { name: /Equipo y permisos/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /Centro de implementación/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Equipo y accesos/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Puesta en marcha/i })).not.toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
-    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Inteligencia" }), { key: "Enter" });
-    expect(screen.getByRole("menuitem", { name: /Reportes ejecutivos/i })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /Analítica avanzada/i })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Abrir menú Información" }), { key: "Enter" });
+    expect(screen.getByRole("menuitem", { name: /^Reportes/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Análisis detallado/i })).not.toBeInTheDocument();
   });
 
   it("does not create a duplicate map target when territory is unavailable", () => {
@@ -195,6 +198,7 @@ describe("ProfileWorkspaceNavigation", () => {
         activeTab="estadisticas"
         capabilities={{
           operation: true,
+          orders: false,
           participation: false,
           territory: false,
           contacts: false,
@@ -212,7 +216,7 @@ describe("ProfileWorkspaceNavigation", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Abrir menú Inteligencia" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("button", { name: "Abrir menú Información" })).toHaveAttribute("data-active", "true");
   });
 
   it("keeps plans inside Administration and marks that work area as active", () => {
@@ -222,6 +226,7 @@ describe("ProfileWorkspaceNavigation", () => {
         activeActionId="billing"
         capabilities={{
           operation: false,
+          orders: false,
           participation: false,
           territory: false,
           contacts: false,
@@ -254,6 +259,7 @@ describe("ProfileWorkspaceNavigation", () => {
         activeActionId="institution-profile"
         capabilities={{
           operation: false,
+          orders: false,
           participation: false,
           territory: false,
           contacts: false,

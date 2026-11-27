@@ -536,12 +536,11 @@ test('profile home exposes role-based enterprise work areas and nests plans unde
   await expect(page.getByRole('heading', { name: 'Municipio Demo', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Trabajo de hoy' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir menú Atención' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Abrir menú CRM ciudadano' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Abrir menú Inteligencia' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Personas' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Abrir menú Información' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toBeVisible();
-  await expect(page.getByText('Configuración técnica separada de la operación diaria.')).toBeVisible();
-  await page.locator('summary', { hasText: 'Detalle de los indicadores' }).click();
-  await expect(page.getByText(/Información operativa confirmada/)).toBeVisible();
+  await page.locator('summary', { hasText: 'Datos para soporte' }).first().click();
+  await expect(page.getByText(/Estos valores provienen de información confirmada/)).toBeVisible();
   await expect(page.getByText(/Módulo publicado por backend/i)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Abrir menú Administración' }).click();
@@ -550,7 +549,7 @@ test('profile home exposes role-based enterprise work areas and nests plans unde
   await planItem.click();
 
   await expect(page).toHaveURL(/tab=perfil.*section=plan|section=plan.*tab=perfil/);
-  await expect(page.getByText('Uso de la organización')).toBeVisible();
+  await expect(page.getByText('Plan y uso de la organización')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toHaveAttribute('data-active', 'true');
   await expectNoHorizontalOverflow(page);
 });
@@ -607,12 +606,12 @@ test('profile people CRM keeps record actions and summary reachable at 390x844',
     .first();
 
   await expect(workspace).toHaveAttribute('data-layout', 'embedded');
-  await expect(page.getByRole('combobox', { name: 'Vista operativa de personas' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Grupo de personas' })).toBeVisible();
   await expect(page.locator('aside[aria-label="Lista de personas"]')).toBeHidden();
   const recordActions = page.getByRole('button', { name: 'Más acciones' });
   await expect(recordActions).toBeVisible();
   await recordActions.click();
-  const protectedCaseAction = page.getByRole('menuitem', { name: 'Sin caso exacto' });
+  const protectedCaseAction = page.getByRole('menuitem', { name: 'Sin caso vinculado' });
   await expect(protectedCaseAction).toBeVisible();
   await expect(protectedCaseAction).toBeDisabled();
   await page.keyboard.press('Escape');
