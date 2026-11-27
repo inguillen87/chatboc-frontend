@@ -1,7 +1,7 @@
-import { surveyCardMetrics, surveyCountLabel, surveyCoverageLabel, surveyDateLabel } from '@/utils/surveyCardPresentation';
+import { surveyCardMetrics, surveyCountLabel, surveyDateLabel } from '@/utils/surveyCardPresentation';
 import './surveyCard.css';
 import { useRef, useState } from 'react';
-import { BarChart3, CalendarDays, ChevronDown, Edit, LinkIcon, Send, ShieldCheck, Trash2 } from 'lucide-react';
+import { BarChart3, CalendarDays, Edit, LinkIcon, Send, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SeedButton } from '@/components/surveys/SeedButton';
@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { SurveyAdmin } from '@/types/encuestas';
 import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
-import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 import { isGovernedSurvey, surveyCanShare, surveyIsReceiving } from '@/utils/surveyPublicationLifecycle';
 import { SurveyParticipationAssurance } from '@/components/surveys/SurveyParticipationAssurance';
 import { SurveyJurisdictionNextAction } from '@/components/surveys/SurveyJurisdictionNextAction';
@@ -40,26 +39,10 @@ interface SurveyCardProps {
   deleting?: boolean;
   onSeed?: () => Promise<void>;
   seeding?: boolean;
+  publicationNotice?: string | null;
 }
 
 const formatDate = surveyDateLabel;
-
-const getResultAssurance = (survey: SurveyAdmin) => {
-  if (survey.governance?.result_certified === true) {
-    return 'Resultado certificado por contrato';
-  }
-  if (survey.governance?.result_certified === false) {
-    return 'Resultado no certificado';
-  }
-  return 'Certificación no informada';
-};
-
-const statusVariants: Record<SurveyAdmin['estado'], 'default' | 'secondary' | 'outline' | 'destructive'> = {
-  borrador: 'secondary',
-  publicada: 'default',
-  cerrada: 'outline',
-  archivada: 'destructive',
-};
 
 const statusLabels: Record<SurveyAdmin['estado'], string> = {
   borrador: 'Borrador',
@@ -73,7 +56,7 @@ const phaseLabels: Record<string, string> = {
   scheduled: 'Programada',
   collecting: 'Recibiendo respuestas',
   live_voting: 'Votación en vivo',
-  window_ended: 'Ventana finalizada',
+  window_ended: 'Finalizada',
   closed: 'Cerrada',
   archived: 'Archivada',
   unknown: 'Estado no disponible',
@@ -85,32 +68,32 @@ const getPublishDisabledMessage = (
   nextAction?: string | null,
 ) => {
   const declaredNextAction = nextAction?.trim();
-  if (declaredNextAction && !/^[a-z0-9_:-]+$/i.test(declaredNextAction)) {
-    return declaredNextAction;
-  }
   switch (reasonCode) {
     case 'survey_questions_required':
       return 'Agregá al menos una pregunta antes de publicar.';
     case 'survey_governance_release_required':
-      return 'La publicación requiere completar la revisión y aprobación de gobernanza.';
+      return 'Completá la revisión y aprobación antes de publicar.';
     case 'survey_consent_public_text_required':
       return 'Completá el texto público de consentimiento antes de publicar.';
     case 'survey_jurisdiction_binding_conflict':
-      return 'La jurisdicción del contenido no coincide con esta organización. Se conserva para auditoría y no puede publicarse aquí.';
+      return 'Los datos institucionales de la encuesta no coinciden con esta organización. No puede publicarse acá.';
     case 'survey_tenant_jurisdiction_unverified':
     case 'survey_jurisdiction_unbound':
     case 'survey_jurisdiction_binding_required':
-      return 'Validá la jurisdicción institucional de la organización y del instrumento antes de publicar.';
+      return 'Validá los datos institucionales de la organización y de la encuesta antes de publicar.';
     case 'survey_synthetic_sandbox_publish_forbidden':
       return 'Esta versión contiene datos de demostración. Prepará una versión limpia antes de abrir la participación.';
     case 'survey_identity_hmac_secret_unavailable':
-      return 'Falta la configuración segura de identidad necesaria para aplicar la política de unicidad.';
+      return 'Falta la configuración segura necesaria para aplicar el control de participación.';
     case 'survey_not_draft':
       if (status === 'publicada') return 'Ya está publicada y disponible para participar.';
       if (status === 'cerrada') return 'La participación ya fue cerrada y no admite una nueva publicación.';
       if (status === 'archivada') return 'Está archivada; restaurala antes de iniciar una nueva publicación.';
       return 'Sólo los borradores pueden publicarse.';
     default:
+      if (declaredNextAction && !/^[a-z0-9_:-]+$/i.test(declaredNextAction)) {
+        return declaredNextAction;
+      }
       return 'La publicación no está habilitada para el estado actual.';
   }
 };
@@ -130,6 +113,7 @@ export const SurveyCard = ({
   deleting,
   onSeed,
   seeding,
+  publicationNotice,
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -137,9 +121,10 @@ export const SurveyCard = ({
   const [pendingAction, setPendingAction] = useState<'close' | 'delete' | null>(null);
   const [actionError, setActionError] = useState('');
   const lifecycle = survey.admin_lifecycle;
-  const autoSeedCantidad = getAutoSeedCantidad(survey);
   const publicUrl = getPublicSurveyUrlFromRecord(survey, { tenantSlug });
-  const instrumentLabel = lifecycle?.instrument_kind === 'voting' ? 'Votación' : 'Encuesta';
+  const instrumentLabel = (lifecycle?.instrument_kind ?? (survey.tipo === 'votacion' ? 'voting' : 'survey')) === 'voting'
+    ? 'Votación'
+    : 'Encuesta';
   const canPublish = lifecycle
     ? lifecycle.capabilities.can_publish && lifecycle.actions.publish.enabled
     : survey.estado === 'borrador';
@@ -149,13 +134,11 @@ export const SurveyCard = ({
   const canShare = surveyCanShare(survey);
   const canDelete = lifecycle?.capabilities.can_delete ?? survey.estado === 'borrador';
   const canViewResults = lifecycle?.capabilities.can_view_results ?? true;
-  const participation = lifecycle?.participation;
-  const {responses, uniqueParticipants, responsesLast24h, coordinates: responsesWithCoordinates, territorialCoverage, contradictoryCoverage} = surveyCardMetrics(survey);
+  const { responses, uniqueParticipants, responsesLast24h } = surveyCardMetrics(survey);
   const opensAt = lifecycle?.schedule.opens_at ?? survey.inicio_at;
   const closesAt = lifecycle?.schedule.closes_at ?? survey.fin_at;
-  const assurance = getResultAssurance(survey);
   const governedDraft = isGovernedSurvey(survey) && lifecycle?.phase === 'draft';
-  const publishDisabledMessage = lifecycle && !canPublish
+  const publishDisabledMessage = lifecycle?.phase === 'draft' && !canPublish && !publicationNotice
     ? getPublishDisabledMessage(
         lifecycle.actions.publish.disabled_reason_code,
         survey.estado,
@@ -168,8 +151,16 @@ export const SurveyCard = ({
     : canPublish && onPublish
       ? 'publish'
       : canViewResults
-        ? 'analytics'
+        ? 'detail'
         : 'edit';
+  const displayStatus = lifecycle
+    ? ['collecting', 'live_voting'].includes(lifecycle.phase) && !surveyIsReceiving(survey)
+      ? 'Pendiente de validación'
+      : phaseLabels[lifecycle.phase] ?? 'Estado no disponible'
+    : statusLabels[survey.estado] ?? 'Sin estado';
+  const isFinished = lifecycle
+    ? ['window_ended', 'closed', 'archived'].includes(lifecycle.phase)
+    : ['cerrada', 'archivada'].includes(survey.estado);
 
   const seedLabels =
     (survey.recursos as Record<string, unknown> | undefined)?.seed_ui as
@@ -198,148 +189,84 @@ export const SurveyCard = ({
 
   return (
     <Card
+      role="article"
       aria-labelledby={`survey-title-${survey.id}`}
-      className="survey-card overflow-hidden border border-border/70 shadow-sm transition-[border-color,box-shadow] motion-reduce:transition-none hover:border-border hover:shadow-md"
+      className="survey-card overflow-hidden rounded-xl border border-border/70 shadow-sm transition-[border-color,box-shadow] motion-reduce:transition-none hover:border-border hover:shadow-md"
     >
-      <CardHeader className="space-y-0 px-5 pb-3 pt-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-              {instrumentLabel}
-            </p>
-            <CardTitle id={`survey-title-${survey.id}`} className="line-clamp-2 text-lg font-semibold leading-snug">
-              {survey.titulo}
-            </CardTitle>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <Badge variant={statusVariants[survey.estado] ?? 'outline'}>
-              {statusLabels[survey.estado] ?? 'Sin estado'}
-            </Badge>
-            {lifecycle ? (
-              <span className="text-right text-xs text-muted-foreground">
-                {['collecting', 'live_voting'].includes(lifecycle.phase) && !surveyIsReceiving(survey)
-                  ? 'Participación pendiente de validación'
-                  : phaseLabels[lifecycle.phase] ?? lifecycle.phase}
-              </span>
-            ) : null}
-          </div>
+      <CardHeader className="space-y-3 px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="font-normal">
+            {instrumentLabel}
+          </Badge>
+          <Badge
+            variant="outline"
+            className={isFinished
+              ? 'border-emerald-600/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+              : 'border-border bg-muted/30 text-foreground'}
+          >
+            {displayStatus}
+          </Badge>
+        </div>
+        <div className="min-w-0">
+          <CardTitle id={`survey-title-${survey.id}`} className="line-clamp-2 text-lg font-semibold leading-snug">
+            {survey.titulo}
+          </CardTitle>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3 px-5 pb-4 pt-0">
-        <SurveyParticipationAssurance survey={survey} />
-        <SurveyJurisdictionNextAction survey={survey} tenantSlug={tenantSlug} />
-        <div role="group" aria-label="Métricas de participación">
+      <CardContent className="space-y-3 px-4 pb-4 pt-0 sm:px-5">
+        <SurveyParticipationAssurance survey={survey} compact />
         <dl
-          aria-label="Métricas de participación"
-          className="grid grid-cols-3 divide-x divide-border rounded-lg border bg-muted/25 py-3"
+          aria-label="Datos de la encuesta"
+          className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-border/70 bg-muted/20 p-3 sm:grid-cols-4"
         >
-          <div className="min-w-0 px-3">
-            <dt className="truncate text-xs text-muted-foreground">Respuestas</dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+          <div className="min-w-0">
+            <dt className="text-xs leading-snug text-muted-foreground">Respuestas</dt>
+            <dd className="mt-1 font-semibold tabular-nums text-foreground">
               {surveyCountLabel(responses)}
             </dd>
           </div>
-          <div className="min-w-0 px-3">
-            <dt className="truncate text-xs text-muted-foreground">Participantes</dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+          <div className="min-w-0">
+            <dt className="text-xs leading-snug text-muted-foreground">Participantes</dt>
+            <dd className="mt-1 font-semibold tabular-nums text-foreground">
               {surveyCountLabel(uniqueParticipants)}
             </dd>
           </div>
-          <div className="min-w-0 px-3">
-            <dt className="truncate text-xs text-muted-foreground">Últimas 24 h</dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+          <div className="min-w-0">
+            <dt className="text-xs leading-snug text-muted-foreground">Últimas 24 h</dt>
+            <dd className="mt-1 font-semibold tabular-nums text-foreground">
               {surveyCountLabel(responsesLast24h)}
             </dd>
           </div>
-        </dl>
-        </div>
-
-        <dl
-          aria-label="Vigencia, territorio y certificación"
-          className="grid gap-2 rounded-lg border border-border/70 bg-background p-3 text-xs sm:grid-cols-3"
-        >
           <div className="min-w-0">
-            <dt className="font-medium text-muted-foreground">Vigencia</dt>
-            <dd className="mt-1 inline-flex items-center gap-1 font-medium text-foreground">
-              <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{formatDate(opensAt)} – {formatDate(closesAt)}</span>
+            <dt className="text-xs leading-snug text-muted-foreground">Vigencia</dt>
+            <dd className="mt-1 text-sm font-medium leading-snug text-foreground">
+              {formatDate(opensAt)} – {formatDate(closesAt)}
             </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-medium text-muted-foreground">Cobertura territorial</dt>
-            <dd className="mt-1 font-medium text-foreground">
-              {contradictoryCoverage ? 'Datos no conciliados' : territorialCoverage === null || responsesWithCoordinates === null
-                ? 'No informada'
-                : `${surveyCoverageLabel(territorialCoverage)}% · ${surveyCountLabel(responsesWithCoordinates)} con coordenadas`}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="font-medium text-muted-foreground">Alcance de resultados</dt>
-            <dd className="mt-1 font-medium text-foreground">{assurance}</dd>
           </div>
         </dl>
 
-        {publishDisabledMessage ? (
-          <p className="text-xs leading-relaxed text-muted-foreground" data-testid="publish-disabled-reason">
-            <span className="font-medium text-foreground">Publicación:</span> {publishDisabledMessage}
+        {publicationNotice ? (
+          <p
+            role="status"
+            aria-label={`Publicación bloqueada para ${survey.titulo}`}
+            className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+          >
+            {publicationNotice}
           </p>
         ) : null}
-
-        <details className="group rounded-lg border border-border/70 bg-background">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
-            Detalles y configuración
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="border-t px-3 py-3 text-sm text-muted-foreground">
-            <p className="mb-3 leading-relaxed">{survey.descripcion || 'Sin descripción cargada.'}</p>
-            <dl className="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
-              <div>
-                <dt className="font-medium text-foreground">Vigencia</dt>
-                <dd className="mt-0.5 inline-flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5" /> {formatDate(survey.inicio_at)} – {formatDate(survey.fin_at)}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Identificador público</dt>
-                <dd className="mt-0.5 break-all">{survey.slug || 'No asignado'}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Preguntas</dt>
-                <dd className="mt-0.5">{Array.isArray(survey.preguntas) ? survey.preguntas.length : 0}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Política de unicidad</dt>
-                <dd className="mt-0.5">{survey.politica_unicidad || 'No definida'}</dd>
-              </div>
-              {participation ? (
-                <div>
-                  <dt className="font-medium text-foreground">Abstención</dt>
-                  <dd className="mt-0.5">
-                    {participation.abstentions === null
-                      ? 'No disponible'
-                      : participation.abstentions.toLocaleString('es-AR')}
-                  </dd>
-                </div>
-              ) : null}
-              {participation?.last_response_at ? (
-                <div>
-                  <dt className="font-medium text-foreground">Última respuesta</dt>
-                  <dd className="mt-0.5">{formatDate(participation.last_response_at)}</dd>
-                </div>
-              ) : null}
-            </dl>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <Badge variant="outline">Tipo: {survey.tipo || 'No definido'}</Badge>
-              {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
-              {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
-              {autoSeedCantidad ? <Badge variant="outline">Demo precargada: {autoSeedCantidad}</Badge> : null}
-            </div>
-          </div>
-        </details>
+        {publishDisabledMessage ? (
+          <p
+            className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+            data-testid="publish-disabled-reason"
+          >
+            <span className="font-medium">Para publicar:</span> {publishDisabledMessage}
+          </p>
+        ) : null}
+        <SurveyJurisdictionNextAction survey={survey} tenantSlug={tenantSlug} />
       </CardContent>
 
-      <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/10 px-5 py-3">
+      <CardFooter className="flex flex-wrap gap-2 border-t bg-muted/10 px-4 py-3 sm:px-5">
         {primaryAction === 'publish' && onPublish ? (
           <Button size="sm" onClick={onPublish} disabled={busy} className="inline-flex items-center gap-2">
             <Send className="h-4 w-4" /> {publishing ? 'Publicando…' : 'Publicar'}
@@ -347,30 +274,29 @@ export const SurveyCard = ({
         ) : null}
         {primaryAction === 'governance' && onManageGovernance ? (
           <Button size="sm" onClick={onManageGovernance} disabled={busy} className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" /> Revisar y publicar release
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Revisar y publicar
           </Button>
         ) : null}
-        {primaryAction === 'analytics' ? (
-          <Button size="sm" onClick={onAnalytics} disabled={busy} className="inline-flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" /> Resultados
+        {canViewResults ? (
+          <Button
+            variant={primaryAction === 'detail' ? 'default' : 'outline'}
+            size="sm"
+            onClick={onAnalytics}
+            disabled={busy}
+            className="inline-flex items-center gap-2"
+          >
+            <BarChart3 className="h-4 w-4" aria-hidden="true" /> Ver detalle
           </Button>
         ) : null}
-        {primaryAction === 'edit' ? (
-          <Button size="sm" onClick={onEdit} disabled={busy} className="inline-flex items-center gap-2">
-            <Edit className="h-4 w-4" /> Editar
-          </Button>
-        ) : null}
-
-        {primaryAction !== 'edit' ? (
-          <Button variant="outline" size="sm" onClick={onEdit} disabled={busy} className="inline-flex items-center gap-2">
-            <Edit className="h-4 w-4" /> Editar
-          </Button>
-        ) : null}
-        {canViewResults && primaryAction !== 'analytics' ? (
-          <Button variant="outline" size="sm" onClick={onAnalytics} disabled={busy} className="inline-flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" /> Resultados
-          </Button>
-        ) : null}
+        <Button
+          variant={primaryAction === 'edit' ? 'default' : 'outline'}
+          size="sm"
+          onClick={onEdit}
+          disabled={busy}
+          className="inline-flex items-center gap-2"
+        >
+          <Edit className="h-4 w-4" aria-hidden="true" /> Editar
+        </Button>
 
         {canClose && onClose ? (
           <AlertDialog open={closeDialogOpen} onOpenChange={(open) => { if (!busy && !operationLock.current) { setCloseDialogOpen(open); setActionError(''); } }}>
@@ -407,7 +333,7 @@ export const SurveyCard = ({
 
         {canShare && onCopyLink ? (
           <Button variant="ghost" size="sm" onClick={onCopyLink} disabled={busy} className="inline-flex items-center gap-2">
-            <LinkIcon className="h-4 w-4" /> Copiar link
+            <LinkIcon className="h-4 w-4" aria-hidden="true" /> Copiar enlace
           </Button>
         ) : null}
         {canShare && publicUrl && !busy ? (

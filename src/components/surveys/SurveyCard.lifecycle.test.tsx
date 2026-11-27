@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SurveyCard } from '@/components/surveys/SurveyCard';
@@ -90,10 +90,36 @@ describe('SurveyCard lifecycle actions', () => {
       reason_code: 'survey_jurisdiction_unverified', next_action: 'review_scope',
     };
     render(<SurveyCard {...baseProps} survey={item} onCopyLink={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: 'Copiar link' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copiar enlace' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Ver en vivo' })).toBeNull();
-    expect(screen.getByText('Participación pendiente de validación')).toBeVisible();
-    expect(screen.getByText('Publicada')).toBeVisible();
+    expect(screen.getByText('Pendiente de validación')).toBeVisible();
+    expect(screen.queryByText('Publicada')).not.toBeInTheDocument();
+  });
+
+  it('presents the card as an article with one type and one status', () => {
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={survey(lifecycle('draft', { can_delete: true, can_view_results: false }))}
+      />,
+    );
+
+    const article = screen.getByRole('article', { name: 'Consulta de la organización' });
+    expect(within(article).getAllByText('Encuesta')).toHaveLength(1);
+    expect(within(article).getAllByText('Borrador')).toHaveLength(1);
+  });
+
+  it('keeps the voting type for legacy rows without a lifecycle contract', () => {
+    const item = survey(lifecycle('draft', { can_delete: true, can_view_results: false }));
+    delete item.admin_lifecycle;
+    item.tipo = 'votacion';
+    item.estado = 'borrador';
+
+    render(<SurveyCard {...baseProps} survey={item} />);
+
+    const article = screen.getByRole('article', { name: 'Consulta de la organización' });
+    expect(within(article).getAllByText('Votación')).toHaveLength(1);
+    expect(within(article).getAllByText('Borrador')).toHaveLength(1);
   });
 
   it('shows publish only for a publishable draft', () => {
@@ -145,6 +171,23 @@ describe('SurveyCard lifecycle actions', () => {
     );
   });
 
+  it('keeps the institutional publication reason with the card actions', () => {
+    const publicationNotice = 'Para publicar, primero hay que verificar los datos institucionales de la organización.';
+
+    render(
+      <SurveyCard
+        {...baseProps}
+        survey={survey(lifecycle('draft', { can_publish: false, can_view_results: false }))}
+        publicationNotice={publicationNotice}
+      />,
+    );
+
+    const article = screen.getByRole('article', { name: 'Consulta de la organización' });
+    expect(within(article).getByRole('status', { name: /Publicación bloqueada/ })).toHaveTextContent(publicationNotice);
+    expect(within(article).getByRole('button', { name: 'Editar' })).toBeVisible();
+    expect(within(article).queryByTestId('publish-disabled-reason')).not.toBeInTheDocument();
+  });
+
   it('routes a governed draft to release review without exposing direct publication', () => {
     const adminLifecycle = lifecycle('draft', { can_publish: false, can_view_results: false });
     adminLifecycle.actions.publish.disabled_reason_code = 'survey_governance_release_required';
@@ -164,10 +207,10 @@ describe('SurveyCard lifecycle actions', () => {
     );
 
     expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
-      'Revisá la política, creá un release y aprobalo antes de publicar.',
+      'Completá la revisión y aprobación antes de publicar.',
     );
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar release' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar' }));
     expect(onManageGovernance).toHaveBeenCalledTimes(1);
     expect(onPublish).not.toHaveBeenCalled();
   });
@@ -199,11 +242,11 @@ describe('SurveyCard lifecycle actions', () => {
 
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
     expect(screen.getByTestId('publish-disabled-reason')).toHaveTextContent(
-      'La jurisdicción del contenido no coincide con esta organización.',
+      'Los datos institucionales de la encuesta no coinciden con esta organización.',
     );
   });
 
-  it('keeps the summary to three metrics and collapses technical details by default', () => {
+  it('shows four survey data fields in a responsive definition list without technical details', () => {
     render(
       <SurveyCard
         {...baseProps}
@@ -211,20 +254,20 @@ describe('SurveyCard lifecycle actions', () => {
       />,
     );
 
-    const metrics = screen.getByRole('group', { name: 'Métricas de participación' });
-    expect(metrics.querySelectorAll('dt')).toHaveLength(3);
-    expect(metrics).toHaveTextContent('Respuestas');
-    expect(metrics).toHaveTextContent('Participantes');
-    expect(metrics).toHaveTextContent('Últimas 24 h');
-
-    const details = screen.getByText('Detalles y configuración').closest('details');
-    expect(details).not.toBeNull();
-    expect(details).not.toHaveAttribute('open');
-    fireEvent.click(screen.getByText('Detalles y configuración'));
-    expect(details).toHaveAttribute('open');
+    const data = screen.getByLabelText('Datos de la encuesta');
+    expect(data.tagName).toBe('DL');
+    expect(data).toHaveClass('grid-cols-2', 'sm:grid-cols-4');
+    expect(data.querySelectorAll('dt')).toHaveLength(4);
+    expect(data).toHaveTextContent('Respuestas');
+    expect(data).toHaveTextContent('Participantes');
+    expect(data).toHaveTextContent('Últimas 24 h');
+    expect(data).toHaveTextContent('Vigencia');
+    expect(screen.getByRole('button', { name: 'Ver detalle' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Resultados' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Detalles y configuración')).not.toBeInTheDocument();
   });
 
-  it('surfaces dates, territorial coverage and certification scope before expanding details', () => {
+  it('keeps card-level results concise without territorial or certification notices', () => {
     const item = survey(lifecycle('collecting', { can_close: true, can_view_results: true }));
     item.metricas = {
       total_respuestas: 12,
@@ -237,11 +280,10 @@ describe('SurveyCard lifecycle actions', () => {
 
     render(<SurveyCard {...baseProps} survey={item} />);
 
-    const evidence = screen.getByLabelText('Vigencia, territorio y certificación');
-    expect(evidence).toBeTruthy();
-    expect(screen.getByText('Cobertura territorial')).toBeTruthy();
-    expect(screen.getByText('75% · 9 con coordenadas')).toBeTruthy();
-    expect(screen.getByText('Resultado no certificado')).toBeTruthy();
+    expect(screen.queryByText('Cobertura territorial')).not.toBeInTheDocument();
+    expect(screen.queryByText('Alcance de resultados')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resultado no certificado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Detalles y configuración')).not.toBeInTheDocument();
     expect(screen.getAllByText(/1\/8\/2026/).length).toBeGreaterThan(0);
   });
 
@@ -253,7 +295,7 @@ describe('SurveyCard lifecycle actions', () => {
       />,
     );
 
-    expect(screen.queryByRole('button', { name: 'Resultados' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ver detalle' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Editar' })).toBeTruthy();
   });
 
@@ -286,13 +328,13 @@ describe('SurveyCard lifecycle actions', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Editar' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Resultados' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Ver detalle' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cerrando…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Copiar link' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Copiar enlace' })).toBeDisabled();
     expect(screen.queryByRole('link', { name: 'Ver participación' })).toBeNull();
   });
 
-  it('labels unavailable abstention instead of deriving it', () => {
+  it('does not derive or add an unavailable abstention value to the compact card', () => {
     render(
       <SurveyCard
         {...baseProps}
@@ -300,8 +342,8 @@ describe('SurveyCard lifecycle actions', () => {
       />,
     );
 
-    expect(screen.getByText('Abstención')).toBeTruthy();
-    expect(screen.getByText('No disponible')).toBeTruthy();
+    expect(screen.queryByText('Abstención')).not.toBeInTheDocument();
+    expect(screen.queryByText('No disponible')).not.toBeInTheDocument();
   });
 });
 
@@ -309,7 +351,7 @@ describe('SurveyCard concurrent operation controls',()=>{
   it('keeps other controls disabled while synthetic response generation is pending',()=>{
     const edit=vi.fn(),analytics=vi.fn(),close=vi.fn(),copy=vi.fn();
     render(<SurveyCard survey={survey(lifecycle('collecting',{can_close:true,can_share:true}))} onEdit={edit} onAnalytics={analytics} onClose={close} onCopyLink={copy} seeding/>);
-    for(const name of ['Editar','Resultados','Cerrar participación','Copiar link']) expect(screen.getByRole('button',{name})).toBeDisabled();
+    for(const name of ['Editar','Ver detalle','Cerrar participación','Copiar enlace']) expect(screen.getByRole('button',{name})).toBeDisabled();
     fireEvent.click(screen.getByRole('button',{name:'Editar'}));expect(edit).not.toHaveBeenCalled();
     expect(screen.queryByRole('link',{name:'Ver participación'})).not.toBeInTheDocument();
   });
@@ -336,7 +378,7 @@ describe('SurveyCard concurrent operation controls',()=>{
   it('does not turn an impossible coverage base into an apparently valid percentage',()=>{
     const data=survey(lifecycle('collecting',{}));data.metricas={total_respuestas:12,respuestas_con_coordenadas:20,respuestas_ultimas_24h:3,participantes_unicos:10};
     render(<SurveyCard {...baseProps} survey={data}/>);
-    expect(screen.getByText('Datos no conciliados')).toBeVisible();expect(screen.queryByText(/100% · 20/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Cobertura territorial')).not.toBeInTheDocument();expect(screen.queryByText(/100% · 20/)).not.toBeInTheDocument();
   });
   it('keeps the close confirmation pending and calls the handler only once',async()=>{
     let resolve!:()=>void;const close=vi.fn(()=>new Promise<void>(r=>{resolve=r;}));

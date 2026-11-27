@@ -18,13 +18,20 @@ export const readParticipationAssurance = (value: unknown) => {
     credential_validation: raw.credential_validation, warnings: raw.warnings,
     ui: { title: ui.title as string, label: ui.label as string, description: ui.description as string, limitation: ui.limitation as string } };
 };
-export function SurveyParticipationAssurance({ survey }: { survey: SurveyPublic }) {
+export function SurveyParticipationAssurance({ survey, compact = false }: { survey: SurveyPublic; compact?: boolean }) {
   const top = survey.participation_assurance, nested = record(survey.frontend_contract)?.participation_assurance;
   if (top === undefined && nested === undefined) return null;
   const assurance = readParticipationAssurance(top === undefined ? nested : top);
   if (!assurance || (top !== undefined && nested !== undefined && JSON.stringify(assurance) !== JSON.stringify(readParticipationAssurance(nested))))
     return <p role="status" className="text-sm text-muted-foreground">Control de participación no disponible. No se pudo verificar la garantía declarada.</p>;
-  return <aside className="space-y-1 rounded-lg border bg-muted/20 p-3 text-sm" aria-label={assurance.ui.title}>
+  if (compact) {
+    return (
+      <p className="text-sm text-muted-foreground" aria-label={assurance.ui.title}>
+        <span className="font-medium text-foreground">{assurance.ui.title}:</span> {assurance.ui.label}
+      </p>
+    );
+  }
+  return <aside className="space-y-1 rounded-xl border bg-muted/20 p-3 text-sm" aria-label={assurance.ui.title}>
     <h3 className="font-medium">{assurance.ui.title}: {assurance.ui.label}</h3><p>{assurance.ui.description}</p><p className="text-muted-foreground">{assurance.ui.limitation}</p>
   </aside>;
 }

@@ -646,10 +646,10 @@ describe('SurveyAnalyticsPage operational focus', () => {
       expect(mocks.adminListSurveyGovernanceReleases).toHaveBeenCalled();
     });
     await waitFor(() => {
-      expect(screen.getByTestId('survey-result-evidence-status')).toHaveTextContent('Cierre conciliado por conteo');
+      expect(screen.getByTestId('survey-result-evidence-status')).toHaveTextContent('Los totales coinciden');
     });
-    expect(screen.getByText('Sintéticas separadas').parentElement).toHaveTextContent('<5');
-    expect(screen.getByText(/no valida la distribución ni el contenido de las respuestas/i)).toBeInTheDocument();
+    expect(screen.getByText('Respuestas de prueba').parentElement).toHaveTextContent('<5');
+    expect(screen.getByText(/No revisa qué respondió cada persona ni cómo se distribuyeron las respuestas/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Descargar recibo de cierre/i })).toBeEnabled();
     expect(mocks.adminListSurveyGovernanceReleases).toHaveBeenCalledWith(3, { tenantSlug: 'junin' });
   });

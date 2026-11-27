@@ -71,7 +71,7 @@ export function SurveyRehearsalPanel({ tenantSlug, listReady, externalBusy }: { 
     <h2 className="font-medium">{ui?.title || 'Pruebas técnicas'}</h2>
     {list && <><p className="text-sm">{list.source_tenant.display_name}</p><p className="text-sm font-medium">{ui?.warning}</p><p className="text-sm text-muted-foreground">{list.create_action.ui.description}</p></>}
     {loading && <p role="status">Consultando información actual…</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <ul className="space-y-3">{runs.map(run => <li key={run.run_id} className="space-y-1 rounded-md border p-3 text-sm"><p className="font-medium">{run.ui.label}</p>
+    <ul className="space-y-3">{runs.map(run => <li key={run.run_id} className="space-y-1 rounded-xl border p-3 text-sm"><p className="font-medium">{run.ui.label}</p>
       <p>{run.ui.total_label}: {run.metrics.total_responses} / {run.max_responses}</p><p>{run.ui.expires_label}: {new Date(run.expires_at).toLocaleString('es-AR')}</p>
       <a className="underline" href={rehearsalPagePath(run.tenant_slug, run.run_id)}>{ui?.open_label || run.ui.label}</a></li>)}</ul>
     {receivedAt && <p className="text-sm text-muted-foreground">{runs[0]?.ui.read_at_label || 'Última lectura'}: <time dateTime={receivedAt}>{new Date(receivedAt).toLocaleString('es-AR')}</time></p>}

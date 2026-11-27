@@ -114,7 +114,7 @@ export function SurveyRestorePanel({ tenantSlug, surveys, listReady, externalBus
     <h2 className="font-medium">{ui.restore_title}</h2><p className="text-sm text-muted-foreground">{ui.restore_notice}</p>
     {intent.current ? <Button type="button" variant="outline" disabled={externalBusy || denied} onClick={() => setOpen(true)}>{ui.check_status_label}</Button>
       : [...groups].map(([key, group]) => <Button key={key} type="button" variant="outline" disabled={externalBusy || loading || denied} onClick={() => void review(group.archive)}>{ui.restore_label} · {group.ids.map(id => `#${id}`).join(', ')}</Button>)}
-    <Dialog open={open} onOpenChange={value => { if (!value) close(); }}><DialogContent className="max-h-[90dvh] overflow-y-auto" showCloseButton={phase !== 'pending'}
+    <Dialog open={open} onOpenChange={value => { if (!value) close(); }}><DialogContent className="survey-support-dialog max-h-[90dvh] overflow-y-auto" showCloseButton={phase !== 'pending'}
       onEscapeKeyDown={event => { if (phase === 'pending') event.preventDefault(); }} onInteractOutside={event => { if (phase === 'pending') event.preventDefault(); }}>
       <DialogHeader><DialogTitle>{ui.restore_title}</DialogTitle><DialogDescription>{ui.restore_notice}</DialogDescription></DialogHeader>
       {loading && <p role="status">{ui.loading_label}</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}

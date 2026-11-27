@@ -8,7 +8,6 @@ import {
   Plus,
   Radio,
   Search,
-  ShieldAlert,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -174,20 +173,34 @@ const normalizeWorkspaceQuery = (value: string) =>
     .trim()
     .toLocaleLowerCase('es-AR');
 
-const formatCount = (count: number, singular: string, plural: string) =>
-  `${count.toLocaleString('es-AR')} ${count === 1 ? singular : plural}`;
+const getPublicationNotice = (survey: SurveyAdmin) => {
+  const isDraft = survey.admin_lifecycle?.phase === 'draft' || (!survey.admin_lifecycle && survey.estado === 'borrador');
+  const gate = resolveSurveyPublicationEvidenceGate(survey);
+  if (!isDraft || !gate.required || gate.ready) return null;
+
+  if (/(jurisdiction|unbound|unverified|conflict|gate_missing)/i.test(gate.reasonCode)) {
+    return 'Para publicar, primero hay que verificar los datos institucionales de la organización.';
+  }
+  if (/review/i.test(gate.reasonCode)) {
+    return 'Para publicar, primero completá la revisión institucional del contenido.';
+  }
+  if (/integrity/i.test(gate.reasonCode)) {
+    return 'Para publicar, primero solicitá una revisión técnica.';
+  }
+  return 'Para publicar, primero completá la verificación institucional.';
+};
 
 const focusCopy = {
   live: {
-    title: 'Foco operativo: votaciones y resultados en vivo',
-    description: 'Priorizamos encuestas con resultados en vivo para que el equipo vea actividad, mapa y señales sin buscar manualmente.',
+    title: 'Vista: votaciones y resultados en vivo',
+    description: 'Mostramos primero las consultas con resultados en vivo.',
     badge: 'En vivo',
     empty: 'No hay votaciones en vivo activas para esta organización.',
     icon: Radio,
   },
   comments: {
-    title: 'Foco operativo: comentarios ciudadanos',
-    description: 'Priorizamos encuestas con debate habilitado para responder y moderar conversaciones públicas.',
+    title: 'Vista: comentarios',
+    description: 'Mostramos primero las encuestas con comentarios habilitados.',
     badge: 'Comentarios',
     empty: 'No hay encuestas con comentarios habilitados.',
     icon: MessageSquareText,
@@ -202,15 +215,9 @@ const focusCopy = {
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
-  const [isMobileViewport, setIsMobileViewport] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 640,
+  const [filtersOpen, setFiltersOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 640,
   );
-  useEffect(() => {
-    const syncViewport = () => setIsMobileViewport(window.innerWidth < 640);
-    syncViewport();
-    window.addEventListener('resize', syncViewport);
-    return () => window.removeEventListener('resize', syncViewport);
-  }, []);
   const [searchParams] = useSearchParams();
   const focusMode = normalizeFocusMode(searchParams.get('focus'));
   const includeArchived = searchParams.get('include_archived') === 'true';
@@ -275,16 +282,16 @@ const AdminSurveysIndex = () => {
     if (!publicUrl) {
       toast({
         title: 'No se pudo generar el enlace público',
-        description: 'Verificá que la encuesta tenga un slug configurado.',
+        description: 'Verificá que la encuesta tenga una dirección pública configurada.',
         variant: 'destructive',
       });
       return;
     }
     try {
       await navigator.clipboard.writeText(publicUrl);
-      toast({ title: 'Link copiado', description: 'Compartilo en redes, mailings o un QR impreso.' });
-    } catch (error) {
-      toast({ title: 'No se pudo copiar el enlace', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+      toast({ title: 'Enlace copiado', description: 'Compartilo en redes, por correo electrónico o con un QR impreso.' });
+    } catch {
+      toast({ title: 'No se pudo copiar el enlace', description: 'Volvé a intentarlo. La encuesta no cambió.', variant: 'destructive' });
     }
   };
 
@@ -368,10 +375,6 @@ const AdminSurveysIndex = () => {
       return Number(matchesFocus(b.survey, focusMode)) - Number(matchesFocus(a.survey, focusMode));
     });
   }, [focusMode, surveys?.data]);
-  const compatibleItems = useMemo(
-    () => classifiedItems.filter(({ scope }) => scope.classification === 'compatible').map(({ survey }) => survey),
-    [classifiedItems],
-  );
   const conflictItems = useMemo(
     () => classifiedItems.filter(({ scope }) => scope.classification === 'conflict'),
     [classifiedItems],
@@ -418,6 +421,12 @@ const AdminSurveysIndex = () => {
     votings: operationalItems.filter((survey) => getInstrumentKind(survey) === 'voting').length,
   }), [operationalItems]);
   const hasWorkspaceFilters = Boolean(normalizedWorkspaceQuery || statusFilter !== 'all' || kindFilter !== 'all');
+  const displayedListCount = hasWorkspaceFilters
+    ? filteredOperationalClassifiedItems.length
+    : surveyListProgress.loaded;
+  const displayedListTotal = hasWorkspaceFilters
+    ? operationalItems.length
+    : surveyListProgress.total ?? surveyListProgress.loaded;
   const focusedItems = useMemo(
     () => (focusMode ? operationalItems.filter((survey) => matchesFocus(survey, focusMode)) : []),
     [focusMode, operationalItems],
@@ -443,71 +452,22 @@ const AdminSurveysIndex = () => {
     >
       <div className="survey-admin-workspace space-y-6">
       <a
-        href="#survey-instrument-list"
-        className="sr-only rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
+        href="#survey-list"
+        className="sr-only rounded-sm bg-background px-3 py-2 text-sm font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
       >
-        Ir al listado de instrumentos
+        Ir a la lista de encuestas
       </a>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Centro de participación ciudadana</h1>
-          <p className="text-sm text-muted-foreground">Encuestas, sondeos y votaciones con operación, evidencia y resultados.</p>
+          <h1 className="text-2xl font-semibold">Encuestas y votaciones</h1>
+          <p className="text-sm text-muted-foreground">Creá consultas y seguí las respuestas desde un solo lugar.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" className="min-h-[44px] sm:min-h-[40px]" disabled={relocationPending || restorePending || !tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding} onClick={()=>void refetchList()}>Actualizar listado</Button>
         <Button disabled={relocationPending || restorePending || !tenantSlug} onClick={() => navigate('/admin/encuestas/new')} className="inline-flex min-h-[44px] items-center gap-2">
           <Plus className="h-4 w-4" aria-hidden="true" /> Nueva encuesta
         </Button>
-        </div>
-      </div>
+      </header>
 
-      <SurveyRelocationPanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
-        externalBusy={restorePending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
-        onPendingChange={setRelocationPending} onCompleted={refetchList} />
-      <SurveyRestorePanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
-        externalBusy={relocationPending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
-        onPendingChange={setRestorePending} onCompleted={refetchList} />
-      <SurveyRehearsalPanel tenantSlug={tenantSlug} listReady={listReadState?.phase === 'ready'}
-        externalBusy={relocationPending || restorePending || isPublishing || isClosing || isDeleting || isSeeding} />
-
-      {focusMeta && !isLoadingList && !listError ? (
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-3">
-              {FocusIcon ? (
-                <span className="mt-0.5 rounded-xl bg-primary/10 p-2 text-primary">
-                  <FocusIcon className="h-4 w-4" aria-hidden="true" />
-                </span>
-              ) : null}
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-semibold">{focusMeta.title}</h2>
-                  <span className="rounded-full border border-primary/25 bg-background px-2 py-0.5 text-xs text-primary">
-                    {focusedItems.length.toLocaleString('es-AR')} {focusedItems.length === 1 ? 'priorizada' : 'priorizadas'}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{focusMeta.description}</p>
-                {!focusedItems.length ? (
-                  <p className="mt-2 text-xs text-amber-600">{focusMeta.empty}</p>
-                ) : null}
-              </div>
-            </div>
-            {firstFocusedSurvey ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0"
-                onClick={() => navigate(`/admin/encuestas/${firstFocusedSurvey.id}/analytics?focus=${focusMode}`)}
-              >
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Abrir analytics
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {surveys?.overview && tenantSlug && !isLoadingList && !listError ? (
+      {surveys && tenantSlug && !isLoadingList && !listError ? (
         <SurveyOperationsOverview
           overview={operationalOverview}
           freshness={surveys.freshness}
@@ -527,7 +487,7 @@ const AdminSurveysIndex = () => {
 
       {listError ? (
         <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-          <p className="font-medium text-destructive">No pudimos cargar el panel operativo</p>
+          <p className="font-medium text-destructive">No pudimos cargar las encuestas</p>
           <p className="mt-1 text-sm text-muted-foreground">{listError}</p>
           {tenantSlug ? (
             <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void refetchList()}>
@@ -541,51 +501,44 @@ const AdminSurveysIndex = () => {
         <div className="flex min-h-[40vh] flex-col gap-3 items-center justify-center rounded-xl border border-border/60 bg-muted/10 px-4 text-center" role="status" aria-live="polite">
           <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
           <span className="text-sm font-medium">{listReadState?.phase === 'refreshing' ? 'Actualizando encuestas y votaciones' : 'Cargando encuestas y votaciones'}</span>
-          <p className="max-w-md text-sm text-muted-foreground">Se consulta el servidor antes de mostrar las tarjetas y sus acciones.</p>
+          <p className="max-w-md text-sm text-muted-foreground">Estamos preparando la lista y sus acciones.</p>
         </div>
       ) : !listError ? (
         <section
-          id="survey-instrument-list"
-          aria-labelledby="survey-instrument-list-title"
+          id="survey-list"
+          aria-labelledby="survey-list-title"
           className="scroll-mt-6 space-y-4"
         >
-          <div className="rounded-2xl border border-border/70 bg-card p-3 shadow-sm sm:p-4">
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-sm sm:p-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-primary/10 p-2 text-primary">
-                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h2 id="survey-instrument-list-title" className="text-base font-semibold">
-                      Instrumentos operativos
-                    </h2>
-                    <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
-                      {hasMoreSurveys
-                        ? `${filteredOperationalClassifiedItems.length.toLocaleString('es-AR')} visibles entre ${formatCount(operationalItems.length, 'instrumento operativo cargado', 'instrumentos operativos cargados')}`
-                        : `${filteredOperationalClassifiedItems.length.toLocaleString('es-AR')} visibles de ${formatCount(operationalItems.length, 'instrumento operativo', 'instrumentos operativos')}`}
-                      {' · '}
-                      {formatCount(conflictItems.length, 'conflicto separado', 'conflictos separados')}
-                    </p>
-                  </div>
-                </div>
+                <h2 id="survey-list-title" className="text-base font-semibold">
+                  Listado
+                </h2>
+                <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                  Mostrando {displayedListCount.toLocaleString('es-AR')} de {displayedListTotal.toLocaleString('es-AR')}
+                </p>
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col gap-2 xl:max-w-4xl xl:flex-row xl:items-center xl:justify-end">
                 <label className="relative block min-w-0 flex-1 xl:max-w-xs">
-                  <span className="sr-only">Buscar instrumentos</span>
+                  <span className="sr-only">Buscar encuestas y votaciones</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input
                     type="search"
                     value={workspaceQuery}
                     onChange={(event) => setWorkspaceQuery(event.target.value)}
                     placeholder="Buscar por nombre o identificador"
-                    className="h-10 pl-9 sm:h-9"
+                    className="min-h-[44px] rounded-sm pl-9"
                   />
                 </label>
 
-                <details open={!isMobileViewport} className="group min-w-0 rounded-lg border border-border/70 bg-muted/20 p-1.5 sm:border-0 sm:bg-transparent sm:p-0">
-                  <summary className="flex min-h-[40px] cursor-pointer list-none items-center justify-between gap-2 px-2 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md sm:hidden [&::-webkit-details-marker]:hidden">
+                <details
+                  open={filtersOpen}
+                  onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+                  className="group min-w-0 rounded-xl border border-border/70 bg-muted/20 p-1.5 sm:border-0 sm:bg-transparent sm:p-0"
+                >
+                  <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 rounded-sm px-2 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden [&::-webkit-details-marker]:hidden">
                     <span className="inline-flex items-center gap-1.5">
                       <SlidersHorizontal className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                       Filtros de estado y tipo
@@ -596,8 +549,8 @@ const AdminSurveysIndex = () => {
                   <div className="mt-2 flex min-w-0 flex-col gap-2 sm:mt-0 xl:flex-row xl:items-center">
                     <div
                       role="group"
-                      aria-label="Filtrar por estado operativo"
-                      className="flex max-w-full flex-wrap gap-1 rounded-lg border border-border/70 bg-muted/25 p-1 sm:flex-nowrap sm:overflow-x-auto"
+                      aria-label="Filtrar por estado"
+                      className="flex max-w-full flex-wrap gap-1 rounded-xl border border-border/70 bg-muted/25 p-1"
                     >
                       {([
                         ['all', 'Todos', workspaceCounts.all],
@@ -612,7 +565,7 @@ const AdminSurveysIndex = () => {
                           type="button"
                           variant={statusFilter === value ? 'secondary' : 'ghost'}
                           size="sm"
-                          className="h-8 min-h-[32px] shrink-0 gap-1 px-2.5 text-xs"
+                          className="min-h-[44px] shrink-0 gap-1 rounded-sm px-2.5 text-xs"
                           aria-pressed={statusFilter === value}
                           onClick={() => setStatusFilter(value)}
                         >
@@ -623,8 +576,8 @@ const AdminSurveysIndex = () => {
 
                     <div
                       role="group"
-                      aria-label="Filtrar por tipo de instrumento"
-                      className="flex flex-wrap gap-1 rounded-lg border border-border/70 bg-muted/25 p-1"
+                      aria-label="Filtrar por tipo de consulta"
+                      className="flex flex-wrap gap-1 rounded-xl border border-border/70 bg-muted/25 p-1"
                     >
                       {([
                         ['all', 'Ambos', workspaceCounts.all],
@@ -636,7 +589,7 @@ const AdminSurveysIndex = () => {
                           type="button"
                           variant={kindFilter === value ? 'secondary' : 'ghost'}
                           size="sm"
-                          className="h-8 min-h-[32px] gap-1 px-2.5 text-xs"
+                          className="min-h-[44px] gap-1 rounded-sm px-2.5 text-xs"
                           aria-pressed={kindFilter === value}
                           aria-label={`${label}: ${count.toLocaleString('es-AR')}`}
                           onClick={() => setKindFilter(value)}
@@ -653,7 +606,7 @@ const AdminSurveysIndex = () => {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-9 min-h-[36px] shrink-0 gap-1 px-2.5 text-xs"
+                    className="min-h-[44px] shrink-0 gap-1 rounded-sm px-2.5 text-xs"
                     onClick={() => {
                       setWorkspaceQuery('');
                       setStatusFilter('all');
@@ -663,13 +616,52 @@ const AdminSurveysIndex = () => {
                     <X className="h-3.5 w-3.5" aria-hidden="true" /> Limpiar
                   </Button>
                 ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="min-h-[44px] shrink-0 rounded-sm"
+                  disabled={relocationPending || restorePending || !tenantSlug || isLoadingList || isLoadingMoreSurveys || isPublishing || isClosing || isDeleting || isSeeding}
+                  onClick={() => void refetchList()}
+                >
+                  Actualizar listado
+                </Button>
               </div>
             </div>
           </div>
 
+          {focusMeta ? (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {FocusIcon ? <FocusIcon className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+                    <h3 className="text-sm font-semibold">{focusMeta.title}</h3>
+                    <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                      {focusedItems.length.toLocaleString('es-AR')} {focusedItems.length === 1 ? 'priorizada' : 'priorizadas'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{focusMeta.description}</p>
+                  {!focusedItems.length ? <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">{focusMeta.empty}</p> : null}
+                </div>
+                {firstFocusedSurvey ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 rounded-sm"
+                    onClick={() => navigate(`/admin/encuestas/${firstFocusedSurvey.id}/analytics?focus=${focusMode}`)}
+                  >
+                    <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                    Ver resultados
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid items-start gap-4 xl:grid-cols-2">
-          {filteredOperationalClassifiedItems.map(({ survey, scope }) => (
-            <div key={survey.id} className={focusMode && matchesFocus(survey, focusMode) ? 'rounded-2xl border border-primary/25 bg-primary/[0.03] p-2' : undefined}>
+          {filteredOperationalClassifiedItems.map(({ survey }) => (
+            <div key={survey.id} className={focusMode && matchesFocus(survey, focusMode) ? 'rounded-xl border border-primary/25 bg-primary/[0.03] p-2' : undefined}>
               {focusMode && matchesFocus(survey, focusMode) ? (
                 <div className="mb-2 inline-flex rounded-full border border-primary/25 bg-background px-2 py-0.5 text-xs font-medium text-primary">
                   {focusMeta?.badge}
@@ -696,30 +688,16 @@ const AdminSurveysIndex = () => {
                       )}
                     >
                       {publishFailure.action === 'governance'
-                        ? 'Revisar y publicar release'
-                        : 'Revisar configuración'}
+                        ? 'Revisar y publicar'
+                        : 'Revisar encuesta'}
                     </Button>
                   ) : null}
-                </div>
-              ) : null}
-              {(survey.admin_lifecycle?.phase === 'draft' || (!survey.admin_lifecycle && survey.estado === 'borrador')) &&
-              resolveSurveyPublicationEvidenceGate(survey).required &&
-              !resolveSurveyPublicationEvidenceGate(survey).ready ? (
-                <div
-                  role="status"
-                  aria-label={`Publicación bloqueada para ${survey.titulo}`}
-                  className="mb-3 flex items-start gap-2 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3 text-sm text-amber-900 dark:text-amber-100"
-                >
-                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p>
-                    <span className="font-semibold">Publicación institucional pendiente.</span>{' '}
-                    {resolveSurveyPublicationEvidenceGate(survey).nextAction}
-                  </p>
                 </div>
               ) : null}
               <SurveyCard
                 survey={survey}
                 tenantSlug={tenantSlug}
+                publicationNotice={getPublicationNotice(survey)}
                 onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                 onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics${focusMode ? `?focus=${focusMode}` : ''}`)}
                 onPublish={
@@ -747,101 +725,97 @@ const AdminSurveysIndex = () => {
             </div>
           ))}
           {!operationalItems.length ? (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground xl:col-span-2">
               {hasMoreSurveys ? (
                 <>
                   <p className="font-medium text-foreground">
-                    No hay instrumentos operativos entre los {formatCount(surveyListProgress.loaded, 'registro cargado', 'registros cargados')}.
+                    No hay encuestas ni votaciones entre los registros cargados.
                   </p>
-                  <p className="mt-1">Todavía puede haber instrumentos en las páginas pendientes.</p>
+                  <p className="mt-1">Todavía puede haber consultas en las páginas pendientes.</p>
                 </>
               ) : (
-                'No hay instrumentos operativos cargados para esta organización. Creá uno nuevo o revisá los conflictos separados.'
+                <>
+                  <p className="font-medium text-foreground">
+                    {conflictItems.length
+                      ? 'No hay consultas disponibles en la lista principal.'
+                      : 'Todavía no hay encuestas ni votaciones.'}
+                  </p>
+                  <p className="mt-1">
+                    {conflictItems.length
+                      ? 'Revisá las consultas que aparecen más abajo.'
+                      : 'Creá una nueva para empezar.'}
+                  </p>
+                </>
               )}
             </div>
           ) : !filteredOperationalClassifiedItems.length ? (
-            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground xl:col-span-2">
+            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground xl:col-span-2">
               <p className="font-medium text-foreground">
                 {hasMoreSurveys
-                  ? `No hay coincidencias entre ${formatCount(operationalItems.length, 'instrumento operativo cargado', 'instrumentos operativos cargados')}.`
-                  : 'No hay instrumentos que coincidan con esta vista.'}
+                  ? 'No hay coincidencias en los registros cargados.'
+                  : 'No hay resultados para esta búsqueda.'}
               </p>
               <p className="mt-1">
                 {hasMoreSurveys
                   ? 'Todavía puede haber coincidencias en las páginas pendientes.'
-                  : 'Ajustá la búsqueda o limpiá los filtros; los registros no fueron eliminados.'}
+                  : 'Probá con otras palabras o limpiá los filtros.'}
               </p>
-              {hasMoreSurveys ? (
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                {hasMoreSurveys ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadMoreSurveys()}
+                    disabled={isLoadingMoreSurveys}
+                  >
+                    {isLoadingMoreSurveys ? 'Cargando más…' : 'Cargar más resultados'}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-3"
-                  onClick={() => void loadMoreSurveys()}
-                  disabled={isLoadingMoreSurveys}
+                  onClick={() => {
+                    setWorkspaceQuery('');
+                    setStatusFilter('all');
+                    setKindFilter('all');
+                  }}
                 >
-                  {isLoadingMoreSurveys ? 'Cargando más…' : 'Cargar más resultados'}
+                  Limpiar filtros
                 </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="ml-2 mt-3"
-                onClick={() => {
-                  setWorkspaceQuery('');
-                  setStatusFilter('all');
-                  setKindFilter('all');
-                }}
-              >
-                Limpiar filtros
-              </Button>
+              </div>
             </div>
           ) : null}
           </div>
           {conflictItems.length ? (
             <details className="group rounded-xl border border-amber-400/40 bg-amber-500/5">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 rounded-sm px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
                 <span>
-                  {conflictItems.length === 1 ? 'Conflicto de alcance' : 'Conflictos de alcance'} ·{' '}
-                  {formatCount(conflictItems.length, 'instrumento', 'instrumentos')}
+                  Consultas para revisar · {conflictItems.length.toLocaleString('es-AR')}
                 </span>
-                <span className="text-xs font-normal text-muted-foreground group-open:hidden">Ver auditoría</span>
+                <span className="text-xs font-normal text-muted-foreground group-open:hidden">Ver consultas</span>
                 <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Ocultar</span>
               </summary>
               <div className="space-y-3 border-t border-amber-400/30 p-3">
                 <p className="text-sm text-muted-foreground">
-                  {formatCount(conflictItems.length, 'instrumento', 'instrumentos')} con conflicto jurisdiccional confirmado.{' '}
-                  {conflictItems.length === 1 ? 'Se conserva' : 'Se conservan'}
-                  para auditoría y no integran el alcance operativo. Las acciones seguras que el backend mantenga
-                  habilitadas continúan disponibles.
+                  {conflictItems.length === 1 ? 'Esta consulta tiene' : 'Estas consultas tienen'} datos institucionales
+                  que no coinciden con la organización. Se {conflictItems.length === 1 ? 'muestra' : 'muestran'} aparte y
+                  no se {conflictItems.length === 1 ? 'incluye' : 'incluyen'} en el resumen. Las acciones disponibles
+                  respetan los permisos actuales.
                 </p>
-                {conflictItems.map(({ survey, scope }) => (
+                {conflictItems.map(({ survey }) => (
                   <div key={survey.id} className="space-y-2">
                     <div
                       role="status"
                       className="inline-flex rounded-full border border-amber-400/40 bg-background px-2.5 py-1 text-xs font-medium text-amber-800 dark:text-amber-200"
-                      title={`Fuente: ${scope.source}. Razón: ${scope.reasonCode}`}
                     >
-                      {scope.classification === 'conflict'
-                        ? 'Conflicto jurisdiccional confirmado'
-                        : 'Alcance pendiente de verificación'}
+                      Datos institucionales que no coinciden
                     </div>
-                    {(survey.admin_lifecycle?.phase === 'draft' || (!survey.admin_lifecycle && survey.estado === 'borrador')) &&
-                    resolveSurveyPublicationEvidenceGate(survey).required &&
-                    !resolveSurveyPublicationEvidenceGate(survey).ready ? (
-                      <div
-                        role="status"
-                        aria-label={`Publicación bloqueada para ${survey.titulo}`}
-                        className="flex items-start gap-2 rounded-xl border border-amber-400/40 bg-background p-3 text-sm text-amber-900 dark:text-amber-100"
-                      >
-                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                        <p>{resolveSurveyPublicationEvidenceGate(survey).nextAction}</p>
-                      </div>
-                    ) : null}
                     <SurveyCard
                       survey={survey}
                       tenantSlug={tenantSlug}
+                      publicationNotice={getPublicationNotice(survey)}
                       onEdit={() => navigate(`/admin/encuestas/${survey.id}`)}
                       onAnalytics={() => navigate(`/admin/encuestas/${survey.id}/analytics`)}
                       onPublish={
@@ -860,16 +834,11 @@ const AdminSurveysIndex = () => {
               </div>
             </details>
           ) : null}
-          {classifiedItems.length ? (
+          {classifiedItems.length && (loadMoreError || hasMoreSurveys) ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 text-center">
-              <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-                {surveyListProgress.total === null
-                  ? `${formatCount(surveyListProgress.loaded, 'instrumento recibido', 'instrumentos recibidos')} · ${formatCount(operationalItems.length, 'operativo', 'operativos')} · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar`
-                  : `Mostrando ${surveyListProgress.loaded.toLocaleString('es-AR')} de ${formatCount(surveyListProgress.total, 'registro', 'registros')} · ${formatCount(operationalItems.length, 'operativo', 'operativos')} (${formatCount(compatibleItems.length, 'compatible', 'compatibles')} · ${unverifiedItems.length.toLocaleString('es-AR')} por verificar) · ${formatCount(conflictItems.length, 'conflicto separado', 'conflictos separados')}`}
-              </p>
               {loadMoreError ? (
-                <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-                  Conservamos los instrumentos ya cargados. Reintentá para continuar con el listado.
+                <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+                  No pudimos cargar la página siguiente. Reintentá para continuar.
                 </div>
               ) : null}
               {hasMoreSurveys ? (
@@ -878,7 +847,6 @@ const AdminSurveysIndex = () => {
                   variant="outline"
                   onClick={() => void loadMoreSurveys()}
                   disabled={isLoadingMoreSurveys}
-                  aria-describedby="survey-list-progress"
                 >
                   {isLoadingMoreSurveys ? (
                     <>
@@ -890,13 +858,50 @@ const AdminSurveysIndex = () => {
                   )}
                 </Button>
               ) : null}
-              <span id="survey-list-progress" className="sr-only">
-                El listado conserva los instrumentos ya cargados al solicitar la página siguiente.
-              </span>
             </div>
+          ) : null}
+          {classifiedItems.length ? (
+            <details className="group rounded-xl border border-border/70 bg-card">
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 rounded-sm px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+                <span>Cómo leer estos resultados</span>
+                <span className="text-xs font-normal text-muted-foreground group-open:hidden">Ver nota</span>
+                <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Ocultar</span>
+              </summary>
+              <div className="space-y-2 border-t border-border/70 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                <p>Son consultas, no elecciones oficiales.</p>
+                <p>
+                  El nivel de control aparece en cada encuesta. En el control básico, la identificación puede usar datos
+                  declarados o del navegador y no garantiza que cada respuesta provenga de una persona distinta.
+                </p>
+                <p>
+                  Si no hay una población habilitada configurada, no calculamos el porcentaje de participación ni la
+                  abstención.
+                </p>
+                <p>
+                  Los resultados no cuentan con certificación externa salvo que la encuesta lo indique expresamente.
+                </p>
+              </div>
+            </details>
           ) : null}
         </section>
       ) : null}
+      <details className="survey-admin-support group rounded-xl border border-border/70 bg-card">
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 rounded-sm px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+          <span>Herramientas de soporte</span>
+          <span className="text-xs font-normal text-muted-foreground group-open:hidden">Mostrar</span>
+          <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Ocultar</span>
+        </summary>
+        <div className="space-y-4 border-t border-border/70 p-4">
+          <SurveyRelocationPanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
+            externalBusy={restorePending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
+            onPendingChange={setRelocationPending} onCompleted={refetchList} />
+          <SurveyRestorePanel tenantSlug={tenantSlug} surveys={surveys} listReady={listReadState?.phase === 'ready'}
+            externalBusy={relocationPending || isPublishing || isClosing || isDeleting || isSeeding || isLoadingMoreSurveys}
+            onPendingChange={setRestorePending} onCompleted={refetchList} />
+          <SurveyRehearsalPanel tenantSlug={tenantSlug} listReady={listReadState?.phase === 'ready'}
+            externalBusy={relocationPending || restorePending || isPublishing || isClosing || isDeleting || isSeeding} />
+        </div>
+      </details>
       </div>
     </SectionErrorBoundary>
   );

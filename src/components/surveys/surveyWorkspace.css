@@ -1,9 +1,18 @@
 .survey-admin-workspace { min-width: 0; overflow-wrap: anywhere; }
 .survey-admin-workspace button { min-height: 44px; height: auto; white-space: normal; }
-.survey-admin-workspace input[type="search"] { min-height: 44px; }
-.survey-admin-workspace [aria-label="Filtrar por estado operativo"] { flex-wrap: wrap; overflow: visible; }
-.survey-admin-workspace :where(button, input, select, a):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.survey-admin-workspace :where(input[type="search"], select, summary) { min-height: 44px; }
+.survey-admin-workspace :where(button, input, select, summary) { border-radius: 8px; }
+.survey-admin-workspace [aria-label="Filtrar por estado"] { flex-wrap: wrap; overflow: visible; }
+.survey-admin-workspace :where(button, input, select, a, summary):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.survey-admin-support a { display: inline-flex; min-height: 44px; align-items: center; }
+.survey-support-dialog { width: min(32rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); border-radius: 12px; overflow-wrap: anywhere; }
+.survey-support-dialog button { min-width: 44px; min-height: 44px; height: auto; border-radius: 8px; white-space: normal; }
+.survey-support-dialog select { min-height: 44px; border-radius: 8px; }
+.survey-support-dialog a { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; }
+.survey-support-dialog label:has(input[type="checkbox"]) { min-height: 44px; align-items: center; }
+.survey-support-dialog :where(button, select, input, a):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .survey-admin-workspace .animate-spin { animation: none; }
   .survey-admin-workspace button { transition: none; transform: none; }
+  .survey-support-dialog[data-state], .survey-support-dialog button { animation: none !important; transition: none !important; }
 }

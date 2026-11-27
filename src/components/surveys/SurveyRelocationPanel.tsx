@@ -161,7 +161,7 @@ export function SurveyRelocationPanel({ tenantSlug, surveys, listReady, external
       <Button type="button" variant="outline" disabled={externalBusy || denied} onClick={openPanel}>{action.label}</Button></div>
     <a className="text-sm underline" href={`/admin/encuestas?tenant_slug=${encodeURIComponent(source.slug)}&include_archived=true`}>{ui.history_label}</a>
     <Dialog open={open} onOpenChange={value => { if (!value) closePanel(); }}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto" showCloseButton={phase !== 'pending'}
+      <DialogContent className="survey-support-dialog max-h-[90dvh] overflow-y-auto" showCloseButton={phase !== 'pending'}
         onEscapeKeyDown={event => { if (phase === 'pending') event.preventDefault(); }}
         onInteractOutside={event => { if (phase === 'pending') event.preventDefault(); }}
         onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('survey-relocation-cancel')?.focus(); }}>
@@ -172,7 +172,7 @@ export function SurveyRelocationPanel({ tenantSlug, surveys, listReady, external
               disabled={!selected.includes(item.id) && selected.length >= action.max_surveys} onChange={event => changeSelection(item.id, event.target.checked)} />
               <span>#{item.id} · {item.titulo} · {item.estado}</span></label></li>)}</ul>
           </fieldset>
-          <label className="block space-y-1"><span className="font-medium">{ui.target_label}</span><select className="w-full rounded-md border bg-background p-2" value={targetId ?? ''} disabled={loading || denied}
+          <label className="block space-y-1"><span className="font-medium">{ui.target_label}</span><select className="w-full rounded-sm border bg-background p-2" value={targetId ?? ''} disabled={loading || denied}
             onChange={event => { setTargetId(event.target.value ? Number(event.target.value) : null); setPreview(null); setPhase('selection'); setError(null); }}>
             <option value="">{ui.target_label}</option>{targets.filter(item => item.id !== source.id && item.slug !== source.slug).map(item => <option key={item.id} value={item.id}>{item.nombre} · {item.slug}</option>)}
           </select></label>
@@ -181,11 +181,11 @@ export function SurveyRelocationPanel({ tenantSlug, surveys, listReady, external
         </div>}
         {loading && <p role="status">{ui.loading_label}</p>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        {preview && <div role="region" aria-label={preview.ui.response_count_label} className="space-y-3 rounded-md border p-3 text-sm">
+        {preview && <div role="region" aria-label={preview.ui.response_count_label} className="space-y-3 rounded-xl border p-3 text-sm">
           <p className="font-medium">{preview.source_tenant.nombre} → {preview.target_tenant.nombre}</p>
           <ul className="space-y-2">{preview.items.map(item => <li key={item.survey_id}>#{item.survey_id} · {item.title} · {item.state}<br />{preview.ui.response_count_label}: {item.response_count_all_time.toLocaleString('es-AR')}</li>)}</ul>
           <p>{preview.ui.preservation_notice}</p><p>{preview.ui.draft_notice}</p>
-          {preview.items.some(item => item.state === 'publicada') && <p role="status" className="rounded-md bg-amber-500/10 p-2">{preview.ui.published_warning}</p>}
+          {preview.items.some(item => item.state === 'publicada') && <p role="status" className="rounded-xl bg-amber-500/10 p-2">{preview.ui.published_warning}</p>}
         </div>}
         {receipt && <div className="space-y-2 text-sm" role="status"><p>{ui.success_message || 'Resultado verificado: originales archivados y copias creadas como borradores.'}</p>
           <ul className="space-y-2">{receipt.items.map(item => <li key={item.source_survey_id}>#{item.source_survey_id} → #{item.destination_survey_id}<br />

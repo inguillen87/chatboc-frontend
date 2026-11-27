@@ -205,7 +205,7 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getByRole('status', {
       name: 'Publicación bloqueada para Consulta con dictamen pendiente',
-    })).toHaveTextContent('Revisá y aprobá el contenido exacto');
+    })).toHaveTextContent('Para publicar, primero completá la revisión institucional del contenido.');
     expect(screen.getByRole('status', {
       name: 'Publicación bloqueada para Consulta con dictamen pendiente',
     })).not.toHaveTextContent('review_exact_survey_content');
@@ -259,11 +259,11 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar release' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar y publicar' }));
     expect(consoleLogSpy).toHaveBeenCalledWith(
       'Mocked navigate to: /admin/encuestas/905?section=governance#survey-governance',
     );
-    expect(screen.getByRole('button', { name: 'Revisar y publicar release' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Revisar y publicar' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
     expect(publishSurvey).not.toHaveBeenCalled();
     consoleLogSpy.mockRestore();
@@ -273,14 +273,24 @@ describe('AdminSurveysIndex states', () => {
     mocks.toast.mockReset();
   });
 
-  it('uses organization-neutral copy and renders the empty state', () => {
+  it('uses clear copy, keeps the required page order, and leaves support tools collapsed', () => {
     mocks.useSurveyAdmin.mockReturnValue(adminState());
 
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Centro de participación ciudadana' })).toBeTruthy();
-    expect(screen.getByText(/encuestas, sondeos y votaciones/i)).toBeTruthy();
-    expect(screen.getByText(/No hay instrumentos operativos/i)).toBeTruthy();
+    const title = screen.getByRole('heading', { level: 1, name: 'Encuestas y votaciones' });
+    const summary = screen.getByRole('heading', { level: 2, name: 'Resumen' });
+    const list = screen.getByRole('heading', { level: 2, name: 'Listado' });
+    const supportSummary = screen.getByText('Herramientas de soporte');
+    const supportTools = supportSummary.closest('details');
+
+    expect(title.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(list.compareDocumentPosition(supportSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(supportTools).not.toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Nueva encuesta' })).toBeTruthy();
+    expect(screen.getByText('Todavía no hay encuestas ni votaciones.')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: /Centro ejecutivo|Instrumentos operativos/i })).toBeNull();
   });
 
   it('renders an accessible loading state without showing a false empty state', () => {
@@ -289,7 +299,7 @@ describe('AdminSurveysIndex states', () => {
     renderPage();
 
     expect(screen.getByRole('status')).toBeTruthy();
-    expect(screen.queryByText(/No hay instrumentos operativos/i)).toBeNull();
+    expect(screen.queryByText('Todavía no hay encuestas ni votaciones.')).toBeNull();
   });
 
   it('renders a retryable scoped error instead of an empty list', () => {
@@ -302,7 +312,7 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudo validar el tenant seleccionado.');
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
-    expect(screen.queryByText(/No hay instrumentos operativos/i)).toBeNull();
+    expect(screen.queryByText('Todavía no hay encuestas ni votaciones.')).toBeNull();
   });
 
   it('does not offer retry when the tenant scope is missing', () => {
@@ -357,14 +367,16 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    expect(screen.getByText('Mostrando 1 de 2 registros · 1 operativo (1 compatible · 0 por verificar) · 0 conflictos separados')).toBeTruthy();
-    expect(screen.getByText('Instrumentos cargados')).toBeTruthy();
-    expect(screen.getByText(/Indicadores de alcance operativo para 1 instrumentos cargados, dentro de 2/i)).toBeTruthy();
+    expect(screen.getByText('Mostrando 1 de 2')).toBeTruthy();
+    expect(screen.getByText('Abiertas ahora')).toBeTruthy();
+    expect(screen.getByText('Respuestas recibidas')).toBeTruthy();
+    expect(screen.getByText('Respuestas con ubicación')).toBeTruthy();
+    expect(screen.queryByText(/registros|operativo|compatibles|conflictos separados/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Cargar más encuestas' }));
     expect(loadMoreSurveys).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps loaded instruments visible when the following page fails', () => {
+  it('keeps loaded surveys visible when the following page fails', () => {
     mocks.useSurveyAdmin.mockReturnValue(adminState({
       surveys: {
         data: [{
@@ -388,7 +400,9 @@ describe('AdminSurveysIndex states', () => {
     renderPage();
 
     expect(screen.getByText('Consulta de servicios')).toBeTruthy();
-    expect(screen.getByRole('alert')).toHaveTextContent(/Conservamos los instrumentos ya cargados/i);
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar la página siguiente.');
+    expect(screen.getByRole('button', { name: 'Reintentar página' })).toBeTruthy();
+    expect(screen.queryByText(/conservamos los instrumentos/i)).toBeNull();
   });
 
   it('offers a compact searchable workspace without hiding separated jurisdiction conflicts', () => {
@@ -425,10 +439,19 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Instrumentos operativos' })).toBeTruthy();
-    expect(screen.getByText(/2 visibles de 2 instrumentos operativos · 1 conflicto separado/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Listado' })).toBeTruthy();
+    expect(screen.getByText('Mostrando 3 de 3')).toBeTruthy();
+    expect(screen.getByLabelText('Buscar encuestas y votaciones')).toBeTruthy();
+    expect(screen.getAllByText('Cómo leer estos resultados')).toHaveLength(1);
+    const readingNote = screen.getByText('Cómo leer estos resultados').closest('details');
+    expect(readingNote).not.toHaveAttribute('open');
+    expect(readingNote).toHaveTextContent('Son consultas, no elecciones oficiales.');
+    expect(readingNote).toHaveTextContent(/no garantiza que cada respuesta provenga de una persona distinta/i);
+    expect(readingNote).toHaveTextContent(/no calculamos el porcentaje de participación ni la abstención/i);
+    expect(readingNote).toHaveTextContent(/no cuentan con certificación externa/i);
+    expect(screen.queryByText(/Resultado no certificado|No prueba que cada respuesta/i)).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('Buscar instrumentos'), {
+    fireEvent.change(screen.getByLabelText('Buscar encuestas y votaciones'), {
       target: { value: '701' },
     });
     expect(screen.getByText('Consulta de alumbrado')).toBeTruthy();
@@ -438,15 +461,15 @@ describe('AdminSurveysIndex states', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Votaciones: 1' }));
     expect(screen.queryByText('Consulta de alumbrado')).toBeNull();
     expect(screen.getByText('Votación de obras')).toBeTruthy();
-    expect(screen.getByText('Conflicto de alcance · 1 instrumento')).toBeTruthy();
+    expect(screen.getByText('Consultas para revisar · 1')).toBeTruthy();
     expect(screen.getByText('Auditoría de otra jurisdicción')).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('Buscar instrumentos'), {
+    fireEvent.change(screen.getByLabelText('Buscar encuestas y votaciones'), {
       target: { value: 'sin coincidencia' },
     });
-    expect(screen.getByText('No hay instrumentos que coincidan con esta vista.')).toBeTruthy();
-    expect(screen.getByText(/los registros no fueron eliminados/i)).toBeTruthy();
-    expect(screen.getByText('Conflicto de alcance · 1 instrumento')).toBeTruthy();
+    expect(screen.getByText('No hay resultados para esta búsqueda.')).toBeTruthy();
+    expect(screen.getByText(/Probá con otras palabras o limpiá los filtros/i)).toBeTruthy();
+    expect(screen.getByText('Consultas para revisar · 1')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(screen.getByText('Consulta de alumbrado')).toBeTruthy();
@@ -496,14 +519,14 @@ describe('AdminSurveysIndex states', () => {
     }));
 
     renderPage();
-    fireEvent.change(screen.getByLabelText('Buscar instrumentos'), {
+    fireEvent.change(screen.getByLabelText('Buscar encuestas y votaciones'), {
       target: { value: 'movilidad' },
     });
 
-    expect(screen.getByText(/0 visibles entre 1 instrumento operativo cargado/i)).toBeTruthy();
-    expect(screen.getByText('No hay coincidencias entre 1 instrumento operativo cargado.')).toBeTruthy();
+    expect(screen.getByText('Mostrando 0 de 1')).toBeTruthy();
+    expect(screen.getByText('No hay coincidencias en los registros cargados.')).toBeTruthy();
     expect(screen.getByText(/todavía puede haber coincidencias en las páginas pendientes/i)).toBeTruthy();
-    expect(screen.queryByText('No hay instrumentos que coincidan con esta vista.')).toBeNull();
+    expect(screen.queryByText('No hay resultados para esta búsqueda.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cargar más resultados' }));
     expect(loadMoreSurveys).toHaveBeenCalledTimes(1);
@@ -590,7 +613,7 @@ describe('AdminSurveysIndex states', () => {
     await waitFor(() => expect(refetchList).toHaveBeenCalledTimes(1));
   });
 
-  it('keeps unverified instruments visible but blocks publication even when a legacy contract enables it', async () => {
+  it('keeps unverified surveys visible but blocks publication even when a legacy contract enables it', async () => {
     const publishSurvey = vi.fn().mockResolvedValue(undefined);
     const deleteSurvey = vi.fn().mockResolvedValue(undefined);
     const survey = {
@@ -659,11 +682,8 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getByRole('status', {
       name: 'Publicación bloqueada para Consulta pendiente de verificación',
-    })).toHaveTextContent(/Publicación institucional pendiente/i);
-    expect(screen.getByRole('status', {
-      name: 'Publicación bloqueada para Consulta pendiente de verificación',
-    })).toHaveTextContent(/Vincular y verificar la jurisdicción/i);
-    expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
+    })).toHaveTextContent('Para publicar, primero hay que verificar los datos institucionales de la organización.');
+    expect(screen.queryByText(/Publicación institucional pendiente|Conflictos de alcance/i)).toBeNull();
 
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
     expect(publishSurvey).not.toHaveBeenCalled();
@@ -745,10 +765,10 @@ describe('AdminSurveysIndex states', () => {
 
     const conflictingSurvey = makeSurvey(
       632,
-      'Instrumento legado incompatible',
+      'Votación de otra organización',
       'conflict',
     );
-    const validSurvey = makeSurvey(700, 'Instrumento válido de Junín', 'compatible');
+    const validSurvey = makeSurvey(700, 'Consulta válida de Junín', 'compatible');
     mocks.useSurveyAdmin.mockReturnValue(adminState({
       // The conflict intentionally arrives first: the UI must use the lifecycle
       // contract, rather than names or slugs, to move it behind valid records.
@@ -758,11 +778,13 @@ describe('AdminSurveysIndex states', () => {
 
     renderPage();
 
-    const validTitle = screen.getByText('Instrumento válido de Junín');
-    const conflictTitle = screen.getByText('Instrumento legado incompatible');
+    const validTitle = screen.getByText('Consulta válida de Junín');
+    const conflictTitle = screen.getByText('Votación de otra organización');
     expect(validTitle.compareDocumentPosition(conflictTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const legacySection = screen.getByText('Conflicto de alcance · 1 instrumento').closest('details');
+    const legacySection = screen.getByText('Consultas para revisar · 1').closest('details');
     expect(legacySection).not.toHaveAttribute('open');
+    expect(legacySection).toHaveTextContent('datos institucionales que no coinciden con la organización');
+    expect(document.body).not.toHaveTextContent(/\b(?:instrumentos?|backend|evidencia|conflictos?)\b/i);
     expect(screen.getAllByRole('button', { name: 'Publicar' })).toHaveLength(1);
   });
 
@@ -857,9 +879,10 @@ describe('AdminSurveysIndex states', () => {
 
     expect(screen.getAllByText('10').length).toBeGreaterThan(0);
     expect(screen.queryByText('100')).toBeNull();
-    const legacy = screen.getByText('Conflicto de alcance · 1 instrumento').closest('details');
+    const legacy = screen.getByText('Consultas para revisar · 1').closest('details');
     expect(legacy).not.toHaveAttribute('open');
-    expect(screen.getByText(/Se excluyen 1 conflictos confirmados\. 0 instrumentos sin verificar/i)).toBeTruthy();
+    expect(legacy).toHaveTextContent('no se incluye en el resumen');
+    expect(screen.queryByText(/conflictos confirmados|instrumentos sin verificar/i)).toBeNull();
   });
 
   it('fails closed when a Junín-looking title has no authoritative scope', () => {
@@ -884,7 +907,7 @@ describe('AdminSurveysIndex states', () => {
     expect(screen.queryByText(/Conflictos de alcance/)).toBeNull();
     expect(screen.getByRole('status', {
       name: 'Publicación bloqueada para Consulta oficial Municipalidad de Junín',
-    })).toHaveTextContent(/Publicación institucional pendiente/i);
+    })).toHaveTextContent('Para publicar, primero hay que verificar los datos institucionales de la organización.');
     expect(screen.queryByRole('button', { name: 'Publicar' })).toBeNull();
   });
 });
@@ -894,13 +917,17 @@ describe('survey list refresh controls',()=>{
     const refresh=vi.fn().mockResolvedValue(undefined);mocks.useSurveyAdmin.mockReturnValue(adminState({refetchList:refresh}));
     renderPage();fireEvent.click(screen.getByRole('button',{name:'Actualizar listado'}));expect(refresh).toHaveBeenCalledOnce();
   });
-  it.each(['isLoadingList','isLoadingMoreSurveys','isPublishing','isClosing','isDeleting','isSeeding'])('does not start a competing refresh during %s',flag=>{
+  it('offers no refresh at all while the first read is still loading',()=>{
+    const refresh=vi.fn();mocks.useSurveyAdmin.mockReturnValue(adminState({isLoadingList:true,refetchList:refresh}));renderPage();
+    expect(screen.queryByRole('button',{name:'Actualizar listado'})).not.toBeInTheDocument();expect(refresh).not.toHaveBeenCalled();
+  });
+  it.each(['isLoadingMoreSurveys','isPublishing','isClosing','isDeleting','isSeeding'])('does not start a competing refresh during %s',flag=>{
     const refresh=vi.fn();mocks.useSurveyAdmin.mockReturnValue(adminState({[flag]:true,refetchList:refresh}));renderPage();
     expect(screen.getByRole('button',{name:'Actualizar listado'})).toBeDisabled();fireEvent.click(screen.getByRole('button',{name:'Actualizar listado'}));expect(refresh).not.toHaveBeenCalled();
   });
   it('shows a visible refreshing state rather than an empty successful list',()=>{
     mocks.useSurveyAdmin.mockReturnValue(adminState({surveys:undefined,isLoadingList:true,listReadState:{phase:'refreshing',pages:0,receivedAt:null}}));renderPage();
-    expect(screen.getByText('Actualizando encuestas y votaciones')).toBeVisible();expect(screen.queryByText('Instrumentos operativos')).not.toBeInTheDocument();
+    expect(screen.getByText('Actualizando encuestas y votaciones')).toBeVisible();expect(screen.queryByRole('heading',{name:'Listado'})).not.toBeInTheDocument();
   });
   it('labels recovery of a failed next page explicitly',()=>{
     mocks.useSurveyAdmin.mockReturnValue(adminState({surveys:{data:[workspaceInstrument(90,'Consulta recibida','collecting')]},hasMoreSurveys:true,loadMoreError:'Página no disponible',surveyListProgress:{loaded:1,total:2}}));renderPage();
