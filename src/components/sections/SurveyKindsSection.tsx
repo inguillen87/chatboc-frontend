@@ -65,6 +65,7 @@ const READINGS: Array<[string, string]> = [
   ["Resultados en vivo", "Cada voto mueve el resultado en el momento, listo para proyectar en una sala o un acto."],
   ["Mapa de calor", "Dónde se participa más y dónde falta llegar, por zona."],
   ["Quién responde", "Cortes por edad, género y territorio declarado."],
+  ["Palabras que más se repiten", "En las preguntas abiertas, lo que más escribió la gente, sin mostrar ninguna respuesta."],
   ["Por dónde llegan", "Cuántas respuestas trae cada canal y cada campaña."],
   ["Evolución diaria", "Cómo crece la participación día por día."],
   ["Quién puede participar", "Abierta a todos o limitada a un grupo, con consentimiento informado."],

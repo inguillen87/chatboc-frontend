@@ -35,7 +35,7 @@ const MODULES = [
     id: "encuestas",
     title: "Encuestas y participación",
     description:
-      "Publicás una consulta, la gente responde desde el chat o un enlace, y los resultados se ven a medida que llegan.",
+      "Consultas, sondeos y votaciones en vivo. La gente responde desde el chat o un enlace y vos ves el resultado, el mapa y las palabras que más se repiten.",
     detail: "Participación",
   },
   {
@@ -49,7 +49,7 @@ const MODULES = [
     id: "estadisticas",
     title: "Estadísticas y tablero operativo",
     description:
-      "Qué se consulta más, por qué canal entra, cuánto se tarda en responder y qué resuelve cada equipo.",
+      "Qué se consulta más, por qué canal entra, qué porcentaje se resuelve sin derivar a una persona y en qué temas falta información.",
     detail: "Datos",
   },
 ];
