@@ -212,19 +212,19 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
       { id: 'open', label: 'Casos abiertos', value: inbox?.open, icon: Ticket, tone: inbox?.open ? 'warning' : 'default' },
       {
         id: 'sla',
-        label: 'Riesgo SLA',
-        detailLabel: 'Riesgo SLA confirmado',
+        label: 'Fuera de plazo o por vencer',
+        detailLabel: 'Plazo vencido o por vencer',
         value: sla?.risk,
-        description: sla ? `${sla.breached} vencidos y ${sla.atRisk} en riesgo.` : 'Falta evidencia suficiente para evaluar el SLA.',
+        description: sla ? `${sla.breached} vencidos y ${sla.atRisk} en riesgo.` : 'Todavía no hay datos suficientes para evaluar los plazos.',
         icon: AlertTriangle,
         tone: sla && sla.risk > 0 ? 'warning' : 'default',
       },
       {
         id: 'sla-unknown',
         label: 'Plazos por revisar',
-        detailLabel: 'SLA sin verificar',
+        detailLabel: 'Plazo sin verificar',
         value: sla?.unknown,
-        description: 'Casos abiertos sin evidencia verificable del plazo de atención.',
+        description: 'Casos abiertos sin un plazo de atención que se pueda comprobar.',
         icon: AlertTriangle,
       },
       { id: 'orders', label: 'Pedidos activos', value: readCount(orders?.summary?.active), icon: CheckCircle2 },
@@ -320,8 +320,7 @@ export default function BackofficeCommandCenter({ tenantSlug, tenantId, tenantRe
     <section className={cn('space-y-4', className)} aria-label="Centro de mando administrativo">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Mando operativo</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">Prioridades, equipo y exportaciones</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">Prioridades y equipo</h2>
         </div>
         <Button type="button" variant="outline" onClick={refresh} disabled={isLoading || !enabled}>
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
