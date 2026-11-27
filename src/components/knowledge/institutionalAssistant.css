@@ -295,3 +295,13 @@
 .institutional-locality__locate:hover:not(:disabled) { border-style:solid; border-color:hsl(var(--primary)); }
 .institutional-locality__note { margin:.5rem 0 0; min-height:0; color:hsl(var(--muted-foreground)); }
 .institutional-locality__note:empty { display:none; }
+/* A document the organization hands out: one visible, large download target. */
+.institutional-assistant__handout { margin-block:.9rem .4rem; }
+.institutional-assistant__handout button { display:inline-flex; align-items:center; gap:.7rem; min-height:56px; max-width:100%; padding:10px 16px; border:1.5px solid hsl(var(--primary)); border-radius:12px; background:hsl(var(--primary)/.1); text-align:left; }
+.institutional-assistant__handout button:hover:not(:disabled) { background:hsl(var(--primary)/.18); }
+.institutional-assistant__handout button:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:2px; }
+.institutional-assistant__handout button > span { display:block; line-height:1.35; }
+.institutional-assistant__handout small { display:block; color:hsl(var(--muted-foreground)); font-size:.85em; }
+.institutional-assistant__handout p { margin:.4rem 0 0; color:hsl(var(--muted-foreground)); }
+.institutional-assistant__handout p:empty { display:none; }
+@media print{.institutional-assistant__handout{display:none;}}
