@@ -215,8 +215,8 @@ export default function ProfileWorkspaceNavigation({
           ? [
               {
                 id: "tickets",
-                label: isMunicipal ? "Reclamos" : "Tickets",
-                description: "Cola, conversación y resolución guiada.",
+                label: isMunicipal ? "Reclamos" : "Casos",
+                description: "Casos por atender, conversación y pasos para resolver.",
                 icon: ClipboardList,
                 tab: "tickets",
               },
