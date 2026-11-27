@@ -7,6 +7,7 @@ import { EDUCATION_FEATURE_FLAGS, FEATURE_ENCUESTAS } from '@/config/featureFlag
 import Index from '@/pages/Index';
 import { TenantHostHomeRoute } from '@/components/tenant/TenantHostHomeRoute';
 import Login from '@/pages/Login';
+import Restablecer from '@/pages/Restablecer';
 import Register from '@/pages/Register';
 import UserLogin from '@/pages/UserLogin';
 import UserRegister from '@/pages/UserRegister';
@@ -542,6 +543,7 @@ const routes: RouteConfig[] = [
   // Global Routes
   { path: '/admin', tenantHost: 'private', element: <Navigate to="/perfil" replace />, requiresSession: true },
   { path: '/login', tenantHost: 'public', element: <Login /> },
+  { path: '/restablecer', tenantHost: 'public', element: <Restablecer /> },
   { path: '/register', element: <Register /> },
   { path: '/sso-callback', tenantHost: 'public', element: <ClerkSsoCallbackPage /> },
   { path: '/auth/sso-callback', tenantHost: 'public', element: <ClerkSsoCallbackPage /> },

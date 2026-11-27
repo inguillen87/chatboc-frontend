@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Tenant } from '@/types/superAdmin';
+import { AccessSupportCard } from '@/components/admin/platform/AccessSupportCard';
 import { NativeAdminLegacyMembershipCard } from '@/components/admin/platform/NativeAdminLegacyMembershipCard';
 import { OrganizationAddressActivationPanel } from '@/components/admin/platform/OrganizationAddressActivationPanel';
 import { apiClient } from '@/api/client';
@@ -332,6 +333,8 @@ function TenantModalSession({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                             </form>
                         </Form>
                     </div>
+
+                    {tenantToEdit ? <AccessSupportCard tenantSlug={tenantToEdit.slug} /> : null}
 
                     <div className="space-y-4 border p-4 rounded-md bg-muted/20">
                         <h3 className="font-medium text-sm">Restablecer contraseña (admin principal)</h3>
