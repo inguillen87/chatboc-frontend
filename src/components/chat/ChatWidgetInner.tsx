@@ -3386,12 +3386,13 @@ function ChatWidgetInner({
     return null;
   }
 
-  // On a phone the embedded reader fills the column, and a second assistant
-  // floating over it covers the edge of its options. While closed, the launcher
-  // steps aside there. An open conversation is never taken away, and an
+  // The page already carries the organization's published reader: a second
+  // assistant floating over it, with the platform's mascot, competes with the
+  // organization's own portal and on a phone covers its options. While closed,
+  // the launcher steps aside. An open conversation is never taken away, and an
   // organization that forces its greeting keeps the launcher that carries it.
   if (
-    mode === "standalone" && isMobileView && embeddedInstitutionalReader && !isOpen &&
+    mode === "standalone" && embeddedInstitutionalReader && !isOpen &&
     entityInfo?.force_proactive !== true
   ) {
     return null;
