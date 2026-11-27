@@ -376,6 +376,11 @@ export default defineConfig(({ mode }) => {
         },
         output: {
           manualChunks(id) {
+            const normalizedId = id.replaceAll('\\', '/');
+            // The public claim form and the institutional assistant reuse the
+            // same small control. Keep it in the UI runtime already loaded by
+            // the offline shell so reuse does not add a precache file.
+            if (normalizedId.endsWith('/src/components/knowledge/DictationControl.tsx')) return 'vendor-ui';
             // This helper is shared by every dynamic import. Letting Rollup
             // merge it into a lazy export chunk pulls PDF/compression into the
             // initial shell again, even though PDF tools load only on export.
