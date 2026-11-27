@@ -34,13 +34,37 @@ function textBlocks(text:string):TextBlock[] {
   return blocks;
 }
 
+/**
+ * Phone numbers and e-mail addresses written in an answer become links, so a
+ * reader can call or write with one tap instead of copying digits. Only
+ * unambiguous shapes are recognised: an area code with its number, a 0800
+ * line, or an address with a domain. The visible text is never changed.
+ */
+const CONTACT_PATTERN=/([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)|((?:\(0\d{3,4}\)\s?\d{6,7}|0800[ -]\d{3}[ -]\d{4}|\b0?\d{4}-\d{6,7})(?!\d))/g;
+export function linkInstitutionalContacts(text:string):React.ReactNode[] {
+  const nodes:React.ReactNode[]=[];
+  let cursor=0;
+  for(const match of text.matchAll(CONTACT_PATTERN)){
+    const start=match.index??0;
+    if(start>cursor)nodes.push(text.slice(cursor,start));
+    const email=match[1]?.replace(/\.$/,'');
+    const shown=email??match[2];
+    nodes.push(email
+      ?<a key={start} href={`mailto:${email}`} className="institutional-assistant__contact-link">{shown}</a>
+      :<a key={start} href={`tel:${match[2].replace(/\D/g,'')}`} className="institutional-assistant__contact-link">{shown}</a>);
+    cursor=start+shown.length;
+  }
+  if(cursor<text.length)nodes.push(text.slice(cursor));
+  return nodes;
+}
+
 /** Both institutional surfaces retain backend copy and render it as safe text. */
 export {readInstitutionalLargeText,rememberInstitutionalLargeText} from '@/components/chat/AccessibilityToggle';
 export function InstitutionalTextBlocks({text}:{text:string}) {
   return <>{textBlocks(text).map((block,index)=>{
-    if(block.kind==='paragraph')return <p key={index}>{block.text}</p>;
+    if(block.kind==='paragraph')return <p key={index}>{linkInstitutionalContacts(block.text)}</p>;
     const items=block.items.map((item,itemIndex)=><li key={itemIndex}
-      {...('number' in item?{value:item.number}:{})} className="whitespace-pre-line break-words">{item.text}</li>);
+      {...('number' in item?{value:item.number}:{})} className="whitespace-pre-line break-words">{linkInstitutionalContacts(item.text)}</li>);
     return block.kind==='ordered'
       ?<ol key={index} start={block.items[0].number} className="mb-[15px] list-decimal space-y-2 pl-6">{items}</ol>
       :<ul key={index} className="mb-[15px] list-disc space-y-2 pl-6">{items}</ul>;

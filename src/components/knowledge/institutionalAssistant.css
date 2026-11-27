@@ -286,3 +286,8 @@
 .institutional-locality--chosen button { margin-left:auto; min-height:40px; padding:6px 12px; border:1px solid var(--institutional-control-border); border-radius:10px; background:transparent; font-weight:600; }
 .institutional-assistant__your-place { margin-left:.5rem; padding:.1rem .5rem; border-radius:999px; background:hsl(var(--primary)/.16); font-size:.82em; font-weight:650; white-space:nowrap; }
 @media print{.institutional-locality{display:none;}}
+/* Tappable phone numbers and e-mail addresses inside an answer. */
+.institutional-assistant__contact-link { color:inherit; font-weight:600; text-decoration:underline; text-decoration-thickness:1.5px; text-underline-offset:3px; white-space:nowrap; }
+.institutional-assistant__contact-link:hover { color:hsl(var(--primary)); }
+.institutional-assistant__contact-link:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:2px; border-radius:3px; }
+@media print{.institutional-assistant__contact-link{text-decoration:none;font-weight:inherit;}}
