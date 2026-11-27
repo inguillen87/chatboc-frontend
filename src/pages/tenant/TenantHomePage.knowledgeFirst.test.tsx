@@ -103,7 +103,8 @@ describe('published institutional assistant in the public services home', () => 
     await act(async () => { pending.resolve(json(publicWorkspace())); });
     const reader = await screen.findByTestId('institutional-assistant');
     expect(reader).toHaveClass('institutional-assistant--services');
-    expect(reader.querySelector('.institutional-assistant__mark')).toBeNull();
+    // Kept only for the printed answer: hidden on screen by the services stylesheet and from assistive technology.
+    expect(reader.querySelector('.institutional-assistant__mark')).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByRole('img', { name: `Logo de ${tenantName(publicSlug)}` })).toHaveAttribute('src', `/branding/${publicSlug}.png`);
     const heading = screen.getByRole('heading', { level: 1, name: tenantName(publicSlug) });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
