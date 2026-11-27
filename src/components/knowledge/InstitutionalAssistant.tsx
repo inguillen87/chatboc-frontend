@@ -439,7 +439,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
           </article>;})}
           {mode==='public'&&!busy&&!error&&!showSources&&workspace.audio_reading&&workspace.revision&&nodes.length>0?
-            <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading}/>:null}
+            <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading} fallbackText={nodes.map(node=>`${node.title}. ${node.text}`).join('\n\n')}/>:null}
           {!initialMenu?choices:null}
           {nodes.length>0?<footer className="institutional-assistant__print-footer" aria-hidden="true">
             <p className="institutional-assistant__print-date">Fecha de impresión: <time ref={printTimeRef} dateTime={printDate.toISOString()}>{formatInstitutionalPrintDate(printDate)}</time></p>
