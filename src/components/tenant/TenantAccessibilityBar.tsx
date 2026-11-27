@@ -95,10 +95,10 @@ export function TenantAccessibilityBar({ className }: { className?: string }) {
       aria-label="Accesibilidad"
     >
       <p className="shrink-0 text-sm font-semibold text-foreground">Accesibilidad</p>
-      <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 min-[641px]:flex min-[641px]:flex-wrap">
+      <div className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fit,minmax(0,1fr))] gap-2 min-[641px]:flex min-[641px]:flex-wrap">
         <button
           type="button"
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[641px]:w-auto"
+          className="inline-flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-semibold leading-tight min-[641px]:flex-row min-[641px]:gap-2 min-[641px]:px-4 min-[641px]:text-sm text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[641px]:w-auto"
           aria-pressed={tenantAccessibility.largeText}
           onClick={() => tenantAccessibility.setLargeText(!tenantAccessibility.largeText)}
         >
@@ -107,7 +107,7 @@ export function TenantAccessibilityBar({ className }: { className?: string }) {
         </button>
         <button
           type="button"
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[641px]:w-auto"
+          className="inline-flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-semibold leading-tight min-[641px]:flex-row min-[641px]:gap-2 min-[641px]:px-4 min-[641px]:text-sm text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[641px]:w-auto"
           aria-pressed={preferences.highContrast}
           onClick={toggleHighContrast}
         >
@@ -117,7 +117,7 @@ export function TenantAccessibilityBar({ className }: { className?: string }) {
         {tenantAccessibility.readAloudAvailable ? (
           <button
             type="button"
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[641px]:w-auto"
+            className="inline-flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-2 text-center text-xs font-semibold leading-tight min-[641px]:flex-row min-[641px]:gap-2 min-[641px]:px-4 min-[641px]:text-sm text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[641px]:w-auto"
             aria-controls={TENANT_READ_ALOUD_TARGET_ID}
             onClick={startReading}
           >
