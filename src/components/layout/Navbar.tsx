@@ -1,4 +1,5 @@
 import {PrivateWorkspaceBrand} from '@/components/brand/PrivateWorkspaceBrand';
+import { hasSelectedNativePanelImpersonation } from '@/utils/nativePanelSelection';
 import {usePrivateWorkspaceBrandTheme} from '@/components/brand/usePrivateWorkspaceBrandTheme';
 import {brandGradientColors} from '@/utils/publicBrandIdentity';
 import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
@@ -757,6 +758,19 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
             </button>
           </div>
         </nav>
+      ) : null}
+      {privateShell.active && hasSelectedNativePanelImpersonation() ? (
+        <div role="status" className="border-t border-amber-500/40 bg-amber-100 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
+          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p>
+              <strong className="font-semibold">Acceso de soporte.</strong>{' '}
+              Estás viendo el panel de {organizationName} como su administración. Lo que hagas acá queda registrado.
+            </p>
+            <button type="button" onClick={handleLogout} className="inline-flex min-h-9 items-center rounded-md border border-amber-700/50 px-3 font-medium hover:bg-amber-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 dark:hover:bg-amber-900/60">
+              Terminar acceso de soporte
+            </button>
+          </div>
+        </div>
       ) : null}
     </header>
   );
