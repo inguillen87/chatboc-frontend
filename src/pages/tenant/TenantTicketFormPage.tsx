@@ -224,6 +224,29 @@ const TenantTicketFormPage = () => {
   const setField = (field: 'categoria' | 'descripcion' | 'lat' | 'lng', value: string) =>
     updateDraft((current) => ({ ...current, [field]: value }));
 
+  const [locating, setLocating] = useState(false);
+  const [locationNote, setLocationNote] = useState('');
+  const useCurrentLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationNote('Este dispositivo no permite compartir la ubicación. Escribí la dirección en la descripción.');
+      return;
+    }
+    setLocating(true);
+    setLocationNote('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setField('lat', position.coords.latitude.toFixed(6));
+        setField('lng', position.coords.longitude.toFixed(6));
+        setLocating(false);
+        setLocationNote('Ubicación agregada al reclamo.');
+      },
+      () => {
+        setLocating(false);
+        setLocationNote('No pudimos obtener tu ubicación. Revisá el permiso o escribí la dirección en la descripción.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
   const resetForm = () => {
     updateDraft(() => emptyDraft);
     submissionAttemptsRef.current.delete(slug);
@@ -354,30 +377,37 @@ const TenantTicketFormPage = () => {
                     />
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="lat">Latitud (opcional)</Label>
-                      <Input
-                        id="lat"
-                        type="number"
-                        step="any"
-                        value={lat}
-                        onChange={(event) => setField('lat', event.target.value)}
-                        placeholder="-34.6083"
-                      />
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm font-medium">Lugar (opcional)</legend>
+                    <p className="text-sm text-muted-foreground">
+                      Si el problema está donde estás ahora, podés sumar tu ubicación. También podés escribir la dirección en la descripción.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button type="button" variant="outline" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
+                        {locating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        {lat && lng ? 'Actualizar mi ubicación' : 'Usar mi ubicación'}
+                      </Button>
+                      {lat && lng ? (
+                        <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => { setField('lat', ''); setField('lng', ''); setLocationNote(''); }}>
+                          Quitar ubicación
+                        </Button>
+                      ) : null}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lng">Longitud (opcional)</Label>
-                      <Input
-                        id="lng"
-                        type="number"
-                        step="any"
-                        value={lng}
-                        onChange={(event) => setField('lng', event.target.value)}
-                        placeholder="-58.3712"
-                      />
-                    </div>
-                  </div>
+                    <p role="status" className="text-sm">{locationNote || (lat && lng ? 'Ubicación agregada al reclamo.' : '')}</p>
+                    <details className="rounded-md border px-3 py-2">
+                      <summary className="cursor-pointer text-sm">Cargar coordenadas a mano</summary>
+                      <div className="mt-3 grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="lat">Latitud (opcional)</Label>
+                          <Input id="lat" type="number" step="any" value={lat} onChange={(event) => setField('lat', event.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="lng">Longitud (opcional)</Label>
+                          <Input id="lng" type="number" step="any" value={lng} onChange={(event) => setField('lng', event.target.value)} />
+                        </div>
+                      </div>
+                    </details>
+                  </fieldset>
 
                   <div className="flex items-center gap-3">
                     <Button type="submit" disabled={isSubmitting || !tenantReady}>
