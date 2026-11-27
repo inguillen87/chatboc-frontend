@@ -1,4 +1,5 @@
 import React from 'react';
+import { requiresTenantHostBinding } from '@/utils/tenantHostBinding';
 import { useAuth, useUser as useClerkUser } from '@clerk/clerk-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Loader2, LogOut, RefreshCw } from 'lucide-react';
@@ -46,6 +47,15 @@ import {subscribeChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {registerActiveClerkIdentity,isClerkSessionRetired} from '@/utils/sessionRetirement';
 import {hasSelectedNativePanelImpersonation} from '@/utils/nativePanelSelection';
 export { buildClerkProfile, persistChatbocSession } from '@/utils/clerkSession';
+
+/**
+ * A visitor of an organization's own address may carry a platform session from
+ * another address. The server rightly refuses it there; for someone reading a
+ * public portal that refusal is not an error to act on, so it is not announced.
+ */
+export function isForeignPlatformSessionOnTenantHost(message: string, hostname: string | undefined = typeof window === 'undefined' ? undefined : window.location.hostname): boolean {
+  return requiresTenantHostBinding(hostname) && /authorized party is not allowed/i.test(message);
+}
 
 const isAuthEntryPath = (pathname: string) =>
   /\/(?:user\/)?(?:login|register)\/?$/i.test(pathname);
@@ -429,7 +439,7 @@ const ClerkAuthBridge: React.FC<ClerkAuthBridgeProps> = ({
         onCompletionPrimary={() => finishOnboardingHandoff(onboardingDestination)}
         onCompletionPanel={() => finishOnboardingHandoff(CLERK_ONBOARDING_PANEL_PATH)}
       />
-      {syncError ? (
+      {syncError && !isForeignPlatformSessionOnTenantHost(syncError) ? (
         <div
           role="alert"
           aria-live="assertive"
