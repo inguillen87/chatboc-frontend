@@ -283,3 +283,15 @@
 /* The pictogram is a reading aid, not decoration: large enough to recognise at a glance. */
 .institutional-assistant__pictogram { font-size:1.5em; line-height:1; inline-size:1.6em; text-align:center; }
 @media print{.institutional-assistant__pictogram{font-size:1.2em;}}
+/* City choice: three large targets, no typing and no permission prompt. */
+.institutional-locality { margin-block:1rem 1.25rem; padding:1rem 1.1rem; border:1px solid var(--institutional-control-border); border-radius:14px; background:hsl(var(--muted)/.3); }
+.institutional-locality h4 { margin:0; font-size:1.15em; font-weight:650; line-height:1.4; }
+.institutional-locality > p { margin:.25rem 0 .85rem; max-width:60ch; color:hsl(var(--muted-foreground)); }
+.institutional-locality__options { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:9px; }
+.institutional-locality__options button { display:flex; align-items:center; justify-content:flex-start; gap:.6rem; min-height:60px; padding:12px 16px; border:1px solid var(--institutional-control-border); border-radius:12px; background:hsl(var(--background)); font-size:1.08em; font-weight:600; text-align:left; }
+.institutional-locality__options button:hover:not(:disabled) { border-color:hsl(var(--primary)); }
+.institutional-locality :is(button):focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:2px; }
+.institutional-locality--chosen { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem .75rem; padding:.7rem 1rem; }
+.institutional-locality--chosen button { margin-left:auto; min-height:40px; padding:6px 12px; border:1px solid var(--institutional-control-border); border-radius:10px; background:transparent; font-weight:600; }
+.institutional-assistant__your-place { margin-left:.5rem; padding:.1rem .5rem; border-radius:999px; background:hsl(var(--primary)/.16); font-size:.82em; font-weight:650; white-space:nowrap; }
+@media print{.institutional-locality{display:none;}}
