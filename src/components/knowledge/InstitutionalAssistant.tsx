@@ -1,4 +1,4 @@
-import React,{useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
+import React,{useEffect,useId,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Mic,Plus,Printer,Search,Share2,Type} from 'lucide-react';
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,readKnowledgeAcronyms,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
@@ -9,6 +9,7 @@ import {InstitutionalAcronyms,InstitutionalNoAnswerFallback,InstitutionalTextBlo
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
+import {InstitutionalLocality,mentionsLocality,readInstitutionalLocality,rememberInstitutionalLocality} from './InstitutionalLocality';
 import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
@@ -294,11 +295,16 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
     document.addEventListener('pointerdown',trackNavigation,true);document.addEventListener('wheel',trackNavigation,{capture:true,passive:true});document.addEventListener('keydown',trackKeyboard,true);
     return()=>{active.current=false;serial.current++;requestFocus.current=null;document.removeEventListener('focusin',trackFocus);document.removeEventListener('focusout',trackBlur);document.removeEventListener('pointerdown',trackNavigation,true);document.removeEventListener('wheel',trackNavigation,true);document.removeEventListener('keydown',trackKeyboard,true);if(frame.current!==null)cancelAnimationFrame(frame.current);};
   },[]);
+  const localities=useMemo(()=>mode==='public'?workspace?.knowledge?.localities??[]:[],[mode,workspace]);
+  const [locality,setLocality]=useState<string|null>(null);
+  const localityRef=useRef<string|null>(null);
+  useEffect(()=>{const stored=readInstitutionalLocality(tenantSlug,localities);localityRef.current=stored;setLocality(stored);},[tenantSlug,localities]);
+  const chooseLocality=(label:string|null)=>{localityRef.current=label;setLocality(label);rememberInstitutionalLocality(tenantSlug,label);};
   const navigate=async(id:string,text?:string,origin:HTMLElement|null=null,requestedPresentation:InstitutionalPresentationMode='answer')=>{
     if(!workspace||locked.current||dialog.current)return;const currentWorkspace=workspace;
     cleanupPrintState();
     locked.current=true;setBusy(true);setError(false);setFailedAnswer(null);setShowSources(false);setSourceNavigation(null);const seq=++serial.current;captureRequestFocus(seq,origin);
-    try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text}:{})});
+    try{const response=await askWorkspace(currentWorkspace,mode,{node_id:id,...(text?{question:text,...(mode==='public'&&localityRef.current?{locality:localityRef.current}:{})}:{})});
       if(active.current&&serial.current===seq){
         // An uncovered question, or the source catalog opened from it, keeps the topic.
         const keepsTopic=isKnowledgeSourceNavigation(response)||Boolean(text)&&!response.nodes.length;
@@ -405,7 +411,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
       }} onClick={event=>navigate(action.target,undefined,event.currentTarget)}>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span className="inline-flex min-w-[1.5em] shrink-0 justify-center font-semibold tabular-nums">{action.code}</span>
-          {' '}{label.emoji?<><span aria-hidden="true" className="institutional-assistant__pictogram shrink-0">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>
+          {' '}{label.emoji?<><span aria-hidden="true" className="institutional-assistant__pictogram shrink-0">{label.emoji}</span>{' '}</>:null}<span>{label.words}</span>{mentionsLocality(label.words,locality)?<span className="institutional-assistant__your-place">Tu ciudad</span>:null}
         </span><ChevronRight size={16} aria-hidden="true"/>
       </button>;
     }}/>:null;
@@ -445,6 +451,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
       <div className="institutional-assistant__conversation">
         <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget,mode==='public'?'initial-menu':'answer')}><ArrowLeft size={15} aria-hidden="true"/>{ui.home}</button><span>{ui.evidence}</span></div>
         {servicesLayout&&initialMenu?composer:null}
+        {mode==='public'&&initialMenu&&!busy?<InstitutionalLocality localities={localities} value={locality} disabled={Boolean(pending)} onChange={chooseLocality}/>:null}
         {mode==='public'&&knowledge&&current!==knowledge.start&&context.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
           {asked?<div className="institutional-assistant__question"><MessageSquare size={16} aria-hidden="true"/><p>{asked}</p></div>:null}
