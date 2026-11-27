@@ -579,7 +579,7 @@ test.describe('Corte 16 · Floating elements safe-zone coordination (360, 390, 4
 
       // 4. /estadisticas
       await page.goto('/estadisticas', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Actividad y prioridades/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Métricas, mapas y prioridades/i })).toBeVisible();
       await dispatchInstallPrompt(page);
       await checkFloatingGeometry(page, `estadisticas-${viewport.name}`, viewport);
 

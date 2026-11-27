@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, BarChart3, Gauge, Loader2, MapPinned, Radio, Vote } from 'lucide-react';
+import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Radio, Vote } from 'lucide-react';
 import { usePrivateAnalyticsScope } from '@/features/analytics/usePrivateAnalyticsScope';
 import { ViewState } from '@/components/app-shell/ViewState';
 
@@ -30,7 +30,6 @@ import { withBackendReadTimeout } from '@/utils/backendReadTimeout';
 import { STARTUP_CONTINUITY_BUDGET_MS } from '@/utils/backendRequestContinuity';
 import { withAsyncTimeout } from '@/utils/asyncTimeout';
 import { captureChatbocSessionRevision, isChatbocSessionRevisionCurrent } from '@/utils/chatbocSessionRevision';
-import { useCapabilities } from '@/context/CapabilitiesContext';
 
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
 
@@ -87,14 +86,14 @@ export const ANALYTICS_TOTAL_TIMEOUT_MS = 2 * STARTUP_CONTINUITY_BUDGET_MS + 2 *
 
 
 const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> = [
-  { key: 'frt', label: 'Primera respuesta', definition: 'Tiempo promedio hasta la primera respuesta del equipo.' },
-  { key: 'art', label: 'Entre respuestas', definition: 'Tiempo promedio entre respuestas durante la conversación.' },
+  { key: 'frt', label: 'FRT', definition: 'Tiempo promedio hasta la primera respuesta del equipo.' },
+  { key: 'art', label: 'ART', definition: 'Tiempo promedio entre respuestas durante la conversación.' },
   { key: 'resolucion', label: 'Resolución', definition: 'Porcentaje de casos cerrados/resueltos en el período.' },
-  { key: 'backlog', label: 'Casos pendientes', definition: 'Cantidad de conversaciones o casos que todavía no se resolvieron.' },
-  { key: 'sla_breach', label: 'Plazo vencido', definition: 'Casos que superaron el plazo de atención previsto.' },
-  { key: 'deflection', label: 'Resolución automática', definition: 'Interacciones resueltas sin intervención del equipo.' },
-  { key: 'csat', label: 'Satisfacción', definition: 'Calificación recibida en conversaciones cerradas.' },
-  { key: 'nps', label: 'Recomendación', definition: 'Disposición declarada a recomendar el servicio.' },
+  { key: 'backlog', label: 'Backlog', definition: 'Cantidad de conversaciones/tickets pendientes de resolución.' },
+  { key: 'sla_breach', label: 'SLA breach', definition: 'Casos que superaron el umbral objetivo de SLA.' },
+  { key: 'deflection', label: 'Deflection', definition: 'Interacciones resueltas sin intervención humana.' },
+  { key: 'csat', label: 'CSAT', definition: 'Satisfacción del usuario sobre conversaciones cerradas.' },
+  { key: 'nps', label: 'NPS', definition: 'Lealtad percibida medida por recomendación del servicio.' },
 ];
 
 function readPolicyText(policy: Record<string, unknown> | null, key: string, fallback = '--') {
@@ -105,7 +104,7 @@ function readPolicyText(policy: Record<string, unknown> | null, key: string, fal
 function readPolicyOrder(policy: Record<string, unknown> | null) {
   const order = policy?.provider_order;
   if (!Array.isArray(order)) return '';
-  return order.map((item) => String(item || '').trim()).filter(Boolean).join(', ');
+  return order.map((item) => String(item || '').trim()).filter(Boolean).join(' -> ');
 }
 
 function ModelPolicyBadges({ policy }: { policy: Record<string, unknown> | null }) {
@@ -117,17 +116,12 @@ function ModelPolicyBadges({ policy }: { policy: Record<string, unknown> | null 
   const backofficeOptimized = policy.backoffice_optimized === true;
 
   return (
-    <details className="rounded-lg border border-border/70 bg-muted/20 text-xs text-muted-foreground">
-      <summary className="flex min-h-11 cursor-pointer items-center rounded-lg px-3 py-2 font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        Datos para soporte
-      </summary>
-      <dl className="grid gap-1 border-t border-border/60 px-3 py-2">
-        <div><dt className="inline font-medium text-foreground">Proveedor: </dt><dd className="inline">{primaryProvider}</dd></div>
-        {providerOrder ? <div><dt className="inline font-medium text-foreground">Orden configurado: </dt><dd className="inline">{providerOrder}</dd></div> : null}
-        <div><dt className="inline font-medium text-foreground">Código abierto disponible: </dt><dd className="inline">{openSourceReady ? 'Sí' : 'No informado'}</dd></div>
-        <div><dt className="inline font-medium text-foreground">Optimizado para el panel: </dt><dd className="inline">{backofficeOptimized ? 'Sí' : 'No informado'}</dd></div>
-      </dl>
-    </details>
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <Badge variant="secondary">IA: {primaryProvider}</Badge>
+      {openSourceReady ? <Badge variant="outline">open-source listo</Badge> : null}
+      {backofficeOptimized ? <Badge variant="outline">backoffice</Badge> : null}
+      {providerOrder ? <span className="text-muted-foreground">{providerOrder}</span> : null}
+    </div>
   );
 }
 
@@ -139,7 +133,6 @@ const AnalyticsPage = () => {
   return <ScopedAnalyticsPage key={`${key}:${scope.kind}`} currentSlug={scope.tenantSlug} tenantId={scope.tenantId ?? 0} panelUserScope={scope.kind} platformAdmin={scope.platformAdmin} />;
 };
 const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAdmin }: { currentSlug: string; tenantId: number; panelUserScope: 'municipio' | 'pyme'; platformAdmin: boolean }) => {
-  const { hasAnyCapability } = useCapabilities();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -160,12 +153,6 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
   const [ageRangeFilter, setAgeRangeFilter] = useState(searchParams.get('rango_edad') || '');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || searchParams.get('fuente') || '');
   const scope = panelUserScope;
-  const canUseCommerceTools = hasAnyCapability([
-    'market.orders.read',
-    'market.orders.write',
-    'market.catalog.read',
-    'market.catalog.write',
-  ]);
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [executiveModelPolicy, setExecutiveModelPolicy] = useState<Record<string, unknown> | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -519,7 +506,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       setExecutiveSummary(summaryText);
       setExecutiveModelPolicy(response?.model_policy && typeof response.model_policy === 'object' ? response.model_policy : null);
       if (response?.reason_code === 'no_operational_data_in_period') {
-        setSummaryError('No hay datos para este período.');
+        setSummaryError('No hay datos operativos para este periodo.');
       } else if (!summaryText) {
         setSummaryError('No hay datos suficientes para generar el resumen en este período.');
       }
@@ -547,7 +534,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       ].map(({ label, value, setValue }) => (
         <label key={label} className="grid gap-1 text-xs font-medium text-muted-foreground">
           {label}
-          <Input className="min-h-11" value={value} onChange={(event) => setValue(event.target.value)} placeholder={label} />
+          <Input value={value} onChange={(event) => setValue(event.target.value)} placeholder={label} />
         </label>
       ))}
     </>
@@ -558,9 +545,9 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
     return (
       <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/60 p-8 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-sm font-semibold text-foreground">Preparando la información</p>
+        <p className="mt-4 text-sm font-semibold text-foreground">Preparando analítica operativa</p>
         <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">
-          Estamos cargando indicadores, mapas, encuestas y actividad reciente. Esta vista se actualizará cuando la información esté lista.
+          Cargando métricas, mapas de calor, encuestas y actividad del CRM. Si el backend tarda, mostramos una consola usable en lugar de dejarte esperando.
         </p>
       </div>
     );
@@ -572,46 +559,51 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         <div role="alert" className="p-8 text-center text-red-500">
           <AlertCircle className="w-12 h-12 mx-auto mb-4" />
           <p>{error}</p>
-          <Button onClick={fetchData} variant="outline" className="mt-4 min-h-11">Reintentar</Button>
+          <Button onClick={fetchData} variant="outline" className="mt-4">Reintentar</Button>
         </div>
       ) : null}
       {!isEmbeddedInProfile ? (
       <section className="overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              <Brain className="h-3.5 w-3.5" />
+              Inteligencia operativa
+            </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Información para decidir</h1>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Reportes entendibles para decidir</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">
-                Revisá el estado general, las prioridades y los mapas. Elegí una sección para ver el detalle o descargar la información.
+                Primero estado, prioridades y mapas. La analítica avanzada queda para investigar segmentos, generar
+                resumen IA y exportar PDF/CSV.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <Button type="button" variant="outline" className="min-h-11 justify-start gap-2" onClick={() => selectAnalyticsTab('overview')}>
-                <Gauge className="h-4 w-4" aria-hidden="true" />
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab('overview')}>
+                <Gauge className="h-4 w-4" />
                 Estado general
               </Button>
-              <Button type="button" variant="outline" className="min-h-11 justify-start gap-2" onClick={() => selectAnalyticsTab('operations')}>
-                <BarChart3 className="h-4 w-4" aria-hidden="true" />
-                Actividad y tareas
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab('operations')}>
+                <BarChart3 className="h-4 w-4" />
+                Operaciones
               </Button>
-              <Button type="button" variant="outline" className="min-h-11 justify-start gap-2" onClick={() => selectAnalyticsTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
-                <MapPinned className="h-4 w-4" aria-hidden="true" />
-                Mapa y zonas
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
+                <MapPinned className="h-4 w-4" />
+                Mapas de calor
               </Button>
-              <Button type="button" variant="outline" className="min-h-11 justify-start gap-2" onClick={() => selectAnalyticsTab('realtime')}>
-                <Radio className="h-4 w-4" aria-hidden="true" />
-                Actividad reciente
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => selectAnalyticsTab('realtime')}>
+                <Radio className="h-4 w-4" />
+                Tiempo real
               </Button>
-              <Button type="button" variant="outline" className="min-h-11 justify-start gap-2" onClick={() => navigate(hubEncuestasPath)}>
-                <Vote className="h-4 w-4" aria-hidden="true" />
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => navigate(hubEncuestasPath)}>
+                <Vote className="h-4 w-4" />
                 Encuestas
               </Button>
             </div>
           </div>
           <div className="grid gap-2 rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-muted-foreground xl:max-w-sm">
             <p className="font-semibold text-foreground">Cómo leer esta sección</p>
-            <p><strong className="text-foreground">Estado general:</strong> una lectura rápida de la actividad.</p>
-            <p><strong className="text-foreground">Detalle:</strong> comparaciones, mapas, resumen automático y descargas.</p>
+            <p><strong className="text-foreground">Estadísticas:</strong> tablero simple para administración diaria.</p>
+            <p><strong className="text-foreground">Analítica IA:</strong> investigación, segmentos, mapas, resumen ejecutivo y exportaciones.</p>
           </div>
         </div>
       </section>
@@ -619,19 +611,19 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         <section className="rounded-xl border border-border/70 bg-card/80 px-3 py-2 shadow-sm backdrop-blur">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
-              <h2 className="truncate text-base font-semibold text-foreground">Prioridades, mapas e indicadores</h2>
-              <p className="text-sm text-muted-foreground">Elegí qué querés revisar.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">Analítica operativa</p>
+              <h2 className="truncate text-base font-semibold text-foreground">Prioridades, mapas y métricas</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={() => selectAnalyticsTab('operations')}>
+              <Button type="button" variant="outline" size="sm" onClick={() => selectAnalyticsTab('operations')}>
                 <BarChart3 className="mr-1.5 h-4 w-4" />
-                Actividad y tareas
+                Operaciones
               </Button>
-              <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={() => selectAnalyticsTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
+              <Button type="button" variant="outline" size="sm" onClick={() => selectAnalyticsTab(visibleTabs.includes('operations') ? 'operations' : 'geo')}>
                 <MapPinned className="mr-1.5 h-4 w-4" />
                 Mapas
               </Button>
-              <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={() => navigate(hubEncuestasPath)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate(hubEncuestasPath)}>
                 <Vote className="mr-1.5 h-4 w-4" />
                 Encuestas
               </Button>
@@ -640,10 +632,10 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         </section>
       )}
 
-      <section id="analytics-summary-filters" aria-label="Filtros del resumen" className="scroll-mt-24 rounded-xl border border-border/70 bg-card/80 p-3">
+      <section aria-label="Filtros del resumen" className="rounded-xl border border-border/70 bg-card/80 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger aria-label="Período del resumen" className="min-h-11 w-full sm:w-[190px]">
+            <SelectTrigger aria-label="Período del resumen" className="w-full sm:w-[190px]">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
@@ -656,14 +648,14 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
           {activeFilterCount ? <Badge variant="secondary">{activeFilterCount} filtros activos</Badge> : null}
         </div>
         <details className="mt-2">
-          <summary className="flex min-h-11 cursor-pointer items-center rounded-md py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Más filtros, descargas y resumen automático</summary>
-          <p className="mt-2 text-xs text-muted-foreground">Estos filtros cambian el resumen y los archivos descargados. La sección Actividad y tareas tiene sus propios filtros.</p>
+          <summary className="cursor-pointer rounded-md py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Segmentos, exportaciones y resumen IA</summary>
+          <p className="mt-2 text-xs text-muted-foreground">Estos filtros corresponden al resumen y sus exportaciones. Operaciones mantiene sus propios filtros y período.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filterControls}</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" className="min-h-11" disabled={Boolean(error)} onClick={() => handleExport('csv')}>Descargar CSV</Button>
-            <Button variant="outline" size="sm" className="min-h-11" disabled={Boolean(error)} onClick={() => handleExport('pdf')}>Descargar PDF</Button>
-            <Button size="sm" className="min-h-11" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary || Boolean(error)}>
-              {loadingSummary ? 'Creando resumen...' : 'Crear resumen automático'}
+            <Button variant="outline" size="sm" disabled={Boolean(error)} onClick={() => handleExport('csv')}>Export CSV</Button>
+            <Button variant="outline" size="sm" disabled={Boolean(error)} onClick={() => handleExport('pdf')}>Export PDF</Button>
+            <Button size="sm" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary || Boolean(error)}>
+              {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
             </Button>
           </div>
         </details>
@@ -675,21 +667,23 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
 
       {executiveSummary ? (
         <div className="rounded-lg border bg-card p-4">
-          <div className="mb-3">
-            <h2 className="font-semibold">Resumen para revisar</h2>
-            <p className="text-xs text-muted-foreground">Leé el contenido antes de usarlo para tomar una decisión.</p>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Resumen ejecutivo</h2>
+              <p className="text-xs text-muted-foreground">Generado con política de IA operativa para analítica.</p>
+            </div>
+            <ModelPolicyBadges policy={executiveModelPolicy} />
           </div>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{executiveSummary}</p>
-          <div className="mt-3"><ModelPolicyBadges policy={executiveModelPolicy} /></div>
         </div>
       ) : null}
 
 
       {!isEmbeddedInProfile ? (
       <details className="rounded-lg border bg-card p-4">
-        <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Cómo se calcula cada indicador</summary>
+        <summary className="cursor-pointer font-semibold">Diccionario de KPIs</summary>
         <p className="mt-1 text-sm text-muted-foreground">
-          Abrí este bloque si necesitás conocer el significado de cada dato.
+          Ayuda para equipos avanzados. El tablero principal debe poder leerse sin abrir este bloque.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {KPI_DICTIONARY.map((item) => (
@@ -705,12 +699,12 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; selectAnalyticsTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_profile_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <div className="overflow-x-auto pb-1">
           <TabsList className="inline-flex min-w-max">
-          {visibleTabs.includes('overview') ? <TabsTrigger className="min-h-11" value="overview">General</TabsTrigger> : null}
-          {visibleTabs.includes('municipio') ? <TabsTrigger className="min-h-11" value="municipio">Municipio</TabsTrigger> : null}
-          {visibleTabs.includes('pyme') ? <TabsTrigger className="min-h-11" value="pyme">Ventas</TabsTrigger> : null}
-          {visibleTabs.includes('operations') ? <TabsTrigger className="min-h-11" value="operations">Actividad y tareas</TabsTrigger> : null}
-          {visibleTabs.includes('geo') ? <TabsTrigger className="min-h-11" value="geo">Mapas</TabsTrigger> : null}
-          {visibleTabs.includes('realtime') ? <TabsTrigger className="min-h-11" value="realtime">{realtimeUILabels.tabs_realtime_hub || 'Actividad reciente'}</TabsTrigger> : null}
+          {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
+          {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
+          {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
+          {visibleTabs.includes('operations') ? <TabsTrigger value="operations">Operaciones</TabsTrigger> : null}
+          {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
+          {visibleTabs.includes('realtime') ? <TabsTrigger value="realtime">{realtimeUILabels.tabs_realtime_hub || 'Realtime Hub'}</TabsTrigger> : null}
           </TabsList>
         </div>
 
@@ -746,7 +740,7 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
 
           <TabsContent value="operations">
             {activeTab === 'operations' ? (
-              <SectionErrorBoundary title="No pudimos cargar la actividad" resetKeys={[currentSlug,tenantId]}>
+              <SectionErrorBoundary title="No pudimos cargar operaciones" resetKeys={[currentSlug,tenantId]}>
                 <OperationsDashboardPanel />
               </SectionErrorBoundary>
             ) : null}
@@ -754,16 +748,15 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
 
           <TabsContent value="realtime">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" className="min-h-11" onClick={() => fetchRealtimeHub()} disabled={loadingRealtimeHub}>
+              <Button variant="outline" size="sm" onClick={() => fetchRealtimeHub()} disabled={loadingRealtimeHub}>
                 {loadingRealtimeHub ? (realtimeUILabels.loading || 'Actualizando…') : (realtimeUILabels.actions_refresh || 'Actualizar')}
               </Button>
               <Button
                 variant={autoRefreshRealtimeHub ? 'default' : 'outline'}
                 size="sm"
-                className="min-h-11"
                 onClick={() => setAutoRefreshRealtimeHub((prev) => !prev)}
               >
-                {autoRefreshRealtimeHub ? (realtimeUILabels.actions_auto_refresh_on || 'Actualización automática activada') : (realtimeUILabels.actions_auto_refresh_off || 'Actualización automática desactivada')}
+                {autoRefreshRealtimeHub ? (realtimeUILabels.actions_auto_refresh_on || 'Auto refresh ON') : (realtimeUILabels.actions_auto_refresh_off || 'Auto refresh OFF')}
               </Button>
             </div>
             <RealtimeHubDashboard data={realtimeHub} loading={loadingRealtimeHub} />
@@ -773,8 +766,8 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
 
       {/* Insights Section always visible at bottom or side */}
       <details open={activeTab !== 'operations'} className="rounded-xl border border-border/70 bg-card/80 p-3">
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Recomendaciones y análisis complementario</summary>
-        <SectionErrorBoundary title="No pudimos cargar las recomendaciones" resetKeys={[currentSlug,tenantId]}>
+        <summary className="cursor-pointer text-sm font-medium">Recomendaciones y análisis complementario</summary>
+        <SectionErrorBoundary title="No pudimos cargar insights" resetKeys={[currentSlug,tenantId]}>
           <InsightsDashboard tenantProfileId={tenantId} tenantSlug={currentSlug} scope={scope} recommendations={realtimeHub?.recommendations} recommendationsLoading={loadingRealtimeHub} onRefreshRecommendations={fetchRealtimeHub} />
         </SectionErrorBoundary>
       </details>
@@ -783,30 +776,27 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
       {leadInteractions.length > 0 ? (
         <div className="mt-8 rounded-lg border bg-card p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="font-semibold">Historial de contactos interesados</h2>
-              <p className="text-xs text-muted-foreground">Filtrá por prioridad u organización para encontrar el contacto que necesitás revisar.</p>
-            </div>
+            <h2 className="font-semibold">Timeline de interacciones de leads</h2>
             {loadingLeadInteractions ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
           </div>
           <div className="mb-3 grid gap-2 md:grid-cols-3">
             <Select value={leadPriorityFilter} onValueChange={setLeadPriorityFilter}>
-              <SelectTrigger className="min-h-11">
+              <SelectTrigger>
                 <SelectValue placeholder="Prioridad" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las prioridades</SelectItem>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="medium">Media</SelectItem>
-                <SelectItem value="low">Baja</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
               </SelectContent>
             </Select>
             <Select value={leadTenantFilter} onValueChange={setLeadTenantFilter}>
-              <SelectTrigger className="min-h-11">
-                <SelectValue placeholder="Organización" />
+              <SelectTrigger>
+                <SelectValue placeholder="Tenant" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las organizaciones</SelectItem>
+                <SelectItem value="all">Todos los tenants</SelectItem>
                 {Array.from(new Set(leadInteractions.map((item) => item.tenant_slug).filter(Boolean) as string[])).map((slug) => (
                   <SelectItem key={slug} value={slug}>{slug}</SelectItem>
                 ))}
@@ -814,11 +804,10 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
             </Select>
             <Button
               variant="outline"
-              className="min-h-11"
               onClick={() => fetchLeadInteractions()}
               disabled={loadingLeadInteractions}
             >
-              Actualizar
+              Refrescar
             </Button>
           </div>
           <div className="space-y-2">
@@ -835,17 +824,12 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
                       {leadIdentifier ? <p className="text-sm font-medium">{leadIdentifier}</p> : null}
                       <div className="flex items-center gap-2">
                         {priorityLabel ? <span className="text-xs text-muted-foreground">{priorityLabel}</span> : null}
-                        {scoreLabel ? <span className="text-xs text-muted-foreground">Puntaje {scoreLabel}</span> : null}
+                        {scoreLabel ? <span className="text-xs text-muted-foreground">Score {scoreLabel}</span> : null}
                       </div>
                     </div>
+                    {item.tenant_slug ? <p className="text-xs text-muted-foreground">{item.tenant_slug}</p> : null}
                     {item.intent ? <p className="text-xs text-muted-foreground">{item.intent}</p> : null}
                     {item.last_message ? <p className="text-sm mt-1">{item.last_message}</p> : null}
-                    {item.tenant_slug ? (
-                      <details className="mt-2 text-xs text-muted-foreground">
-                        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-                        <p>Organización: {item.tenant_slug}</p>
-                      </details>
-                    ) : null}
                   </div>
                 );
               })}
@@ -854,7 +838,6 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
             <div className="mt-3">
               <Button
                 variant="outline"
-                className="min-h-11"
                 onClick={() => fetchLeadInteractions({ cursor: leadCursor, append: true })}
                 disabled={loadingMoreLeadInteractions}
               >
@@ -865,11 +848,11 @@ const ScopedAnalyticsPage = ({ currentSlug, tenantId, panelUserScope, platformAd
         </div>
       ) : null}
 
-      {canUseCommerceTools ? <div className="mt-8">
-        <SectionErrorBoundary title="No pudimos cargar el análisis asistido" resetKeys={[currentSlug,tenantId,scope]}>
+      <div className="mt-8">
+        <SectionErrorBoundary title="No pudimos cargar herramientas IA" resetKeys={[currentSlug,tenantId,scope]}>
           <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
         </SectionErrorBoundary>
-      </div> : null}
+      </div>
         </>
       ) : null}
     </div>

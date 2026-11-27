@@ -126,7 +126,7 @@ describe('channel navigation with current verified activation', () => {
     if (kind === 'missing') delete response.tenant;
     if (kind === 'invalid') (response as any).contract_version = 'unknown';
     mocks.fetch.mockResolvedValue(response); render(view());
-    await screen.findByText(/no pudimos actualizar los pasos de preparación/i);
+    await screen.findByText(/no pudimos sincronizar los canales ahora/i);
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 

@@ -98,7 +98,7 @@ describe('analytics contextual-error recovery with real page and client', () => 
     mount();
     await screen.findByRole('alert');
     const user = userEvent.setup();
-    const summary = screen.getByText('Más filtros, descargas y resumen automático');
+    const summary = screen.getByText('Segmentos, exportaciones y resumen IA');
     await user.click(summary);
     const segments = summary.closest('details')!;
     const category = screen.getByRole('textbox', { name: 'Categoría' });
@@ -117,7 +117,7 @@ describe('analytics contextual-error recovery with real page and client', () => 
     expect(category).toHaveValue('plazas');
     expect(category).toHaveFocus();
     expect(segments).toHaveAttribute('open');
-    expect(screen.getByRole('button', { name: 'Descargar CSV' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled();
     expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
     await waitFor(() => expect(hubReads().at(-1)?.search.get('categoria')).toBe('plazas'));
 
@@ -177,9 +177,9 @@ describe('analytics contextual-error recovery with real page and client', () => 
     expect(screen.getByRole('region', { name: 'Filtros del resumen' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Período del resumen' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled();
-    const csv = screen.getByRole('button', { name: 'Descargar CSV', hidden: true });
-    const pdf = screen.getByRole('button', { name: 'Descargar PDF', hidden: true });
-    const ai = screen.getByRole('button', { name: 'Crear resumen automático', hidden: true });
+    const csv = screen.getByRole('button', { name: 'Export CSV', hidden: true });
+    const pdf = screen.getByRole('button', { name: 'Export PDF', hidden: true });
+    const ai = screen.getByRole('button', { name: 'Resumen ejecutivo IA', hidden: true });
     expect(csv).toBeDisabled(); expect(pdf).toBeDisabled(); expect(ai).toBeDisabled();
     fireEvent.click(csv); fireEvent.click(pdf); fireEvent.click(ai);
     await waitFor(() => expect(reads).toHaveLength(2));

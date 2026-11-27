@@ -895,7 +895,7 @@ export const aggregateTerritoryHeatmap = ({
       ? 'Ampliar muestra antes de decidir.'
       : topCategories[0]
         ? `Priorizar ${topCategories[0].label.toLowerCase()} en esta zona.`
-        : 'Seguir la evolución de esta zona.';
+        : 'Mantener monitoreo operativo.';
 
     return {
       zone: metric.zone,

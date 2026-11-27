@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
+  ChevronRight,
   DatabaseZap,
+  ExternalLink,
   Filter,
   LocateFixed,
   LockKeyhole,
@@ -98,7 +101,7 @@ interface ApplyDraft {
 }
 
 const REVIEW_REASON_LABELS: Record<string, string> = {
-  verified_against_source: 'Verificada con la información del caso',
+  verified_against_source: 'Verificada contra la fuente del reclamo',
   verified_on_map: 'Verificada manualmente en el mapa',
   verified_with_field_team: 'Verificada con el equipo de territorio',
   ambiguous_candidate: 'La propuesta es ambigua',
@@ -160,7 +163,7 @@ const actionControl = (action: PendingLocationAction) => {
   const variant = action.kind === 'reject' ? 'outline' : action.kind === 'approve' ? 'default' : 'secondary';
   if (action.enabled && action.href) {
     return (
-      <Button key={action.kind} asChild size="sm" variant={variant} className="min-h-11 justify-start gap-2">
+      <Button key={action.kind} asChild size="sm" variant={variant} className="justify-start gap-2">
         <a href={action.href} title={action.reason}>
           <Icon className="h-4 w-4" />
           {action.label}
@@ -169,7 +172,7 @@ const actionControl = (action: PendingLocationAction) => {
     );
   }
   return (
-    <Button key={action.kind} type="button" size="sm" variant={variant} className="min-h-11 justify-start gap-2" disabled title={action.reason}>
+    <Button key={action.kind} type="button" size="sm" variant={variant} className="justify-start gap-2" disabled title={action.reason}>
       <Icon className="h-4 w-4" />
       {action.label}
     </Button>
@@ -183,7 +186,7 @@ const PendingLocationDetail = ({ candidate }: { candidate: PendingLocationCandid
         <LocateFixed className="h-8 w-8 text-muted-foreground" />
         <h3 className="mt-3 text-base font-semibold">Seleccioná un caso pendiente</h3>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
-          La revisión muestra sólo un área aproximada. El domicilio completo permanece protegido dentro del caso.
+          La revisión muestra sólo contexto territorial seguro. El domicilio completo permanece protegido en el ticket.
         </p>
       </div>
     );
@@ -193,31 +196,33 @@ const PendingLocationDetail = ({ candidate }: { candidate: PendingLocationCandid
     <article aria-labelledby="pending-location-detail-title" className="min-w-0 rounded-xl border bg-background shadow-sm">
       <header className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">Ubicación para revisar</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Revisión territorial</p>
           <h3 id="pending-location-detail-title" className="mt-1 truncate text-lg font-semibold">
-            Caso con ubicación pendiente
+            {candidate.ticketId ? `Reclamo #${candidate.ticketId}` : 'Registro sin ticket publicado'}
           </h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{candidate.category}</Badge>
+            <Badge variant="outline">{candidate.source}</Badge>
           </div>
         </div>
         {candidate.ticketHref ? (
-          <Button asChild size="sm" className="min-h-11 shrink-0 gap-2">
+          <Button asChild size="sm" className="shrink-0 gap-2">
             <a href={candidate.ticketHref}>
               <Ticket className="h-4 w-4" />
-              Abrir caso
+              Abrir ticket
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </Button>
         ) : (
-          <Button type="button" size="sm" className="min-h-11" disabled title="Este caso no tiene un enlace disponible">
-            Abrir caso
+          <Button type="button" size="sm" disabled title="El contrato no publicó la identidad del ticket">
+            Abrir ticket
           </Button>
         )}
       </header>
 
       <div className="grid gap-3 p-4 sm:grid-cols-2">
         <section className="rounded-lg border bg-muted/15 p-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             <MapPinOff className="h-4 w-4 text-amber-600" />
             Referencia agregada
           </div>
@@ -227,7 +232,7 @@ const PendingLocationDetail = ({ candidate }: { candidate: PendingLocationCandid
           </p>
         </section>
         <section className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">
             <AlertTriangle className="h-4 w-4" />
             Razón de calidad
           </div>
@@ -241,10 +246,10 @@ const PendingLocationDetail = ({ candidate }: { candidate: PendingLocationCandid
           <div>
             <h4 id="pending-location-actions-title" className="text-sm font-semibold">Decisión guiada</h4>
             <p className="mt-1 text-xs text-muted-foreground">
-              Los botones se habilitan cuando tenés permiso y hay una propuesta lista para revisar.
+              Las decisiones sólo se habilitan cuando el backend publica una ruta segura y auditable.
             </p>
           </div>
-          <Badge variant="outline" className="w-fit">No cambia la ubicación sin confirmar</Badge>
+          <Badge variant="outline" className="w-fit">Sin escritura implícita</Badge>
         </div>
         <ol className="mt-3 grid gap-2 sm:grid-cols-3">
           {(['review', 'approve', 'reject'] as const).map((kind, index) => {
@@ -264,13 +269,6 @@ const PendingLocationDetail = ({ candidate }: { candidate: PendingLocationCandid
           })}
         </ol>
       </section>
-      <details className="border-t px-4 py-1 text-sm">
-        <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-        <div className="space-y-1 border-t py-3 text-muted-foreground">
-          <p>Identificador: {candidate.ticketId || 'no informado'}</p>
-          <p>Origen: {candidate.source}</p>
-        </div>
-      </details>
     </article>
   );
 };
@@ -322,9 +320,9 @@ const TerritorialAdminDetail = ({
     <article aria-labelledby="territorial-admin-detail-title" className="min-w-0 rounded-xl border bg-background shadow-sm">
       <header className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-muted-foreground">Revisión de ubicación</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Expediente territorial autorizado</p>
           <h3 id="territorial-admin-detail-title" tabIndex={-1} className="mt-1 truncate text-lg font-semibold">
-            Caso con ubicación pendiente
+            {candidate.ticketId ? `Reclamo #${candidate.ticketId}` : `Trabajo territorial ${item.id}`}
           </h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant="secondary">{candidate.category}</Badge>
@@ -333,30 +331,30 @@ const TerritorialAdminDetail = ({
           </div>
         </div>
         {candidate.ticketHref ? (
-          <Button asChild size="sm" className="min-h-11 shrink-0 gap-2">
+          <Button asChild size="sm" className="shrink-0 gap-2">
             <a href={candidate.ticketHref}>
-              <Ticket className="h-4 w-4" /> Abrir caso
+              <Ticket className="h-4 w-4" /> Abrir ticket <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </Button>
         ) : (
-          <Button type="button" size="sm" className="min-h-11" disabled title="Este caso no tiene un enlace compatible">
-            Abrir caso
+          <Button type="button" size="sm" disabled title="La identidad de ticket no es compatible con el CRM">
+            Abrir ticket
           </Button>
         )}
       </header>
 
       <div className="grid gap-3 p-4 sm:grid-cols-3">
         <section className="rounded-lg border bg-muted/15 p-3 sm:col-span-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             <MapPinOff className="h-4 w-4 text-amber-600" /> Área agregada
           </div>
           <p className="mt-2 text-base font-semibold">{candidate.safeAreaLabel}</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            El domicilio exacto permanece protegido en esta pantalla.
+            El contrato no entrega domicilio crudo, digest del domicilio ni evidencia libre del proveedor.
           </p>
         </section>
         <section className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
-          <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">Qué hay que revisar</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">Calidad</p>
           <p className="mt-2 text-sm font-semibold">{candidate.qualityLabel}</p>
           <p className="mt-1 text-xs text-muted-foreground">{humanizeCode(item.reasonCode)}</p>
         </section>
@@ -364,13 +362,13 @@ const TerritorialAdminDetail = ({
 
       {loading ? (
         <div role="status" className="mx-4 mb-4 rounded-lg border p-4 text-sm text-muted-foreground">
-          <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" /> Cargando la ubicación propuesta…
+          <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" /> Recuperando propuesta y auditoría…
         </div>
       ) : detailError ? (
         <div role="alert" className="mx-4 mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
           <p className="font-semibold">{accessDenied ? 'Acceso administrativo requerido' : 'No pudimos abrir el detalle territorial'}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {accessDenied ? 'Sólo las personas con permiso administrativo pueden revisar esta información.' : getErrorMessage(detailError)}
+            {accessDenied ? 'La cola falla cerrada: sólo administradores y superadministradores pueden revisar evidencia.' : getErrorMessage(detailError)}
           </p>
         </div>
       ) : detail ? (
@@ -378,8 +376,8 @@ const TerritorialAdminDetail = ({
           <section className="grid gap-3 border-t p-4 lg:grid-cols-2" aria-label="Propuesta territorial autorizada">
             <div className="rounded-lg border bg-primary/[0.03] p-3">
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold">Ubicación propuesta</h4>
-                <Badge variant="outline"><LockKeyhole className="mr-1 h-3.5 w-3.5" /> Sólo administración</Badge>
+                <h4 className="text-sm font-semibold">Propuesta geográfica</h4>
+                <Badge variant="outline"><LockKeyhole className="mr-1 h-3.5 w-3.5" /> Vista admin</Badge>
               </div>
               {manualProposal ? (
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -404,18 +402,18 @@ const TerritorialAdminDetail = ({
             <div className="rounded-lg border p-3">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-sm font-semibold">Decisión humana</h4>
-                <Badge variant="outline">La ubicación no cambia sola</Badge>
+                <Badge variant="outline">No aplica coordenadas</Badge>
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Aprobar o rechazar registra tu decisión, pero no modifica la ubicación del caso.
+                Aprobar o rechazar agrega un recibo inmutable. No llama al proveedor y no modifica el ticket.
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <Button
                   type="button"
                   size="sm"
-                  className="min-h-11 gap-2"
+                  className="gap-2"
                   disabled={!reviewAction.canApprove || !proposalVersionAvailable}
-                  title={!reviewAction.canApprove ? 'Primero necesitás una propuesta y permiso para aprobarla' : undefined}
+                  title={!reviewAction.canApprove ? 'Se requiere una propuesta y autoridad publicada por el contrato' : undefined}
                   onClick={() => onReview('approved')}
                 >
                   <Check className="h-4 w-4" /> Aprobar propuesta
@@ -424,9 +422,9 @@ const TerritorialAdminDetail = ({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="min-h-11 gap-2"
+                  className="gap-2"
                   disabled={!reviewAction.canReject || !proposalVersionAvailable}
-                  title={!reviewAction.canReject ? 'No tenés permiso para rechazar este trabajo' : undefined}
+                  title={!reviewAction.canReject ? 'El contrato no habilita el rechazo de este trabajo' : undefined}
                   onClick={() => onReview('rejected')}
                 >
                   <X className="h-4 w-4" /> Rechazar propuesta
@@ -437,22 +435,22 @@ const TerritorialAdminDetail = ({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="min-h-11 gap-2"
+                  className="gap-2"
                   disabled={!item.resolveAction.enabled || !item.resolveAction.href || resolving || applying}
                   title={humanizeCode(item.resolveAction.reasonCode)}
                   onClick={onResolve}
                 >
                   {resolving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                  Buscar una ubicación
+                  Consultar proveedor
                 </Button>
                 {canStartNewResolve ? (
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="min-h-11 gap-2"
+                    className="gap-2"
                     disabled={!item.resolveAction.enabled || !item.resolveAction.href || resolving || applying}
-                    title="Descarta el resultado anterior e inicia una búsqueda nueva"
+                    title="Inicia otra consulta y genera una nueva clave idempotente"
                     onClick={onNewResolve}
                   >
                     <RefreshCw className="h-4 w-4" /> Nueva búsqueda
@@ -461,7 +459,7 @@ const TerritorialAdminDetail = ({
                 <Button
                   type="button"
                   size="sm"
-                  className="min-h-11 gap-2"
+                  className="gap-2"
                   disabled={!decisionItem.applyAction.enabled || !decisionItem.applyAction.href || !proposalVersionAvailable || resolving || applying}
                   title={humanizeCode(decisionItem.applyAction.reasonCode)}
                   onClick={onApply}
@@ -473,21 +471,14 @@ const TerritorialAdminDetail = ({
               {manualLocation}
               {executionError ? (
                 <div role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs">
-                  <p className="font-semibold">No se pudo completar la acción</p>
+                  <p className="font-semibold">La operación territorial quedó bloqueada</p>
                   <p className="mt-1 text-muted-foreground">{getErrorMessage(executionError)}</p>
                 </div>
               ) : null}
             </div>
           </section>
 
-          <details className="border-t p-4">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-          <div className="mt-3 space-y-1 rounded-lg border p-3 text-xs text-muted-foreground">
-            <p>Identificador del caso: {candidate.ticketId || 'no informado'}</p>
-            <p>Origen: {candidate.source}</p>
-            <p>Identificador del trabajo: {item.id}</p>
-          </div>
-          <section className="mt-3 grid gap-3 border-t pt-3 lg:grid-cols-2">
+          <section className="grid gap-3 border-t p-4 lg:grid-cols-2">
             <div className="rounded-lg border p-3">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-sm font-semibold">Intentos auditables</h4>
@@ -526,7 +517,6 @@ const TerritorialAdminDetail = ({
               ) : <p className="mt-3 text-xs text-muted-foreground">Todavía no hay decisiones humanas.</p>}
             </div>
           </section>
-          </details>
         </>
       ) : null}
     </article>
@@ -563,7 +553,7 @@ const TerritorialReviewDialog = ({
         <DialogHeader>
           <DialogTitle>{draft?.decision === 'approved' ? 'Confirmar aprobación territorial' : 'Confirmar rechazo territorial'}</DialogTitle>
           <DialogDescription>
-            Registrá tu decisión después de revisar la propuesta. La ubicación no cambia en este paso.
+            Esta operación registra una decisión humana auditable. Nunca aplica coordenadas ni llama al proveedor.
           </DialogDescription>
         </DialogHeader>
         {draft ? (
@@ -574,7 +564,7 @@ const TerritorialReviewDialog = ({
                 aria-label="Motivo de la revisión territorial"
                 value={draft.reasonCode}
                 onChange={(event) => onChange({ ...draft, reasonCode: event.target.value, confirmed: false })}
-                className="mt-1 min-h-11 w-full rounded-md border bg-background px-3"
+                className="mt-1 h-10 w-full rounded-md border bg-background px-3"
               >
                 <option value="">Seleccionar un motivo…</option>
                 {reasons.map((reason) => <option key={reason} value={reason}>{humanizeCode(reason)}</option>)}
@@ -593,7 +583,7 @@ const TerritorialReviewDialog = ({
               <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
                 <p className="font-semibold">{conflict ? 'Conflicto de revisión' : 'No se pudo registrar la revisión'}</p>
                 <p className="mt-1 text-muted-foreground">
-                  {conflict ? 'La propuesta cambió mientras la revisabas. Volvé a buscar los casos pendientes antes de intentarlo de nuevo.' : getErrorMessage(error)}
+                  {conflict ? 'La propuesta cambió o la clave idempotente ya fue usada con otra decisión. Actualizá la cola antes de volver a revisar.' : getErrorMessage(error)}
                 </p>
               </div>
             ) : null}
@@ -627,19 +617,19 @@ const TerritorialSyncDialog = ({
   <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !submitting) onClose(); }}>
     <DialogContent className="sm:max-w-lg">
       <DialogHeader>
-        <DialogTitle>Buscar casos sin ubicación</DialogTitle>
+        <DialogTitle>Actualizar cola territorial</DialogTitle>
         <DialogDescription>
-          Se van a buscar los casos actuales sin coordenadas. No se consulta un servicio externo ni se modifica ningún caso.
+          Se materializarán referencias actuales sin coordenadas. No se consulta un proveedor, no se geocodifica y no se modifica ningún reclamo.
         </DialogDescription>
       </DialogHeader>
-      <details className="rounded-lg border bg-muted/15 px-3 py-1 text-sm">
-        <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-        <p className="border-t py-2 text-muted-foreground">La búsqueda registra el resultado y vuelve a cargar referencias creadas, existentes, desactualizadas y ocultas.</p>
-      </details>
+      <div className="rounded-lg border bg-muted/15 p-3 text-sm">
+        <p className="font-semibold">Ejecución explícita y auditable</p>
+        <p className="mt-1 text-muted-foreground">Al terminar se recarga la bandeja redactada con creadas, existentes, desactualizadas y ocultas.</p>
+      </div>
       {error ? (
         <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
           <p className="font-semibold">
-            {isTerritorialApiStatus(error, 403) ? 'Acceso administrativo requerido' : isTerritorialApiStatus(error, 409) ? 'Ya hay una búsqueda en curso' : 'No se pudieron buscar casos pendientes'}
+            {isTerritorialApiStatus(error, 403) ? 'Acceso administrativo requerido' : isTerritorialApiStatus(error, 409) ? 'Actualización en conflicto' : 'No se pudo actualizar la cola'}
           </p>
           <p className="mt-1 text-muted-foreground">{getErrorMessage(error)}</p>
         </div>
@@ -648,7 +638,7 @@ const TerritorialSyncDialog = ({
         <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
         <Button type="button" onClick={onSubmit} disabled={submitting}>
           {submitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Confirmar búsqueda
+          Confirmar actualización
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -668,13 +658,13 @@ const TerritorialApplyDialog = ({ draft, submitting, error, onChange, onClose, o
       <DialogHeader>
         <DialogTitle>Aplicar coordenadas verificadas</DialogTitle>
         <DialogDescription>
-          Esta acción modifica la ubicación del caso. Antes de aplicarla, el sistema vuelve a comprobar la propuesta, tu aprobación, el límite oficial y tus permisos.
+          Esta acción modifica el reclamo. El backend volverá a comprobar propuesta, aprobación humana, polígono oficial y autoridad de escritura.
         </DialogDescription>
       </DialogHeader>
       {draft ? (
         <label className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4" checked={draft.confirmed} onChange={(event) => onChange({ ...draft, confirmed: event.target.checked })} />
-          <span>Confirmo que quiero aplicar la propuesta aprobada a este caso.</span>
+          <span>Confirmo que quiero escribir la propuesta aprobada vigente en el reclamo.</span>
         </label>
       ) : null}
       {error ? (
@@ -962,35 +952,36 @@ export function TerritorialPendingLocationsInbox({
       )}
       aria-labelledby="territorial-pending-locations-title"
     >
-      <header className="flex flex-col gap-3 border-b bg-background p-4 lg:flex-row lg:items-center lg:justify-between">
+      <header className="flex flex-col gap-3 border-b bg-[linear-gradient(110deg,hsl(var(--background)),hsl(var(--primary)/0.07))] p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300">
             <DatabaseZap className="h-5 w-5" />
           </span>
           <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">CRM territorial</p>
             <h2 id="territorial-pending-locations-title" className="truncate text-xl font-semibold">Ubicaciones pendientes</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Revisá qué casos necesitan una ubicación sin exponer domicilios en la lista.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Revisá calidad territorial sin exponer domicilios en la bandeja agregada.</p>
           </div>
         </div>
         <nav aria-label="Navegación de ubicaciones pendientes" className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline" className="min-h-11">
-            <a href={normalInboxHref}>Casos</a>
+          <Button asChild size="sm" variant="outline" className="gap-2">
+            <a href={normalInboxHref}><ArrowLeft className="h-4 w-4" /> Reclamos</a>
           </Button>
-          <Button asChild size="sm" variant="outline" className="min-h-11 gap-2">
+          <Button asChild size="sm" variant="outline" className="gap-2">
             <a href={mapHref}><MapIcon className="h-4 w-4" /> Volver al mapa</a>
           </Button>
-          <Button type="button" size="sm" variant="outline" className="min-h-11 gap-2" onClick={() => void query.refetch()} disabled={query.isFetching}>
+          <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => void query.refetch()} disabled={query.isFetching}>
             <RefreshCw className={cn('h-4 w-4', query.isFetching && 'animate-spin')} /> Recargar
           </Button>
           <Button
             type="button"
             size="sm"
-            className="min-h-11 gap-2"
+            className="gap-2"
             onClick={openSync}
             disabled={query.data?.source !== 'admin' || query.isFetching || syncMutation.isPending}
-            title={query.data?.source !== 'admin' ? 'Disponible sólo para perfiles con permiso administrativo' : 'Busca casos actuales sin ubicación'}
+            title={query.data?.source !== 'admin' ? 'Disponible sólo con el contrato administrativo activo' : 'Materializa referencias pendientes sin geocodificar'}
           >
-            <DatabaseZap className="h-4 w-4" /> Buscar casos pendientes
+            <DatabaseZap className="h-4 w-4" /> Actualizar cola
           </Button>
         </nav>
       </header>
@@ -998,8 +989,8 @@ export function TerritorialPendingLocationsInbox({
       {query.isLoading ? (
         <div role="status" className="flex min-h-[420px] flex-col items-center justify-center p-6 text-center">
           <RefreshCw className="h-7 w-7 animate-spin text-primary" />
-          <p className="mt-3 font-semibold">Buscando ubicaciones pendientes</p>
-          <p className="mt-1 text-sm text-muted-foreground">La lista aparece cuando encontramos casos que se pueden revisar.</p>
+          <p className="mt-3 font-semibold">Recuperando contrato territorial</p>
+          <p className="mt-1 text-sm text-muted-foreground">La bandeja no crea filas hasta recibir candidatos verificables.</p>
         </div>
       ) : query.isError ? (
         <div role="alert" className="m-4 flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
@@ -1012,7 +1003,7 @@ export function TerritorialPendingLocationsInbox({
               ? 'Esta bandeja contiene evidencia territorial autorizada y falla cerrada para perfiles sin rol admin o superadmin.'
               : getErrorMessage(query.error)}
           </p>
-          <Button type="button" size="sm" className="mt-4 min-h-11 gap-2" onClick={() => void query.refetch()}>
+          <Button type="button" size="sm" className="mt-4 gap-2" onClick={() => void query.refetch()}>
             <RefreshCw className="h-4 w-4" /> Reintentar
           </Button>
         </div>
@@ -1020,21 +1011,24 @@ export function TerritorialPendingLocationsInbox({
         <div role="status" className="m-4 flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
           <MapPinOff className="h-8 w-8 text-amber-700 dark:text-amber-300" />
           <h3 className="mt-3 text-base font-semibold">
-            {queue.state === 'summary_only' ? 'Hay pendientes, pero falta información para revisarlas' : 'La lista todavía no está disponible'}
+            {queue.state === 'summary_only' ? 'Hay pendientes, pero falta el detalle seguro' : 'El backend no publicó esta bandeja'}
           </h3>
           <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
             {queue.state === 'summary_only'
-              ? `Hay ${queue.total} ubicaciones pendientes, pero todavía no recibimos casos identificables para mostrarlas sin exponer domicilios.`
-              : 'El mapa sigue disponible, pero todavía no hay casos que se puedan revisar desde esta pantalla.'}
+              ? `El contrato informa ${queue.total} ubicaciones pendientes, pero no entregó candidatos identificables. No se inventan filas ni domicilios.`
+              : 'La vista territorial sigue disponible, pero todavía no existe un contrato de candidatos para operar desde CRM.'}
           </p>
-          <Button type="button" size="sm" className="mt-4 min-h-11" onClick={() => void query.refetch()}>Volver a intentar</Button>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button asChild size="sm" variant="outline"><a href={mapHref}>Volver al mapa</a></Button>
+            <Button type="button" size="sm" onClick={() => void query.refetch()}>Reintentar contrato</Button>
+          </div>
         </div>
       ) : queue.state === 'empty' ? (
         <div role="status" className="m-4 flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center">
           <Check className="h-8 w-8 text-emerald-600" />
           <h3 className="mt-3 text-base font-semibold">No hay ubicaciones pendientes</h3>
-          <p className="mt-1 text-sm text-muted-foreground">No encontramos casos para revisar con los filtros actuales.</p>
-          <Button asChild size="sm" variant="outline" className="mt-4 min-h-11"><a href={mapHref}>Ver cobertura territorial</a></Button>
+          <p className="mt-1 text-sm text-muted-foreground">El contrato territorial no informó casos para revisar con los filtros actuales.</p>
+          <Button asChild size="sm" variant="outline" className="mt-4"><a href={mapHref}>Ver cobertura territorial</a></Button>
         </div>
       ) : (
         <>
@@ -1042,22 +1036,22 @@ export function TerritorialPendingLocationsInbox({
             <div role="status" className="flex flex-col gap-1 border-b border-primary/20 bg-primary/[0.04] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold">Pendientes detectadas sin alterar datos</p>
-                <p className="text-xs text-muted-foreground">La lista busca los casos vigentes sin modificarlos. Abrí uno para completar su ubicación.</p>
+                <p className="text-xs text-muted-foreground">La cola descubre los reclamos vigentes en modo lectura. Abrí el caso para completar su ubicación; no se consultó ningún proveedor ni se escribieron coordenadas.</p>
               </div>
               <Badge variant="outline" className="w-fit border-primary/30">Vista previa segura</Badge>
             </div>
           ) : query.data?.source === 'heatmap_fallback' ? (
             <div role="status" className="flex flex-col gap-1 border-b border-amber-500/30 bg-amber-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Consulta limitada</p>
-                <p className="text-xs text-muted-foreground">Podés ver las ubicaciones pendientes, pero no revisarlas ni modificarlas desde esta pantalla.</p>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Modo lectura de respaldo</p>
+                <p className="text-xs text-muted-foreground">La API administrativa no está disponible. Se muestran sólo señales compatibles del mapa; no se habilitan revisiones ni escrituras.</p>
               </div>
               <Badge variant="outline" className="w-fit border-amber-500/40">Sólo lectura</Badge>
             </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-2 border-b bg-muted/15 px-4 py-2 text-xs" role="status" aria-live="polite">
-            <Badge variant="secondary">{queue.total} casos pendientes</Badge>
-            <Badge variant="outline">{queue.published} disponibles para revisar</Badge>
+            <Badge variant="secondary">{queue.total} informadas</Badge>
+            <Badge variant="outline">{queue.published} con detalle seguro</Badge>
             {queue.paginated ? <Badge variant="outline">{queue.paginated} fuera de esta página</Badge> : null}
             {queue.hidden ? <Badge variant="outline">{queue.hidden} sin detalle publicado</Badge> : null}
             <span className="text-muted-foreground">{statusLabel(queue.status)}</span>
@@ -1065,21 +1059,19 @@ export function TerritorialPendingLocationsInbox({
           </div>
           {lastSyncResult ? (
             <div role="status" className="flex flex-wrap items-center gap-2 border-b border-primary/20 bg-primary/[0.04] px-4 py-3 text-xs" aria-live="polite">
-              <span className="font-semibold">Búsqueda terminada</span>
+              <span className="font-semibold">Cola actualizada</span>
               <Badge variant="secondary">{lastSyncResult.summary.created} creadas</Badge>
               <Badge variant="outline">{lastSyncResult.summary.existing} existentes</Badge>
               <Badge variant="outline">{lastSyncResult.summary.refreshed} refrescadas</Badge>
               <Badge variant="outline">{lastSyncResult.summary.stale} desactualizadas</Badge>
               {lastSyncResult.summary.hidden ? <Badge variant="outline">{lastSyncResult.summary.hidden} ocultas</Badge> : null}
-              <details className="ml-auto">
-                <summary className="flex min-h-11 cursor-pointer items-center font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Datos para soporte</summary>
-                <p>{lastSyncResult.idempotentReplay ? 'Resultado ya registrado. ' : ''}Sin consulta externa ni escritura de coordenadas.</p>
-              </details>
+              {lastSyncResult.idempotentReplay ? <Badge variant="outline">Repetición idempotente</Badge> : null}
+              <span className="ml-auto text-muted-foreground">Sin proveedor · sin escritura de coordenadas</span>
             </div>
           ) : null}
 
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]">
-            <aside className="min-h-0 border-b bg-muted/10 lg:border-b-0 lg:border-r" aria-label="Casos sin ubicación">
+            <aside className="min-h-0 border-b bg-muted/10 lg:border-b-0 lg:border-r" aria-label="Cola de ubicaciones pendientes">
               <div className="border-b p-3">
                 <div className="flex items-center gap-2 text-sm font-semibold"><Filter className="h-4 w-4 text-primary" /> Filtros de revisión</div>
                 <label className="relative mt-3 block">
@@ -1089,8 +1081,8 @@ export function TerritorialPendingLocationsInbox({
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Buscar caso, categoría o corredor"
-                    className="h-11 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    placeholder="Buscar ticket, categoría o corredor"
+                    className="h-10 w-full rounded-md border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                 </label>
                 <div className="mt-2 grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
@@ -1100,7 +1092,7 @@ export function TerritorialPendingLocationsInbox({
                       aria-label="Filtrar pendientes por categoría"
                       value={categoryFilter}
                       onChange={(event) => setCategoryFilter(event.target.value)}
-                      className="mt-1 h-11 w-full rounded-md border bg-background px-2 text-sm"
+                      className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">Todas</option>
                       {categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -1112,7 +1104,7 @@ export function TerritorialPendingLocationsInbox({
                       aria-label="Filtrar pendientes por área agregada"
                       value={zoneFilter}
                       onChange={(event) => setZoneFilter(event.target.value)}
-                      className="mt-1 h-11 w-full rounded-md border bg-background px-2 text-sm"
+                      className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">Todas</option>
                       {zoneFilter && !areas.some(([value]) => value === zoneFilter) ? (
@@ -1127,7 +1119,7 @@ export function TerritorialPendingLocationsInbox({
                       aria-label="Filtrar pendientes por calidad"
                       value={qualityFilter}
                       onChange={(event) => setQualityFilter(event.target.value)}
-                      className="mt-1 h-11 w-full rounded-md border bg-background px-2 text-sm"
+                      className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                     >
                       <option value="">Todas</option>
                       {qualityReasons.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -1153,9 +1145,10 @@ export function TerritorialPendingLocationsInbox({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">Caso con ubicación pendiente</p>
+                          <p className="truncate text-sm font-semibold">{candidate.ticketId ? `Reclamo #${candidate.ticketId}` : 'Registro territorial'}</p>
                           <p className="mt-1 truncate text-xs text-muted-foreground">{candidate.safeAreaLabel}</p>
                         </div>
+                        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1">
                         <Badge variant="secondary" className="max-w-full truncate">{candidate.category}</Badge>
@@ -1167,7 +1160,7 @@ export function TerritorialPendingLocationsInbox({
                   <div className="rounded-lg border border-dashed p-5 text-center">
                     <p className="text-sm font-semibold">Sin coincidencias</p>
                     <p className="mt-1 text-xs text-muted-foreground">Ajustá búsqueda, categoría o calidad.</p>
-                    <Button type="button" size="sm" variant="ghost" className="mt-2 min-h-11" onClick={() => { setSearch(''); setCategoryFilter(''); setZoneFilter(''); setQualityFilter(''); }}>
+                    <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => { setSearch(''); setCategoryFilter(''); setZoneFilter(''); setQualityFilter(''); }}>
                       Limpiar filtros
                     </Button>
                   </div>

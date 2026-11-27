@@ -34,14 +34,15 @@ function HeatmapSession({tenantId,tenantSlug,context,from,to,initial}: {tenantId
   const localOptions = (key:'estado'|'severidad'): string[] => Array.from(new Set<string>((model?.experience.displayPoints || []).map(row=>geoText(geoRecord(row)[key])).filter(Boolean)));
   return <section className="geo-workspace" aria-label="Análisis geográfico">
     <header className="geo-heading">
-      <div>
-        <h2>{geoText(labels.title) || 'Mapa y zonas'}</h2>
-        <p>{geoText(labels.description) || 'Revisá dónde se concentra la actividad y usá los filtros para encontrar una zona.'}</p>
+      <div><div className="geo-eyebrow"><MapPinned size={16} aria-hidden="true" /> Inteligencia territorial</div>
+        <h2>{geoText(labels.title) || 'Mapa de calor y distribución'}</h2>
+        <p>{geoText(labels.description) || 'Explorá la distribución geográfica publicada por la organización.'}</p>
+        <p className="geo-meta">{tenantSlug || 'Organización no verificada'} · {from} — {to}</p>
       </div>
-      <Button type="button" variant="outline" className="min-h-11" disabled={busy || phase==='invalid'} onClick={refresh}><RefreshCw size={16} aria-hidden="true" />Actualizar mapa</Button>
+      <Button type="button" variant="outline" disabled={busy || phase==='invalid'} onClick={refresh}><RefreshCw size={16} aria-hidden="true" />Actualizar mapa</Button>
     </header>
     <form className="geo-filter-panel" onSubmit={event=>{event.preventDefault();if(!busy && changed)apply(draft);}}>
-      <div className="geo-section-title"><h3><Filter size={16} aria-hidden="true" />Elegir qué mostrar</h3><span>Aplicá los cambios con el botón de abajo</span></div>
+      <div className="geo-section-title"><h3><Filter size={16} aria-hidden="true" />Filtros de consulta</h3><span>Se aplican al consultar el servidor</span></div>
       <div className="geo-filter-grid">{GEO_DIMENSIONS.map(key=>{
         const options = data ? geoOptions(data,key) : [];
         if(draft[key] && !options.some(option=>option.key===draft[key]))options.unshift({key:draft[key],label:draft[key]});
@@ -50,14 +51,14 @@ function HeatmapSession({tenantId,tenantSlug,context,from,to,initial}: {tenantId
             <option value="">Todos</option>{options.map(option=><option key={option.key} value={option.key}>{option.label}</option>)}
           </select></label>;
       })}</div>
-      <div className="geo-toolbar"><Button type="submit" className="min-h-11" disabled={busy || !changed || phase==='invalid'}>Aplicar filtros</Button>
-        <Button type="button" variant="outline" className="min-h-11" disabled={busy} onClick={()=>apply(initial)}>Restablecer filtros</Button>
+      <div className="geo-toolbar"><Button type="submit" disabled={busy || !changed || phase==='invalid'}>Aplicar filtros</Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={()=>apply(initial)}>Restablecer filtros</Button>
         {changed && <span role="status">Cambios pendientes de aplicar.</span>}</div>
-      <p className="geo-note">Aplicá los filtros para actualizar la consulta. Las opciones de visualización sólo cambian este mapa.</p>
+      <p className="geo-note">Los filtros disponibles provienen de esta respuesta. Cambiar la capa o el filtro visual no realiza nuevas consultas.</p>
     </form>
     <div className="geo-active-filters" aria-label="Filtros solicitados">{GEO_DIMENSIONS.filter(key=>active[key]).map(key=><span key={key}>{GEO_LABELS[key]}: {active[key]}</span>)}</div>
     {phase==='invalid' && <div className="geo-empty" role="alert">No se consultó el mapa. Verificá la organización y el período.</div>}
-    {phase==='error' && <div className="geo-empty" role="alert"><h3>No se pudo cargar el mapa</h3><p>Volvé a intentarlo para consultar las ubicaciones disponibles.</p><Button variant="outline" className="min-h-11" onClick={refresh}>Reintentar</Button></div>}
+    {phase==='error' && <div className="geo-empty" role="alert"><h3>No se pudo verificar el mapa</h3><p>Se retiraron los datos anteriores. La consulta pudo fallar o el acceso puede haber cambiado.</p><Button variant="outline" onClick={refresh}>Reintentar consulta</Button></div>}
     {busy && <div className="geo-loading" role="status"><MapPinned aria-hidden="true" /><p>Consultando distribución geográfica…</p></div>}
     {data && model && <>
       {model.synthetic && <p className="geo-warning" role="status">Datos de demostración declarados por el servidor. No representan operaciones reales.</p>}
@@ -67,8 +68,9 @@ function HeatmapSession({tenantId,tenantSlug,context,from,to,initial}: {tenantId
         <GeoMetric label={coverage.ticketCoverage ? 'Casos fuera de cobertura' : 'Sin coordenadas'} value={number(coverage.withoutCoordinates)} detail={coverage.ticketCoverage ? 'Sin coordenadas aptas para esta consulta' : 'Pendientes de ubicación'} />
         <GeoMetric label="Cobertura geográfica" value={coverage.coverage===null?'No informada':`${number(coverage.coverage)}%`} detail={coverage.ticketCoverage ? 'Proporción de casos de esta consulta' : 'Del registro publicado'} />
       </div>
+      {coverage.inconsistent && <p className="geo-warning">La respuesta trae cifras de cobertura que no coinciden entre sí.</p>}
       <div className="geo-layout"><section className="geo-map-panel" aria-label="Distribución en el mapa">
-        <div className="geo-section-title"><h3><Layers3 size={16} aria-hidden="true" />Distribución geográfica</h3><span>{model.redacted?'Ubicaciones agrupadas':'Ubicaciones disponibles'}</span></div>
+        <div className="geo-section-title"><h3><Layers3 size={16} aria-hidden="true" />Distribución geográfica</h3><span>{model.redacted?'Ubicaciones agregadas':'Respuesta geográfica actual'}</span></div>
         <div className="geo-toolbar" aria-label="Capas del mapa">{layers.map(value=><button type="button" key={value} aria-pressed={value===effectiveLayer} onClick={()=>setLayer(value)}>{geoText(layerLabels[value])||value}</button>)}</div>
         <div className="geo-local-filters">{(['estado','severidad'] as const).map(key=>{
           const options=localOptions(key); if(!options.length && !local[key])return null;
@@ -78,20 +80,19 @@ function HeatmapSession({tenantId,tenantSlug,context,from,to,initial}: {tenantId
         {model.localActive && <p className="geo-note">Filtro visual sobre elementos cargados; los indicadores y segmentos siguen describiendo la respuesta completa. Un elemento sin esta dimensión no se incluye.</p>}
         <div className="geo-map-canvas">{model.displayPoints.length || (model.source?.features.length || 0) ? <MapLibreMap tenantSlug={tenantSlug} heatmapData={model.displayPoints} showHeatmap={['heatmap','heat'].includes(effectiveLayer)} center={model.center}
           fitToBounds={model.bounds.length?model.bounds:undefined} initialZoom={11} mapStyleUrl={model.experience.mapStyleUrl} mapTileUrl={model.experience.mapTileUrl} mapTileAttribution={model.experience.mapTileAttribution}
-          geoLayerConfig={model.config} evidence={model.evidence} /> : <div className="geo-empty"><MapPinned aria-hidden="true" /><h3>{model.localActive?'No hay ubicaciones con estos filtros':geoText(labels.empty)||'Todavía no hay ubicaciones para esta consulta'}</h3><p>{model.localActive?'Quitá los filtros visuales para volver a ver todas las ubicaciones.':'Actualizá el mapa para comprobar si ya hay ubicaciones disponibles.'}</p><Button type="button" variant="outline" className="min-h-11" onClick={model.localActive?()=>setLocal({estado:'',severidad:''}):refresh}>{model.localActive?'Quitar filtros visuales':'Actualizar mapa'}</Button></div>}</div>
+          geoLayerConfig={model.config} evidence={model.evidence} /> : <div className="geo-empty"><MapPinned aria-hidden="true" /><h3>{model.localActive?'Sin coincidencias geográficas':geoText(labels.empty)||'Sin datos geográficos para esta consulta'}</h3><p>No se muestran puntos de otra selección.</p></div>}</div>
         <p className="geo-note"><ShieldCheck size={14} aria-hidden="true" />{model.redacted?'Las coordenadas individuales están suprimidas. Sólo se representan celdas agregadas publicadas por el servidor.':'La ubicación procede de la respuesta recibida. Un punto o peso no equivale necesariamente a una persona, un reclamo o una respuesta única.'}</p>
       </section>
       <aside className="geo-insights" aria-label="Segmentos de la consulta">
         <div className="geo-section-title"><h3><BarChart3 size={16} aria-hidden="true" />Explorar segmentos</h3></div>
-        <p className="geo-note">Seleccioná una barra para consultar ese grupo. Los valores corresponden a la consulta actual.</p>
+        <p className="geo-note">Seleccioná una barra para consultar ese segmento. Los conteos son del servidor; no se calculan tasas poblacionales.</p>
         {(['categoria','distrito','canal','source'] as const).map(dimension=><GeoBreakdownChart key={dimension} data={data} dimension={dimension} active={active[dimension]} onSelect={value=>apply({...active,[dimension]:value})} />)}
         {!(['categoria','distrito','canal','source'] as const).some(key=>geoBreakdown(data,key).length) && <p className="geo-empty">No se informaron distribuciones segmentadas.</p>}
       </aside></div>
       <GeoDetails data={model.safe} />
-      <details className="geo-evidence"><summary>Datos para soporte</summary>
+      <details className="geo-evidence"><summary>Base, filtros y trazabilidad</summary>
         <p>Organización solicitada: {tenantSlug}. Período: {from} — {to}.</p>
         <p>Contrato: {data.contract_version || 'No informado'}. Referencia de consulta: {data.request_id || 'No informada'}.</p>
-        {coverage.inconsistent ? <p>Las cifras de cobertura informadas no coinciden entre sí.</p> : null}
         <p>{Object.keys(geoRecord(data.segments_filters_applied ?? data.filters_applied ?? data.applied_filters)).length?'El servidor incluyó información de filtros aplicados.':'El servidor no incluyó confirmación de filtros. Los filtros de cabecera indican lo solicitado.'}</p>
         <p>Los cambios de estado o asignación se realizan en la ficha del caso, no al explorar este mapa. Una celda agregada no autoriza reconstruir ubicaciones individuales.</p>
       </details>

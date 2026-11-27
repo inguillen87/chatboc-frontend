@@ -38,6 +38,7 @@ import {
   Wand2, // Icono para sugerencias
   Loader2, // Icono de carga
   Megaphone, // Icono para promociones
+  ArrowRight,
   BarChart3,
   Clock3,
   ClipboardList,
@@ -154,12 +155,12 @@ const InternalUsers = React.lazy(() => import('@/pages/InternalUsers'));
 const IncidentsMap = React.lazy(() => import('@/pages/IncidentsMap'));
 const CatalogManagementPage = React.lazy(() => import('@/pages/admin/CatalogManagementPage'));
 
-const ProfileTabFallback = ({ label = "Cargando esta sección..." }: { label?: string }) => (
+const ProfileTabFallback = ({ label = "Cargando módulo operativo..." }: { label?: string }) => (
   <div className="flex min-h-[320px] w-full items-center justify-center rounded-xl border border-border/70 bg-card/80 p-6 text-center">
     <div>
       <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
       <p className="text-sm font-semibold text-foreground">{label}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Estamos preparando el contenido.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Preparando la vista sin bloquear el resto del panel.</p>
     </div>
   </div>
 );
@@ -368,24 +369,6 @@ const normalizeProfileTabValue = (value: string | null): ProfileTabValue | null 
   return PROFILE_TAB_VALUES.has(value as ProfileTabValue) ? (value as ProfileTabValue) : null;
 };
 
-const clearPanelText = (value: string): string => value
-  .replace(/\bmatriz técnica de ruteo\b/gi, 'quién atiende cada tema')
-  .replace(/\btemas? de ruteo\b/gi, 'temas sin responsable definido')
-  .replace(/\bruteo\b/gi, 'asignación de responsables')
-  .replace(/\btickets\b/gi, 'casos')
-  .replace(/\bticket\b/gi, 'caso')
-  .replace(/\bSLA\b/g, 'plazo')
-  .replace(/\bsentimiento neutral\b/gi, 'el mensaje no muestra una emoción marcada')
-  .replace(/\bmonitoreo operativo\b/gi, 'seguimiento de la actividad')
-  .replace(/\bfoco del momento\b/gi, 'qué requiere atención ahora')
-  .replace(/\bcentro operativo\b/gi, 'actividad y pendientes')
-  .replace(/\btablero operativo\b/gi, 'actividad y resultados')
-  .replace(/\bcentro de mando\b/gi, 'resumen de casos y equipo')
-  .replace(/\brequiere revisión\b/gi, 'hay información que necesitás revisar')
-  .replace(/[_-]+/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
 type ControlCenterCard = {
   id: string;
   title: string;
@@ -502,20 +485,21 @@ const ControlCenterCardButton = ({
       disabled={!enabled}
       onClick={() => onOpen(item)}
       className={cn(
-        "flex min-h-[132px] w-full flex-col justify-between rounded-lg border border-border/70 bg-background p-4 text-left transition-colors hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
+        "group flex min-h-[128px] w-full flex-col justify-between rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-55",
       )}
     >
       <div className="flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center text-primary">
-          <Icon className="h-5 w-5" aria-hidden="true" />
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">{item.title}</p>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
         </div>
       </div>
-      <span className="mt-3 inline-flex min-h-11 items-center pl-12 text-sm font-semibold text-primary">
+      <span className="mt-3 inline-flex items-center gap-2 pl-12 text-xs font-semibold text-primary">
         {enabled ? item.actionLabel : "No disponible"}
+        {enabled ? <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" /> : null}
       </span>
     </button>
   );
@@ -842,13 +826,6 @@ export default function Perfil() {
   const normalizedRole = String(normalizeRole(user?.rol));
   const isStaff = ['superadmin', 'tenant_admin', 'employee'].includes(normalizedRole);
   const isTenantAdministrator = ['superadmin', 'tenant_admin'].includes(normalizedRole);
-  const currentRoleLabel = isTenantAdministrator
-    ? 'Administrador de la organización'
-    : ({
-        employee: 'Integrante del equipo',
-        analytics_viewer: 'Consulta de informes',
-        catalog_manager: 'Gestión de catálogo',
-      } as Record<string, string>)[normalizedRole] || (normalizedRole ? 'Rol asignado' : 'Sin rol asignado');
   const isAnalyticsViewer = normalizedRole === 'analytics_viewer';
   const isCatalogManager = normalizedRole === 'catalog_manager';
   const canManageBilling = isTenantAdministrator;
@@ -859,22 +836,10 @@ export default function Perfil() {
   const canViewCatalog = isTenantAdministrator || isCatalogManager;
   const canManageTeam = isTenantAdministrator;
   const canAccessSurveys = FEATURE_ENCUESTAS && isStaff;
-  const canReadOrders = useMemo(() => {
-    const publishedCapabilities = [user?.capabilities, user?.permissions, user?.scopes]
-      .flatMap((values) => Array.isArray(values) ? values : [])
-      .map((value) => String(value).trim().toLowerCase());
-    return publishedCapabilities.some((value) => ORDER_READ_CAPABILITIES.includes(value));
-  }, [user?.capabilities, user?.permissions, user?.scopes]);
-  const fallbackOrganizationType = String(
-    usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro || '',
-  ).trim().toLowerCase();
   const esMunicipio = !isPlatformAdministrator && authenticatedOrganization
     ? authenticatedOrganization.isMunicipal
     : !isPlatformAdministrator && hasOrganizationContracts ? false
-      : ['municipio', 'municipios', 'gobierno', 'government'].includes(fallbackOrganizationType);
-  const canUseCatalog = !esMunicipio
-    || hasCapability('market.catalog.read')
-    || hasCapability('market.catalog.write');
+      : (usesScopedOrganizationProfile ? perfil.rubro : user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
   const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
   const [backofficeNavigationStatus, setBackofficeNavigationStatus] = useState<
     'idle' | 'loading' | 'ready' | 'denied' | 'error'
@@ -909,7 +874,7 @@ export default function Perfil() {
         contactsAccess: canViewContacts,
         reportsAccess: canViewReports,
         analyticsAccess: canViewAnalytics,
-        catalogAccess: canViewCatalog && canUseCatalog,
+        catalogAccess: canViewCatalog,
         teamAccess: canManageTeam,
         billingAccess: canManageBilling,
         implementationAccess: isTenantAdministrator,
@@ -921,7 +886,6 @@ export default function Perfil() {
       canManageBilling,
       canViewAnalytics,
       canViewCatalog,
-      canUseCatalog,
       canViewContacts,
       canViewReports,
       canViewTerritory,
@@ -932,8 +896,10 @@ export default function Perfil() {
   );
   const allowedWorkspaceTabs = useMemo(() => {
     const tabs = new Set<ProfileTabValue>(['perfil']);
-    if (workspaceCapabilities.operation) tabs.add('tickets');
-    if (workspaceCapabilities.operation && canReadOrders) tabs.add('pedidos');
+    if (workspaceCapabilities.operation) {
+      tabs.add('tickets');
+      tabs.add('pedidos');
+    }
     if (workspaceCapabilities.reports) tabs.add('estadisticas');
     if (workspaceCapabilities.analytics) tabs.add('analytics');
     if (workspaceCapabilities.catalog) tabs.add('catalogo');
@@ -941,7 +907,7 @@ export default function Perfil() {
     if (workspaceCapabilities.team) tabs.add('empleados');
     if (workspaceCapabilities.territory) tabs.add('mapas');
     return tabs;
-  }, [canReadOrders, workspaceCapabilities]);
+  }, [workspaceCapabilities]);
   const hasAnyWorkspaceCapability = Object.values(workspaceCapabilities).some(Boolean);
 
   useEffect(() => {
@@ -1342,7 +1308,7 @@ export default function Perfil() {
       toast({
         variant: "destructive",
         title: "Error al crear el evento",
-        description: getErrorMessage(error, "No se pudo guardar el evento. Intentá de nuevo."),
+        description: getErrorMessage(error, "No se pudo guardar el evento. Intenta de nuevo."),
       });
     } finally {
       setIsSubmittingEvent(false);
@@ -1377,13 +1343,13 @@ export default function Perfil() {
         toast({
           variant: 'destructive',
           title: 'Límite diario superado',
-          description: 'Ya se envió una promoción hoy. Intentá nuevamente mañana.',
+          description: 'Ya se envió una promoción hoy. Intenta nuevamente mañana.',
         });
       } else {
         toast({
           variant: 'destructive',
           title: 'Error al enviar la promoción',
-          description: getErrorMessage(error, 'No se pudo enviar la promoción. Intentá de nuevo.'),
+          description: getErrorMessage(error, 'No se pudo enviar la promoción. Intenta de nuevo.'),
         });
       }
     } finally {
@@ -2625,36 +2591,21 @@ export default function Perfil() {
     const normalized = moduleId.trim().toLowerCase();
     if (normalized === 'operations') {
       return esMunicipio
-        ? 'Revisá los casos, las conversaciones y los próximos pasos para responder.'
-        : 'Revisá los casos, las conversaciones y los próximos pasos del equipo.';
+        ? 'Casos, conversaciones y seguimiento de atención ciudadana.'
+        : 'Casos, conversaciones y seguimiento comercial.';
     }
-    if (normalized === 'reports') return 'Consultá la actividad, los tiempos de respuesta y los datos para descargar.';
-    if (normalized === 'surveys') return 'Creá consultas y revisá sus respuestas y resultados.';
-    if (normalized === 'people') return 'Gestioná contactos, responsables y permisos del equipo.';
-    if (normalized === 'maps') return 'Ubicá los casos por zona y detectá dónde hace falta actuar.';
-    if (normalized === 'advanced_analytics') return 'Profundizá el análisis de la actividad y sus cambios.';
-    if (normalized === 'implementation') return 'Revisá qué falta completar y cuál es el próximo paso.';
+    if (normalized === 'reports') return 'Indicadores operativos, tendencias y exportaciones.';
+    if (normalized === 'surveys') return 'Campañas, participación y resultados trazables.';
+    if (normalized === 'people') return 'Contactos, responsables, roles y permisos.';
+    if (normalized === 'maps') return 'Actividad territorial, zonas y prioridades georreferenciadas.';
+    if (normalized === 'advanced_analytics') return 'Análisis ejecutivo, segmentos y hallazgos asistidos.';
+    if (normalized === 'implementation') return 'Avances, bloqueos y próximos pasos para una salida productiva segura.';
     if (['catalog', 'inventory', 'marketplace'].includes(normalized)) {
       return esMunicipio
-        ? 'Revisá los servicios y recursos que están publicados.'
-        : 'Revisá productos, existencias y disponibilidad.';
+        ? 'Servicios, recursos y disponibilidad publicada.'
+        : 'Productos, inventario y disponibilidad comercial.';
     }
-    return 'Abrí las herramientas habilitadas para tu tarea.';
-  };
-
-  const resolveBackofficeModuleTitle = (moduleId: string) => {
-    const normalized = moduleId.trim().toLowerCase();
-    if (normalized === 'operations') return esMunicipio ? 'Reclamos y consultas' : 'Casos y conversaciones';
-    if (normalized === 'reports') return 'Actividad y resultados';
-    if (normalized === 'surveys') return 'Encuestas y votaciones';
-    if (normalized === 'people') return 'Personas y accesos';
-    if (normalized === 'maps') return 'Casos por zona';
-    if (normalized === 'advanced_analytics') return 'Análisis detallado';
-    if (normalized === 'implementation') return 'Puesta en marcha';
-    if (['catalog', 'inventory', 'marketplace'].includes(normalized)) {
-      return esMunicipio ? 'Servicios y recursos' : 'Catálogo e inventario';
-    }
-    return 'Sección disponible';
+    return 'Herramientas habilitadas para este espacio de trabajo.';
   };
 
   const openSurveyWorkspace = (path = '/admin/encuestas') => {
@@ -2724,10 +2675,10 @@ export default function Perfil() {
         const id = module.id || module.label || module.route || 'module';
         return {
           id,
-          title: clearPanelText(module.label || module.title || resolveBackofficeModuleTitle(id)),
-          description: clearPanelText(module.description || resolveBackofficeModuleDescription(id)),
+          title: module.label || module.title || id,
+          description: module.description || resolveBackofficeModuleDescription(id),
           icon: resolveBackofficeModuleIcon(id),
-          actionLabel: 'Abrir sección',
+          actionLabel: 'Abrir',
           enabled: module.enabled !== false,
           ...moduleRouteToTarget(id, module.route || module.path),
         };
@@ -2750,19 +2701,19 @@ export default function Perfil() {
   const primaryControlCards: ControlCenterCard[] = ([
     {
       id: "operations",
-      title: esMunicipio ? "Atender reclamos" : "Atender casos",
+      title: esMunicipio ? "Operar reclamos" : "Operar conversaciones",
       description: esMunicipio
-        ? "Revisá qué ingresó, quién responde y cuál es el próximo paso."
-        : "Revisá qué ingresó, quién responde y cuál es el próximo paso.",
+        ? "Entrar a reclamos, estados, ubicaciones y seguimiento diario."
+        : "Ver casos, pedidos, ventas y conversaciones que requieren acción.",
       icon: ClipboardList,
-      actionLabel: "Revisar casos",
+      actionLabel: "Abrir operación",
       tab: "tickets",
       enabled: workspaceCapabilities.operation,
     },
     {
       id: "reports",
-      title: "Actividad y resultados",
-      description: "Consultá volúmenes, tiempos de respuesta y cambios en el período elegido.",
+      title: "Reportes claros",
+      description: "Resumen operativo, mapas de calor, prioridades y datos listos para revisar.",
       icon: BarChart3,
       actionLabel: "Ver reportes",
       tab: "estadisticas",
@@ -2771,7 +2722,7 @@ export default function Perfil() {
     {
       id: "surveys",
       title: "Encuestas y sondeos",
-      description: "Creá consultas y revisá sus respuestas y resultados.",
+      description: "Gestionar participación, votaciones, comentarios y resultados en vivo.",
       icon: Vote,
       actionLabel: "Abrir encuestas",
       path: "/admin/encuestas",
@@ -2780,7 +2731,7 @@ export default function Perfil() {
     {
       id: "people",
       title: "Personas y accesos",
-      description: "Sumá personas, asigná permisos y definí responsables.",
+      description: "Usuarios, empleados, permisos y responsables del equipo.",
       icon: Users,
       actionLabel: "Gestionar personas",
       tab: workspaceCapabilities.team ? "empleados" : "usuarios",
@@ -2791,10 +2742,8 @@ export default function Perfil() {
   const secondaryControlCards: ControlCenterCard[] = ([
     {
       id: "catalog",
-      title: esMunicipio ? "Servicios y recursos" : "Catálogo e inventario",
-      description: esMunicipio
-        ? "Revisá los servicios y recursos que están disponibles."
-        : "Revisá productos, existencias y disponibilidad.",
+      title: "Catálogo e inventario",
+      description: "Productos, recursos, stock, importaciones y calidad del catálogo publicados por el servidor.",
       icon: Package,
       actionLabel: "Abrir catálogo",
       tab: "catalogo",
@@ -2802,17 +2751,17 @@ export default function Perfil() {
     },
     {
       id: "ai-analytics",
-      title: "Análisis detallado",
-      description: "Profundizá los datos y prepará un resumen para tomar decisiones.",
+      title: "Analítica avanzada e IA",
+      description: "Investigación, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
       icon: Sparkles,
-      actionLabel: "Abrir análisis",
+      actionLabel: "Abrir analítica",
       tab: "analytics",
       enabled: workspaceCapabilities.analytics,
     },
     {
       id: "maps",
-      title: "Casos por zona",
-      description: "Ubicá los casos en el mapa y detectá dónde hace falta actuar.",
+      title: "Mapa operativo",
+      description: "Ver zonas calientes, puntos georreferenciados y capas territoriales disponibles.",
       icon: MapPinned,
       actionLabel: "Abrir mapas",
       tab: "mapas",
@@ -2821,7 +2770,7 @@ export default function Perfil() {
     {
       id: "users",
       title: "Usuarios finales",
-      description: "Consultá contactos, actividad y relación con la organización.",
+      description: "Consultar contactos, cuentas, actividad y datos de relación con la organización.",
       icon: UserCog,
       actionLabel: "Ver usuarios",
       tab: "usuarios",
@@ -2846,17 +2795,6 @@ export default function Perfil() {
   const isWideWorkspaceProfileTab =
     activeProfileTab === "analytics" || activeProfileTab === "mapas";
   const isWorkspaceProfileTab = isViewportWorkspaceProfileTab || isWideWorkspaceProfileTab;
-  const activeWorkspaceTitle = activeProfileTab === "tickets"
-    ? (esMunicipio ? "Reclamos y consultas" : "Casos y conversaciones")
-    : activeProfileTab === "usuarios"
-      ? "Personas y contactos"
-      : activeProfileTab === "mapas"
-        ? "Casos por zona"
-        : isInstitutionProfileViewport
-          ? "Perfil institucional"
-          : activeProfileTab === "analytics"
-            ? "Análisis detallado"
-            : "Actividad y resultados";
   const workspaceNavigation = backofficeNavigationStatus === 'ready' ? (
     <ProfileWorkspaceNavigation
       contextKey={JSON.stringify([verifiedOrganizationNavigationTenantSlug, authenticatedOrganization?.tenantId, user?.id, user?.rol, organizationProfileVerified, hasVerifiedSession, Boolean(userLoading), (user as any)?.organization_profile?.revision])}
@@ -2868,11 +2806,7 @@ export default function Perfil() {
             : "institution-profile"
           : undefined
       }
-      capabilities={{
-        ...workspaceCapabilities,
-        orders: workspaceCapabilities.operation && canReadOrders,
-        participation: workspaceCapabilities.participation && Boolean(verifiedOrganizationNavigationTenantSlug),
-      }}
+      capabilities={{ ...workspaceCapabilities, participation: workspaceCapabilities.participation && Boolean(verifiedOrganizationNavigationTenantSlug) }}
       isMunicipal={esMunicipio}
       onOpenImplementation={openImplementationCenter}
       onOpenInstitutionProfile={openInstitutionProfile}
@@ -2902,14 +2836,14 @@ export default function Perfil() {
         <span className="min-w-0">
           <span className="block font-semibold text-foreground">
             {backofficeNavigationStatus === 'denied'
-              ? 'Acceso a estas tareas no habilitado'
+              ? 'Acceso operativo no habilitado'
               : backofficeNavigationStatus === 'error'
                 ? 'No pudimos verificar los módulos'
                 : 'Verificando accesos del equipo'}
           </span>
           <span className="block truncate text-xs text-muted-foreground">
             {backofficeNavigationStatus === 'denied'
-              ? 'Pedile a un administrador que habilite las tareas necesarias para este perfil.'
+              ? 'Un administrador debe asignar alcance operativo a este perfil.'
               : backofficeNavigationStatus === 'error'
                 ? 'No mostramos accesos hasta validar permisos con el servidor.'
                 : 'Cargando los módulos de tu organización.'}
@@ -2921,7 +2855,7 @@ export default function Perfil() {
           type="button"
           variant="outline"
           size="sm"
-          className="min-h-11 shrink-0"
+          className="shrink-0"
           onClick={() => {
             backofficeNavigationScopeRef.current = null;
             setBackofficeNavigationRevision((revision) => revision + 1);
@@ -2935,12 +2869,13 @@ export default function Perfil() {
 
   if (!profileReady) {
     return (
-      <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground sm:px-4 md:px-6 lg:px-8">
+      <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
         <section className="mx-auto mt-24 flex w-full max-w-3xl flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/80 p-8 text-center shadow-sm">
           <Loader2 className="mb-4 h-7 w-7 animate-spin text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Estamos preparando tu panel</h1>
+          <p className="text-xs font-semibold text-primary">Centro de control</p>
+          <h1 className="mt-2 text-2xl font-extrabold text-foreground">Sincronizando panel operativo</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Estamos verificando tu perfil y tus permisos antes de mostrar las secciones disponibles.
+            Cargando perfil, rubro y permisos antes de mostrar reclamos, reportes y equipo.
           </p>
         </section>
       </div>
@@ -2966,6 +2901,9 @@ export default function Perfil() {
     if (!organizationProfileVerified || tenantSelectionPending) {
       return <ViewState status="loading" title="Validando acceso a pedidos" />;
     }
+    const orderCapabilities = [user?.capabilities, user?.permissions, user?.scopes]
+      .flatMap(values => Array.isArray(values) ? values : []);
+    const canReadOrders = orderCapabilities.some(value => ORDER_READ_CAPABILITIES.includes(String(value).trim().toLowerCase()));
     if (!profileTenantScope || !canReadOrders || matchingRequestedAuthority?.status === 'denied') {
       return <Navigate to="/403" replace state={{ reason: 'capability', from: '/perfil' }} />;
     }
@@ -2980,7 +2918,7 @@ export default function Perfil() {
     <div
       data-testid="profile-page-shell"
       className={cn(
-        "flex w-full min-w-0 flex-col bg-background text-foreground",
+        "flex w-full min-w-0 flex-col bg-background text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900",
         isViewportWorkspaceProfileTab
           ? cn(
               isInstitutionProfileViewport || searchParams.get("mode") === "embed"
@@ -3004,12 +2942,25 @@ export default function Perfil() {
         {isWorkspaceProfileTab ? (
           <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border/70 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:px-3">
             <div className="min-w-0 flex-1">
-              <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
-                {activeWorkspaceTitle}
-              </h1>
-              <p className="truncate text-xs text-muted-foreground">{institutionDisplayName}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="shrink-0 text-[10px] font-semibold text-primary">
+                  {activeProfileTab === "tickets"
+                    ? (esMunicipio ? "Centro de reclamos" : "Centro de casos")
+                    : activeProfileTab === "usuarios"
+                      ? "Consola CRM"
+                      : activeProfileTab === "mapas"
+                        ? "Consola territorial"
+                      : isInstitutionProfileViewport
+                        ? "Perfil institucional"
+                      : "Consola analitica"}
+                </p>
+                <span className="hidden h-3 w-px bg-border sm:block" />
+                <h1 className="min-w-0 truncate text-sm font-semibold text-foreground sm:text-base">
+                  {institutionDisplayName}
+                </h1>
+              </div>
             </div>
-            {isPlatformWorkspace ? <Button asChild variant="outline" size="sm" className="min-h-11"><Link to="/superadmin?section=organizations">
+            {isPlatformWorkspace ? <Button asChild variant="outline" size="sm"><Link to="/superadmin?section=organizations">
               {platformWorkspace?.organization_action?.label || 'Organizaciones'}
             </Link></Button> : null}
           </div>
@@ -3032,13 +2983,13 @@ export default function Perfil() {
                   {institutionDisplayName}
                 </h1>
                 <p className="mt-1.5 max-w-3xl text-sm leading-5 text-muted-foreground">
-                  Encontrá los casos, las personas, los informes y la configuración que tenés habilitados.
+                  Atención, relaciones, inteligencia y administración organizadas según el trabajo de cada equipo.
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 pl-14 lg:pl-0" role="group" aria-label="Contexto de la organización">
               {isPlatformWorkspace ? (
-                <Button asChild variant="outline" size="sm" className="min-h-11"><Link to="/superadmin?section=organizations">
+                <Button asChild variant="outline" size="sm"><Link to="/superadmin?section=organizations">
                   <Settings2 className="mr-2 h-4 w-4" />{platformWorkspace?.organization_action?.label || 'Organizaciones'}
                 </Link></Button>
               ) : isTenantAdministrator ? (
@@ -3046,7 +2997,6 @@ export default function Perfil() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="min-h-11"
                   onClick={() => updateInstitutionSection("general")}
                 >
                   <Settings2 className="mr-2 h-4 w-4" />
@@ -3087,12 +3037,12 @@ export default function Perfil() {
           <div>
             <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Trabajo de hoy</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Elegí una tarea para ir directo al lugar donde podés resolverla.
+              Lo que más se usa según tu rol. Cada acceso abre directo donde se hace la tarea.
             </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {renderedPrimaryControlCards.length + renderedSecondaryControlCards.length} secciones disponibles
-          </p>
+          <Badge variant="outline" className="w-fit rounded-md px-2.5 py-1 text-xs font-medium">
+            {renderedPrimaryControlCards.length + renderedSecondaryControlCards.length} módulos habilitados
+          </Badge>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -3101,14 +3051,7 @@ export default function Perfil() {
           ))}
         </div>
 
-        <BackofficeCommandCenter
-          tenantSlug={derivedTenantSlug}
-          scope={backofficeScope}
-          ordersEnabled={workspaceCapabilities.operation && canReadOrders}
-          onOpenCases={() => updateProfileTab('tickets')}
-          onOpenOrders={canReadOrders ? () => updateProfileTab('pedidos') : undefined}
-          onOpenContacts={workspaceCapabilities.contacts ? () => updateProfileTab('usuarios') : undefined}
-          onOpenTeam={workspaceCapabilities.team ? () => updateProfileTab('empleados') : undefined}
+        <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope}
           tenantId={matchingOrganizationProfile?.tenant.slug === derivedTenantSlug
             ? matchingOrganizationProfile.tenant.id
             : authenticatedOrganization?.tenantSlug === derivedTenantSlug ? authenticatedOrganization.tenantId : null}
@@ -3117,19 +3060,19 @@ export default function Perfil() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.65fr)]">
           {renderedSecondaryControlCards.length > 0 ? (
-            <section className="rounded-xl border border-border/70 bg-card/80 p-5">
-              <div className="pb-3">
+            <Card className="border-border/70 bg-card/80 shadow-sm">
+              <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <LayoutDashboard className="h-5 w-5 text-primary" aria-hidden="true" />
-                  <h3 className="text-lg font-semibold">Más tareas</h3>
+                  <LayoutDashboard className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Más áreas de trabajo</CardTitle>
                 </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-3">
                 {renderedSecondaryControlCards.map((item) => (
                   <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
                 ))}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
           ) : null}
 
           <details
@@ -3144,7 +3087,7 @@ export default function Perfil() {
                   Canales e integraciones
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                  Abrí esta sección cuando necesites conectar o revisar un canal.
+                  Configuración técnica separada de la operación diaria.
                 </span>
               </span>
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -3155,8 +3098,6 @@ export default function Perfil() {
                   tenantSlug={derivedTenantSlug}
                   initialData={authoritativeChannelActivation}
                   highlighted={shouldHighlightChannelSetup}
-                  catalogEnabled={!esMunicipio || canUseCatalog}
-                  ordersEnabled={!esMunicipio || canReadOrders}
                 />
               </div>
             ) : null}
@@ -3337,7 +3278,7 @@ export default function Perfil() {
                       onChange={handleInputChange}
                     />
                     <p className="text-xs leading-5 text-muted-foreground">
-                      Identidad visual de la organización. Los cambios se aplican a todo este espacio de trabajo.
+                      Identidad visual de la organización. La personalización de dominio y marca se gobierna por tenant.
                     </p>
                   </div>
                   {usesScopedOrganizationProfile && matchingOrganizationProfile && matchingOrganizationBranding ? (
@@ -3367,7 +3308,7 @@ export default function Perfil() {
                       disabled={avatarUploading}
                     />
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button type="button" variant="outline" size="sm" className="min-h-11" disabled={avatarUploading} asChild>
+                      <Button type="button" variant="outline" size="sm" disabled={avatarUploading} asChild>
                         <label htmlFor="avatar_file_upload">
                           <UploadCloud className="mr-2 h-4 w-4" />
                           {avatarUploading ? "Subiendo..." : "Subir imagen"}
@@ -3382,7 +3323,7 @@ export default function Perfil() {
                         disabled={avatarUploading}
                       />
                       <Badge variant="outline">
-                        {perfil.avatar_consent && perfil.avatar_url ? "Uso autorizado" : "Se muestran las iniciales"}
+                        {perfil.avatar_consent && perfil.avatar_url ? "Uso autorizado" : "Fallback seguro"}
                       </Badge>
                     </div>
                   </div>
@@ -3398,7 +3339,7 @@ export default function Perfil() {
                     <span>
                       <span className="block font-semibold text-foreground">Autorizar uso de esta imagen</span>
                       <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                        Se usa en la ficha de personas y durante la atención sólo con tu permiso. No copiamos fotos de WhatsApp ni de otras fuentes.
+                        Solo se usa en CRM y operación con consentimiento explícito. No se obtienen fotos desde WhatsApp ni por scraping.
                       </span>
                     </span>
                   </label>
@@ -3406,7 +3347,7 @@ export default function Perfil() {
                 </div>
                 {!usesScopedOrganizationProfile ? (
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
-                  <p className="text-sm font-semibold text-foreground">Vista previa del perfil</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Vista previa</p>
                   <div className="mt-5 flex flex-col items-center gap-3 text-center">
                     <IdentityAvatar
                       name={user?.name || perfil.nombre_empresa || user?.email || "Usuario"}
@@ -3453,7 +3394,7 @@ export default function Perfil() {
                       value={perfil.provincia}
                       onChange={handleInputChange}
                       required
-                      className="min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
                       <option value="">Seleccioná una provincia</option>
                       {PROVINCIAS.map((province) => (
@@ -3465,28 +3406,20 @@ export default function Perfil() {
                 <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-foreground">
-                      {hasValidLocation ? "Ubicación lista para usar" : "Falta confirmar la ubicación"}
+                      {hasValidLocation ? "Referencia geográfica disponible" : "Sin coordenadas validadas"}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {geocodingStatus === "loading"
-                        ? "Estamos buscando la ubicación de la dirección ingresada..."
+                        ? "Buscando coordenadas para el domicilio ingresado..."
                         : hasValidLocation
-                          ? "La dirección ya se puede mostrar en el mapa."
-                          : "Guardá una dirección válida o elegí el punto desde el mapa."}
+                          ? `${perfil.latitud?.toFixed?.(5)}, ${perfil.longitud?.toFixed?.(5)}`
+                          : "Guardá una dirección válida o elegí el punto desde el mapa operativo."}
                     </p>
                     {geocodingError ? <p className="mt-1 text-xs text-destructive">{geocodingError}</p> : null}
-                    {hasValidLocation ? (
-                      <details className="mt-2 text-xs text-muted-foreground">
-                        <summary className="min-h-11 cursor-pointer py-2 font-medium text-foreground focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                          Datos para soporte
-                        </summary>
-                        <p>Coordenadas: {perfil.latitud?.toFixed?.(5)}, {perfil.longitud?.toFixed?.(5)}</p>
-                      </details>
-                    ) : null}
                   </div>
                   {workspaceCapabilities.territory ? (
-                    <Button type="button" variant="outline" className="min-h-11" onClick={() => updateProfileTab("mapas")}>
-                      <MapPinned className="mr-2 h-4 w-4" aria-hidden="true" /> Revisar en el mapa
+                    <Button type="button" variant="outline" onClick={() => updateProfileTab("mapas")}>
+                      <MapPinned className="mr-2 h-4 w-4" /> Abrir mapa operativo
                     </Button>
                   ) : null}
                 </div>
@@ -3568,17 +3501,15 @@ export default function Perfil() {
               <div className="space-y-5">
                 <Alert>
                   <Info className="h-4 w-4" />
-                  <AlertTitle>Conectá cada canal antes de usarlo</AlertTitle>
+                  <AlertTitle>Los canales se habilitan por configuración verificada</AlertTitle>
                   <AlertDescription>
-                    Guardar un teléfono en General no activa WhatsApp. Entrá al canal que quieras usar y completá su configuración.
+                    Guardar un teléfono en General no vincula WhatsApp ni demuestra entrega. La activación requiere número emisor, proveedor y validación operativa.
                   </AlertDescription>
                 </Alert>
                 <ChannelActivationChecklist
                   tenantSlug={derivedTenantSlug}
                   initialData={authoritativeChannelActivation}
                   highlighted={shouldHighlightChannelSetup}
-                  catalogEnabled={!esMunicipio || canUseCatalog}
-                  ordersEnabled={!esMunicipio || canReadOrders}
                 />
                 <div className="grid gap-3 md:grid-cols-2">
                   {esMunicipio ? (
@@ -3592,7 +3523,7 @@ export default function Perfil() {
                       className="rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <p className="font-semibold text-foreground">Administrar WhatsApp institucional</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Conectá el número, revisá las plantillas y confirmá que el canal esté listo.</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Número emisor, webhook, plantillas y estado del proveedor.</p>
                     </button>
                   ) : null}
                   <div className="space-y-2">
@@ -3605,13 +3536,13 @@ export default function Perfil() {
                       }}
                       className="w-full rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition hover:border-primary/30 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <p className="font-semibold text-foreground">Conectar otros canales</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Revisá los canales web disponibles para esta organización.</p>
+                      <p className="font-semibold text-foreground">Integraciones y canales web</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Configuración técnica de la organización verificada.</p>
                     </button>
                     {!integrationTenantSlug ? (
                       <div role="status" className="space-y-2 text-sm text-muted-foreground">
                         <p>No pudimos verificar la organización para abrir sus integraciones.</p>
-                        <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={() => void refreshUser()}>
+                        <Button type="button" variant="outline" size="sm" onClick={() => void refreshUser()}>
                           Reintentar verificación de organización
                         </Button>
                       </div>
@@ -3636,28 +3567,23 @@ export default function Perfil() {
                 />
                 <div className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-5">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Accesos del equipo</p>
+                    <p className="text-sm font-semibold text-foreground">Gobierno de acceso</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Revisá qué puede hacer tu usuario y gestioná los permisos del equipo.
+                      Roles normalizados, permisos por módulo y trazabilidad de cambios.
                     </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                     <div className="rounded-lg border border-border/70 bg-background p-3">
-                      <p className="text-sm text-muted-foreground">Rol actual</p>
-                      <p className="mt-1 font-semibold text-foreground">{currentRoleLabel}</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Rol actual</p>
+                      <p className="mt-1 font-semibold text-foreground">{isTenantAdministrator ? "Administrador del tenant" : normalizedRole || "Sin rol operativo"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/70 bg-background p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Organización</p>
+                      <p className="mt-1 truncate font-semibold text-foreground">{derivedTenantSlug || "Sin tenant validado"}</p>
                     </div>
                   </div>
-                  <details className="rounded-lg border border-border/70 bg-background px-3 text-xs text-muted-foreground">
-                    <summary className="min-h-11 cursor-pointer py-3 font-medium text-foreground focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      Datos para soporte
-                    </summary>
-                    <div className="space-y-1 pb-3">
-                      <p>Identificador de la organización: {derivedTenantSlug || "Sin organización verificada"}</p>
-                      <p>Rol interno: {normalizedRole || "Sin rol informado"}</p>
-                    </div>
-                  </details>
                   {workspaceCapabilities.team ? (
-                    <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => updateProfileTab("empleados")}>
+                    <Button type="button" variant="outline" className="w-full" onClick={() => updateProfileTab("empleados")}>
                       Gestionar equipo y permisos
                     </Button>
                   ) : null}
@@ -3674,7 +3600,7 @@ export default function Perfil() {
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
               <span>
-                <span className="block text-sm font-semibold text-foreground">Administración</span>
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Administración</span>
                 <span className="mt-1 block text-base font-semibold text-foreground">Organización, planes e integraciones</span>
                 <span className="mt-1 block text-xs leading-5 text-muted-foreground">
                   Datos institucionales, horarios, facturación y configuración técnica.
@@ -3773,7 +3699,7 @@ export default function Perfil() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="min-h-11"
+                                className="h-8"
                                 disabled={avatarUploading}
                                 asChild
                               >
@@ -3792,15 +3718,15 @@ export default function Perfil() {
                               />
                             {perfil.avatar_source ? (
                               <Badge variant="secondary" className="text-[10px]">
-                                {perfil.avatar_source === "profile_upload" ? "Imagen subida con permiso" : "Origen autorizado"}
+                                {perfil.avatar_source === "profile_upload" ? "Upload consentido" : perfil.avatar_source}
                               </Badge>
                             ) : null}
                             <Badge variant="outline" className="text-[10px]">
-                              {perfil.avatar_consent && perfil.avatar_url ? "Imagen autorizada" : "Se muestran las iniciales"}
+                              {perfil.avatar_consent && perfil.avatar_url ? "Imagen real autorizada" : "Fallback seguro"}
                             </Badge>
                             <p className="text-xs leading-5 text-muted-foreground">
-                              No copiamos fotos de WhatsApp ni de otras fuentes. La imagen sólo puede venir de un archivo
-                              que subiste, una dirección autorizada o el inicio de sesión con tu permiso.
+                              No usamos scraping ni fotos de WhatsApp. La imagen real solo sale de upload propio,
+                              URL autorizada o login social con consentimiento.
                             </p>
                           </div>
                           <label className="flex items-start gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
@@ -3812,7 +3738,7 @@ export default function Perfil() {
                                 disabled={avatarUploading || !perfil.avatar_url.trim()}
                                 aria-label="Autorizar imagen personal"
                               />
-                              <span>Autorizar esta imagen para identificarme en la ficha de personas, casos, pedidos, encuestas y chats.</span>
+                              <span>Autorizar esta imagen para identificarme en CRM, reclamos, pedidos, encuestas y chats.</span>
                             </label>
                           </div>
                         </div>
@@ -3823,7 +3749,7 @@ export default function Perfil() {
                         htmlFor="direccion"
                         className="text-muted-foreground text-sm mb-1 block"
                       >
-                        Dirección completa*
+                        Dirección Completa*
                       </Label>
                       <AddressAutocomplete
                         id="direccion"
@@ -3867,7 +3793,7 @@ export default function Perfil() {
                           value={perfil.provincia}
                           onChange={handleInputChange}
                           required
-                          className="min-h-11 w-full rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm"
+                          className="w-full h-10 rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm"
                         >
                           <option value="">Seleccioná una provincia</option>
                           {PROVINCIAS.map((p) => (
@@ -3892,7 +3818,7 @@ export default function Perfil() {
                           }
                           size="sm"
                           onClick={setHorarioComercial}
-                          className="min-h-11 border-border hover:bg-accent"
+                          className="border-border hover:bg-accent"
                         >
                           Automático (Lun-V 9-20)
                         </Button>
@@ -3905,7 +3831,7 @@ export default function Perfil() {
                           }
                           size="sm"
                           onClick={setHorarioPersonalizado}
-                          className="min-h-11 border-border hover:bg-accent flex items-center"
+                          className="border-border hover:bg-accent flex items-center"
                         >
                           {horariosOpen ? (
                             <ChevronUp className="w-4 h-4 mr-1" />
@@ -3956,7 +3882,7 @@ export default function Perfil() {
                                   <Input
                                     type="time"
                                     value={perfil.horarios_ui[idx].abre}
-                                    className="min-h-11 w-full rounded-md border-input bg-input text-xs text-foreground shadow-sm sm:w-28"
+                                    className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
                                     onChange={(e) =>
                                       handleHorarioChange(
                                         idx,
@@ -3969,7 +3895,7 @@ export default function Perfil() {
                                   <Input
                                     type="time"
                                     value={perfil.horarios_ui[idx].cierra}
-                                    className="min-h-11 w-full rounded-md border-input bg-input text-xs text-foreground shadow-sm sm:w-28"
+                                    className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
                                     onChange={(e) =>
                                       handleHorarioChange(
                                         idx,
@@ -4113,7 +4039,7 @@ export default function Perfil() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="min-h-11 w-full"
+                          className="w-full"
                           onClick={refreshVectorSyncStatus}
                           disabled={loadingVectorSync || !user?.id}
                         >
@@ -4187,7 +4113,7 @@ export default function Perfil() {
                         Publicaciones recientes
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Consultá las noticias y los eventos publicados. Podés filtrarlos por fecha o tipo.
+                        Consulta las noticias y eventos almacenados en la base de datos, aplicando filtros por fecha o tipo.
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -4242,7 +4168,6 @@ export default function Perfil() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="min-h-11"
                           onClick={() => void refreshMunicipalPosts()}
                           disabled={isLoadingMunicipalPosts}
                         >
@@ -4259,7 +4184,6 @@ export default function Perfil() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="min-h-11"
                           onClick={handleResetPostFilters}
                           disabled={!hasActiveMunicipalPostFilters || isLoadingMunicipalPosts}
                         >
@@ -4458,22 +4382,22 @@ export default function Perfil() {
         </WorkspacePanel>
         <WorkspacePanel
           active={activeProfileTab === "tickets" && workspaceCapabilities.operation}
-          label={esMunicipio ? "Reclamos y consultas" : "Casos y conversaciones"}
+          label={esMunicipio ? "Centro de reclamos" : "Centro de casos"}
           data-testid="profile-ticket-workspace"
           className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >
-          <React.Suspense fallback={<ProfileTabFallback label="Cargando casos..." />}>
+          <React.Suspense fallback={<ProfileTabFallback label="Cargando mesa de reclamos..." />}>
             <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
           </React.Suspense>
         </WorkspacePanel>
-        <WorkspacePanel active={activeProfileTab === "estadisticas" && workspaceCapabilities.reports} label="Actividad y resultados">
+        <WorkspacePanel active={activeProfileTab === "estadisticas" && workspaceCapabilities.reports} label="Reportes ejecutivos">
           <React.Suspense fallback={<ProfileTabFallback label="Cargando reportes..." />}>
             <EstadisticasPage />
           </React.Suspense>
         </WorkspacePanel>
         {workspaceCapabilities.analytics && (
-          <WorkspacePanel active={activeProfileTab === "analytics" && workspaceCapabilities.analytics} label="Análisis detallado">
-            <React.Suspense fallback={<ProfileTabFallback label="Cargando el análisis..." />}>
+          <WorkspacePanel active={activeProfileTab === "analytics" && workspaceCapabilities.analytics} label="Analítica avanzada">
+            <React.Suspense fallback={<ProfileTabFallback label="Cargando analítica IA..." />}>
               <AnalyticsPage />
             </React.Suspense>
           </WorkspacePanel>
@@ -4483,7 +4407,7 @@ export default function Perfil() {
             <CatalogManagementPage tenantSlugOverride={derivedTenantSlug} embedded />
           </React.Suspense>
         </WorkspacePanel>
-        <WorkspacePanel active={activeProfileTab === "pedidos" && workspaceCapabilities.operation && canReadOrders} label={esMunicipio ? "Tareas y gestión" : "Ventas y pedidos"}>
+        <WorkspacePanel active={activeProfileTab === "pedidos" && workspaceCapabilities.operation} label={esMunicipio ? "Tareas y gestión" : "Ventas y pedidos"}>
           <React.Suspense fallback={<ProfileTabFallback label="Cargando gestión..." />}>
             <SmartPedidosWrapper embedded />
           </React.Suspense>
@@ -4508,7 +4432,7 @@ export default function Perfil() {
         {workspaceCapabilities.territory && (
           <WorkspacePanel
             active={activeProfileTab === "mapas" && workspaceCapabilities.territory}
-            label="Casos por zona"
+            label="Mapa operativo"
             data-testid="profile-map-workspace"
             className="mt-1 min-w-0 pb-0"
           >
@@ -4535,7 +4459,7 @@ export default function Perfil() {
               Crear Nuevo Evento o Noticia
             </DialogTitle>
             <DialogDescription>
-              Completá los detalles a continuación. Los campos marcados con * son obligatorios.
+              Completa los detalles a continuación. Los campos marcados con * son obligatorios.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[70vh] overflow-y-auto px-2">

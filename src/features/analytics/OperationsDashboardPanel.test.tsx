@@ -710,7 +710,7 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     renderPanel();
     await user.click(await screen.findByText('Desgloses y equipo'));
-    const chart = within(await screen.findByRole('region', { name: 'Casos por categoría' }));
+    const chart = within(await screen.findByRole('region', { name: 'Reclamos por categoría' }));
     const [first, half, zero, missing] = chart.getAllByRole('listitem');
     expect(within(first).getByText(longLabel)).toBeVisible();
     expect(within(first).getByText('1.200')).toBeVisible();
@@ -746,10 +746,10 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(room).toHaveTextContent('Borrador');
     expect(room).toHaveTextContent('Participación pendiente de habilitación');
     expect(room).not.toHaveTextContent('recolectando');
-    expect(within(room).queryByRole('link', { name: /Abrir encuesta pública|Ver resultados/ })).toBeNull();
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
     expect(room).not.toHaveTextContent('Invitar por WhatsApp');
     expect(room).not.toHaveTextContent('Compartir QR');
-    expect(within(room).getAllByRole('link', { name: 'Ver análisis' }).map(link => link.getAttribute('href'))).toEqual([
+    expect(within(room).getAllByRole('link', { name: 'Analítica' }).map(link => link.getAttribute('href'))).toEqual([
       '/admin/encuestas/631/analytics?focus=live&tenant=junin',
       '/admin/encuestas/632/analytics?focus=live&tenant=junin',
       '/admin/encuestas/634/analytics?focus=live&tenant=junin',
@@ -769,7 +769,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsDashboardV2.mockResolvedValue(surveyRoomFixture([receivingMonitorFixture(fields)]));
     renderPanel();
     const room = await screen.findByTestId('operations-survey-control-room');
-    expect(within(room).queryByRole('link', { name: /Abrir encuesta pública|Ver resultados/ })).toBeNull();
+    expect(within(room).queryByRole('link', { name: /Abrir pública|Resultados API/ })).toBeNull();
     expect(within(room).getByText('Habilitadas para participar').parentElement).toHaveTextContent('No informadas');
     expect(room).not.toHaveTextContent('recolectando');
     expect(room).not.toHaveTextContent('Invitar por WhatsApp');
@@ -782,8 +782,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     ], { accepting_responses: 2, configured_monitors: 2 }));
     renderPanel();
     const room = await screen.findByTestId('operations-survey-control-room');
-    expect(within(room).getAllByRole('link', { name: 'Abrir encuesta pública' })).toHaveLength(2);
-    expect(within(room).getAllByRole('link', { name: 'Ver resultados' })).toHaveLength(1);
+    expect(within(room).getAllByRole('link', { name: 'Abrir pública' })).toHaveLength(2);
+    expect(within(room).getAllByRole('link', { name: 'Resultados API' })).toHaveLength(1);
     expect(room).toHaveTextContent('Recibiendo votos');
     expect(room).toHaveTextContent('Recibiendo respuestas');
   });
@@ -795,7 +795,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     ], { accepting_responses: 2, configured_monitors: 2 }));
     renderPanel();
     const room = await screen.findByTestId('operations-survey-control-room');
-    expect(within(room).queryByRole('link', { name: 'Ver análisis' })).toBeNull();
+    expect(within(room).queryByRole('link', { name: 'Analítica' })).toBeNull();
   });
 
   it('offers all seven trusted categories without GPS and sends the exact canonical key to the backend', async () => {
@@ -806,7 +806,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(within(category).getAllByRole('option')).toHaveLength(8);
     expect(within(category).getByRole('option', { name: 'Árbol / Poda (9)' })).toHaveAttribute('value', 'arbol');
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
-    expect(screen.getByText('Todavía no hay ubicaciones para mostrar')).toBeInTheDocument();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
     expect(screen.queryByText(/Los filtros aparecen cuando/)).toBeNull();
     expect(screen.queryByLabelText('Barrio')).toBeNull();
     fireEvent.change(category, { target: { value: 'luminarias' } });
@@ -815,7 +815,7 @@ describe('OperationsDashboardPanel territory UX', () => {
       contract_version: 'operations.category_provenance.v1', methods: [{ key: 'identity', count: 35 }], fuzzy_matching: false, writes_performed: false,
     });
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
-    expect(screen.getByText('Todavía no hay ubicaciones para mostrar')).toBeInTheDocument();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
   });
 
   it.each(['wrong contract', 'wrong facet tenant', 'privacy suppressed'])('does not promote territorial category metadata with %s', async (reason) => {
@@ -825,10 +825,10 @@ describe('OperationsDashboardPanel territory UX', () => {
     if (reason === 'privacy suppressed') fixture.privacy!.suppressed = { categories: true };
     mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
     renderPanel();
-    await screen.findByText('Mapa de la actividad');
+    await screen.findByText('Centro territorial');
     expect(screen.queryByLabelText('Categoría')).toBeNull();
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
-    expect(screen.getByText('Todavía no hay ubicaciones para mostrar')).toBeInTheDocument();
+    expect(screen.getByText('Mapa sin puntos operativos')).toBeInTheDocument();
   });
 
   it('waits through ten seconds of startup before dispatching and accepting the eight private reads', async () => {
@@ -896,9 +896,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Actualización por consulta')).toBeVisible();
     expect(screen.getByText('Consulta periódica')).toBeVisible();
     expect(screen.queryByText(/^activo$/i)).not.toBeInTheDocument();
-    const details = screen.getByText(/\/api\/tickets\/\{record_id\}\/ubicacion/).closest('details');
+    const details = screen.getByText('Detalles de la actualización de ubicación').closest('details');
     expect(details).not.toHaveAttribute('open');
-    expect(details).toHaveTextContent('Datos para soporte');
     expect(details).toHaveTextContent('/api/tickets/{record_id}/ubicacion');
   });
 
@@ -909,7 +908,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     fixture.queue_truth = { queue_snapshot: { links: { open: '/perfil?tab=tickets&focus=open_queue' } } };
     mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
     renderPanel(true, '/perfil?tenant_slug=junin');
-    const link = await screen.findByRole('link', { name: 'Abrir casos' });
+    const link = await screen.findByRole('link', { name: 'Abrir bandeja de reclamos' });
     const destination = '/perfil?tab=tickets&focus=open_queue&tenant_slug=junin';
     expect(link).toHaveAttribute('href', destination);
     const reads = mocks.getOperationsDashboardV2.mock.calls.length;
@@ -933,7 +932,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
     renderPanel();
     await screen.findByTestId('operations-command-cockpit');
-    expect(screen.queryByRole('link', { name: 'Abrir casos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Abrir bandeja de reclamos' })).not.toBeInTheDocument();
   });
 
   it('keeps the executive queue unavailable without a confirmed response origin', async () => {
@@ -942,7 +941,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsDashboardV2.mockResolvedValue(fixture);
     renderPanel();
     await screen.findByTestId('operations-command-cockpit');
-    expect(screen.queryByRole('link', { name: 'Abrir casos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Abrir bandeja de reclamos' })).not.toBeInTheDocument();
   });
 
   it('associates the backend period label with the selector and preserves category filters when changing it', async () => {
@@ -978,8 +977,8 @@ describe('OperationsDashboardPanel territory UX', () => {
     mocks.getOperationsHeatmapV2.mockResolvedValue(fixture);
     renderPanel();
     await screen.findByTestId('operations-heatmap');
-    expect(screen.queryByRole('link', { name: 'Revisar ubicaciones' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Revisar ubicaciones' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Revisar cola' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revisar cola' })).not.toBeInTheDocument();
   });
 
   it.each(['municipio', 'pyme'] as const)('prioritizes the verified %s contract and keeps commerce available without changing read scope', async (kind) => {
@@ -1033,18 +1032,6 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.queryByText('Actividad adicional')).not.toBeInTheDocument();
   });
 
-  it('hides order indicators and actions when a government workspace lacks the published capability', async () => {
-    panelAuthority.ordersRead = false;
-    renderPanel();
-
-    await screen.findByTestId('operations-command-cockpit');
-    const suggestions = screen.getByTestId('operations-ai-queue');
-    expect(suggestions).toHaveTextContent('Sugerencias de casos o encuestas');
-    expect(suggestions).not.toHaveTextContent('Pedido asistido requiere revision');
-    expect(screen.queryByRole('link', { name: /Revisar pedido|Abrir pedidos asistidos/i })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('operations-commerce')).not.toBeInTheDocument();
-  });
-
   it('reveals secondary anchors without dispatching new reads and retains provider recovery', async () => {
     const fixture = dashboardFixture();
     fixture.employees = { summary: { coverage_rate: 80 }, items: [{ label: 'Equipo publicado', count: 6 }] };
@@ -1065,7 +1052,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByText('Equipo publicado')).toBeVisible();
     fireEvent.click(screen.getByRole('link', { name: 'Encuestas y canales' }));
     expect(screen.getByText('Canal publicado')).toBeVisible();
-    fireEvent.click(screen.getByRole('link', { name: 'Servicios de análisis' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Integraciones IA' }));
     expect(details).toHaveAttribute('open');
     expect(provider).toBeVisible();
     expect(provider).toHaveTextContent('Estado IA no disponible');
@@ -1104,14 +1091,14 @@ describe('OperationsDashboardPanel territory UX', () => {
     renderPanel();
 
     expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
-    expect(screen.getByText('Resumen de la organización')).toBeTruthy();
-    expect(screen.getByText('Qué necesita atención ahora')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Abrir casos/i }).getAttribute('href')).toBe('/perfil?tab=tickets&tenant_slug=junin');
+    expect(screen.getByText('Cabina de mando')).toBeTruthy();
+    expect(screen.getByText('Vista ejecutiva para operar ahora')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe('/perfil?tab=tickets&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i })).not.toBeVisible();
     fireEvent.click(screen.getByText('Actividad adicional'));
     expect(screen.getByRole('link', { name: /Abrir pedidos asistidos/i }).getAttribute('href')).toBe('/pedidos?focus=assisted&tenant_slug=junin');
     expect(screen.getByRole('link', { name: /Ver mapa de calor/i }).getAttribute('href')).toBe('#operations-heatmap');
-    expect(screen.getByRole('link', { name: /Revisar sugerencias/i }).getAttribute('href')).toBe('#operations-ai-queue');
+    expect(screen.getByRole('link', { name: /Revisar cola IA/i }).getAttribute('href')).toBe('#operations-ai-queue');
     expect(screen.getByRole('link', { name: /Ver encuestas/i }).getAttribute('href')).toBe('/admin/encuestas?tenant=junin');
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
@@ -1127,33 +1114,34 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(commercePanel.querySelector('a')?.getAttribute('href')).toBe(
       '/perfil?tab=pedidos&order_id=conversational%3A2&focus=assisted_order_queue',
     );
-    expect(await screen.findByText('Mapa de la actividad')).toBeTruthy();
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
     const decisionBrief = screen.getByTestId('territorial-decision-brief');
-    expect(decisionBrief).toHaveTextContent('Dónde actuar, por qué y con qué prioridad');
+    expect(decisionBrief).toHaveTextContent('Mesa territorial inteligente');
+    expect(decisionBrief).toHaveTextContent('Donde actuar, por que y con que prioridad');
     expect(decisionBrief).toHaveTextContent('Prioridad territorial');
-    expect(decisionBrief).toHaveTextContent('Análisis automático');
-    expect(decisionBrief).toHaveTextContent('Qué hacer ahora');
+    expect(decisionBrief).toHaveTextContent('Lectura IA');
+    expect(decisionBrief).toHaveTextContent('Que hacer ahora');
     expect(decisionBrief).toHaveTextContent('Alumbrado');
     expect(decisionBrief).toHaveTextContent('High');
     expect(decisionBrief).toHaveTextContent('Revisar conversaciones con riesgo');
     const aiCockpit = screen.getByTestId('territorial-ai-cockpit');
     expect(aiCockpit).toBeTruthy();
-    expect(aiCockpit.textContent).toContain('Análisis territorial automático');
+    expect(aiCockpit.textContent).toContain('IA territorial');
     expect(aiCockpit.textContent).toContain('fallback local');
     expect(aiCockpit.textContent).toContain('Huggingface');
-    expect(aiCockpit.textContent).toContain('Caso de servicio publico');
+    expect(aiCockpit.textContent).toContain('Reclamo de servicio publico');
     expect(aiCockpit.textContent).toContain('High');
     expect(aiCockpit.textContent).toContain('8');
     expect(aiCockpit.textContent).toContain('Revisar conversaciones con riesgo');
     expect(aiCockpit.textContent).toContain('Validar ubicaciones exactas');
-    expect(aiCockpit.textContent).toContain('Alertas sugeridas');
-    expect(screen.getByText('Datos del mapa disponibles')).toBeTruthy();
+    expect(aiCockpit.textContent).toContain('Pulsos de riesgo IA');
+    expect(screen.getByText('Mapa operativo confiable')).toBeTruthy();
     expect(screen.getAllByText('75%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Ubicaciones pendientes')).toBeTruthy();
+    expect(screen.getByText('Cola de geocodificación')).toBeTruthy();
     expect(screen.getByText('1 pendiente')).toBeTruthy();
     expect(screen.getByText('Av. San Martin 123, Junin')).toBeTruthy();
-    expect(screen.getByText('Completar ubicaciones pendientes')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Casos actividad de casos/i }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('Geocodificar direcciones pendientes')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Tickets reclamos y casos/i }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: /Ai risk riesgo y prioridad IA/i }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('premium-territory-heatmap').textContent).toContain('premium map 2 puntos');
 
@@ -1285,7 +1273,7 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     expect(await screen.findByTestId('operations-command-cockpit')).toBeTruthy();
     expect(screen.queryByTestId('operations-queue-truth')).toBeNull();
-    expect(screen.getByText('Todavía no se informó el estado de los plazos')).toBeTruthy();
+    expect(screen.getByText('Cobertura SLA de backlog no publicada')).toBeTruthy();
     expect(screen.queryByText('Bandeja operativa sin vencidos publicados')).toBeNull();
   });
 
@@ -1388,23 +1376,23 @@ describe('OperationsDashboardPanel territory UX', () => {
     renderPanel();
 
     const queuePanel = await screen.findByTestId('operations-queue-truth');
-    expect(queuePanel).toHaveTextContent('Casos que necesitan seguimiento');
-    expect(queuePanel).toHaveTextContent('Mirá qué casos siguen abiertos');
+    expect(queuePanel).toHaveTextContent('Cola operativa actual');
+    expect(queuePanel).toHaveTextContent('corte operativo');
     expect(queuePanel).not.toHaveTextContent('snapshot');
     expect(queuePanel).toHaveTextContent('Los drilldowns exactos están pendientes');
-    expect(queuePanel).toHaveTextContent('Plazo informado 8/12');
-    expect(queuePanel).toHaveTextContent('4 casos no informan un plazo verificable');
+    expect(queuePanel).toHaveTextContent('SLA conocido 8/12');
+    expect(queuePanel).toHaveTextContent('4 casos no tienen evidencia SLA verificable');
     expect(queuePanel).toHaveTextContent('2 casos con fecha futura fueron excluidos de la cola');
     expect(queuePanel).toHaveTextContent('1 caso sin fecha de creacion sigue visible');
-    expect(queuePanel).toHaveTextContent('quedaron en cuarentena de calidad');
-    expect(queuePanel).toHaveTextContent('2/8 casos con plazo informado');
+    expect(queuePanel).toHaveTextContent('fechas futuras quedan en cuarentena');
+    expect(queuePanel).toHaveTextContent('2/8 casos con SLA conocido');
     expect(queuePanel).toHaveTextContent('6 creados');
-    expect(queuePanel).toHaveTextContent('Este dato no cambia la cantidad de casos abiertos actuales');
-    expect(screen.queryByRole('link', { name: /Casos abiertos/i })).toBeNull();
+    expect(queuePanel).toHaveTextContent('No se mezcla con el backlog actual');
+    expect(screen.queryByRole('link', { name: /Backlog abierto/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /Menos de 1 hora/i })).toBeNull();
-    expect(within(queuePanel).getByText('Plazo vencido')).toBeTruthy();
+    expect(screen.getByText(/2 vencidos confirmados/)).toBeTruthy();
     expect(screen.queryByText('Bandeja operativa sin vencidos publicados')).toBeNull();
-    expect(screen.getByRole('link', { name: /Abrir casos/i }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /Abrir bandeja de reclamos/i }).getAttribute('href')).toBe(
       '/perfil?tab=tickets&focus=open_queue&tenant_slug=junin',
     );
     expect(mocks.getOperationsDashboardV2).toHaveBeenCalledWith(expect.objectContaining({ days: '7' }));
@@ -1417,7 +1405,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     try {
       renderPanel();
 
-      expect(await screen.findByText('Mapa de la actividad')).toBeTruthy();
+      expect(await screen.findByText('Centro territorial')).toBeTruthy();
       expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 20_000);
     } finally {
       intervalSpy.mockRestore();
@@ -1427,7 +1415,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   it('refreshes operational analytics after coalescing a scoped realtime event', async () => {
     renderPanel();
 
-    expect(await screen.findByText('Mapa de la actividad')).toBeTruthy();
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
     const initialHeatmapCalls = mocks.getOperationsHeatmapV2.mock.calls.length;
     const initialDashboardCalls = mocks.getOperationsDashboardV2.mock.calls.length;
     expect(socketMocks.socket.on).toHaveBeenCalledWith('ticket.updated', expect.any(Function));
@@ -1446,7 +1434,7 @@ describe('OperationsDashboardPanel territory UX', () => {
   it('ignores realtime operations events scoped to another tenant', async () => {
     renderPanel();
 
-    expect(await screen.findByText('Mapa de la actividad')).toBeTruthy();
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
     const initialHeatmapCalls = mocks.getOperationsHeatmapV2.mock.calls.length;
 
     socketMocks.emit('ticket.updated', {
@@ -1481,11 +1469,11 @@ describe('OperationsDashboardPanel territory UX', () => {
     renderPanel();
 
     expect(await screen.findByTestId('operations-dashboard-degraded')).toBeTruthy();
-    expect(screen.getByText('El resumen se está actualizando')).toBeTruthy();
+    expect(screen.getByText('Tablero en continuidad operativa')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Refrescar resumen/i })).toBeTruthy();
     expect(screen.getByTestId('operations-command-cockpit')).toBeTruthy();
     expect(screen.getByTestId('operations-heatmap')).toBeTruthy();
-    expect(await screen.findByText('Mapa de la actividad')).toBeTruthy();
+    expect(screen.getByText('Centro territorial')).toBeTruthy();
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
     expect(screen.getByText('continuidad activa')).toBeTruthy();
   });
@@ -1493,15 +1481,15 @@ describe('OperationsDashboardPanel territory UX', () => {
   it('renders the AI operations queue for tickets, assisted orders and surveys', async () => {
     renderPanel();
 
-    expect(await screen.findByText('Qué conviene revisar primero')).toBeTruthy();
+    expect(await screen.findByText('Cola IA operativa')).toBeTruthy();
     expect(screen.getAllByText('Valeria IA-Analytics').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('3 sugerencias')).toBeTruthy();
+    expect(screen.getByText('3 items')).toBeTruthy();
     expect(screen.getByText('1 alta')).toBeTruthy();
     expect(screen.getAllByText('solo lectura').length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('Caso necesita revisión del equipo')).toBeTruthy();
+    expect(screen.getByText('Reclamo requiere revision humana')).toBeTruthy();
     expect(screen.getAllByText('Pedido asistido requiere revision').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Encuesta o votacion en seguimiento')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /^Abrir caso$/i }).getAttribute('href')).toBe(
+    expect(screen.getByText('Encuesta o votacion en monitoreo')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Abrir caso/i }).getAttribute('href')).toBe(
       '/t/junin/tickets?ticket_id=1&source=tenant_ticket',
     );
     expect(screen.getByRole('link', { name: /Revisar pedido/i }).getAttribute('href')).toBe('/t/junin/pedidos/2');
@@ -1631,7 +1619,7 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     const panel = await screen.findByTestId('operations-ai-provider-status');
     expect(panel.textContent).toContain('Estado IA no disponible');
-    expect(panel.textContent).toContain('El panel sigue disponible con la información recibida.');
+    expect(panel.textContent).toContain('fallback seguro');
     expect(screen.getByTestId('operations-ai-queue')).toBeTruthy();
   });
 
@@ -1662,8 +1650,8 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     renderPanel();
 
-    expect(await screen.findByText('Todavía no hay ubicaciones para mostrar')).toBeTruthy();
-    expect(screen.getByText('4 direcciones necesitan una ubicación antes de aparecer en el mapa.')).toBeTruthy();
+    expect(await screen.findByText('Mapa sin puntos operativos')).toBeTruthy();
+    expect(screen.getByText('4 direcciones pendientes de geocodificación antes de mejorar la cobertura.')).toBeTruthy();
     expect(screen.getByText('4 pendientes')).toBeTruthy();
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
   });
@@ -1688,8 +1676,8 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     renderPanel();
 
-    expect(await screen.findByText('Todavía no hay ubicaciones para mostrar')).toBeTruthy();
-    expect(screen.getByText('No hay información suficiente para dibujar el mapa en este periodo.')).toBeTruthy();
+    expect(await screen.findByText('Mapa sin puntos operativos')).toBeTruthy();
+    expect(screen.getByText('El backend marcó el heatmap como no renderizable para este periodo.')).toBeTruthy();
     expect(screen.queryByTestId('premium-territory-heatmap')).toBeNull();
   });
 
@@ -1698,12 +1686,12 @@ describe('OperationsDashboardPanel territory UX', () => {
 
     renderPanel();
 
-    expect(await screen.findByText('Mapa de la actividad')).toBeTruthy();
-    expect(screen.getByText('Mapa territorial en recuperacion')).toBeTruthy();
+    expect(await screen.findByText('Centro territorial')).toBeTruthy();
+    expect(screen.getByText('mapa en recuperacion')).toBeTruthy();
     expect(screen.getByText('Mapa temporalmente no disponible')).toBeTruthy();
     expect(screen.getByText('El servidor no pudo responder correctamente.')).toBeTruthy();
-    expect(screen.getByText('Esperando información territorial')).toBeTruthy();
-    expect(screen.getByText('No se muestran puntos hasta recibir coordenadas confiables.')).toBeTruthy();
+    expect(screen.getByText('Esperando heatmap operativo')).toBeTruthy();
+    expect(screen.getByText('No se inventan puntos ni zonas hasta que backend publique coordenadas confiables.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Reintentar mapa/i })).toBeTruthy();
     const recoveryMap = screen.getByTestId('premium-territory-heatmap');
     expect(recoveryMap.getAttribute('data-contract')).toBe('operations.heatmap.recovery.v1');
@@ -1724,7 +1712,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByTestId('operations-workspace-status')).toHaveTextContent('con error');
   });
   it('withdraws a previously successful private map after a denied refresh', async () => {
-    renderPanel(); await screen.findByText('Mapa de la actividad');
+    renderPanel(); await screen.findByText('Centro territorial');
     expect(screen.getByTestId('premium-territory-heatmap')).toHaveTextContent('premium map 2 puntos');
     mocks.getOperationsHeatmapV2.mockRejectedValue({ status: 403 });
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar', exact: true }));
@@ -1733,7 +1721,7 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(screen.getByTestId('operations-workspace-status')).toHaveTextContent('Se retiró la información anterior.');
   });
   it('batches a burst of tenant events into one refresh without rebuilding the AI brief', async () => {
-    renderPanel(); await screen.findByText('Mapa de la actividad');
+    renderPanel(); await screen.findByText('Centro territorial');
     const initial = mocks.getOperationsHeatmapV2.mock.calls.length;
     const briefs = mocks.getOperationsAIBriefV2.mock.calls.length;
     for (let i = 0; i < 40; i++) socketMocks.emit('ticket.updated', { tenant_slug: 'junin' });
@@ -1741,16 +1729,16 @@ describe('OperationsDashboardPanel territory UX', () => {
     expect(mocks.getOperationsAIBriefV2).toHaveBeenCalledTimes(briefs);
   });
   it('uses navigation targets without changing tenant, filters or issuing reads', async () => {
-    renderPanel(); await screen.findByText('Mapa de la actividad');
+    renderPanel(); await screen.findByText('Centro territorial');
     const initial = mocks.getOperationsHeatmapV2.mock.calls.length;
-    fireEvent.click(screen.getByRole('link', { name: 'Mapa de actividad', exact: true }));
+    fireEvent.click(screen.getByRole('link', { name: 'Mapa de calor', exact: true }));
     expect(document.activeElement).toBe(screen.getByTestId('operations-heatmap'));
     expect(mocks.getOperationsHeatmapV2).toHaveBeenCalledTimes(initial);
   });
   it('resets geographic filters and selected scope when the organization changes', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const view = render(<MemoryRouter><QueryClientProvider client={client}><OperationsDashboardPanel /></QueryClientProvider></MemoryRouter>);
-    await screen.findByText('Mapa de la actividad');
+    await screen.findByText('Centro territorial');
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(mocks.getOperationsHeatmapV2).toHaveBeenLastCalledWith(expect.objectContaining({ categoria: 'alumbrado' })));
     tenantContext.slug = 'tierra-del-fuego';
@@ -1764,14 +1752,14 @@ describe('OperationsDashboardPanel territory UX', () => {
   it('does not mix global hotspots with a filtered territorial response', async () => {
     const data = dashboardFixture(); data.maps = { heatmap: { hotspots: [{ label: 'GLOBAL OUTSIDE FILTER', value: 9 }] } };
     mocks.getOperationsDashboardV2.mockResolvedValue(data);
-    renderPanel(); await screen.findByText('Mapa de la actividad');
+    renderPanel(); await screen.findByText('Centro territorial');
     expect(screen.getAllByText('GLOBAL OUTSIDE FILTER').length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'alumbrado' } });
     await waitFor(() => expect(screen.queryByText('GLOBAL OUTSIDE FILTER')).not.toBeInTheDocument());
   });
   it('reads all private operations only from the verified actor after a public visit', async () => {
     tenantContext.slug = 'tierra-del-fuego';
-    renderPanel(); await screen.findByText('Mapa de la actividad');
+    renderPanel(); await screen.findByText('Centro territorial');
     for (const [name, read] of Object.entries(mocks)) {
       if (name === 'ensureReady') continue;
       expect(read.mock.calls.length).toBeGreaterThan(0);

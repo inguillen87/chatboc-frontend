@@ -56,7 +56,6 @@ type WorkspaceModuleGroup = {
 
 export type ProfileWorkspaceCapabilities = {
   operation: boolean;
-  orders: boolean;
   participation: boolean;
   territory: boolean;
   contacts: boolean;
@@ -102,13 +101,12 @@ export const resolveProfileWorkspaceCapabilities = ({
 
   return {
     operation: operationAccess && backendAllows("operations"),
-    orders: false,
     participation: featureSurveys && surveyAccess && backendAllows("surveys"),
     territory: territoryAccess && backendAllows("maps"),
     contacts: contactsAccess && backendAllows("people"),
     reports: reportsAccess && backendAllows("reports"),
     analytics: analyticsAccess && backendAllows("advanced_analytics"),
-    // Navigation v1 does not model catalog yet; the caller must also provide role and capability access.
+    // Navigation v1 does not model catalog yet; it still requires a valid contract and role access.
     catalog: contractReady && catalogAccess,
     team: teamAccess && backendAllows("people"),
     billing: contractReady && billingAccess,
@@ -191,8 +189,8 @@ export default function ProfileWorkspaceNavigation({
     if (capabilities.reports) {
       intelligenceModules.push({
         id: "reports",
-        label: "Reportes",
-        description: "Indicadores, cambios y archivos para descargar.",
+        label: "Reportes ejecutivos",
+        description: "Indicadores, tendencias y exportaciones.",
         icon: BarChart3,
         tab: "estadisticas",
       });
@@ -201,8 +199,8 @@ export default function ProfileWorkspaceNavigation({
     if (capabilities.analytics) {
       intelligenceModules.push({
         id: "analytics",
-        label: "Análisis detallado",
-        description: "Comparaciones y hallazgos para tomar decisiones.",
+        label: "Analítica avanzada",
+        description: "Segmentación, hallazgos y análisis asistido.",
         icon: Sparkles,
         tab: "analytics",
       });
@@ -213,36 +211,30 @@ export default function ProfileWorkspaceNavigation({
         id: "operations",
         label: "Atención",
         icon: ClipboardList,
-        modules: [
-          ...(capabilities.operation
-            ? [
+        modules: capabilities.operation
+          ? [
               {
                 id: "tickets",
                 label: isMunicipal ? "Reclamos" : "Casos",
                 description: "Casos por atender, conversación y pasos para resolver.",
                 icon: ClipboardList,
-                tab: "tickets" as ProfileWorkspaceTabValue,
+                tab: "tickets",
               },
-            ]
-            : []),
-          ...(capabilities.orders
-            ? [
               {
                 id: "management",
-                label: isMunicipal ? "Pedidos y tareas" : "Ventas y pedidos",
+                label: isMunicipal ? "Tareas y gestión" : "Ventas y pedidos",
                 description: isMunicipal
-                  ? "Pedidos habilitados, responsables y tareas pendientes."
-                  : "Pedidos, responsables y pasos pendientes.",
+                  ? "Seguimiento de tareas, responsables y servicios."
+                  : "Pedidos, estados y operación comercial.",
                 icon: Settings2,
-                tab: "pedidos" as ProfileWorkspaceTabValue,
+                tab: "pedidos",
               },
             ]
-            : []),
-        ],
+          : [],
       },
       {
         id: "crm",
-        label: "Personas",
+        label: isMunicipal ? "CRM ciudadano" : "CRM comercial",
         icon: Users,
         modules: [
           ...(capabilities.contacts
@@ -250,7 +242,7 @@ export default function ProfileWorkspaceNavigation({
                 {
                   id: "users",
                   label: isMunicipal ? "Personas y contactos" : "Clientes y contactos",
-                  description: "Datos de contacto, historial y permisos de uso.",
+                  description: "Identidad, historial, consentimiento y contexto CRM.",
                   icon: Users,
                   tab: "usuarios" as ProfileWorkspaceTabValue,
                 },
@@ -278,7 +270,7 @@ export default function ProfileWorkspaceNavigation({
         : []),
       {
         id: "intelligence",
-        label: "Información",
+        label: "Inteligencia",
         icon: BarChart3,
         modules: [
           ...intelligenceModules,
@@ -286,8 +278,8 @@ export default function ProfileWorkspaceNavigation({
             ? [
                 {
                   id: "maps",
-                  label: "Mapa y zonas",
-                  description: "Ubicaciones, zonas y casos que necesitan atención.",
+                  label: "Inteligencia territorial",
+                  description: "Casos georreferenciados, zonas y prioridades.",
                   icon: MapPinned,
                   tab: "mapas" as ProfileWorkspaceTabValue,
                 },
@@ -304,8 +296,8 @@ export default function ProfileWorkspaceNavigation({
             ? [
                 {
                   id: "implementation",
-                  label: "Puesta en marcha",
-                  description: "Marca, equipo, contenidos y canales de atención.",
+                  label: "Centro de implementación",
+                  description: "Marca, equipo, contenido, canales y certificación.",
                   icon: Rocket,
                   action: onOpenImplementation,
                 },
@@ -337,8 +329,8 @@ export default function ProfileWorkspaceNavigation({
             ? [
                 {
                   id: "team",
-                  label: "Equipo y accesos",
-                  description: "Personas, tareas habilitadas y accesos.",
+                  label: "Equipo y permisos",
+                  description: "Roles, alcance operativo y accesos.",
                   icon: Users,
                   tab: "empleados" as ProfileWorkspaceTabValue,
                 },
@@ -367,7 +359,6 @@ export default function ProfileWorkspaceNavigation({
     capabilities.contacts,
     capabilities.implementation,
     capabilities.operation,
-    capabilities.orders,
     capabilities.participation,
     capabilities.reports,
     capabilities.team,
@@ -396,7 +387,7 @@ export default function ProfileWorkspaceNavigation({
 
   return (
     <nav
-      aria-label="Secciones del panel"
+      aria-label="Módulos del centro de control"
       className="rounded-xl border border-border/70 bg-card/95 p-1 shadow-sm backdrop-blur"
       data-testid="profile-workspace-navigation"
     >
@@ -407,7 +398,7 @@ export default function ProfileWorkspaceNavigation({
         <WorkspaceModuleFinder
           contextKey={JSON.stringify([contextKey, isMunicipal, capabilities])}
           items={[
-            { id: "home", label: "Inicio", group: "Panel", icon: LayoutDashboard, active: isHomeActive, onSelect: () => onTabChange("perfil") },
+            { id: "home", label: "Inicio", group: "Centro de control", icon: LayoutDashboard, active: isHomeActive, onSelect: () => onTabChange("perfil") },
             ...groups.flatMap(group => group.modules.map(module => ({
               id: module.id, label: module.label, description: module.description, group: group.label, icon: module.icon,
               active: module.tab === activeTab || (!module.tab && module.id === activeActionId),
@@ -422,13 +413,13 @@ export default function ProfileWorkspaceNavigation({
           variant={isHomeActive ? "secondary" : "ghost"}
           size="sm"
           className={cn(
-            "min-h-11 shrink-0 gap-2 rounded-lg px-3 text-sm",
+            "h-9 shrink-0 gap-2 rounded-lg px-3 text-sm",
             isHomeActive && "bg-primary/10 text-blue-700 hover:bg-primary/15 dark:text-blue-300",
           )}
           aria-current={isHomeActive ? "page" : undefined}
           onClick={() => onTabChange("perfil")}
         >
-          <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+          <LayoutDashboard className="h-4 w-4" />
           Inicio
         </Button>
 
@@ -447,24 +438,24 @@ export default function ProfileWorkspaceNavigation({
                   variant={isActive ? "secondary" : "ghost"}
                   size="sm"
                   className={cn(
-                    "min-h-11 min-w-0 gap-2 rounded-lg px-3 text-sm",
+                    "h-9 min-w-0 gap-2 rounded-lg px-3 text-sm",
                     isActive && "bg-primary/10 text-blue-700 hover:bg-primary/15 dark:text-blue-300",
                   )}
                   aria-label={`Abrir menú ${group.label}`}
                   data-active={isActive ? "true" : "false"}
                 >
-                  <GroupIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <GroupIcon className="h-4 w-4 shrink-0" />
                   <span>{group.label}</span>
                   {currentModule ? (
                     <span className="hidden max-w-32 truncate text-xs font-normal text-muted-foreground 2xl:inline">
                       · {currentModule.label}
                     </span>
                   ) : null}
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-80 p-2">
-                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-sm font-semibold text-foreground">
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   {group.label}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -488,32 +479,32 @@ export default function ProfileWorkspaceNavigation({
           type="button"
           variant={isHomeActive ? "secondary" : "ghost"}
           size="icon"
-          className={cn("h-11 w-11 shrink-0 rounded-lg", isHomeActive && "bg-primary/10 text-blue-700 dark:text-blue-300")}
+          className={cn("h-9 w-9 shrink-0 rounded-lg", isHomeActive && "bg-primary/10 text-blue-700 dark:text-blue-300")}
           aria-label="Abrir Inicio"
           aria-current={isHomeActive ? "page" : undefined}
           onClick={() => onTabChange("perfil")}
         >
-          <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+          <LayoutDashboard className="h-4 w-4" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 min-w-0 flex-1 justify-between rounded-lg px-3"
+              className="h-9 min-w-0 flex-1 justify-between rounded-lg px-3"
               aria-label="Abrir menú de módulos"
             >
               <span className="min-w-0 truncate text-sm font-semibold">
                 {activeModule?.label || "Módulos"}
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[min(22rem,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto p-2">
             {groups.map((group, index) => (
               <React.Fragment key={group.id}>
                 {index > 0 ? <DropdownMenuSeparator /> : null}
-                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-sm font-semibold text-foreground">
+                <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   {group.label}
                 </DropdownMenuLabel>
                 {group.modules.map((module) => (

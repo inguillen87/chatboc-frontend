@@ -36,9 +36,7 @@ describe("PlanUsagePanel", () => {
   it("does not guess billing state for an unknown plan", () => {
     renderPanel("custom-contract");
 
-    expect(
-      screen.getByText("Pedile a un administrador que revise el estado de facturación antes de cambiar el plan."),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/necesita validación de facturación/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Ver Plan/i })).not.toBeInTheDocument();
   });
 });

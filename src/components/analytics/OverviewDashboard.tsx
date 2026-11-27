@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { AnalyticsSummary } from '../../services/analyticsService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import { KpiTile } from '@/components/analytics/KpiTile';
@@ -55,8 +54,6 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
   const topCategories = useMemo(() => Array.isArray(data?.top_categories) ? data.top_categories : [], [data?.top_categories]);
   const hasVolumeData = volumeByDay.length > 0 && volumeByDay.every((item) => isAvailableMetric(item?.count));
   const hasCategoryData = topCategories.length > 0 && topCategories.every((item) => isAvailableMetric(item?.count));
-  const hasVolumeActivity = hasVolumeData && volumeByDay.some((item) => item.count > 0);
-  const hasCategoryActivity = hasCategoryData && topCategories.some((item) => item.count > 0);
   const totalVolume = hasVolumeData ? volumeByDay.reduce((acc, item) => acc + item.count, 0) : null;
   const peakDay = hasVolumeData ? volumeByDay.reduce((best, item) => item.count > best.count ? item : best) : null;
   const categoryLeader = hasCategoryData ? topCategories.reduce((best, item) => item.count > best.count ? item : best) : null;
@@ -90,12 +87,12 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
   if (showSla) {
     overviewCards.push(
       {
-        title: 'Casos abiertos',
+        title: 'Tickets abiertos',
         ...metricDisplay(kpis?.backlog_open),
         icon: Zap,
       },
       {
-        title: 'Plazo vencido',
+        title: 'Fuera de SLA',
         ...metricDisplay(kpis?.sla_breaches),
         icon: Clock,
       },
@@ -119,8 +116,8 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur">
           <CardHeader className="border-b border-border/50 p-4">
-            <CardTitle className="text-lg">Actividad por día</CardTitle>
-            <CardDescription>Conversaciones registradas durante el período seleccionado.</CardDescription>
+            <CardTitle className="text-lg">Volumen diario</CardTitle>
+            <CardDescription>Evolución del tráfico conversacional durante el período seleccionado.</CardDescription>
             <dl className="grid grid-cols-2 gap-3 pt-2 text-sm">
               <div>
                 <dt className="text-muted-foreground">Volumen de la serie</dt>
@@ -133,7 +130,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
             </dl>
           </CardHeader>
           <CardContent className="p-4">
-            {hasVolumeActivity ? <MeasuredContainer className="h-[260px] min-w-0">
+            {hasVolumeData ? <MeasuredContainer className="h-[260px] min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <ComposedChart data={volumeByDay} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <defs>
@@ -151,21 +148,21 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 </ComposedChart>
               </ResponsiveContainer>
             </MeasuredContainer>
-            : <div className="flex flex-col items-center py-8 text-center text-sm text-muted-foreground"><p className="font-medium text-foreground">Todavía no hay actividad en este período.</p><p className="mt-1">Elegí otro período para volver a consultar.</p><Button asChild variant="outline" className="mt-3 min-h-11"><a href="#analytics-summary-filters">Elegir otro período</a></Button></div>}
+            : <p className="py-10 text-center text-sm text-muted-foreground">No hay datos de volumen disponibles para este período.</p>}
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur">
           <CardHeader className="border-b border-border/50 p-4">
-            <CardTitle className="text-lg">Temas más frecuentes</CardTitle>
+            <CardTitle className="text-lg">Top categorías</CardTitle>
             <CardDescription>Temas más frecuentes en el período.</CardDescription>
             <dl className="pt-2 text-sm">
-              <dt className="text-muted-foreground">Tema con más casos</dt>
-              <dd className="font-semibold">{categoryLeader ? `${categoryLeader.category} · ${categoryLeader.count.toLocaleString('es-AR')} casos` : 'No disponible'}</dd>
+              <dt className="text-muted-foreground">Categoría líder</dt>
+              <dd className="font-semibold">{categoryLeader ? `${categoryLeader.category} · ${categoryLeader.count.toLocaleString('es-AR')} tickets` : 'No disponible'}</dd>
             </dl>
           </CardHeader>
           <CardContent className="p-4">
-            {hasCategoryActivity ? <MeasuredContainer className="h-[260px] min-w-0">
+            {hasCategoryData ? <MeasuredContainer className="h-[260px] min-w-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 18, left: 24, bottom: 0 }}>
                   <defs>
@@ -177,18 +174,18 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" horizontal={false} />
                   <XAxis type="number" hide />
                   <YAxis dataKey="category" type="category" width={108} tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(99,102,241,0.06)' }} formatter={(value: number) => [formatMetric(value), 'Casos']} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(99,102,241,0.06)' }} formatter={(value: number) => [formatMetric(value), 'Tickets']} />
                   <Bar dataKey="count" fill="url(#overviewBarFill)" radius={[0, 10, 10, 0]} barSize={22} />
                 </BarChart>
               </ResponsiveContainer>
             </MeasuredContainer>
-            : <div className="flex flex-col items-center py-8 text-center text-sm text-muted-foreground"><p className="font-medium text-foreground">Todavía no hay casos clasificados en este período.</p><p className="mt-1">Elegí otro período para volver a consultar.</p><Button asChild variant="outline" className="mt-3 min-h-11"><a href="#analytics-summary-filters">Elegir otro período</a></Button></div>}
+            : <p className="py-10 text-center text-sm text-muted-foreground">No hay categorías disponibles para este período.</p>}
           </CardContent>
         </Card>
       </div>
 
       <details className="rounded-lg border border-border/60 bg-background/80">
-        <summary className="flex min-h-11 cursor-pointer items-center rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Canales y accesibilidad</summary>
+        <summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Canales y accesibilidad</summary>
         <div className="grid gap-3 border-t border-border/50 p-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiTile title="Interacciones por voz" {...metricDisplay(kpis?.voice_interactions_pct, '%')} icon={Mic} />
           <KpiTile title="Video / avatar" {...metricDisplay(kpis?.video_avatar_interactions_pct, '%')} icon={Video} />
