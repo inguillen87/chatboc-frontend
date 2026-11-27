@@ -59,7 +59,7 @@ vi.mock('@/components/enterprise/EnterprisePageHeader', () => ({
   default: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 
-describe('TicketsPanel request_id support surface', () => {
+describe('TicketsPanel support details', () => {
   beforeEach(() => {
     getIdentityCoverageMock.mockReset();
     trackFrontendEventMock.mockReset();
@@ -81,7 +81,7 @@ describe('TicketsPanel request_id support surface', () => {
     });
   });
 
-  it('renders and copies request_id for identity coverage alerts', async () => {
+  it('keeps the support identifier inside a disclosure and copies it on request', async () => {
     getIdentityCoverageMock.mockResolvedValueOnce({
       contract_version: 'analytics.identity_coverage.v1',
       request_id: 'req-coverage-123',
@@ -92,9 +92,16 @@ describe('TicketsPanel request_id support surface', () => {
 
     render(<TicketsPanelPage identityCoverageDelayMs={0} />);
 
-    expect(await screen.findByText(/request_id: req-coverage-123/i)).toBeInTheDocument();
+    expect(await screen.findByText('Faltan datos de tu cuenta para responder por todos los canales.')).toBeInTheDocument();
+    const supportDetails = screen.getByText('Datos para soporte').closest('details');
+    expect(supportDetails).not.toBeNull();
+    expect(supportDetails).not.toHaveAttribute('open');
+    expect(screen.getByText('Identificador: req-coverage-123')).not.toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: /copiar request_id/i }));
+    fireEvent.click(screen.getByText('Datos para soporte'));
+    expect(screen.getByText('Identificador: req-coverage-123')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /copiar identificador/i }));
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('req-coverage-123');

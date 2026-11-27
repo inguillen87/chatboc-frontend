@@ -60,7 +60,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { formatTicketStatusLabel, getPublishedTicketTransitions } from '@/utils/ticketStatus';
+import {
+  formatTicketDisplayLabel,
+  formatTicketStatusLabel,
+  getPublishedTicketTransitions,
+} from '@/utils/ticketStatus';
 import { buildOperationalReplyDraft, deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import { resolveConsentedAvatar } from '@/utils/avatarConsent';
 import {
@@ -139,8 +143,33 @@ const FORM_COMPOSER_ACTION_IDS = new Set(['share_form', 'send_form']);
 const ATTACHMENT_COMPOSER_ACTION_IDS = new Set(['attach_file', 'send_attachment', 'share_attachment']);
 const REPLY_COMPOSER_ACTION_IDS = new Set(['reply']);
 const REPLY_CONTRACT_VERSION = 'inbox.reply_contract.v1';
+export const INTERNAL_ONLY_REPLY_COPY =
+  'Esta respuesta queda guardada en el caso. No se envía a la persona porque este canal no tiene envío habilitado.';
+const INLINE_INTERNAL_CODE_PATTERN = /\b[a-z][a-z0-9]*(?:[_:./][a-z0-9]+)+\b/i;
+
+const formatOperatorCopy = (value: unknown, fallback: string): string => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return fallback;
+  const formatted = formatTicketDisplayLabel(raw, fallback);
+  const internalCode = raw.match(INLINE_INTERNAL_CODE_PATTERN)?.[0];
+  if (internalCode && formatted.includes(internalCode)) return fallback;
+
+  return formatted
+    .replace(/\bCRM-only\b/gi, 'registro interno')
+    .replace(/\bCRM\b/gi, 'registro interno')
+    .replace(/\bbackend\b/gi, 'sistema')
+    .replace(/\bcallback\b/gi, 'confirmación del canal')
+    .replace(/\bpreflight\b/gi, 'verificación previa')
+    .replace(/\bendpoint\b/gi, 'acción de envío')
+    .replace(/\btenant\b/gi, 'organización')
+    .replace(/\btimeline\b/gi, 'historial')
+    .replace(/\bsocket\b/gi, 'chat')
+    .replace(/\bproveedor\b/gi, 'canal')
+    .replace(/\bdurable\b/gi, 'segura');
+};
+
 const NEW_ATTACHMENT_UPLOAD_UNAVAILABLE_REASON =
-  'El backend no publicó un contrato de carga CRM para archivos nuevos. Podés vincular un adjunto existente desde Herramientas si está disponible.';
+  'El sistema todavía no habilitó la carga de archivos nuevos. Podés vincular un adjunto existente desde Herramientas si está disponible.';
 
 const normalizeComposerTicketId = (value: unknown): string | null => {
   const raw = String(value ?? '').trim();
@@ -159,7 +188,7 @@ const getComposerDetailIdentityBlockReason = (
   selected: Ticket | null | undefined,
   item: OmnichannelInboxDetailV2['item'] | null | undefined,
 ): string | null => {
-  if (!selected || !item) return 'No se pudo verificar la identidad exacta del ticket.';
+  if (!selected || !item) return 'No se pudo verificar la identidad exacta del caso.';
   const selectedSource = exactComposerSourceModel(selected.source_model);
   const detailSource = exactComposerSourceModel(item.source_model);
   const selectedId = normalizeComposerTicketId(selected.id);
@@ -167,17 +196,17 @@ const getComposerDetailIdentityBlockReason = (
     .map(normalizeComposerTicketId)
     .filter((value): value is string => Boolean(value));
   if (!selectedSource || detailSource !== selectedSource || !selectedId || !detailIds.length || detailIds.some((id) => id !== selectedId)) {
-    return 'El detalle recibido no coincide con el ticket seleccionado. Las acciones permanecen bloqueadas.';
+    return 'El detalle recibido no coincide con el caso seleccionado. Las acciones permanecen bloqueadas.';
   }
   const detailTenantSlug = readTrimmedString(item.tenant_slug)?.toLowerCase() || null;
   const selectedTenantSlug = readTrimmedString(selected.tenant_slug)?.toLowerCase() || null;
   if (detailTenantSlug && (!selectedTenantSlug || detailTenantSlug !== selectedTenantSlug)) {
-    return 'El detalle recibido pertenece a otro tenant. Las acciones permanecen bloqueadas.';
+    return 'El detalle recibido pertenece a otra organización. Las acciones permanecen bloqueadas.';
   }
   const detailTenantId = item.tenant_id == null ? null : String(item.tenant_id).trim();
   const selectedTenantId = selected.tenant_id == null ? null : String(selected.tenant_id).trim();
   if (detailTenantId && (!selectedTenantId || detailTenantId !== selectedTenantId)) {
-    return 'El detalle recibido pertenece a otro tenant. Las acciones permanecen bloqueadas.';
+    return 'El detalle recibido pertenece a otra organización. Las acciones permanecen bloqueadas.';
   }
   return null;
 };
@@ -281,28 +310,28 @@ const isAuthoritativeReplySourceModel = (value: unknown): boolean =>
   ].includes(normalizeComposerActionToken(value));
 
 const REPLY_REASON_COPY: Record<string, string> = {
-  attachment_reply_not_supported: 'El backend todavía no habilitó el envío durable de archivos para este ticket.',
-  location_reply_not_supported: 'El backend todavía no habilitó compartir ubicaciones de forma auditable para este ticket.',
-  form_reply_not_supported: 'El backend todavía no habilitó enviar formularios desde este ticket.',
-  handoff_not_supported: 'El backend no habilitó la derivación humana para este canal.',
-  ticket_assignment_required: 'Tomá o asigná el ticket para responder.',
-  ticket_ownership_required: 'Tomá o asigná el ticket para responder.',
-  reply_requires_assignment: 'Tomá o asigná el ticket para responder.',
-  ticket_channel_not_whatsapp: 'Este ticket no se originó en WhatsApp; la respuesta quedará registrada en el CRM.',
-  contact_phone_missing: 'Falta un teléfono verificable para intentar el envío por WhatsApp; la respuesta quedará registrada en el CRM.',
-  tenant_whatsapp_sender_missing: 'El municipio no tiene un remitente de WhatsApp habilitado; la respuesta quedará registrada en el CRM.',
-  ticket_channel_not_email: 'Este ticket no se originó por email; la respuesta quedará registrada en el CRM.',
-  contact_email_missing: 'Falta un email verificable; la respuesta quedará registrada en el CRM.',
+  attachment_reply_not_supported: 'El sistema todavía no habilitó el envío de archivos para este caso.',
+  location_reply_not_supported: 'El sistema todavía no habilitó compartir ubicaciones desde este caso.',
+  form_reply_not_supported: 'El sistema todavía no habilitó enviar formularios desde este caso.',
+  handoff_not_supported: 'El sistema no habilitó la derivación a una persona para este canal.',
+  ticket_assignment_required: 'Tomá o asigná el caso para responder.',
+  ticket_ownership_required: 'Tomá o asigná el caso para responder.',
+  reply_requires_assignment: 'Tomá o asigná el caso para responder.',
+  ticket_channel_not_whatsapp: 'Este caso no se originó en WhatsApp. La respuesta quedará guardada en el caso.',
+  contact_phone_missing: 'Falta un teléfono verificable para intentar el envío por WhatsApp. La respuesta quedará guardada en el caso.',
+  tenant_whatsapp_sender_missing: 'La organización no tiene un remitente de WhatsApp habilitado. La respuesta quedará guardada en el caso.',
+  ticket_channel_not_email: 'Este caso no se originó por correo electrónico. La respuesta quedará guardada en el caso.',
+  contact_email_missing: 'Falta un correo electrónico verificable. La respuesta quedará guardada en el caso.',
 };
 
 const getHumanReplyReason = (
   reasonCode?: unknown,
   disabledReason?: unknown,
-  fallback = 'El backend publicó esta capacidad como no disponible.',
+  fallback = 'El sistema indicó que esta acción no está disponible.',
 ): string => {
-  if (typeof disabledReason === 'string' && disabledReason.trim()) return disabledReason.trim();
   const code = typeof reasonCode === 'string' ? reasonCode.trim().toLowerCase() : '';
-  return REPLY_REASON_COPY[code] || fallback;
+  if (REPLY_REASON_COPY[code]) return REPLY_REASON_COPY[code];
+  return formatOperatorCopy(disabledReason, fallback);
 };
 
 const getActionDisabledReason = (action: SaasAction, fallback: string): string | null => {
@@ -318,18 +347,18 @@ const getReplyActionBlockReason = (
   if (contractBlockReason) return contractBlockReason;
   if (publishedBlockReason) return publishedBlockReason;
   if (!action) {
-    return 'El backend no publicó una acción segura de respuesta para este ticket. Revisá su asignación, estado y canal.';
+    return 'El sistema no habilitó una respuesta segura para este caso. Revisá su asignación, estado y canal.';
   }
   const actionDisabledReason = getActionDisabledReason(
     action,
-    'El backend publicó la respuesta como no disponible.',
+    'El sistema indicó que la respuesta no está disponible.',
   );
   if (actionDisabledReason) return actionDisabledReason;
   if (!action.endpoint?.startsWith('/')) {
-    return 'El backend no publicó un endpoint seguro para responder este ticket.';
+    return 'El sistema no habilitó una acción segura para responder este caso.';
   }
   if ((action.method || 'POST').trim().toUpperCase() !== 'POST') {
-    return 'El contrato de respuesta publicado no usa el método POST requerido.';
+    return 'La acción de respuesta publicada no tiene un método de envío compatible.';
   }
   const idempotency = action.idempotency && typeof action.idempotency === 'object' && !Array.isArray(action.idempotency)
     ? action.idempotency
@@ -340,7 +369,7 @@ const getReplyActionBlockReason = (
     idempotency.body_field !== 'client_message_id' ||
     idempotency.retry_rule !== 'reuse_same_value'
   ) {
-    return 'El backend no publicó el contrato idempotente requerido para responder sin duplicados.';
+    return 'El sistema no confirmó que la respuesta pueda enviarse sin duplicados.';
   }
   return null;
 };
@@ -365,12 +394,12 @@ const getReplyContractIdentityBlockReason = (
   const publishedTenantSlug = readTrimmedString(replyContract.tenant_slug)?.toLowerCase() || null;
   const selectedTenantSlug = readTrimmedString(tenantSlug)?.toLowerCase() || null;
   if (publishedTenantSlug && (!selectedTenantSlug || publishedTenantSlug !== selectedTenantSlug)) {
-    return 'El contrato de respuesta no coincide con el tenant seleccionado.';
+    return 'La configuración de respuesta no coincide con la organización seleccionada.';
   }
   const publishedTenantId = replyContract.tenant_id == null ? null : String(replyContract.tenant_id).trim();
   const selectedTenantId = tenantId == null ? null : String(tenantId).trim();
   if (publishedTenantId && (!selectedTenantId || publishedTenantId !== selectedTenantId)) {
-    return 'El contrato de respuesta no coincide con el tenant seleccionado.';
+    return 'La configuración de respuesta no coincide con la organización seleccionada.';
   }
   return null;
 };
@@ -384,13 +413,13 @@ export const getPublishedReplyBlockReason = (
 ): string | null => {
   if (!replyContract) return null;
   if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
-    return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
+    return 'El sistema publicó una configuración de respuesta que esta consola todavía no reconoce.';
   }
   if (replyContract.enabled !== true) {
     return getHumanReplyReason(
       replyContract.reason_code,
       replyContract.disabled_reason,
-      'El backend no habilitó la respuesta para este ticket.',
+      'El sistema no habilitó la respuesta para este caso.',
     );
   }
   const identityBlockReason = getReplyContractIdentityBlockReason(
@@ -406,14 +435,14 @@ export const getPublishedReplyBlockReason = (
     return getHumanReplyReason(
       textCapability?.reason_code,
       textCapability?.disabled_reason,
-      'El contrato backend no confirmó soporte para respuestas de texto.',
+      'El sistema no confirmó que se puedan enviar respuestas de texto.',
     );
   }
   if (!replyContract.endpoint?.startsWith('/')) {
-    return 'El contrato backend no publicó un endpoint seguro para responder este ticket.';
+    return 'El sistema no habilitó una acción segura para responder este caso.';
   }
   if ((replyContract.method || '').trim().toUpperCase() !== 'POST') {
-    return 'El contrato backend no publicó el método POST requerido para responder.';
+    return 'La acción publicada no tiene un método de envío compatible.';
   }
   return null;
 };
@@ -430,13 +459,13 @@ const getReplyCapabilityBlockReason = (
 ): string | null => {
   if (!replyContract) return null;
   if (replyContract.contract_version !== REPLY_CONTRACT_VERSION) {
-    return 'El backend publicó una versión de contrato de respuesta que esta consola todavía no reconoce.';
+    return 'El sistema publicó una configuración de respuesta que esta consola todavía no reconoce.';
   }
   if (replyContract.enabled !== true) {
     return getHumanReplyReason(
       replyContract.reason_code,
       replyContract.disabled_reason,
-      'El backend no habilitó acciones de respuesta para este ticket.',
+      'El sistema no habilitó acciones de respuesta para este caso.',
     );
   }
   const identityBlockReason = getReplyContractIdentityBlockReason(
@@ -454,7 +483,7 @@ const getReplyCapabilityBlockReason = (
   return getHumanReplyReason(
     capability?.reason_code,
     capability?.disabled_reason,
-    `El contrato backend no confirmó soporte para ${kind === 'attachment' ? 'archivos' : kind === 'location' ? 'ubicaciones' : kind === 'form' ? 'formularios' : 'derivación humana'}.`,
+    `El sistema no confirmó que esta acción admita ${kind === 'attachment' ? 'archivos' : kind === 'location' ? 'ubicaciones' : kind === 'form' ? 'formularios' : 'derivación a una persona'}.`,
   );
 };
 
@@ -615,7 +644,7 @@ export const getComposerReplyResponseIdentityBlockReason = (
   },
 ): string | null => {
   if (!item || !expected.sourceModel || !expected.ticketId) {
-    return 'La respuesta no confirmó la identidad exacta del ticket.';
+    return 'La respuesta no confirmó la identidad exacta del caso.';
   }
   const responseSource = exactComposerSourceModel(item.source_model);
   const responseIds = [item.ticket_id, item.legacy_id, item.id]
@@ -628,12 +657,12 @@ export const getComposerReplyResponseIdentityBlockReason = (
   const responseTenantSlug = readTrimmedString(item.tenant_slug)?.toLowerCase() || null;
   const expectedTenantSlug = readTrimmedString(expected.tenantSlug)?.toLowerCase() || null;
   if (responseTenantSlug && (!expectedTenantSlug || responseTenantSlug !== expectedTenantSlug)) {
-    return 'La respuesta pertenece a otro tenant.';
+    return 'La respuesta pertenece a otra organización.';
   }
   const responseTenantId = item.tenant_id == null ? null : String(item.tenant_id).trim();
   const expectedTenantId = expected.tenantId == null ? null : String(expected.tenantId).trim();
   if (responseTenantId && (!expectedTenantId || responseTenantId !== expectedTenantId)) {
-    return 'La respuesta pertenece a otro tenant.';
+    return 'La respuesta pertenece a otra organización.';
   }
   return null;
 };
@@ -676,7 +705,7 @@ export const getWhatsAppServiceWindowView = (
       status, expiresAt, recipientAvailable, freeFormAllowed: false, templateRequired,
       approvedTemplateCount, blocksFreeForm: true, tone: 'warning' as const,
       title: 'Sin número de WhatsApp',
-      detail: 'Este ticket no tiene un número válido. No se habilita ninguna respuesta externa.',
+      detail: 'Este caso no tiene un número válido. No se puede enviar una respuesta por WhatsApp.',
     };
   }
   if (status === 'open' && !blocksFreeForm) {
@@ -695,7 +724,7 @@ export const getWhatsAppServiceWindowView = (
     title: 'Se requiere una plantilla aprobada',
     detail: approvedTemplateCount
       ? 'La ventana de 24 horas está cerrada. Elegí una plantilla aprobada para responder.'
-      : 'La ventana de 24 horas está cerrada y el backend no publicó plantillas aprobadas.',
+      : 'La ventana de 24 horas está cerrada y no hay plantillas aprobadas disponibles.',
   };
 };
 
@@ -703,9 +732,10 @@ export const formatReplyDeliveryChannel = (channel: string) => {
   const normalized = channel.trim().toLowerCase();
   if (normalized === 'whatsapp') return 'WhatsApp';
   if (normalized === 'sms') return 'SMS';
-  if (normalized === 'email') return 'Email';
+  if (normalized === 'email') return 'Correo electrónico';
   if (normalized === 'live_socket' || normalized === 'socket') return 'Chat en vivo';
-  return 'CRM';
+  if (normalized === 'crm' || normalized === 'internal_event' || normalized === 'timeline_only') return 'Registro interno';
+  return formatTicketDisplayLabel(channel, 'Otro canal');
 };
 
 const BACKOFFICE_VIEWER_ROLES = new Set([
@@ -866,17 +896,18 @@ export const preserveReplyDeliveryProgress = (
 export const getReplyDeliveryView = (delivery: TicketReplyDeliveryStatus) => {
   const channel = formatReplyDeliveryChannel(delivery.channel);
   const stage = getReplyDeliveryStage(delivery);
+  const operatorDetail = (fallback: string) => formatOperatorCopy(delivery.operator_message, fallback);
   if (delivery.recipient_available === false) return {
     tone: 'warning' as const, stage: 'saved' as const, title: 'Sin número de WhatsApp',
-    detail: 'La actividad puede quedar auditada en el CRM, pero no existe un número válido para una entrega externa.', retryable: false,
+    detail: 'La actividad queda guardada en el caso, pero no existe un número válido para enviarla por WhatsApp.', retryable: false,
   };
-  if (stage === 'read') return { tone: 'success' as const, stage, title: 'Leído', detail: 'El proveedor confirmó que la persona leyó la respuesta.', retryable: false };
-  if (stage === 'delivered') return { tone: 'success' as const, stage, title: delivery.channel === 'live_socket' ? 'Entregado en chat en vivo' : 'Entregado', detail: `La entrega en ${channel} fue confirmada y quedó auditada en el CRM.`, retryable: false };
-  if (stage === 'provider_accepted') return { tone: 'muted' as const, stage, title: 'Aceptado por el proveedor', detail: 'WhatsApp aceptó el mensaje. La entrega final todavía depende del callback del proveedor.', retryable: false };
-  if (stage === 'queued') return { tone: 'muted' as const, stage, title: 'En cola para entregar', detail: delivery.operator_message || 'La respuesta quedó guardada y encolada. Aún no hay aceptación ni entrega confirmada.', retryable: false };
-  if (stage === 'failed') return { tone: 'warning' as const, stage, title: 'Entrega fallida', detail: delivery.final_delivery?.error_code ? `El proveedor confirmó el fallo (código ${delivery.final_delivery.error_code}).` : 'El proveedor confirmó que la entrega no se completó.', retryable: true };
-  if (stage === 'uncertain') return { tone: 'warning' as const, stage, title: 'Estado de entrega por confirmar', detail: delivery.operator_message || 'La respuesta está auditada en el CRM, pero no hay callback autoritativo de WhatsApp.', retryable: true };
-  return { tone: 'muted' as const, stage, title: 'Guardado en CRM', detail: delivery.operator_message || 'La respuesta quedó registrada. Todavía no fue aceptada por el proveedor.', retryable: false };
+  if (stage === 'read') return { tone: 'success' as const, stage, title: 'Leído', detail: 'El canal confirmó que la persona leyó la respuesta.', retryable: false };
+  if (stage === 'delivered') return { tone: 'success' as const, stage, title: delivery.channel === 'live_socket' ? 'Entregado en chat en vivo' : 'Entregado', detail: `La entrega por ${channel} fue confirmada y quedó guardada en el caso.`, retryable: false };
+  if (stage === 'provider_accepted') return { tone: 'muted' as const, stage, title: 'Recibido por el canal', detail: 'El canal aceptó el mensaje. La entrega a la persona todavía no está confirmada.', retryable: false };
+  if (stage === 'queued') return { tone: 'muted' as const, stage, title: 'En espera de entrega', detail: operatorDetail('La respuesta quedó guardada y en espera. Todavía no se confirmó la entrega.'), retryable: false };
+  if (stage === 'failed') return { tone: 'warning' as const, stage, title: 'No se pudo entregar', detail: 'El canal confirmó que la entrega no se completó.', retryable: true };
+  if (stage === 'uncertain') return { tone: 'warning' as const, stage, title: 'Entrega por confirmar', detail: operatorDetail('La respuesta quedó guardada en el caso, pero el canal todavía no confirmó la entrega.'), retryable: true };
+  return { tone: 'muted' as const, stage, title: 'Guardado en el caso', detail: operatorDetail(INTERNAL_ONLY_REPLY_COPY), retryable: false };
 };
 
 export const shouldShowTicketClaimAction = (isDetailsVisible: boolean): boolean =>
@@ -891,6 +922,7 @@ export const getComposerActionDeliveryView = (
   const evidenceStage = delivery?.evidence_stage?.trim().toLowerCase();
   const status = delivery?.status?.trim().toLowerCase();
   const callbackAuthoritative = finalAuthority === 'provider_status_callback';
+  const operatorDetail = (fallback: string) => formatOperatorCopy(delivery?.operator_message, fallback);
   const evidence = delivery?.evidence?.contract_version === 'inbox.reply_delivery_evidence.v1'
     ? delivery.evidence
     : undefined;
@@ -900,21 +932,21 @@ export const getComposerActionDeliveryView = (
     if (inconsistentExternalState || delivery.failed === true) {
       return {
         tone: 'warning' as const,
-        title: 'Evidencia CRM-only inconsistente',
-        detail: 'El backend publicó estados externos incompatibles con una acción CRM-only. No se confirma envío ni entrega.',
+        title: 'Datos de entrega inconsistentes',
+        detail: 'El sistema informó resultados incompatibles. No se confirma el envío ni la entrega.',
       };
     }
     if (delivery.idempotent_replay === true || status === 'already_recorded') {
       return {
         tone: 'replay' as const,
         title: 'Reintento reconocido',
-        detail: 'Guardado en CRM, no enviado externamente. El backend reconoció la misma operación y no duplicó el artefacto.',
+        detail: 'Quedó guardado en el caso. El sistema reconoció el reintento y no duplicó el registro.',
       };
     }
     return {
       tone: 'internal' as const,
-      title: 'Guardado sólo en CRM',
-      detail: 'Guardado en CRM, no enviado externamente.',
+      title: 'Guardado en el caso',
+      detail: INTERNAL_ONLY_REPLY_COPY,
     };
   }
 
@@ -923,14 +955,14 @@ export const getComposerActionDeliveryView = (
       return {
         tone: 'warning' as const,
         title: 'Evidencia de entrega inconsistente',
-        detail: 'El backend publicó estados finales incompatibles. La consola no confirma entrega hasta que se corrija la evidencia.',
+        detail: 'El sistema informó resultados finales incompatibles. La entrega no está confirmada.',
       };
     }
     if (evidence.failed === true) {
       return {
         tone: 'warning' as const,
         title: 'Entrega no realizada',
-        detail: delivery?.operator_message || 'La evidencia autoritativa indica que la entrega no se completó.',
+        detail: operatorDetail('La información disponible indica que la entrega no se completó.'),
       };
     }
     if (evidence.delivered === true) {
@@ -938,40 +970,40 @@ export const getComposerActionDeliveryView = (
         return {
           tone: 'warning' as const,
           title: 'Entrega declarada sin autoridad compatible',
-          detail: 'El contrato no identifica el callback del proveedor como autoridad final; la consola no confirma entrega.',
+          detail: 'El sistema no identificó una confirmación final válida. La entrega sigue pendiente.',
         };
       }
       return {
         tone: 'success' as const,
         title: 'Entrega confirmada',
-        detail: delivery?.operator_message || 'El callback del proveedor confirmó la entrega final.',
+        detail: operatorDetail('El canal confirmó la entrega final.'),
       };
     }
     if (evidence.provider_accepted === true) {
       return {
         tone: 'pending' as const,
-        title: 'Aceptado por el proveedor',
-        detail: delivery?.operator_message || 'El proveedor aceptó el mensaje; esto todavía no prueba la entrega al destinatario.',
+        title: 'Recibido por el canal',
+        detail: operatorDetail('El canal aceptó el mensaje, pero todavía no confirmó la entrega a la persona.'),
       };
     }
     if (evidence.dispatch_attempted === true) {
       return {
         tone: 'pending' as const,
-        title: 'Despacho intentado',
-        detail: delivery?.operator_message || 'El backend intentó el despacho; todavía no existe aceptación ni entrega confirmada.',
+        title: 'Envío iniciado',
+        detail: operatorDetail('El sistema inició el envío, pero todavía no confirmó la entrega.'),
       };
     }
     if (evidence.saved_in_crm === true) {
       return {
         tone: 'internal' as const,
-        title: 'Guardado sólo en CRM',
-        detail: delivery?.operator_message || 'La respuesta quedó auditada sin evidencia de despacho externo.',
+        title: 'Guardado en el caso',
+        detail: operatorDetail(INTERNAL_ONLY_REPLY_COPY),
       };
     }
     return {
       tone: 'pending' as const,
       title: 'Evidencia de entrega incompleta',
-      detail: 'El backend publicó el contrato de evidencia sin confirmar registro, despacho ni resultado final.',
+      detail: 'El sistema todavía no confirmó si la respuesta fue enviada o entregada.',
     };
   }
 
@@ -979,7 +1011,7 @@ export const getComposerActionDeliveryView = (
     return {
       tone: 'success' as const,
       title: finalStatus === 'read' ? 'Leído por el destinatario' : 'Entrega confirmada',
-      detail: delivery?.operator_message || 'El callback del proveedor confirmó la entrega final.',
+      detail: operatorDetail('El canal confirmó la entrega final.'),
     };
   }
 
@@ -987,7 +1019,7 @@ export const getComposerActionDeliveryView = (
     return {
       tone: 'warning' as const,
       title: 'Entrega no realizada',
-      detail: delivery?.operator_message || 'El callback del proveedor confirmó que la entrega no se completó.',
+      detail: operatorDetail('El canal confirmó que la entrega no se completó.'),
     };
   }
 
@@ -995,7 +1027,7 @@ export const getComposerActionDeliveryView = (
     return {
       tone: 'replay' as const,
       title: 'Reintento reconocido',
-      detail: delivery?.operator_message || 'El backend reconoció la misma operación y no duplicó el mensaje.',
+      detail: operatorDetail('El sistema reconoció el reintento y no duplicó el mensaje.'),
     };
   }
 
@@ -1011,30 +1043,30 @@ export const getComposerActionDeliveryView = (
     return {
       tone: 'queued' as const,
       title: 'En cola para WhatsApp',
-      detail: delivery?.operator_message || 'La acción quedó en cola durable. La entrega final se confirma con el callback del proveedor.',
+      detail: operatorDetail('La respuesta quedó en espera. El canal todavía no confirmó la entrega.'),
     };
   }
 
   if (evidenceStage === 'provider_accepted' || status === 'provider_accepted') {
     return {
       tone: 'pending' as const,
-      title: 'Aceptado por el proveedor',
-      detail: delivery?.operator_message || 'El proveedor aceptó el mensaje; la entrega final sigue pendiente de callback.',
+      title: 'Recibido por el canal',
+      detail: operatorDetail('El canal aceptó el mensaje. La entrega final sigue pendiente.'),
     };
   }
 
   if (mode === 'timeline_only' || evidenceStage === 'crm_only') {
     return {
       tone: 'internal' as const,
-      title: 'Guardado sólo en CRM',
-      detail: delivery?.operator_message || 'La respuesta quedó auditada sin evidencia de despacho externo.',
+      title: 'Guardado en el caso',
+      detail: operatorDetail(INTERNAL_ONLY_REPLY_COPY),
     };
   }
 
   return {
     tone: 'pending' as const,
     title: 'Respuesta registrada',
-    detail: delivery?.operator_message || 'El backend registró la respuesta; la entrega final todavía no está confirmada.',
+    detail: operatorDetail('La respuesta quedó guardada. La entrega final todavía no está confirmada.'),
   };
 };
 
@@ -1081,12 +1113,8 @@ export const getComposerChannelView = ({
     if (externalChannel?.enabled === false || crmChannel?.enabled === true) {
       return {
         tone: externalChannel?.enabled === false ? 'warning' as const : 'muted' as const,
-        label: 'Sólo registro en CRM',
-        detail: getHumanReplyReason(
-          externalChannel?.reason_code,
-          externalChannel?.disabled_reason,
-          'Tu respuesta queda guardada en el caso. Este canal no tiene envío externo habilitado.',
-        ),
+        label: 'Guardado en el caso',
+        detail: INTERNAL_ONLY_REPLY_COPY,
       };
     }
 
@@ -1139,8 +1167,8 @@ export const getComposerChannelView = ({
 
   return {
     tone: 'muted' as const,
-    label: 'Registro CRM',
-    detail: 'Tu respuesta queda guardada en el caso. No hay un canal de envío confirmado.',
+    label: 'Guardado en el caso',
+    detail: INTERNAL_ONLY_REPLY_COPY,
   };
 };
 
@@ -1756,11 +1784,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     ? getComposerDetailIdentityBlockReason(selectedTicket, composerActionItem)
     : null;
   const actionContractBlockReason = !composerActionDetailEndpoint
-    ? 'No se pudo identificar de forma segura el detalle omnicanal de este ticket.'
+    ? 'No se pudo identificar de forma segura el detalle de este caso.'
     : composerActionContractQuery.isPending
-      ? 'Verificando las acciones habilitadas por el backend.'
+      ? 'Verificando las acciones disponibles.'
       : composerActionContractQuery.isError
-        ? 'No se pudo verificar el contrato backend. La acción permanece bloqueada.'
+        ? 'No se pudieron verificar las acciones disponibles. La acción permanece bloqueada.'
         : detailIdentityBlockReason;
   const baseReplyBlockReason = authoritativeReplyRequired
     ? getReplyActionBlockReason(
@@ -1777,7 +1805,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     : null;
   const replyBlockReason = baseReplyBlockReason || (
     isTenantTicketWhatsApp && whatsappServiceWindow.recipientAvailable === false
-      ? 'Sin número de WhatsApp: el backend no publicó un destinatario disponible.'
+      ? 'Sin número de WhatsApp: no hay una persona destinataria disponible.'
       : null
   );
   const freeFormReplyBlockReason = replyBlockReason || (
@@ -1786,8 +1814,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       : null
   );
   const templateReplyBlockReason = !isTenantTicketWhatsApp
-    ? 'Las plantillas aprobadas sólo están disponibles para TenantTicket en WhatsApp.'
-    : replyBlockReason || (approvedWhatsAppTemplates.length ? null : 'No hay plantillas aprobadas disponibles para este tenant.');
+    ? 'Las plantillas aprobadas sólo están disponibles para casos recibidos por WhatsApp.'
+    : replyBlockReason || (approvedWhatsAppTemplates.length ? null : 'No hay plantillas aprobadas disponibles para esta organización.');
   const attachmentReplyCapabilityBlockReason = attachmentAction?.delivery_mode === 'runtime_preflight'
     ? getReplyCapabilityBlockReason(
         'attachment',
@@ -1803,7 +1831,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       attachmentReplyCapabilityBlockReason ||
       (attachmentAction
         ? getTicketShareActionBlockReason('attachment', attachmentAction, composerReplyContract, composerActionAttachments)
-        : 'El backend no publicó una acción segura para vincular adjuntos existentes a este ticket.')
+        : 'El sistema no habilitó una acción segura para vincular adjuntos existentes a este caso.')
     : null;
   const newAttachmentUploadBlockReason = authoritativeAttachmentMustFailClosed
     ? NEW_ATTACHMENT_UPLOAD_UNAVAILABLE_REASON
@@ -1819,7 +1847,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     ) || (
     handoffAction
       ? getHandoffActionBlockReason(handoffAction, composerActionTicketId)
-      : 'Este ticket no publicó una transición backend para derivar la conversación a una persona.'
+      : 'El sistema no habilitó la derivación de este caso a una persona.'
   );
   const locationBlockReason = actionContractBlockReason ||
     getReplyCapabilityBlockReason(
@@ -1832,7 +1860,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     ) || (
     locationAction
       ? getTicketShareActionBlockReason('location', locationAction, composerReplyContract)
-      : 'Este ticket no publicó una acción backend compatible para compartir ubicación.'
+      : 'El sistema no habilitó compartir una ubicación desde este caso.'
   );
   const formBlockReason = actionContractBlockReason ||
     getReplyCapabilityBlockReason(
@@ -1845,8 +1873,29 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     ) || (
     formAction
       ? getTicketShareActionBlockReason('form', formAction, composerReplyContract)
-      : 'Este ticket no publicó una acción backend compatible para compartir formularios.'
+      : 'El sistema no habilitó compartir un formulario desde este caso.'
   );
+  const replyBlockCopy = replyBlockReason
+    ? formatOperatorCopy(replyBlockReason, 'Esta respuesta no está disponible.')
+    : null;
+  const freeFormReplyBlockCopy = freeFormReplyBlockReason
+    ? formatOperatorCopy(freeFormReplyBlockReason, 'Esta respuesta no está disponible.')
+    : null;
+  const templateReplyBlockCopy = templateReplyBlockReason
+    ? formatOperatorCopy(templateReplyBlockReason, 'Esta plantilla no está disponible.')
+    : null;
+  const existingAttachmentBlockCopy = existingAttachmentBlockReason
+    ? formatOperatorCopy(existingAttachmentBlockReason, 'No se puede vincular este adjunto.')
+    : null;
+  const locationBlockCopy = locationBlockReason
+    ? formatOperatorCopy(locationBlockReason, 'No se puede compartir una ubicación desde este caso.')
+    : null;
+  const formBlockCopy = formBlockReason
+    ? formatOperatorCopy(formBlockReason, 'No se puede compartir un formulario desde este caso.')
+    : null;
+  const handoffBlockCopy = handoffBlockReason
+    ? formatOperatorCopy(handoffBlockReason, 'No se puede derivar este caso a una persona.')
+    : null;
   const latestAuthoritativeReplyDelivery = composerActionItem?.reply_deliveries?.at(-1);
 
   useEffect(() => {
@@ -1980,7 +2029,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       (field) => field !== 'Idempotency-Key' && isMissingComposerActionValue(completePayload[field]),
     );
     if (missingRequiredFields.length) {
-      toast.error(`Falta completar: ${missingRequiredFields.join(', ')}.`);
+      toast.error('Faltan datos obligatorios para completar esta acción.');
       return;
     }
 
@@ -1996,7 +2045,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             clientMessageId: createOmnichannelActionClientMessageId(action.id),
           };
         } catch (error) {
-          toast.error(getErrorMessage(error, 'No se pudo generar una identidad segura para la acción.'));
+          toast.error(formatOperatorCopy(
+            getErrorMessage(error, 'No se pudo preparar esta acción de forma segura.'),
+            'No se pudo preparar esta acción de forma segura.',
+          ));
           return;
         }
         composerActionAttemptRef.current = attempt;
@@ -2339,14 +2391,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       if (String(event.detail.ticketId) !== String(selectedTicket.id)) return;
 
       if (messageRef.current.trim()) {
-        toast.info('El composer ya tiene texto. No sobreescribi el borrador actual.');
+        toast.info('La respuesta ya tiene texto. No sobrescribí el borrador actual.');
         return;
       }
 
       const draft = event.detail.draft.trim();
       updateActiveDraft(draft);
       window.requestAnimationFrame(() => composerRef.current?.focus());
-      toast.success('Borrador IA cargado en la conversación.');
+      toast.success('Respuesta sugerida cargada en la conversación.');
     };
 
     window.addEventListener(TICKET_AI_DRAFT_EVENT_NAME, handleAiDraft);
@@ -2709,12 +2761,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     const hasAttachment = Boolean(payload?.attachmentInfo || attachmentPreview);
     if (authoritativeAttachmentMustFailClosed && hasAttachment) {
-      toast.error(newAttachmentUploadBlockReason || 'El adjunto permanece bloqueado hasta que el backend publique soporte seguro.');
+      toast.error(newAttachmentUploadBlockReason || 'El adjunto no está disponible en este momento.');
       return;
     }
     if (approvedTemplate) {
       if (templateReplyBlockReason) {
-        toast.error(templateReplyBlockReason);
+        toast.error(templateReplyBlockCopy || 'Esta plantilla no está disponible.');
         return;
       }
       const missingVariables = approvedTemplate.variableKeys.filter((key) => !templateVariables[key]?.trim());
@@ -2723,7 +2775,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         return;
       }
     } else if (freeFormReplyBlockReason) {
-      toast.error(freeFormReplyBlockReason);
+      toast.error(freeFormReplyBlockCopy || 'Esta respuesta no está disponible.');
       return;
     }
 
@@ -2731,7 +2783,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     let replyActionPayload: Record<string, unknown> | undefined;
     if (authoritativeReplyRequired) {
       if (replyBlockReason || !replyAction || !composerActionDetailEndpoint || !composerActionTicketId) {
-        toast.error(replyBlockReason || 'El backend no habilitó una respuesta segura para este ticket.');
+        toast.error(replyBlockCopy || 'El sistema no habilitó una respuesta segura para este caso.');
         return;
       }
       const normalizedText = text.trim();
@@ -2763,7 +2815,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             clientMessageId: createOmnichannelActionClientMessageId('reply'),
           };
         } catch (error) {
-          toast.error(getErrorMessage(error, 'No se pudo generar una identidad segura para la respuesta.'));
+          toast.error(formatOperatorCopy(
+            getErrorMessage(error, 'No se pudo preparar la respuesta de forma segura.'),
+            'No se pudo preparar la respuesta de forma segura.',
+          ));
           return;
         }
         replyActionAttemptRef.current = attempt;
@@ -2866,7 +2921,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               external_dispatch: false,
               timeline_updated: false,
               reply_status: 'unknown',
-              operator_message: 'El backend respondió sin evidencia de entrega. Se conserva la misma identidad para reconciliar o reintentar.',
+              operator_message: 'El sistema respondió sin confirmar la entrega. Podés revisar y reintentar de forma segura.',
             }));
           }
           setMessages((previous) => previous.filter((item) => item.id !== optimisticMessage.id));
@@ -2874,7 +2929,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             messageRef.current = draftMessage;
             setMessage(draftMessage);
           }
-          toast.warning('El backend respondió, pero el resultado sigue incierto. Revisá y reintentá con la misma identidad.');
+          toast.warning('El sistema respondió, pero el resultado sigue pendiente. Revisá y reintentá de forma segura.');
         }
         return;
       }
@@ -2931,7 +2986,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }));
         toast.warning('No se pudo confirmar el resultado. Podés reintentar de forma segura con la misma identidad.');
       } else {
-        toast.error(getErrorMessage(error, 'No se pudo enviar el mensaje.'));
+        toast.error(formatOperatorCopy(
+          getErrorMessage(error, 'No se pudo enviar el mensaje.'),
+          'No se pudo enviar el mensaje.',
+        ));
       }
       if (approvedTemplate) {
         setSelectedApprovedTemplateId('');
@@ -2966,8 +3024,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/20 p-4 text-center">
         <img src={CHATBOC_ORBIT_AVATAR} alt="Chatboc Logo" className="w-24 h-24 mb-4" />
-        <h2 className="text-2xl font-bold text-foreground">Panel de tickets</h2>
-        <p className="text-lg text-muted-foreground">Seleccioná un ticket de la lista para comenzar a trabajar.</p>
+        <h2 className="text-2xl font-bold text-foreground">Panel de casos</h2>
+        <p className="text-lg text-muted-foreground">Seleccioná un caso de la lista para comenzar a trabajar.</p>
       </div>
     );
   }
@@ -3090,12 +3148,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       if (isStatusScopeCurrent()) setIsUpdatingStatus(false);
     }
   };
-  const conversationTitle = presentationCategory?.label || 'Categoría no informada';
+  const conversationTitle = formatTicketDisplayLabel(
+    presentationCategory?.label,
+    'Categoría no informada',
+  );
+  const presentationCategoryDetail = formatOperatorCopy(
+    presentationCategory?.detail,
+    'Sin información adicional sobre la categoría.',
+  );
   const conversationSubtitle = operationalWorkspace
     ? selectedTicket.display_name || selectedTicket.name || 'Conversación ciudadana'
     : [
         selectedTicket.nro_ticket || `#${selectedTicket.id}`,
-        selectedTicket.name,
+        selectedTicket.name ? formatOperatorCopy(selectedTicket.name, '') : null,
       ].filter(Boolean).join(' - ');
   const conversationAvatar = resolveConsentedAvatar(
     selectedTicket as unknown as Record<string, unknown>,
@@ -3111,6 +3176,46 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     lastReplyDelivery,
     replyContract: composerReplyContract,
   });
+  const locationActionLabel = formatTicketDisplayLabel(locationAction?.label, 'Ubicación');
+  const formActionLabel = formatTicketDisplayLabel(formAction?.label, 'Formulario');
+  const handoffActionLabel = formatTicketDisplayLabel(handoffAction?.label, 'Derivar a una persona');
+  const locationActionDescription = locationBlockCopy || formatOperatorCopy(
+    locationAction?.description,
+    'Compartir la ubicación publicada para el caso.',
+  );
+  const formActionDescription = formBlockCopy || formatOperatorCopy(
+    formAction?.description,
+    'Compartir un formulario publicado para el caso.',
+  );
+  const handoffActionDescription = handoffBlockCopy || formatOperatorCopy(
+    handoffAction?.description,
+    'Derivación interna disponible para este caso.',
+  );
+  const selectedShareAction = shareActionDialogKind === 'location'
+    ? locationAction
+    : shareActionDialogKind === 'attachment'
+      ? attachmentAction
+      : formAction;
+  const publicShareAction = selectedShareAction
+    ? {
+        ...selectedShareAction,
+        label: formatTicketDisplayLabel(
+          selectedShareAction.label,
+          shareActionDialogKind === 'location'
+            ? 'Compartir ubicación'
+            : shareActionDialogKind === 'attachment'
+              ? 'Vincular adjunto'
+              : 'Compartir formulario',
+        ),
+        description: formatOperatorCopy(
+          selectedShareAction.description,
+          'Completá los datos para registrar esta acción en el caso.',
+        ),
+        disabled_reason: selectedShareAction.disabled_reason
+          ? formatOperatorCopy(selectedShareAction.disabled_reason, 'Esta acción no está disponible.')
+          : selectedShareAction.disabled_reason,
+      }
+    : null;
 
   return (
     <motion.div
@@ -3127,9 +3232,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 shrink-0"
+                className="h-11 w-11 shrink-0"
                 onClick={onToggleSidebar}
-                aria-label={isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
+                aria-label={isSidebarVisible ? 'Ocultar lista de casos' : 'Mostrar lista de casos'}
               >
                 {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
               </Button>
@@ -3149,17 +3254,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 {conversationSubtitle}
               </p>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className="capitalize text-xs">
+                <Badge variant="outline" className="capitalize text-xs" role="status" aria-live="polite">
                   {formatTicketStatusLabel(selectedTicket.estado)}
                 </Badge>
                 <Badge
                   variant={presentationCategory?.state === 'conflict' ? 'destructive' : 'secondary'}
                   className="max-w-[14rem] truncate text-xs"
-                  title={presentationCategory?.detail}
-                  aria-label={`${presentationCategory?.label || 'Categoría no informada'}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
+                  title={presentationCategoryDetail}
+                  aria-label={`${conversationTitle}. ${presentationCategoryDetail}`}
                   data-category-state={presentationCategory?.state}
                 >
-                  {presentationCategory?.label || 'Categoría no informada'}
+                  {conversationTitle}
                 </Badge>
                 <TicketSlaClocks sla={composerSlaSource} compact className="h-6" />
               </div>
@@ -3174,22 +3279,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             {!operationalWorkspace ? (
               <>
                 <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden lg:inline-flex">
-                  {realtimeOnline ? 'Socket conectado' : 'Actualización por sondeo'}
+                  {realtimeOnline ? 'Actualización en tiempo real' : 'Actualización automática'}
                 </Badge>
                 <Badge variant="outline" className="hidden lg:inline-flex capitalize">
-                  {activeChannel}
+                  {formatReplyDeliveryChannel(activeChannel)}
                 </Badge>
-                <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+                <Button asChild variant="ghost" size="sm" className="hidden min-h-11 xl:inline-flex">
                   <Link to={responseTemplateManagementHref}>Respuestas rápidas</Link>
                 </Button>
-                <Button asChild variant="ghost" size="sm" className="hidden xl:inline-flex">
+                <Button asChild variant="ghost" size="sm" className="hidden min-h-11 xl:inline-flex">
                   <Link to="/notificaciones">Notificaciones</Link>
                 </Button>
               </>
             ) : (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label="Más acciones del caso">
+                  <Button type="button" variant="ghost" size="icon" className="h-11 w-11" aria-label="Más acciones del caso">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -3208,9 +3313,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 variant={isDetailsVisible ? 'secondary' : 'outline'}
                 size="sm"
                 onClick={onToggleDetails}
-                aria-label={isDetailsVisible ? 'Ocultar detalles del ticket' : 'Ver detalles del ticket'}
+                aria-label={isDetailsVisible ? 'Ocultar detalles del caso' : 'Ver detalles del caso'}
                 aria-pressed={isDetailsVisible}
-                className="h-9 gap-2 px-2.5"
+                className="min-h-11 gap-2 px-2.5"
               >
                 <Info className="h-4 w-4" />
                 <span className="hidden text-sm font-medium sm:inline">Detalles</span>
@@ -3221,7 +3326,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 max-w-[10rem] justify-between capitalize"
+                  className="min-h-11 max-w-[10rem] justify-between capitalize"
                   aria-label={statusOptions.length > 0 ? 'Cambiar estado' : 'Sin transiciones de estado disponibles'}
                   disabled={isUpdatingStatus || statusOptions.length === 0}
                 >
@@ -3262,12 +3367,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             <Button
               variant={desktopView === 'chat' ? 'secondary' : 'ghost'}
               onClick={() => setDesktopView('chat')}
+              className="min-h-11"
             >
               Conversación
             </Button>
             <Button
               variant={desktopView === 'details' ? 'secondary' : 'ghost'}
               onClick={() => setDesktopView('details')}
+              className="min-h-11"
             >
               Información
             </Button>
@@ -3279,7 +3386,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         <div className="border-b border-border bg-muted/25 px-3 py-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
+              <p className="text-xs font-medium text-muted-foreground">Actividad reciente</p>
               <p className="text-sm font-semibold text-foreground">
                 {isLoading ? 'Sincronizando conversacion' : lastActivityLabel}
               </p>
@@ -3288,7 +3395,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               )}
             </div>
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Volumen</p>
+              <p className="text-xs font-medium text-muted-foreground">Volumen</p>
               <p className="text-sm font-semibold text-foreground">
                 {isLoading
                   ? 'Cargando...'
@@ -3299,7 +3406,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               </p>
             </div>
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2.5 py-1">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Seguimiento</p>
+              <p className="text-xs font-medium text-muted-foreground">Seguimiento</p>
               <Badge variant={isResponsePending ? 'destructive' : 'secondary'} className="w-fit">
                 {isResponsePending ? 'Respuesta pendiente' : 'Al día'}
               </Badge>
@@ -3334,7 +3441,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                     disabled={isLoadingOlderHistory}
                     aria-label="Cargar mensajes anteriores"
                     aria-busy={isLoadingOlderHistory}
-                    className="rounded-full bg-background/90 shadow-sm"
+                    className="min-h-11 rounded-full bg-background/90 shadow-sm"
                   >
                     {isLoadingOlderHistory ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -3349,8 +3456,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 </div>
               )}
               {timelinePartial && (
-                <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
-                  Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
+                <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900" role="status" aria-live="polite">
+                  El historial está incompleto. La conversación se actualizará automáticamente.
                 </div>
               )}
               {showOperationalTimelineInChat && (
@@ -3359,7 +3466,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   data-testid="ticket-operational-timeline"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actividad del reclamo</p>
+                    <p className="text-xs font-semibold text-muted-foreground">Actividad del reclamo</p>
                     <Badge variant="outline" className="text-[11px]">
                       {operationalTimelineItems.length} eventos
                     </Badge>
@@ -3367,8 +3474,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   <div className="space-y-2">
                     {operationalTimelineItems.slice(-5).map((item) => (
                       <div key={item.id} className="rounded-md border border-border/50 bg-muted/30 px-2 py-1.5">
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.source || item.stream_type || 'evento'}</p>
-                        <p className="text-sm text-foreground">{item.preview_text}</p>
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                          {formatTicketDisplayLabel(item.source || item.stream_type, 'Actividad')}
+                        </p>
+                        <p className="text-sm text-foreground">
+                          {formatOperatorCopy(item.preview_text, 'Actividad registrada en el caso')}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -3384,8 +3495,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   title={timelinePartial ? 'Historial en sincronizacion' : 'No hay mensajes'}
                   description={
                     timelinePartial
-                      ? 'El historial completo todavia no respondio. Podes contestar igual; la conversacion se actualiza cuando vuelva el timeline.'
-                      : 'Esta conversacion aun no tiene mensajes. Envia el primero.'
+                      ? 'El historial completo todavía no está disponible. Podés contestar igual; la conversación se actualizará automáticamente.'
+                      : 'Esta conversación aún no tiene mensajes. Enviá el primero.'
                   }
                 />
               ) : (
@@ -3430,7 +3541,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           className={cn(
             'mb-2 flex min-w-0 items-center justify-between gap-2 rounded-[8px] border px-2 py-1.5 text-xs',
             composerChannelView.tone === 'success'
-              ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+              ? 'border-primary/30 bg-primary/10 text-foreground'
               : composerChannelView.tone === 'warning'
                 ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
                 : 'border-border/70 bg-muted/40 text-muted-foreground',
@@ -3445,10 +3556,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               <MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
             )}
             <div className="min-w-0">
-              <p className="truncate text-[11px] font-semibold uppercase tracking-wide sm:text-xs">
+              <p className="truncate text-[11px] font-semibold sm:text-xs">
                 {composerChannelView.label}
               </p>
-              <p className="hidden truncate text-[11px] leading-4 sm:block" title={composerChannelView.detail}>
+              <p className="line-clamp-2 text-[11px] leading-4" title={composerChannelView.detail}>
                 {composerChannelView.detail}
               </p>
             </div>
@@ -3462,7 +3573,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               className="h-5 rounded-full px-2 text-[10px] sm:text-[11px]"
               data-testid="ticket-composer-sync-status"
             >
-              {realtimeOnline ? 'Socket conectado' : 'Sondeo activo'}
+              {realtimeOnline ? 'Actualización en tiempo real' : 'Actualización automática'}
             </Badge>
           </div>
         </div>
@@ -3476,12 +3587,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 : activeComposerActionDeliveryView.tone === 'pending'
                   ? 'border-primary/30 bg-primary/10 text-foreground'
                   : activeComposerActionDeliveryView.tone === 'success'
-                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                    ? 'border-primary/30 bg-primary/10 text-foreground'
                     : activeComposerActionDeliveryView.tone === 'warning'
                       ? 'border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100'
                       : 'border-border/70 bg-muted/40 text-muted-foreground',
             )}
             data-testid="ticket-composer-action-result"
+            role="status"
+            aria-live="polite"
           >
             <p className="font-semibold">{activeComposerActionDeliveryView.title}</p>
             <p>{activeComposerActionDeliveryView.detail}</p>
@@ -3493,7 +3606,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             className="mb-2 rounded-[8px] border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
             role="alert"
           >
-            {getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.')}
+            {formatOperatorCopy(
+              getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.'),
+              'No se pudo registrar la acción interna.',
+            )}
           </div>
         ) : null}
 
@@ -3506,13 +3622,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             className="mb-2 rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-900 dark:text-amber-100"
           >
             <span className="font-semibold">Respuesta bloqueada. </span>
-            {replyBlockReason}
+            {replyBlockCopy}
             {composerActionContractQuery.isError && composerActionDetailEndpoint ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="ml-2 h-7"
+                className="ml-2 min-h-11"
                 disabled={composerActionContractQuery.isFetching || isSending || composerActionMutation.isPending}
                 onClick={() => {
                   if (activeComposerActionScopeRef.current !== composerActionScopeKey ||
@@ -3538,9 +3654,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               <div className={cn(
                 'rounded-[8px] border px-2.5 py-2 text-xs',
                 whatsappServiceWindow.tone === 'success'
-                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                  ? 'border-primary/30 bg-primary/10 text-foreground'
                   : 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100',
-              )}>
+              )} role="status" aria-live="polite">
                 <p className="font-semibold">{whatsappServiceWindow.title}</p>
                 <p>{whatsappServiceWindow.detail}</p>
               </div>
@@ -3552,7 +3668,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   <select
                     id="approved-whatsapp-template"
                     aria-label="Plantilla aprobada de WhatsApp"
-                    className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                    className="mt-1 h-11 w-full rounded-md border border-border bg-background px-2 text-sm"
                     value={selectedApprovedTemplateId}
                     onChange={(event) => {
                       setSelectedApprovedTemplateId(event.target.value);
@@ -3572,7 +3688,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                           Variable {key} de la plantilla
                           <input
                             aria-label={`Variable ${key} de la plantilla`}
-                            className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                            className="mt-1 h-11 w-full rounded-md border border-border bg-background px-2 text-sm"
                             value={approvedTemplateVariables[key] || ''}
                             onChange={(event) => setApprovedTemplateVariables((current) => ({
                               ...current,
@@ -3594,6 +3710,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                         })}
                         disabled={isSending || Boolean(templateReplyBlockReason) || selectedApprovedTemplate.variableKeys.some((key) => !approvedTemplateVariables[key]?.trim())}
                         aria-label="Enviar plantilla"
+                        className="min-h-11"
                       >
                         Enviar plantilla
                       </Button>
@@ -3603,7 +3720,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               ) : whatsappServiceWindow.recipientAvailable !== false && whatsappServiceWindow.blocksFreeForm ? (
                 <div data-testid="whatsapp-approved-templates-unavailable" className="rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-900 dark:text-amber-100">
                   <p className="font-semibold">Plantillas no disponibles</p>
-                  <p>El backend no publicó una plantilla aprobada para responder fuera de la ventana de 24 horas.</p>
+                  <p>El sistema no habilitó una plantilla aprobada para responder fuera de la ventana de 24 horas.</p>
                 </div>
               ) : null}
             </div>
@@ -3621,20 +3738,26 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 <p className="truncate text-sm font-medium text-foreground">{attachmentPreview.file.name}</p>
                 <p className="text-xs text-muted-foreground">{(attachmentPreview.file.size / 1024).toFixed(1)} KB</p>
               </div>
-              <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6" onClick={handleDiscardAttachment}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-11 w-11"
+                onClick={handleDiscardAttachment}
+                aria-label="Quitar archivo adjunto"
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>
           )}
           {operationalGuidance && replyDraft ? (
-            <div className="mb-1.5 rounded-[8px] border border-primary/20 bg-primary/5 p-2 sm:mb-2 sm:p-2.5">
+            <div className="mb-1.5 rounded-[8px] border border-primary/20 bg-primary/5 p-2 sm:mb-2 sm:p-2.5" role="status" aria-live="polite">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 space-y-0.5 sm:space-y-1">
                   <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary sm:h-4 sm:w-4" />
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-primary sm:text-xs">Borrador asistido</p>
+                    <p className="truncate text-[10px] font-semibold text-primary sm:text-xs">Respuesta sugerida</p>
                     <Badge variant={operationalGuidance.source === 'backend' ? 'secondary' : 'outline'} className="h-5 shrink-0 rounded-full px-1.5 text-[10px] sm:px-2 sm:text-[11px]">
-                      {operationalGuidance.source === 'backend' ? 'backend' : 'operativo'}
+                      {operationalGuidance.source === 'backend' ? 'Sistema' : 'Guía operativa'}
                     </Badge>
                   </div>
                   <p className="line-clamp-1 text-[11px] leading-4 text-muted-foreground sm:line-clamp-2 sm:text-xs sm:leading-5">{replyDraft}</p>
@@ -3643,7 +3766,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-7 shrink-0 rounded-[8px] px-2 text-[11px] font-semibold sm:h-8 sm:px-3 sm:text-xs"
+                  className="min-h-11 shrink-0 rounded-[8px] px-3 text-[11px] font-semibold sm:text-xs"
                   onClick={applyReplyDraft}
                   disabled={!canApplyReplyDraft}
                 >
@@ -3661,7 +3784,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               className={cn(
                 'mb-1.5 rounded-[8px] border p-2 sm:mb-2 sm:p-2.5',
                 replyDeliveryView.tone === 'success'
-                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                  ? 'border-primary/30 bg-primary/10 text-foreground'
                   : replyDeliveryView.tone === 'warning'
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
                     : 'border-border/70 bg-muted/40 text-muted-foreground',
@@ -3677,21 +3800,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 )}
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide">{replyDeliveryView.title}</p>
+                    <p className="text-xs font-semibold">{replyDeliveryView.title}</p>
                     <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">
                       {formatReplyDeliveryChannel(lastReplyDelivery.channel)}
                     </Badge>
                     {lastReplyDelivery.recipient_read_confirmed ? (
                       <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                        leido
+                        Leído
                       </Badge>
                     ) : lastReplyDelivery.recipient_presence_confirmed ? (
                       <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                        presencia activa
+                        Persona conectada
                       </Badge>
                     ) : lastReplyDelivery.socket_emitted ? (
                       <Badge variant="secondary" className="h-5 rounded-full px-2 text-[11px]">
-                        socket emitido
+                        Enviado al chat
                       </Badge>
                     ) : null}
                   </div>
@@ -3706,14 +3829,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           className="flex min-w-0 items-end gap-1.5 rounded-[10px] border border-border/80 bg-background p-1.5 shadow-sm"
           data-testid="ticket-composer"
           role="group"
-          aria-label="Respuesta desde el ticket"
+          aria-label="Respuesta desde el caso"
         >
           <Textarea
             ref={composerRef}
             placeholder={composerPlaceholder}
             className={cn(
               'min-w-0 flex-1 resize-none rounded-[8px] border-0 bg-transparent px-2 py-2 text-sm leading-5 shadow-none focus-visible:ring-1 focus-visible:ring-primary/40',
-              isMobile ? 'min-h-10 max-h-24' : 'min-h-10 max-h-36',
+              isMobile ? 'min-h-11 max-h-24' : 'min-h-11 max-h-36',
             )}
             rows={1}
             value={message}
@@ -3721,12 +3844,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             disabled={listening || isSending || Boolean(freeFormReplyBlockReason)}
             onKeyDown={handleComposerKeyDown}
             maxLength={1000}
-            aria-label="Responder ticket"
+            aria-label="Responder caso"
             aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : isTenantTicketWhatsApp ? 'whatsapp-service-window' : undefined}
           />
-          <div className="flex shrink-0 items-center gap-0.5 rounded-[8px] bg-muted/30 p-0.5 [&_button]:!h-9 [&_button]:!rounded-[7px]">
+          <div className="flex shrink-0 items-center gap-0.5 rounded-[8px] bg-muted/30 p-0.5 [&_button]:!h-11 [&_button]:!rounded-[7px]">
             {!newAttachmentUploadBlockReason ? (
-              <div className="[&_button]:!w-9 [&_button]:!border-0 [&_button]:!bg-transparent" data-testid="ticket-composer-attachment-action">
+              <div className="[&_button]:!w-11 [&_button]:!border-0 [&_button]:!bg-transparent" data-testid="ticket-composer-attachment-action">
                 <AdjuntarArchivo
                   onFileSelected={handleFileSelected}
                   disabled={!!attachmentPreview || isSending}
@@ -3749,7 +3872,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10"
+                    className="h-11 w-11"
                     disabled={isSending}
                     aria-label="Insertar respuesta guardada (atajo /)"
                     onClick={captureComposerSelection}
@@ -3759,7 +3882,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 </ResponseTemplatePicker>
               )}
               {supported && (
-                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={listening ? stop : start} disabled={isSending} aria-label={listening ? 'Detener dictado' : 'Iniciar dictado'}>
+                <Button variant="ghost" size="icon" className="h-11 w-11" onClick={listening ? stop : start} disabled={isSending} aria-label={listening ? 'Detener dictado' : 'Iniciar dictado'}>
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
               )}
@@ -3770,7 +3893,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="gap-1.5 px-2"
+                  className="min-h-11 gap-1.5 px-2"
                   aria-label="Herramientas de respuesta"
                 >
                   <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -3796,7 +3919,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   <DropdownMenuItem
                     aria-disabled="true"
                     aria-label={`Cargar archivo o imagen nuevo. No disponible: ${newAttachmentUploadBlockReason}`}
-                    className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
+                    className="min-h-11 items-start gap-2 py-2 opacity-70 focus:bg-muted"
                     onSelect={(event) => event.preventDefault()}
                   >
                     <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -3811,21 +3934,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 {authoritativeAttachmentMustFailClosed && existingAttachmentBlockReason ? (
                   <DropdownMenuItem
                     aria-disabled="true"
-                    aria-label={`Vincular adjunto existente. No disponible: ${existingAttachmentBlockReason}`}
-                    className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
+                    aria-label={`Vincular adjunto existente. No disponible: ${existingAttachmentBlockCopy}`}
+                    className="min-h-11 items-start gap-2 py-2 opacity-70 focus:bg-muted"
                     onSelect={(event) => event.preventDefault()}
                   >
                     <FileText className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">Vincular adjunto existente</span>
                       <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground" data-testid="ticket-existing-attachment-block-reason">
-                        {existingAttachmentBlockReason}
+                        {existingAttachmentBlockCopy}
                       </span>
                     </span>
                   </DropdownMenuItem>
                 ) : authoritativeAttachmentMustFailClosed ? (
                   <DropdownMenuItem
-                    className="items-start gap-2 py-2"
+                    className="min-h-11 items-start gap-2 py-2"
                     disabled={composerActionMutation.isPending}
                     onSelect={() => {
                       composerActionMutation.reset();
@@ -3838,8 +3961,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                       <span className="block text-sm font-medium">Vincular adjunto existente</span>
                       <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
                         {attachmentAction?.delivery_mode === 'crm_only'
-                          ? 'Guardado en CRM, no enviado externamente. No carga archivos nuevos.'
-                          : 'El backend hará un preflight; la entrega final requiere evidencia del proveedor.'}
+                          ? 'Queda guardado en el caso y no se envía a la persona. No permite cargar archivos nuevos.'
+                          : 'El sistema verificará la acción antes de enviarla. La entrega se confirmará cuando responda el canal.'}
                       </span>
                     </span>
                   </DropdownMenuItem>
@@ -3847,23 +3970,23 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 {replyBlockReason ? (
                   <DropdownMenuItem
                     aria-disabled="true"
-                    aria-label={`Enviar respuesta. No disponible: ${replyBlockReason}`}
-                    className="items-start gap-2 py-2 opacity-70 focus:bg-muted"
+                    aria-label={`Enviar respuesta. No disponible: ${replyBlockCopy}`}
+                    className="min-h-11 items-start gap-2 py-2 opacity-70 focus:bg-muted"
                     onSelect={(event) => event.preventDefault()}
                   >
                     <Send className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">Enviar respuesta</span>
-                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">{replyBlockReason}</span>
+                      <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">{replyBlockCopy}</span>
                     </span>
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem
                   aria-disabled={Boolean(locationBlockReason) || composerActionMutation.isPending}
                   aria-label={locationBlockReason
-                    ? `${locationAction?.label || 'Ubicación'}. No disponible: ${locationBlockReason}`
-                    : locationAction?.label || 'Ubicación'}
-                  className={cn('items-start gap-2 py-2', locationBlockReason && 'opacity-70 focus:bg-muted')}
+                    ? `${locationActionLabel}. No disponible: ${locationBlockCopy}`
+                    : locationActionLabel}
+                  className={cn('min-h-11 items-start gap-2 py-2', locationBlockReason && 'opacity-70 focus:bg-muted')}
                   onSelect={(event) => {
                     if (locationBlockReason || composerActionMutation.isPending) {
                       event.preventDefault();
@@ -3876,18 +3999,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 >
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium">{locationAction?.label || 'Ubicación'}</span>
+                    <span className="block text-sm font-medium">{locationActionLabel}</span>
                     <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
-                      {locationBlockReason || locationAction?.description || 'Compartir la ubicación publicada para el caso.'}
+                      {locationActionDescription}
                     </span>
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   aria-disabled={Boolean(formBlockReason) || composerActionMutation.isPending}
                   aria-label={formBlockReason
-                    ? `${formAction?.label || 'Formulario'}. No disponible: ${formBlockReason}`
-                    : formAction?.label || 'Formulario'}
-                  className={cn('items-start gap-2 py-2', formBlockReason && 'opacity-70 focus:bg-muted')}
+                    ? `${formActionLabel}. No disponible: ${formBlockCopy}`
+                    : formActionLabel}
+                  className={cn('min-h-11 items-start gap-2 py-2', formBlockReason && 'opacity-70 focus:bg-muted')}
                   onSelect={(event) => {
                     if (formBlockReason || composerActionMutation.isPending) {
                       event.preventDefault();
@@ -3900,18 +4023,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 >
                   <ClipboardList className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium">{formAction?.label || 'Formulario'}</span>
+                    <span className="block text-sm font-medium">{formActionLabel}</span>
                     <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
-                      {formBlockReason || formAction?.description || 'Compartir un formulario publicado para el caso.'}
+                      {formActionDescription}
                     </span>
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   aria-disabled={Boolean(handoffBlockReason) || composerActionMutation.isPending}
                   aria-label={handoffBlockReason
-                    ? `${handoffAction?.label || 'Derivar a humano'}. No disponible: ${handoffBlockReason}`
-                    : handoffAction?.label || 'Derivar a humano'}
-                  className={cn('items-start gap-2 py-2', handoffBlockReason && 'opacity-70 focus:bg-muted')}
+                    ? `${handoffActionLabel}. No disponible: ${handoffBlockCopy}`
+                    : handoffActionLabel}
+                  className={cn('min-h-11 items-start gap-2 py-2', handoffBlockReason && 'opacity-70 focus:bg-muted')}
                   onSelect={(event) => {
                     if (!handoffAction || handoffBlockReason || composerActionMutation.isPending) {
                       event.preventDefault();
@@ -3926,15 +4049,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                     <Headphones className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   )}
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium">{handoffAction?.label || 'Derivar a humano'}</span>
+                    <span className="block text-sm font-medium">{handoffActionLabel}</span>
                     <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground">
-                      {handoffBlockReason || handoffAction?.description || 'Derivación interna disponible para este expediente.'}
+                      {handoffActionDescription}
                     </span>
                     {handoffAction && !handoffBlockReason && (
                       handoffAction.external_dispatch === false || handoffAction.delivery_mode === 'internal_event'
                     ) ? (
                       <span className="block whitespace-normal text-[11px] leading-4 text-muted-foreground" data-testid="ticket-handoff-internal-copy">
-                        Derivación interna del CRM · no envía un mensaje por WhatsApp.
+                        Derivación interna del caso. No envía un mensaje por WhatsApp.
                       </span>
                     ) : null}
                   </span>
@@ -3942,7 +4065,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
-              className={cn('min-w-9 rounded-[8px]', isMobile ? 'px-2' : 'h-10 min-w-10 px-3')}
+              className={cn('min-h-11 min-w-11 rounded-[8px]', isMobile ? 'px-2' : 'px-3')}
               onClick={() => void handleSendMessage()}
               disabled={
                 isSending ||
@@ -3950,7 +4073,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 Boolean(freeFormReplyBlockReason) ||
                 (!message.trim() && !attachmentPreview)
               }
-              title={freeFormReplyBlockReason || undefined}
+              title={freeFormReplyBlockCopy || undefined}
               aria-describedby={replyBlockReason ? 'ticket-reply-block-reason' : isTenantTicketWhatsApp ? 'whatsapp-service-window' : undefined}
               aria-label="Enviar mensaje"
             >
@@ -3972,7 +4095,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
         <TicketShareActionDialog
           key={composerActionScopeKey}
-          action={shareActionDialogKind === 'location' ? locationAction : shareActionDialogKind === 'attachment' ? attachmentAction : formAction}
+          action={publicShareAction}
           kind={shareActionDialogKind || 'location'}
           open={Boolean(shareActionDialogKind)}
           replyContract={composerReplyContract}
@@ -3982,7 +4105,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             composerActionMutation.variables?.actionKind === shareActionDialogKind
           )}
           errorMessage={shareActionDialogKind && activeComposerActionError
-            ? getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.')
+            ? formatOperatorCopy(
+              getErrorMessage(activeComposerActionError, 'No se pudo registrar la acción interna.'),
+              'No se pudo registrar la acción interna.',
+            )
             : null}
           onOpenChange={(open) => {
             if (!open) setShareActionDialogKind(null);

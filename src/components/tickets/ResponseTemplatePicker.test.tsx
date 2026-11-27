@@ -115,6 +115,7 @@ describe('ResponseTemplatePicker', () => {
     expect(screen.getByText('Base institucional')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Caso asignado/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Cierre institucional/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Administrar respuestas' })).toBeInTheDocument();
     expect(pickerMocks.list).toHaveBeenCalledWith('junin');
     expect(pickerMocks.suggest).toHaveBeenCalledWith({
       tenantSlug: 'junin',
@@ -188,13 +189,19 @@ describe('ResponseTemplatePicker', () => {
     const option = await screen.findByRole('option', { name: /Requiere datos/ });
     fireEvent.click(option);
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/versión segura/i);
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Preparando una versión segura con los datos autorizados del caso…',
+    );
+    expect(screen.getByRole('status')).not.toHaveTextContent(/ticket/i);
     expect(option).toBeDisabled();
     expect(onSelectTemplate).not.toHaveBeenCalled();
 
     rejectPreview?.(new Error('contract mismatch'));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/no pudimos preparar/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /no pudimos preparar una versión segura para este caso/i,
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/ticket/i);
     expect(onSelectTemplate).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });

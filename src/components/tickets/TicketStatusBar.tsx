@@ -158,8 +158,8 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({
   }
 
   return (
-    <div className={cn('my-4 overflow-x-auto pb-1', className)}>
-      <div className="flex min-w-max items-stretch gap-3 pr-3">
+    <div className={cn('my-4 min-w-0 overflow-hidden pb-1', className)}>
+      <div className="grid min-w-0 grid-cols-2 items-stretch gap-3 sm:flex sm:pr-3">
         {steps.map((step, idx) => {
           const completed = resolvedCurrentIndex !== -1 && idx <= resolvedCurrentIndex;
           const icon = ICONS[step] || <Check className="h-3.5 w-3.5" />;
@@ -167,7 +167,7 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({
 
           return (
             <React.Fragment key={step}>
-              <div className="flex min-w-[78px] shrink-0 flex-col items-center text-center">
+              <div className="flex min-w-0 shrink-0 flex-col items-center text-center sm:min-w-[78px]">
                 <div
                   className={cn(
                     'flex h-9 w-9 items-center justify-center rounded-full border text-xs transition-all duration-200',
@@ -200,7 +200,7 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({
               {idx < steps.length - 1 && (
                 <div
                   className={cn(
-                    'h-0.5 flex-1 self-center rounded-full transition-colors duration-200',
+                    'hidden h-0.5 flex-1 self-center rounded-full transition-colors duration-200 sm:block',
                     idx < resolvedCurrentIndex
                       ? 'bg-primary'
                       : 'bg-muted-foreground/30',

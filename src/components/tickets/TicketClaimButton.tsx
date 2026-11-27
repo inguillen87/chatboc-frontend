@@ -58,9 +58,9 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
   const isAssignedToSomeoneElse = Boolean(currentAssigneeId) && currentAssigneeId !== userId;
 
   let blockReason: string | null = null;
-  if (!userId) blockReason = 'Iniciá sesión como operador para tomar este ticket.';
+  if (!userId) blockReason = 'Iniciá sesión como operador para tomar este caso.';
   else if (!atomicClaim) blockReason = 'No se pudo verificar este caso. Actualizá la bandeja antes de tomarlo.';
-  else if (isAssignedToSomeoneElse) blockReason = 'El ticket ya tiene responsable. La reasignación se gestiona desde el inspector de supervisión.';
+  else if (isAssignedToSomeoneElse) blockReason = 'El caso ya tiene responsable. La reasignación se gestiona desde la vista de supervisión.';
   else if (atomicClaim && routingState.loading) blockReason = 'Comprobando si podés atender esta categoría.';
   else if (atomicClaim && routingState.error) blockReason = 'No pudimos comprobar tus permisos. Actualizá la bandeja para volver a intentar.';
   else if (atomicClaim && !routingState.resolution?.ok) blockReason = 'La asignación de este caso no está disponible. Actualizá la bandeja; si continúa, avisá a supervisión.';
@@ -93,16 +93,16 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
         await routingState.refresh();
         await onClaimConfirmed?.();
       } catch (refreshError) {
-        console.warn('El ticket fue asignado, pero no se pudo refrescar el contrato de respuesta:', refreshError);
+        console.warn('El caso fue asignado, pero no se pudo refrescar el contrato de respuesta:', refreshError);
       }
-      toast.success('Ticket asignado a tu usuario');
+      toast.success('Caso asignado a tu usuario');
     } catch (claimError) {
-      console.error('No se pudo tomar el ticket:', claimError);
+      console.error('No se pudo tomar el caso:', claimError);
       toast.error(
         claimError instanceof ApiError && claimError.status === 409
-          ? 'Otro operador tomó este ticket. Actualizá la bandeja para ver el responsable.'
+          ? 'Otro operador tomó este caso. Actualizá la bandeja para ver el responsable.'
           : claimError instanceof ApiError && claimError.status === 403
-            ? 'Tu usuario no tiene permiso o categoría habilitada para tomar este ticket.'
+            ? 'Tu usuario no tiene permiso o categoría habilitada para tomar este caso.'
           : 'No recibimos confirmación de la asignación. Actualizá la bandeja antes de volver a intentar.',
       );
     } finally {
@@ -112,7 +112,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
 
   if (isAssignedToMe) {
     return (
-      <Button type="button" variant="secondary" size="sm" className="h-9 gap-1.5" disabled data-testid="ticket-claim-confirmed">
+      <Button type="button" variant="secondary" size="sm" className="min-h-[44px] gap-1.5" disabled data-testid="ticket-claim-confirmed">
         <CheckCircle2 className="h-4 w-4" />
         Asignado a mí
       </Button>
@@ -135,7 +135,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
         type="button"
         variant="default"
         size="sm"
-        className="h-9 gap-1.5"
+        className="min-h-[44px] gap-1.5"
         onClick={() => void claimTicket()}
         disabled={(atomicClaim && routingState.loading) || assigning || Boolean(blockReason)}
         title={blockReason || 'Tomar este caso con tus permisos de atención'}
@@ -143,7 +143,7 @@ const TicketClaimButton: React.FC<TicketClaimButtonProps> = ({ onClaimConfirmed 
         data-testid="ticket-claim-action"
       >
         {assigning || (atomicClaim && routingState.loading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
-        {assigning ? 'Asignando…' : atomicClaim && routingState.loading ? 'Verificando…' : 'Tomar ticket'}
+        {assigning ? 'Asignando…' : atomicClaim && routingState.loading ? 'Verificando…' : 'Tomar caso'}
       </Button>
       {blockReason ? <span id="ticket-claim-block-reason" className="sr-only">{blockReason}</span> : null}
     </>

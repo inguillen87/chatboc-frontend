@@ -20,6 +20,7 @@ import {
   isChatbocSessionRevisionCurrent,
   subscribeChatbocSessionRevision,
 } from '@/utils/chatbocSessionRevision';
+import { formatTicketDisplayLabel } from '@/utils/ticketStatus';
 
 const HANDOFF_ACTION_IDS = new Set([
   'handoff',
@@ -98,20 +99,22 @@ export const getHandoffActionBlockReason = (
   input: PlainRecord = {},
 ): string | null => {
   if (action.disabled) {
-    return action.disabled_reason || 'El backend marcó esta acción como no disponible.';
+    return action.disabled_reason
+      ? formatTicketDisplayLabel(action.disabled_reason, 'Esta acción no está disponible ahora.')
+      : 'Esta acción no está disponible ahora.';
   }
 
   const method = (action.method || 'POST').trim().toUpperCase();
   if (method !== 'POST') {
-    return `Método ${method} no habilitado para cambiar el control de la conversación.`;
+    return 'Esta acción no está habilitada para cambiar el control de la conversación.';
   }
 
   if (!action.endpoint?.startsWith('/')) {
-    return 'El backend no publicó un endpoint seguro para cambiar el control de la conversación.';
+    return 'No hay una acción segura disponible para cambiar el control de la conversación.';
   }
 
   if (action.delivery_mode !== 'internal_event' || action.external_dispatch !== false) {
-    return 'La transición no garantiza una acción interna sin despacho externo.';
+    return 'No se puede confirmar que esta acción sea solo interna.';
   }
 
   const payload: PlainRecord = { ...buildSaasActionPayload(action), ...input, ticket_id: ticketId };
@@ -120,7 +123,7 @@ export const getHandoffActionBlockReason = (
     isMissingValue(payload[field]));
   if (missing.length) {
     if (missing.length === 1 && missing[0] === 'reason') return 'Completá el motivo de la derivación.';
-    return `Falta completar el contrato backend: ${missing.join(', ')}.`;
+    return 'Faltan datos para completar esta acción.';
   }
   if (action.requires?.includes('reason')) {
     const reason = asText(payload.reason);
@@ -157,7 +160,7 @@ export const describeHandoffState = (
   if (HUMAN_HANDOFF_STATES.has(status) || actionIds.has('resume_ai')) {
     return {
       label: 'Humano atendiendo',
-      detail: 'La automatización queda bajo control operativo hasta que el backend habilite reanudar la IA.',
+      detail: 'El equipo tiene el control de la conversación hasta que se habilite la atención automática.',
       tone: 'human',
     };
   }
@@ -173,14 +176,14 @@ export const describeHandoffState = (
   if (AI_HANDOFF_STATES.has(status) || actionIds.has('handoff')) {
     return {
       label: 'IA atendiendo',
-      detail: 'El backend permite derivar la conversación al equipo cuando sea necesario.',
+      detail: 'Podés derivar la conversación al equipo cuando sea necesario.',
       tone: 'ai',
     };
   }
 
   return {
-    label: status ? `Estado: ${status.replace(/_/g, ' ')}` : 'Estado no publicado',
-    detail: 'No hay una transición IA-humano ejecutable publicada para este ticket.',
+    label: status ? `Estado: ${formatTicketDisplayLabel(status)}` : 'Estado no informado',
+    detail: 'No hay una acción disponible para cambiar quién atiende este caso.',
     tone: 'unknown',
   };
 };
@@ -188,7 +191,7 @@ export const describeHandoffState = (
 const stateClassName = (tone: HandoffState['tone']): string => {
   if (tone === 'human') return 'border-primary/45 bg-primary/10 text-foreground';
   if (tone === 'queued') return 'border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-200';
-  if (tone === 'ai') return 'border-emerald-400/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200';
+  if (tone === 'ai') return 'border-primary/35 bg-primary/10 text-foreground';
   return 'border-border bg-muted/30 text-muted-foreground';
 };
 
@@ -331,9 +334,7 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
           <div className="flex items-center gap-2">
             <StateIcon tone={state.tone} />
             <p className="text-sm font-semibold">Control IA y equipo</p>
-            <Badge variant="outline" className="border-current text-current">
-              Contrato backend
-            </Badge>
+            <Badge variant="outline" className="border-current text-current">Estado de atención</Badge>
           </div>
           <p className="mt-1 text-sm font-medium">{state.label}</p>
           <p className="mt-1 text-xs leading-5 opacity-80">{state.detail}</p>
@@ -355,6 +356,7 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
                     <div className="space-y-1">
                       <label className="text-xs font-medium" htmlFor={`${reasonId}-${action.id}`}>Motivo de la derivación</label>
                       <Textarea id={`${reasonId}-${action.id}`} value={reason} maxLength={500}
+                        className="min-h-11"
                         disabled={pending || Boolean(uncertainAttempt)}
                         onChange={(event) => setReasonDraft({ scopeEpoch, value: event.target.value })} />
                     </div>
@@ -363,13 +365,15 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
                     type="button"
                     size="sm"
                     variant={action.id === 'resume_ai' ? 'outline' : 'default'}
-                    className="w-full justify-center"
+                    className="min-h-11 w-full justify-center"
                     disabled={Boolean(blockedReason) || pending}
-                    title={blockedReason || action.description}
+                    title={blockedReason || (action.description
+                      ? formatTicketDisplayLabel(action.description, 'Acción disponible')
+                      : undefined)}
                     onClick={() => executeAction(action)}
                   >
                     {isCurrentAction ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    {action.label}
+                    {formatTicketDisplayLabel(action.label, 'Continuar')}
                   </Button>
                   {blockedReason ? (
                     <p className="text-[11px] leading-snug opacity-80" role="status">
@@ -384,9 +388,11 @@ const TicketAiHandoffControl: React.FC<TicketAiHandoffControlProps> = ({
       </div>
 
       {result ? (
-        <div className="mt-3 rounded-md border border-current/20 bg-background/60 px-3 py-2 text-xs" data-testid="handoff-action-result">
-          <span className="font-semibold">Confirmado por backend.</span>{' '}
-          {result.delivery?.operator_message || `Transición ${result.action || 'operativa'} registrada.`}
+        <div className="mt-3 rounded-md border border-current/20 bg-background/60 px-3 py-2 text-xs" data-testid="handoff-action-result" role="status">
+          <span className="font-semibold">Cambio confirmado.</span>{' '}
+          {result.delivery?.operator_message
+            ? formatTicketDisplayLabel(result.delivery.operator_message, 'El cambio quedó registrado.')
+            : 'El cambio quedó registrado.'}
         </div>
       ) : null}
 

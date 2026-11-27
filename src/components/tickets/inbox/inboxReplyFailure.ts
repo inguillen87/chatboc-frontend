@@ -12,8 +12,8 @@ export function inboxReplyFailure(error:unknown):InboxReplyFailure {
   if(ambiguous)return{
     kind:'ambiguous',
     title:'Entrega por confirmar',
-    message:'No pudimos confirmar si el proveedor recibió esta respuesta. El borrador se conserva.',
-    action:'Revisá el historial antes de reintentar. Si repetís el mismo texto, ChatBoc reutiliza el identificador del intento para evitar duplicados.',
+    message:'No pudimos confirmar si el canal recibió esta respuesta. El borrador se conserva.',
+    action:'Revisá el historial antes de volver a intentar. Si repetís el mismo texto, lo reconocemos como el mismo intento para evitar duplicados.',
   };
   return{
     kind:'rejected',

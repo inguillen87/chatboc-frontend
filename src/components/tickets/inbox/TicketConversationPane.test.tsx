@@ -127,7 +127,7 @@ describe('TicketConversationPane reply delivery contract', () => {
       .mockReturnValueOnce('crm-reply:attempt-0003');
   });
 
-  it('keeps owner, SLA and next step visible while detailed context stays collapsed', async () => {
+  it('keeps owner, plazo and next step visible while detailed context stays collapsed', async () => {
     getInboxDetailMock.mockResolvedValue({
       item: {
         ...ticket,
@@ -141,11 +141,11 @@ describe('TicketConversationPane reply delivery contract', () => {
     const operational = await screen.findByRole('region', { name: 'Control operativo del caso' });
     expect(within(operational).getByText('Ana Operadora')).toBeVisible();
     expect(within(operational).getByText('Coordinar visita técnica')).toBeVisible();
-    expect(within(operational).getByRole('group', { name: /SLA:/ })).toBeVisible();
+    expect(within(operational).getByRole('group', { name: /Plazo:/ })).toBeVisible();
     expect(screen.getByText('Contexto, compromisos y acciones del caso').closest('details')).not.toHaveAttribute('open');
   });
 
-  it('renders the three SLA clocks from the hydrated omnichannel detail', async () => {
+  it('renders the three plazo clocks from the hydrated omnichannel detail', async () => {
     getInboxDetailMock.mockResolvedValue({
       item: {
         ...ticket,
@@ -179,12 +179,32 @@ describe('TicketConversationPane reply delivery contract', () => {
     renderPane();
 
     fireEvent.click(await screen.findByText('Contexto, compromisos y acciones del caso'));
-    expect(await screen.findByRole('region', { name: 'Relojes de nivel de servicio' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Plazos de atención' })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByTestId('ticket-sla-clock-first_response')).toHaveAttribute('data-sla-state', 'healthy');
       expect(screen.getByTestId('ticket-sla-clock-next_update')).toHaveAttribute('data-sla-state', 'due');
       expect(screen.getByTestId('ticket-sla-clock-resolution')).toHaveAttribute('data-sla-state', 'overdue');
     });
+  });
+
+  it('never exposes raw status, channel or priority codes', async () => {
+    getInboxDetailMock.mockResolvedValue({
+      item: {
+        ...ticket,
+        status: 'waiting_agent',
+        channel: 'queue_offline_message',
+        priority: 'private_internal_priority',
+      },
+      raw: null,
+    });
+
+    const { container } = renderPane();
+
+    expect(await screen.findByText('Esperando atención')).toBeVisible();
+    expect(screen.getAllByText('Mensaje pendiente para el equipo').length).toBeGreaterThan(0);
+    expect(container).not.toHaveTextContent('waiting_agent');
+    expect(container).not.toHaveTextContent('queue_offline_message');
+    expect(container).not.toHaveTextContent('private_internal_priority');
   });
 
   it('reuses the same client_message_id after an ambiguous error and renders a durable queue honestly', async () => {
@@ -220,12 +240,12 @@ describe('TicketConversationPane reply delivery contract', () => {
     expect(replyClientMessageIdAt(0)).toBe('crm-reply:attempt-0001');
     expect(replyClientMessageIdAt(1)).toBe(replyClientMessageIdAt(0));
     expect(createClientMessageIdMock).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText('Respuesta encolada')).toBeInTheDocument();
-    expect(screen.getByText(/whatsapp · Encolado/i)).toBeInTheDocument();
+    expect(await screen.findByText('Respuesta en espera')).toBeInTheDocument();
+    expect(screen.getByText(/WhatsApp · En espera/i)).toBeInTheDocument();
     expect(screen.getByTestId('omnichannel-delivery-evidence')).toHaveTextContent(
-      'Entrega final: pendiente de callback del proveedor',
+      'Entrega final: esperando confirmación del canal',
     );
-    expect(screen.getByTestId('omnichannel-delivery-evidence')).toHaveTextContent('Outbox: 4 efectos');
+    expect(screen.getByTestId('omnichannel-delivery-evidence')).toHaveTextContent('Registro de envío: 4 operaciones');
     expect(screen.queryByText(/Entregado/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Mensaje enviado/i)).not.toBeInTheDocument();
   });
@@ -283,8 +303,8 @@ describe('TicketConversationPane reply delivery contract', () => {
     renderPane();
     await typeAndSend('Estamos revisando tu reclamo.');
 
-    expect(await screen.findByText('Aceptado por el proveedor')).toBeInTheDocument();
-    expect(screen.getByText(/whatsapp · Pendiente de callback/i)).toBeInTheDocument();
+    expect(await screen.findByText('Respuesta recibida por el canal')).toBeInTheDocument();
+    expect(screen.getByText(/WhatsApp · Esperando confirmación/i)).toBeInTheDocument();
     expect(screen.queryByText(/Mensaje enviado/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Entregado$/i)).not.toBeInTheDocument();
   });
@@ -309,7 +329,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     expect(await screen.findByText('Entrega confirmada')).toBeInTheDocument();
     expect(screen.getByText(/whatsapp · Leído/i)).toBeInTheDocument();
     expect(screen.getByTestId('omnichannel-delivery-evidence')).toHaveTextContent(
-      'Fuente: callback de estado del proveedor',
+      'Fuente: confirmación del canal',
     );
   });
 
@@ -330,8 +350,8 @@ describe('TicketConversationPane reply delivery contract', () => {
     renderPane();
     await typeAndSend('Confirmamos la novedad.');
 
-    expect(await screen.findByText('Aceptado por el proveedor')).toBeInTheDocument();
-    expect(screen.getByTestId('omnichannel-delivery-status')).toHaveTextContent('Pendiente de callback');
+    expect(await screen.findByText('Respuesta recibida por el canal')).toBeInTheDocument();
+    expect(screen.getByTestId('omnichannel-delivery-status')).toHaveTextContent('Esperando confirmación');
     expect(screen.getByTestId('omnichannel-delivery-evidence')).toHaveTextContent('Estado preservado: leída');
     expect(screen.queryByText('Entrega confirmada')).not.toBeInTheDocument();
   });
@@ -348,7 +368,7 @@ describe('TicketConversationPane reply delivery contract', () => {
         final_delivery: { status: 'preserved_from_original_attempt', authoritative_source: 'original_attempt_evidence' },
       },
       'Reintento reconocido',
-      'Replay sin duplicado',
+      'Sin duplicar',
     ],
     [
       'CRM-only reply',
@@ -360,8 +380,8 @@ describe('TicketConversationPane reply delivery contract', () => {
         evidence_stage: 'crm_only',
         final_delivery: { status: 'not_dispatched', authoritative_source: 'not_applicable' },
       },
-      'Guardado solo en CRM',
-      'CRM-only',
+      'Respuesta guardada en el caso',
+      'No enviada',
     ],
   ])('renders %s without inventing external delivery', async (_label, delivery, title, badge) => {
     postInboxActionMock.mockResolvedValueOnce(responseWithDelivery(delivery));
@@ -407,7 +427,7 @@ describe('TicketConversationPane reply delivery contract', () => {
       await replyResponse.promise;
     });
 
-    expect(screen.queryByText('Respuesta encolada')).not.toBeInTheDocument();
+    expect(screen.queryByText('Respuesta en espera')).not.toBeInTheDocument();
     expect(editor).toHaveValue('Borrador exclusivo del ticket 84');
   });
 
@@ -422,7 +442,7 @@ describe('TicketConversationPane reply delivery contract', () => {
     renderPane();
     await typeAndSend('Actualizar el timeline.');
 
-    expect(await screen.findByText('Guardado solo en CRM')).toBeInTheDocument();
+    expect(await screen.findByText('Respuesta guardada en el caso')).toBeInTheDocument();
     await waitFor(() => expect(getInboxDetailMock.mock.calls.length).toBeGreaterThanOrEqual(2));
     expect(getInboxDetailMock).toHaveBeenLastCalledWith(ticket.id, 'junin', undefined);
   });

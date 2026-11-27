@@ -30,7 +30,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    label: 'Panel de Tickets',
+    label: 'Centro de casos',
     path: TICKET_DESK_PATH,
     roles: ['admin', 'empleado', 'super_admin'],
     requiredAnyCapabilities: TICKET_READ_CAPABILITIES,
@@ -138,7 +138,7 @@ export default function ProfileNav() {
                 key={it.path}
                 value={it.path}
                 data-route={it.path}
-                className="rounded-lg px-4 py-2 text-sm font-semibold leading-snug text-center transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md whitespace-normal"
+                className="min-h-[44px] rounded-lg px-4 py-2 text-center text-sm font-semibold leading-snug whitespace-normal transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <span className="flex items-center gap-2">
                   {it.label}
@@ -161,7 +161,7 @@ export default function ProfileNav() {
       <div className="sm:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full flex items-center justify-between">
+            <Button variant="outline" className="flex min-h-[44px] w-full items-center justify-between focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               <span className="flex items-center gap-2">
                 <Menu className="w-4 h-4" />
                 Menú
@@ -170,7 +170,7 @@ export default function ProfileNav() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {resolvedItems.map((it) => (
-              <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)}>
+              <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)} className="min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
                 <span className="flex items-center gap-2">
                   {it.label}
                   {isTicketBadgePath(it.path) && ticketUnreadCount > 0 && (

@@ -99,8 +99,9 @@ describe('TicketClaimButton', () => {
 
   it('falla cerrado sin source_model y nunca usa una asignación legacy no atómica', () => {
     render(<TicketClaimButton />);
-    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    const claim = screen.getByRole('button', { name: 'Tomar caso' });
     expect(claim).toBeDisabled();
+    expect(claim).toHaveClass('min-h-[44px]', 'focus-visible:ring-2');
     expect(claim).toHaveAccessibleDescription(
       'No se pudo verificar este caso. Actualizá la bandeja antes de tomarlo.',
     );
@@ -113,7 +114,7 @@ describe('TicketClaimButton', () => {
     const onClaimConfirmed = vi.fn().mockResolvedValue(undefined);
     render(<TicketClaimButton onClaimConfirmed={onClaimConfirmed} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar caso' }));
 
     await waitFor(() => expect(mocks.claim).toHaveBeenCalledWith(
       '77',
@@ -138,7 +139,7 @@ describe('TicketClaimButton', () => {
     mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
     render(<TicketClaimButton />);
 
-    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    const claim = screen.getByRole('button', { name: 'Tomar caso' });
     expect(claim).toBeEnabled();
     expect(claim).toHaveAttribute(
       'title',
@@ -158,13 +159,13 @@ describe('TicketClaimButton', () => {
     );
   });
 
-  it('oculta Tomar ticket si employee.routing.v1 no publica al usuario como compatible', () => {
+  it('oculta Tomar caso si employee.routing.v1 no publica al usuario como compatible', () => {
     mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
     mocks.routingEligible = false;
 
     render(<TicketClaimButton />);
 
-    expect(screen.queryByRole('button', { name: 'Tomar ticket' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tomar caso' })).not.toBeInTheDocument();
     expect(mocks.claim).not.toHaveBeenCalled();
   });
 
@@ -177,14 +178,14 @@ describe('TicketClaimButton', () => {
     const onClaimConfirmed = vi.fn();
     render(<TicketClaimButton onClaimConfirmed={onClaimConfirmed} />);
 
-    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    const claim = screen.getByRole('button', { name: 'Tomar caso' });
     expect(claim).toBeEnabled();
     fireEvent.click(claim);
 
     await waitFor(() => expect(mocks.claim).toHaveBeenCalledTimes(1));
     expect(mocks.updateTicket).not.toHaveBeenCalled();
     expect(onClaimConfirmed).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Tomar caso' })).toBeEnabled();
   });
 
   it('bloquea la toma cuando falla la consulta de autoridad', () => {
@@ -192,7 +193,7 @@ describe('TicketClaimButton', () => {
     mocks.routingError = 'backend unavailable';
     render(<TicketClaimButton />);
 
-    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    const claim = screen.getByRole('button', { name: 'Tomar caso' });
     expect(claim).toBeDisabled();
     expect(claim).toHaveAccessibleDescription('No pudimos comprobar tus permisos. Actualizá la bandeja para volver a intentar.');
     expect(mocks.claim).not.toHaveBeenCalled();
@@ -208,34 +209,36 @@ describe('TicketClaimButton', () => {
     let resolveAssignment: (() => void) | null = null;
     mocks.claim.mockReturnValue(new Promise<void>((resolve) => { resolveAssignment = resolve; }));
     view.rerender(<TicketClaimButton />);
-    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar caso' }));
     expect(screen.getByRole('button', { name: 'Asignando…' })).toBeDisabled();
 
     await act(async () => resolveAssignment?.());
-    expect(await screen.findByRole('button', { name: 'Asignado a mí' })).toBeDisabled();
+    const confirmed = await screen.findByRole('button', { name: 'Asignado a mí' });
+    expect(confirmed).toBeDisabled();
+    expect(confirmed).toHaveClass('min-h-[44px]', 'focus-visible:ring-2');
   });
 
   it('no comparte la confirmación local entre modelos con el mismo id', async () => {
     mocks.ticket = { ...baseTicket, source_model: 'TenantTicket' };
     const view = render(<TicketClaimButton />);
-    fireEvent.click(screen.getByRole('button', { name: 'Tomar ticket' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tomar caso' }));
     expect(await screen.findByRole('button', { name: 'Asignado a mí' })).toBeDisabled();
 
     mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
     view.rerender(<TicketClaimButton />);
 
-    expect(screen.getByRole('button', { name: 'Tomar ticket' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Tomar caso' })).toBeEnabled();
   });
 
-  it('no permite tomar un ticket asignado a otra persona y reserva la reasignación al supervisor', () => {
+  it('no permite tomar un caso asignado a otra persona y reserva la reasignación al supervisor', () => {
     mocks.ticket = { ...baseTicket, source_model: 'MunicipioTicket' };
     mocks.routingAssigneeId = '22';
     render(<TicketClaimButton />);
 
-    const claim = screen.getByRole('button', { name: 'Tomar ticket' });
+    const claim = screen.getByRole('button', { name: 'Tomar caso' });
     expect(claim).toBeDisabled();
     expect(claim).toHaveAccessibleDescription(
-      'El ticket ya tiene responsable. La reasignación se gestiona desde el inspector de supervisión.',
+      'El caso ya tiene responsable. La reasignación se gestiona desde la vista de supervisión.',
     );
   });
 });

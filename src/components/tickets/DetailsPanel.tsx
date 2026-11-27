@@ -56,7 +56,13 @@ import {
   getAttachmentPreviewUrl,
   sanitizeAttachmentUrl,
 } from '@/utils/attachment';
-import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
+import {
+  formatTicketDisplayLabel,
+  formatTicketOptionalLabel,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+  replaceTicketVocabulary,
+} from '@/utils/ticketStatus';
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { ApiError } from '@/utils/api';
 import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
@@ -163,21 +169,30 @@ const extractHumanDescription = (value: unknown): string => {
   }
 };
 
+const firstReadableCaseSummary = (...values: unknown[]): string => {
+  for (const value of values) {
+    const label = formatTicketOptionalLabel(value);
+    if (label) return label;
+  }
+  return 'Sin descripción disponible';
+};
+
 export const resolveTicketCaseSummary = (
   ticket: Ticket,
   assistedSummary?: unknown,
   fallbackSummary?: unknown,
-): string =>
-  extractHumanDescription(assistedSummary) ||
-  extractHumanDescription(ticket.description) ||
-  extractHumanDescription(ticket.detalles) ||
-  normalizeTextValue(ticket.pregunta) ||
-  normalizeTextValue(fallbackSummary) ||
-  normalizeTextValue(ticket.asunto) ||
-  normalizeTextValue(ticket.categoria) ||
-  'Sin descripción disponible';
+): string => firstReadableCaseSummary(
+  extractHumanDescription(assistedSummary),
+  extractHumanDescription(ticket.description),
+  extractHumanDescription(ticket.detalles),
+  normalizeTextValue(ticket.pregunta),
+  normalizeTextValue(fallbackSummary),
+  normalizeTextValue(ticket.asunto),
+  normalizeTextValue(ticket.categoria),
+);
 
-const formatCompactLabel = (value: unknown): string => normalizeTextValue(value).replace(/_/g, ' ');
+const formatCompactLabel = (value: unknown, fallback = 'Dato disponible'): string =>
+  formatTicketDisplayLabel(value, fallback);
 
 const asPlainRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -213,7 +228,7 @@ const humanizeAssistedModule = (value: unknown): string => {
     payments: 'Pagos',
   };
 
-  return moduleLabels[normalized] || formatCompactLabel(normalized);
+  return moduleLabels[normalized] || formatTicketOptionalLabel(normalized) || 'Módulo relacionado';
 };
 
 const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[] => {
@@ -251,7 +266,7 @@ const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[]
           raw.reason
         );
         if (disabled && !disabledReason) {
-          disabledReason = 'No disponible para este estado del ticket.';
+          disabledReason = 'No está disponible para este estado del caso.';
         }
       }
 
@@ -261,11 +276,15 @@ const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[]
       seen.add(key);
       actions.push({
         id: id || label,
-        label,
-        description: description || undefined,
+        label: formatTicketDisplayLabel(label, 'Acción disponible'),
+        description: description
+          ? formatTicketDisplayLabel(description, 'Más información disponible')
+          : undefined,
         href: href || undefined,
         disabled,
-        disabledReason: disabledReason || undefined,
+        disabledReason: disabledReason
+          ? formatTicketDisplayLabel(disabledReason, 'Esta acción no está disponible ahora.')
+          : undefined,
       });
     });
   });
@@ -479,8 +498,8 @@ const EmptyDetailsPanel = () => (
   <aside className="hidden h-full w-full flex-col items-center justify-center border-l border-border bg-muted/20 p-6 lg:flex">
     <div className="text-center text-muted-foreground">
       <Info className="mx-auto mb-4 h-12 w-12" />
-      <h3 className="font-semibold">Detalles del Ticket</h3>
-      <p className="text-sm">Seleccioná un ticket para ver los detalles del cliente y del caso.</p>
+      <h3 className="font-semibold">Detalles del caso</h3>
+      <p className="text-sm">Seleccioná un caso para ver los datos de la persona y el seguimiento.</p>
     </div>
   </aside>
 );
@@ -583,7 +602,10 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
     if (typeof value === 'string') return value.trim();
     return '';
   };
-  const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
+  const channelLabel = React.useMemo(
+    () => formatTicketDisplayLabel(getTicketChannel(ticket), 'Canal no informado'),
+    [ticket],
+  );
   const personal = {
     nombre:
       normalizePersonalValue(ticket?.informacion_personal_vecino?.nombre) ||
@@ -604,9 +626,9 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
     : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
   const presentationCategory = useTicketPresentationCategory(ticket);
-  const ticketSubject = String(
-    ticket?.asunto || ticket?.title || ticket?.categoria || 'Detalle del ticket',
-  ).trim();
+  const ticketSubject = replaceTicketVocabulary(
+    ticket?.asunto || ticket?.title || ticket?.categoria || 'Detalle del caso',
+  );
   const rawCaseNumber = normalizePersonalValue(ticket?.nro_ticket) || normalizePersonalValue(ticket?.id);
   const caseNumberLabel = rawCaseNumber.startsWith('#') ? rawCaseNumber : `#${rawCaseNumber}`;
   const contactRoleLabel = ticket.tipo === 'pyme' ? 'Cliente' : 'Vecino/a';
@@ -670,7 +692,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
         }
     } catch (error) {
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          toast.error('No tienes permisos para enviar el historial en este momento.');
+          toast.error('No tenés permisos para enviar el historial en este momento.');
           console.error('Error sending ticket history:', error);
           return;
         }
@@ -701,7 +723,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
             toast.warning(
               formatTicketHistoryDeliveryErrorMessage(
                 result,
-                'El ticket se completó, pero no se pudo enviar el correo automático al ciudadano.',
+                'El caso se completó, pero no se pudo enviar el correo automático a la persona.',
               ),
             );
             console.warn('Completion email delivery failed:', result);
@@ -806,7 +828,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
 
   const formatCategory = (t: typeof ticket) => {
     if (!t?.categoria) return 'No informada';
-    let base = `Reclamo por ${t.categoria}`;
+    let base = `Reclamo por ${formatTicketDisplayLabel(t.categoria, 'categoría informada')}`;
     if (t.direccion) {
       base += ` en ${t.direccion}`;
     }
@@ -832,14 +854,11 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
     [ticket.allowed_actions, ticket.actions, ticket.next_steps],
   );
   const operationalGuidance = React.useMemo(() => deriveTicketOperationalGuidance(ticket), [ticket]);
-  const priorityLabel = normalizeTextValue(ticket.priority);
+  const priorityLabel = formatTicketOptionalLabel(ticket.priority);
   const slaSource = resolveTicketSlaSource(ticket);
   const assignedAgentLabel = normalizeTextValue(
     ticket.assignedAgent?.nombre_usuario ||
-      ticket.user?.nombre_usuario ||
-      ticket.assignedAgentId ||
-      ticket.assigned_agent_id ||
-      ticket.assigned_user_id,
+      ticket.user?.nombre_usuario,
   );
   const nextActionLabel = operationalGuidance.label;
   const assistedContext = React.useMemo(() => {
@@ -864,7 +883,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
         request?.target ||
         publicFollowUp?.target_module,
     );
-    const kindLabel = normalizeTextValue(
+    const kindLabel = formatTicketOptionalLabel(
       request?.request_kind_label ||
         request?.request_kind ||
         request?.kind_label ||
@@ -942,8 +961,8 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
     formatCategory(ticket),
   );
   const resolutionNextStep =
-    assistedContext.recommendedAction ||
-    nextActionLabel ||
+    formatTicketOptionalLabel(assistedContext.recommendedAction) ||
+    formatTicketOptionalLabel(nextActionLabel) ||
     'Revisá la información disponible y continuá la gestión desde la conversación.';
   const openActionHref = (href: string) => {
     if (!href) return;
@@ -985,15 +1004,15 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 shrink-0"
+              className="h-11 w-11 shrink-0"
               onClick={onClose}
-              aria-label="Cerrar detalles del ticket"
+              aria-label="Cerrar detalles del caso"
             >
               <X className="h-4 w-4" />
             </Button>
           ) : null}
           <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-[11px] font-medium text-muted-foreground">
               Caso <span className="font-mono text-foreground">{caseNumberLabel}</span>
             </p>
             <h2 className="ticket-inspector__header-title text-base font-semibold leading-snug md:text-lg" title={ticketSubject}>
@@ -1009,7 +1028,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
           ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" aria-label="Exportar o enviar historial">
+              <Button variant="outline" size="icon" className="h-11 w-11" aria-label="Exportar o enviar historial">
                 <FileDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1061,7 +1080,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                   ) : null}
                 </div>
                 <TicketSlaClocks sla={slaSource} compact={!slaSource} />
-                <p className="text-sm leading-relaxed text-foreground">{caseSummary}</p>
+                <p className="text-sm leading-relaxed text-foreground">{replaceTicketVocabulary(caseSummary)}</p>
                 {assistedContext.visible ? (
                   <div className="flex flex-wrap gap-2" data-testid="ticket-assisted-context-card">
                     {assistedContext.moduleLabel ? (
@@ -1078,7 +1097,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                 aria-labelledby={`next-step-${ticket.id}`}
                 className="rounded-xl border border-primary/20 bg-primary/5 p-3"
               >
-                <p id={`next-step-${ticket.id}`} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground">
+                <p id={`next-step-${ticket.id}`} className="text-[11px] font-semibold text-foreground">
                   Próximo paso
                 </p>
                 <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">
@@ -1092,7 +1111,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
 
               {primaryResolutionActions.length ? (
                 <section aria-label="Acciones operativas" className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[11px] font-semibold text-muted-foreground">
                     Acciones disponibles
                   </p>
                   <div className="ticket-inspector__action-grid">
@@ -1145,7 +1164,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
               <AccordionTrigger className="gap-3 py-3 text-left hover:no-underline">
                 <span className="flex min-w-0 items-center gap-3">
                   <IdentityAvatar
-                    name={displayName || personal.telefono || personal.email || `Ticket ${ticket.id}`}
+                    name={displayName || personal.telefono || personal.email || `Caso ${ticket.id}`}
                     avatarUrl={neighborAvatarUrl}
                     source={neighborAvatarSource}
                     consented={neighborAvatar.consented}
@@ -1183,31 +1202,31 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
 
                   <div className="ticket-inspector__contact-action-grid">
                     {phoneHref ? (
-                      <Button asChild variant="outline" size="sm" className="gap-2">
+                      <Button asChild variant="outline" size="sm" className="min-h-11 gap-2">
                         <a href={phoneHref} target="_blank" rel="noreferrer">
-                          <span className="flex h-4 w-4 items-center justify-center text-green-500"><FaWhatsapp /></span>
+                          <span className="flex h-4 w-4 items-center justify-center text-primary"><FaWhatsapp /></span>
                           WhatsApp
                         </a>
                       </Button>
                     ) : (
-                      <Button variant="outline" size="sm" className="gap-2" disabled>
+                      <Button variant="outline" size="sm" className="min-h-11 gap-2" disabled>
                         <span className="flex h-4 w-4 items-center justify-center"><FaWhatsapp /></span>
                         WhatsApp
                       </Button>
                     )}
                     {phoneDigits ? (
-                      <Button asChild variant="outline" size="sm">
+                      <Button asChild variant="outline" size="sm" className="min-h-11">
                         <a href={`tel:+${phoneDigits}`}>Llamar</a>
                       </Button>
                     ) : (
-                      <Button variant="outline" size="sm" disabled>Llamar</Button>
+                      <Button variant="outline" size="sm" className="min-h-11" disabled>Llamar</Button>
                     )}
                     {emailHref ? (
-                      <Button asChild variant="outline" size="sm" className="gap-2">
+                      <Button asChild variant="outline" size="sm" className="min-h-11 gap-2">
                         <a href={emailHref}><Mail className="h-4 w-4" aria-hidden="true" />Email</a>
                       </Button>
                     ) : (
-                      <Button variant="outline" size="sm" className="gap-2" disabled>
+                      <Button variant="outline" size="sm" className="min-h-11 gap-2" disabled>
                         <Mail className="h-4 w-4" aria-hidden="true" />Email
                       </Button>
                     )}
@@ -1215,7 +1234,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                       type="button"
                       variant="secondary"
                       size="sm"
-                      className="gap-2"
+                      className="min-h-11 gap-2"
                       onClick={() => copyToClipboard(
                         [displayName, personal.telefono, personal.email, personal.direccion].filter(Boolean).join(' - '),
                         'Contacto',
@@ -1258,7 +1277,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                     <p className="text-xs text-muted-foreground">Dirección registrada</p>
                     <p className="mt-1 break-words text-sm font-medium">{personal.direccion || 'No informada'}</p>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={openGoogleMaps} disabled={!hasAddress} className="gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={openGoogleMaps} disabled={!hasAddress} className="min-h-11 gap-2">
                     <MapPin className="h-4 w-4" aria-hidden="true" />Abrir mapa
                   </Button>
                 </div>
@@ -1394,7 +1413,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                 ) : null}
 
                 <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm" data-testid="ticket-technical-details">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="mb-3 text-xs font-semibold text-muted-foreground">
                     Datos técnicos
                   </p>
                   <dl className="ticket-inspector__technical-grid">
@@ -1433,7 +1452,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                         .filter(([, value]) => value !== null && value !== undefined && value !== '')
                         .map(([label, value]) => (
                           <div key={`${label}-${String(value)}`} className="rounded-md border bg-background px-3 py-2">
-                            <p className="text-[11px] text-muted-foreground">{formatCompactLabel(label)}</p>
+                            <p className="text-[11px] text-muted-foreground">{formatCompactLabel(label, 'Dato de prioridad')}</p>
                             <p className="text-sm font-medium">{String(value)}</p>
                           </div>
                         ))}
@@ -1460,7 +1479,7 @@ const DetailsPanelContent: React.FC<DetailsPanelContentProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsImageModalOpen(false)}
-                  className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   aria-label="Cerrar imagen ampliada"
                 >
                   <X className="h-4 w-4" />

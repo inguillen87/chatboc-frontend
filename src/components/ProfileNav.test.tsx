@@ -73,7 +73,7 @@ describe('ProfileNav operational access', () => {
 
     renderProfileNav();
 
-    expect(screen.queryByText('Panel de Tickets')).not.toBeInTheDocument();
+    expect(screen.queryByText('Centro de casos')).not.toBeInTheDocument();
   });
 
   it('shows the ticket tab when the backend sends an equivalent ticket capability alias', () => {
@@ -86,7 +86,7 @@ describe('ProfileNav operational access', () => {
 
     renderProfileNav();
 
-    const ticketTab = screen.getByRole('tab', { name: /Panel de Tickets/i });
+    const ticketTab = screen.getByRole('tab', { name: /Centro de casos/i });
     expect(ticketTab).toBeInTheDocument();
     expect(ticketTab).toHaveAttribute('data-route', '/perfil?tab=tickets');
   });
@@ -103,7 +103,7 @@ describe('ProfileNav operational access', () => {
 
     renderProfileNav();
 
-    expect(screen.getByText('Panel de Tickets')).toBeInTheDocument();
+    expect(screen.getByText('Centro de casos')).toBeInTheDocument();
   });
 
   it('keeps the ticket tab active when the profile opens from a ticket query link', () => {
@@ -115,6 +115,6 @@ describe('ProfileNav operational access', () => {
 
     renderProfileNav('/perfil?tab=tickets&codex_verify=1');
 
-    expect(screen.getByRole('tab', { name: /Panel de Tickets/i })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: /Centro de casos/i })).toHaveAttribute('data-state', 'active');
   });
 });

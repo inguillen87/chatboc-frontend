@@ -29,7 +29,7 @@ describe('TicketSlaClocks', () => {
       />,
     );
 
-    const region = screen.getByRole('region', { name: 'Relojes de nivel de servicio' });
+    const region = screen.getByRole('region', { name: 'Plazos de atención' });
     expect(within(region).getByText('Primera respuesta')).toBeInTheDocument();
     expect(within(region).getByText('Próxima actualización')).toBeInTheDocument();
     expect(within(region).getByText('Resolución')).toBeInTheDocument();
@@ -41,7 +41,9 @@ describe('TicketSlaClocks', () => {
   it('renders missing evidence as unknown and never as active', () => {
     render(<TicketSlaClocks sla={{ status: 'active' }} />);
 
-    expect(screen.getAllByText('Sin evidencia')).toHaveLength(3);
+    expect(screen.getByTestId('ticket-sla-clock-first_response')).toHaveTextContent('Sin plazo definido');
+    expect(screen.getByTestId('ticket-sla-clock-next_update')).toHaveTextContent('Sin plazo definido');
+    expect(screen.getByTestId('ticket-sla-clock-resolution')).toHaveTextContent('Sin plazo definido');
     expect(screen.queryByText(/activo/i)).not.toBeInTheDocument();
     expect(screen.getAllByText('Sin fecha o estado verificable')).toHaveLength(3);
   });
@@ -59,7 +61,7 @@ describe('TicketSlaClocks', () => {
       />,
     );
 
-    expect(screen.getByRole('group', { name: /SLA: Respuesta vencida/i })).toHaveTextContent(
+    expect(screen.getByRole('group', { name: /Plazo: Respuesta vencida/i })).toHaveTextContent(
       'Respuesta vencida · 1 h 5 min al corte',
     );
     expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'overdue');
@@ -97,8 +99,8 @@ describe('TicketSlaClocks', () => {
       />,
     );
 
-    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('SLA parcial');
-    expect(screen.getByRole('group', { name: /SLA: SLA parcial/i })).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('Plazo parcialmente definido');
+    expect(screen.getByRole('group', { name: /Plazo parcialmente definido/i })).toBeInTheDocument();
   });
 
   it('does not present remaining seconds as current without a backend evaluation cut', () => {
@@ -115,6 +117,6 @@ describe('TicketSlaClocks', () => {
 
     expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('Respuesta vencida');
     expect(screen.getByTestId('ticket-sla-clocks-compact')).not.toHaveTextContent('1 h 5 min');
-    expect(screen.getByRole('group', { name: 'SLA: Respuesta vencida' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Plazo: Respuesta vencida' })).toBeInTheDocument();
   });
 });

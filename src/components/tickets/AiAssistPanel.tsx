@@ -26,6 +26,7 @@ import {
 import type { Ticket } from '@/types/tickets';
 import { cn } from '@/lib/utils';
 import { dispatchTicketAiDraft } from './aiDraftEvents';
+import { formatTicketDisplayLabel, replaceTicketVocabulary } from '@/utils/ticketStatus';
 
 type RecordLike = Record<string, unknown>;
 
@@ -56,13 +57,12 @@ const asScore = (value: unknown): number | null => {
   return Math.max(0, Math.min(1, parsed));
 };
 
-const humanizeToken = (value: unknown): string => (
-  asString(value)
-    .replace(/^signal:/i, '')
-    .replace(/^sentiment:/i, 'sentimiento:')
-    .replace(/^intent:/i, 'intencion:')
-    .replace(/_/g, ' ')
-);
+const humanizeToken = (value: unknown): string => {
+  const normalized = asString(value)
+    .replace(/^(signal|sentiment|intent):/i, '')
+    .trim();
+  return formatTicketDisplayLabel(normalized, 'Dato disponible');
+};
 
 const formatPercent = (score: number | null): string | null => (
   score === null ? null : `${Math.round(score * 100)}%`
@@ -73,7 +73,7 @@ const providerLabel = (provider: unknown): string => {
   if (normalized === 'deterministic_local_fallback') return 'IA local deterministica';
   if (normalized === 'huggingface_zero_shot') return 'Hugging Face zero-shot';
   if (normalized === 'huggingface') return 'Hugging Face';
-  return humanizeToken(normalized);
+  return normalized ? 'Asistencia automática' : '';
 };
 
 const providerModeFromPayload = (provider: RecordLike): { label: string; fallbackReason?: string } => {
@@ -93,7 +93,7 @@ const providerModeFromPayload = (provider: RecordLike): { label: string; fallbac
 };
 
 const AI_ENRICHMENT_UNAVAILABLE_COPY =
-  'Asistencia IA temporalmente no disponible. El ticket, el chat y la gestion operativa siguen funcionando.';
+  'La asistencia automática no está disponible por el momento. El caso y la conversación siguen funcionando.';
 
 const normalizeRisk = (risk: string): string => {
   const normalized = risk.toLowerCase().trim();
@@ -125,8 +125,8 @@ const riskStyles: Record<string, { label: string; className: string; iconClassNa
   },
   bajo: {
     label: 'Riesgo bajo',
-    className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
-    iconClassName: 'text-emerald-500',
+    className: 'border-primary/25 bg-primary/5 text-foreground',
+    iconClassName: 'text-primary',
     progress: 28,
   },
   sin_senal: {
@@ -154,7 +154,7 @@ const normalizeActions = (...sources: unknown[]): Array<{ id: string; label: str
       seen.add(dedupeKey);
       actions.push({
         id,
-        label,
+        label: formatTicketDisplayLabel(label, 'Acción sugerida'),
         priority: asString(record.priority || record.severity) || undefined,
       });
     });
@@ -276,7 +276,7 @@ const normalizeChecklist = (source: unknown): OperatorChecklistItem[] => (
       if (!label) return null;
       return {
         id: asString(record.id || record.key) || `operator-check-${index}`,
-        label,
+        label: formatTicketDisplayLabel(label, 'Paso sugerido'),
         priority: asString(record.priority || record.severity),
         done: asBoolean(record.done || record.completed),
       };
@@ -337,7 +337,7 @@ export default function AiAssistPanel({
   const loadEnrichment = React.useCallback(async () => {
     if (activeRequestContext.current !== requestContext) return;
     if (!ticketId) {
-      setScopedError({ context: requestContext, message: 'No se pudo resolver el identificador del ticket para IA.' });
+      setScopedError({ context: requestContext, message: 'No se pudo identificar el caso para generar la sugerencia.' });
       setLoadedEnrichment({ context: requestContext, persistedSource: persistedEnrichment, payload: null });
       return;
     }
@@ -379,7 +379,7 @@ export default function AiAssistPanel({
         context: requestContext,
         message: isAiUnavailable
           ? AI_ENRICHMENT_UNAVAILABLE_COPY
-          : 'No se pudo calcular la asistencia IA para este ticket. El CRM sigue operativo.',
+          : 'No se pudo generar la sugerencia para este caso. La gestión sigue disponible.',
       });
       if (!persistedEnrichment) {
         setLoadedEnrichment({ context: requestContext, persistedSource: persistedEnrichment, payload: null });
@@ -429,13 +429,13 @@ export default function AiAssistPanel({
   const engine = providerModeFromPayload(provider);
   const hasEnrichment = Boolean(enrichment);
   const engineBadgeLabel = hasEnrichment
-    ? engine.label
+    ? 'Sugerencia disponible'
     : loading
       ? 'Analizando IA'
-      : 'IA temporalmente offline';
+      : 'Sugerencia no disponible';
   const safetyBadgeLabel = hasEnrichment
-    ? (advisoryOnly && !mutatesState ? 'advisory-only' : 'requiere revision')
-    : 'CRM operativo';
+    ? (advisoryOnly && !mutatesState ? 'No modifica el caso' : 'Requiere revisión')
+    : 'Gestión disponible';
 
   const replyContext = React.useMemo<OperatorReplyContext>(
     () => ({ ...requestContext, reply: operatorReply }),
@@ -489,7 +489,7 @@ export default function AiAssistPanel({
               Asistencia IA del caso
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Lectura operativa para priorizar, responder y derivar sin modificar el ticket.
+              Una ayuda para priorizar, responder y derivar sin modificar el caso.
             </p>
           </div>
           <Button
@@ -499,6 +499,7 @@ export default function AiAssistPanel({
             onClick={() => void loadEnrichment()}
             disabled={loading}
             aria-label="Actualizar asistencia IA"
+            className="h-11 w-11"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
@@ -510,21 +511,16 @@ export default function AiAssistPanel({
           </Badge>
           {hasEnrichment && engine.fallbackReason ? (
             <Badge variant="outline" className="bg-background/80">
-              fallback seguro
+              Modo alternativo seguro
             </Badge>
           ) : null}
           <Badge variant="outline" className="gap-1 bg-background/80">
             <ShieldCheck className="h-3 w-3" />
             {safetyBadgeLabel}
           </Badge>
-          {enrichment?.contract_version ? (
-            <Badge variant="outline" className="bg-background/80">
-              {enrichment.contract_version}
-            </Badge>
-          ) : null}
           {asBoolean(enrichment?.persisted) ? (
             <Badge variant="outline" className="bg-background/80">
-              guardado en CRM
+              Guardado en el caso
             </Badge>
           ) : null}
         </div>
@@ -571,12 +567,12 @@ export default function AiAssistPanel({
 
             {operatorSummary || operatorReply || operatorRouting || operatorChecklist.length ? (
               <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-primary">
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Guia para responder
+                  Guía para responder
                 </div>
                 {operatorSummary ? (
-                  <p className="text-sm font-medium leading-snug text-foreground">{operatorSummary}</p>
+                  <p className="text-sm font-medium leading-snug text-foreground">{replaceTicketVocabulary(operatorSummary)}</p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
                   {operatorRouting ? (
@@ -592,24 +588,24 @@ export default function AiAssistPanel({
                 </div>
                 {operatorReply ? (
                   <div className="rounded-lg border border-border/60 bg-background/85 p-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Borrador sugerido</p>
-                    <p className="mt-1 text-sm leading-relaxed text-foreground">{operatorReply}</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground">Respuesta sugerida</p>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground">{replaceTicketVocabulary(operatorReply)}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         type="button"
                         size="sm"
-                        className="h-8 rounded-[8px] px-3 text-xs font-semibold"
+                        className="min-h-11 rounded-[8px] px-3 text-xs font-semibold"
                         onClick={useOperatorReply}
                         disabled={!ticketId}
                       >
                         <MessageSquarePlus className="mr-1.5 h-3.5 w-3.5" />
-                        {replyLoaded ? 'Borrador cargado' : 'Usar borrador'}
+                        {replyLoaded ? 'Respuesta cargada' : 'Usar respuesta'}
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8 rounded-[8px] px-3 text-xs font-semibold"
+                        className="min-h-11 rounded-[8px] px-3 text-xs font-semibold"
                         onClick={copyOperatorReply}
                       >
                         <Copy className="mr-1.5 h-3.5 w-3.5" />
@@ -625,13 +621,13 @@ export default function AiAssistPanel({
                         <CheckCircle2
                           className={cn(
                             'mt-0.5 h-4 w-4 shrink-0',
-                            item.done ? 'text-emerald-500' : 'text-primary',
+                            'text-primary',
                           )}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="leading-snug">{item.label}</p>
+                          <p className="leading-snug">{replaceTicketVocabulary(item.label)}</p>
                           {item.priority ? (
-                            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
                               Prioridad {humanizeToken(item.priority)}
                             </p>
                           ) : null}
@@ -643,7 +639,7 @@ export default function AiAssistPanel({
                 {operatorNotes.length ? (
                   <div className="space-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground">
                     {operatorNotes.map((note) => (
-                      <p key={note}>{note}</p>
+                      <p key={note}>{replaceTicketVocabulary(note)}</p>
                     ))}
                   </div>
                 ) : null}
@@ -654,7 +650,7 @@ export default function AiAssistPanel({
               <div className="grid gap-2 sm:grid-cols-2">
                 {signalRows.map((row) => (
                   <div key={`${row.label}-${row.value}`} className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{row.label}</p>
+                    <p className="text-[11px] text-muted-foreground">{row.label}</p>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-semibold">{humanizeToken(row.value)}</p>
                       {formatPercent(row.score) ? (
@@ -673,9 +669,9 @@ export default function AiAssistPanel({
 
             {actions.length ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Proximas acciones sugeridas
+                  Próximas acciones sugeridas
                 </div>
                 <div className="space-y-2">
                   {actions.slice(0, 4).map((action) => (
@@ -692,9 +688,9 @@ export default function AiAssistPanel({
 
             {tags.length ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                   <Tags className="h-3.5 w-3.5" />
-                  Senales detectadas
+                  Señales detectadas
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => (

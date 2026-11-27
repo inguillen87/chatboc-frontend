@@ -5,7 +5,7 @@ import { CheckCircle2, Info, Paperclip, RefreshCcw, UserPlus } from 'lucide-reac
 
 import { Badge } from '@/components/ui/badge';
 import { TicketTimelineEvent } from '@/schemas/api';
-import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
+import { formatTicketDisplayLabel, formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 
 import { ReadStateBadge } from './ReadStateBadge';
 
@@ -16,6 +16,7 @@ interface TimelineMergeViewProps {
 export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) => (
   <div className="flex flex-col gap-4">
     {events.map((event) => {
+      const actorLabel = formatTicketDisplayLabel(event.actor.name || event.actor.type, 'Sistema');
       const eventDate = new Date(event.timestamp);
       const timeStr = Number.isNaN(eventDate.getTime())
         ? event.timestamp || 'Hora no informada'
@@ -37,7 +38,7 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
           >
             <div className="mb-1 flex items-baseline gap-2">
               <span className="text-[10px] font-medium text-muted-foreground">
-                {event.actor.name || event.actor.type}
+                {actorLabel}
               </span>
               <span className="text-[9px] text-muted-foreground/70">{timeStr}</span>
             </div>
@@ -53,7 +54,7 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
             {attachmentId ? (
               <Badge variant="outline" className="mt-1 gap-1 text-[10px] font-normal">
                 <Paperclip className="h-3 w-3" />
-                Archivo {String(attachmentId)}
+                Archivo adjunto
               </Badge>
             ) : null}
             {isOwn ? (
@@ -73,16 +74,18 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
         Icon = RefreshCcw;
         const status = (event.payload?.new_status as string) || 'desconocido';
         if (normalizeTicketStatus(status) === 'resuelto') Icon = CheckCircle2;
-        message = `${event.actor.name || 'Sistema'} cambio el estado a ${formatTicketStatusLabel(status)}`;
+        message = `${actorLabel} cambió el estado a ${formatTicketStatusLabel(status)}`;
       } else if (event.type === 'assignment_changed') {
         Icon = UserPlus;
-        const assigneeName = (event.payload?.new_assignee_name as string) || 'Nadie';
-        message = `${event.actor.name || 'Sistema'} asigno el ticket a ${assigneeName}`;
+        const assigneeName = formatTicketDisplayLabel(event.payload?.new_assignee_name, 'Nadie');
+        message = `${actorLabel} asignó el caso a ${assigneeName}`;
       } else if (
         event.type === 'presence_changed' ||
         event.type === 'message_read' ||
         event.type === 'typing'
       ) {
+        return null;
+      } else {
         return null;
       }
 

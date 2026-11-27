@@ -18,8 +18,11 @@ import {
 } from 'lucide-react';
 import {
   buildStatusFlow,
+  formatTicketDisplayLabel,
+  formatTicketOptionalLabel,
   formatTicketStatusLabel,
   normalizeTicketStatus,
+  replaceTicketVocabulary,
 } from '@/utils/ticketStatus';
 import { formatHistoryDate, pickHistoryDate } from '@/utils/ticketHistory';
 
@@ -53,7 +56,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
     ...historyEntries.map((h) => h.status).filter(Boolean),
   ]);
 
-  const channelLabel = getTicketChannel(ticket);
+  const channelLabel = formatTicketDisplayLabel(getTicketChannel(ticket), 'Canal no informado');
   const createdAtLabel = React.useMemo(() => {
     const formatted = fmtARWithOffset(ticket.fecha, -3);
 
@@ -87,13 +90,13 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
       icon: MessageCircle,
       valueClassName:
         channelLabel === 'N/A'
-          ? 'uppercase tracking-wide text-muted-foreground'
+          ? 'text-muted-foreground'
           : 'capitalize text-foreground',
     },
     estimatedArrival
       ? {
           label: 'Tiempo estimado',
-          value: estimatedArrival,
+          value: formatTicketDisplayLabel(estimatedArrival, 'Tiempo no informado'),
           icon: Clock3,
           valueClassName: 'text-foreground',
         }
@@ -108,16 +111,16 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
 
   const detailItems = [
     ticket.categoria
-      ? { label: 'Categoría', value: ticket.categoria, icon: Tag }
+      ? { label: 'Categoría', value: formatTicketDisplayLabel(ticket.categoria, 'Categoría no informada'), icon: Tag }
       : null,
     normalizedAddress
-      ? { label: 'Dirección', value: normalizedAddress, icon: MapPin }
+      ? { label: 'Dirección', value: formatTicketDisplayLabel(normalizedAddress, 'Dirección no informada'), icon: MapPin }
       : null,
     ticket.esquinas_cercanas
-      ? { label: 'Esquinas', value: ticket.esquinas_cercanas, icon: Hash }
+      ? { label: 'Esquinas', value: formatTicketDisplayLabel(ticket.esquinas_cercanas, 'Esquinas no informadas'), icon: Hash }
       : null,
     ticket.distrito
-      ? { label: 'Distrito', value: ticket.distrito, icon: Building }
+      ? { label: 'Distrito', value: formatTicketDisplayLabel(ticket.distrito, 'Distrito no informado'), icon: Building }
       : null,
   ].filter(Boolean) as { label: string; value: string; icon?: IconType }[];
 
@@ -137,7 +140,11 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
       hasCoordinateValue(ticket.municipio_longitud)
   );
 
-  const heading = ticket.categoria || ticket.asunto || 'Seguimiento del reclamo';
+  const heading = replaceTicketVocabulary(
+    formatTicketOptionalLabel(ticket.categoria) ||
+      formatTicketOptionalLabel(ticket.asunto) ||
+      'Seguimiento del reclamo',
+  );
 
   const mapTicket =
     normalizedAddress && normalizedAddress !== ticket.direccion
@@ -182,8 +189,8 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
       <CardContent className="space-y-5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Ticket #{ticket.nro_ticket || '—'}
+            <p className="text-xs text-muted-foreground">
+              Caso #{ticket.nro_ticket || '—'}
             </p>
             <h3 className="text-lg font-semibold leading-tight text-foreground">{heading}</h3>
           </div>
@@ -192,7 +199,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 sm:p-4 shadow-inner">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 Estado del reclamo
               </p>
               <p className="text-base font-semibold text-primary">
@@ -213,7 +220,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
           />
           {recentStatusTimeline.length > 0 && (
             <div className="mt-3 space-y-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 Últimos movimientos
               </p>
               <ul className="space-y-2">
@@ -259,7 +266,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                   <div key={item.label} className="flex items-start gap-2">
                     {item.icon && <item.icon className="mt-0.5 h-4 w-4 text-primary" />}
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {item.label}
                       </p>
                       <p className="font-medium leading-snug text-foreground">{item.value}</p>
@@ -276,7 +283,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 <button
                   type="button"
                   onClick={onOpenMap}
-                  className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   aria-label="Abrir ubicación en Google Maps"
                 >
                   <ExternalLink className="h-4 w-4" />

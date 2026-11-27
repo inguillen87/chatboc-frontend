@@ -87,7 +87,7 @@ describe('Navbar account menu routing', () => {
     render(<MemoryRouter initialEntries={[selected ? '/admin/knowledge?tenant_slug=selected-organization' : '/perfil?tenant_slug=foreign-public-organization']}><Navbar /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
     const slug = selected ? 'selected-organization' : 'actor-home';
-    expect(screen.getByRole('link', { name: kind === 'municipio' ? 'Reclamos' : 'Tickets' })).toHaveAttribute('href', `/perfil?tab=tickets&tenant_slug=${slug}`);
+    expect(screen.getByRole('link', { name: kind === 'municipio' ? 'Reclamos' : 'Casos' })).toHaveAttribute('href', `/perfil?tab=tickets&tenant_slug=${slug}`);
     const liveLinks = screen.getAllByRole('link', { name: 'Chat' });
     liveLinks.forEach(link => expect(link).toHaveAttribute('href', `/perfil?tab=tickets&tenant_slug=${slug}&focus=live_chat`));
   });
@@ -97,7 +97,7 @@ describe('Navbar account menu routing', () => {
     useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', isLoadingTenant: state === 'pending', tenant: { slug: 'selected-organization', publishedIdentity: state === 'missing' ? null : { tenantId: 7, tenantSlug: state === 'foreign' ? 'other-organization' : 'selected-organization', name: 'Untrusted institution' } } });
     render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
-    expect(screen.getByRole('link', { name: 'Tickets' })).toHaveAttribute('href', '/perfil?tab=tickets');
+    expect(screen.getByRole('link', { name: 'Casos' })).toHaveAttribute('href', '/perfil?tab=tickets');
     screen.getAllByRole('link', { name: 'Chat' }).forEach(link => expect(link).toHaveAttribute('href', '/perfil?tab=tickets&focus=live_chat'));
   });
 
@@ -107,7 +107,7 @@ describe('Navbar account menu routing', () => {
     useTenantMock.mockReturnValue({ currentSlug: 'selected-organization', tenant: { slug: 'selected-organization', tipo: kind, publishedIdentity: { tenantId: 22, tenantSlug: 'selected-organization', name: 'Selected institution' } } });
     render(<MemoryRouter initialEntries={['/admin/knowledge?tenant_slug=selected-organization']}><Navbar /></MemoryRouter>);
     fireEvent.keyDown(screen.getByRole('button', { name: /Mi cuenta/i }), { key: 'Enter' });
-    expect(await screen.findByRole('menuitem', { name: kind === 'municipio' ? 'Reclamos' : 'Tickets' })).toHaveAttribute('href', '/perfil?tab=tickets&tenant_slug=selected-organization');
+    expect(await screen.findByRole('menuitem', { name: kind === 'municipio' ? 'Reclamos' : 'Casos' })).toHaveAttribute('href', '/perfil?tab=tickets&tenant_slug=selected-organization');
     expect(screen.getByRole('menuitem', { name: 'Chat en vivo' })).toHaveAttribute('href', '/perfil?tab=tickets&tenant_slug=selected-organization&focus=live_chat');
   });
 
@@ -226,10 +226,9 @@ describe('Navbar account menu routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
-    expect(screen.getByRole('link', { name: /^Reclamos$/i })).toHaveAttribute(
-      'href',
-      '/perfil?tab=tickets',
-    );
+    const claimsLink = screen.getByRole('link', { name: /^Reclamos$/i });
+    expect(claimsLink).toHaveAttribute('href', '/perfil?tab=tickets');
+    expect(claimsLink).toHaveClass('min-h-11', 'focus-visible:ring-2');
   });
 
   it('opens knowledge from the normal account menu for a verified scoped delegate without inheriting a public tenant', () => {
@@ -513,7 +512,7 @@ describe('Navbar account menu routing', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /abrir men/i }));
 
-    expect(screen.getByRole('link', { name: /^Tickets$/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Casos$/i })).toHaveAttribute(
       'href',
       '/perfil?tab=tickets',
     );

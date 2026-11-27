@@ -2,6 +2,11 @@ import React from 'react';
 import { fmtARWithOffset } from '@/utils/date';
 import { CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { TicketHistoryEvent, Message, Ticket } from '@/types/tickets';
+import {
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+  replaceTicketVocabulary,
+} from '@/utils/ticketStatus';
 
 const LazyTicketMap = React.lazy(() => import('../TicketMap'));
 
@@ -20,13 +25,6 @@ type TimelineEvent =
       origin: 'agent' | 'user';
       content: string;
     };
-
-const formatStatus = (status: string) =>
-  status
-    ? status
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-    : '';
 
 const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [], ticket }) => {
   const events: TimelineEvent[] = [
@@ -59,14 +57,17 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [],
       {events.map((event, index) => {
         const isStatus = event.type === 'status';
         const isLastStatus = index === lastStatusIndex;
+        const isResolvedStatus = isStatus && normalizeTicketStatus(event.status) === 'resuelto';
         const icon = isStatus
           ? isLastStatus
             ? <CheckCircle size={16} />
             : <Clock size={16} />
           : <MessageSquare size={16} />;
         const circleClass =
-          isStatus && isLastStatus
-            ? 'bg-green-500 text-white'
+          isResolvedStatus
+            ? 'bg-emerald-600 text-white'
+            : isStatus && isLastStatus
+              ? 'bg-primary text-primary-foreground'
             : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300';
         return (
           <li key={index} className="mb-8 ml-6">
@@ -75,12 +76,12 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [],
             </span>
             {isStatus ? (
               <div className="flex flex-col gap-1">
-                <h4 className="font-semibold">{formatStatus(event.status)}</h4>
+                <h4 className="font-semibold">{formatTicketStatusLabel(event.status)}</h4>
                 <time className="text-sm text-muted-foreground">
                   {fmtARWithOffset(event.date, -3)}
                 </time>
                 {'notes' in event && event.notes && (
-                  <p className="text-sm mt-1">{event.notes}</p>
+                  <p className="text-sm mt-1">{replaceTicketVocabulary(event.notes)}</p>
                 )}
                 {hasLocation && (
                   <div className="mt-2">
@@ -105,7 +106,7 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [],
                       : 'bg-muted'
                   }`}
                 >
-                  <p className="text-sm">{event.content}</p>
+                  <p className="text-sm">{replaceTicketVocabulary(event.content)}</p>
                 </div>
                 <time className="text-sm text-muted-foreground">
                   {fmtARWithOffset(event.date, -3)}

@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import { apiFetch } from '@/utils/api';
+import { formatTicketDisplayLabel } from '@/utils/ticketStatus';
 import { toast } from 'sonner';
 
 export interface CuadrillaTask {
@@ -146,7 +147,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 font-extrabold gap-2"
+            className="min-h-11 rounded-xl border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 font-extrabold gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <HardHat className="w-4 h-4 text-amber-500" />
             <span className="hidden sm:inline">Modo cuadrilla</span>
@@ -176,7 +177,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
               size="sm"
               onClick={obtainGps}
               disabled={loading}
-              className="rounded-xl text-xs gap-1.5 h-8 font-semibold"
+              className="min-h-11 rounded-xl text-xs gap-1.5 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <LocateFixed className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : 'text-primary'}`} />
               {userLocation ? 'GPS activo' : 'Obtener GPS'}
@@ -206,32 +207,34 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                   transition={{ delay: idx * 0.04 }}
                   className="bg-card/90 border border-border/80 rounded-2xl p-4 shadow-sm space-y-3 hover:border-primary/40 transition-all"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-black text-primary">{task.nro_ticket}</span>
-                        <Badge variant="outline" className="text-[10px] font-bold">
-                          {task.categoria}
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="shrink-0 text-xs font-black text-primary">{task.nro_ticket}</span>
+                        <Badge variant="outline" className="max-w-full font-bold text-[10px]">
+                          {formatTicketDisplayLabel(task.categoria, 'Categoría no informada')}
                         </Badge>
                         {task.distancia_km !== null && (
-                          <Badge className="bg-primary/10 text-primary border-transparent text-[10px] font-black">
+                          <Badge className="shrink-0 border-transparent bg-primary/10 text-[10px] font-black text-primary">
                             A {task.distancia_km} km
                           </Badge>
                         )}
                       </div>
                       <h4 className="text-sm font-extrabold text-foreground mt-1 flex items-center gap-1.5">
                         <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        {task.direccion}
+                        {formatTicketDisplayLabel(task.direccion, 'Dirección no informada')}
                       </h4>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{task.distrito}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {formatTicketDisplayLabel(task.distrito, 'Distrito no informado')}
+                      </p>
                     </div>
 
                     <Badge
-                      className={
+                      className={`shrink-0 ${
                         task.estado === 'en_proceso'
-                          ? 'bg-amber-500/15 text-amber-600 border-amber-500/30'
-                          : 'bg-blue-500/15 text-blue-600 border-blue-500/30'
-                      }
+                          ? 'border-amber-500/30 bg-amber-500/15 text-amber-600'
+                          : 'border-blue-500/30 bg-blue-500/15 text-blue-600'
+                      }`}
                     >
                       {task.estado === 'en_proceso' ? 'En cuadrilla' : 'Pendiente'}
                     </Badge>
@@ -239,7 +242,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
 
                   {task.descripcion && (
                     <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/30 p-2 rounded-xl">
-                      {task.descripcion}
+                      {formatTicketDisplayLabel(task.descripcion, 'Descripción no disponible')}
                     </p>
                   )}
 
@@ -250,7 +253,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                         href={`https://www.google.com/maps/dir/?api=1&destination=${task.latitud},${task.longitud}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                        className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-bold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         <Navigation className="w-3.5 h-3.5" />
                         Navegar GPS
@@ -265,7 +268,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                           variant="outline"
                           size="sm"
                           onClick={() => handleStartWork(task.id)}
-                          className="h-8 text-xs font-bold rounded-xl gap-1"
+                          className="min-h-11 text-xs font-bold rounded-xl gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <Play className="w-3 h-3 text-amber-500" />
                           Iniciar
@@ -275,7 +278,7 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                       <Button
                         size="sm"
                         onClick={() => setSelectedTaskForClosure(task)}
-                        className="h-8 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                        className="min-h-11 rounded-xl bg-primary text-xs font-bold text-primary-foreground hover:bg-primary/90 gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         <Camera className="w-3 h-3" />
                         Cerrar con foto
@@ -309,7 +312,8 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                     variant="ghost"
                     size="icon"
                     onClick={() => setSelectedTaskForClosure(null)}
-                    className="rounded-full"
+                    className="h-11 w-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    aria-label="Cerrar carga de resolución"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -348,14 +352,14 @@ export const CuadrillaFieldModal: React.FC<{ triggerButton?: React.ReactNode }> 
                   variant="outline"
                   onClick={() => setSelectedTaskForClosure(null)}
                   disabled={isSubmittingClosure}
-                  className="rounded-xl text-xs font-semibold"
+                  className="min-h-11 rounded-xl text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Cancelar
                 </Button>
                 <Button
                   onClick={handleCompleteWork}
                   disabled={isSubmittingClosure}
-                  className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                  className="min-h-11 rounded-xl bg-primary text-xs font-bold text-primary-foreground hover:bg-primary/90 gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   {isSubmittingClosure ? 'Notificando...' : 'Confirmar cierre y notificar'}

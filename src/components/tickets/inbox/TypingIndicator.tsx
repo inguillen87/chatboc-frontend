@@ -12,8 +12,8 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ usersTyping })
   const verb = usersTyping.length > 1 ? 'están escribiendo...' : 'está escribiendo...';
 
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground px-1 mb-2 h-5">
-      <div className="flex items-center gap-1">
+    <div role="status" aria-live="polite" className="flex items-center gap-2 text-xs text-muted-foreground px-1 mb-2 h-5">
+      <div aria-hidden="true" className="flex items-center gap-1">
         <motion.span
           className="w-1 h-1 bg-muted-foreground rounded-full"
           animate={{ y: [0, -3, 0] }}

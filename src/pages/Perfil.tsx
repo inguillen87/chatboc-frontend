@@ -2694,7 +2694,7 @@ export default function Perfil() {
       title: esMunicipio ? "Operar reclamos" : "Operar conversaciones",
       description: esMunicipio
         ? "Entrar a reclamos, estados, ubicaciones y seguimiento diario."
-        : "Ver tickets, pedidos, ventas y conversaciones que requieren acción.",
+        : "Ver casos, pedidos, ventas y conversaciones que requieren acción.",
       icon: ClipboardList,
       actionLabel: "Abrir operación",
       tab: "tickets",
@@ -2862,7 +2862,7 @@ export default function Perfil() {
       <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
         <section className="mx-auto mt-24 flex w-full max-w-3xl flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/80 p-8 text-center shadow-sm">
           <Loader2 className="mb-4 h-7 w-7 animate-spin text-primary" />
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Centro de control</p>
+          <p className="text-xs font-semibold text-primary">Centro de control</p>
           <h1 className="mt-2 text-2xl font-extrabold text-foreground">Sincronizando panel operativo</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
             Cargando perfil, rubro y permisos antes de mostrar reclamos, reportes y equipo.
@@ -2933,9 +2933,9 @@ export default function Perfil() {
           <div className="flex min-h-9 items-center gap-2 rounded-lg border border-border/70 bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:px-3">
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-2">
-                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                <p className="shrink-0 text-[10px] font-semibold text-primary">
                   {activeProfileTab === "tickets"
-                    ? "Consola tickets"
+                    ? (esMunicipio ? "Centro de reclamos" : "Centro de casos")
                     : activeProfileTab === "usuarios"
                       ? "Consola CRM"
                       : activeProfileTab === "mapas"
@@ -4367,7 +4367,7 @@ export default function Perfil() {
         </WorkspacePanel>
         <WorkspacePanel
           active={activeProfileTab === "tickets" && workspaceCapabilities.operation}
-          label={esMunicipio ? "Centro de reclamos" : "Centro de tickets"}
+          label={esMunicipio ? "Centro de reclamos" : "Centro de casos"}
           data-testid="profile-ticket-workspace"
           className="mt-1 flex min-h-0 flex-1 basis-0 overflow-hidden pb-0 [&_[data-testid=tickets-panel-root]]:!h-full [&_[data-testid=tickets-panel-root]]:!min-h-0"
         >

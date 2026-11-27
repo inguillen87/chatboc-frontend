@@ -41,10 +41,19 @@ export const ImageAnalysisPreview: React.FC<ImageAnalysisPreviewProps> = ({
          </div>
       </div>
       <div className="flex justify-end gap-2 pt-2 border-t">
-         <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 text-muted-foreground">
+         <Button
+           variant="ghost"
+           size="sm"
+           onClick={onCancel}
+           className="min-h-11 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+         >
             <X className="w-3.5 h-3.5 mr-1" /> Descartar
          </Button>
-         <Button size="sm" onClick={() => onConfirm(title, desc)} className="h-8">
+         <Button
+           size="sm"
+           onClick={() => onConfirm(title, desc)}
+           className="min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+         >
             <Check className="w-3.5 h-3.5 mr-1" /> Confirmar Creación
          </Button>
       </div>

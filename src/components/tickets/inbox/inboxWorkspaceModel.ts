@@ -1,4 +1,5 @@
 import type { OmnichannelInboxItem } from '@/api/v2/saas';
+import { formatTicketDisplayLabel } from '@/utils/ticketStatus';
 export type InboxQueue = 'all' | 'unread' | 'unassigned' | 'queued';
 export type InboxSort = 'recent' | 'oldest' | 'name';
 export interface InboxFilters { search: string; channel: string; status: string; queue: InboxQueue; sort: InboxSort }
@@ -8,7 +9,7 @@ const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 export const inboxSearchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 export const validInboxTenant = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value);
 export const inboxChannel = (item: OmnichannelInboxItem) => text(item.canal_ingreso || item.channel).toLowerCase();
-export const inboxChannelLabel = (value: string) => value === 'whatsapp' ? 'WhatsApp' : value || 'Canal no informado';
+export const inboxChannelLabel = (value: string) => formatTicketDisplayLabel(value, 'Canal no informado');
 export function inboxActivityTime(value: unknown): number | null {
   const source = text(value);
   if (!/^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/i.test(source)) return null;

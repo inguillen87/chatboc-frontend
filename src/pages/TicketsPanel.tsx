@@ -31,13 +31,11 @@ const TicketsIdentityCoverageAlert = ({
     [currentSlug, tenantSlugOverride],
   );
   const [requestId, setRequestId] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
     if (!resolvedTenantSlug) {
       setRequestId(null);
-      setMessage(null);
       return () => {
         mounted = false;
       };
@@ -50,16 +48,13 @@ const TicketsIdentityCoverageAlert = ({
           if (!mounted) return;
           if (response.alert_count > 0 && response.slo_status === 'below_target') {
             setRequestId(response.request_id);
-            setMessage(response.alerts[0]?.message || 'Falta identidad suficiente para operar conversaciones omnicanal.');
             return;
           }
           setRequestId(null);
-          setMessage(null);
         })
         .catch(() => {
           if (!mounted) return;
           setRequestId(null);
-          setMessage(null);
         });
     }, Math.max(0, deferMs));
 
@@ -80,17 +75,28 @@ const TicketsIdentityCoverageAlert = ({
   };
 
   return (
-    <div className="mb-1 flex shrink-0 flex-col gap-2 rounded-lg border border-border/70 bg-card/80 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className="mb-1 flex w-full min-w-0 max-w-full shrink-0 flex-col gap-2 rounded-lg border border-border/70 bg-card/80 px-3 py-2 text-xs text-muted-foreground shadow-sm sm:flex-row sm:items-center sm:justify-between"
+      role="status"
+      aria-live="polite"
+    >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Badge variant="outline" className="shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
-          Identidad parcial
+          Datos de cuenta incompletos
         </Badge>
-        <p className="min-w-0 truncate">{message}</p>
-        <p className="font-mono text-[11px] text-muted-foreground/80">request_id: {requestId}</p>
+        <p className="min-w-0 leading-5">Faltan datos de tu cuenta para responder por todos los canales.</p>
       </div>
-      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={handleCopy}>
-        Copiar request_id
-      </Button>
+      <details className="w-full min-w-0 rounded-md border border-border/70 bg-background/70 sm:w-auto sm:min-w-[18rem]">
+        <summary className="flex min-h-11 cursor-pointer items-center rounded-md px-3 py-2 font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          Datos para soporte
+        </summary>
+        <div className="flex min-w-0 flex-col gap-2 border-t border-border/70 p-2 sm:flex-row sm:items-center">
+          <code className="min-w-0 break-all text-[11px] text-muted-foreground">Identificador: {requestId}</code>
+          <Button type="button" variant="outline" size="sm" className="min-h-11 shrink-0 px-3 text-xs" onClick={handleCopy}>
+            Copiar identificador
+          </Button>
+        </div>
+      </details>
     </div>
   );
 };
@@ -144,9 +150,9 @@ const TicketsPanelPage = ({
             <ViewState
               status="denied"
               title="Reclamos no habilitado para esta cuenta"
-              description="Tu usuario tiene permisos declarados, pero no incluye acceso a la mesa de tickets. Pedile al administrador que active tickets.read o reclamos.read para este perfil."
+              description="Tu usuario no tiene acceso a la mesa de reclamos. Pedile a una persona administradora que lo habilite para este perfil."
               action={
-                <Button type="button" variant="outline" onClick={() => window.location.assign('/perfil')}>
+                <Button type="button" variant="outline" className="min-h-11" onClick={() => window.location.assign('/perfil')}>
                   Volver al panel
                 </Button>
               }

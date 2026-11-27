@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import TicketAttachments from '../src/components/tickets/TicketAttachments';
 import type { Attachment } from '../src/types/tickets';
@@ -35,20 +35,25 @@ describe('TicketAttachments', () => {
     expect(link).toHaveAttribute('href', 'https://example.com/report.pdf');
   });
 
-  it('opens and closes modal when clicking an image thumbnail', () => {
+  it('opens and closes modal when clicking an image thumbnail', async () => {
     render(<TicketAttachments attachments={attachments} />);
 
     // Open modal by clicking the image button
     const button = screen.getByRole('button', { name: /abrir photo\.jpg/i });
+    button.focus();
     fireEvent.click(button);
 
     const dialog = screen.getByRole('dialog');
     const modalImage = within(dialog).getByAltText('photo.jpg');
     expect(modalImage).toHaveAttribute('src', 'https://example.com/photo.jpg');
 
-    // Close modal by clicking the overlay
-    fireEvent.click(dialog);
+    const closeButton = within(dialog).getByRole('button', { name: 'Cerrar' });
+    expect(closeButton).toHaveClass('h-11', 'w-11', 'focus-visible:ring-2');
+    await waitFor(() => expect(closeButton).toHaveFocus());
+
+    fireEvent.click(closeButton);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(button).toHaveFocus();
   });
 
   it('uses signed delivery URLs and marks private evidence as secure', () => {

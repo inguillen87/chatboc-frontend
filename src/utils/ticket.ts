@@ -36,7 +36,8 @@ export function getCitizenDni(ticket?: Ticket | null): string | undefined {
 }
 
 /**
- * Returns a human readable channel label for the ticket.
+ * Returns the known channel label, or preserves an unknown value so the
+ * presentation layer can apply its fail-closed label policy.
  * Falls back to "N/A" when no channel information is available.
  */
 export function getTicketChannel(ticket?: Ticket | null): string {
@@ -112,10 +113,7 @@ export function getTicketChannel(ticket?: Ticket | null): string {
       }
     }
 
-    return raw
-      .replace(/[_-]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return raw;
   };
 
   const directKeys = [

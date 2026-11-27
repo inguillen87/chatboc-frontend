@@ -1,5 +1,5 @@
 import type { Ticket } from '@/types/tickets';
-import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import { formatTicketOptionalLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { isTicketSlaOverdue, resolveTicketSlaSource } from '@/utils/ticketSla';
 
@@ -106,9 +106,9 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
 
   if (slaOverdue) {
     return {
-      label: 'Revisar el compromiso SLA vencido y dejar una respuesta operativa antes de derivarlo.',
+      label: 'Revisá el plazo vencido y dejá una respuesta antes de derivar el caso.',
       source: 'ui',
-      tags: ['riesgo', 'SLA'],
+      tags: ['riesgo', 'plazo'],
     };
   }
 
@@ -153,7 +153,8 @@ export const deriveTicketOperationalGuidance = (ticket: Ticket): OperationalGuid
 
 export const buildOperationalReplyDraft = (ticket: Ticket, guidance: OperationalGuidance): string => {
   const ticketLabel = ticket.nro_ticket ? ` ${ticket.nro_ticket}` : '';
-  const category = ticket.categoria ? ` por ${ticket.categoria}` : '';
+  const categoryLabel = formatTicketOptionalLabel(ticket.categoria);
+  const category = categoryLabel ? ` por ${categoryLabel}` : '';
   const tags = new Set(guidance.tags.map((tag) => tag.toLowerCase()));
 
   if (tags.has('ubicacion')) {

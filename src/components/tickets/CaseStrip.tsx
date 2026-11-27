@@ -7,7 +7,11 @@ import { cn } from '@/lib/utils';
 import { normalizeTicketLocation } from '@/utils/location';
 import { getContactPhone, getTicketChannel } from '@/utils/ticket';
 import { buildFullAddress } from '@/utils/ticketLocationAddress';
-import { formatTicketStatusLabel } from '@/utils/ticketStatus';
+import {
+  formatTicketDisplayLabel,
+  formatTicketOptionalLabel,
+  formatTicketStatusLabel,
+} from '@/utils/ticketStatus';
 import { deriveTicketOperationalGuidance } from './ticketOperationalGuidance';
 import type { TicketPresentationCategory } from './ticketPresentationCategory';
 
@@ -63,8 +67,6 @@ const resolveAssignedLabel = (ticket: Ticket): string =>
     ticket.assignedAgent?.email,
     (ticket as any).assigned_user_name,
     (ticket as any).assignedUserName,
-    ticket.assignedAgentId,
-    ticket.assigned_agent_id,
   ) || 'Sin responsable';
 
 const resolveLocationLabel = (ticket: Ticket): string => {
@@ -89,10 +91,13 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
   const guidance = deriveTicketOperationalGuidance(ticket);
   const contactName = resolveContactName(ticket);
   const contactPhone = getContactPhone(ticket);
-  const channel = getTicketChannel(ticket);
+  const channel = formatTicketDisplayLabel(getTicketChannel(ticket), 'Canal no informado');
   const assignedLabel = resolveAssignedLabel(ticket);
   const locationLabel = resolveLocationLabel(ticket);
-  const priority = readText(ticket.priority);
+  const priority = formatTicketOptionalLabel(ticket.priority);
+  const categoryLabel = formatTicketOptionalLabel(
+    presentationCategory?.label || ticket.categoria,
+  ) || 'Categoría no informada';
   const ticketRef = ticket.nro_ticket || `#${ticket.id}`;
 
   return (
@@ -102,7 +107,7 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
         className,
       )}
       data-testid="ticket-case-strip"
-      aria-label="Resumen operativo del ticket"
+      aria-label="Resumen operativo del caso"
     >
       <div className="flex min-w-0 flex-col gap-2 min-[920px]:flex-row min-[920px]:items-center min-[920px]:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -120,20 +125,20 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
               <Badge
                 variant="outline"
                 className="max-w-[10rem] truncate text-[11px]"
-                aria-label={`${presentationCategory?.label || ticket.categoria || 'Categoría no informada'}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
+                aria-label={`${categoryLabel}. ${presentationCategory?.detail || 'Sin evidencia de categoría.'}`}
               >
                 <span title={presentationCategory?.detail}>
-                  {presentationCategory?.label || ticket.categoria || 'Categoría no informada'}
+                  {categoryLabel}
                 </span>
               </Badge>
             </div>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={guidance.label}>
-              {guidance.label}
+            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={formatTicketDisplayLabel(guidance.label)}>
+              {formatTicketDisplayLabel(guidance.label)}
             </p>
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-0.5 pr-1">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 pb-0.5 pr-1">
           <Badge variant="outline" className="shrink-0 gap-1.5 text-[11px]">
             <UserRound className="h-3 w-3" />
             <span className="max-w-[9rem] truncate" title={contactName}>
@@ -169,7 +174,7 @@ export const CaseStrip: React.FC<CaseStripProps> = ({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 shrink-0 px-2 text-xs"
+              className="min-h-11 shrink-0 px-3 text-xs"
               onClick={onOpenDetails}
             >
               Detalles

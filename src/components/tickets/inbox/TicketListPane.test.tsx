@@ -48,7 +48,7 @@ describe('TicketListPane', () => {
     expect(screen.getByTestId('ticket-live-chat-state-municipio:378430')).toHaveTextContent('En cola');
   });
 
-  it('shows missing SLA evidence neutrally instead of calling the ticket active', () => {
+  it('shows a missing plazo neutrally instead of calling the case active', () => {
     render(
       <TicketListPane
         tickets={[baseTicket]}
@@ -57,8 +57,23 @@ describe('TicketListPane', () => {
       />,
     );
 
-    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('SLA sin evidencia');
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('Sin plazo definido');
     expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'unknown');
+  });
+
+  it('translates internal status and channel codes before displaying them', () => {
+    const { container } = render(
+      <TicketListPane
+        tickets={[{ ...baseTicket, status: 'waiting_agent', channel: 'queue_offline_message' }]}
+        selectedTicketId={baseTicket.id}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Esperando atención')).toBeVisible();
+    expect(screen.getByText('Mensaje pendiente para el equipo')).toBeVisible();
+    expect(container).not.toHaveTextContent('waiting_agent');
+    expect(container).not.toHaveTextContent('queue_offline_message');
   });
 
   it('surfaces an authoritative overdue clock in the queue', () => {

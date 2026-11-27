@@ -12,8 +12,8 @@ const action = (id: string, requires: string[], extra: Partial<SaasAction> = {})
 describe('TicketShareActionDialog crm-only v2', () => {
   it('accepts only the exact enabled location contract', () => {
     expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key']))).toBeNull();
-    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng']))).toMatch(/idempotente/i);
-    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], { external_dispatch: true }))).toMatch(/CRM-only/i);
+    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng']))).toMatch(/evite duplicados/i);
+    expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], { external_dispatch: true }))).toMatch(/solo en el caso/i);
   });
 
   it('rejects a contradictory published idempotency contract even when requires names the header', () => {
@@ -24,23 +24,25 @@ describe('TicketShareActionDialog crm-only v2', () => {
         body_field: 'request_id',
         retry_rule: 'generate_new_value',
       },
-    }))).toMatch(/identidad idempotente/i);
+    }))).toMatch(/evite duplicados/i);
   });
 
   it('fails closed when a CRM-only action advertises an external queue or mode', () => {
     expect(getTicketShareActionBlockReason('location', action('share_location', ['lat', 'lng', 'Idempotency-Key'], {
       may_queue_external_delivery: true,
       delivery_modes: ['durable_queue'],
-    }))).toMatch(/CRM-only/i);
+    }))).toMatch(/solo en el caso/i);
   });
 
   it('submits root WGS84 fields and states that no external message is sent', () => {
     const onConfirm = vi.fn();
     render(<TicketShareActionDialog action={action('share_location', ['lat', 'lng', 'Idempotency-Key'])} kind="location" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
-    expect(screen.getByText(/guardará en CRM, no se enviará externamente/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Guardar ubicación' })).toBeInTheDocument();
+    expect(screen.queryByText('share_location')).not.toBeInTheDocument();
+    expect(screen.getByText(/queda guardada en el caso.*no se envía a la persona/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
     fireEvent.change(screen.getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en el caso' }));
     expect(onConfirm).toHaveBeenCalledWith({ lat: -34.593, lng: -60.946 });
     expect(screen.getByText(/GPS corresponde al dispositivo del operador.*No modifica ni prueba/i)).toBeInTheDocument();
   });
@@ -50,7 +52,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (success: PositionCallback) => success({ coords: { latitude: -34.59, longitude: -60.94 } } as GeolocationPosition) } });
     render(<TicketShareActionDialog action={action('share_location', ['lat', 'lng', 'Idempotency-Key'], { raw: { accepted_fields: ['lat', 'lng', 'capture_source'] } })} kind="location" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
     fireEvent.click(screen.getByRole('button', { name: 'Usar mi ubicación' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en el caso' }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ capture_source: 'operator_browser_geolocation' }));
   });
 
@@ -65,9 +67,9 @@ describe('TicketShareActionDialog crm-only v2', () => {
 
   it('enables attachment only for an existing numeric ticket attachment id', () => {
     const attachmentAction = action('attach_file', ['attachment_id', 'Idempotency-Key']);
-    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [])).toMatch(/No hay adjuntos existentes/i);
+    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [])).toMatch(/No hay adjuntos disponibles en este caso/i);
     expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ id: 17, filename: 'acta.pdf' }])).toBeNull();
-    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ url: 'https://example.test/file' }])).toMatch(/ID verificable/i);
+    expect(getTicketShareActionBlockReason('attachment', attachmentAction, undefined, [{ url: 'https://example.test/file' }])).toMatch(/No hay adjuntos disponibles en este caso/i);
   });
 
   it('fails closed when attachment input_schema contradicts the emitted numeric root payload', () => {
@@ -87,7 +89,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
       attachmentAction,
       undefined,
       [{ id: 17, filename: 'acta.pdf' }],
-    )).toMatch(/attachment_id numérico/i);
+    )).toMatch(/identificar el adjunto/i);
   });
 
   it('offers only ticket attachments allowed by the published closed schema', () => {
@@ -119,7 +121,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
 
   it('keeps forms blocked without a real approved tenant option', () => {
     const formAction = action('send_form', ['form_id', 'Idempotency-Key']);
-    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/no publicó formularios reales/i);
+    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/No hay formularios aprobados/i);
   });
 
   it('submits only a verified, tenant-owned approved numeric form id published by the action', () => {
@@ -128,7 +130,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
     expect(getTicketShareActionBlockReason('form', formAction)).toBeNull();
     render(<TicketShareActionDialog action={formAction} kind="form" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
     fireEvent.change(screen.getByLabelText('Formulario publicado'), { target: { value: 'number:9' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en el caso' }));
     expect(onConfirm).toHaveBeenCalledWith({ form_id: 9 });
   });
 
@@ -137,7 +139,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
       { id: 9, label: 'Foreign', approved: true, tenant_owned: false, tenant_verified: true, evidence: { approved: true, tenant_owned: false, flow_contract_verified: true } },
       { id: 10, label: 'Unverified', approved: true, tenant_owned: true, tenant_verified: false, evidence: { approved: true, tenant_owned: true, flow_contract_verified: false } },
     ] } });
-    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/no publicó formularios reales/i);
+    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/No hay formularios aprobados/i);
   });
 
   it('uses the published form_slug schema and reply-contract options for runtime preflight', () => {
@@ -189,7 +191,9 @@ describe('TicketShareActionDialog crm-only v2', () => {
       />,
     );
 
-    expect(screen.getByText(/puede quedar en cola/i)).toBeInTheDocument();
+    expect(screen.getByText(/puede quedar en espera/i)).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Reclamo de alumbrado' })).toBeInTheDocument();
+    expect(screen.queryByText('reclamo-alumbrado')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Formulario publicado'), {
       target: { value: 'string:reclamo-alumbrado' },
     });
@@ -208,7 +212,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
       },
     });
 
-    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/contradicen/i);
+    expect(getTicketShareActionBlockReason('form', formAction)).toMatch(/configuración del formulario es incompatible/i);
   });
 
   it('does not replace an explicitly empty form enum with reply-contract options', () => {
@@ -242,7 +246,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
       },
     };
 
-    expect(getTicketShareActionBlockReason('form', formAction, replyContract)).toMatch(/lista cerrada/i);
+    expect(getTicketShareActionBlockReason('form', formAction, replyContract)).toMatch(/no hay formularios válidos/i);
   });
 
   it('submits the exact nested location shape published by input_schema', () => {
@@ -271,7 +275,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
     fireEvent.change(screen.getByLabelText('Dirección o referencia'), {
       target: { value: 'Av. San Martín 123' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en el caso' }));
     expect(onConfirm).toHaveBeenCalledWith({ location: { address: 'Av. San Martín 123' } });
   });
 
@@ -294,7 +298,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
       },
     });
 
-    expect(getTicketShareActionBlockReason('location', locationAction)).toMatch(/contradice/i);
+    expect(getTicketShareActionBlockReason('location', locationAction)).toMatch(/configuración de ubicación es incompatible/i);
   });
 
   it('preserves base required fields when location also publishes anyOf alternatives', () => {
@@ -322,7 +326,7 @@ describe('TicketShareActionDialog crm-only v2', () => {
     render(<TicketShareActionDialog action={locationAction} kind="location" open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
     fireEvent.change(screen.getByLabelText('Latitud WGS84'), { target: { value: '-34.593' } });
     fireEvent.change(screen.getByLabelText('Longitud WGS84'), { target: { value: '-60.946' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar en CRM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar en el caso' }));
 
     expect(screen.getByRole('alert')).toHaveTextContent(/dirección o referencia requerida/i);
     expect(onConfirm).not.toHaveBeenCalled();

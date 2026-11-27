@@ -39,7 +39,7 @@ describe('resolveTicketPresentationCategory', () => {
     expect(resolveTicketPresentationCategory({
       ticket: ticket(),
       routingResolution: authority(),
-    })).toMatchObject({ label: 'Luminarias', state: 'verified' });
+    })).toMatchObject({ label: 'luminarias', state: 'verified' });
   });
 
   it('rechaza una categoría autoritativa cuya identidad no coincide con M-419', () => {
@@ -65,7 +65,7 @@ describe('resolveTicketPresentationCategory', () => {
     expect(resolveTicketPresentationCategory({
       ticket: ticket({ authoritative_category: 'luminarias' } as Partial<Ticket>),
       routingResolution: null,
-    })).toMatchObject({ label: 'Luminarias', state: 'verified' });
+    })).toMatchObject({ label: 'luminarias', state: 'verified' });
   });
 
   it('bloquea aliases autoritativos contradictorios dentro del mismo ticket', () => {
@@ -95,7 +95,7 @@ describe('resolveTicketPresentationCategory', () => {
     expect(result).toEqual({
       label: 'Sugerencia',
       state: 'persisted',
-      detail: 'Categoría registrada en el ticket, sin autoridad correlacionada disponible.',
+      detail: 'Categoría registrada en el caso, sin verificación adicional disponible.',
     });
   });
 

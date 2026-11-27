@@ -111,12 +111,12 @@ vi.mock('./ConversationPanel', () => ({
       Conversacion
       {onToggleSidebar ? (
         <button type="button" onClick={onToggleSidebar}>
-          {isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
+          {isSidebarVisible ? 'Ocultar lista de casos' : 'Mostrar lista de casos'}
         </button>
       ) : null}
       {onToggleDetails ? (
         <button type="button" onClick={onToggleDetails}>
-          {isDetailsVisible ? 'Ocultar detalles del ticket' : 'Ver detalles del ticket'}
+          {isDetailsVisible ? 'Ocultar detalles del caso' : 'Ver detalles del caso'}
         </button>
       ) : null}
     </section>
@@ -128,7 +128,7 @@ vi.mock('./DetailsPanel', () => ({
     <section data-testid="tickets-details" data-operational-workspace={operationalWorkspace ? 'true' : 'false'}>
       Detalle
       {onClose ? (
-        <button type="button" aria-label="Cerrar detalles del ticket" onClick={onClose}>
+        <button type="button" aria-label="Cerrar detalles del caso" onClick={onClose}>
           Cerrar inspector
         </button>
       ) : null}
@@ -175,7 +175,7 @@ describe('NewTicketsPanel CRM layout', () => {
     const loadingState = screen.getByRole('status', { name: /preparando el centro de reclamos/i });
     expect(loadingState).toBeInTheDocument();
     expect(loadingState).not.toHaveClass('min-h-[520px]');
-    expect(screen.getByText(/ordenando la cola y recuperando las conversaciones/i)).toBeInTheDocument();
+    expect(screen.getByText(/ordenando los casos y recuperando las conversaciones disponibles/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 
@@ -373,14 +373,16 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent('El enlace del caso no es valido');
-    expect(screen.getByRole('alert')).toHaveTextContent('origen indicado no pertenece al contrato');
+    expect(screen.getByRole('alert')).toHaveTextContent('El enlace del caso no es válido');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'El origen indicado no corresponde a esta mesa. Volvé a abrir el caso desde la bandeja.',
+    );
     expect(resolveTicketTarget).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: /reintentar apertura/i })).not.toBeInTheDocument();
   });
 
   it.each([
-    ['forbidden', 'Tu usuario no tiene permisos para abrir el reclamo solicitado.', 'No tenes acceso a este reclamo'],
+    ['forbidden', 'Tu usuario no tiene permisos para abrir el reclamo solicitado.', 'No tenés acceso a este reclamo'],
     ['not_found', 'El reclamo solicitado no existe o no esta disponible para este tenant.', 'No encontramos el reclamo solicitado'],
   ])('shows an explicit %s target state without exposing another conversation', (status, message, title) => {
     const otherTicket = {
@@ -453,10 +455,11 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-error-state')).not.toHaveClass('min-h-[520px]');
     const contract = screen.getByTestId('tickets-access-contract');
     expect(contract).toHaveTextContent('Reparar acceso');
-    expect(contract).toHaveTextContent('missing_municipal_scope');
-    expect(contract).toHaveTextContent('request_id: req_scope_123');
+    expect(contract).toHaveTextContent('Copiar identificador de soporte');
     expect(contract).toHaveTextContent('junin');
-    expect(contract).toHaveTextContent('tickets.read');
+    expect(contract).toHaveTextContent('Este perfil necesita acceso a la mesa de reclamos.');
+    expect(contract).not.toHaveTextContent('missing_municipal_scope');
+    expect(contract).not.toHaveTextContent('tickets.read');
   });
 
   it('reserves enough desktop width for the ticket list before the chat column', () => {
@@ -485,8 +488,10 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
       gridTemplateColumns: 'minmax(300px, 320px) minmax(0, 1fr)',
     });
-    expect(screen.getByRole('heading', { name: 'Cola priorizada' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Casos por atender' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Caso y conversación' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Casos por atender' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Caso y conversación' })).toBeInTheDocument();
     expect(screen.queryByTestId('tickets-operational-continuity')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Más opciones' }));
@@ -563,13 +568,13 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-filter-control', 'false');
     expect(screen.getByTestId('tickets-sidebar')).toHaveAttribute('data-show-list-summary-bar', 'false');
     fireEvent.click(screen.getByRole('button', { name: /más opciones/i }));
-    expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('Canal: whatsapp +3');
+    expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveTextContent('Canal: WhatsApp +3');
     expect(screen.getByTestId('tickets-embedded-active-filters')).toHaveAttribute(
       'title',
-      'Canal: whatsapp | Area: obras | Agente: unassigned | SLA: risk',
+      'Canal: WhatsApp | Área: obras | Responsable: Sin responsable | Plazo: En riesgo',
     );
-    expect(screen.queryByText('Canal: whatsapp')).not.toBeInTheDocument();
-    expect(screen.queryByText('Area: obras')).not.toBeInTheDocument();
+    expect(screen.queryByText('Canal: WhatsApp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Área: obras')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /limpiar/i }));
     expect(resetFilters).toHaveBeenCalledWith(expect.any(Function));
     const resetUpdater = resetFilters.mock.calls[0][0] as (current: Record<string, string>) => Record<string, string>;
@@ -634,7 +639,7 @@ describe('NewTicketsPanel CRM layout', () => {
         });
       });
       expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Resolución guiada' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Cómo resolverlo' })).toBeInTheDocument();
       expect(screen.getByTestId('tickets-details')).toHaveAttribute('data-operational-workspace', 'true');
       commonDesktop.unmount();
       window.localStorage.clear();
@@ -716,8 +721,8 @@ describe('NewTicketsPanel CRM layout', () => {
       expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument();
 
       const dock = screen.getByTestId('tickets-detail-dock');
-      expect(dock).toHaveAccessibleName('Resolución guiada contraída');
-      const openInspector = screen.getByRole('button', { name: 'Abrir resolución guiada' });
+      expect(dock).toHaveAccessibleName('Cómo resolverlo contraído');
+      const openInspector = screen.getByRole('button', { name: 'Abrir cómo resolverlo' });
       expect(openInspector).toHaveAttribute('aria-controls', 'tickets-resolution-panel');
       expect(openInspector).toHaveAttribute('aria-expanded', 'false');
       openInspector.focus();
@@ -731,9 +736,9 @@ describe('NewTicketsPanel CRM layout', () => {
         gridTemplateColumns: 'minmax(300px, 320px) minmax(560px, 1fr) 420px',
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del ticket/i }));
+      fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del caso/i }));
 
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Abrir resolución guiada' })).toHaveFocus());
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Abrir cómo resolverlo' })).toHaveFocus());
       expect(grid).toHaveAttribute('data-detail-presentation', 'dock');
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
@@ -769,7 +774,7 @@ describe('NewTicketsPanel CRM layout', () => {
       render(<NewTicketsPanel embedded />);
 
       expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
-      const detailsTrigger = screen.getByRole('button', { name: /ver detalles del ticket/i });
+      const detailsTrigger = screen.getByRole('button', { name: /ver detalles del caso/i });
       detailsTrigger.focus();
       fireEvent.click(detailsTrigger);
 
@@ -780,7 +785,7 @@ describe('NewTicketsPanel CRM layout', () => {
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveStyle({
         gridTemplateColumns: 'minmax(0, 1fr)',
       });
-      await waitFor(() => expect(screen.getByRole('button', { name: /cerrar detalles del ticket/i })).toHaveFocus());
+      await waitFor(() => expect(screen.getByRole('button', { name: /cerrar detalles del caso/i })).toHaveFocus());
 
       fireEvent.keyDown(document, { key: 'Escape' });
 
@@ -840,7 +845,7 @@ describe('NewTicketsPanel CRM layout', () => {
       expect(document.body).toHaveStyle({ overflow: 'hidden' });
       await waitFor(() => expect(screen.getByRole('button', { name: 'Salir de vista ampliada' })).toHaveFocus());
 
-      const detailsToggle = screen.getByRole('button', { name: 'Ver detalles del ticket' });
+      const detailsToggle = screen.getByRole('button', { name: 'Ver detalles del caso' });
       detailsToggle.focus();
       fireEvent.click(detailsToggle);
       expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument();
@@ -850,7 +855,7 @@ describe('NewTicketsPanel CRM layout', () => {
 
       await waitFor(() => expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument());
       expect(screen.getByTestId('tickets-desktop-grid')).toHaveAttribute('data-conversation-focus', 'true');
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Ver detalles del ticket' })).toHaveFocus());
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Ver detalles del caso' })).toHaveFocus());
 
       const focusDialog = screen.getByRole('dialog', { name: /conversación ampliada/i });
       const focusableControls = Array.from(focusDialog.querySelectorAll<HTMLElement>('button:not([disabled])'));
@@ -954,7 +959,7 @@ describe('NewTicketsPanel CRM layout', () => {
       await waitFor(() => expect(screen.getByTestId('tickets-detail-region')).toBeInTheDocument());
       expect(screen.queryByTestId('tickets-list-region')).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: /mostrar lista de tickets/i }));
+      fireEvent.click(screen.getByRole('button', { name: /mostrar lista de casos/i }));
 
       await waitFor(() => expect(screen.queryByTestId('tickets-detail-region')).not.toBeInTheDocument());
       expect(screen.getByTestId('tickets-list-region')).toBeInTheDocument();
@@ -1015,8 +1020,12 @@ describe('NewTicketsPanel CRM layout', () => {
     }
   });
 
-  it('keeps the mobile tabs and active panel inside a clipped full-height viewport', () => {
-    mobileState.value = true;
+  it('keeps the 390 px mobile tabs and active panel inside a clipped full-height viewport', () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    try {
+      mobileState.value = true;
     const ticket = {
       id: 1,
       nro_ticket: 'M-1',
@@ -1041,17 +1050,17 @@ describe('NewTicketsPanel CRM layout', () => {
 
     render(<NewTicketsPanel embedded />);
 
-    expect(screen.getByTestId('tickets-mobile-layout')).toHaveClass('min-h-0', 'overflow-hidden');
+    expect(screen.getByTestId('tickets-mobile-layout')).toHaveClass('min-h-0', 'w-full', 'max-w-full', 'overflow-hidden');
     expect(screen.getByTestId('tickets-mobile-viewport')).toHaveClass('min-h-0', 'overflow-hidden');
-    expect(screen.getByRole('tablist', { name: 'Vistas de tickets' })).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Vistas del centro de casos' })).toBeInTheDocument();
 
-    const ticketsTab = screen.getByRole('tab', { name: 'Tickets' });
-    const chatTab = screen.getByRole('tab', { name: 'Chat' });
-    const detailsTab = screen.getByRole('tab', { name: 'Info' });
+    const ticketsTab = screen.getByRole('tab', { name: 'Casos' });
+    const chatTab = screen.getByRole('tab', { name: 'Conversación' });
+    const detailsTab = screen.getByRole('tab', { name: 'Resolver' });
 
     expect(ticketsTab).toHaveAttribute('aria-selected', 'true');
     expect(ticketsTab).toHaveAttribute('aria-controls', 'tickets-mobile-panel-tickets');
-    expect(screen.getByRole('tabpanel', { name: 'Tickets' })).toHaveAttribute(
+    expect(screen.getByRole('tabpanel', { name: 'Casos' })).toHaveAttribute(
       'id',
       'tickets-mobile-panel-tickets',
     );
@@ -1062,7 +1071,7 @@ describe('NewTicketsPanel CRM layout', () => {
     expect(chatTab).toHaveAttribute('aria-selected', 'true');
     expect(chatTab).toHaveAttribute('tabindex', '0');
     expect(ticketsTab).toHaveAttribute('tabindex', '-1');
-    expect(screen.getByRole('tabpanel', { name: 'Chat' })).toHaveAttribute(
+    expect(screen.getByRole('tabpanel', { name: 'Conversación' })).toHaveAttribute(
       'aria-labelledby',
       'tickets-mobile-tab-chat',
     );
@@ -1070,9 +1079,12 @@ describe('NewTicketsPanel CRM layout', () => {
     fireEvent.keyDown(chatTab, { key: 'ArrowRight' });
 
     expect(detailsTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tabpanel', { name: 'Info' })).toContainElement(
-      screen.getByTestId('tickets-details'),
-    );
+      expect(screen.getByRole('tabpanel', { name: 'Resolver' })).toContainElement(
+        screen.getByTestId('tickets-details'),
+      );
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
   });
 
   it('offers a compact action for the next operational priority in embedded mode', () => {
@@ -1158,17 +1170,17 @@ describe('NewTicketsPanel CRM layout', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /más opciones/i }));
     const summary = screen.getByTestId('tickets-desk-active-filters');
-    expect(summary).toHaveTextContent('Canal: whatsapp +2');
+    expect(summary).toHaveTextContent('Canal: WhatsApp +2');
     expect(summary).toHaveAttribute(
       'title',
-      'Canal: whatsapp | Area: obras | Agente: unassigned',
+      'Canal: WhatsApp | Área: obras | Responsable: Sin responsable',
     );
     expect(summary).toHaveAccessibleName(
-      'Filtros activos: Canal: whatsapp, Area: obras, Agente: unassigned',
+      'Filtros activos: Canal: WhatsApp, Área: obras, Responsable: Sin responsable',
     );
-    expect(screen.queryByText('Canal: whatsapp')).not.toBeInTheDocument();
-    expect(screen.queryByText('Area: obras')).not.toBeInTheDocument();
-    expect(screen.queryByText('Agente: unassigned')).not.toBeInTheDocument();
+    expect(screen.queryByText('Canal: WhatsApp')).not.toBeInTheDocument();
+    expect(screen.queryByText('Área: obras')).not.toBeInTheDocument();
+    expect(screen.queryByText('Responsable: Sin responsable')).not.toBeInTheDocument();
   });
 
   it('opens the dedicated territorial queue without disguising it as an SLA filter', async () => {
@@ -1262,7 +1274,7 @@ describe('NewTicketsPanel CRM layout', () => {
     render(<NewTicketsPanel embedded />);
     fireEvent.click(screen.getByRole('button', { name: /más opciones/i }));
 
-    expect(screen.getByRole('button', { name: /0 riesgo sla vencido/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /0 riesgo plazo vencido/i })).toBeInTheDocument();
     expect(screen.queryByText('SLA o prioridad alta')).not.toBeInTheDocument();
   });
 });

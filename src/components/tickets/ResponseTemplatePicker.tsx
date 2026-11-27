@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Building2, FileText, Loader2, Search, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -199,7 +199,7 @@ const ResponseTemplatePicker: React.FC<ResponseTemplatePickerProps> = ({
     if (preparingTemplateId) return;
     if (!tenantSlug || ticketId === null || ticketId === undefined || !sourceModel) {
       setSelectionError(
-        'No pudimos validar el ticket y su organización. Cerrá esta ventana y volvé a abrir el caso.',
+        'No pudimos validar el caso y su organización. Cerrá esta ventana y volvé a abrirlo.',
       );
       return;
     }
@@ -222,7 +222,7 @@ const ResponseTemplatePicker: React.FC<ResponseTemplatePickerProps> = ({
     } catch {
       if (previewRequestRef.current !== requestId) return;
       setSelectionError(
-        `No se insertó “${template.name}”: no pudimos preparar una versión segura para este ticket. Reintentá o elegí otra respuesta.`,
+        `No se insertó “${template.name}”: no pudimos preparar una versión segura para este caso. Reintentá o elegí otra respuesta.`,
       );
     } finally {
       if (previewRequestRef.current === requestId) {
@@ -325,7 +325,7 @@ const ResponseTemplatePicker: React.FC<ResponseTemplatePickerProps> = ({
             className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary"
           >
             <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-            Preparando una versión segura con los datos autorizados del ticket…
+            Preparando una versión segura con los datos autorizados del caso…
           </div>
         ) : null}
 
@@ -363,7 +363,7 @@ const ResponseTemplatePicker: React.FC<ResponseTemplatePickerProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="mt-4"
+                className="mt-4 min-h-11"
                 onClick={() => void listQuery.refetch()}
               >
                 Reintentar
@@ -389,7 +389,7 @@ const ResponseTemplatePicker: React.FC<ResponseTemplatePickerProps> = ({
                   <section key={group.id} aria-labelledby={`response-template-group-${group.id}`}>
                     <h3
                       id={`response-template-group-${group.id}`}
-                      className="flex items-center gap-2 px-2 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground"
+                      className="flex items-center gap-2 px-2 pb-1.5 text-[11px] font-semibold text-muted-foreground"
                     >
                       <GroupIcon className="h-3.5 w-3.5" />
                       {group.label}
@@ -448,11 +448,16 @@ const ResponseTemplatePicker: React.FC<ResponseTemplatePickerProps> = ({
 
         <div className="flex flex-col gap-2 border-t border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <span>↑ ↓ para navegar · Enter para insertar · Esc para cerrar</span>
-          <Button asChild variant="ghost" size="sm" className="h-8 justify-start px-2 sm:justify-center">
-            <Link to={managementHref} onClick={() => handleOpenChange(false)}>
-              Administrar respuestas
-            </Link>
-          </Button>
+          <Link
+            to={managementHref}
+            onClick={() => handleOpenChange(false)}
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'sm' }),
+              'min-h-11 justify-start px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:justify-center',
+            )}
+          >
+            Administrar respuestas
+          </Link>
         </div>
       </DialogContent>
     </Dialog>

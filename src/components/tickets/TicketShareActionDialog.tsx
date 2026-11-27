@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { formatTicketDisplayLabel } from '@/utils/ticketStatus';
 
 export type TicketShareActionKind = 'location' | 'form' | 'attachment';
 export type TicketShareActionPayload = Record<string, unknown> & {
@@ -111,14 +112,16 @@ const getAttachmentOptions = (attachments: unknown[] = []): VerifiedOption[] =>
 
 const getLegacyFormOptions = (action: SaasAction | null): VerifiedOption[] => {
   const raw = asRecord(action?.raw);
-  return asArray(raw.options).flatMap((candidate) => {
+  return asArray(raw.options).flatMap((candidate, index) => {
     const item = asRecord(candidate);
     const id = positiveId(item.form_id ?? item.id);
     const label = text(item.label ?? item.name ?? item.title);
     const evidence = asRecord(item.evidence);
     const approved = item.approved === true && item.tenant_owned === true && item.tenant_verified === true &&
       evidence.approved === true && evidence.tenant_owned === true && evidence.flow_contract_verified === true;
-    return id && label && approved ? [{ value: id, label }] : [];
+    return id && label && approved
+      ? [{ value: id, label: formatTicketDisplayLabel(label, `Formulario ${index + 1}`) }]
+      : [];
   });
 };
 
@@ -140,7 +143,7 @@ const getPublishedFormOptions = (
 ): ConfigResult<VerifiedOption[]> => {
   const source = text(propertySchema['x-options-source']);
   if (source && source !== FORM_OPTIONS_SOURCE) {
-    return { config: null, error: 'El esquema del formulario referencia una fuente de opciones no reconocida.' };
+    return { config: null, error: 'No pudimos verificar la lista de formularios disponibles.' };
   }
 
   const hasPublishedEnum = Object.prototype.hasOwnProperty.call(propertySchema, 'enum');
@@ -151,26 +154,26 @@ const getPublishedFormOptions = (
     return id ? [id] : [];
   });
   if (hasPublishedEnum && !enumValues.length) {
-    return { config: null, error: 'El esquema no publicó valores válidos en la lista cerrada de formularios.' };
+    return { config: null, error: 'No hay formularios válidos para seleccionar.' };
   }
   const enumKeys = new Set(enumValues.map(optionKey));
   const formSelection = asRecord(asRecord(replyContract).form_selection);
-  const publishedOptions = asArray(formSelection.options).flatMap<VerifiedOption>((candidate): VerifiedOption[] => {
+  const publishedOptions = asArray(formSelection.options).flatMap<VerifiedOption>((candidate, index): VerifiedOption[] => {
     const item = asRecord(candidate);
     const value = field === 'form_slug' ? text(item.form_slug) : positiveId(item.form_id ?? item.id);
     const label = text(item.label ?? item.name ?? item.title);
     if (value === null || !label) return [];
     if (hasPublishedEnum && !enumKeys.has(optionKey(value))) return [];
-    return [{ value, label }];
+    return [{ value, label: formatTicketDisplayLabel(label, `Formulario ${index + 1}`) }];
   });
   if (source && !publishedOptions.length) {
-    return { config: null, error: 'El backend no publicó opciones compatibles para seleccionar el formulario.' };
+    return { config: null, error: 'No hay opciones disponibles para seleccionar el formulario.' };
   }
   const options = publishedOptions.length
     ? publishedOptions
-    : enumValues.map((value) => ({ value, label: String(value) }));
+    : enumValues.map((value, index) => ({ value, label: `Formulario ${index + 1}` }));
   if (!options.length) {
-    return { config: null, error: 'El esquema no publicó una lista cerrada de formularios disponibles.' };
+    return { config: null, error: 'No hay formularios disponibles para seleccionar.' };
   }
   return { config: dedupeOptions(options), error: null };
 };
@@ -179,26 +182,26 @@ const resolveFormInputConfig = (
   action: SaasAction | null,
   replyContract?: PlainRecord,
 ): ConfigResult<FormInputConfig> => {
-  if (!action) return { config: null, error: 'Este ticket no publicó una acción de formulario.' };
+  if (!action) return { config: null, error: 'Este caso no tiene una acción de formulario disponible.' };
   const schema = asRecord(action.input_schema);
   if (!Object.keys(schema).length) {
     const required = new Set(action.requires || []);
     if (!required.has('form_id') || required.has('form_slug')) {
-      return { config: null, error: 'La acción no publicó un esquema inequívoco para identificar el formulario.' };
+      return { config: null, error: 'No pudimos validar la configuración del formulario.' };
     }
     const options = getLegacyFormOptions(action);
     return options.length
       ? { config: { field: 'form_id', options }, error: null }
-      : { config: null, error: 'El backend no publicó formularios reales, aprobados y pertenecientes al tenant para este ticket.' };
+      : { config: null, error: 'No hay formularios aprobados para compartir en este caso.' };
   }
   if (schema.type !== 'object') {
-    return { config: null, error: 'El esquema de formulario publicado no es un objeto compatible.' };
+    return { config: null, error: 'No pudimos validar la configuración del formulario.' };
   }
   const properties = asRecord(schema.properties);
   const candidates = (['form_slug', 'form_id'] as const)
     .filter((field) => Object.keys(asRecord(properties[field])).length > 0);
   if (candidates.length !== 1) {
-    return { config: null, error: 'El esquema de formulario es ambiguo: debe publicar un único identificador.' };
+    return { config: null, error: 'No pudimos identificar un único formulario para esta acción.' };
   }
   const field = candidates[0];
   const propertySchema = asRecord(properties[field]);
@@ -206,29 +209,29 @@ const resolveFormInputConfig = (
     (field === 'form_slug' && propertySchema.type !== 'string') ||
     (field === 'form_id' && propertySchema.type !== 'integer' && propertySchema.type !== 'number')
   ) {
-    return { config: null, error: `El esquema publicó ${field} con un tipo incompatible.` };
+    return { config: null, error: 'La identificación del formulario no es compatible.' };
   }
   const schemaRequired = new Set(strings(schema.required));
   if (!schemaRequired.has(field)) {
-    return { config: null, error: `El esquema no exige ${field}; la acción queda bloqueada para no inventar el payload.` };
+    return { config: null, error: 'No pudimos verificar qué formulario corresponde compartir.' };
   }
   const defaults = getActionDefaults(action);
   const unsupportedRequired = [...schemaRequired].filter(
     (requiredField) => requiredField !== field && !META_FIELDS.has(requiredField) && isMissing(defaults[requiredField]),
   );
   if (unsupportedRequired.length) {
-    return { config: null, error: `El esquema exige campos que esta consola no puede completar: ${unsupportedRequired.join(', ')}.` };
+    return { config: null, error: 'El formulario pide datos que esta consola no puede completar.' };
   }
   const actionFormFields = (action.requires || [])
     .filter((requiredField) => requiredField === 'form_slug' || requiredField === 'form_id');
   if (actionFormFields.some((requiredField) => requiredField !== field)) {
-    return { config: null, error: 'El esquema y los campos requeridos se contradicen sobre el identificador del formulario.' };
+    return { config: null, error: 'La configuración del formulario es incompatible con esta acción.' };
   }
   const unsupportedActionRequired = (action.requires || []).filter(
     (requiredField) => requiredField !== field && !META_FIELDS.has(requiredField) && isMissing(defaults[requiredField]),
   );
   if (unsupportedActionRequired.length) {
-    return { config: null, error: `La acción exige campos que esta consola no puede completar: ${unsupportedActionRequired.join(', ')}.` };
+    return { config: null, error: 'El formulario pide datos que esta consola no puede completar.' };
   }
   const optionsResult = getPublishedFormOptions(field, propertySchema, replyContract);
   return optionsResult.config
@@ -243,7 +246,7 @@ const parseLocationRequirement = (
   const requiresLat = requiredFields.has('lat');
   const requiresLng = requiredFields.has('lng');
   if (requiresLat !== requiresLng) {
-    return { config: null, error: 'El esquema exige una coordenada incompleta; se requieren latitud y longitud juntas.' };
+    return { config: null, error: 'La ubicación necesita latitud y longitud.' };
   }
   const requiresCoordinates = requiresLat && requiresLng;
   const requiresAddress = requiredFields.has('address');
@@ -257,7 +260,7 @@ const parseLocationRequirement = (
       return [];
     });
     if (alternativeKinds.length !== alternatives.length) {
-      return { config: null, error: 'El esquema de ubicación publicó alternativas que esta consola no reconoce.' };
+      return { config: null, error: 'No pudimos validar las opciones de ubicación.' };
     }
     const kinds = new Set(alternativeKinds);
     if (requiresCoordinates && requiresAddress) return { config: 'both', error: null };
@@ -278,14 +281,14 @@ const parseLocationRequirement = (
 };
 
 const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<LocationInputConfig> => {
-  if (!action) return { config: null, error: 'Este ticket no publicó una acción de ubicación.' };
+  if (!action) return { config: null, error: 'Este caso no tiene una acción de ubicación disponible.' };
   const schema = asRecord(action.input_schema);
   const defaults = getActionDefaults(action);
   if (!Object.keys(schema).length) {
     const required = new Set(action.requires || []);
     const accepted = new Set([...required, ...strings(asRecord(action.raw).accepted_fields)]);
     if (!accepted.has('lat') || !accepted.has('lng')) {
-      return { config: null, error: 'La acción no exige coordenadas WGS84 completas.' };
+      return { config: null, error: 'La ubicación no incluye latitud y longitud válidas.' };
     }
     return {
       config: {
@@ -307,7 +310,7 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
     };
   }
   if (schema.type !== 'object') {
-    return { config: null, error: 'El esquema de ubicación publicado no es un objeto compatible.' };
+    return { config: null, error: 'No pudimos validar la configuración de la ubicación.' };
   }
 
   const topProperties = asRecord(schema.properties);
@@ -317,17 +320,17 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
     .filter((field) => field !== 'location')
     .some((field) => Object.keys(asRecord(topProperties[field])).length > 0);
   if (hasNestedLocation && hasRootLocationFields) {
-    return { config: null, error: 'El esquema mezcla ubicación anidada y campos raíz; la forma del payload es ambigua.' };
+    return { config: null, error: 'La configuración de ubicación es incompatible con esta acción.' };
   }
 
   const shape: LocationInputConfig['shape'] = hasNestedLocation ? 'nested' : 'root';
   if (shape === 'nested' && nestedLocation.type !== 'object') {
-    return { config: null, error: 'El campo location no publicó un objeto compatible.' };
+    return { config: null, error: 'No pudimos validar la ubicación informada.' };
   }
   const fieldSchema = shape === 'nested' ? nestedLocation : schema;
   const properties = shape === 'nested' ? asRecord(nestedLocation.properties) : topProperties;
   if (asArray(fieldSchema.oneOf).length || asArray(fieldSchema.allOf).length) {
-    return { config: null, error: 'El esquema de ubicación usa una composición que esta consola no puede interpretar sin ambigüedad.' };
+    return { config: null, error: 'No pudimos interpretar la configuración de la ubicación.' };
   }
   const topRequired = new Set(strings(schema.required));
   const fieldRequired = new Set(strings(fieldSchema.required));
@@ -335,13 +338,13 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
 
   if (shape === 'nested') {
     if (!topRequired.has('location') && !actionRequired.has('location')) {
-      return { config: null, error: 'El esquema anidado no exige el objeto location.' };
+      return { config: null, error: 'No pudimos verificar la ubicación requerida.' };
     }
     if ([...actionRequired].some((field) => ['lat', 'lng', 'address', 'label', 'capture_source'].includes(field))) {
-      return { config: null, error: 'El esquema anidado contradice los campos raíz exigidos por la acción.' };
+      return { config: null, error: 'La configuración de ubicación es incompatible con esta acción.' };
     }
   } else if (actionRequired.has('location')) {
-    return { config: null, error: 'El esquema raíz contradice el objeto location exigido por la acción.' };
+    return { config: null, error: 'La configuración de ubicación es incompatible con esta acción.' };
   }
 
   const unsupportedRequired = [
@@ -350,7 +353,7 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
     ...[...actionRequired].filter((field) => !LOCATION_FIELDS.has(field) && !META_FIELDS.has(field) && isMissing(defaults[field])),
   ].filter((field) => !META_FIELDS.has(field) && !LOCATION_FIELDS.has(field) && isMissing(defaults[field]));
   if (unsupportedRequired.length) {
-    return { config: null, error: `El esquema exige campos de ubicación no compatibles: ${[...new Set(unsupportedRequired)].join(', ')}.` };
+    return { config: null, error: 'La ubicación pide datos que esta consola no puede completar.' };
   }
 
   const latSchema = asRecord(properties.lat);
@@ -361,26 +364,26 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
   const hasLat = Object.keys(latSchema).length > 0;
   const hasLng = Object.keys(lngSchema).length > 0;
   if (hasLat !== hasLng) {
-    return { config: null, error: 'El esquema publicó una coordenada incompleta; se requieren latitud y longitud juntas.' };
+    return { config: null, error: 'La ubicación necesita latitud y longitud.' };
   }
   if ((hasLat && latSchema.type !== 'number') || (hasLng && lngSchema.type !== 'number')) {
-    return { config: null, error: 'El esquema de coordenadas no publicó valores numéricos.' };
+    return { config: null, error: 'Las coordenadas informadas no son válidas.' };
   }
   if (Object.keys(addressSchema).length && addressSchema.type !== 'string') {
-    return { config: null, error: 'El esquema de dirección no publicó un texto compatible.' };
+    return { config: null, error: 'La dirección informada no es válida.' };
   }
   if (Object.keys(labelSchema).length && labelSchema.type !== 'string') {
-    return { config: null, error: 'El esquema de etiqueta no publicó un texto compatible.' };
+    return { config: null, error: 'La etiqueta de ubicación no es válida.' };
   }
   if (Object.keys(captureSourceSchema).length && captureSourceSchema.type !== 'string') {
-    return { config: null, error: 'El esquema de procedencia de ubicación no publicó un texto compatible.' };
+    return { config: null, error: 'No pudimos verificar cómo se obtuvo la ubicación.' };
   }
   const captureSourceEnum = asArray(captureSourceSchema.enum);
   if (
     Object.prototype.hasOwnProperty.call(captureSourceSchema, 'enum') &&
     (!captureSourceEnum.includes('manual') || !captureSourceEnum.includes('operator_browser_geolocation'))
   ) {
-    return { config: null, error: 'El esquema restringe la procedencia de ubicación a valores que esta consola no puede garantizar.' };
+    return { config: null, error: 'No pudimos verificar cómo se obtuvo la ubicación.' };
   }
 
   const requirementResult = parseLocationRequirement(fieldSchema, fieldRequired);
@@ -389,17 +392,17 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
   const actionRequiresLat = actionRequired.has('lat');
   const actionRequiresLng = actionRequired.has('lng');
   if (actionRequiresLat !== actionRequiresLng) {
-    return { config: null, error: 'La acción exige una coordenada raíz incompleta.' };
+    return { config: null, error: 'La ubicación necesita latitud y longitud.' };
   }
   if (shape === 'root' && actionRequiresLat && actionRequiresLng) {
     if (requirement === 'address') {
-      return { config: null, error: 'El esquema permite dirección, pero la acción exige coordenadas; el contrato es contradictorio.' };
+      return { config: null, error: 'Esta acción necesita coordenadas.' };
     }
     requirement = fieldRequired.has('address') ? 'both' : 'coordinates';
   }
   if (shape === 'root' && actionRequired.has('address')) {
     if (requirement === 'coordinates') {
-      return { config: null, error: 'El esquema exige coordenadas, pero la acción exige dirección; el contrato es contradictorio.' };
+      return { config: null, error: 'Esta acción necesita una dirección.' };
     }
     requirement = actionRequiresLat ? 'both' : 'address';
   }
@@ -412,19 +415,19 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
   const requiresCaptureSource = fieldRequired.has('capture_source') ||
     (shape === 'root' && actionRequired.has('capture_source'));
   if ((requirement === 'coordinates' || requirement === 'both') && !allowsCoordinates) {
-    return { config: null, error: 'El esquema exige coordenadas, pero no publicó latitud y longitud.' };
+    return { config: null, error: 'Esta acción necesita latitud y longitud.' };
   }
   if ((requirement === 'address' || requirement === 'both') && !allowsAddress) {
-    return { config: null, error: 'El esquema exige dirección, pero no publicó ese campo.' };
+    return { config: null, error: 'Esta acción necesita una dirección.' };
   }
   if (requirement === 'either' && !allowsCoordinates && !allowsAddress) {
-    return { config: null, error: 'El esquema no publicó una dirección ni coordenadas utilizables.' };
+    return { config: null, error: 'Esta acción no admite una dirección ni coordenadas utilizables.' };
   }
   if (requiresLabel && !allowsLabel) {
-    return { config: null, error: 'La acción exige una etiqueta que el esquema no publicó.' };
+    return { config: null, error: 'Esta acción necesita una etiqueta de ubicación.' };
   }
   if (requiresCaptureSource && !allowsCaptureSource) {
-    return { config: null, error: 'La acción exige procedencia de ubicación, pero el esquema no publicó ese campo.' };
+    return { config: null, error: 'No pudimos verificar cómo se obtuvo la ubicación.' };
   }
 
   const latMin = Math.max(-90, finiteNumber(latSchema.minimum) ?? -90);
@@ -432,7 +435,7 @@ const resolveLocationInputConfig = (action: SaasAction | null): ConfigResult<Loc
   const lngMin = Math.max(-180, finiteNumber(lngSchema.minimum) ?? -180);
   const lngMax = Math.min(180, finiteNumber(lngSchema.maximum) ?? 180);
   if (latMin > latMax || lngMin > lngMax) {
-    return { config: null, error: 'El esquema publicó rangos de coordenadas inválidos.' };
+    return { config: null, error: 'Los límites de la ubicación no son válidos.' };
   }
 
   return {
@@ -459,26 +462,26 @@ const resolveAttachmentOptions = (
   action: SaasAction | null,
   attachments: unknown[] = [],
 ): ConfigResult<VerifiedOption[]> => {
-  if (!action) return { config: null, error: 'Este ticket no publicó una acción de adjunto.' };
+  if (!action) return { config: null, error: 'Este caso no tiene una acción de adjunto disponible.' };
   const actionRequired = new Set(action.requires || []);
   if (!actionRequired.has('attachment_id')) {
-    return { config: null, error: 'La acción no exige un attachment_id verificable.' };
+    return { config: null, error: 'No pudimos verificar qué adjunto corresponde compartir.' };
   }
 
   let options = getAttachmentOptions(attachments);
   const schema = asRecord(action.input_schema);
   if (Object.keys(schema).length) {
     if (schema.type !== 'object' || asArray(schema.anyOf).length || asArray(schema.oneOf).length || asArray(schema.allOf).length) {
-      return { config: null, error: 'El esquema de adjunto no publicó un objeto raíz inequívoco.' };
+      return { config: null, error: 'No pudimos validar la configuración del adjunto.' };
     }
     const properties = asRecord(schema.properties);
     const attachmentSchema = asRecord(properties.attachment_id);
     if (!Object.keys(attachmentSchema).length || !['integer', 'number'].includes(String(attachmentSchema.type))) {
-      return { config: null, error: 'El esquema de adjunto no publicó un attachment_id numérico compatible.' };
+      return { config: null, error: 'No pudimos identificar el adjunto.' };
     }
     const schemaRequired = new Set(strings(schema.required));
     if (!schemaRequired.has('attachment_id')) {
-      return { config: null, error: 'El esquema de adjunto no exige attachment_id.' };
+      return { config: null, error: 'No pudimos verificar qué adjunto corresponde compartir.' };
     }
     const defaults = getActionDefaults(action);
     const unsupportedRequired = [...schemaRequired, ...actionRequired].filter(
@@ -487,13 +490,13 @@ const resolveAttachmentOptions = (
     if (unsupportedRequired.length) {
       return {
         config: null,
-        error: `La acción de adjunto exige campos que esta consola no puede completar: ${[...new Set(unsupportedRequired)].join(', ')}.`,
+        error: 'El adjunto pide datos que esta consola no puede completar.',
       };
     }
     const minimum = finiteNumber(attachmentSchema.minimum);
     const maximum = finiteNumber(attachmentSchema.maximum);
     if (minimum !== null && maximum !== null && minimum > maximum) {
-      return { config: null, error: 'El esquema de adjunto publicó un rango inválido.' };
+      return { config: null, error: 'La configuración del adjunto no es válida.' };
     }
     const hasPublishedEnum = Object.prototype.hasOwnProperty.call(attachmentSchema, 'enum');
     const allowedIds = new Set(asArray(attachmentSchema.enum).flatMap((value) => {
@@ -501,7 +504,7 @@ const resolveAttachmentOptions = (
       return id ? [id] : [];
     }));
     if (hasPublishedEnum && !allowedIds.size) {
-      return { config: null, error: 'El esquema de adjunto no publicó IDs válidos en su lista cerrada.' };
+      return { config: null, error: 'No hay adjuntos válidos para seleccionar.' };
     }
     options = options.filter((option) => {
       const id = positiveId(option.value);
@@ -516,12 +519,13 @@ const resolveAttachmentOptions = (
 
   return options.length
     ? { config: options, error: null }
-    : { config: null, error: 'No hay adjuntos existentes con ID verificable y compatible en este ticket. Esta acción no carga archivos nuevos.' };
+    : { config: null, error: 'No hay adjuntos disponibles en este caso. Esta acción no carga archivos nuevos.' };
 };
 
 const disabledReason = (kind: TicketShareActionKind, action: SaasAction): string =>
-  action.disabled_reason?.trim() ||
-  `El backend marcó ${kind === 'location' ? 'la ubicación' : kind === 'form' ? 'el formulario' : 'el adjunto'} como no disponible.`;
+  (action.disabled_reason?.trim()
+    ? formatTicketDisplayLabel(action.disabled_reason, 'Esta acción no está disponible ahora.')
+    : `${kind === 'location' ? 'La ubicación' : kind === 'form' ? 'El formulario' : 'El adjunto'} no está disponible ahora.`);
 
 const getDeliveryContractBlockReason = (action: SaasAction): string | null => {
   if (action.delivery_mode === 'crm_only') {
@@ -533,7 +537,7 @@ const getDeliveryContractBlockReason = (action: SaasAction): string | null => {
       !hasExternalMode &&
       action.delivery_contract_version === 'inbox.action_delivery.v2'
       ? null
-      : 'La acción CRM-only no publicó evidencia auditable que garantice cero despacho externo.';
+      : 'No se puede confirmar que esta acción quede solo en el caso.';
   }
   if (action.delivery_mode === 'runtime_preflight') {
     const deliveryModes = action.delivery_modes || [];
@@ -546,9 +550,9 @@ const getDeliveryContractBlockReason = (action: SaasAction): string | null => {
       deliveryModes.includes('durable_queue') &&
       !deliveryModes.some((mode) => !safeModes.has(mode))
       ? null
-      : 'La acción de preflight no publicó cola durable y autoridad final compatibles.';
+      : 'No pudimos confirmar un envío seguro para esta acción.';
   }
-  return 'La acción no publicó un modo de entrega de artefactos compatible.';
+  return 'No pudimos confirmar cómo se va a procesar esta acción.';
 };
 
 const hasStableIdempotencyContract = (action: SaasAction): boolean => {
@@ -570,7 +574,7 @@ export const getTicketShareActionBlockReason = (
   replyContract?: PlainRecord,
   attachments: unknown[] = [],
 ): string | null => {
-  if (!action) return 'Este ticket no publicó una acción backend compatible.';
+  if (!action) return 'Este caso no tiene una acción compatible disponible.';
   if (action.enabled !== true || action.disabled === true) return disabledReason(kind, action);
   if (
     (action.method || '').toUpperCase() !== 'POST' ||
@@ -578,11 +582,11 @@ export const getTicketShareActionBlockReason = (
     action.endpoint.startsWith('//') ||
     action.endpoint.includes('\\')
   ) {
-    return 'La acción no publicó un endpoint POST seguro.';
+    return 'No hay una acción segura disponible.';
   }
   const deliveryBlockReason = getDeliveryContractBlockReason(action);
   if (deliveryBlockReason) return deliveryBlockReason;
-  if (!hasStableIdempotencyContract(action)) return 'La acción no publicó una identidad idempotente reutilizable.';
+  if (!hasStableIdempotencyContract(action)) return 'No pudimos confirmar que esta acción evite duplicados.';
   if (kind === 'location') return resolveLocationInputConfig(action).error;
   if (kind === 'form') return resolveFormInputConfig(action, replyContract).error;
   return resolveAttachmentOptions(action, attachments).error;
@@ -637,7 +641,7 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
   const locationConfig = locationResult.config;
   const useCurrentLocation = () => {
     if (!locationConfig?.allowsCoordinates) {
-      setGeoStatus('El contrato backend no habilitó coordenadas para esta acción.');
+      setGeoStatus('Esta acción no permite usar coordenadas.');
       return;
     }
     if (!navigator.geolocation) {
@@ -667,7 +671,7 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
       const selected = options.find((option) => optionKey(option.value) === selectedOptionKey);
       const id = positiveId(selected?.value);
       if (!id) {
-        setValidationError('Seleccioná un adjunto existente del ticket.');
+        setValidationError('Seleccioná un adjunto existente del caso.');
         return;
       }
       onConfirm({ attachment_id: id });
@@ -684,7 +688,7 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
       return;
     }
     if (!locationConfig) {
-      setValidationError(locationResult.error || 'El contrato de ubicación no es compatible.');
+      setValidationError(locationResult.error || 'La ubicación no está disponible con la configuración actual.');
       return;
     }
 
@@ -733,12 +737,12 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
   const noun = kind === 'location' ? 'ubicación' : kind === 'form' ? 'formulario' : 'adjunto';
   const crmOnly = action?.delivery_mode === 'crm_only';
   const dialogDescription = crmOnly
-    ? 'Se guardará en CRM, no se enviará externamente. Esta acción no confirma WhatsApp ni entrega al ciudadano.'
-    : 'El backend verificará el canal al confirmar. Puede quedar en cola; la entrega final sólo se confirma con evidencia del proveedor.';
+    ? 'Esta acción queda guardada en el caso. No se envía a la persona porque este canal no tiene envío habilitado.'
+    : 'El canal se verifica al confirmar. Puede quedar en espera hasta recibir la confirmación de entrega.';
   const confirmLabel = submitting
     ? crmOnly ? 'Guardando…' : 'Procesando…'
     : crmOnly
-      ? 'Guardar en CRM'
+      ? 'Guardar en el caso'
       : kind === 'form'
         ? 'Compartir formulario'
         : kind === 'attachment'
@@ -749,14 +753,14 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
     <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{action?.label || `Guardar ${noun}`}</DialogTitle>
+          <DialogTitle>{action?.label ? formatTicketDisplayLabel(action.label, `Guardar ${noun}`) : `Guardar ${noun}`}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
         {kind === 'location' ? (
           <div className="space-y-4">
             {locationConfig?.allowsCoordinates ? (
               <>
-                <Button type="button" variant="outline" onClick={useCurrentLocation}>Usar mi ubicación</Button>
+                <Button type="button" variant="outline" className="min-h-11" onClick={useCurrentLocation}>Usar mi ubicación</Button>
                 <p className="text-xs text-muted-foreground" aria-live="polite">
                   {geoStatus || 'La geolocalización sólo se solicita al presionar el botón.'}
                 </p>
@@ -799,7 +803,7 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
             {kind === 'form' ? 'Formulario publicado' : 'Adjunto existente'}
             <select
               aria-label={kind === 'form' ? 'Formulario publicado' : 'Adjunto existente'}
-              className="h-10 w-full rounded-md border border-input bg-background px-3"
+              className="h-11 w-full rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={selectedOptionKey}
               onChange={(event) => setSelectedOptionKey(event.target.value)}
             >
@@ -814,8 +818,8 @@ const TicketShareActionDialog: React.FC<TicketShareActionDialogProps> = ({
           <p role="alert" className="text-sm text-destructive">{validationError || errorMessage || actionBlockReason}</p>
         ) : null}
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button type="button" disabled={submitting || Boolean(actionBlockReason)} onClick={handleConfirm}>{confirmLabel}</Button>
+          <Button type="button" variant="outline" className="min-h-11" disabled={submitting} onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button type="button" className="min-h-11" disabled={submitting || Boolean(actionBlockReason)} onClick={handleConfirm}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

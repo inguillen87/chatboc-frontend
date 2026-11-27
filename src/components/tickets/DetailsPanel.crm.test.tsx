@@ -128,8 +128,8 @@ describe('DetailsPanel resolution guide', () => {
     detailsMocks.selectedTicket = null;
     rerender(<DetailsPanel />);
 
-    expect(screen.getByRole('heading', { name: 'Detalles del Ticket' })).toBeInTheDocument();
-    expect(screen.getByText(/Seleccioná un ticket para ver los detalles/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Detalles del caso' })).toBeInTheDocument();
+    expect(screen.getByText(/Seleccioná un caso para ver los datos de la persona y el seguimiento/i)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Caso QA sin datos personales reales' })).not.toBeInTheDocument();
   });
 
@@ -146,7 +146,7 @@ describe('DetailsPanel resolution guide', () => {
     expect(screen.queryByTestId('ticket-technical-details')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ai-assist-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ticket-logistics-summary')).not.toBeInTheDocument();
-    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('SLA sin evidencia');
+    expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveTextContent('Sin plazo definido');
     expect(screen.getByTestId('ticket-sla-clocks-compact')).toHaveAttribute('data-sla-state', 'unknown');
 
     fireEvent.click(screen.getByRole('button', { name: /datos del vecino/i }));
@@ -231,9 +231,9 @@ describe('DetailsPanel resolution guide', () => {
     expect(screen.getByText(longSummary)).not.toHaveClass('line-clamp-3');
     expect(screen.getByText(longCategory)).toHaveClass('ticket-inspector__badge');
     expect(screen.getByRole('button', { name: longAction })).toHaveClass('ticket-inspector__action-button');
-    expect(screen.getByRole('button', { name: /cerrar detalles del ticket/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /cerrar detalles del caso/i })).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del ticket/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cerrar detalles del caso/i }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -278,6 +278,19 @@ describe('DetailsPanel resolution guide', () => {
     expect(guide).toHaveTextContent('Árbol caído sobre la vereda.');
     expect(guide).not.toHaveTextContent('demo_runtime');
     expect(guide).not.toHaveTextContent('chat_session_id');
+  });
+
+  it('fails closed when every summary candidate is an unknown internal code', () => {
+    const codedTicket = {
+      ...baseTicket,
+      description: 'private_internal_summary',
+      detalles: 'hidden_internal_detail',
+      pregunta: 'unknown_question_code',
+      asunto: 'unknown_subject_code',
+      categoria: 'unknown_category_code',
+    } as Ticket;
+
+    expect(resolveTicketCaseSummary(codedTicket)).toBe('Sin descripción disponible');
   });
 
   it('surfaces assisted request context and public follow-up actions', () => {

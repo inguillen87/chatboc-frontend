@@ -187,9 +187,10 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
               className="max-h-[95vh] max-w-[95vw] rounded-lg object-contain shadow-2xl"
             />
             <button
+              type="button"
               onClick={() => setOpenUrl(null)}
               ref={closeButtonRef}
-              className="absolute top-2 right-2 rounded-full bg-black/60 text-white p-1 hover:bg-black/80 focus:outline-none"
+              className="absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               aria-label="Cerrar"
             >
               <X className="h-4 w-4" />

@@ -3,7 +3,11 @@ import { Ticket } from '@/types/tickets';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useDateSettings } from '@/hooks/useDateSettings';
-import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
+import {
+  formatTicketOptionalLabel,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+} from '@/utils/ticketStatus';
 import { shiftDateByHours } from '@/utils/date';
 import { AlertTriangle, CheckCircle2, Clock, MapPin, Sparkles, UserRound } from 'lucide-react';
 import { IdentityAvatar } from '@/components/identity/IdentityAvatar';
@@ -41,9 +45,9 @@ const getCategoryColor = (category?: string) => {
   }
   if (cat.includes('arbol') || cat.includes('poda') || cat.includes('verde') || cat.includes('plaza')) {
     return {
-      border: 'border-l-emerald-500',
-      borderColor: 'var(--brand-accent-4, #10b981)',
-      bg: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+      border: 'border-l-primary',
+      borderColor: 'var(--brand-accent-4, hsl(var(--primary)))',
+      bg: 'bg-primary/10 text-foreground',
     };
   }
   if (cat.includes('limpieza') || cat.includes('higiene') || cat.includes('residu') || cat.includes('basura')) {
@@ -82,17 +86,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
     return String(value).trim();
   };
 
-  const priorityLabel = normalizeText(ticket.priority);
+  const priorityLabel = formatTicketOptionalLabel(ticket.priority);
   const slaSource = resolveTicketSlaSource(ticket);
   const slaDescriptionId = React.useId();
   const assignedLabel = normalizeText(
     ticket.assignedAgent?.nombre_usuario ||
-      ticket.user?.nombre_usuario ||
-      ticket.assignedAgentId ||
-      ticket.assigned_agent_id,
+      ticket.user?.nombre_usuario,
   );
-  const nextAction = normalizeText(ticket.recommended_next_action);
-  const priorityTone = priorityLabel.toLowerCase();
+  const nextAction = formatTicketOptionalLabel(ticket.recommended_next_action);
+  const priorityTone = (priorityLabel || '').toLowerCase();
   const unreadViewers = Number(ticket.collaboration_state?.unread_viewer_count || 0);
   const activeViewers = Number(ticket.collaboration_state?.active_viewers_count || 0);
   const hasUnread = ticket.hasUnreadMessages || unreadViewers > 0;
@@ -109,12 +111,12 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
       })
     : '-';
 
-  const categoryLabel = normalizeText(
+  const categoryLabel = formatTicketOptionalLabel(
     ticket.categoria || ticket.categoria_principal || ticket.categoria_simple,
   );
-  const distritoLabel = normalizeText(ticket.distrito || ticket.barrio);
-  const rawSubject = normalizeText(ticket.asunto || ticket.title);
-  const descriptionLabel = normalizeText(ticket.description || ticket.lastMessage);
+  const distritoLabel = formatTicketOptionalLabel(ticket.distrito || ticket.barrio);
+  const rawSubject = formatTicketOptionalLabel(ticket.asunto || ticket.title) || '';
+  const descriptionLabel = formatTicketOptionalLabel(ticket.description || ticket.lastMessage) || '';
   const subjectLooksLikeCategory =
     Boolean(categoryLabel && rawSubject) &&
     categoryLabel.toLowerCase() === rawSubject.toLowerCase();
@@ -135,7 +137,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
   
   const reduceMotion = Boolean(useReducedMotion());
   const statusClass = cn(
-    'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border',
+    'rounded-full border px-2 py-0.5 text-[10px] font-semibold',
     normalizedStatus === 'nuevo' && 'bg-primary/10 text-foreground border-primary/30',
     normalizedStatus === 'esperando_agente_en_vivo' && 'bg-primary/10 text-foreground border-primary/35',
     normalizedStatus === 'en_vivo' && 'bg-primary/10 text-foreground border-primary/30',
@@ -167,10 +169,13 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
         data-ticket-queue-index={queueIndex}
         aria-pressed={isSelected}
         aria-describedby={[ariaDescribedBy, slaSource ? slaDescriptionId : undefined].filter(Boolean).join(' ') || undefined}
-        aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
+        aria-label={`Abrir caso ${ticket.nro_ticket || ticket.id}`}
       >
         {hasUnread && !isSelected && (
-          <span className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
+          <span
+            className="absolute right-2 top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse"
+            aria-label={`${unreadBadgeLabel} sin leer`}
+          >
             {unreadBadgeLabel}
           </span>
         )}
@@ -191,7 +196,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
                 <p
                   className="line-clamp-1 text-[11px] text-slate-700 dark:text-slate-300"
                   title={`${ticketNumber} - ${displayName}`}
-                  aria-label={`Ticket ${ticketNumber}, contacto ${displayName}`}
+                  aria-label={`Caso ${ticketNumber}, contacto ${displayName}`}
                 >
                   <span className="font-bold text-foreground/80">{ticketNumber}</span>
                   <span aria-hidden="true" className="mx-1 text-muted-foreground/60">•</span>
@@ -257,10 +262,13 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
       data-ticket-queue-index={queueIndex}
       aria-pressed={isSelected}
       aria-describedby={ariaDescribedBy}
-      aria-label={`Abrir ticket ${ticket.nro_ticket || ticket.id}`}
+      aria-label={`Abrir caso ${ticket.nro_ticket || ticket.id}`}
     >
       {hasUnread && !isSelected && (
-        <span className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground shadow-sm animate-pulse">
+        <span
+          className="absolute top-3 right-3 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground shadow-sm animate-pulse"
+          aria-label={`${unreadBadgeLabel} sin leer`}
+        >
           {unreadBadgeLabel}
         </span>
       )}
@@ -275,7 +283,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
             <div
               className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5"
               title={`${ticketNumber} - ${displayName}`}
-              aria-label={`Ticket ${ticketNumber}, contacto ${displayName}`}
+              aria-label={`Caso ${ticketNumber}, contacto ${displayName}`}
             >
               <span className="font-black text-xs text-primary">{ticketNumber}</span>
               <span aria-hidden="true" className="text-muted-foreground/60 text-xs">•</span>
@@ -300,7 +308,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
       {/* Badges strip */}
       <div className="mb-2.5 flex flex-wrap items-center gap-1.5 overflow-hidden pl-[48px]">
         {categoryLabel ? (
-          <span className={cn("truncate rounded-lg px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide", categoryColors.bg)}>
+          <span className={cn("truncate rounded-lg px-2.5 py-0.5 text-[10px] font-semibold", categoryColors.bg)}>
             {categoryLabel}
           </span>
         ) : null}
@@ -337,14 +345,14 @@ const TicketListItem: React.FC<TicketListItemProps> = ({
       </div>
 
       <p className="line-clamp-2 pl-[48px] text-xs leading-relaxed text-muted-foreground font-normal">
-        {ticket.lastMessage || ticket.description || 'Sin mensajes adicionales'}
+        {descriptionLabel || 'Sin mensajes adicionales'}
       </p>
 
       {nextAction ? (
         <div className="mt-2.5 line-clamp-1 rounded-xl border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] font-bold leading-none text-primary ml-[48px] flex items-center gap-1.5 shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
           <span className="truncate">
-            <span className="uppercase text-[9px] tracking-wider text-primary/70 mr-1">Sugerencia IA:</span>
+            <span className="mr-1 text-[9px] font-semibold text-primary/70">Próximo paso:</span>
             {nextAction}
           </span>
         </div>

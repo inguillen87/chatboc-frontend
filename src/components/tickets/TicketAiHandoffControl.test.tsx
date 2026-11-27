@@ -146,7 +146,7 @@ describe('TicketAiHandoffControl', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Derivar al equipo' })).toBeDisabled();
-    expect(screen.getByText('Falta completar el contrato backend: channel.')).toBeInTheDocument();
+    expect(screen.getByText('Faltan datos para completar esta acción.')).toBeInTheDocument();
     expect(apiMocks.postAction).not.toHaveBeenCalled();
   });
 
@@ -158,8 +158,15 @@ describe('TicketAiHandoffControl', () => {
     renderControl({ actions: [{ ...handoffAction, ...overrides }] });
 
     expect(screen.getByRole('button', { name: 'Derivar al equipo' })).toBeDisabled();
-    expect(screen.getByText('La transición no garantiza una acción interna sin despacho externo.')).toBeInTheDocument();
+    expect(screen.getByText('No se puede confirmar que esta acción sea solo interna.')).toBeInTheDocument();
     expect(apiMocks.postAction).not.toHaveBeenCalled();
+  });
+
+  it('reemplaza un código interno de acción por un rótulo seguro', () => {
+    renderControl({ actions: [{ ...handoffAction, label: 'handoff_internal_action' }] });
+
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled();
+    expect(screen.queryByText('handoff_internal_action')).not.toBeInTheDocument();
   });
 
   it('mantiene el estado previo y muestra el error si backend rechaza la transición', async () => {
