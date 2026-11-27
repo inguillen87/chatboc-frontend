@@ -17,7 +17,8 @@ describe('embedded published reader presence',()=>{
   it('is announced only by a published public reader and withdrawn when it leaves',async()=>{
     const value=workspace({visibility:'public',can_edit:false});transport.fetch.mockResolvedValueOnce(value);
     const view=render(<InstitutionalAssistant tenantSlug={value.tenant.slug} mode="public"/>);
-    expect(hasEmbeddedInstitutionalReader()).toBe(false);
+    // Announced while it arrives, so the launcher does not flash over the page.
+    expect(hasEmbeddedInstitutionalReader()).toBe(true);
     await screen.findByTestId('institutional-assistant');
     await waitFor(()=>expect(hasEmbeddedInstitutionalReader()).toBe(true));
     view.unmount();
