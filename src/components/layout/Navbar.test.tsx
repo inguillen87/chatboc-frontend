@@ -770,6 +770,20 @@ describe('verified institutional entry branding',()=>{
     expect(screen.getByRole('link',{name:'Organización de prueba'})).toBeVisible();
     expect(screen.queryByRole('button',{name:'Ir al inicio de Chatboc'})).not.toBeInTheDocument();
   });
+  it.each([
+    '/t/org-a',
+    '/t/org-a/noticias',
+    '/t/org-a/eventos',
+    '/t/org-a/reclamos/nuevo',
+    '/t/org-a/encuestas',
+    '/t/org-a/encuestas/consulta-publica',
+  ])('keeps the verified organization brand across the public portal at %s',path=>{
+    render(<MemoryRouter initialEntries={[path]}><Navbar/></MemoryRouter>);
+    expect(screen.getByTestId('institutional-access-brand')).toHaveAttribute('href','/t/org-a');
+    expect(screen.getByRole('link',{name:'Organización de prueba'})).toBeVisible();
+    expect(screen.queryByText('Chatboc.ar')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:'Ver demo'})).not.toBeInTheDocument();
+  });
   it.each(['/login','/','/superadmin','/perfil'])('keeps the platform brand on %s despite ambient tenant data',path=>{
     render(<MemoryRouter initialEntries={[path]}><Navbar/></MemoryRouter>);
     expect(screen.queryByTestId('institutional-access-brand')).not.toBeInTheDocument();

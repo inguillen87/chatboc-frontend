@@ -52,6 +52,8 @@
 .institutional-assistant .institutional-choices__status { margin-top:25px; color:hsl(var(--muted-foreground)); font-size:var(--institutional-detail-size); }
 .institutional-assistant .institutional-choices__status+.institutional-assistant__choices { margin-top:9px; }
 .institutional-assistant__choices :is([data-choice-more],[data-choice-previous]) { justify-content:center; background:hsl(var(--muted)/.35); }
+.institutional-assistant__topics { margin-top:.25rem; }
+.institutional-assistant__topics h4 { margin:0; font-size:1.15em; font-weight:650; line-height:1.4; }
 /* Published brand identity: a palette stripe on each option. Decorative only; the text keeps its own contrast. */
 [data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous]) { position:relative; overflow:hidden; padding-left:1.15rem; }
 [data-brand-identity="published"] .institutional-assistant__choices button:not([data-choice-more]):not([data-choice-previous])::before { content:""; position:absolute; inset-block:0; left:0; width:4px; background:var(--brand-accent-1,transparent); pointer-events:none; }
@@ -68,16 +70,37 @@
 .institutional-assistant__empty { min-height:220px; display:flex; flex-direction:column; justify-content:center; gap:15px; max-width:460px; }.institutional-assistant__empty h3{font-size:1.3em;font-weight:600;}.institutional-assistant__empty p{font-size:var(--institutional-body-size);line-height:1.7;color:hsl(var(--muted-foreground));}
 .institutional-assistant__notice { border:1px solid hsl(var(--border)); border-radius:12px; padding:22px; margin-bottom:18px; background:hsl(var(--muted)/.3); }
 .institutional-assistant__links{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0;}.institutional-assistant__links a{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;text-decoration:underline;text-underline-offset:3px;min-height:var(--institutional-target-size);font-size:var(--institutional-control-size);}
+.institutional-assistant--services { border:0; border-radius:0; box-shadow:none; background:transparent; overflow:visible; }
+.institutional-assistant--services .institutional-assistant__header { padding:0 0 1rem; border-bottom:0; }
+.institutional-assistant--services .institutional-assistant__identity h2 { font-size:1.65em; }
+.institutional-assistant--services .institutional-assistant__body { min-height:0; }
+.institutional-assistant--services .institutional-assistant__conversation { gap:0; }
+.institutional-assistant--services.institutional-assistant--initial-menu .institutional-assistant__topline { display:none; }
+.institutional-assistant--services.institutional-assistant--initial-menu .institutional-assistant__composer { margin-bottom:1.75rem; }
+.institutional-assistant--services .institutional-assistant__reading { min-height:0; max-height:none; overflow:visible; padding:0; }
+.institutional-assistant--services .institutional-assistant__composer { padding:1rem 0; border-block:1px solid hsl(var(--border)); background:transparent; }
+.institutional-assistant--services .institutional-assistant__composer label { margin-bottom:.6rem; font-size:1.15em; font-weight:650; color:hsl(var(--foreground)); }
+.institutional-assistant--services .institutional-assistant__composer>div { min-height:56px; border-width:2px; }
+.institutional-assistant--services .institutional-assistant__composer button { min-width:auto; padding-inline:1rem; }
+.institutional-assistant--services .institutional-assistant__choices { grid-template-columns:minmax(0,1fr); }
+.institutional-assistant--services .institutional-assistant__utilities button span { display:inline; }
+@media(min-width:641px){.institutional-assistant--services .institutional-assistant__choices{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:760px){
  .institutional-assistant__header{padding:19px 18px;gap:12px;}.institutional-assistant__utilities button span{display:none;}.institutional-assistant__identity h2{font-size:1.08em;}
  .institutional-assistant__body{grid-template-columns:minmax(0,1fr);min-height:600px;}.institutional-assistant__sidebar{border-right:0;border-bottom:1px solid hsl(var(--border));padding:12px;}
  .institutional-assistant__eyebrow,.institutional-assistant__version{display:none;}.institutional-assistant__sidebar nav{display:flex;flex-wrap:wrap;gap:6px;padding:3px;}
  .institutional-assistant__sidebar nav button{width:auto;min-width:0;flex:1 1 9rem;border:1px solid var(--institutional-control-border);}.institutional-assistant__management{margin-top:10px;padding-top:8px;display:flex;flex-wrap:wrap;gap:4px;}
  .institutional-assistant__reading{padding:24px 20px;max-height:64vh;}.institutional-assistant__topline{padding:7px 20px;}.institutional-assistant__topline>span{display:none;}
+ .institutional-assistant--services .institutional-assistant__header{padding:0 0 1rem;}.institutional-assistant--services .institutional-assistant__reading{padding:0;max-height:none;}.institutional-assistant--services .institutional-assistant__body{min-height:0;}
  .institutional-assistant__composer{padding:16px;}.institutional-assistant__answer h3{font-size:1.25em;}.institutional-assistant__metrics{padding:14px 16px 18px;}
 }
 @media(max-width:420px){.institutional-assistant__mark{display:none;}.institutional-assistant__header{padding:16px 14px;}.institutional-assistant__choices{grid-template-columns:minmax(0,1fr);}.institutional-assistant__reading{padding:21px 16px;}.institutional-assistant__composer>div>svg{display:none;}}
 @media(prefers-reduced-motion:reduce){.institutional-assistant *{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}
+@media(prefers-contrast:more){
+ .institutional-assistant { --institutional-control-border:hsl(var(--foreground)); }
+ .institutional-assistant :focus-visible { outline-width:3px!important; }
+ .institutional-assistant--services .institutional-assistant__composer>div { border-color:hsl(var(--foreground)); }
+}
 
 .institutional-assistant__citations blockquote{margin:12px 0;padding:6px 15px;border-left:2px solid hsl(var(--border));}.institutional-assistant__citations cite{font-size:var(--institutional-detail-size);font-style:normal;color:hsl(var(--muted-foreground));}
 
@@ -242,3 +265,6 @@
  .institutional-assistant__print-date { margin:0 0 4pt!important; font-size:12pt!important; }
  .institutional-assistant__print-disclaimer { margin:0!important; font-size:12pt!important; font-weight:700!important; }
 }
+/* On the services home the portal header already shows the organization. Its
+   mark and name stay in the reader only for the printed answer. */
+@media screen{.institutional-assistant--services .institutional-assistant__identity>.institutional-assistant__mark,.institutional-assistant--services .institutional-assistant__identity>div>p{display:none;}}

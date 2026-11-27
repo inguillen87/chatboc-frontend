@@ -5,6 +5,7 @@ import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
 import DemoModeBanner from './DemoModeBanner';
 import { useTenant } from '@/context/TenantContext';
+import { isTenantShellManagedPath } from '@/utils/pageTitles';
 
 const Layout = () => {
   const location = useLocation();
@@ -31,6 +32,8 @@ const Layout = () => {
   const isPublicSurveyExperience = /^\/e\/[^/]+$/i.test(normalizedPath);
   const isDemoExperience = normalizedPath === '/demo';
   const isLandingExperience = normalizedPath === '/' && !hostBinding;
+  const isTenantPublicPortal = isTenantShellManagedPath(location.pathname) ||
+    Boolean(hostBinding && normalizedPath === '/');
   const isFocusedPublicExperience = isDemoExperience || isPublicSurveyExperience;
   const isFooterlessWorkspace = isTicketWorkspace || isProfileWorkspace || isPlatformWorkspace || isFocusedPublicExperience;
 
@@ -123,7 +126,7 @@ const Layout = () => {
       </main>
       {!isFooterlessWorkspace ? (
         <>
-          <ScrollToTopButton />
+          <ScrollToTopButton showLabel={isTenantPublicPortal} />
           <Footer />
         </>
       ) : null}

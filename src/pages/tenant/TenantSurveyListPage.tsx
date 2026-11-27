@@ -145,7 +145,7 @@ const TenantSurveyListPage = () => {
             description={publicErrorMessage(surveysQuery.error)}
           />
         ) : surveys.length ? (
-          <div className="space-y-5">
+          <div className="max-w-3xl">
             {surveys.map((survey) => {
               const status = getSurveyStatus(survey.inicio_at, survey.fin_at);
               const isLiveExperience = Boolean(survey.es_votacion_envivo || survey.mostrar_resultados_envivo);
@@ -153,7 +153,7 @@ const TenantSurveyListPage = () => {
                 ? `/e/${encodeURIComponent(survey.slug)}?tenant=${encodeURIComponent(slug)}`
                 : `${basePath}/encuestas/${survey.slug}`;
               return (
-                <article key={survey.slug} className="rounded-3xl border bg-background/80 shadow-sm">
+                <article key={survey.slug} className="border-b border-border first:border-t">
                   <CardHeader className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={status.variant}>{status.label}</Badge>
@@ -169,7 +169,7 @@ const TenantSurveyListPage = () => {
                       <p className="text-sm leading-relaxed text-muted-foreground">{survey.descripcion}</p>
                     ) : null}
                     {basePath ? (
-                      <Button asChild>
+                      <Button asChild className="min-h-11">
                         <a href={surveyHref}>{isLiveExperience ? 'Abrir sala en vivo' : 'Responder encuesta'}</a>
                       </Button>
                     ) : null}

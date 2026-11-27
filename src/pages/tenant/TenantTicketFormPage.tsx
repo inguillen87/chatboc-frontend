@@ -123,26 +123,27 @@ const ClaimReceipt = ({
 
       <div className="grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Código</p>
+          <p className="text-sm font-semibold text-muted-foreground">Código</p>
           <p className="mt-1 font-mono text-xl font-bold" data-testid="claim-code">
             {receipt.claim.code}
           </p>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PIN de acceso</p>
+          <p className="text-sm font-semibold text-muted-foreground">PIN de acceso</p>
           <div className="mt-1 flex items-center gap-2">
             <p className="font-mono text-xl font-bold" data-testid="claim-pin">
               {showPin ? receipt.access.pin : '•'.repeat(receipt.access.pin.length)}
             </p>
             <Button
+              className="min-h-11 gap-2 px-3"
               type="button"
               variant="ghost"
-              size="icon"
               onClick={() => setShowPin((current) => !current)}
               aria-label={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
               aria-pressed={showPin}
             >
-              {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPin ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+              <span>{showPin ? 'Ocultar PIN' : 'Mostrar PIN'}</span>
             </Button>
           </div>
         </div>
@@ -153,11 +154,11 @@ const ClaimReceipt = ({
       </p>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Button type="button" variant="outline" onClick={() => void copyReceipt()}>
+        <Button type="button" variant="outline" className="min-h-11" onClick={() => void copyReceipt()}>
           <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
           Copiar código y PIN
         </Button>
-        <Button asChild>
+        <Button asChild className="min-h-11">
           <a
             href={receipt.tracking.path}
             target="_blank"
@@ -168,7 +169,7 @@ const ClaimReceipt = ({
             <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
           </a>
         </Button>
-        <Button type="button" variant="ghost" onClick={onCreateAnother}>
+        <Button type="button" variant="ghost" className="min-h-11" onClick={onCreateAnother}>
           Crear otro reclamo
         </Button>
       </div>
@@ -359,10 +360,10 @@ const TenantTicketFormPage = () => {
                   <div className="space-y-2">
                     <Label htmlFor="categoria">Tema o categoría (opcional)</Label>
                     <Input
+                      className="min-h-11"
                       id="categoria"
                       value={categoria}
                       onChange={(event) => setField('categoria', event.target.value)}
-                      placeholder="Ej: Iluminación, Comercio, Espacio público"
                     />
                   </div>
 
@@ -383,38 +384,38 @@ const TenantTicketFormPage = () => {
                       Si el problema está donde estás ahora, podés sumar tu ubicación. También podés escribir la dirección en la descripción.
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
-                      <Button type="button" variant="outline" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
+                      <Button type="button" variant="outline" className="min-h-11" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
                         {locating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         {lat && lng ? 'Actualizar mi ubicación' : 'Usar mi ubicación'}
                       </Button>
                       {lat && lng ? (
-                        <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => { setField('lat', ''); setField('lng', ''); setLocationNote(''); }}>
+                        <Button type="button" variant="ghost" className="min-h-11" disabled={isSubmitting} onClick={() => { setField('lat', ''); setField('lng', ''); setLocationNote(''); }}>
                           Quitar ubicación
                         </Button>
                       ) : null}
                     </div>
                     <p role="status" className="text-sm">{locationNote || (lat && lng ? 'Ubicación agregada al reclamo.' : '')}</p>
                     <details className="rounded-md border px-3 py-2">
-                      <summary className="cursor-pointer text-sm">Cargar coordenadas a mano</summary>
+                      <summary className="flex min-h-11 cursor-pointer items-center text-sm">Cargar coordenadas a mano</summary>
                       <div className="mt-3 grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="lat">Latitud (opcional)</Label>
-                          <Input id="lat" type="number" step="any" value={lat} onChange={(event) => setField('lat', event.target.value)} />
+                          <Input className="min-h-11" id="lat" type="number" step="any" value={lat} onChange={(event) => setField('lat', event.target.value)} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="lng">Longitud (opcional)</Label>
-                          <Input id="lng" type="number" step="any" value={lng} onChange={(event) => setField('lng', event.target.value)} />
+                          <Input className="min-h-11" id="lng" type="number" step="any" value={lng} onChange={(event) => setField('lng', event.target.value)} />
                         </div>
                       </div>
                     </details>
                   </fieldset>
 
                   <div className="flex items-center gap-3">
-                    <Button type="submit" disabled={isSubmitting || !tenantReady}>
+                    <Button type="submit" className="min-h-11" disabled={isSubmitting || !tenantReady}>
                       {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Enviar reclamo
                     </Button>
-                    <Button type="button" variant="outline" disabled={isSubmitting} onClick={resetForm}>
+                    <Button type="button" variant="outline" className="min-h-11" disabled={isSubmitting} onClick={resetForm}>
                       Limpiar
                     </Button>
                   </div>

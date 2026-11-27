@@ -16,7 +16,9 @@ import AccessibilityToggle, {
 } from "@/components/chat/AccessibilityToggle";
 import { isDisabilityAIAgentDemoPath } from '@/config/publicPresentationRoutes';
 import { useUser } from '@/hooks/useUser';
+import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { isTenantShellManagedPath } from '@/utils/pageTitles';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 
 const DOCK_HIDDEN_SEGMENTS = new Set(["iframe", "integracion"]);
@@ -60,12 +62,6 @@ function isFocusedPublicRoute(pathname: string) {
   );
 }
 
-// An organization's public home is read on a phone as one column from edge to
-// edge, so nothing fixed may sit over it: there the control joins the top bar.
-function isPublicSpaceHome(pathname: string) {
-  return /^\/t\/[^/]+\/?$/i.test(pathname);
-}
-
 function isAuthorityRejection(error: unknown) {
   const status = error && typeof error === 'object' && 'status' in error
     ? error.status : undefined;
@@ -76,6 +72,7 @@ function isAuthorityRejection(error: unknown) {
 export function AppAccessibility() {
   const location = useLocation();
   const { user } = useUser();
+  const { hostBinding } = useTenant();
   const accountUserId = user?.id;
   type PreferenceSession = {
     userId: number | string;
@@ -93,7 +90,9 @@ export function AppAccessibility() {
   const hideDock = shouldHideDock(location.pathname);
   const publicTicketRoute = isPublicTicketRoute(location.pathname);
   const focusedPublicRoute = isFocusedPublicRoute(location.pathname);
-  const publicSpaceHome = isPublicSpaceHome(location.pathname);
+  const normalizedPathname = location.pathname.replace(/\/+$/, '') || '/';
+  const tenantPortalHasVisibleBar = isTenantShellManagedPath(location.pathname) ||
+    Boolean(hostBinding && normalizedPathname === '/');
   const portalRoute = isPortalRoute(location.pathname);
 
   useEffect(() => {
@@ -216,14 +215,12 @@ export function AppAccessibility() {
       <a className="chatboc-skip-link" href="#main-content">
         Saltar al contenido principal
       </a>
-      {!hideDock ? (
+      {!hideDock && !tenantPortalHasVisibleBar ? (
         <div
           className={`chatboc-a11y-dock${
             publicTicketRoute ? " chatboc-a11y-dock--public-ticket" : ""
           }${
             focusedPublicRoute ? " chatboc-a11y-dock--focused-public" : ""
-          }${
-            publicSpaceHome ? " chatboc-a11y-dock--public-space" : ""
           }${
             portalRoute ? " chatboc-a11y-dock--portal" : ""
           }`}

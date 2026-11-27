@@ -1863,6 +1863,42 @@ body:has([data-testid="mobile-ticket-action-bar"]) .chatboc-pwa-install {
   text-decoration-thickness: 0.12em;
 }
 
+.tenant-public-shell[data-large-text="true"] :where(p, li, a, button, input, textarea, label, summary, time) {
+  font-size: max(1em, 1.125rem);
+  line-height: 1.7;
+}
+
+[data-brand-identity="published"] .tenant-navigation-link--active {
+  box-shadow: inset 4px 0 0 var(--brand-accent-1, currentColor);
+}
+
+@media (prefers-contrast: more) {
+  .tenant-public-shell {
+    --border: 224 40% 24%;
+    --ring: 224 40% 24%;
+  }
+
+  .dark .tenant-public-shell {
+    --border: 210 40% 78%;
+    --ring: 50 100% 58%;
+  }
+
+  .tenant-public-shell :where(a, button, input, textarea):focus-visible {
+    outline-width: 3px !important;
+    outline-offset: 3px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tenant-public-shell,
+  .tenant-public-shell * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 :root.a11y-large-controls button,
 :root.a11y-large-controls [role="button"],
 :root.a11y-large-controls a,

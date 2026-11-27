@@ -14,9 +14,11 @@ import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {Button} from '@/components/ui/button';
 import {safeInstitutionLogo,type PublishedTenantIdentity} from '@/utils/publishedTenantIdentity';
+import {TENANT_READ_ALOUD_TARGET_ID,useTenantAccessibility} from '@/components/tenant/TenantAccessibilityBar';
 import './institutionalAssistant.css';
 export interface PublicKnowledgeAvailability {tenantSlug:string;tenantId:number;revision:string}
-interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';publicIdentity?:PublishedTenantIdentity|null;onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void}
+export type PublicKnowledgeLoadState='loading'|'published'|'unavailable'|'error';
+interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';publicIdentity?:PublishedTenantIdentity|null;publicLayout?:'reader'|'services';onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void;onPublicKnowledgeState?:(value:PublicKnowledgeLoadState)=>void}
 function InstitutionalIdentityMark({logo,name}:{logo:string|null;name:string}) {
   const [failed,setFailed]=useState(false);
   return <div className="institutional-assistant__mark" aria-hidden="true">
@@ -30,7 +32,9 @@ export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
   return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
 }
-function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowledgeAvailability}:Props){
+function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='reader',onPublicKnowledgeAvailability,onPublicKnowledgeState}:Props){
+  const tenantAccessibility=useTenantAccessibility();
+  const servicesLayout=mode==='public'&&publicLayout==='services';
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
   // A typed «explicámelo más simple» opens the easy-read version of that answer.
   const [easyReadRequest,setEasyReadRequest]=useState<{nodeId:string;token:number}|null>(null);
@@ -41,7 +45,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const [question,setQuestion]=useState(''),[asked,setAsked]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(false);
   const [errorStatus,setErrorStatus]=useState<number|null>(null);
   const [failedAnswer,setFailedAnswer]=useState<{id:string;text?:string;revision:string|null;tenantId:number}|null>(null);
-  const [showSources,setShowSources]=useState(false),[large,setLarge]=useState(readInstitutionalLargeText),[uncovered,setUncovered]=useState(false);
+  const [showSources,setShowSources]=useState(false),[localLarge,setLocalLarge]=useState(readInstitutionalLargeText),[uncovered,setUncovered]=useState(false);
   const [sourceNavigation,setSourceNavigation]=useState<(KnowledgeSourceNavigationAnswer&{originNodeId:string})|null>(null);
   const [highlightedSourceId,setHighlightedSourceId]=useState<string|null>(null);
   const [pending,setPending]=useState<KnowledgeReview|null>(null);
@@ -57,6 +61,13 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const returnToHeading=useRef(false),frame=useRef<number|null>(null);
   const recoveryFocus=useRef<number|null>(null);
   const requestFocus=useRef<{seq:number;origin:HTMLElement;owned:boolean;moved:boolean;disabledBlur:boolean;choiceRetiring:boolean;reviewCloseBlur:boolean;transferredPage:HTMLElement|null;retiringPageOrigin:boolean;review:boolean;completed:boolean}|null>(null);
+  const large=servicesLayout&&tenantAccessibility?tenantAccessibility.largeText:localLarge;
+  const setReadAloudAvailable=tenantAccessibility?.setReadAloudAvailable;
+  useEffect(()=>{
+    if(!servicesLayout||!setReadAloudAvailable)return;
+    setReadAloudAvailable(Boolean(!busy&&!error&&!showSources&&workspace?.audio_reading&&workspace.revision&&nodes.length>0));
+    return()=>setReadAloudAvailable(false);
+  },[busy,error,nodes.length,servicesLayout,setReadAloudAvailable,showSources,workspace?.audio_reading,workspace?.revision]);
   const published=mode==='public'&&workspace?.visibility==='public'&&workspace.can_edit===false&&workspace.tenant.slug===tenantSlug&&workspace.knowledge?workspace:null;
   const publishedTenantId=published?.tenant.id??null,publishedRevision=published?.revision??null;
   useEffect(()=>{
@@ -182,7 +193,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
   const load=async(recovery=false,origin:HTMLElement|null=null)=>{
     if(recovery&&(!active.current||locked.current||dialog.current))return;
     cleanupPrintState();
-    recoveryFocus.current=null;setSourceNavigation(null);
+    recoveryFocus.current=null;setSourceNavigation(null);if(mode==='public')onPublicKnowledgeState?.('loading');
     const seq=++serial.current;captureRequestFocus(seq,recovery?origin:null);locked.current=true;setBusy(true);setError(false);setErrorStatus(null);setFailedAnswer(null);setNodes([]);setTopic([]);setPresentation('answer');setPending(null);review.current=null;dialog.current=null;setShowSources(false);
     try{const data=await loadWorkspace(tenantSlug,mode);if(active.current&&serial.current===seq){
       let initialNodes=data.knowledge?[data.knowledge.initial]:[];
@@ -203,10 +214,14 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       }
       if(active.current&&serial.current===seq){
         if(recovery)recoveryFocus.current=seq;
+        if(mode==='public')onPublicKnowledgeState?.(
+          data.visibility==='public'&&data.can_edit===false&&data.tenant.slug===tenantSlug&&Boolean(data.knowledge)
+            ?'published':'unavailable',
+        );
         setWorkspace(data);setLastUi(data.ui);setNodes(initialNodes);setPresentation(initialPresentation);setAsked('');setUncovered(false);
       }
     }}
-    catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;setErrorStatus(status===401||status===403?status:null);}}
+    catch(cause){if(active.current&&serial.current===seq){setError(true);setWorkspace(null);const status=cause&&typeof cause==='object'&&'status' in cause?cause.status:null;if(mode==='public')onPublicKnowledgeState?.(status===404?'unavailable':'error');setErrorStatus(status===401||status===403?status:null);}}
     finally{if(active.current&&serial.current===seq){setBusy(false);locked.current=false;}}
   };
   useLayoutEffect(()=>{
@@ -361,11 +376,27 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       </button>;
     }}/>:null;
   const topicNavigation=<nav aria-label={ui.topics}>{knowledge?.topics.map(item=><button type="button" key={item.id} disabled={busy||Boolean(pending)} aria-current={current===item.id?'page':undefined} onClick={event=>navigate(item.id,undefined,event.currentTarget)}><span>{item.label}</span><ChevronRight size={15} aria-hidden="true"/></button>)}</nav>;
-  return <section ref={assistantRoot} className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
+  const composer=knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{
+    event.preventDefault();const submitter=(event.nativeEvent as SubmitEvent).submitter;
+    const input=composerInput.current??event.currentTarget.querySelector('textarea');
+    const origin=(submitter instanceof HTMLElement&&document.activeElement===submitter)?submitter
+      :document.activeElement===input?input:submitter instanceof HTMLElement?submitter:null;
+    if(question.trim())void navigate(current,question.trim(),origin);
+  }}>
+    <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19} aria-hidden="true"/><textarea ref={composerInput} id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
+      onChange={event=>{setQuestion(event.target.value);if(failedAnswer){setFailedAnswer(null);setError(false);}}} placeholder={ui.placeholder} disabled={busy||Boolean(pending)}
+      onKeyDown={event=>{
+        if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){
+          event.preventDefault();if(question.trim())void navigate(current,question.trim(),event.currentTarget);
+        }
+      }}/>
+
+    <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/>{servicesLayout?<span>{ui.send}</span>:null}</button></div></form>:null;
+  return <section ref={assistantRoot} className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${servicesLayout?' institutional-assistant--services':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
       <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
-      <div className="institutional-assistant__utilities"><button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLarge(!large);}}><Type size={19} aria-hidden="true"/><span>{ui.large_text}</span></button>
+      <div className="institutional-assistant__utilities">{!servicesLayout?<button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLocalLarge(!large);}}><Type size={19} aria-hidden="true"/><span>{ui.large_text}</span></button>:null}
         <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17} aria-hidden="true"/><span>{ui.sources}</span></button></div>
     </header>
     <div className="institutional-assistant__body">
@@ -378,6 +409,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
       </aside>:null}
       <div className="institutional-assistant__conversation">
         <div className="institutional-assistant__topline"><button type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>knowledge&&navigate(knowledge.start,undefined,event.currentTarget,mode==='public'?'initial-menu':'answer')}><ArrowLeft size={15} aria-hidden="true"/>{ui.home}</button><span>{ui.evidence}</span></div>
+        {servicesLayout&&initialMenu?composer:null}
         {mode==='public'&&knowledge&&current!==knowledge.start&&context.length>0?<details key={current} className="institutional-assistant__topic-index"><summary>{ui.topics}</summary>{topicNavigation}</details>:null}
         <div ref={reading} className="institutional-assistant__reading" aria-label={ui.answer} role="region" tabIndex={0} aria-busy={busy}>
           {asked?<div className="institutional-assistant__question"><MessageSquare size={16} aria-hidden="true"/><p>{asked}</p></div>:null}
@@ -414,7 +446,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
             }):'';
             return <article key={node.id} data-node-id={node.id} className="institutional-assistant__answer">
             <h3 ref={index===0&&!error?element=>{heading.current=element;}:undefined} tabIndex={-1}>{node.title}</h3>
-            {initialMenu&&index===0?choices:null}
+            {initialMenu&&index===0?<section className="institutional-assistant__topics" aria-labelledby={`knowledge-topics-${questionId}`}><h4 id={`knowledge-topics-${questionId}`}>{ui.topics}</h4>{choices}</section>:null}
             <div className="institutional-assistant__prose"><InstitutionalTextBlocks text={node.text}/></div>
             <InstitutionalAcronyms items={nodeAcronyms} label={ui.acronyms}/>
             {mode==='public'&&workspace.easy_read&&workspace.revision&&knowledge&&node.id!==knowledge.start?
@@ -439,29 +471,14 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,onPublicKnowle
                {source.excerpts?.map((quote,i)=><blockquote key={i}><p>{quote.text}</p><cite>{source.title}{source.pagination!=='logical_snapshot'?` · ${quote.page??source.pages?.join(', ')}`:''}</cite></blockquote>)}</div>)}</details>
           </article>;})}
           {mode==='public'&&!busy&&!error&&!showSources&&workspace.audio_reading&&workspace.revision&&nodes.length>0?
-            <InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading} fallbackText={nodes.map(node=>`${node.title}. ${node.text}`).join('\n\n')}/>:null}
+            <div id={servicesLayout?TENANT_READ_ALOUD_TARGET_ID:undefined}><InstitutionalResponseAudio scope={{tenant:workspace.tenant,revision:workspace.revision,nodeIds:nodes.map(node=>node.id)}} copy={workspace.audio_reading} fallbackText={nodes.map(node=>`${node.title}. ${node.text}`).join('\n\n')}/></div>:null}
           {!initialMenu?choices:null}
           {nodes.length>0?<footer className="institutional-assistant__print-footer" aria-hidden="true">
             <p className="institutional-assistant__print-date">Fecha de impresión: <time ref={printTimeRef} dateTime={printDate.toISOString()}>{formatInstitutionalPrintDate(printDate)}</time></p>
             <p className="institutional-assistant__print-disclaimer">{shareLabels.disclaimer}</p>
           </footer>:null}
         </div>
-        {knowledge?<form className="institutional-assistant__composer" onSubmit={event=>{
-          event.preventDefault();const submitter=(event.nativeEvent as SubmitEvent).submitter;
-          const input=composerInput.current??event.currentTarget.querySelector('textarea');
-          const origin=(submitter instanceof HTMLElement&&document.activeElement===submitter)?submitter
-            :document.activeElement===input?input:submitter instanceof HTMLElement?submitter:null;
-          if(question.trim())void navigate(current,question.trim(),origin);
-        }}>
-          <label htmlFor={`knowledge-question-${questionId}`}>{ui.question}</label><div><Search size={19} aria-hidden="true"/><textarea ref={composerInput} id={`knowledge-question-${questionId}`} rows={2} autoComplete="off" maxLength={1800} value={question}
-            onChange={event=>{setQuestion(event.target.value);if(failedAnswer){setFailedAnswer(null);setError(false);}}} placeholder={ui.placeholder} disabled={busy||Boolean(pending)}
-            onKeyDown={event=>{
-              if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){
-                event.preventDefault();if(question.trim())void navigate(current,question.trim(),event.currentTarget);
-              }
-            }}/>
-
-          <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/></button></div></form>:null}
+        {!servicesLayout||!initialMenu?composer:null}
       </div>
     </div>
     {mode==='admin'&&BATTERY_UI_KEYS.every(key=>typeof ui[key]==='string'&&ui[key].trim())?<KnowledgeTestBatteryPanel workspace={workspace}/>:null}

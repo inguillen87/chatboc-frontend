@@ -340,7 +340,10 @@ test.describe('Corte 18 · Bloque Otras formas de seguir cuando no hay respuesta
       await expect(assistant.getByTestId('institutional-no-answer')).toHaveCount(0);
 
       // Verificar también el flujo real en el widget flotante en escritorio.
+      // En el inicio el lector publicado es la consulta de la página y el
+      // lanzador se retira; se lo abre desde otra sección del mismo espacio.
       if (viewport.width === 1440) {
+        await page.goto(`/t/${TENANT_SLUG}/reclamos/nuevo`, { waitUntil: 'domcontentloaded' });
         const launcher = page.locator('.chatboc-toggle-btn').first();
         await expect(launcher).toBeVisible();
         await launcher.click();

@@ -4,9 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getTenantPublicNavigationMock, useTenantMock } = vi.hoisted(() => ({
+const { getTenantPublicNavigationMock, useTenantMock, useSessionAuthorityMock } = vi.hoisted(() => ({
   getTenantPublicNavigationMock: vi.fn(),
   useTenantMock: vi.fn(),
+  useSessionAuthorityMock: vi.fn(),
 }));
 
 vi.mock('@/api/tenant', () => ({
@@ -17,8 +18,12 @@ vi.mock('@/context/TenantContext', () => ({
   useTenant: () => useTenantMock(),
 }));
 
+vi.mock('@/components/access/SessionAuthorityContext', () => ({
+  useSessionAuthority: () => useSessionAuthorityMock(),
+}));
+
 vi.mock('./TenantSwitcher', () => ({
-  TenantSwitcher: () => <div data-testid="tenant-switcher" />,
+  TenantSwitcher: () => <div data-testid="tenant-switcher">Espacios guardados</div>,
 }));
 
 import { TenantShell } from './TenantShell';
@@ -44,6 +49,11 @@ describe('TenantShell public navigation security', () => {
   beforeEach(() => {
     getTenantPublicNavigationMock.mockReset();
     useTenantMock.mockReset();
+    useSessionAuthorityMock.mockReset().mockReturnValue({
+      clerkStatus: 'signed_out',
+      hasBearerSession: false,
+      hasVerifiedSession: false,
+    });
     useTenantMock.mockReturnValue({
       tenant: {
         slug: 'junin',
@@ -63,17 +73,79 @@ describe('TenantShell public navigation security', () => {
       refreshFollowedTenants: vi.fn(),
     });
   });
+
+  it('hides following, favorite state and saved spaces from an anonymous visitor', async () => {
+    useTenantMock.mockReturnValue({
+      ...useTenantMock(),
+      isCurrentTenantFollowed: true,
+      followedTenantsError: 'Detalle privado de sincronización',
+    });
+    getTenantPublicNavigationMock.mockResolvedValue({
+      contract_version: 'tenant.public_navigation.v1',
+      tenant_slug: 'junin',
+      items: [],
+    });
+
+    renderShell();
+
+    expect(await screen.findByRole('heading', { name: 'Municipio de Junín' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /seguir/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Favorito')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tenant-switcher')).not.toBeInTheDocument();
+    expect(screen.queryByText('Espacios guardados')).not.toBeInTheDocument();
+    expect(screen.queryByText('Detalle privado de sincronización')).not.toBeInTheDocument();
+  });
+
+  it('shows follow and saved-space controls only with a verified session', async () => {
+    useSessionAuthorityMock.mockReturnValue({
+      clerkStatus: 'ready',
+      hasBearerSession: true,
+      hasVerifiedSession: true,
+    });
+    getTenantPublicNavigationMock.mockResolvedValue({
+      contract_version: 'tenant.public_navigation.v1',
+      tenant_slug: 'junin',
+      items: [],
+    });
+
+    renderShell();
+
+    expect(await screen.findByRole('button', { name: 'Seguir espacio' })).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-switcher')).toBeInTheDocument();
+    expect(screen.getByText('Espacios guardados')).toBeInTheDocument();
+    expect(screen.queryByText('Favorito')).not.toBeInTheDocument();
+  });
+
+  it('shows the favorite state and unfollow action to its verified owner', async () => {
+    useSessionAuthorityMock.mockReturnValue({
+      clerkStatus: 'ready',
+      hasBearerSession: true,
+      hasVerifiedSession: true,
+    });
+    useTenantMock.mockReturnValue({ ...useTenantMock(), isCurrentTenantFollowed: true });
+    getTenantPublicNavigationMock.mockResolvedValue({
+      contract_version: 'tenant.public_navigation.v1',
+      tenant_slug: 'junin',
+      items: [],
+    });
+
+    renderShell();
+
+    expect(await screen.findByText('Favorito')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dejar de seguir' })).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-switcher')).toBeInTheDocument();
+  });
   it('maps the canonical institutional home to the bound root and prevents organization switching', async () => {
     const binding = tenantHostFixture();
     useTenantMock.mockReturnValue({ ...useTenantMock(), tenant: binding.tenant, currentSlug: binding.tenant.slug, hostBinding: binding });
     getTenantPublicNavigationMock.mockResolvedValue({ contract_version: 'tenant.public_navigation.v1', tenant_slug: binding.tenant.slug, items: [
       { id: 'home', label: 'Inicio institucional', route: '/t/government-east', enabled: true },
-      { id: 'survey', label: 'Encuestas', route: '/t/government-east/encuestas', enabled: true },
+      { id: 'services', label: 'Servicios', route: '/t/government-east/tramites', enabled: true },
       { id: 'other', label: 'Organización ajena', route: '/t/other-workspace', enabled: true },
     ] });
     renderShell();
     expect(await screen.findByRole('link', { name: 'Inicio institucional' })).toHaveAttribute('href', '/');
-    expect(screen.getByRole('link', { name: 'Encuestas' })).toHaveAttribute('href', '/t/government-east/encuestas');
+    expect(screen.getByRole('link', { name: 'Servicios' })).toHaveAttribute('href', '/t/government-east/tramites');
     expect(screen.queryByRole('link', { name: 'Organización ajena' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('tenant-switcher')).not.toBeInTheDocument();
   });
@@ -104,7 +176,7 @@ describe('TenantShell public navigation security', () => {
       contract_version: 'tenant.public_navigation.v1',
       tenant_slug: 'junin',
       items: [
-        { id: 'safe', label: 'Encuestas seguras', route: '/t/junin/encuestas', enabled: true },
+        { id: 'safe', label: 'Servicios seguros', route: '/t/junin/tramites', enabled: true },
         { id: 'slash', label: 'PoC slash', route: '//evil.test/phish', enabled: true },
         { id: 'backslash', label: 'PoC backslash', route: String.raw`\\evil.test\phish`, enabled: true },
         { id: 'mixed-a', label: 'PoC mixed A', route: String.raw`/\evil.test/phish`, enabled: true },
@@ -113,12 +185,11 @@ describe('TenantShell public navigation security', () => {
     });
 
     renderShell();
-    expect(screen.getByText('Gobierno')).toBeVisible();
     expect(screen.queryByText('municipio')).not.toBeInTheDocument();
 
-    expect(await screen.findByRole('link', { name: 'Encuestas seguras' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Servicios seguros' })).toHaveAttribute(
       'href',
-      '/t/junin/encuestas',
+      '/t/junin/tramites',
     );
 
     for (const label of ['PoC slash', 'PoC backslash', 'PoC mixed A', 'PoC mixed B']) {

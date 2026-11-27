@@ -66,6 +66,7 @@ import { hasPersistedClerkSession, logoutChatbocSession } from "@/utils/sessionL
 import { normalizeProfileTenantSlug, readExplicitTenantRequest } from '@/utils/profileTenantAuthority';
 import { readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import { hasOrganizationIdentityContracts, readVerifiedOrganizationIdentity } from '@/utils/verifiedOrganizationIdentity';
+import { isTenantShellManagedPath } from '@/utils/pageTitles';
 
 interface AdminNavLink {
   to: string;
@@ -121,21 +122,23 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
   const navigate=useNavigate();
   const { user, organizationProfileVerified, loading: userLoading } = useUser();
   const { currentSlug,tenant,isLoadingTenant,tenantError,hostBinding } = useTenant();
-  // Only the published public root uses this presentation; commerce and login routes keep their own contracts.
-  const publicRootMatch = /^\/t\/([^/]+)\/?$/i.exec(location.pathname);
-  const isPublicTenantPage = Boolean(publicRootMatch && !hostBinding && !privateShell.active);
-  let publicRootSlug: string | null = null;
-  if (isPublicTenantPage && publicRootMatch) {
-    try { publicRootSlug = exactInstitutionSlug(decodeURIComponent(publicRootMatch[1])); } catch { /* Invalid route stays neutral. */ }
+  // TenantShell owns the public institutional home and its service pages. They
+  // keep the same organization identity instead of falling back to Chatboc.
+  let publicTenantSlug: string | null = null;
+  if (!hostBinding && !privateShell.active && isTenantShellManagedPath(location.pathname)) {
+    try { publicTenantSlug = exactInstitutionSlug(readCanonicalTenantSlugFromPath(location.pathname)); }
+    catch { /* Invalid or legacy routes without an explicit tenant stay neutral. */ }
   }
+  const isPublicTenantPage = Boolean(publicTenantSlug);
+  const isInstitutionalPublicChrome = Boolean(hostBinding || isPublicTenantPage);
   let publicIdentity: ReturnType<typeof readPublishedTenantIdentity> = null;
   const published = tenant?.publishedIdentity;
-  if (publicRootSlug && !isLoadingTenant && !tenantError
-    && exactInstitutionSlug(currentSlug) === publicRootSlug && exactInstitutionSlug(tenant?.slug) === publicRootSlug
+  if (publicTenantSlug && !isLoadingTenant && !tenantError
+    && exactInstitutionSlug(currentSlug) === publicTenantSlug && exactInstitutionSlug(tenant?.slug) === publicTenantSlug
     && published && Number.isSafeInteger(published.tenantId) && published.tenantId > 0) {
     try {
       publicIdentity = readPublishedTenantIdentity({ id: published.tenantId, slug: published.tenantSlug,
-        nombre: published.name, logo_url: published.logoUrl }, publicRootSlug);
+        nombre: published.name, logo_url: published.logoUrl }, publicTenantSlug);
     } catch { /* A retained or mismatched public identity must not brand this route. */ }
   }
   const publicLoginPath = publicIdentity ? buildTenantPath('/login', publicIdentity.tenantSlug) : null;
@@ -486,10 +489,11 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
           {!isLanding && !isPlatformAdmin && !privateShell.active && !hostBinding && showCartLink ? (
             <RouterLink
               to={cartPath}
-              className="relative inline-flex items-center rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
+              className="relative inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
               aria-label="Ver carrito"
             >
-              <ShoppingCart className="h-4 w-4" />
+              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+              <span>Carrito</span>
               {cartCount > 0 ? (
                 <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs text-primary-foreground">
                   {cartCount}
@@ -503,7 +507,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="flex items-center gap-2 rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-accent"
+                  className={`flex items-center gap-2 rounded-[8px] border border-border/70 bg-card/80 px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-accent ${isInstitutionalPublicChrome ? 'min-h-11' : ''}`}
                 >
                   <IdentityAvatar
                     name={userDisplayName}
@@ -597,7 +601,7 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
             </DropdownMenu>
           ) : (
             <>
-              {!isPublicTenantPage || publicLoginPath ? <RouterLink to={publicLoginPath ?? "/login"} className={`${hostBinding || isPublicTenantPage ? 'border bg-primary text-primary-foreground' : 'chatboc-cta-secondary'} rounded-[8px] px-3 py-1.5 text-sm font-semibold`}>
+              {!isPublicTenantPage || publicLoginPath ? <RouterLink to={publicLoginPath ?? "/login"} className={`${isInstitutionalPublicChrome ? 'inline-flex min-h-11 items-center border bg-primary text-primary-foreground' : 'chatboc-cta-secondary'} rounded-[8px] px-3 py-1.5 text-sm font-semibold`}>
                 Iniciar sesión
               </RouterLink> : null}
               {showHostSessionAction ? <button type="button" onClick={handleLogout} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold"><LogOut className="h-4 w-4" />Cerrar sesión</button> : null}
@@ -612,23 +616,27 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
             onClick={toggleDarkMode}
             title="Modo claro / oscuro"
             aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
-            className="rounded-full p-2 text-foreground transition-colors hover:bg-accent"
+            className={isInstitutionalPublicChrome
+              ? 'inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent'
+              : 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 text-foreground transition-colors hover:bg-accent'}
           >
-            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {isDark ? <Sun className="h-5 w-5" aria-hidden="true" /> : <Moon className="h-5 w-5" aria-hidden="true" />}
+            {isInstitutionalPublicChrome ? <span>{isDark ? 'Modo claro' : 'Modo oscuro'}</span> : null}
           </button>
         </div>
 
-        <div className="flex shrink-0 items-center pl-14 md:hidden">
+        <div className={`flex shrink-0 items-center md:hidden ${isInstitutionalPublicChrome ? 'pl-2' : 'pl-14'}`}>
           <button
             ref={mobileMenuButtonRef}
             type="button"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             onClick={() => setMenuOpen((current) => !current)}
             aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
             aria-expanded={menuOpen}
             aria-controls={MOBILE_MENU_ID}
           >
-            {menuOpen ? <X /> : <Menu />}
+            {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+            {isInstitutionalPublicChrome ? <span>{menuOpen ? 'Cerrar' : 'Menú'}</span> : null}
           </button>
         </div>
       </div>
@@ -752,9 +760,10 @@ const Navbar: React.FC<{ inFlow?: boolean }> = ({ inFlow = false }) => {
               type="button"
               onClick={toggleDarkMode}
               aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
-              className="mt-1 rounded-[8px] p-2 text-foreground transition-colors hover:bg-accent"
+              className="mt-1 flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
             >
-              {isDark ? <Sun className="mx-auto h-5 w-5" /> : <Moon className="mx-auto h-5 w-5" />}
+              {isDark ? <Sun className="h-5 w-5" aria-hidden="true" /> : <Moon className="h-5 w-5" aria-hidden="true" />}
+              <span>{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
             </button>
           </div>
         </nav>

@@ -25,7 +25,6 @@ const clients: QueryClient[] = [];
 const publicSlug = 'qa-knowledge';
 const otherSlug = 'qa-other';
 const privateSlug = 'qa-private';
-const genericDescription = 'Canales publicados por la organización para novedades, agenda, participación y seguimiento.';
 const deferred = <T,>() => { let resolve!: (value: T) => void; return { promise: new Promise<T>(r => { resolve = r; }), resolve }; };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const tenantId = (slug: string) => slug === publicSlug ? 701 : 702;
@@ -36,11 +35,19 @@ const unavailable = () => json({ reason_code: 'knowledge_not_available' }, 404);
 const knowledgeRequests = () => vi.mocked(global.fetch).mock.calls.filter(([input]) => new URL(String(input), window.location.origin).pathname.endsWith('/institutional-assistant'));
 
 function transport(knowledge: (slug: string) => Response | Promise<Response>) {
-  global.fetch = vi.fn((input: RequestInfo | URL) => {
+  global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), window.location.origin);
     if (url.pathname.endsWith('/app/me/tenants')) return Promise.resolve(json([]));
     if (url.pathname.includes('tenant-info')) return Promise.resolve(profile(url.searchParams.get('tenant')!));
     if (url.pathname.endsWith('/public-navigation')) return Promise.resolve(json({ contract_version: 'tenant.public_navigation.v1', tenant_slug: url.pathname.split('/').at(-2), items: [] }));
+    if (url.pathname.endsWith('/institutional-assistant/answer')) {
+      const slug = url.pathname.split('/').at(-3)!;
+      const body = JSON.parse(String(init?.body ?? '{}')) as { node_id?: string; question?: string };
+      return Promise.resolve(json({
+        ...reply('requirements', publicWorkspace(slug)),
+        text: body.question ? node('requirements').text : '',
+      }));
+    }
     if (url.pathname.endsWith('/institutional-assistant')) return Promise.resolve(knowledge(url.pathname.split('/').at(-2)!));
     if (url.pathname.includes('/institutional-assistant/nodes/')) {
       const slug = url.pathname.split('/').at(-4)!;
@@ -84,23 +91,25 @@ afterEach(() => {
   window.history.replaceState({}, '', '/');
 });
 
-describe('published institutional reading comes before the generic public overview', () => {
-  it('uses one validated reader request and one heading while preserving the independent private panel', async () => {
+describe('published institutional assistant in the public services home', () => {
+  it('uses one validated workspace request and one page heading while preserving the independent private panel', async () => {
     const pending = deferred<Response>();
     transport(() => pending.promise);
     const privateUser = safeLocalStorage.getItem('user');
     mountPortal();
     await waitFor(() => expect(knowledgeRequests()).toHaveLength(1));
-    expect(screen.getByText(genericDescription)).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(publicSlug) })).toHaveLength(1);
     act(() => { usePanelSessionStore.setState({ authToken: 'synthetic-refreshed-session' }); safeLocalStorage.setItem('authToken', 'synthetic-refreshed-session'); });
     await act(async () => { pending.resolve(json(publicWorkspace())); });
     const reader = await screen.findByTestId('institutional-assistant');
-    expect(reader.querySelector('.institutional-assistant__mark img')).toHaveAttribute('src', `/branding/${publicSlug}.png`);
-    await waitFor(() => expect(screen.queryByText(genericDescription)).not.toBeInTheDocument());
+    expect(reader).toHaveClass('institutional-assistant--services');
+    // Kept only for the printed answer: hidden on screen by the services stylesheet and from assistive technology.
+    expect(reader.querySelector('.institutional-assistant__mark')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByRole('img', { name: `Logo de ${tenantName(publicSlug)}` })).toHaveAttribute('src', `/branding/${publicSlug}.png`);
     const heading = screen.getByRole('heading', { level: 1, name: tenantName(publicSlug) });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(heading.compareDocumentPosition(reader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(reader.compareDocumentPosition(screen.getByText('Este espacio todavía no publicó canales visibles.')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('Este espacio todavía no publicó canales visibles.')).not.toBeInTheDocument();
     expect(knowledgeRequests()).toHaveLength(1);
     expect(safeLocalStorage.getItem('tenantSlug')).toBe(privateSlug);
     expect(useTenantStore.getState().slug).toBe(privateSlug);
@@ -124,7 +133,6 @@ describe('published institutional reading comes before the generic public overvi
     transport(slug => json(publicWorkspace(slug)));
     mountPortal();
     const input = await screen.findByLabelText('Escribí tu consulta');
-    await waitFor(() => expect(screen.queryByText(genericDescription)).not.toBeInTheDocument());
     const reader = screen.getByTestId('institutional-assistant');
     fireEvent.change(input, { target: { value: 'Borrador explícito del visitante sintético' } });
     const topic = screen.getByRole('button', { name: '1 Consultar requisitos' });
@@ -132,19 +140,46 @@ describe('published institutional reading comes before the generic public overvi
     fireEvent.click(topic);
     const result = await screen.findByRole('heading', { name: node('requirements').title });
     await waitFor(() => expect(result).toHaveFocus());
-    expect(screen.getByLabelText('Escribí tu consulta')).toBe(input);
+    // The search moves above the topics on the services home, so its field may be a new node; the reader and the draft are what must survive.
     expect(screen.getByTestId('institutional-assistant')).toBe(reader);
-    expect(input).toHaveValue('Borrador explícito del visitante sintético');
+    expect(screen.getByLabelText('Escribí tu consulta')).toHaveValue('Borrador explícito del visitante sintético');
     expect(knowledgeRequests()).toHaveLength(1);
     expect(vi.mocked(global.fetch).mock.calls.filter(([input]) => String(input).includes('/nodes/requirements'))).toHaveLength(1);
   });
 
-  it('preserves the generic overview for the exact legacy unavailable contract', async () => {
-    transport(unavailable);
+  it('submits the services search through the existing public assistant POST exactly once', async () => {
+    transport(slug => json(publicWorkspace(slug)));
     mountPortal();
-    await screen.findByText('No pudimos cargar el conocimiento');
-    expect(screen.getByText(genericDescription)).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(publicSlug) })).toHaveLength(2);
+    const input = await screen.findByLabelText('Escribí tu consulta');
+    const reader = screen.getByTestId('institutional-assistant');
+    expect(reader).toHaveClass('institutional-assistant--services');
+    const firstTopic = screen.getByRole('button', { name: '1 Consultar requisitos' });
+    expect(input.compareDocumentPosition(firstTopic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: '¿Qué documentos necesito?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar' }));
+
+    expect(await screen.findByRole('heading', { name: node('requirements').title })).toBeVisible();
+    const answerPosts = vi.mocked(global.fetch).mock.calls.filter(([request]) =>
+      new URL(String(request), window.location.origin).pathname.endsWith('/institutional-assistant/answer'));
+    expect(answerPosts).toHaveLength(1);
+    expect(answerPosts[0][1]?.method).toBe('POST');
+    expect(JSON.parse(String(answerPosts[0][1]?.body))).toMatchObject({
+      node_id: 'start',
+      question: '¿Qué documentos necesito?',
+      revision: publicWorkspace().revision,
+    });
+  });
+
+  it('keeps a neutral services home when the organization has no published assistant', async () => {
+    const pending = deferred<Response>();
+    transport(() => pending.promise);
+    mountPortal();
+    await waitFor(() => expect(knowledgeRequests()).toHaveLength(1));
+    await act(async () => { pending.resolve(unavailable()); });
+    await waitFor(() => expect(screen.queryByText('Cargando conocimiento')).not.toBeInTheDocument());
+    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(publicSlug) })).toHaveLength(1);
+    expect(screen.queryByText('No pudimos cargar el conocimiento')).not.toBeInTheDocument();
     expect(screen.queryByTestId('institutional-assistant')).not.toBeInTheDocument();
     expect(knowledgeRequests()).toHaveLength(1);
   });
@@ -153,12 +188,11 @@ describe('published institutional reading comes before the generic public overvi
     ['another organization', () => publicWorkspace(otherSlug)],
     ['editable public metadata', () => ({ ...publicWorkspace(), can_edit: true })],
     ['unverifiable revision', () => ({ ...publicWorkspace(), revision: 'not-a-revision' })],
-  ])('does not compact the page for %s', async (_label, invalid) => {
+  ])('rejects an invalid public workspace for %s without duplicating the page heading', async (_label, invalid) => {
     transport(() => json(invalid()));
     mountPortal();
     await screen.findByText('No pudimos cargar el conocimiento');
-    expect(screen.getByText(genericDescription)).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(publicSlug) })).toHaveLength(2);
+    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(publicSlug) })).toHaveLength(1);
     expect(screen.queryByTestId('institutional-assistant')).not.toBeInTheDocument();
     expect(knowledgeRequests()).toHaveLength(1);
   });
@@ -170,13 +204,18 @@ describe('published institutional reading comes before the generic public overvi
     await waitFor(() => expect(knowledgeRequests()).toHaveLength(1));
     await act(async () => { screen.getByRole('button', { name: 'Ver otro espacio' }).click(); });
     await screen.findAllByRole('heading', { level: 1, name: tenantName(otherSlug) });
-    if (nextPublished) await waitFor(() => expect(screen.queryByText(genericDescription)).not.toBeInTheDocument());
-    else await screen.findByText('No pudimos cargar el conocimiento');
+    if (!nextPublished) {
+      await waitFor(() => expect(knowledgeRequests()).toHaveLength(2));
+      await waitFor(() => expect(screen.queryByText('Cargando conocimiento')).not.toBeInTheDocument());
+      expect(screen.queryByText('No pudimos cargar el conocimiento')).not.toBeInTheDocument();
+    }
     await act(async () => { pending.resolve(json(publicWorkspace())); });
-    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(otherSlug) })).toHaveLength(nextPublished ? 1 : 2);
-    if (nextPublished) expect(screen.getByTestId('institutional-assistant').querySelector('.institutional-assistant__mark img')).toHaveAttribute('src', `/branding/${otherSlug}.png`);
+    expect(screen.getAllByRole('heading', { level: 1, name: tenantName(otherSlug) })).toHaveLength(1);
+    if (nextPublished) {
+      expect(screen.getByTestId('institutional-assistant')).toHaveClass('institutional-assistant--services');
+      expect(screen.getByRole('img', { name: `Logo de ${tenantName(otherSlug)}` })).toHaveAttribute('src', `/branding/${otherSlug}.png`);
+    }
     expect(screen.queryByRole('heading', { level: 1, name: tenantName(publicSlug) })).not.toBeInTheDocument();
-    expect(Boolean(screen.queryByText(genericDescription))).toBe(!nextPublished);
     expect(knowledgeRequests()).toHaveLength(2);
     expect(useTenantStore.getState().slug).toBe(privateSlug);
     expect(usePanelSessionStore.getState().user?.tenant_slug).toBe(privateSlug);

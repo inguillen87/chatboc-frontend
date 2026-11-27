@@ -275,14 +275,17 @@ const SpaceFooter = ({ name, home }: { name?: string; home?: string }) => (
     ) : (
       <span aria-hidden="true" />
     )}
-    <nav className="flex flex-wrap gap-4" aria-label="Información legal de la plataforma">
-      <Link className="min-h-11 py-3" to="/privacidad">
-        Privacidad de la plataforma
-      </Link>
-      <Link className="min-h-11 py-3" to="/terminos">
-        Términos de la plataforma
-      </Link>
-    </nav>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <nav className="flex flex-wrap gap-4" aria-label="Información legal de la plataforma">
+        <Link className="min-h-11 py-3" to="/privacidad">
+          Privacidad de la plataforma
+        </Link>
+        <Link className="min-h-11 py-3" to="/terminos">
+          Términos de la plataforma
+        </Link>
+      </nav>
+      <span className="text-xs">Tecnología Chatboc</span>
+    </div>
   </footer>
 );
 

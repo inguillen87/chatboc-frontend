@@ -40,12 +40,10 @@ describe('TenantShell published brand identity', () => {
   beforeEach(() => { useTenantMock.mockReset(); });
   afterEach(() => { document.head.querySelectorAll('link[data-chatboc-brand-font]').forEach((link) => link.remove()); });
 
-  it('shows the palette band, the published typography and the brand mark', () => {
+  it('uses the published typography, restrained accent tokens and brand mark without a decorative gradient', () => {
     useTenantMock.mockReturnValue(tenantContext({ ...baseTenant, brand_identity: readPublicBrandIdentity(contract) }));
     const { container } = renderShell();
-    const band = screen.getByTestId('tenant-brand-band');
-    expect(band.style.backgroundImage).toContain('linear-gradient(90deg');
-    expect(band).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByTestId('tenant-brand-band')).not.toBeInTheDocument();
     const root = container.querySelector<HTMLElement>('[data-brand-identity="published"]')!;
     expect(root.style.fontFamily).toContain('Synthetic Sans');
     expect(root.style.letterSpacing).toBe('-0.02em');

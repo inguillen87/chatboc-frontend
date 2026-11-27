@@ -36,6 +36,10 @@ vi.mock('@/components/tenant/TenantShell', () => ({
   TenantShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock('@/components/knowledge/InstitutionalAssistant', () => ({
+  default: () => <section data-testid="institutional-assistant" />,
+}));
+
 import TenantHomePage from './TenantHomePage';
 
 const routerFuture = {
@@ -48,7 +52,7 @@ const renderPage = () => {
     defaultOptions: { queries: { retry: false } },
   });
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter future={routerFuture} initialEntries={['/t/junin']}>
         <Routes>
@@ -57,6 +61,7 @@ const renderPage = () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 };
 
 describe('TenantHomePage public navigation security', () => {
@@ -91,7 +96,7 @@ describe('TenantHomePage public navigation security', () => {
 
     renderPage();
 
-    expect(await screen.findByRole('link', { name: /nuevo reclamo seguro/i })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Hacer un reclamo o pedido' })).toHaveAttribute(
       'href',
       '/t/junin/reclamos/nuevo',
     );
@@ -104,10 +109,12 @@ describe('TenantHomePage public navigation security', () => {
       items: [],
     });
 
-    renderPage();
+    const { queryClient } = renderPage();
 
-    expect(await screen.findByText(/todavía no publicó canales visibles/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /iniciar gestion/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(queryClient.getQueryData(['tenant-public-navigation', 'junin']))
+      .toMatchObject({ items: [] }));
+    expect(screen.queryByRole('heading', { name: 'Accesos directos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Hacer un reclamo o pedido' })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -116,6 +123,7 @@ describe('TenantHomePage public navigation security', () => {
     String.raw`/\evil.test/phish`,
     String.raw`\/evil.test/phish`,
   ])('does not render the mixed-separator open redirect PoC %s', async (route) => {
+    listTenantNewsMock.mockResolvedValue([{ id: 1, titulo: 'Noticias seguras' }]);
     getTenantPublicNavigationMock.mockResolvedValue({
       contract_version: 'tenant.public_navigation.v1',
       tenant_slug: 'junin',
@@ -144,7 +152,7 @@ describe('TenantHomePage public navigation security', () => {
       '/t/junin/noticias',
     );
     await waitFor(() => expect(getTenantPublicNavigationMock).toHaveBeenCalledWith('junin'));
-    expect(screen.queryByRole('link', { name: /nuevo reclamo poc/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Hacer un reclamo o pedido' })).not.toBeInTheDocument();
     expect(
       Array.from(container.querySelectorAll('a')).some(
         (anchor) => new URL(anchor.href).hostname === 'evil.test',
