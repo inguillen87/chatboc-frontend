@@ -1,13 +1,14 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TenantTicketFormPage, { createClaimIdempotencyKey } from './TenantTicketFormPage';
 import type { TenantClaimIntakeReceipt } from '@/types/tenant';
 
 const mocks = vi.hoisted(() => ({
   submitTenantTicket: vi.fn(),
+  getPublicMenu: vi.fn(),
   toast: vi.fn(),
   writeText: vi.fn(),
   contextOverride: null as {
@@ -23,6 +24,12 @@ vi.mock('react-router-dom', async () => await vi.importActual('react-router-dom'
 
 vi.mock('@/api/tenant', () => ({
   submitTenantTicket: (...args: unknown[]) => mocks.submitTenantTicket(...args),
+}));
+
+vi.mock('@/services/tenantService', () => ({
+  tenantService: {
+    getPublicMenu: (...args: unknown[]) => mocks.getPublicMenu(...args),
+  },
 }));
 
 vi.mock('@/context/TenantContext', () => ({
@@ -78,6 +85,37 @@ const receipt: TenantClaimIntakeReceipt = {
   ],
 };
 
+const menuWithCategories = (
+  categories: Array<{ label: string; value: string }>,
+) => ({
+  version: 1,
+  main_menu: categories.map(({ label, value }, index) => ({
+    id: `category-${index + 1}`,
+    label,
+    type: 'ticket_category',
+    ticket_category: value,
+  })),
+  submenus: {},
+});
+
+const defaultMenu = menuWithCategories([
+  { label: 'Alumbrado', value: 'Alumbrado' },
+  { label: 'Obras', value: 'Obras' },
+]);
+
+class FakeWebkitSpeechRecognition {
+  static last: FakeWebkitSpeechRecognition | null = null;
+  lang = '';
+  interimResults = true;
+  maxAlternatives = 0;
+  onresult: ((event: unknown) => void) | null = null;
+  onerror: ((event: unknown) => void) | null = null;
+  onend: (() => void) | null = null;
+  start = vi.fn(() => { FakeWebkitSpeechRecognition.last = this; });
+  stop = vi.fn(() => { this.onend?.(); });
+  abort = vi.fn();
+}
+
 const RouteControls = () => {
   const navigate = useNavigate();
   return (
@@ -112,9 +150,6 @@ const navigateTo = (space: 'A' | 'B') =>
   fireEvent.click(screen.getByRole('button', { name: `Ver espacio ${space}` }));
 
 const fillClaim = (description = 'Hay una luminaria apagada frente a la plaza') => {
-  fireEvent.change(screen.getByLabelText('Tema o categoría (opcional)'), {
-    target: { value: 'Alumbrado' },
-  });
   fireEvent.change(screen.getByLabelText('Descripción'), {
     target: { value: description },
   });
@@ -123,14 +158,21 @@ const fillClaim = (description = 'Hay una luminaria apagada frente a la plaza') 
 describe('TenantTicketFormPage claim receipt', () => {
   beforeEach(() => {
     mocks.submitTenantTicket.mockReset();
+    mocks.getPublicMenu.mockReset();
     mocks.toast.mockReset();
     mocks.writeText.mockReset();
     mocks.contextOverride = null;
+    mocks.getPublicMenu.mockResolvedValue(defaultMenu);
     mocks.writeText.mockResolvedValue(undefined);
+    FakeWebkitSpeechRecognition.last = null;
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: mocks.writeText },
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('renders the confirmed receipt and keeps the PIN out of query strings', async () => {
@@ -161,6 +203,145 @@ describe('TenantTicketFormPage claim receipt', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Crear otro reclamo' }));
     expect(screen.queryByTestId('claim-intake-receipt')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Descripción')).toHaveValue('');
+  });
+
+  it('focuses a clear confirmation and uses the tracking action label returned by the backend', async () => {
+    const receiptWithPublishedAction: TenantClaimIntakeReceipt = {
+      ...receipt,
+      actions: [{
+        id: 'track_claim',
+        label: 'Consultar el seguimiento',
+        href: receipt.tracking.path,
+      }],
+    };
+    mocks.submitTenantTicket.mockResolvedValueOnce(receiptWithPublishedAction);
+    renderPage();
+    fillClaim();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar reclamo' }));
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Listo, recibimos tu reclamo o pedido',
+    });
+    expect(heading).toHaveFocus();
+    expect(screen.getByTestId('claim-code')).toHaveTextContent('T-123');
+    expect(screen.getByRole('link', { name: 'Consultar el seguimiento' })).toHaveAttribute(
+      'href',
+      receipt.tracking.path,
+    );
+    expect(screen.getByRole('button', { name: 'Crear otro reclamo' })).toBeEnabled();
+  });
+
+  it('dictates into the description with webkitSpeechRecognition without submitting', () => {
+    vi.stubGlobal('SpeechRecognition', undefined);
+    vi.stubGlobal('webkitSpeechRecognition', FakeWebkitSpeechRecognition);
+    renderPage();
+    const description = screen.getByLabelText('Descripción');
+    fireEvent.change(description, { target: { value: 'Hay agua' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dictar' }));
+
+    expect(FakeWebkitSpeechRecognition.last?.lang).toBe('es-AR');
+    expect(FakeWebkitSpeechRecognition.last?.interimResults).toBe(false);
+    expect(FakeWebkitSpeechRecognition.last?.maxAlternatives).toBe(1);
+    expect(screen.getByRole('button', { name: 'Terminar' })).toHaveAttribute('aria-pressed', 'true');
+
+    act(() => {
+      FakeWebkitSpeechRecognition.last?.onresult?.({
+        results: [[{ transcript: '  en   la esquina  ' }]],
+      });
+      FakeWebkitSpeechRecognition.last?.onend?.();
+    });
+
+    expect(description).toHaveValue('Hay agua en la esquina');
+    expect(description).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Dictar' })).toHaveAttribute('aria-pressed', 'false');
+    expect(mocks.submitTenantTicket).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dictar' }));
+    const retiredRecognition = FakeWebkitSpeechRecognition.last;
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar' }));
+    expect(retiredRecognition?.abort).toHaveBeenCalledTimes(1);
+    act(() => {
+      retiredRecognition?.onresult?.({ results: [[{ transcript: 'texto tardío' }]] });
+    });
+    expect(description).toHaveValue('');
+  });
+
+  it('renders up to eight published categories as buttons and sends the backend value', async () => {
+    const categories = [
+      { label: 'Luces de la calle', value: 'Alumbrado' },
+      { label: 'Obras', value: 'Obras' },
+      { label: 'Arbolado', value: 'Arbolado' },
+      { label: 'Residuos', value: 'Residuos' },
+      { label: 'Tránsito', value: 'Tránsito' },
+      { label: 'Agua', value: 'Agua' },
+      { label: 'Espacios verdes', value: 'Espacios verdes' },
+      { label: 'Otra categoría publicada', value: 'Otra categoría publicada' },
+    ];
+    mocks.getPublicMenu.mockResolvedValue(menuWithCategories(categories));
+    mocks.submitTenantTicket.mockResolvedValueOnce(receipt);
+    renderPage();
+
+    const categoryButtons = await Promise.all(
+      categories.map(({ label }) => screen.findByRole('button', { name: label })),
+    );
+    expect(categoryButtons).toHaveLength(8);
+    expect(screen.queryByRole('combobox', { name: 'Tema o categoría (opcional)' })).not.toBeInTheDocument();
+
+    fireEvent.click(categoryButtons[0]);
+    expect(categoryButtons[0]).toHaveAttribute('aria-pressed', 'true');
+    fillClaim();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar reclamo' }));
+
+    await waitFor(() => expect(mocks.submitTenantTicket).toHaveBeenCalledTimes(1));
+    expect(mocks.submitTenantTicket.mock.calls[0][1]).toEqual(expect.objectContaining({
+      categoria: 'Alumbrado',
+    }));
+  });
+
+  it('renders more than eight published categories in a native combobox', async () => {
+    const categories = Array.from({ length: 9 }, (_, index) => ({
+      label: `Tema ${index + 1}`,
+      value: `backend-category-${index + 1}`,
+    }));
+    mocks.getPublicMenu.mockResolvedValue(menuWithCategories(categories));
+    mocks.submitTenantTicket.mockResolvedValueOnce(receipt);
+    renderPage();
+
+    const categorySelect = await screen.findByRole('combobox', {
+      name: 'Tema o categoría (opcional)',
+    });
+    expect(screen.getByRole('option', { name: 'Tema 9' })).toHaveValue('backend-category-9');
+    expect(screen.queryByRole('button', { name: 'Tema 1' })).not.toBeInTheDocument();
+
+    fireEvent.change(categorySelect, { target: { value: 'backend-category-9' } });
+    fillClaim();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar reclamo' }));
+
+    await waitFor(() => expect(mocks.submitTenantTicket).toHaveBeenCalledTimes(1));
+    expect(mocks.submitTenantTicket.mock.calls[0][1]).toEqual(expect.objectContaining({
+      categoria: 'backend-category-9',
+    }));
+  });
+
+  it('announces an empty required description, associates the error, focuses it and clears it on edit', () => {
+    renderPage();
+    const description = screen.getByLabelText('Descripción');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar reclamo' }));
+
+    const error = screen.getByRole('alert');
+    expect(error).not.toBeEmptyDOMElement();
+    expect(error).toHaveAttribute('id');
+    expect(description).toHaveAttribute('aria-invalid', 'true');
+    expect(description.getAttribute('aria-describedby')?.split(/\s+/)).toContain(error.id);
+    expect(description).toHaveFocus();
+    expect(mocks.submitTenantTicket).not.toHaveBeenCalled();
+
+    fireEvent.change(description, { target: { value: 'Hay una pérdida de agua' } });
+    expect(description).not.toHaveAttribute('aria-invalid', 'true');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('reuses the idempotency key when the same payload is retried after an invalid ack', async () => {
@@ -222,14 +403,17 @@ describe('TenantTicketFormPage claim receipt', () => {
     }
   });
 
-  it('keeps all draft fields in their organization through A to B to A, without sending on navigation', () => {
+  it('keeps all draft fields in their organization through A to B to A, without sending on navigation', async () => {
     renderPage();
     fillClaim('Borrador del espacio A');
+    fireEvent.click(await screen.findByRole('button', { name: /^Alumbrado/ }));
     fireEvent.change(screen.getByLabelText('Latitud (opcional)'), { target: { value: '-34.5' } });
     fireEvent.change(screen.getByLabelText('Longitud (opcional)'), { target: { value: '-58.5' } });
 
     navigateTo('B');
-    expect(screen.getByLabelText('Tema o categoría (opcional)')).toHaveValue('');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Alumbrado/ })).toHaveAttribute('aria-pressed', 'false');
+    });
     expect(screen.getByLabelText('Descripción')).toHaveValue('');
     expect(screen.getByLabelText('Latitud (opcional)')).toHaveValue(null);
     expect(screen.getByLabelText('Longitud (opcional)')).toHaveValue(null);
@@ -239,12 +423,31 @@ describe('TenantTicketFormPage claim receipt', () => {
 
     navigateTo('A');
     expect(screen.getByLabelText('Descripción')).toHaveValue('Borrador del espacio A');
-    expect(screen.getByLabelText('Tema o categoría (opcional)')).toHaveValue('Alumbrado');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Alumbrado/ })).toHaveAttribute('aria-pressed', 'true');
+    });
     expect(screen.getByLabelText('Latitud (opcional)')).toHaveValue(-34.5);
     expect(screen.getByLabelText('Longitud (opcional)')).toHaveValue(-58.5);
     navigateTo('B');
     expect(screen.getByLabelText('Descripción')).toHaveValue('Borrador del espacio B');
     expect(mocks.submitTenantTicket).not.toHaveBeenCalled();
+  });
+
+  it('keeps a published category when returning and submitting before any reload', async () => {
+    mocks.submitTenantTicket.mockResolvedValueOnce(receipt);
+    renderPage();
+    fillClaim('Borrador con una categoría publicada');
+    fireEvent.click(await screen.findByRole('button', { name: 'Alumbrado' }));
+
+    navigateTo('B');
+    navigateTo('A');
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar reclamo' }));
+
+    await waitFor(() => expect(mocks.submitTenantTicket).toHaveBeenCalledTimes(1));
+    expect(mocks.submitTenantTicket.mock.calls[0][1]).toEqual(expect.objectContaining({
+      categoria: 'Alumbrado',
+    }));
+    expect(mocks.getPublicMenu.mock.calls.filter(([calledSlug]) => calledSlug === 'junin')).toHaveLength(1);
   });
 
   it.each(['B', 'A'] as const)('ignores a retired A rejection while %s is visible, including ABA', async (visibleSpace) => {
@@ -472,11 +675,12 @@ describe('TenantTicketFormPage claim receipt', () => {
     mocks.submitTenantTicket.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(receipt);
     renderPage();
     fillClaim('Descripción enviada originalmente');
+    fireEvent.click(await screen.findByRole('button', { name: /^Alumbrado/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar reclamo' }));
     const sentKey = mocks.submitTenantTicket.mock.calls[0][2];
     expect(screen.getByLabelText('Descripción')).toBeEnabled();
     fillClaim('Nuevo borrador escrito durante el envío');
-    fireEvent.change(screen.getByLabelText('Tema o categoría (opcional)'), { target: { value: 'Obras' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Obras/ }));
     fireEvent.change(screen.getByLabelText('Latitud (opcional)'), { target: { value: '-34.1' } });
     fireEvent.change(screen.getByLabelText('Longitud (opcional)'), { target: { value: '-58.1' } });
     expect(mocks.submitTenantTicket.mock.calls[0][1].descripcion).toBe('Descripción enviada originalmente');
@@ -485,7 +689,7 @@ describe('TenantTicketFormPage claim receipt', () => {
     expect(await screen.findByTestId('claim-intake-receipt')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Crear otro reclamo' }));
     expect(screen.getByLabelText('Descripción')).toHaveValue('Nuevo borrador escrito durante el envío');
-    expect(screen.getByLabelText('Tema o categoría (opcional)')).toHaveValue('Obras');
+    expect(screen.getByRole('button', { name: /^Obras/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('Latitud (opcional)')).toHaveValue(-34.1);
     expect(screen.getByLabelText('Longitud (opcional)')).toHaveValue(-58.1);
     expect(mocks.submitTenantTicket).toHaveBeenCalledTimes(1);

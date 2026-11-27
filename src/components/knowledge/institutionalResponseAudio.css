@@ -1,3 +1,14 @@
+.institutional-assistant__dictate { min-height:44px; display:inline-flex; align-items:center; gap:6px; padding:0 12px; border:1px solid var(--institutional-control-border,hsl(var(--border))); border-radius:10px; background:hsl(var(--background)); color:hsl(var(--foreground)); font-size:.875rem; font-weight:600; }
+.institutional-assistant__dictate[aria-pressed="true"] { border-color:hsl(var(--primary)); background:hsl(var(--primary)/.12); }
+.institutional-assistant__dictate:focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:2px; }
+.institutional-assistant__dictate-note { display:block; margin-top:.5rem; font-size:var(--institutional-detail-size,.875rem); color:hsl(var(--muted-foreground)); }
+.institutional-assistant__dictate-note:empty { display:none; }
+.institutional-assistant__composer>div { position:relative; }
+.institutional-assistant__composer .institutional-assistant__dictate-note { position:absolute; inset-inline-start:0; top:calc(100% + 6px); margin-top:0; }
+.institutional-assistant__composer:has(.institutional-assistant__dictate-note:not(:empty)) { padding-bottom:2.6rem; }
+@media(max-width:420px){.institutional-assistant__dictate:not(.institutional-assistant__dictate--full-label) span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}.institutional-assistant__dictate{padding:0 11px;}}
+@media print{.institutional-assistant__dictate,.institutional-assistant__dictate-note{display:none!important;}}
+
 .institutional-response-audio { margin-block:.5rem 1rem; padding:.75rem; border:1px solid hsl(var(--border)); border-radius:.75rem; background:hsl(var(--muted)/.25); }
 .institutional-response-audio__controls { display:flex; flex-wrap:wrap; gap:.65rem; }
 .institutional-response-audio p { margin-bottom:.5rem; line-height:1.6; overflow-wrap:anywhere; }

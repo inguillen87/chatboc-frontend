@@ -1,10 +1,11 @@
 import React,{useEffect,useId,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Mic,Plus,Printer,Search,Share2,Type} from 'lucide-react';
+import {ArrowLeft,ArrowUp,BookOpen,ChevronRight,FileText,Loader2,MessageSquare,Plus,Printer,Search,Share2,Type} from 'lucide-react';
 import {askWorkspace,changeWorkspace,loadWorkspace,knowledgeSourceExternalUrl,isKnowledgeSourceNavigation,readKnowledgeAcronyms,type KnowledgeWorkspace,type KnowledgeNode,type KnowledgeSourceNavigationAnswer} from './institutionalAssistantContract';
 import {KnowledgeSourceDialog,KnowledgeReviewDialog,type KnowledgeReview} from './InstitutionalAssistantDialogs';
 import {KnowledgeSourceMetadata} from './InstitutionalAssistantSourceMetadata';
 import {KnowledgeQuestionMetricsPanel} from './InstitutionalAssistantMetrics';
 import {KnowledgeTestBatteryPanel} from './InstitutionalAssistantBattery';
+import {DictationControl} from './DictationControl';
 import {InstitutionalAcronyms,InstitutionalNoAnswerFallback,InstitutionalTextBlocks,buildInstitutionalPortalUrl,buildInstitutionalWhatsAppUrl,formatInstitutionalPrintDate,openInstitutionalWhatsAppShare,readInstitutionalLargeText,rememberInstitutionalLargeText,resolveInstitutionalNoAnswerLabels,resolveInstitutionalShareLabels} from './InstitutionalTextBlocks';
 import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
@@ -29,35 +30,6 @@ function InstitutionalIdentityMark({logo,name}:{logo:string|null;name:string}) {
 const BATTERY_UI_KEYS=['test_battery','test_battery_description','test_battery_input','test_battery_limit','test_battery_run','test_battery_stop',
   'test_battery_summary','test_battery_question','test_battery_result','test_battery_topic','test_battery_answered','test_battery_uncovered',
   'test_battery_sources','test_battery_failed','test_battery_pending'] as const;
-/**
- * Dictation into the question field with the browser's own speech recognition.
- * The words land in the field for the person to read and send: nothing is
- * submitted by voice alone, and nothing is recorded or sent by this component.
- */
-function DictationControl({disabled,onText}:{disabled:boolean;onText:(text:string)=>void}) {
-  const [listening,setListening]=useState(false),[note,setNote]=useState('');
-  const recognition=useRef<{stop:()=>void;abort:()=>void}|null>(null);
-  const Recognition=typeof window==='undefined'?null:((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition||null);
-  useEffect(()=>()=>{try{recognition.current?.abort();}catch{/* already stopped */}},[]);
-  if(!Recognition)return null;
-  const toggle=()=>{
-    if(listening){try{recognition.current?.stop();}catch{/* already stopped */}return;}
-    try{
-      const session=new Recognition();session.lang='es-AR';session.interimResults=false;session.maxAlternatives=1;
-      session.onresult=(event:any)=>{const text=Array.from(event.results as ArrayLike<any>).map(result=>String(result?.[0]?.transcript??'')).join(' ').replace(/\s+/g,' ').trim();if(text)onText(text);};
-      session.onerror=(event:any)=>setNote(event?.error==='not-allowed'||event?.error==='service-not-allowed'
-        ?'Para dictar, permití el uso del micrófono en el navegador.':'No pudimos escucharte. Probá de nuevo o escribí tu consulta.');
-      session.onend=()=>setListening(false);
-      recognition.current=session;setNote('');session.start();setListening(true);
-    }catch{setNote('No pudimos iniciar el dictado. Escribí tu consulta.');}
-  };
-  return <>
-    <button type="button" className="institutional-assistant__dictate" aria-pressed={listening} disabled={disabled} onClick={toggle}>
-      <Mic size={19} aria-hidden="true"/><span>{listening?'Terminar':'Dictar'}</span></button>
-    <span role="status" className="institutional-assistant__dictate-note">{listening?'Te escucho. Decí tu consulta.':note}</span>
-  </>;
-}
-
 export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
   return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
