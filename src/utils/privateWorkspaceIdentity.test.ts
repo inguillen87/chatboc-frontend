@@ -9,7 +9,7 @@ describe('private workspace presentation',()=>{
   it('uses the verified authenticated profile rather than public branding',()=>{
     expect(privateWorkspacePresentation(input())).toEqual({active:true,identity:{tenantSlug:'org-a',name:'Organización A',logoUrl:'https://cdn.example.com/logo.png'}});
   });
-  it.each(['/perfil?tab=crm','/pedidos','/usuarios','/analytics/operations','/admin/encuestas/42/analytics','/t/org-a/perfil','/org-a/analytics'])('brands supported private routes without changing permissions: %s',path=>{
+  it.each(['/perfil?tab=crm','/pedidos','/usuarios','/analytics/operations','/admin/encuestas/42/analytics','/admin/knowledge','/admin/catalog','/t/org-a/perfil','/org-a/analytics'])('brands supported private routes without changing permissions: %s',path=>{
     const url=new URL(path,'https://qa.example.com');const model=privateWorkspacePresentation({...input(),pathname:url.pathname,search:url.search});
     if(path==='/org-a/analytics')expect(model.active).toBe(false);else expect(model.identity?.name).toBe('Organización A');
   });
