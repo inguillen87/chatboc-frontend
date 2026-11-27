@@ -35,16 +35,7 @@ function textBlocks(text:string):TextBlock[] {
 }
 
 /** Both institutional surfaces retain backend copy and render it as safe text. */
-const LARGE_TEXT_KEY='chatboc.institutional-large-text';
-/** Last «texto ampliado» choice of this viewer, remembered in this browser.
- * Each assistant or answer still toggles on its own; new ones start from it. */
-export function readInstitutionalLargeText():boolean {
-  try{return window.localStorage.getItem(LARGE_TEXT_KEY)==='1';}catch{return false;}
-}
-export function rememberInstitutionalLargeText(value:boolean) {
-  try{if(value)window.localStorage.setItem(LARGE_TEXT_KEY,'1');else window.localStorage.removeItem(LARGE_TEXT_KEY);}
-  catch{/* the choice still applies on this page */}
-}
+export {readInstitutionalLargeText,rememberInstitutionalLargeText} from '@/components/chat/AccessibilityToggle';
 export function InstitutionalTextBlocks({text}:{text:string}) {
   return <>{textBlocks(text).map((block,index)=>{
     if(block.kind==='paragraph')return <p key={index}>{block.text}</p>;

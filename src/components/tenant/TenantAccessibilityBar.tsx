@@ -16,11 +16,9 @@ import {
   readAccessibilityPrefs,
   type AccessibilityPreferenceIntent,
   type Prefs,
-} from '@/components/chat/AccessibilityToggle';
-import {
   readInstitutionalLargeText,
   rememberInstitutionalLargeText,
-} from '@/components/knowledge/InstitutionalTextBlocks';
+} from '@/components/chat/AccessibilityToggle';
 import { cn } from '@/lib/utils';
 
 type TenantAccessibilityValue = {
