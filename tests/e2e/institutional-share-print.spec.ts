@@ -141,6 +141,10 @@ const WORKSPACE_FIXTURE = {
     start: 'start',
     node_count: 2,
     topics: [{ id: 'requirements', label: 'Documentación y requisitos' }],
+    localities: [
+      { label: 'Ciudad Norte', target: 'requirements' },
+      { label: 'Ciudad Sur', target: 'requirements' },
+    ],
     sources: [SOURCE_DOC],
     initial: START_NODE,
   },
@@ -272,6 +276,18 @@ test.describe('Corte 17 · Compartir por WhatsApp e imprimir respuesta instituci
       await page.goto(`/t/${TENANT_SLUG}`, { waitUntil: 'domcontentloaded' });
       const assistant = page.getByTestId('institutional-assistant');
       await expect(assistant).toBeVisible();
+
+      // Elegir la ciudad una vez: botones grandes, sin permisos ni escritura.
+      const cityQuestion = page.getByRole('heading', { name: '¿Desde qué ciudad consultás?' });
+      await expect(cityQuestion).toBeVisible();
+      const cityButton = page.getByRole('button', { name: 'Ciudad Sur', exact: true });
+      const cityBox = await cityButton.boundingBox();
+      expect(cityBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(page.getByRole('button', { name: 'Usar mi ubicación' })).toHaveCount(0);
+      await cityButton.click();
+      await expect(page.getByText('Consultás desde')).toBeVisible();
+      await expect(cityQuestion).toHaveCount(0);
+      expect(await page.evaluate(slug => window.localStorage.getItem(`chatboc.institutional.locality:${slug}`), TENANT_SLUG)).toBe('Ciudad Sur');
 
       // Abrir tema desde el menú inicial
       const topicButton = assistant.getByRole('button', { name: /Documentación y requisitos/i });
