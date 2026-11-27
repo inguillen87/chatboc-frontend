@@ -291,3 +291,7 @@
 .institutional-assistant__contact-link:hover { color:hsl(var(--primary)); }
 .institutional-assistant__contact-link:focus-visible { outline:3px solid hsl(var(--ring)); outline-offset:2px; border-radius:3px; }
 @media print{.institutional-assistant__contact-link{text-decoration:none;font-weight:inherit;}}
+.institutional-locality__locate { display:inline-flex; align-items:center; gap:.5rem; min-height:44px; margin-top:.75rem; padding:8px 14px; border:1px dashed var(--institutional-control-border); border-radius:10px; background:transparent; font-weight:600; }
+.institutional-locality__locate:hover:not(:disabled) { border-style:solid; border-color:hsl(var(--primary)); }
+.institutional-locality__note { margin:.5rem 0 0; min-height:0; color:hsl(var(--muted-foreground)); }
+.institutional-locality__note:empty { display:none; }
