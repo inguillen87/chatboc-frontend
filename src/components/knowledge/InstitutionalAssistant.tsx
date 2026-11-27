@@ -11,6 +11,7 @@ import {InstitutionalResponseAudio} from './InstitutionalResponseAudio';
 import {InstitutionalEasyRead} from './InstitutionalEasyRead';
 import {InstitutionalChoices,readInstitutionalChoiceNavigation} from './InstitutionalChoices';
 import {InstitutionalLocality,mentionsLocality,readInstitutionalLocality,rememberInstitutionalLocality} from './InstitutionalLocality';
+import {InstitutionalDocumentDownload,isHandoutSource} from './InstitutionalDocumentDownload';
 import {institutionalChoiceLabel,institutionalInitialMenuContext,institutionalPresentationMode,type InstitutionalPresentationMode} from '@/features/chat/institutionalChatMessage';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
 import {ViewState} from '@/components/app-shell/ViewState';
@@ -478,6 +479,8 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
                 </button>
               </div>:null}
             {node.links.length>0?<div className="institutional-assistant__links">{node.links.map(link=><a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}<ChevronRight size={15} aria-hidden="true"/></a>)}</div>:null}
+            {mode==='public'&&workspace?node.sources.filter(isHandoutSource).map(source=>
+              <InstitutionalDocumentDownload key={source.id} workspace={workspace} source={source} mode={mode} disabled={busy||Boolean(pending)}/>):null}
             <details className="institutional-assistant__citations"><summary><FileText size={15} aria-hidden="true"/>{ui.source_details}</summary>
               {node.sources.map(source=><div key={source.id}><p>{source.title} {source.pagination!=='logical_snapshot'?<span>· {source.pages?.join(', ')}</span>:null}{knowledgeSourceExternalUrl(source,mode)?<a href={knowledgeSourceExternalUrl(source,mode)!} target="_blank" rel="noopener noreferrer">{source.title}</a>:null}</p>
                <KnowledgeSourceMetadata source={source} compact mode={mode}/>
