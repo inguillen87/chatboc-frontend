@@ -540,6 +540,7 @@ test('profile home exposes role-based enterprise work areas and nests plans unde
   await expect(page.getByRole('button', { name: 'Abrir menú Inteligencia' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir menú Administración' })).toBeVisible();
   await expect(page.getByText('Configuración técnica separada de la operación diaria.')).toBeVisible();
+  await page.locator('summary', { hasText: 'Detalle de los indicadores' }).click();
   await expect(page.getByText(/Información operativa confirmada/)).toBeVisible();
   await expect(page.getByText(/Módulo publicado por backend/i)).toHaveCount(0);
 

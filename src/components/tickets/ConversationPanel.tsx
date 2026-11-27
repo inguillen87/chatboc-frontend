@@ -735,6 +735,7 @@ export const formatReplyDeliveryChannel = (channel: string) => {
   if (normalized === 'email') return 'Correo electrónico';
   if (normalized === 'live_socket' || normalized === 'socket') return 'Chat en vivo';
   if (normalized === 'crm' || normalized === 'internal_event' || normalized === 'timeline_only') return 'Registro interno';
+  if (!normalized || ['desconocido', 'unknown', 'none', 'null', 'n/a', 'sin canal'].includes(normalized)) return 'Sin canal de envío';
   return formatTicketDisplayLabel(channel, 'Otro canal');
 };
 
