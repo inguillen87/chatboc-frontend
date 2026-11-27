@@ -665,6 +665,9 @@ export default function Perfil() {
   const isPlatformWorkspace = isPlatformAdministrator && !hasRequestedTenant;
   const platformWorkspace = (user as any)?.platform_workspace?.contract_version === 'platform.workspace.v1'
     ? (user as any).platform_workspace : null;
+  const [workspaceLogoFailed, setWorkspaceLogoFailed] = useState(false);
+  const workspaceLogoUrl = !isPlatformWorkspace && typeof perfil.logo_url === 'string' && /^https:\/\//.test(perfil.logo_url.trim())
+    ? perfil.logo_url.trim() : '';
   const institutionDisplayName = isPlatformWorkspace ? platformWorkspace?.heading || 'Administración de plataforma' : usesScopedOrganizationProfile
     ? matchingOrganizationProfile?.values.nombre_empresa || (isPlatformAdministrator
       ? requestedTenantSlug || 'Organización seleccionada'
@@ -2959,11 +2962,17 @@ export default function Perfil() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
               <span className="mt-1 inline-block align-middle">
-                <MunicipioIcon />
+                {workspaceLogoUrl && !workspaceLogoFailed ? (
+                  <img
+                    src={workspaceLogoUrl}
+                    alt=""
+                    className="h-14 w-14 rounded-xl border border-border/60 bg-background object-contain p-1"
+                    onError={() => setWorkspaceLogoFailed(true)}
+                  />
+                ) : <MunicipioIcon />}
               </span>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Espacio de trabajo</p>
-                <h1 className="mt-1 text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
+                <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
                   {institutionDisplayName}
                 </h1>
                 <p className="mt-1.5 max-w-3xl text-sm leading-5 text-muted-foreground">
@@ -3019,10 +3028,9 @@ export default function Perfil() {
       <section className="mx-auto mb-5 w-full max-w-7xl space-y-5 px-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Inicio</p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground sm:text-2xl">Trabajo de hoy</h2>
+            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Trabajo de hoy</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Accesos priorizados por rol. Cada módulo abre directamente donde se resuelve la tarea.
+              Lo que más se usa según tu rol. Cada acceso abre directo donde se hace la tarea.
             </p>
           </div>
           <Badge variant="outline" className="w-fit rounded-md px-2.5 py-1 text-xs font-medium">

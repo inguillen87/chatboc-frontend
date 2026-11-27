@@ -54,7 +54,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     const view = render(<QueryClientProvider client={client}><BackofficeCommandCenter tenantSlug="tenant-a" tenantId={11} tenantRevision="fixture-rev1" scope="municipio" {...overrides} /></QueryClientProvider>);
-    const risk = screen.getByRole('heading', { name: 'Riesgo SLA' }).parentElement!.parentElement!;
+    const risk = screen.getByRole('heading', { name: 'Fuera de plazo o por vencer' }).parentElement!.parentElement!;
     const unknown = screen.getByRole('heading', { name: 'Plazos por revisar' }).parentElement!.parentElement!;
     const team = screen.getByRole('heading', { name: 'Equipo activo' }).parentElement!.parentElement!;
     await within(team).findByText('1', { selector: 'p.text-2xl' });
@@ -75,10 +75,10 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     const explanations = [
       screen.getByText(/sin completar valores por estimación/),
       screen.getByText('— indica que no hay datos disponibles; 0 es un valor informado.'),
-      screen.getByText('Riesgo SLA confirmado'),
-      screen.getByText('Falta evidencia suficiente para evaluar el SLA.'),
-      screen.getByText('SLA sin verificar'),
-      screen.getByText('Casos abiertos sin evidencia verificable del plazo de atención.'),
+      screen.getByText('Plazo vencido o por vencer'),
+      screen.getByText('Todavía no hay datos suficientes para evaluar los plazos.'),
+      screen.getByText('Plazo sin verificar'),
+      screen.getByText('Casos abiertos sin un plazo de atención que se pueda comprobar.'),
       screen.getByText('Falta información verificable de responsables para el total de casos y pedidos.'),
     ];
     expect(details).not.toHaveAttribute('open');
@@ -243,7 +243,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     expect(within(unknown).getByText('55', { selector: 'p.text-2xl' })).toBeInTheDocument();
     expect(risk.className).not.toMatch(/emerald|amber/);
     expect(unknown.className).not.toMatch(/emerald/);
-    expect(screen.getByText(/sin evidencia verificable/)).toBeInTheDocument();
+    expect(screen.getByText(/sin un plazo de atención que se pueda comprobar/)).toBeInTheDocument();
   });
 
   it('renders nested zero orders and contacts, and the confirmed team count', async () => {
@@ -456,7 +456,7 @@ describe('BackofficeCommandCenter SLA evidence', () => {
     const { risk, unknown } = await renderSummary(summary);
     expect(within(risk).getByText('—')).toBeInTheDocument();
     expect(within(unknown).getByText('—')).toBeInTheDocument();
-    expect(screen.getByText(/Falta evidencia suficiente/)).toBeInTheDocument();
+    expect(screen.getByText(/Todavía no hay datos suficientes/)).toBeInTheDocument();
     expect(risk.className).not.toMatch(/emerald|amber/);
   });
 });
