@@ -1256,7 +1256,7 @@ test.describe('Panel mobile responsiveness and WCAG 2.1 AA', () => {
         await mockPanelApis(page);
 
         await page.goto('/admin/encuestas', { waitUntil: 'domcontentloaded' });
-        await expect(page.getByRole('heading', { name: /Centro de participación ciudadana/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Encuestas y votaciones/i })).toBeVisible();
         await expect(page.getByText('Prioridades barriales 2026').first()).toBeVisible();
         await expectThemeApplied(page, theme);
 
