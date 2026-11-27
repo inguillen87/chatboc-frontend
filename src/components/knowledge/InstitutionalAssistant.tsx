@@ -18,7 +18,7 @@ import {TENANT_READ_ALOUD_TARGET_ID,useTenantAccessibility} from '@/components/t
 import './institutionalAssistant.css';
 export interface PublicKnowledgeAvailability {tenantSlug:string;tenantId:number;revision:string}
 export type PublicKnowledgeLoadState='loading'|'published'|'unavailable'|'error';
-interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';publicIdentity?:PublishedTenantIdentity|null;publicLayout?:'reader'|'services';onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void;onPublicKnowledgeState?:(value:PublicKnowledgeLoadState)=>void}
+interface Props {tenantSlug:string;sessionKey?:string;mode?:'admin'|'public';publicIdentity?:PublishedTenantIdentity|null;publicLayout?:'reader'|'services';adminLogo?:string|null;onPublicKnowledgeAvailability?:(value:PublicKnowledgeAvailability|null)=>void;onPublicKnowledgeState?:(value:PublicKnowledgeLoadState)=>void}
 function InstitutionalIdentityMark({logo,name}:{logo:string|null;name:string}) {
   const [failed,setFailed]=useState(false);
   return <div className="institutional-assistant__mark" aria-hidden="true">
@@ -32,7 +32,7 @@ export default function InstitutionalAssistant(props:Props) {
   if(!props.tenantSlug||(props.mode!=='public'&&!props.sessionKey))return null;
   return <AssistantSession key={`${props.mode??'admin'}:${props.tenantSlug}:${props.sessionKey??'public'}:${captureChatbocSessionRevision()}`} {...props}/>;
 }
-function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='reader',onPublicKnowledgeAvailability,onPublicKnowledgeState}:Props){
+function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='reader',adminLogo,onPublicKnowledgeAvailability,onPublicKnowledgeState}:Props){
   const tenantAccessibility=useTenantAccessibility();
   const servicesLayout=mode==='public'&&publicLayout==='services';
   const [workspace,setWorkspace]=useState<KnowledgeWorkspace|null>(null),[nodes,setNodes]=useState<KnowledgeNode[]>([]);
@@ -338,6 +338,8 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
   const noAnswerLabels=resolveInstitutionalNoAnswerLabels(ui);
   const publicLogo=mode==='public'&&publicIdentity?.tenantId===workspace.tenant.id&&publicIdentity.tenantSlug===workspace.tenant.slug
     ?safeInstitutionLogo(publicIdentity.logoUrl):null;
+  // In the private console the header carries the organization's own mark when the page knows it.
+  const headerLogo=mode==='public'?publicLogo:safeInstitutionLogo(adminLogo??null);
   const context=nodes.length?nodes:uncovered?topic:[];
   // The notice names the topic only for a single topic node, with wording sent by the server.
   const topicNode=!nodes.length&&knowledge&&topic.length===1&&topic[0].id!==knowledge.start?topic[0]:null;
@@ -394,7 +396,7 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
     <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/>{servicesLayout?<span>{ui.send}</span>:null}</button></div></form>:null;
   return <section ref={assistantRoot} className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${servicesLayout?' institutional-assistant--services':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
-      <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
+      <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${headerLogo??''}`} logo={headerLogo} name={workspace.tenant.name}/>
         <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
       <div className="institutional-assistant__utilities">{!servicesLayout?<button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLocalLarge(!large);}}><Type size={19} aria-hidden="true"/><span>{ui.large_text}</span></button>:null}
         <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17} aria-hidden="true"/><span>{ui.sources}</span></button></div>

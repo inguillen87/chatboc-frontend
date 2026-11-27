@@ -7,12 +7,16 @@ import {normalizeProfileTenantSlug,readExplicitTenantRequest} from '@/utils/prof
 import {hasRequiredRole} from '@/utils/roles';
 import {ViewState} from '@/components/app-shell/ViewState';
 import {captureChatbocSessionRevision} from '@/utils/chatbocSessionRevision';
+import {usePrivateWorkspaceBrandTheme} from '@/components/brand/usePrivateWorkspaceBrandTheme';
+import {usePrivateWorkspacePresentation} from '@/hooks/usePrivateWorkspacePresentation';
 
 /** The knowledge console shows persisted server state, never example documents. */
 export const KnowledgeSourcesPage:React.FC=()=>{
   const [params]=useSearchParams();
   const {currentSlug}=useTenant();
   const {user,loading,hasVerifiedSession,organizationProfileVerified}=useUser();
+  const shell=usePrivateWorkspacePresentation();
+  const brand=usePrivateWorkspaceBrandTheme(shell.identity,shell.active);
   const requested=readExplicitTenantRequest(params);
   const invalidExplicit=['tenant','tenant_slug'].some(key=>{
     if(!params.has(key))return false;
@@ -28,6 +32,7 @@ export const KnowledgeSourcesPage:React.FC=()=>{
   if(invalidExplicit||!requested.valid||(!isSuperadmin&&tenantSlug!==sessionTenant))return <Navigate to="/403" replace state={{reason:'tenant',from:'/admin/knowledge'}}/>;
   if(!tenantSlug)return <ViewState status="empty" title="Elegí una organización desde el directorio"/>;
   return <section className="mx-auto w-full max-w-6xl py-6">
-    <InstitutionalAssistant tenantSlug={tenantSlug} sessionKey={`${user.id}:${captureChatbocSessionRevision()}`}/>
+    <InstitutionalAssistant tenantSlug={tenantSlug} sessionKey={`${user.id}:${captureChatbocSessionRevision()}`}
+      adminLogo={shell.active&&shell.identity?.tenantSlug===tenantSlug?brand?.logo?.mark||shell.identity?.logoUrl||null:null}/>
   </section>;
 };
