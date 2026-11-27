@@ -49,7 +49,7 @@ export interface KnowledgeWorkspace {
   ui:Record<string,string>;
   audio_reading?:InstitutionalAudioReading;
   easy_read?:InstitutionalEasyReadCopy;
-  knowledge:null|{start:string;node_count:number;version:string;topics:Array<{id:string;label:string}>;localities?:Array<{label:string;target:string}>;sources:KnowledgeSource[];initial:KnowledgeNode};
+  knowledge:null|{start:string;node_count:number;version:string;topics:Array<{id:string;label:string}>;localities?:Array<{label:string;target:string;lat?:number;lng?:number}>;sources:KnowledgeSource[];initial:KnowledgeNode};
 }
 interface KnowledgeAnswerBase { tenant:{id:number;slug:string}; revision:string; text:string; business_writes_performed:false }
 export interface KnowledgeCanonicalAnswer extends KnowledgeAnswerBase { result_type?:undefined; nodes:KnowledgeNode[]; easy_read_requested?:boolean }
@@ -139,7 +139,7 @@ export function parseWorkspace(value:unknown,slug:string,mode:'admin'|'public'):
   else if(!record(value.knowledge)||!hash(value.revision)||!isKnowledgeNode(value.knowledge.initial)||value.knowledge.initial.id!==value.knowledge.start||
     !Number.isSafeInteger(value.knowledge.node_count)||value.knowledge.node_count<1||!string(value.knowledge.version,60)||
     !Array.isArray(value.knowledge.topics)||!value.knowledge.topics.every((t:unknown)=>record(t)&&string(t.id,120)&&string(t.label,160))||
-    (value.knowledge.localities!==undefined&&!(Array.isArray(value.knowledge.localities)&&value.knowledge.localities.length<=8&&value.knowledge.localities.every((p:unknown)=>record(p)&&string(p.label,40)&&string(p.target,120))))||
+    (value.knowledge.localities!==undefined&&!(Array.isArray(value.knowledge.localities)&&value.knowledge.localities.length<=8&&value.knowledge.localities.every((p:unknown)=>record(p)&&string(p.label,40)&&string(p.target,120)&&(p.lat===undefined||Number.isFinite(p.lat))&&(p.lng===undefined||Number.isFinite(p.lng)))))||
     !Array.isArray(value.knowledge.sources)||!value.knowledge.sources.every(isKnowledgeSource))throw new Error('knowledge_response_invalid');
   return value as unknown as KnowledgeWorkspace;
 }
