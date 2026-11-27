@@ -69,9 +69,9 @@ const TenantNewsPage = () => {
           description={getErrorMessage(newsQuery.error)}
         />
       ) : newsQuery.data && newsQuery.data.length ? (
-        <div className="space-y-6">
+        <div className="max-w-3xl">
           {newsQuery.data.map((item) => (
-            <article key={String(item.id)} className="rounded-3xl border bg-background/80 shadow-sm">
+            <article key={String(item.id)} className="border-b border-border first:border-t">
               <CardHeader className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   {formatDate(item.publicado_at) ? (
@@ -86,6 +86,8 @@ const TenantNewsPage = () => {
                     <img
                       src={item.cover_url}
                       alt={`Imagen ilustrativa de ${item.titulo}`}
+                      loading="lazy"
+                      decoding="async"
                       className="h-64 w-full object-cover"
                     />
                   </div>

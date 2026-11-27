@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
+
+const tenantState = vi.hoisted((): { hostBinding: null | { tenant: { slug: string } } } => ({ hostBinding: null }));
+vi.mock('@/context/TenantContext', () => ({ useTenant: () => tenantState }));
 
 vi.mock('@/components/chat/AccessibilityToggle', () => ({
   default: ({ className }: { className?: string }) => (
@@ -23,6 +26,8 @@ const renderAt = (pathname: string) =>
   );
 
 describe('AppAccessibility focused public routes', () => {
+  beforeEach(() => { tenantState.hostBinding = null; });
+
   it.each([
     '/demo?sector=gobierno',
     '/demo/institucional/tdf-discapacidad',
@@ -35,23 +40,34 @@ describe('AppAccessibility focused public routes', () => {
     );
   });
 
-  it.each(['/t/tierra-del-fuego', '/t/Tierra-del-Fuego/'])('moves the control into the top bar on the public home %s', (pathname) => {
+  it.each([
+    '/t/tierra-del-fuego',
+    '/t/Tierra-del-Fuego/',
+    '/t/tierra-del-fuego/noticias',
+    '/t/tierra-del-fuego/eventos',
+    '/t/tierra-del-fuego/reclamos/nuevo',
+    '/t/tierra-del-fuego/encuestas',
+    '/t/tierra-del-fuego/encuestas/consulta-publica',
+  ])('leaves the platform dock out when the public portal owns a visible bar on %s', (pathname) => {
     renderAt(pathname);
 
-    const dock = screen.getByRole('region', { name: 'Accesibilidad de la plataforma' });
-    expect(dock).toHaveClass('chatboc-a11y-dock--public-space');
-    expect(dock).not.toHaveClass('chatboc-a11y-dock--focused-public');
+    expect(screen.queryByRole('region', { name: 'Accesibilidad de la plataforma' })).not.toBeInTheDocument();
   });
 
-  it.each(['/t/tierra-del-fuego/noticias', '/t/tierra-del-fuego/admin/knowledge', '/admin/encuestas', '/'])(
-    'keeps the usual placement outside the public home on %s', (pathname) => {
+  it.each(['/t/tierra-del-fuego/admin/knowledge', '/admin/encuestas', '/'])(
+    'keeps the usual placement outside the public portal on %s', (pathname) => {
       renderAt(pathname);
 
-      expect(screen.getByRole('region', { name: 'Accesibilidad de la plataforma' })).not.toHaveClass(
-        'chatboc-a11y-dock--public-space',
-      );
+      expect(screen.getByRole('region', { name: 'Accesibilidad de la plataforma' })).toBeInTheDocument();
     },
   );
+
+  it('leaves the dock out on the verified organization host root', () => {
+    tenantState.hostBinding = { tenant: { slug: 'tierra-del-fuego' } };
+    renderAt('/');
+
+    expect(screen.queryByRole('region', { name: 'Accesibilidad de la plataforma' })).not.toBeInTheDocument();
+  });
 
   it('does not apply the focused layout to regular application routes', () => {
     renderAt('/admin/encuestas');

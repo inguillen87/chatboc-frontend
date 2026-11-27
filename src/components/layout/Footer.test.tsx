@@ -47,6 +47,7 @@ describe('Footer en un espacio publicado', () => {
 
     expect(screen.getByRole('link', { name: 'Tierra del Fuego' })).toHaveAttribute('href', '/t/Tierra-Del-Fuego');
     expect(screen.getByRole('link', { name: 'Términos de la plataforma' })).toHaveAttribute('href', '/terminos');
+    expect(screen.getByText('Tecnología Chatboc')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Planes' })).not.toBeInTheDocument();
   });
 
@@ -67,6 +68,7 @@ describe('Footer en un espacio publicado', () => {
     tenantState.value = { hostBinding: { tenant: { nombre: 'Municipio propio' }, paths: { home: '/' } }, currentSlug: 'tierra-del-fuego', isLoadingTenant: true, tenantError: null, tenant: null };
     const own = renderAt('/t/tierra-del-fuego');
     expect(screen.getByRole('link', { name: 'Municipio propio' })).toHaveAttribute('href', '/');
+    expect(screen.getByText('Tecnología Chatboc')).toBeVisible();
     own.unmount();
 
     tenantState.value = { hostBinding: null, currentSlug: 'tierra-del-fuego', isLoadingTenant: false, tenantError: null, tenant: tdf };

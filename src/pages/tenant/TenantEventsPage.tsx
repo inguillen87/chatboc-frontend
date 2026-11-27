@@ -70,9 +70,9 @@ const TenantEventsPage = () => {
           description={getErrorMessage(eventsQuery.error)}
         />
       ) : eventsQuery.data && eventsQuery.data.length ? (
-        <div className="space-y-6">
+        <div className="max-w-3xl">
           {eventsQuery.data.map((event) => (
-            <article key={String(event.id)} className="rounded-3xl border bg-background/80 shadow-sm">
+            <article key={String(event.id)} className="border-b border-border first:border-t">
               <CardHeader className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   {formatDateTime(event.starts_at) ? (

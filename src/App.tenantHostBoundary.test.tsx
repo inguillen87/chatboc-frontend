@@ -151,11 +151,17 @@ describe('real App/router/catalog on a verified customer domain', () => {
     expect(state.profileMounts).not.toHaveBeenCalled();
     expect(usePanelSessionStore.getState().user).toMatchObject({ tenant_slug: slug });
   });
-  it('keeps an anonymous public customer home and its widget available', async () => {
+  it('keeps an anonymous public customer home without the platform widget', async () => {
     mount('/'); await screen.findByRole('heading', { name: 'Customer public portal probe' });
-    expect(await screen.findByTestId('widget-probe')).toBeInTheDocument();
+    expect(screen.queryByTestId('widget-probe')).not.toBeInTheDocument();
+    expect(state.widgetMounts).not.toHaveBeenCalled();
     expect(reads.some(path => path.startsWith('/api/public/host-resolution?host=atencion.example.test'))).toBe(true);
     expect(usePanelSessionStore.getState().authToken).toBeNull();
+  });
+  it('keeps the matching canonical public portal without the platform widget', async () => {
+    mount('/t/government-east'); await screen.findByRole('heading', { name: 'Customer public portal probe' });
+    expect(screen.queryByTestId('widget-probe')).not.toBeInTheDocument();
+    expect(state.widgetMounts).not.toHaveBeenCalled();
   });
   it.each([['/tracking/claim/synthetic-code', 'Public tracking probe'], ['/e/synthetic-instrument', 'Public survey probe']])('preserves public service %s', async (path, title) => {
     mount(path); await screen.findByRole('heading', { name: title });
