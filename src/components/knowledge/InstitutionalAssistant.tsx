@@ -394,8 +394,8 @@ function AssistantSession({tenantSlug,mode='admin',publicIdentity,publicLayout='
     <button type="submit" className="institutional-assistant__primary" disabled={busy||!question.trim()||error||Boolean(pending)} aria-label={ui.send}><ArrowUp size={21} aria-hidden="true"/>{servicesLayout?<span>{ui.send}</span>:null}</button></div></form>:null;
   return <section ref={assistantRoot} className={`institutional-assistant${mode==='public'?' institutional-assistant--public':''}${servicesLayout?' institutional-assistant--services':''}${large?' institutional-assistant--large':''}${initialMenu?' institutional-assistant--initial-menu':''}`} data-testid="institutional-assistant" data-institutional-presentation={presentation} aria-label={ui.heading}>
     <header className="institutional-assistant__header">
-      <div className="institutional-assistant__identity">{!servicesLayout?<InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>:null}
-        <div>{!servicesLayout?<p>{workspace.tenant.name}</p>:null}<h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
+      <div className="institutional-assistant__identity"><InstitutionalIdentityMark key={`${workspace.tenant.id}:${publicLogo??''}`} logo={publicLogo} name={workspace.tenant.name}/>
+        <div><p>{workspace.tenant.name}</p><h2 ref={pageHeading} tabIndex={-1}>{ui.heading}</h2></div></div>
       <div className="institutional-assistant__utilities">{!servicesLayout?<button type="button" aria-label={ui.large_text} aria-pressed={large} onClick={()=>{rememberInstitutionalLargeText(!large);setLocalLarge(!large);}}><Type size={19} aria-hidden="true"/><span>{ui.large_text}</span></button>:null}
         <button ref={sourcesTrigger} type="button" disabled={busy||!knowledge||Boolean(pending)} onClick={event=>{sourcesReturnFocus.current=event.currentTarget;setHighlightedSourceId(null);changeSources(true);}} aria-label={ui.sources} aria-haspopup="dialog" aria-expanded={showSources}><BookOpen size={17} aria-hidden="true"/><span>{ui.sources}</span></button></div>
     </header>

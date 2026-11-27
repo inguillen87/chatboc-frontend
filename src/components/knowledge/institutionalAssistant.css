@@ -265,3 +265,6 @@
  .institutional-assistant__print-date { margin:0 0 4pt!important; font-size:12pt!important; }
  .institutional-assistant__print-disclaimer { margin:0!important; font-size:12pt!important; font-weight:700!important; }
 }
+/* On the services home the portal header already shows the organization. Its
+   mark and name stay in the reader only for the printed answer. */
+@media screen{.institutional-assistant--services .institutional-assistant__identity>.institutional-assistant__mark,.institutional-assistant--services .institutional-assistant__identity>div>p{display:none;}}

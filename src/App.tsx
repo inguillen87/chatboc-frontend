@@ -23,7 +23,7 @@ import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 import { RealtimeAlertsProvider } from "@/context/RealtimeAlertsContext";
-import { TenantProvider, useTenant } from "./context/TenantContext";
+import { TenantProvider } from "./context/TenantContext";
 import { SocketProvider } from "@/context/SocketContext";
 import { CLERK_AUTH_ENABLED, CLERK_PUBLISHABLE_KEY, GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
@@ -35,7 +35,6 @@ import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
 import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
 import { useDocumentTitleSync } from '@/hooks/useDocumentTitleSync';
-import { isTenantShellManagedPath } from '@/utils/pageTitles';
 import ClerkAuthBridge from '@/components/auth/ClerkAuthBridge';
 import { fetchClerkFrontendConfig } from '@/api/clerkAuth';
 import {
@@ -381,7 +380,6 @@ function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
   const clerkRuntime = useClerkRuntime();
-  const { hostBinding } = useTenant();
   useDocumentTitleSync();
 
   React.useEffect(() => {
@@ -474,13 +472,10 @@ function AppRoutes() {
       Boolean(roles?.length || requiredCapabilities?.length || requiredAllCapabilities?.length) &&
       Boolean(matchPath({ path, end: true }, location.pathname)),
   );
-  const normalizedPathname = location.pathname.replace(/\/+$/, '') || '/';
-  const isTenantPublicPortal = isTenantShellManagedPath(location.pathname) ||
-    Boolean(hostBinding && normalizedPathname === '/');
   const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
     (ruta) =>
       location.pathname === ruta || location.pathname.startsWith(ruta + "/")
-  ) || isIntegrationRoute || isGuardedPrivateRoute || isTenantPublicPortal;
+  ) || isIntegrationRoute || isGuardedPrivateRoute;
 
   // Evita que el widget global quede montado en rutas de integración
   React.useEffect(() => {
