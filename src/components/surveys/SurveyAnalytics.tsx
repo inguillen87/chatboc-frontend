@@ -36,6 +36,7 @@ import type {
 import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 import { SurveyResponseProvenanceBadge } from '@/components/surveys/SurveyResponseProvenanceBadge';
+import { SurveyWordClouds } from '@/components/surveys/SurveyWordClouds';
 import { useBrandChartPalette } from '@/utils/publicBrandIdentity';
 
 interface SurveyAnalyticsProps {
@@ -2016,6 +2017,8 @@ export const SurveyAnalytics = ({
           )}
         </CardContent>
       </Card>
+
+      <SurveyWordClouds summary={summary} />
 
       <Card>
         <CardHeader>
