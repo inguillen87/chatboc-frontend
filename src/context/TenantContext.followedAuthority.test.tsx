@@ -17,6 +17,12 @@ vi.mock('@/api/tenant', async original => ({
   getTenantPublicInfoFlexible: ancillary.profile,
   getTenantPublicNavigation: ancillary.navigation,
 }));
+// Followed spaces are a signed-in feature: the shell shows their controls and
+// errors only to a verified session.
+vi.mock('@/components/access/SessionAuthorityContext', async original => ({
+  ...await original<typeof import('@/components/access/SessionAuthorityContext')>(),
+  useSessionAuthority: () => ({ hasVerifiedSession: true }),
+}));
 vi.mock('@/utils/anonId', () => ({ ensureRemoteAnonId: vi.fn(async () => 'synthetic-anon') }));
 vi.mock('@/config', async original => ({
   ...await original<typeof import('@/config')>(),
