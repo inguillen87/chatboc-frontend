@@ -933,7 +933,9 @@ export default function Perfil() {
   const allowedWorkspaceTabs = useMemo(() => {
     const tabs = new Set<ProfileTabValue>(['perfil']);
     if (workspaceCapabilities.operation) tabs.add('tickets');
-    if (workspaceCapabilities.operation && canReadOrders) tabs.add('pedidos');
+    // Only a government without the orders capability loses the tab; an
+    // organization that sells keeps it exactly as before.
+    if (workspaceCapabilities.operation && (canReadOrders || !esMunicipio)) tabs.add('pedidos');
     if (workspaceCapabilities.reports) tabs.add('estadisticas');
     if (workspaceCapabilities.analytics) tabs.add('analytics');
     if (workspaceCapabilities.catalog) tabs.add('catalogo');
@@ -941,7 +943,7 @@ export default function Perfil() {
     if (workspaceCapabilities.team) tabs.add('empleados');
     if (workspaceCapabilities.territory) tabs.add('mapas');
     return tabs;
-  }, [canReadOrders, workspaceCapabilities]);
+  }, [canReadOrders, esMunicipio, workspaceCapabilities]);
   const hasAnyWorkspaceCapability = Object.values(workspaceCapabilities).some(Boolean);
 
   useEffect(() => {
